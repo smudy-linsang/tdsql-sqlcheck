@@ -1,0 +1,48 @@
+# ── Git ──
+.git
+.gitignore
+
+# ── Python ──
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+dist/
+build/
+.eggs/
+*.egg
+
+# ── 虚拟环境 ──
+.venv/
+venv/
+env/
+.env
+
+# ── IDE ──
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── 测试 ──
+.pytest_cache/
+.coverage
+htmlcov/
+tests/
+
+# ── 文档/计划 ──
+plans/
+*.md
+!README.md
+
+# ── Docker ──
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# ── 数据/日志（运行时生成） ──
+data/
+*.db
+*.sqlite3
+*.log

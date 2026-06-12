@@ -1,0 +1,45 @@
+# ── TDSQL SQL审核工具 - Docker Compose ──
+# 启动方式: docker-compose up -d
+# 查看日志: docker-compose logs -f backend
+
+version: "3.8"
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tdsql-sqlcheck
+    ports:
+      - "8000:8000"
+    volumes:
+      # 持久化 SQLite 数据库
+      - app-data:/app/data
+      # 可选: 挂载本地配置文件
+      # - ./config/tdsql.yaml:/app/config/tdsql.yaml:ro
+    environment:
+      - TZ=Asia/Shanghai
+      # TDSQL 连接配置（可通过环境变量覆盖）
+      # - TDSQL_HOST=your-tdsql-host
+      # - TDSQL_PORT=3306
+      # - TDSQL_USER=your-user
+      # - TDSQL_PASSWORD=your-password
+      # - TDSQL_DATABASE=your-database
+      # 定时任务开关
+      - SCHEDULER_ENABLED=false
+      - SCHEDULER_CRON_HOUR=2
+      - SCHEDULER_CRON_MINUTE=0
+      # 审核报告存储路径
+      - REPORT_OUTPUT_DIR=/app/data/reports
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+volumes:
+  app-data:
+    driver: local
+    name: tdsql-sqlcheck-data

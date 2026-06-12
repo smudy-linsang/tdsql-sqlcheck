@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TDSQL SQL审核工具</title>
+  <!-- Vue 3 -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <!-- Element Plus -->
+  <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
+  <script src="https://unpkg.com/element-plus"></script>
+  <script src="https://unpkg.com/element-plus/dist/locale/zh-cn.js"></script>
+  <!-- Element Plus Icons -->
+  <script src="https://unpkg.com/@element-plus/icons-vue"></script>
+  <!-- ECharts -->
+  <script src="https://unpkg.com/echarts@5/dist/echarts.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Arial, sans-serif; }
+    .app-container { display: flex; height: 100vh; }
+    .sidebar { width: 220px; background: #304156; color: #bfcbd9; }
+    .sidebar-title { padding: 20px; text-align: center; font-size: 16px; color: #fff; border-bottom: 1px solid #3d4f65; }
+    .sidebar-menu { list-style: none; padding: 10px 0; }
+    .sidebar-menu li { padding: 14px 20px; cursor: pointer; transition: all 0.3s; font-size: 14px; }
+    .sidebar-menu li:hover, .sidebar-menu li.active { background: #263445; color: #409eff; }
+    .sidebar-menu li i { margin-right: 8px; }
+    .main-content { flex: 1; background: #f0f2f5; overflow-y: auto; padding: 20px; }
+    .page-header { margin-bottom: 20px; }
+    .page-header h2 { font-size: 20px; color: #303133; }
+    .card { background: #fff; border-radius: 4px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 12px 0 rgba(0,0,0,0.1); }
+    .card-title { font-size: 16px; font-weight: 600; margin-bottom: 15px; color: #303133; border-left: 3px solid #409eff; padding-left: 10px; }
+    .stat-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 20px; }
+    .stat-card { background: #fff; border-radius: 4px; padding: 20px; box-shadow: 0 2px 12px 0 rgba(0,0,0,0.1); }
+    .stat-card .label { font-size: 14px; color: #909399; margin-bottom: 8px; }
+    .stat-card .value { font-size: 28px; font-weight: 600; }
+    .stat-card .value.success { color: #67c23a; }
+    .stat-card .value.danger { color: #f56c6c; }
+    .stat-card .value.warning { color: #e6a23c; }
+    .stat-card .value.primary { color: #409eff; }
+    .chart-container { height: 350px; }
+    .sql-input { margin-bottom: 20px; }
+    .sql-input textarea { width: 100%; min-height: 120px; padding: 10px; font-family: 'Consolas', 'Monaco', monospace; font-size: 13px; border: 1px solid #dcdfe6; border-radius: 4px; resize: vertical; }
+    .sql-input textarea:focus { outline: none; border-color: #409eff; }
+    .violation-item { padding: 12px; margin-bottom: 8px; border-radius: 4px; border-left: 4px solid; }
+    .violation-item.error { background: #fef0f0; border-color: #f56c6c; }
+    .violation-item.warning { background: #fdf6ec; border-color: #e6a23c; }
+    .violation-item .rule-id { font-weight: 600; margin-right: 8px; }
+    .violation-item .message { font-size: 14px; color: #303133; }
+    .violation-item .suggestion { font-size: 12px; color: #909399; margin-top: 6px; }
+    .file-upload-area { border: 2px dashed #dcdfe6; border-radius: 8px; padding: 40px; text-align: center; cursor: pointer; transition: all 0.3s; }
+    .file-upload-area:hover { border-color: #409eff; background: #f5f7fa; }
+    .file-upload-area.dragover { border-color: #409eff; background: #ecf5ff; }
+    .analysis-card { padding: 15px; margin-bottom: 10px; border-radius: 4px; border: 1px solid #ebeef5; }
+    .analysis-card .problem-type { font-weight: 600; font-size: 14px; margin-bottom: 5px; }
+    .analysis-card .description { font-size: 13px; color: #606266; margin-bottom: 5px; }
+    .analysis-card .suggestion { font-size: 12px; color: #909399; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 12px; color: #fff; }
+    .badge.error { background: #f56c6c; }
+    .badge.warning { background: #e6a23c; }
+    .badge.info { background: #909399; }
+    .tabs { display: flex; border-bottom: 1px solid #ebeef5; margin-bottom: 20px; }
+    .tabs .tab { padding: 10px 20px; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.3s; }
+    .tabs .tab:hover { color: #409eff; }
+    .tabs .tab.active { color: #409eff; border-bottom-color: #409eff; }
+    .empty-state { text-align: center; padding: 40px; color: #909399; }
+    .result-passed { color: #67c23a; font-weight: 600; }
+    .result-failed { color: #f56c6c; font-weight: 600; }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div class="app-container">
+    <!-- 侧边栏 -->
+    <div class="sidebar">
+      <div class="sidebar-title">🔍 TDSQL SQL审核工具</div>
+      <ul class="sidebar-menu">
+        <li :class="{active: currentPage === 'dashboard'}" @click="currentPage = 'dashboard'">
+          📊 Dashboard
+        </li>
+        <li :class="{active: currentPage === 'audit'}" @click="currentPage = 'audit'">
+          📝 SQL审核
+        </li>
+        <li :class="{active: currentPage === 'file-audit'}" @click="currentPage = 'file-audit'">
+          📄 文件审核
+        </li>
+        <li :class="{active: currentPage === 'slow-query'}" @click="currentPage = 'slow-query'">
+          🐌 慢SQL分析
+        </li>
+        <li :class="{active: currentPage === 'explain'}" @click="currentPage = 'explain'">
+          📈 EXPLAIN分析
+        </li>
+      </ul>
+    </div>
+
+    <!-- 主内容区 -->
+    <div class="main-content">
+      <!-- Dashboard -->
+      <div v-if="currentPage === 'dashboard'">
+        <div class="page-header"><h2>📊 Dashboard</h2></div>
+        <div class="stat-cards">
+          <div class="stat-card">
+            <div class="label">今日审核数</div>
+            <div class="value primary">{{ stats.audit?.today_count || 0 }}</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">通过率</div>
+            <div class="value success">{{ stats.audit?.today_pass_rate || 0 }}%</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">待处理慢SQL</div>
+            <div class="value warning">{{ stats.slow_queries?.pending || 0 }}</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">审核规则数</div>
+            <div class="value primary">{{ stats.rules?.total || 22 }}</div>
+          </div>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+          <div class="card">
+            <div class="card-title">Top5 高耗时慢SQL</div>
+            <div v-if="stats.slow_queries?.top5_time?.length">
+              <div v-for="item in stats.slow_queries.top5_time" :key="item.id" class="analysis-card">
+                <div class="problem-type">
+                  <span :class="'badge ' + (item.severity || 'info').toLowerCase()">{{ item.severity }}</span>
+                  {{ item.fingerprint?.substring(0, 60) }}...
+                </div>
+                <div class="description">平均耗时: {{ item.avg_time_ms?.toFixed(1) }}ms | 执行次数: {{ item.exec_count }}</div>
+              </div>
+            </div>
+            <div v-else class="empty-state">暂无慢SQL数据</div>
+          </div>
+          <div class="card">
+            <div class="card-title">规则分布</div>
+            <div id="ruleChart" class="chart-container"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SQL审核 -->
+      <div v-if="currentPage === 'audit'">
+        <div class="page-header"><h2>📝 SQL审核</h2></div>
+        <div class="card">
+          <div class="card-title">输入SQL语句</div>
+          <div class="sql-input">
+            <textarea v-model="sqlInput" placeholder="请输入待审核的SQL语句，支持 SELECT/INSERT/UPDATE/DELETE/CREATE TABLE 等...&#10;&#10;示例:&#10;SELECT * FROM t_order WHERE user_id = 123&#10;&#10;CREATE TABLE t_user (&#10;  id BIGINT PRIMARY KEY,&#10;  name VARCHAR(50)&#10;) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"></textarea>
+          </div>
+          <div style="display: flex; gap: 10px;">
+            <el-button type="primary" @click="auditSql" :loading="auditing">开始审核</el-button>
+            <el-button @click="sqlInput = ''">清空</el-button>
+            <el-button @click="loadExample('select')">SELECT示例</el-button>
+            <el-button @click="loadExample('create')">CREATE示例</el-button>
+            <el-button @click="loadExample('update')">UPDATE示例</el-button>
+          </div>
+        </div>
+
+        <!-- 审核结果 -->
+        <div v-if="auditResult" class="card">
+          <div class="card-title">审核结果</div>
+          <div style="margin-bottom: 15px;">
+            <span :class="auditResult.passed ? 'result-passed' : 'result-failed'">
+              {{ auditResult.passed ? '✅ 审核通过' : '❌ 审核未通过' }}
+            </span>
+            <span style="margin-left: 20px; color: #909399;">SQL类型: {{ auditResult.sql_type }}</span>
+            <span v-if="auditResult.violations?.length" style="margin-left: 20px; color: #f56c6c;">
+              发现 {{ auditResult.violations.length }} 个问题
+            </span>
+          </div>
+          <div v-for="v in auditResult.violations" :key="v.rule_id + v.message" 
+               :class="'violation-item ' + v.severity.toLowerCase()">
+            <div class="message">
+              <span class="rule-id">[{{ v.rule_id }}]</span>
+              <span :class="'badge ' + v.severity.toLowerCase()">{{ v.severity }}</span>
+              {{ v.message }}
+            </div>
+            <div v-if="v.suggestion" class="suggestion">💡 建议: {{ v.suggestion }}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 文件审核 -->
+      <div v-if="currentPage === 'file-audit'">
+        <div class="page-header"><h2>📄 文件审核</h2></div>
+        <div class="card">
+          <div class="card-title">上传文件审核</div>
+          <div class="file-upload-area" 
+               @click="triggerFileInput"
+               @dragover.prevent="isDragover = true"
+               @dragleave="isDragover = false"
+               @drop.prevent="handleFileDrop"
+               :class="{dragover: isDragover}">
+            <div style="font-size: 40px; margin-bottom: 10px;">📁</div>
+            <div>点击或拖拽文件到此处上传</div>
+            <div style="font-size: 12px; color: #909399; margin-top: 5px;">支持 .xml (MyBatis)、.sql 文件</div>
+          </div>
+          <input type="file" ref="fileInput" style="display:none" @change="handleFileSelect" accept=".xml,.sql">
+        </div>
+
+        <div v-if="fileAuditResult" class="card">
+          <div class="card-title">文件审核结果</div>
+          <div style="display: flex; gap: 30px; margin-bottom: 20px;">
+            <div>SQL总数: <strong>{{ fileAuditResult.summary?.total_sql }}</strong></div>
+            <div>通过: <strong style="color:#67c23a">{{ fileAuditResult.summary?.passed }}</strong></div>
+            <div>未通过: <strong style="color:#f56c6c">{{ fileAuditResult.summary?.failed }}</strong></div>
+            <div>通过率: <strong>{{ fileAuditResult.summary?.pass_rate }}%</strong></div>
+          </div>
+          <div v-for="(result, idx) in fileAuditResult.results" :key="idx" style="margin-bottom: 10px;">
+            <div style="font-size: 13px; color: #909399; margin-bottom: 5px;">
+              SQL #{{ idx + 1 }} ({{ result.sql_type }})
+              <span v-if="result.passed" style="color: #67c23a;"> ✅ 通过</span>
+              <span v-else style="color: #f56c6c;"> ❌ {{ result.violations?.length }}个问题</span>
+            </div>
+            <div v-for="v in result.violations" :key="v.rule_id + v.message" 
+                 :class="'violation-item ' + v.severity.toLowerCase()">
+              <div class="message">
+                <span class="rule-id">[{{ v.rule_id }}]</span>
+                <span :class="'badge ' + v.severity.toLowerCase()">{{ v.severity }}</span>
+                {{ v.message }}
+              </div>
+              <div v-if="v.suggestion" class="suggestion">💡 {{ v.suggestion }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 慢SQL分析 -->
+      <div v-if="currentPage === 'slow-query'">
+        <div class="page-header"><h2>🐌 慢SQL分析</h2></div>
+        <div class="card">
+          <div class="card-title">输入慢SQL信息</div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+            <div>
+              <label style="font-size: 13px; color: #606266;">SQL指纹</label>
+              <input v-model="slowForm.fingerprint" style="width:100%;padding:8px;border:1px solid #dcdfe6;border-radius:4px;" placeholder="SELECT * FROM t_order WHERE user_id = ?">
+            </div>
+            <div>
+              <label style="font-size: 13px; color: #606266;">数据库名</label>
+              <input v-model="slowForm.db_name" style="width:100%;padding:8px;border:1px solid #dcdfe6;border-radius:4px;" placeholder="order_db">
+            </div>
+            <div>
+              <label style="font-size: 13px; color: #606266;">原始SQL</label>
+              <textarea v-model="slowForm.sql_text" style="width:100%;padding:8px;border:1px solid #dcdfe6;border-radius:4px;min-height:60px;font-family:monospace;" placeholder="SELECT * FROM t_order WHERE user_id = 123"></textarea>
+            </div>
+            <div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div>
+                  <label style="font-size: 13px; color: #606266;">执行次数</label>
+                  <input v-model.number="slowForm.exec_count" type="number" style="width:100%;padding:8px;border:1px solid #dcdfe6;border-radius:4px;">
+                </div>
+                <div>
+                  <label style="font-size: 13px; color: #606266;">平均耗时(ms)</label>
+                  <input v-model.number="slowForm.avg_time_ms" type="number" style="width:100%;padding:8px;border:1px solid #dcdfe6;border-radius:4px;">
+                </div>
+                <div>
+                  <label style="font-size: 13px; color: #606266;">扫描行数</label>
+                  <input v-model.number="slowForm.rows_examined" type="number" style="width:100%;padding:8px;border:1px solid #dcdfe6;border-radius:4px;">
+                </div>
+                <div>
+                  <label style="font-size: 13px; color: #606266;">返回行数</label>
+                  <input v-model.number="slowForm.rows_sent" type="number" style="width:100%;padding:8px;border:1px solid #dcdfe6;border-radius:4px;">
+                </div>
+              </div>
+            </div>
+          </div>
+          <el-button type="primary" @click="analyzeSlowQuery" :loading="analyzing">分析慢SQL</el-button>
+          <el-button @click="loadSlowExample">加载示例</el-button>
+        </div>
+
+        <div v-if="slowResult" class="card">
+          <div class="card-title">分析结果</div>
+          <div style="margin-bottom: 15px;">
+            <span :class="'badge ' + (slowResult.severity || 'info').toLowerCase()">{{ slowResult.severity }}</span>
+            <span style="margin-left: 10px;">问题类型: <strong>{{ slowResult.problem_type }}</strong></span>
+            <span style="margin-left: 20px; color: #909399;">{{ slowResult.summary }}</span>
+          </div>
+          <div v-for="(a, idx) in slowResult.analyses" :key="idx" class="analysis-card">
+            <div class="problem-type">
+              <span :class="'badge ' + a.severity.toLowerCase()">{{ a.severity }}</span>
+              {{ a.problem_type }}
+            </div>
+            <div class="description">{{ a.description }}</div>
+            <div v-if="a.evidence" style="font-size:12px;color:#909399;margin:4px 0;">证据: {{ a.evidence }}</div>
+            <div v-if="a.root_cause" style="font-size:13px;color:#e6a23c;margin:4px 0;">根因: {{ a.root_cause }}</div>
+            <div v-if="a.suggestion" class="suggestion">💡 建议: {{ a.suggestion }}</div>
+            <div v-if="a.optimized_sql" style="margin-top:8px;padding:8px;background:#f0f9eb;border-radius:4px;font-family:monospace;font-size:12px;">
+              优化SQL: {{ a.optimized_sql }}
+            </div>
+          </div>
+        </div>
+
+        <!-- 慢SQL列表 -->
+        <div class="card">
+          <div class="card-title">慢SQL记录</div>
+          <div v-if="slowList.length === 0" class="empty-state">暂无慢SQL记录，请先分析慢SQL</div>
+          <div v-for="item in slowList" :key="item.id" class="analysis-card">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <div>
+                <span :class="'badge ' + (item.severity || 'info').toLowerCase()">{{ item.severity }}</span>
+                <span style="margin-left:8px;font-family:monospace;font-size:13px;">{{ item.fingerprint?.substring(0, 80) }}</span>
+              </div>
+              <div style="font-size:12px;color:#909399;">
+                平均: {{ item.avg_time_ms?.toFixed(1) }}ms | 次数: {{ item.exec_count }} | 扫描: {{ item.rows_examined }}
+              </div>
+            </div>
+            <div v-if="item.problem_type" style="margin-top:5px;font-size:12px;color:#e6a23c;">问题: {{ item.problem_type }}</div>
+            <div v-if="item.suggestion" style="margin-top:3px;font-size:12px;color:#909399;">建议: {{ item.suggestion }}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- EXPLAIN分析 -->
+      <div v-if="currentPage === 'explain'">
+        <div class="page-header"><h2>📈 EXPLAIN执行计划分析</h2></div>
+        <div class="card">
+          <div class="card-title">输入EXPLAIN结果</div>
+          <div style="font-size:13px;color:#606266;margin-bottom:10px;">
+            请将MySQL EXPLAIN输出以JSON格式粘贴到下方。格式示例:
+            <pre style="background:#f5f7fa;padding:8px;border-radius:4px;font-size:12px;margin-top:5px;">[{"id":1,"select_type":"SIMPLE","table":"t_order","type":"ALL","possible_keys":null,"key":null,"rows":850000,"filtered":10.0,"extra":"Using where"}]</pre>
+          </div>
+          <textarea v-model="explainInput" style="width:100%;min-height:100px;padding:10px;font-family:monospace;font-size:13px;border:1px solid #dcdfe6;border-radius:4px;" placeholder='粘贴EXPLAIN JSON数据...'></textarea>
+          <div style="margin-top:10px;">
+            <el-button type="primary" @click="analyzeExplain" :loading="analyzingExplain">分析执行计划</el-button>
+            <el-button @click="loadExplainExample">加载示例</el-button>
+          </div>
+        </div>
+
+        <div v-if="explainResult" class="card">
+          <div class="card-title">分析结果</div>
+          <div style="margin-bottom:15px;">{{ explainResult.summary }}</div>
+          <div v-for="(a, idx) in explainResult.analyses" :key="idx" class="analysis-card">
+            <div class="problem-type">
+              <span :class="'badge ' + a.severity.toLowerCase()">{{ a.severity }}</span>
+              {{ a.problem_type }}
+            </div>
+            <div class="description">{{ a.description }}</div>
+            <div v-if="a.evidence" style="font-size:12px;color:#909399;">{{ a.evidence }}</div>
+            <div v-if="a.root_cause" style="font-size:13px;color:#e6a23c;">根因: {{ a.root_cause }}</div>
+            <div v-if="a.suggestion" class="suggestion">💡 {{ a.suggestion }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API_BASE = 'http://localhost:8000';
+
+const { createApp, ref, reactive, onMounted, watch, nextTick } = Vue;
+
+const app = createApp({
+  setup() {
+    const currentPage = ref('dashboard');
+    const sqlInput = ref('');
+    const auditing = ref(false);
+    const auditResult = ref(null);
+    const isDragover = ref(false);
+    const fileInput = ref(null);
+    const fileAuditResult = ref(null);
+    const analyzing = ref(false);
+    const slowResult = ref(null);
+    const slowList = ref([]);
+    const explainInput = ref('');
+    const analyzingExplain = ref(false);
+    const explainResult = ref(null);
+    const stats = ref({ audit: {}, slow_queries: {}, rules: {} });
+
+    const slowForm = reactive({
+      fingerprint: '',
+      sql_text: '',
+      db_name: '',
+      exec_count: 0,
+      avg_time_ms: 0,
+      rows_examined: 0,
+      rows_sent: 0,
+    });
+
+    // 加载Dashboard数据
+    const loadDashboard = async () => {
+      try {
+        const resp = await fetch(`${API_BASE}/api/v1/dashboard/summary`);
+        if (resp.ok) stats.value = await resp.json();
+      } catch (e) { console.log('Dashboard API not available'); }
+    };
+
+    // SQL审核
+    const auditSql = async () => {
+      if (!sqlInput.value.trim()) return;
+      auditing.value = true;
+      try {
+        const resp = await fetch(`${API_BASE}/api/v1/audit/sql`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sql: sqlInput.value, db_type: 'tdsql' }),
+        });
+        auditResult.value = await resp.json();
+      } catch (e) {
+        ElementPlus.ElMessage.error('审核请求失败: ' + e.message);
+      } finally {
+        auditing.value = false;
+      }
+    };
+
+    // 文件审核
+    const triggerFileInput = () => fileInput.value?.click();
+    const handleFileSelect = (e) => { if (e.target.files[0]) uploadFile(e.target.files[0]); };
+    const handleFileDrop = (e) => {
+      isDragover.value = false;
+      if (e.dataTransfer.files[0]) uploadFile(e.dataTransfer.files[0]);
+    };
+    const uploadFile = async (file) => {
+      const content = await file.text();
+      try {
+        const resp = await fetch(`${API_BASE}/api/v1/audit/file`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content, file_path: file.name }),
+        });
+        fileAuditResult.value = await resp.json();
+        ElementPlus.ElMessage.success('文件审核完成');
+      } catch (e) {
+        ElementPlus.ElMessage.error('文件审核失败: ' + e.message);
+      }
+    };
+
+    // 慢SQL分析
+    const analyzeSlowQuery = async () => {
+      if (!slowForm.fingerprint || !slowForm.sql_text) {
+        ElementPlus.ElMessage.warning('请填写SQL指纹和原始SQL');
+        return;
+      }
+      analyzing.value = true;
+      try {
+        const resp = await fetch(`${API_BASE}/api/v1/slow-queries`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(slowForm),
+        });
+        slowResult.value = await resp.json();
+        loadSlowList();
+      } catch (e) {
+        ElementPlus.ElMessage.error('分析失败: ' + e.message);
+      } finally {
+        analyzing.value = false;
+      }
+    };
+
+    const loadSlowList = async () => {
+      try {
+        const resp = await fetch(`${API_BASE}/api/v1/slow-queries?limit=20`);
+        if (resp.ok) {
+          const data = await resp.json();
+          slowList.value = data.items || [];
+        }
+      } catch (e) {}
+    };
+
+    const loadSlowExample = () => {
+      slowForm.fingerprint = 'SELECT * FROM t_order WHERE user_id = ? AND status = ?';
+      slowForm.sql_text = 'SELECT * FROM t_order WHERE user_id = 123 AND status = 1';
+      slowForm.db_name = 'order_db';
+      slowForm.exec_count = 5000;
+      slowForm.avg_time_ms = 200;
+      slowForm.rows_examined = 850000;
+      slowForm.rows_sent = 100;
+    };
+
+    // EXPLAIN分析
+    const analyzeExplain = async () => {
+      if (!explainInput.value.trim()) return;
+      analyzingExplain.value = true;
+      try {
+        const data = JSON.parse(explainInput.value);
+        const resp = await fetch(`${API_BASE}/api/v1/slow-queries/analyze-explain`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ explain_data: Array.isArray(data) ? data : [data] }),
+        });
+        explainResult.value = await resp.json();
+      } catch (e) {
+        ElementPlus.ElMessage.error('分析失败: ' + e.message);
+      } finally {
+        analyzingExplain.value = false;
+      }
+    };
+
+    const loadExplainExample = () => {
+      explainInput.value = JSON.stringify([{
+        id: 1, select_type: "SIMPLE", table: "t_order", type: "ALL",
+        possible_keys: null, key: null, rows: 850000, filtered: 10.0,
+        extra: "Using where"
+      }], null, 2);
+    };
+
+    // SQL示例
+    const loadExample = (type) => {
+      const examples = {
+        select: "SELECT * FROM t_order WHERE user_id = 123 ORDER BY RAND() LIMIT 10",
+        create: `CREATE TABLE t_user (
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  name VARCHAR(100),
+  phone VARCHAR(20),
+  status VARCHAR(10),
+  amount FLOAT,
+  created_at TIMESTAMP,
+  notes TEXT,
+  INDEX idx_name (name),
+  INDEX idx_name_phone (name, phone),
+  INDEX idx_phone (phone)
+)`,
+        update: "UPDATE t_order SET status = 0",
+      };
+      sqlInput.value = examples[type] || '';
+    };
+
+    // 渲染规则分布图表
+    const renderRuleChart = () => {
+      const el = document.getElementById('ruleChart');
+      if (!el) return;
+      const chart = echarts.init(el);
+      const byCat = stats.value.rules?.by_category || { naming: 2, ddl: 9, dml: 8, distributed: 3 };
+      chart.setOption({
+        tooltip: { trigger: 'item' },
+        legend: { bottom: 0 },
+        series: [{
+          type: 'pie', radius: ['40%', '65%'],
+          label: { formatter: '{b}: {c}条' },
+          data: [
+            { value: byCat.naming, name: '命名规范', itemStyle: { color: '#409eff' } },
+            { value: byCat.ddl, name: 'DDL规范', itemStyle: { color: '#67c23a' } },
+            { value: byCat.dml, name: 'DML规范', itemStyle: { color: '#e6a23c' } },
+            { value: byCat.distributed, name: '分布式规范', itemStyle: { color: '#f56c6c' } },
+          ],
+        }],
+      });
+    };
+
+    onMounted(() => {
+      loadDashboard();
+      loadSlowList();
+    });
+
+    watch(currentPage, (val) => {
+      if (val === 'dashboard') nextTick(renderRuleChart);
+    });
+
+    return {
+      currentPage, sqlInput, auditing, auditResult, stats,
+      isDragover, fileInput, fileAuditResult,
+      slowForm, analyzing, slowResult, slowList,
+      explainInput, analyzingExplain, explainResult,
+      auditSql, triggerFileInput, handleFileSelect, handleFileDrop,
+      analyzeSlowQuery, loadSlowExample, loadSlowList,
+      analyzeExplain, loadExplainExample, loadExample,
+    };
+  },
+});
+
+app.use(ElementPlus, { locale: ElementPlusLocaleZhCn });
+app.mount('#app');
+</script>
+</body>
+</html>
