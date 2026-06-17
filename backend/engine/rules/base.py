@@ -20,12 +20,22 @@ class BaseRule(ABC):
     enabled: bool = True            # 是否启用
 
     @abstractmethod
-    def check(self, parsed: ParsedSQL) -> Optional[Violation]:
+    def check(self, parsed: ParsedSQL,
+              table_metadata: Optional[dict] = None) -> Optional[Violation]:
         """
         检查SQL是否违反此规则。
 
         Args:
             parsed: 解析后的SQL结构
+            table_metadata: 表元数据字典，key为表名，value为元数据字典。
+                            可选，用于分布式规则（R020-R022）获取真实分片键信息。
+                            格式: {
+                                "table_name": {
+                                    "shard_key": "user_id",
+                                    "is_shard_table": True,
+                                    "indexes": [...]
+                                }
+                            }
 
         Returns:
             违规信息，通过则返回 None

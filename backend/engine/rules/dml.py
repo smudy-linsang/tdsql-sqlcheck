@@ -10,7 +10,7 @@ R017: 禁止 ORDER BY RAND()
 R018: 单表索引不超过5个
 R019: 禁止冗余索引
 """
-from typing import Optional
+from typing import Optional, Dict
 
 from backend.engine.parser import ParsedSQL
 from backend.engine.rules.base import BaseRule
@@ -26,7 +26,7 @@ class R012SelectStar(BaseRule):
     description = "禁止使用 SELECT *，应指定具体字段"
     enabled = True
 
-    def check(self, parsed: ParsedSQL) -> Optional[Violation]:
+    def check(self, parsed: ParsedSQL, table_metadata: Optional[dict] = None) -> Optional[Violation]:
         if parsed.sql_type != "SELECT":
             return None
         if parsed.has_wildcard_select:
@@ -47,7 +47,7 @@ class R013DmlWithoutWhere(BaseRule):
     description = "UPDATE/DELETE/INSERT...SELECT 必须带 WHERE 条件"
     enabled = True
 
-    def check(self, parsed: ParsedSQL) -> Optional[Violation]:
+    def check(self, parsed: ParsedSQL, table_metadata: Optional[dict] = None) -> Optional[Violation]:
         # 仅检查 UPDATE 和 DELETE
         if parsed.sql_type not in ("UPDATE", "DELETE"):
             return None
@@ -69,7 +69,7 @@ class R014UpdateDeleteWithoutWhere(BaseRule):
     description = "禁止不带 WHERE 的 UPDATE/DELETE，防止误操作全表"
     enabled = True
 
-    def check(self, parsed: ParsedSQL) -> Optional[Violation]:
+    def check(self, parsed: ParsedSQL, table_metadata: Optional[dict] = None) -> Optional[Violation]:
         # 此规则与 R013 互补：R013 针对所有 DML，R014 额外强调 UPDATE/DELETE
         # 为避免重复报告，仅在 R013 未覆盖时启用
         # 这里我们让它独立检查，实际运行时 checker 会去重
@@ -94,7 +94,7 @@ class R015NestedSubquery(BaseRule):
 
     MAX_SUBQUERY_DEPTH = 3
 
-    def check(self, parsed: ParsedSQL) -> Optional[Violation]:
+    def check(self, parsed: ParsedSQL, table_metadata: Optional[dict] = None) -> Optional[Violation]:
         if parsed.sql_type not in ("SELECT", "INSERT", "UPDATE", "DELETE"):
             return None
         if parsed.subquery_depth > self.MAX_SUBQUERY_DEPTH:
@@ -114,7 +114,7 @@ class R016FunctionInWhere(BaseRule):
     description = "WHERE 条件中禁止函数计算、全模糊LIKE、OR条件，会导致索引失效"
     enabled = True
 
-    def check(self, parsed: ParsedSQL) -> Optional[Violation]:
+    def check(self, parsed: ParsedSQL, table_metadata: Optional[dict] = None) -> Optional[Violation]:
         if not parsed.has_where:
             return None
         if parsed.where_has_function:
@@ -138,7 +138,7 @@ class R017OrderByRand(BaseRule):
     description = "禁止 ORDER BY RAND()，会导致全表扫描和临时表"
     enabled = True
 
-    def check(self, parsed: ParsedSQL) -> Optional[Violation]:
+    def check(self, parsed: ParsedSQL, table_metadata: Optional[dict] = None) -> Optional[Violation]:
         if parsed.sql_type != "SELECT":
             return None
         if parsed.order_by_random:
@@ -164,7 +164,7 @@ class R018IndexCount(BaseRule):
 
     MAX_INDEX_COUNT = 5
 
-    def check(self, parsed: ParsedSQL) -> Optional[Violation]:
+    def check(self, parsed: ParsedSQL, table_metadata: Optional[dict] = None) -> Optional[Violation]:
         if not parsed.is_create_table:
             return None
         index_count = len(parsed.indexes)
@@ -188,7 +188,7 @@ class R019RedundantIndex(BaseRule):
     description = "禁止创建冗余索引，如果索引A的列是索引B列的前缀，则A冗余"
     enabled = True
 
-    def check(self, parsed: ParsedSQL) -> Optional[Violation]:
+    def check(self, parsed: ParsedSQL, table_metadata: Optional[dict] = None) -> Optional[Violation]:
         if not parsed.is_create_table:
             return None
 

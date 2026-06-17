@@ -11,7 +11,7 @@ R009: 财务字段禁止使用 FLOAT/DOUBLE
 R010: VARCHAR 长度不超过设计需求（不超过 2000）
 R011: 禁止在活跃表使用 TEXT/BLOB
 """
-from typing import Optional
+from typing import Optional, Dict
 
 from backend.engine.parser import ParsedSQL
 from backend.engine.rules.base import BaseRule
@@ -27,7 +27,7 @@ class R003PrimaryKey(BaseRule):
     description = "CREATE TABLE 必须显式指定主键"
     enabled = True
 
-    def check(self, parsed: ParsedSQL) -> Optional[Violation]:
+    def check(self, parsed: ParsedSQL, table_metadata: Optional[dict] = None) -> Optional[Violation]:
         if not parsed.is_create_table:
             return None
         if not parsed.has_primary_key:
@@ -47,7 +47,7 @@ class R004Engine(BaseRule):
     description = "必须指定存储引擎为 InnoDB"
     enabled = True
 
-    def check(self, parsed: ParsedSQL) -> Optional[Violation]:
+    def check(self, parsed: ParsedSQL, table_metadata: Optional[dict] = None) -> Optional[Violation]:
         if not parsed.is_create_table:
             return None
         engine = parsed.engine
@@ -73,7 +73,7 @@ class R005Charset(BaseRule):
     description = "必须指定字符集为 utf8mb4"
     enabled = True
 
-    def check(self, parsed: ParsedSQL) -> Optional[Violation]:
+    def check(self, parsed: ParsedSQL, table_metadata: Optional[dict] = None) -> Optional[Violation]:
         if not parsed.is_create_table:
             return None
         charset = parsed.charset
@@ -101,7 +101,7 @@ class R006EnumSetType(BaseRule):
 
     FORBIDDEN_TYPES = {"ENUM", "SET"}
 
-    def check(self, parsed: ParsedSQL) -> Optional[Violation]:
+    def check(self, parsed: ParsedSQL, table_metadata: Optional[dict] = None) -> Optional[Violation]:
         if not parsed.is_create_table:
             return None
         for col in parsed.column_types:
@@ -124,7 +124,7 @@ class R007TimestampType(BaseRule):
     description = "禁止使用 TIMESTAMP 类型，建议使用 DATETIME"
     enabled = True
 
-    def check(self, parsed: ParsedSQL) -> Optional[Violation]:
+    def check(self, parsed: ParsedSQL, table_metadata: Optional[dict] = None) -> Optional[Violation]:
         if not parsed.is_create_table:
             return None
         for col in parsed.column_types:
@@ -147,7 +147,7 @@ class R008ForeignKey(BaseRule):
     description = "禁止使用外键约束，应用层保证数据一致性"
     enabled = True
 
-    def check(self, parsed: ParsedSQL) -> Optional[Violation]:
+    def check(self, parsed: ParsedSQL, table_metadata: Optional[dict] = None) -> Optional[Violation]:
         if not parsed.is_create_table and not parsed.is_alter_table:
             return None
         if parsed.has_foreign_key:
@@ -177,7 +177,7 @@ class R009FinanceFloatType(BaseRule):
 
     FLOAT_TYPES = {"FLOAT", "DOUBLE", "FLOAT4", "FLOAT8", "REAL"}
 
-    def check(self, parsed: ParsedSQL) -> Optional[Violation]:
+    def check(self, parsed: ParsedSQL, table_metadata: Optional[dict] = None) -> Optional[Violation]:
         if not parsed.is_create_table:
             return None
         for col in parsed.columns:
@@ -210,7 +210,7 @@ class R010VarcharLength(BaseRule):
 
     MAX_VARCHAR_LENGTH = 2000
 
-    def check(self, parsed: ParsedSQL) -> Optional[Violation]:
+    def check(self, parsed: ParsedSQL, table_metadata: Optional[dict] = None) -> Optional[Violation]:
         if not parsed.is_create_table:
             return None
         for col in parsed.columns:
@@ -237,7 +237,7 @@ class R011TextBlobType(BaseRule):
 
     LARGE_TYPES = {"TEXT", "TINYTEXT", "MEDIUMTEXT", "LONGTEXT", "BLOB", "TINYBLOB", "MEDIUMBLOB", "LONGBLOB", "JSON"}
 
-    def check(self, parsed: ParsedSQL) -> Optional[Violation]:
+    def check(self, parsed: ParsedSQL, table_metadata: Optional[dict] = None) -> Optional[Violation]:
         if not parsed.is_create_table:
             return None
         for col in parsed.column_types:

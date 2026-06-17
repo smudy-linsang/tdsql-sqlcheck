@@ -8,6 +8,7 @@ TDSQL SQL审核工具 - 审核报告PDF导出服务
 """
 import json
 import logging
+import os
 import sqlite3
 from datetime import datetime
 from io import BytesIO
@@ -52,44 +53,112 @@ def _get_connection() -> sqlite3.Connection:
 
 # ── 中文字体注册 ──
 _font_registered = False
+_registered_font_path = ""
+
+
+def _find_fontconfig_fonts() -> list[str]:
+    """使用 fontconfig (fc-list) 查找系统中文字体"""
+    import subprocess
+    try:
+        result = subprocess.run(
+            ["fc-list", ":lang=zh", "-f", "%{file}\n"],
+            capture_output=True, text=True, timeout=10,
+        )
+        if result.returncode == 0:
+            fonts = [f.strip() for f in result.stdout.strip().split("\n") if f.strip()]
+            logger.debug(f"fc-list 找到 {len(fonts)} 个中文字体")
+            return fonts
+    except (subprocess.SubprocessError, FileNotFoundError):
+        pass
+    return []
+
+
+def _scan_directory_for_fonts(directory: str, extensions: tuple) -> list[str]:
+    """递归扫描目录查找字体文件"""
+    found = []
+    try:
+        for root, _, files in os.walk(directory):
+            for fname in files:
+                if fname.lower().endswith(extensions):
+                    found.append(os.path.join(root, fname))
+    except (OSError, PermissionError):
+        pass
+    return found
 
 
 def _register_chinese_font():
-    """注册中文字体（尝试多个常见路径）"""
-    global _font_registered
+    """注册中文字体（尝试多个策略）"""
+    global _font_registered, _registered_font_path
     if _font_registered:
         return
 
     if not HAS_REPORTLAB:
         return
 
-    # 尝试的字体路径列表
-    font_paths = [
-        # Windows 系统字体
-        "C:/Windows/Fonts/msyh.ttc",       # 微软雅黑
-        "C:/Windows/Fonts/simsun.ttc",      # 宋体
-        "C:/Windows/Fonts/simhei.ttf",      # 黑体
-        # Linux 系统字体
-        "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
-        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-        "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
-        # macOS 系统字体
-        "/System/Library/Fonts/STHeiti Light.ttc",
-        "/System/Library/Fonts/PingFang.ttc",
+    candidates: list[str] = []
+
+    # 策略1: 使用 fontconfig 查找系统中的中文字体（Linux/macOS）
+    if os.name != "nt":
+        candidates.extend(_find_fontconfig_fonts())
+
+    # 策略2: 常见字体路径（Windows）
+    if os.name == "nt":
+        windows_fonts_dir = "C:/Windows/Fonts"
+        candidates.extend([
+            os.path.join(windows_fonts_dir, "msyh.ttc"),
+            os.path.join(windows_fonts, "simsun.ttc"),
+            os.path.join(windows_fonts, "simhei.ttf"),
+            os.path.join(windows_fonts, "msyhbd.ttc"),
+            os.path.join(windows_fonts, "wingding.ttf"),
+        ])
+        # 扫描 Fonts 目录下的所有 .ttf/.ttc 文件
+        candidates.extend(_scan_directory_for_fonts(windows_fonts_dir, (".ttf", ".ttc", ".otf")))
+
+    # 策略3: 常见字体路径（Linux）
+    linux_dirs = [
+        "/usr/share/fonts",
+        "/usr/local/share/fonts",
+        os.path.expanduser("~/.fonts"),
     ]
+    for ldir in linux_dirs:
+        candidates.extend(_scan_directory_for_fonts(ldir, (".ttf", ".ttc", ".otf")))
 
-    for font_path in font_paths:
-        if Path(font_path).exists():
-            try:
-                pdfmetrics.registerFont(TTFont("ChineseFont", font_path))
-                _font_registered = True
-                logger.info(f"已注册中文字体: {font_path}")
-                return
-            except Exception as e:
-                logger.debug(f"字体注册失败 {font_path}: {e}")
-                continue
+    # 策略4: macOS 字体目录
+    if os.name == "posix":
+        candidates.extend([
+            "/System/Library/Fonts/PingFang.ttc",
+            "/System/Library/Fonts/STHeiti Light.ttc",
+            "/System/Library/Fonts/Hiragino Sans GB.ttc",
+            "/Library/Fonts/PingFang.ttc",
+        ])
+        candidates.extend(_scan_directory_for_fonts("/System/Library/Fonts", (".ttf", ".ttc", ".otf")))
 
-    logger.warning("未找到中文字体，PDF中的中文可能显示为方块")
+    # 去重 + 过滤不存在的文件
+    seen: set[str] = set()
+    for fp in candidates:
+        if fp and fp not in seen and Path(fp).exists():
+            seen.add(fp)
+            candidates.append(fp)
+
+    # 注册第一个成功的字体
+    for font_path in candidates:
+        try:
+            pdfmetrics.registerFont(TTFont("ChineseFont", font_path))
+            _font_registered = True
+            _registered_font_path = font_path
+            logger.info(f"已注册中文字体: {font_path}")
+            return
+        except Exception as e:
+            logger.debug(f"字体注册失败 {font_path}: {e}")
+            continue
+
+    # 策略5: 回退到 Helvetica（不注册中文字体）
+    # Helvetica 在 reportlab 内置，但在不支持 CJK 的 PDF viewer 中中文会显示为方块
+    # 此处仍使用 Helvetica，PDF 生成不会报错，但中文会显示异常
+    logger.warning(
+        "未找到任何中文字体，PDF中的中文可能显示为方块。"
+        "建议安装: pip install reportlab[utf8] 或系统安装 fonts-noto-cjk"
+    )
 
 
 def _get_styles() -> dict:

@@ -26,25 +26,12 @@ def _save_audit_history(audit_type: str, source: str, results: list[AuditResult]
                         summary: AuditSummary):
     """保存审核历史到数据库"""
     try:
-        DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+        # 确保数据库和表已初始化（复用 slow_query_service 的初始化逻辑）
+        from backend.services.slow_query_service import _ensure_db
+        _ensure_db()
+
         conn = sqlite3.connect(str(DB_PATH))
         try:
-            # 确保表存在
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS audit_history (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    audit_type TEXT NOT NULL,
-                    source TEXT DEFAULT '',
-                    total_sql INTEGER DEFAULT 0,
-                    passed INTEGER DEFAULT 0,
-                    failed INTEGER DEFAULT 0,
-                    error_count INTEGER DEFAULT 0,
-                    warning_count INTEGER DEFAULT 0,
-                    pass_rate REAL DEFAULT 0,
-                    results_json TEXT DEFAULT '[]',
-                    created_at TEXT DEFAULT (datetime('now'))
-                )
-            """)
             results_json = json.dumps([{
                 "sql": r.sql[:500],
                 "sql_type": r.sql_type,

@@ -10,6 +10,9 @@ TDSQL SQL审核工具 - TDSQL数据库连接器
 4. 执行EXPLAIN分析
 """
 import re
+import threading
+from collections import deque
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -68,8 +71,97 @@ class IndexInfo:
     cardinality: int = 0
 
 
+class TDSQLConnectionPool:
+    """
+    TDSQL 连接池。
+
+    使用固定数量的连接复用，避免每次请求都创建新连接。
+    线程安全，使用 thread-local 存储让每个线程独立使用一个连接，
+    避免线程竞争同一连接的瓶颈。
+    """
+
+    DEFAULT_POOL_SIZE = 5
+
+    def __init__(self, config: TDSQLConnectionConfig, pool_size: int = None):
+        self.config = config
+        self.pool_size = pool_size or self.DEFAULT_POOL_SIZE
+        self._local = threading.local()
+
+    def _create_connection(self):
+        """创建新连接"""
+        conn = pymysql.connect(
+            host=self.config.host,
+            port=self.config.port,
+            user=self.config.user,
+            password=self.config.password,
+            database=self.config.database,
+            charset=self.config.charset,
+            connect_timeout=self.config.connect_timeout,
+            read_timeout=self.config.read_timeout,
+            cursorclass=pymysql.cursors.DictCursor,
+        )
+        return conn
+
+    def _get_thread_connection(self):
+        """获取当前线程的连接（线程本地存储）"""
+        conn = getattr(self._local, "conn", None)
+        if conn is not None:
+            try:
+                conn.ping(reconnect=False)
+                return conn
+            except Exception:
+                conn = None
+        # 当前线程没有连接，创建新连接
+        conn = self._create_connection()
+        self._local.conn = conn
+        return conn
+
+    @contextmanager
+    def get_connection(self):
+        """
+        从连接池获取一个连接（上下文管理器）。
+
+        使用方式：
+            with pool.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(...)
+        """
+        conn = self._get_thread_connection()
+        try:
+            yield conn
+        except Exception:
+            # 连接异常时，重新创建连接
+            try:
+                self._local.conn.close()
+            except Exception:
+                pass
+            self._local.conn = self._create_connection()
+            yield self._local.conn
+
+    def is_connected(self) -> bool:
+        """检查连接状态（检查当前线程连接）"""
+        conn = getattr(self._local, "conn", None)
+        if conn is None:
+            return False
+        try:
+            conn.ping(reconnect=False)
+            return True
+        except Exception:
+            return False
+
+    def close_all(self):
+        """关闭所有线程的连接"""
+        conn = getattr(self._local, "conn", None)
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+            self._local.conn = None
+
+
 class TDSQLConnector:
-    """TDSQL数据库连接器"""
+    """TDSQL数据库连接器（单连接模式，用于向后兼容）"""
 
     def __init__(self, config: TDSQLConnectionConfig):
         self.config = config

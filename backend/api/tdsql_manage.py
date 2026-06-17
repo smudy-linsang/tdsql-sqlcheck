@@ -3,7 +3,9 @@ TDSQL SQL审核工具 - TDSQL管理API
 
 提供TDSQL实例连接、连接测试、元数据查询、慢SQL抓取、字符集检查等功能。
 """
+import json
 import time
+from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException
@@ -11,13 +13,16 @@ from pydantic import BaseModel, Field
 
 import threading
 
-from backend.config import TDSQL_CONFIG, is_tdsql_configured, load_tdsql_config_from_file
+from backend.config import TDSQL_CONFIG, is_tdsql_configured, load_tdsql_config_from_file, BASE_DIR
 
 router = APIRouter(prefix="/api/v1/tdsql", tags=["TDSQL管理"])
 
-# 全局连接器实例（使用锁保护，确保线程安全）
-_connector = None
-_connector_lock = threading.Lock()
+# 全局连接池实例（使用锁保护，确保线程安全）
+_pool = None
+_pool_lock = threading.Lock()
+
+# 连接配置存储文件
+CONNECTIONS_CONFIG_FILE = BASE_DIR / "config" / "tdsql_connections.json"
 
 
 class TDSQLConnectRequest(BaseModel):
@@ -27,6 +32,7 @@ class TDSQLConnectRequest(BaseModel):
     user: str = Field(..., description="用户名")
     password: str = Field(..., description="密码")
     database: str = Field("", description="默认数据库")
+    name: str = Field("", description="连接名称（可选，用于多连接管理）")
 
 
 class SlowQueryFetchRequest(BaseModel):
@@ -36,13 +42,13 @@ class SlowQueryFetchRequest(BaseModel):
     min_time: float = Field(1.0, description="最小耗时阈值(秒)")
 
 
-def _get_connector():
+def _get_pool():
     """获取连接器实例（线程安全）"""
-    global _connector
-    with _connector_lock:
-        if _connector is None:
+    global _pool
+    with _pool_lock:
+        if _pool is None:
             raise HTTPException(status_code=400, detail="未连接TDSQL实例，请先调用 /api/v1/tdsql/connect")
-        return _connector
+        return _pool
 
 
 @router.post("/connect", summary="连接TDSQL实例")
@@ -52,9 +58,9 @@ async def connect_tdsql(request: TDSQLConnectRequest):
 
     连接成功后，后续API调用将使用此连接。
     """
-    global _connector
+    global _pool
     try:
-        from backend.services.tdsql_connector import TDSQLConnector, TDSQLConnectionConfig
+        from backend.services.tdsql_connector import TDSQLConnectionPool, TDSQLConnectionConfig
         config = TDSQLConnectionConfig(
             host=request.host,
             port=request.port,
@@ -62,16 +68,23 @@ async def connect_tdsql(request: TDSQLConnectRequest):
             password=request.password,
             database=request.database,
         )
-        new_connector = TDSQLConnector(config)
-        new_connector.connect()
-        with _connector_lock:
-            # 断开旧连接
-            if _connector:
+        new_pool = TDSQLConnectionPool(config)
+        # 验证连接可用性（立即创建连接，失败则抛异常）
+        try:
+            with new_pool.get_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("SELECT 1")
+                    cursor.fetchone()
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"连接失败: {str(e)}")
+        with _pool_lock:
+            # 关闭旧连接池
+            if _pool:
                 try:
-                    _connector.disconnect()
+                    _pool.close_all()
                 except Exception:
                     pass
-            _connector = new_connector
+            _pool = new_pool
         return {
             "message": "连接成功",
             "host": request.host,
@@ -92,9 +105,9 @@ async def connect_from_config(config_path: Optional[str] = None):
     优先级: 环境变量 > 配置文件 > 默认值
     配置文件路径: 项目根目录/config/tdsql.json
     """
-    global _connector
+    global _pool
     try:
-        from backend.services.tdsql_connector import TDSQLConnector, TDSQLConnectionConfig
+        from backend.services.tdsql_connector import TDSQLConnectionPool, TDSQLConnectionConfig
         config_data = load_tdsql_config_from_file(config_path)
 
         if not config_data.get("host") or not config_data.get("user"):
@@ -113,15 +126,22 @@ async def connect_from_config(config_path: Optional[str] = None):
             connect_timeout=config_data.get("connect_timeout", 5),
             read_timeout=config_data.get("read_timeout", 10),
         )
-        new_connector = TDSQLConnector(conn_config)
-        new_connector.connect()
-        with _connector_lock:
-            if _connector:
+        new_pool = TDSQLConnectionPool(conn_config)
+        # 验证连接可用性
+        try:
+            with new_pool.get_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("SELECT 1")
+                    cursor.fetchone()
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"连接失败: {str(e)}")
+        with _pool_lock:
+            if _pool:
                 try:
-                    _connector.disconnect()
+                    _pool.close_all()
                 except Exception:
                     pass
-            _connector = new_connector
+            _pool = new_pool
         return {
             "message": "连接成功（配置文件模式）",
             "host": conn_config.host,
@@ -148,7 +168,7 @@ async def test_connection(host: Optional[str] = None, port: int = 3306,
     返回连接延迟和服务器版本信息。
     """
     try:
-        from backend.services.tdsql_connector import TDSQLConnector, TDSQLConnectionConfig
+        from backend.services.tdsql_connector import TDSQLConnectionPool, TDSQLConnectionConfig
 
         # 优先使用传入参数，其次使用配置
         if host and user:
@@ -171,22 +191,23 @@ async def test_connection(host: Optional[str] = None, port: int = 3306,
                 database=config_data.get("database", ""),
             )
 
-        connector = TDSQLConnector(config)
+        pool = TDSQLConnectionPool(config)
         start_time = time.time()
-        connector.connect()
-        latency_ms = round((time.time() - start_time) * 1000, 2)
-
-        # 获取服务器版本
-        version_info = connector._execute("SELECT VERSION() as version")
-        server_version = version_info[0].get("version", "unknown") if version_info else "unknown"
-
-        # 获取慢查询配置
-        try:
-            slow_config = connector.get_slow_query_variables()
-        except Exception:
-            slow_config = {}
-
-        connector.disconnect()
+        with pool.get_connection() as conn:
+            latency_ms = round((time.time() - start_time) * 1000, 2)
+            # 获取服务器版本
+            with conn.cursor() as cursor:
+                cursor.execute("SELECT VERSION() as version")
+                version_info = cursor.fetchall()
+            server_version = version_info[0].get("version", "unknown") if version_info else "unknown"
+            # 获取慢查询配置
+            try:
+                with conn.cursor() as cursor:
+                    cursor.execute("SHOW VARIABLES LIKE 'slow_query%'")
+                    slow_rows = cursor.fetchall()
+                    slow_config = {row.get("Variable_name", ""): row.get("Value", "") for row in slow_rows}
+            except Exception:
+                slow_config = {}
 
         return {
             "status": "connected",
@@ -217,28 +238,28 @@ async def test_connection(host: Optional[str] = None, port: int = 3306,
 @router.post("/disconnect", summary="断开TDSQL连接")
 async def disconnect_tdsql():
     """断开TDSQL连接"""
-    global _connector
-    with _connector_lock:
-        if _connector:
-            _connector.disconnect()
-            _connector = None
+    global _pool
+    with _pool_lock:
+        if _pool:
+            _pool.close_all()
+            _pool = None
     return {"message": "已断开连接"}
 
 
 @router.get("/status", summary="检查连接状态")
 async def connection_status():
     """检查TDSQL连接状态"""
-    global _connector
-    with _connector_lock:
-        if _connector and _connector.is_connected():
-            return {"connected": True, "host": _connector.config.host}
+    global _pool
+    with _pool_lock:
+        if _pool and _pool.is_connected():
+            return {"connected": True, "host": _pool.config.host}
     return {"connected": False}
 
 
 @router.get("/tables", summary="获取表列表")
 async def get_tables(database: Optional[str] = None):
     """获取数据库中的所有表"""
-    conn = _get_connector()
+    conn = _get_pool()
     try:
         tables = conn.get_tables(database)
         return {"tables": [dict(t) for t in tables]}
@@ -251,7 +272,7 @@ async def get_table_metadata(table_name: str, database: Optional[str] = None):
     """
     获取表的完整元数据，包括分片键、索引、字段等信息。
     """
-    conn = _get_connector()
+    conn = _get_pool()
     try:
         meta = conn.get_table_metadata(table_name, database)
         return {
@@ -285,7 +306,7 @@ async def fetch_slow_queries(request: SlowQueryFetchRequest):
     - slow_log: 从 mysql.slow_log 表获取
     - processlist: 从 processlist 获取当前正在执行的慢SQL
     """
-    conn = _get_connector()
+    conn = _get_pool()
     try:
         if request.source == "digest":
             raw_queries = conn.get_slow_queries_from_digest(limit=request.limit)
@@ -351,7 +372,7 @@ async def check_charset(database: Optional[str] = None):
     3. 字段级别字符集与表不一致
     4. 跨表同名字段字符集不一致
     """
-    conn = _get_connector()
+    conn = _get_pool()
     try:
         result = conn.check_charset_consistency(database)
         return result
@@ -369,7 +390,7 @@ async def check_large_tables(
 
     默认阈值1GB，返回L1/L2/L3分级。
     """
-    conn = _get_connector()
+    conn = _get_pool()
     try:
         tables = conn.check_large_tables(database, threshold_gb)
         return {
@@ -385,7 +406,7 @@ async def check_large_tables(
 @router.get("/slow-query-config", summary="获取慢查询配置")
 async def get_slow_query_config():
     """获取TDSQL实例的慢查询相关配置"""
-    conn = _get_connector()
+    conn = _get_pool()
     try:
         config = conn.get_slow_query_variables()
         return {"variables": config}
@@ -404,7 +425,7 @@ async def audit_with_metadata(request: dict):
     if not sql:
         raise HTTPException(status_code=400, detail="sql不能为空")
 
-    conn = _get_connector()
+    conn = _get_pool()
 
     try:
         from backend.engine.checker import RuleChecker
@@ -431,15 +452,8 @@ async def audit_with_metadata(request: dict):
         # 执行审核（传入元数据增强规则检查）
         checker = RuleChecker()
 
-        # 将元数据注入到SQL中作为注释，供分布式规则识别
-        enhanced_sql = sql
-        for table, meta_info in table_metadata.items():
-            if meta_info.get("shard_key"):
-                shard_key = meta_info["shard_key"]
-                enhanced_sql += f" /* shardkey:{shard_key} */"
-                break
-
-        result = checker.audit_sql(enhanced_sql)
+        # 传递真实元数据给审核引擎
+        result = checker.audit_sql(sql, table_metadata=table_metadata)
 
         return {
             "sql": sql,
@@ -477,3 +491,196 @@ async def trigger_slow_query_fetch():
     """手动触发一次慢日志拉取任务，立即从TDSQL拉取并分析"""
     from backend.services.scheduler import manual_fetch_slow_queries
     return manual_fetch_slow_queries()
+
+
+# ── 多连接配置管理 ─────────────────────────────────────────
+
+
+def _load_connections_config() -> dict:
+    """加载连接配置列表"""
+    if not CONNECTIONS_CONFIG_FILE.exists():
+        return {"connections": [], "default": None}
+    try:
+        with open(CONNECTIONS_CONFIG_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {"connections": [], "default": None}
+
+
+def _save_connections_config(config_data: dict):
+    """保存连接配置列表"""
+    CONNECTIONS_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(CONNECTIONS_CONFIG_FILE, "w", encoding="utf-8") as f:
+        json.dump(config_data, f, ensure_ascii=False, indent=2)
+
+
+@router.get("/connections", summary="获取所有连接配置")
+async def get_connections():
+    """
+    获取所有已保存的连接配置列表（密码会被脱敏处理）。
+    """
+    config_data = _load_connections_config()
+    connections = []
+    for conn in config_data.get("connections", []):
+        # 脱敏处理，不返回明文密码
+        safe_conn = {
+            "id": conn.get("id"),
+            "name": conn.get("name"),
+            "host": conn.get("host"),
+            "port": conn.get("port"),
+            "user": conn.get("user"),
+            "database": conn.get("database"),
+            "charset": conn.get("charset", "utf8mb4"),
+        }
+        connections.append(safe_conn)
+    return {
+        "connections": connections,
+        "default": config_data.get("default"),
+    }
+
+
+@router.post("/connections", summary="保存连接配置")
+async def save_connection(request: TDSQLConnectRequest):
+    """
+    保存一个新的连接配置或更新已存在的连接。
+    如果未指定name，将自动生成一个唯一名称。
+    """
+    config_data = _load_connections_config()
+    connections = config_data.get("connections", [])
+    
+    # 生成连接ID
+    import uuid
+    conn_id = str(uuid.uuid4())[:8]
+    
+    # 如果未指定名称，使用 host:port 作为名称
+    name = request.name or f"{request.host}:{request.port}"
+    
+    new_conn = {
+        "id": conn_id,
+        "name": name,
+        "host": request.host,
+        "port": request.port,
+        "user": request.user,
+        "password": request.password,  # 加密存储（实际生产环境应加密）
+        "database": request.database,
+        "charset": "utf8mb4",
+    }
+    
+    # 检查是否已存在同名连接
+    existing = False
+    for i, conn in enumerate(connections):
+        if conn.get("name") == name or (conn.get("host") == request.host and conn.get("port") == request.port):
+            connections[i] = new_conn
+            existing = True
+            break
+    
+    if not existing:
+        connections.append(new_conn)
+    
+    config_data["connections"] = connections
+    _save_connections_config(config_data)
+    
+    return {
+        "message": "连接配置已保存",
+        "id": conn_id,
+        "name": name,
+    }
+
+
+@router.delete("/connections/{conn_id}", summary="删除连接配置")
+async def delete_connection(conn_id: str):
+    """删除指定ID的连接配置"""
+    config_data = _load_connections_config()
+    connections = config_data.get("connections", [])
+    
+    original_count = len(connections)
+    connections = [c for c in connections if c.get("id") != conn_id]
+    
+    if len(connections) == original_count:
+        raise HTTPException(status_code=404, detail=f"连接配置不存在: {conn_id}")
+    
+    config_data["connections"] = connections
+    if config_data.get("default") == conn_id:
+        config_data["default"] = None
+    _save_connections_config(config_data)
+    
+    return {"message": "连接配置已删除"}
+
+
+@router.post("/connections/{conn_id}/set-default", summary="设置默认连接")
+async def set_default_connection(conn_id: str):
+    """设置指定ID的连接为默认连接"""
+    config_data = _load_connections_config()
+    connections = config_data.get("connections", [])
+    
+    # 验证连接是否存在
+    exists = any(c.get("id") == conn_id for c in connections)
+    if not exists:
+        raise HTTPException(status_code=404, detail=f"连接配置不存在: {conn_id}")
+    
+    config_data["default"] = conn_id
+    _save_connections_config(config_data)
+    
+    return {"message": "默认连接已设置"}
+
+
+@router.post("/connections/{conn_id}/connect", summary="使用已保存的连接配置连接")
+async def connect_by_saved_config(conn_id: str):
+    """
+    使用已保存的连接配置连接到TDSQL实例。
+    """
+    global _pool
+    config_data = _load_connections_config()
+    connections = config_data.get("connections", [])
+    
+    # 查找连接配置
+    conn_config = None
+    for c in connections:
+        if c.get("id") == conn_id:
+            conn_config = c
+            break
+    
+    if not conn_config:
+        raise HTTPException(status_code=404, detail=f"连接配置不存在: {conn_id}")
+    
+    try:
+        from backend.services.tdsql_connector import TDSQLConnectionPool, TDSQLConnectionConfig
+        config = TDSQLConnectionConfig(
+            host=conn_config["host"],
+            port=conn_config.get("port", 3306),
+            user=conn_config["user"],
+            password=conn_config.get("password", ""),
+            database=conn_config.get("database", ""),
+            charset=conn_config.get("charset", "utf8mb4"),
+        )
+        new_pool = TDSQLConnectionPool(config)
+        # 验证连接可用性
+        try:
+            with new_pool.get_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("SELECT 1")
+                    cursor.fetchone()
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"连接失败: {str(e)}")
+        
+        with _pool_lock:
+            if _pool:
+                try:
+                    _pool.close_all()
+                except Exception:
+                    pass
+            _pool = new_pool
+        
+        return {
+            "message": "连接成功",
+            "name": conn_config.get("name"),
+            "host": conn_config["host"],
+            "port": conn_config.get("port", 3306),
+            "database": conn_config.get("database", ""),
+        }
+    except ImportError:
+        raise HTTPException(status_code=500, detail="pymysql未安装，请执行: pip install pymysql")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"连接失败: {str(e)}")

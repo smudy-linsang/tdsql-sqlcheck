@@ -55,8 +55,8 @@
     .analysis-card .description { font-size: 13px; color: #606266; margin-bottom: 5px; }
     .analysis-card .suggestion { font-size: 12px; color: #909399; }
     .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 12px; color: #fff; }
-    .badge.error { background: #f56c6c; }
-    .badge.warning { background: #e6a23c; }
+    .badge.error, .badge.ERROR { background: #f56c6c; }
+    .badge.warning, .badge.WARNING { background: #e6a23c; }
     .badge.info { background: #909399; }
     .tabs { display: flex; border-bottom: 1px solid #ebeef5; margin-bottom: 20px; }
     .tabs .tab { padding: 10px 20px; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.3s; }
@@ -65,6 +65,43 @@
     .empty-state { text-align: center; padding: 40px; color: #909399; }
     .result-passed { color: #67c23a; font-weight: 600; }
     .result-failed { color: #f56c6c; font-weight: 600; }
+    .connection-status { padding: 10px 20px; font-size: 12px; color: #909399; display: flex; align-items: center; gap: 8px; border-top: 1px solid #3d4f65; margin-top: auto; }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .status-dot.connected { background: #67c23a; }
+    .status-dot.disconnected { background: #f56c6c; }
+    .tdsql-form { max-width: 500px; }
+    .tdsql-form .form-group { margin-bottom: 15px; }
+    .tdsql-form label { display: block; font-size: 13px; color: #606266; margin-bottom: 5px; }
+    .tdsql-form input { width: 100%; padding: 8px 12px; border: 1px solid #dcdfe6; border-radius: 4px; font-size: 14px; }
+    .tdsql-form input:focus { outline: none; border-color: #409eff; }
+    .connection-list { margin-top: 20px; }
+    .connection-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 15px; border: 1px solid #ebeef5; border-radius: 4px; margin-bottom: 10px; transition: all 0.3s; }
+    .connection-item:hover { background: #f5f7fa; }
+    .connection-item.active { border-color: #409eff; background: #ecf5ff; }
+    .connection-item .conn-info { flex: 1; }
+    .connection-item .conn-name { font-weight: 600; font-size: 14px; color: #303133; }
+    .connection-item .conn-details { font-size: 12px; color: #909399; margin-top: 4px; }
+    .connection-item .conn-actions { display: flex; gap: 8px; }
+    .tdsql-page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .tdsql-page-header h2 { font-size: 20px; color: #303133; margin: 0; }
+    .test-result { margin-top: 15px; padding: 12px; border-radius: 4px; font-size: 13px; }
+    .test-result.success { background: #f0f9eb; border: 1px solid #e1f3d8; color: #67c23a; }
+    .test-result.error { background: #fef0f0; border: 1px solid #fde2e2; color: #f56c6c; }
+    .rules-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }
+    .rule-card { background: #fff; border-radius: 4px; padding: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); transition: all 0.3s; }
+    .rule-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.12); }
+    .rule-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .rule-card-id { font-weight: 700; font-size: 15px; color: #303133; }
+    .rule-card-category { font-size: 12px; padding: 2px 8px; border-radius: 4px; background: #f0f2f5; color: #606266; }
+    .rule-card-desc { font-size: 14px; color: #606266; line-height: 1.6; margin-bottom: 8px; }
+    .rule-card-severity { font-size: 12px; }
+    .category-section { margin-bottom: 25px; }
+    .category-title { font-size: 18px; font-weight: 600; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 2px solid; display: flex; align-items: center; gap: 10px; }
+    .category-title.naming { border-color: #409eff; color: #409eff; }
+    .category-title.ddl { border-color: #67c23a; color: #67c23a; }
+    .category-title.dml { border-color: #e6a23c; color: #e6a23c; }
+    .category-title.distributed { border-color: #f56c6c; color: #f56c6c; }
+    .category-count { font-size: 14px; color: #909399; font-weight: normal; }
   </style>
 </head>
 <body>
@@ -89,7 +126,22 @@
         <li :class="{active: currentPage === 'explain'}" @click="currentPage = 'explain'">
           📈 EXPLAIN分析
         </li>
+        <li :class="{active: currentPage === 'tdsql-manage'}" @click="currentPage = 'tdsql-manage'">
+          🗄️ TDSQL管理
+        </li>
+        <li :class="{active: currentPage === 'rules'}" @click="switchToRules">
+          📋 审核规则
+        </li>
       </ul>
+      <!-- 连接状态指示器 -->
+      <div class="connection-status" v-if="tdsqlStatus.connected">
+        <div class="status-dot connected"></div>
+        <span>已连接: {{ tdsqlStatus.host }}</span>
+      </div>
+      <div class="connection-status" v-else>
+        <div class="status-dot disconnected"></div>
+        <span>未连接TDSQL</span>
+      </div>
     </div>
 
     <!-- 主内容区 -->
@@ -338,6 +390,174 @@
           </div>
         </div>
       </div>
+
+      <!-- TDSQL管理 -->
+      <div v-if="currentPage === 'tdsql-manage'">
+        <div class="tdsql-page-header">
+          <h2>🗄️ TDSQL连接管理</h2>
+          <div>
+            <el-button @click="loadSavedConnections" :loading="loadingConnections">刷新</el-button>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+          <!-- 连接表单 -->
+          <div class="card">
+            <div class="card-title">{{ editingConnection ? '编辑连接' : '新建连接' }}</div>
+            <div class="tdsql-form">
+              <div class="form-group">
+                <label>连接名称（可选）</label>
+                <input v-model="connForm.name" placeholder="如：生产环境MySQL">
+              </div>
+              <div class="form-group">
+                <label>Host *</label>
+                <input v-model="connForm.host" placeholder="如：192.168.1.100">
+              </div>
+              <div class="form-group">
+                <label>Port *</label>
+                <input v-model.number="connForm.port" type="number" placeholder="3306">
+              </div>
+              <div class="form-group">
+                <label>用户名 *</label>
+                <input v-model="connForm.user" placeholder="数据库用户名">
+              </div>
+              <div class="form-group">
+                <label>密码 *</label>
+                <input v-model="connForm.password" type="password" placeholder="数据库密码">
+              </div>
+              <div class="form-group">
+                <label>默认数据库</label>
+                <input v-model="connForm.database" placeholder="默认连接的数据库名">
+              </div>
+              <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <el-button type="primary" @click="testConnection" :loading="testingConn">测试连接</el-button>
+                <el-button type="success" @click="saveAndConnect" :loading="connecting">保存并连接</el-button>
+                <el-button @click="resetConnForm">重置</el-button>
+              </div>
+              <div v-if="testResult" :class="'test-result ' + testResult.type">
+                {{ testResult.message }}
+              </div>
+            </div>
+          </div>
+
+          <!-- 已保存的连接列表 -->
+          <div class="card">
+            <div class="card-title">已保存的连接</div>
+            <div v-if="savedConnections.length === 0" class="empty-state">
+              暂无保存的连接配置
+            </div>
+            <div v-else class="connection-list">
+              <div v-for="conn in savedConnections" :key="conn.id" 
+                   :class="'connection-item ' + (currentConnId === conn.id ? 'active' : '')">
+                <div class="conn-info">
+                  <div class="conn-name">{{ conn.name || conn.host }}</div>
+                  <div class="conn-details">{{ conn.user }}@{{ conn.host }}:{{ conn.port }} / {{ conn.database || '无默认库' }}</div>
+                </div>
+                <div class="conn-actions">
+                  <el-button size="small" type="primary" @click="connectSavedConn(conn.id)" :loading="connecting">连接</el-button>
+                  <el-button size="small" type="danger" @click="deleteSavedConn(conn.id)" :loading="deletingConn">删除</el-button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 当前连接状态 -->
+        <div class="card" style="margin-top: 20px;">
+          <div class="card-title">当前连接状态</div>
+          <div v-if="tdsqlStatus.connected" style="display: flex; align-items: center; gap: 15px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <div class="status-dot connected"></div>
+              <span style="color: #67c23a; font-weight: 600;">已连接</span>
+            </div>
+            <span>{{ tdsqlStatus.host }}</span>
+            <el-button size="small" type="danger" @click="disconnectTdsql">断开连接</el-button>
+          </div>
+          <div v-else style="display: flex; align-items: center; gap: 8px;">
+            <div class="status-dot disconnected"></div>
+            <span style="color: #f56c6c;">未连接TDSQL实例</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 审核规则 -->
+      <div v-if="currentPage === 'rules'">
+        <div class="page-header"><h2>📋 SQL审核规则规范</h2></div>
+        <div class="card">
+          <div style="margin-bottom: 15px; color: #606266; font-size: 14px;">
+            <p>本系统共内置 <strong>{{ rulesList.length }}</strong> 条SQL审核规则，覆盖命名规范、DDL规范、DML规范和分布式场景。</p>
+            <p style="margin-top: 5px;">规则根据严重级别分为 <span style="color: #f56c6c;">● ERROR</span>（错误）和 <span style="color: #e6a23c;">● WARNING</span>（警告）两种类型。</p>
+          </div>
+          <div v-if="rulesLoading" style="text-align: center; padding: 40px; color: #909399;">
+            加载中...
+          </div>
+          <div v-else>
+            <!-- 命名规范 -->
+            <div class="category-section" v-if="rulesByCategory.naming">
+              <div class="category-title naming">
+                🏷️ 命名规范 <span class="category-count">({{ rulesByCategory.naming.length }}条)</span>
+              </div>
+              <div class="rules-grid">
+                <div class="rule-card" v-for="rule in rulesByCategory.naming" :key="rule.rule_id">
+                  <div class="rule-card-header">
+                    <span class="rule-card-id">{{ rule.rule_id }}</span>
+                    <span :class="'badge ' + getSeverityClass(rule.severity)">{{ rule.severity }}</span>
+                  </div>
+                  <div class="rule-card-desc">{{ rule.description }}</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- DDL规范 -->
+            <div class="category-section" v-if="rulesByCategory.ddl">
+              <div class="category-title ddl">
+                🏗️ DDL规范 <span class="category-count">({{ rulesByCategory.ddl.length }}条)</span>
+              </div>
+              <div class="rules-grid">
+                <div class="rule-card" v-for="rule in rulesByCategory.ddl" :key="rule.rule_id">
+                  <div class="rule-card-header">
+                    <span class="rule-card-id">{{ rule.rule_id }}</span>
+                    <span :class="'badge ' + getSeverityClass(rule.severity)">{{ rule.severity }}</span>
+                  </div>
+                  <div class="rule-card-desc">{{ rule.description }}</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- DML规范 -->
+            <div class="category-section" v-if="rulesByCategory.dml">
+              <div class="category-title dml">
+                📝 DML规范 <span class="category-count">({{ rulesByCategory.dml.length }}条)</span>
+              </div>
+              <div class="rules-grid">
+                <div class="rule-card" v-for="rule in rulesByCategory.dml" :key="rule.rule_id">
+                  <div class="rule-card-header">
+                    <span class="rule-card-id">{{ rule.rule_id }}</span>
+                    <span :class="'badge ' + getSeverityClass(rule.severity)">{{ rule.severity }}</span>
+                  </div>
+                  <div class="rule-card-desc">{{ rule.description }}</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 分布式规范 -->
+            <div class="category-section" v-if="rulesByCategory.distributed">
+              <div class="category-title distributed">
+                🌐 分布式规范 <span class="category-count">({{ rulesByCategory.distributed.length }}条)</span>
+              </div>
+              <div class="rules-grid">
+                <div class="rule-card" v-for="rule in rulesByCategory.distributed" :key="rule.rule_id">
+                  <div class="rule-card-header">
+                    <span class="rule-card-id">{{ rule.rule_id }}</span>
+                    <span :class="'badge ' + getSeverityClass(rule.severity)">{{ rule.severity }}</span>
+                  </div>
+                  <div class="rule-card-desc">{{ rule.description }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -364,6 +584,31 @@ const app = createApp({
     const explainResult = ref(null);
     const stats = ref({ audit: {}, slow_queries: {}, rules: {} });
 
+    // TDSQL管理相关
+    const tdsqlStatus = ref({ connected: false, host: '' });
+    const savedConnections = ref([]);
+    const loadingConnections = ref(false);
+    const testingConn = ref(false);
+    const connecting = ref(false);
+    const deletingConn = ref(false);
+    const currentConnId = ref(null);
+    const testResult = ref(null);
+    const editingConnection = ref(false);
+
+    // 规则相关
+    const rulesList = ref([]);
+    const rulesByCategory = ref({ naming: [], ddl: [], dml: [], distributed: [] });
+    const rulesLoading = ref(false);
+
+    const connForm = reactive({
+      name: '',
+      host: '',
+      port: 3306,
+      user: '',
+      password: '',
+      database: '',
+    });
+
     const slowForm = reactive({
       fingerprint: '',
       sql_text: '',
@@ -374,12 +619,217 @@ const app = createApp({
       rows_sent: 0,
     });
 
+    // 切换到审核规则页面
+    const switchToRules = () => {
+      console.log('switchToRules called');
+      currentPage.value = 'rules';
+      if (rulesList.value.length === 0) {
+        loadRules();
+      }
+    };
+
     // 加载Dashboard数据
     const loadDashboard = async () => {
       try {
         const resp = await fetch(`${API_BASE}/api/v1/dashboard/summary`);
         if (resp.ok) stats.value = await resp.json();
       } catch (e) { console.log('Dashboard API not available'); }
+    };
+
+    // TDSQL连接状态检查
+    const checkTdsqlStatus = async () => {
+      try {
+        const resp = await fetch(`${API_BASE}/api/v1/tdsql/status`);
+        if (resp.ok) {
+          const data = await resp.json();
+          tdsqlStatus.value = data;
+        }
+      } catch (e) {
+        tdsqlStatus.value = { connected: false, host: '' };
+      }
+    };
+
+    // 加载已保存的连接列表
+    const loadSavedConnections = async () => {
+      loadingConnections.value = true;
+      try {
+        const resp = await fetch(`${API_BASE}/api/v1/tdsql/connections`);
+        if (resp.ok) {
+          const data = await resp.json();
+          savedConnections.value = data.connections || [];
+          currentConnId.value = data.default;
+        }
+      } catch (e) {
+        ElementPlus.ElMessage.error('加载连接列表失败: ' + e.message);
+      } finally {
+        loadingConnections.value = false;
+      }
+    };
+
+    // 测试连接
+    const testConnection = async () => {
+      if (!connForm.host || !connForm.user || !connForm.password) {
+        ElementPlus.ElMessage.warning('请填写必填字段（Host、用户名、密码）');
+        return;
+      }
+      testingConn.value = true;
+      testResult.value = null;
+      try {
+        const resp = await fetch(`${API_BASE}/api/v1/tdsql/test-connection?host=${encodeURIComponent(connForm.host)}&port=${connForm.port}&user=${encodeURIComponent(connForm.user)}&password=${encodeURIComponent(connForm.password)}&database=${encodeURIComponent(connForm.database)}`);
+        const data = await resp.json();
+        if (data.status === 'connected') {
+          testResult.value = { type: 'success', message: `连接成功！服务器版本: ${data.server_version}，延迟: ${data.latency_ms}ms` };
+        } else {
+          testResult.value = { type: 'error', message: `连接失败: ${data.message}` };
+        }
+      } catch (e) {
+        testResult.value = { type: 'error', message: '测试连接失败: ' + e.message };
+      } finally {
+        testingConn.value = false;
+      }
+    };
+
+    // 保存并连接
+    const saveAndConnect = async () => {
+      if (!connForm.host || !connForm.user || !connForm.password) {
+        ElementPlus.ElMessage.warning('请填写必填字段（Host、用户名、密码）');
+        return;
+      }
+      connecting.value = true;
+      try {
+        // 先保存连接配置
+        const saveResp = await fetch(`${API_BASE}/api/v1/tdsql/connections`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(connForm),
+        });
+        const saveData = await saveResp.json();
+
+        // 再连接
+        const connectResp = await fetch(`${API_BASE}/api/v1/tdsql/connect`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            host: connForm.host,
+            port: connForm.port,
+            user: connForm.user,
+            password: connForm.password,
+            database: connForm.database,
+          }),
+        });
+        const connectData = await connectResp.json();
+
+        if (connectResp.ok) {
+          ElementPlus.ElMessage.success('连接成功');
+          tdsqlStatus.value = { connected: true, host: connForm.host };
+          loadSavedConnections();
+        } else {
+          ElementPlus.ElMessage.error('连接失败: ' + (connectData.detail || '未知错误'));
+        }
+      } catch (e) {
+        ElementPlus.ElMessage.error('保存并连接失败: ' + e.message);
+      } finally {
+        connecting.value = false;
+      }
+    };
+
+    // 连接已保存的配置
+    const connectSavedConn = async (connId) => {
+      connecting.value = true;
+      try {
+        const resp = await fetch(`${API_BASE}/api/v1/tdsql/connections/${connId}/connect`, {
+          method: 'POST',
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          ElementPlus.ElMessage.success('连接成功: ' + data.name);
+          tdsqlStatus.value = { connected: true, host: data.host };
+          currentConnId.value = connId;
+        } else {
+          const data = await resp.json();
+          ElementPlus.ElMessage.error('连接失败: ' + (data.detail || '未知错误'));
+        }
+      } catch (e) {
+        ElementPlus.ElMessage.error('连接失败: ' + e.message);
+      } finally {
+        connecting.value = false;
+      }
+    };
+
+    // 删除已保存的连接配置
+    const deleteSavedConn = async (connId) => {
+      try {
+        const resp = await fetch(`${API_BASE}/api/v1/tdsql/connections/${connId}`, {
+          method: 'DELETE',
+        });
+        if (resp.ok) {
+          ElementPlus.ElMessage.success('删除成功');
+          loadSavedConnections();
+        } else {
+          const data = await resp.json();
+          ElementPlus.ElMessage.error('删除失败: ' + (data.detail || '未知错误'));
+        }
+      } catch (e) {
+        ElementPlus.ElMessage.error('删除失败: ' + e.message);
+      }
+    };
+
+    // 断开TDSQL连接
+    const disconnectTdsql = async () => {
+      try {
+        const resp = await fetch(`${API_BASE}/api/v1/tdsql/disconnect`, {
+          method: 'POST',
+        });
+        if (resp.ok) {
+          ElementPlus.ElMessage.success('已断开连接');
+          tdsqlStatus.value = { connected: false, host: '' };
+          currentConnId.value = null;
+        }
+      } catch (e) {
+        ElementPlus.ElMessage.error('断开连接失败: ' + e.message);
+      }
+    };
+
+    // 重置连接表单
+    const resetConnForm = () => {
+      connForm.name = '';
+      connForm.host = '';
+      connForm.port = 3306;
+      connForm.user = '';
+      connForm.password = '';
+      connForm.database = '';
+      testResult.value = null;
+      editingConnection.value = false;
+    };
+
+    // 加载规则列表
+    const loadRules = async () => {
+      rulesLoading.value = true;
+      try {
+        const resp = await fetch(`${API_BASE}/api/v1/rules`);
+        if (resp.ok) {
+          const data = await resp.json();
+          rulesList.value = data.rules || [];
+          // 按类别分组
+          const byCategory = {};
+          for (const rule of rulesList.value) {
+            const cat = rule.category;
+            if (!byCategory[cat]) byCategory[cat] = [];
+            byCategory[cat].push(rule);
+          }
+          rulesByCategory.value = byCategory;
+        }
+      } catch (e) {
+        console.error('加载规则失败:', e);
+      } finally {
+        rulesLoading.value = false;
+      }
+    };
+
+    // 获取严重级别对应的CSS类
+    const getSeverityClass = (severity) => {
+      if (!severity) return 'info';
+      return severity.toLowerCase();
     };
 
     // SQL审核
@@ -535,12 +985,18 @@ const app = createApp({
     };
 
     onMounted(() => {
+      console.log('Vue app mounted');
       loadDashboard();
       loadSlowList();
+      checkTdsqlStatus();
+      loadSavedConnections();
+      loadRules();
+      console.log('Rules page state:', { currentPage: currentPage.value, rulesList: rulesList.value.length });
     });
 
     watch(currentPage, (val) => {
       if (val === 'dashboard') nextTick(renderRuleChart);
+      if (val === 'rules' && rulesList.value.length === 0) loadRules();
     });
 
     return {
@@ -551,6 +1007,14 @@ const app = createApp({
       auditSql, triggerFileInput, handleFileSelect, handleFileDrop,
       analyzeSlowQuery, loadSlowExample, loadSlowList,
       analyzeExplain, loadExplainExample, loadExample,
+      // TDSQL管理
+      tdsqlStatus, savedConnections, loadingConnections,
+      testingConn, connecting, deletingConn, currentConnId,
+      testResult, editingConnection, connForm,
+      loadSavedConnections, testConnection, saveAndConnect,
+      connectSavedConn, deleteSavedConn, disconnectTdsql, resetConnForm,
+      // 规则
+      rulesList, rulesByCategory, rulesLoading, loadRules, getSeverityClass, switchToRules,
     };
   },
 });

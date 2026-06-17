@@ -65,7 +65,50 @@ class RuleChecker:
         """获取所有启用的规则"""
         return [r for r in self.rules if r.enabled]
 
-    def audit_sql(self, sql: str, file_path: str = "", line_number: Optional[int] = None) -> AuditResult:
+    def get_rules_info(self) -> list[dict]:
+        """
+        获取所有规则的详细信息列表。
+        
+        Returns:
+            规则信息列表，每个规则包含：
+            - rule_id: 规则ID
+            - category: 规则类别
+            - severity: 严重级别
+            - description: 规则描述
+            - enabled: 是否启用
+        """
+        return [
+            {
+                "rule_id": r.rule_id,
+                "category": r.category.value if hasattr(r.category, 'value') else str(r.category),
+                "severity": r.severity.value if hasattr(r.severity, 'value') else str(r.severity),
+                "description": r.description,
+                "enabled": r.enabled,
+            }
+            for r in self.rules
+        ]
+
+    def get_rules_by_category(self) -> dict:
+        """
+        按类别分组获取规则统计。
+        
+        Returns:
+            分类统计字典，key为类别，value为该类别的规则列表
+        """
+        categories = {}
+        for r in self.rules:
+            cat = r.category.value if hasattr(r.category, 'value') else str(r.category)
+            if cat not in categories:
+                categories[cat] = []
+            categories[cat].append({
+                "rule_id": r.rule_id,
+                "severity": r.severity.value if hasattr(r.severity, 'value') else str(r.severity),
+                "description": r.description,
+            })
+        return categories
+
+    def audit_sql(self, sql: str, file_path: str = "", line_number: Optional[int] = None,
+                  table_metadata: Optional[dict] = None) -> AuditResult:
         """
         审核单条 SQL。
 
@@ -73,6 +116,8 @@ class RuleChecker:
             sql: 待审核的 SQL 语句
             file_path: 来源文件路径（可选）
             line_number: 行号（可选）
+            table_metadata: 表元数据字典（可选），用于分布式规则增强。
+                           格式: {"table_name": {"shard_key": "...", "is_shard_table": True, ...}}
 
         Returns:
             AuditResult 审核结果
@@ -85,7 +130,7 @@ class RuleChecker:
             if rule.category.value == "ddl" and not (parsed.is_create_table or parsed.is_alter_table):
                 continue
             try:
-                violation = rule.check(parsed)
+                violation = rule.check(parsed, table_metadata=table_metadata)
                 if violation is not None:
                     # 确保行号信息传递
                     if violation.line_number is None and line_number is not None:

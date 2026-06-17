@@ -15,6 +15,7 @@ import os
 import re
 from typing import Optional
 
+import httpx
 from fastapi import APIRouter, Header, HTTPException, Request
 from pydantic import BaseModel
 
@@ -25,6 +26,8 @@ router = APIRouter(prefix="/api/v1/gitlab", tags=["GitLab集成"])
 
 # 配置（从环境变量读取）
 GITLAB_WEBHOOK_SECRET = os.getenv("GITLAB_WEBHOOK_SECRET", "")
+GITLAB_API_URL = os.getenv("GITLAB_API_URL", "https://gitlab.com")
+GITLAB_API_TOKEN = os.getenv("GITLAB_API_TOKEN", "")
 checker = RuleChecker()
 
 
@@ -158,6 +161,59 @@ def _format_mr_comment(results: list, summary: AuditSummary, project_name: str) 
     return "\n".join(lines)
 
 
+def _post_mr_comment(project_id: int, mr_iid: int, comment_body: str) -> dict:
+    """
+    将审核报告评论回写到 GitLab Merge Request。
+
+    使用 GitLab API v4: POST /api/v4/projects/:id/merge_requests/:iid/notes
+
+    Args:
+        project_id: GitLab 项目 ID（从 Webhook payload 中提取）
+        mr_iid: Merge Request 的 IID（从 Webhook payload 中提取）
+        comment_body: 评论内容（Markdown）
+
+    Returns:
+        包含结果信息的字典
+    """
+    if not GITLAB_API_TOKEN:
+        return {"posted": False, "reason": "GITLAB_API_TOKEN 未配置"}
+
+    if not project_id or not mr_iid:
+        return {"posted": False, "reason": "project_id 或 mr_iid 缺失"}
+
+    api_url = f"{GITLAB_API_URL.rstrip('/')}/api/v4"
+    headers = {
+        "PRIVATE-TOKEN": GITLAB_API_TOKEN,
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "body": comment_body,
+    }
+
+    try:
+        with httpx.Client(timeout=30.0) as client:
+            response = client.post(
+                f"{api_url}/projects/{project_id}/merge_requests/{mr_iid}/notes",
+                headers=headers,
+                json=payload,
+            )
+        if response.status_code in (200, 201):
+            return {"posted": True, "comment_id": response.json().get("id")}
+        elif response.status_code == 401:
+            return {"posted": False, "reason": "GitLab API Token 无效或已过期"}
+        elif response.status_code == 404:
+            return {"posted": False, "reason": f"未找到 MR #{mr_iid}，请检查 project_id 和 mr_iid 是否正确"}
+        else:
+            return {
+                "posted": False,
+                "reason": f"GitLab API 返回错误: {response.status_code} - {response.text[:200]}",
+            }
+    except ImportError:
+        return {"posted": False, "reason": "httpx 未安装，请执行: pip install httpx"}
+    except Exception as e:
+        return {"posted": False, "reason": f"评论回写失败: {str(e)}"}
+
+
 # ============ API路由 ============
 
 @router.post("/webhook/merge-request", summary="GitLab Merge Request Webhook")
@@ -194,6 +250,7 @@ async def handle_merge_request_webhook(
     mr_id = mr_attrs.get("iid", 0)
     action = mr_attrs.get("action", "")
     project_name = payload.get("project", {}).get("name", "")
+    project_id = payload.get("project", {}).get("id", 0) or payload.get("project_id", 0)
 
     # 只在创建或更新MR时审核
     if action not in ("open", "update", "reopen"):
@@ -227,6 +284,9 @@ async def handle_merge_request_webhook(
     results, summary = _audit_sql_list(sql_items)
     report = _format_mr_comment(results, summary, project_name)
 
+    # 回写评论到 GitLab MR
+    comment_result = _post_mr_comment(project_id, mr_id, report)
+
     return {
         "merge_request_id": mr_id,
         "project_name": project_name,
@@ -236,6 +296,8 @@ async def handle_merge_request_webhook(
         "pass_rate": summary.pass_rate,
         "has_critical": summary.error_count > 0,
         "comment": report,
+        "comment_posted": comment_result.get("posted", False),
+        "comment_reason": comment_result.get("reason"),
     }
 
 

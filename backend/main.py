@@ -18,6 +18,7 @@ from backend.api.slow_query import router as slow_query_router
 from backend.api.dashboard import router as dashboard_router
 from backend.api.gitlab_hook import router as gitlab_router
 from backend.api.tdsql_manage import router as tdsql_router
+from backend.api.rules import router as rules_router
 
 # 配置日志
 logging.basicConfig(
@@ -69,10 +70,11 @@ app.add_middleware(
 
 # 注册API路由
 app.include_router(audit_router)          # SQL审核
-app.include_router(slow_query_router)     # 慢SQL分析
-app.include_router(dashboard_router)      # Dashboard
-app.include_router(gitlab_router)         # GitLab集成
-app.include_router(tdsql_router)          # TDSQL管理
+app.include_router(slow_query_router)       # 慢SQL分析
+app.include_router(dashboard_router)       # Dashboard
+app.include_router(gitlab_router)          # GitLab集成
+app.include_router(tdsql_router)           # TDSQL管理
+app.include_router(rules_router)            # 规则管理
 
 
 @app.get("/health", tags=["健康检查"])

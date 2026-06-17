@@ -4,59 +4,41 @@ __pycache__/
 *$py.class
 *.so
 .Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# Virtual Environment
-.venv/
-venv/
-ENV/
 env/
+venv/
+.venv/
+ENV/
+build/
+dist/
+*.egg-info/
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-*~
-.DS_Store
-Thumbs.db
 
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-*.cover
+# Environment
+.env
+.env.local
+.env.*.local
 
-# Data (local SQLite databases and reports)
-data/tdsql_check.db
-data/tdsql_sqlcheck.db
-data/reports/*.pdf
-data/*.db-journal
-data/*.db-wal
-data/*.db-shm
-
-# Config (sensitive)
-config/tdsql.json
-
-# Test temp files (root level only)
-/test_*.py
-
-# Docker
-.docker/
+# Database/TDSQL configs (contain sensitive info)
+config/tdsql_connections.json
 
 # Logs
 *.log
+logs/
+
+# Data files (contain runtime data)
+data/*.db
+data/*.pdf
+data/reports/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node (if any)
+node_modules/
+npm-debug.log

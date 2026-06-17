@@ -5,7 +5,7 @@ R001: 库名/表名字符限制32以内，必须符合 ^[a-z][a-z0-9_]*$
 R002: 表名不能使用 TDSQL 关键字
 """
 import re
-from typing import Optional
+from typing import Optional, Dict
 
 from backend.config import TDSQL_RESERVED_KEYWORDS
 from backend.engine.parser import ParsedSQL
@@ -26,7 +26,7 @@ class R001NamingLength(BaseRule):
     NAMING_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
     MAX_LENGTH = 32
 
-    def check(self, parsed: ParsedSQL) -> Optional[Violation]:
+    def check(self, parsed: ParsedSQL, table_metadata: Optional[dict] = None) -> Optional[Violation]:
         for table in parsed.tables:
             # 可能包含 schema.table 格式
             parts = table.split(".")
@@ -74,7 +74,7 @@ class R002ReservedKeywords(BaseRule):
     description = "表名不能使用 TDSQL/MySQL 保留关键字"
     enabled = True
 
-    def check(self, parsed: ParsedSQL) -> Optional[Violation]:
+    def check(self, parsed: ParsedSQL, table_metadata: Optional[dict] = None) -> Optional[Violation]:
         for table in parsed.tables:
             parts = table.split(".")
             for part in parts:
