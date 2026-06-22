@@ -18,7 +18,7 @@ DATABASE_URL = f"sqlite+aiosqlite:///{DATABASE_DIR}/tdsql_sqlcheck.db"
 
 # FastAPI 配置
 APP_TITLE = "TDSQL SQL审核工具"
-APP_VERSION = "0.4.0"
+APP_VERSION = "1.0.0"
 APP_DESCRIPTION = "覆盖开发、测试、生产全生命周期的SQL质量管控与慢SQL分析工具"
 
 # SQL 解析配置

@@ -7,16 +7,7 @@ import re
 from typing import Optional
 
 from backend.engine.parser import ParsedSQL, SQLParser
-from backend.engine.rules import (
-    R001NamingLength, R002ReservedKeywords,
-    R003PrimaryKey, R004Engine, R005Charset, R006EnumSetType,
-    R007TimestampType, R008ForeignKey, R009FinanceFloatType,
-    R010VarcharLength, R011TextBlobType,
-    R012SelectStar, R013DmlWithoutWhere, R014UpdateDeleteWithoutWhere,
-    R015NestedSubquery, R016FunctionInWhere, R017OrderByRand,
-    R018IndexCount, R019RedundantIndex,
-    R020ShardKeyInWhere, R021ShardKeyUpdate, R022GlobalDeleteWithoutShardKey,
-)
+from backend.engine.rules import ALL_RULE_CLASSES
 from backend.engine.rules.base import BaseRule
 from backend.models import (
     AuditResult, AuditSummary, Violation,
@@ -31,35 +22,8 @@ class RuleChecker:
         self.rules: list[BaseRule] = self._load_default_rules()
 
     def _load_default_rules(self) -> list[BaseRule]:
-        """加载默认规则集"""
-        return [
-            # 命名规范
-            R001NamingLength(),
-            R002ReservedKeywords(),
-            # DDL 规范
-            R003PrimaryKey(),
-            R004Engine(),
-            R005Charset(),
-            R006EnumSetType(),
-            R007TimestampType(),
-            R008ForeignKey(),
-            R009FinanceFloatType(),
-            R010VarcharLength(),
-            R011TextBlobType(),
-            # DML 规范
-            R012SelectStar(),
-            R013DmlWithoutWhere(),
-            R014UpdateDeleteWithoutWhere(),
-            R015NestedSubquery(),
-            R016FunctionInWhere(),
-            R017OrderByRand(),
-            R018IndexCount(),
-            R019RedundantIndex(),
-            # 分布式规范
-            R020ShardKeyInWhere(),
-            R021ShardKeyUpdate(),
-            R022GlobalDeleteWithoutShardKey(),
-        ]
+        """加载全部76条规则"""
+        return [cls() for cls in ALL_RULE_CLASSES]
 
     def get_enabled_rules(self) -> list[BaseRule]:
         """获取所有启用的规则"""
@@ -84,6 +48,8 @@ class RuleChecker:
                 "severity": r.severity.value if hasattr(r.severity, 'value') else str(r.severity),
                 "description": r.description,
                 "enabled": r.enabled,
+                "spec_source": getattr(r, 'spec_source', ''),
+                "fix_suggestion": getattr(r, 'fix_suggestion', ''),
             }
             for r in self.rules
         ]
@@ -126,8 +92,8 @@ class RuleChecker:
         violations: list[Violation] = []
 
         for rule in self.get_enabled_rules():
-            # DDL 规则只在 CREATE/ALTER 时检查
-            if rule.category.value == "ddl" and not (parsed.is_create_table or parsed.is_alter_table):
+            # DDL 规则只在 CREATE/ALTER/DROP 时检查
+            if rule.category.value == "ddl" and not (parsed.is_create_table or parsed.is_alter_table or parsed.sql_type == "DROP"):
                 continue
             try:
                 violation = rule.check(parsed, table_metadata=table_metadata)

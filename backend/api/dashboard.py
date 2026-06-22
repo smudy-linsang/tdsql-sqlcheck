@@ -11,6 +11,21 @@ from fastapi import APIRouter
 
 router = APIRouter(prefix="/api/v1/dashboard", tags=["Dashboard"])
 
+
+def _get_rule_stats() -> dict:
+    """动态获取规则统计"""
+    try:
+        from backend.engine.checker import RuleChecker
+        checker = RuleChecker()
+        rules = checker.get_rules_info()
+        by_category = {}
+        for r in rules:
+            cat = r.get("category", "other")
+            by_category[cat] = by_category.get(cat, 0) + 1
+        return {"total": len(rules), "enabled": len(rules), "by_category": by_category}
+    except Exception:
+        return {"total": 76, "enabled": 76, "by_category": {}}
+
 DB_PATH = Path(__file__).parent.parent.parent / "data" / "tdsql_check.db"
 
 
@@ -49,16 +64,7 @@ async def get_summary():
                 "top5_time": [],
                 "top5_frequency": [],
             },
-            "rules": {
-                "total": 22,
-                "enabled": 22,
-                "by_category": {
-                    "naming": 2,
-                    "ddl": 9,
-                    "dml": 8,
-                    "distributed": 3,
-                },
-            },
+            "rules": _get_rule_stats(),
         }
 
     conn = _get_connection()
@@ -134,16 +140,7 @@ async def get_summary():
                 "top5_time": top5_time,
                 "top5_frequency": top5_freq,
             },
-            "rules": {
-                "total": 22,
-                "enabled": 22,
-                "by_category": {
-                    "naming": 2,
-                    "ddl": 9,
-                    "dml": 8,
-                    "distributed": 3,
-                },
-            },
+            "rules": _get_rule_stats(),
         }
     finally:
         conn.close()

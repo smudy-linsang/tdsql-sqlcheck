@@ -193,14 +193,14 @@ class TestDDLRules:
         """合规DDL应通过所有检查"""
         sql = """
         CREATE TABLE t_order (
-            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-            order_no VARCHAR(64) NOT NULL,
-            user_id BIGINT UNSIGNED NOT NULL,
-            amount DECIMAL(18,2) NOT NULL DEFAULT 0,
-            status TINYINT NOT NULL DEFAULT 0,
-            create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY COMMENT '主键',
+            order_no VARCHAR(64) NOT NULL COMMENT '订单号',
+            user_id BIGINT UNSIGNED NOT NULL COMMENT '用户ID',
+            amount DECIMAL(18,2) NOT NULL DEFAULT 0 COMMENT '金额',
+            status TINYINT NOT NULL DEFAULT 0 COMMENT '状态',
+            create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+            update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='订单表'
         """
         resp = client.post("/api/v1/audit/sql", json={"sql": sql})
         data = resp.json()
@@ -541,11 +541,11 @@ class TestDashboard:
         assert "audit" in data
         assert "slow_queries" in data
         assert "rules" in data
-        assert data["rules"]["total"] == 22
-        assert data["rules"]["by_category"]["naming"] == 2
-        assert data["rules"]["by_category"]["ddl"] == 9
-        assert data["rules"]["by_category"]["dml"] == 8
-        assert data["rules"]["by_category"]["distributed"] == 3
+        assert data["rules"]["total"] == 76
+        assert data["rules"]["by_category"]["naming"] == 5
+        assert data["rules"]["by_category"]["ddl"] == 22
+        assert data["rules"]["by_category"]["dml"] == 9
+        assert data["rules"]["by_category"]["distributed"] == 13
 
     def test_audit_trend(self):
         """审核趋势"""

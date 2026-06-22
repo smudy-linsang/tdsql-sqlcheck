@@ -64,7 +64,9 @@ class TestUAT01_DevSQLReview:
             user_id BIGINT UNSIGNED NOT NULL COMMENT '用户ID',
             address VARCHAR(256) NOT NULL COMMENT '地址',
             is_default TINYINT NOT NULL DEFAULT 0 COMMENT '是否默认',
+            is_deleted TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除标记',
             create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+            update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
             INDEX idx_user_id (user_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户地址表'
         """

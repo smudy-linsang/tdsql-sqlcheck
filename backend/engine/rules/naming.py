@@ -21,6 +21,8 @@ class R001NamingLength(BaseRule):
     severity = Severity.ERROR
     description = "库名/表名字符限制32以内，必须以小写字母开头，仅包含小写字母、数字和下划线"
     enabled = True
+    spec_source = "TDSQL数据库开发规范 - 命名规范"
+    fix_suggestion = "表名以小写字母开头，仅包含小写字母、数字、下划线，长度≤32"
 
     # 命名正则：以小写字母开头，仅包含小写字母、数字、下划线
     NAMING_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
@@ -73,6 +75,8 @@ class R002ReservedKeywords(BaseRule):
     severity = Severity.ERROR
     description = "表名不能使用 TDSQL/MySQL 保留关键字"
     enabled = True
+    spec_source = "TDSQL数据库开发规范 - 命名规范"
+    fix_suggestion = "请为表名添加业务前缀或后缀，如: t_order, order_tbl"
 
     def check(self, parsed: ParsedSQL, table_metadata: Optional[dict] = None) -> Optional[Violation]:
         for table in parsed.tables:

@@ -204,14 +204,14 @@ class TestCheckerIntegration:
         """合规的 DDL 应该通过所有检查"""
         sql = """
         CREATE TABLE t_order (
-            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-            order_no VARCHAR(64) NOT NULL,
-            user_id BIGINT UNSIGNED NOT NULL,
-            amount DECIMAL(18,2) NOT NULL DEFAULT 0,
-            status TINYINT NOT NULL DEFAULT 0,
-            create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY COMMENT '主键',
+            order_no VARCHAR(64) NOT NULL COMMENT '订单号',
+            user_id BIGINT UNSIGNED NOT NULL COMMENT '用户ID',
+            amount DECIMAL(18,2) NOT NULL DEFAULT 0 COMMENT '金额',
+            status TINYINT NOT NULL DEFAULT 0 COMMENT '状态',
+            create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+            update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='订单表'
         """
         result = checker.audit_sql(sql)
         assert result.passed is True

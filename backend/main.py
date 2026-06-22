@@ -19,6 +19,12 @@ from backend.api.dashboard import router as dashboard_router
 from backend.api.gitlab_hook import router as gitlab_router
 from backend.api.tdsql_manage import router as tdsql_router
 from backend.api.rules import router as rules_router
+# V1.0 新增路由
+from backend.api.project import router as project_router
+from backend.api.bigtable import router as bigtable_router
+from backend.api.quality_gate import router as gate_router
+from backend.api.monitor import router as monitor_router
+from backend.api.inspection import router as inspection_router
 
 # 配置日志
 logging.basicConfig(
@@ -37,11 +43,18 @@ async def lifespan(app: FastAPI):
     # ── 启动时 ──
     logger.info("TDSQL SQL审核工具启动中...")
     try:
+        from backend.services.database import ensure_db, init_rule_configs
+        ensure_db()
+        init_rule_configs()
+        logger.info("数据库初始化完成 (V1.0, 20张表)")
+    except Exception as e:
+        logger.warning(f"数据库初始化失败（非致命）: {e}")
+    try:
         from backend.services.scheduler import start_scheduler
         start_scheduler()
     except Exception as e:
         logger.warning(f"定时任务调度器启动失败（非致命）: {e}")
-    logger.info("TDSQL SQL审核工具已就绪")
+    logger.info("TDSQL SQL审核工具已就绪 (V1.0)")
     yield
     # ── 关闭时 ──
     logger.info("TDSQL SQL审核工具关闭中...")
@@ -54,8 +67,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="TDSQL SQL审核工具",
-    version="0.4.0",
-    description="覆盖开发、测试、生产全生命周期的SQL质量管控与慢SQL分析工具",
+    version="1.0.0",
+    description="覆盖开发、测试、生产全生命周期的SQL质量管控与慢SQL分析工具（V1.0 - 76条规则+慢SQL六维分析+大表治理+质量门禁）",
     lifespan=lifespan,
 )
 
@@ -75,12 +88,18 @@ app.include_router(dashboard_router)       # Dashboard
 app.include_router(gitlab_router)          # GitLab集成
 app.include_router(tdsql_router)           # TDSQL管理
 app.include_router(rules_router)            # 规则管理
+# V1.0 新增路由
+app.include_router(project_router)         # 项目管理
+app.include_router(bigtable_router)        # 大表治理
+app.include_router(gate_router)            # 质量门禁
+app.include_router(monitor_router)         # 监控告警
+app.include_router(inspection_router)      # 巡检管理
 
 
 @app.get("/health", tags=["健康检查"])
 async def health():
     """健康检查端点"""
-    return {"status": "ok", "version": "0.4.0"}
+    return {"status": "ok", "version": "1.0.0"}
 
 
 # 前端页面路由
@@ -92,16 +111,20 @@ async def serve_frontend():
         return FileResponse(str(index_path))
     return {
         "service": "TDSQL SQL审核工具",
-        "version": "0.4.0",
+        "version": "1.0.0",
         "status": "running",
         "api_docs": "http://localhost:8000/docs",
         "modules": {
-            "sql_audit": "SQL审核（22条规则） - POST /api/v1/audit/sql",
+            "sql_audit": "SQL审核（76条规则） - POST /api/v1/audit/sql",
             "slow_query": "慢SQL分析 - POST /api/v1/slow-queries",
             "dashboard": "统计概览 - GET /api/v1/dashboard/summary",
             "gitlab": "GitLab集成 - POST /api/v1/gitlab/webhook/merge-request",
             "tdsql": "TDSQL管理 - POST /api/v1/tdsql/connect",
-            "scheduler": "定时任务 - GET /api/v1/tdsql/scheduler/status",
-            "report": "审核报告导出 - GET /api/v1/audit/report/{id}/export",
+            "rules": "规则管理 - GET /api/v1/rules",
+            "projects": "项目管理 - GET /api/v1/projects",
+            "bigtable": "大表治理 - GET /api/v1/bigtable/report/{connection_id}",
+            "gate": "质量门禁 - GET /api/v1/gate/rules/{project_id}",
+            "monitor": "监控告警 - GET /api/v1/monitor/alerts",
+            "inspection": "巡检管理 - GET /api/v1/inspection/tasks",
         },
     }

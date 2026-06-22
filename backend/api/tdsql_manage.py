@@ -40,6 +40,9 @@ class SlowQueryFetchRequest(BaseModel):
     source: str = Field("digest", description="数据源: digest/slow_log/processlist")
     limit: int = Field(50, description="抓取条数")
     min_time: float = Field(1.0, description="最小耗时阈值(秒)")
+    task_name: str = Field("", description="自定义扫描任务名称")
+    time_window_start: str = Field("", description="时间窗口开始 (YYYY-MM-DD HH:MM:SS)")
+    time_window_end: str = Field("", description="时间窗口结束 (YYYY-MM-DD HH:MM:SS)")
 
 
 def _get_pool():
@@ -306,13 +309,25 @@ async def fetch_slow_queries(request: SlowQueryFetchRequest):
     - slow_log: 从 mysql.slow_log 表获取
     - processlist: 从 processlist 获取当前正在执行的慢SQL
     """
+    # 校验时间窗口必填（在连接校验之后，避免覆盖未连接的 400 错误）
     conn = _get_pool()
+    if not request.time_window_start or not request.time_window_end:
+        raise HTTPException(status_code=422, detail="时间窗口开始和结束时间为必填项，请指定扫描时间范围以避免拉取海量数据")
+    if request.time_window_start > request.time_window_end:
+        raise HTTPException(status_code=422, detail="时间窗口开始时间不能晚于结束时间")
+
     try:
         if request.source == "digest":
-            raw_queries = conn.get_slow_queries_from_digest(limit=request.limit)
+            raw_queries = conn.get_slow_queries_from_digest(
+                limit=request.limit,
+                time_start=request.time_window_start or None,
+                time_end=request.time_window_end or None,
+            )
         elif request.source == "slow_log":
             raw_queries = conn.get_slow_queries_from_slow_log(
-                limit=request.limit, min_time=request.min_time
+                limit=request.limit, min_time=request.min_time,
+                time_start=request.time_window_start or None,
+                time_end=request.time_window_end or None,
             )
         elif request.source == "processlist":
             raw_queries = conn.get_slow_queries_from_processlist(
@@ -327,32 +342,78 @@ async def fetch_slow_queries(request: SlowQueryFetchRequest):
 
         analyzer = SlowSQLAnalyzer()
         service = SlowQueryService()
-        results = []
 
+        # 获取连接信息用于创建扫描任务
+        conn_info = getattr(conn, '_conn_params', {}) or {}
+        db_name = conn_info.get('database', '')
+        conn_id = getattr(conn, '_connection_id', '')
+        conn_name = conn_info.get('host', '') + ':' + str(conn_info.get('port', 3306))
+
+        # 创建扫描任务（使用自定义名称或自动生成）
+        source_labels = {"digest": "performance_schema", "slow_log": "slow_query_log", "processlist": "processlist"}
+        task_name = request.task_name or f"{source_labels.get(request.source, request.source)}扫描 - {conn_name}"
+        task_id = service.create_scan_task(
+            task_name=task_name,
+            source=request.source,
+            db_name=db_name,
+            connection_id=conn_id,
+            connection_name=conn_name,
+            time_window_start=request.time_window_start,
+            time_window_end=request.time_window_end,
+        )
+
+        results = []
         for raw in raw_queries:
             sql_text = raw.get("sql_text") or raw.get("info") or raw.get("DIGEST_TEXT", "")
             if not sql_text:
                 continue
+            # mysql.slow_log 的 sql_text 返回 bytes，需要解码
+            if isinstance(sql_text, bytes):
+                sql_text = sql_text.decode("utf-8", errors="replace")
+            db_val = raw.get("SCHEMA_NAME") or raw.get("db", "") or db_name
+            if isinstance(db_val, bytes):
+                db_val = db_val.decode("utf-8", errors="replace")
+
+            # 兼容不同数据源的字段名
+            # digest: total_seconds/avg_seconds/max_seconds
+            # slow_log: query_time (TIME类型，pymysql返回timedelta)
+            # processlist: time (int秒)
+            query_time_val = raw.get("query_time") or raw.get("time")
+            if query_time_val is not None:
+                if hasattr(query_time_val, "total_seconds"):
+                    # timedelta 对象
+                    qt_sec = query_time_val.total_seconds()
+                else:
+                    qt_sec = float(query_time_val)
+                total_ms = avg_ms = max_ms = qt_sec * 1000
+            else:
+                total_ms = float(raw.get("total_seconds", 0) or 0) * 1000
+                avg_ms = float(raw.get("avg_seconds", 0) or 0) * 1000
+                max_ms = float(raw.get("max_seconds", 0) or 0) * 1000
 
             record = SlowQueryRecord(
                 fingerprint=raw.get("DIGEST_TEXT", sql_text),
                 sql_text=sql_text,
-                db_name=raw.get("SCHEMA_NAME") or raw.get("db", ""),
+                db_name=db_val,
                 exec_count=raw.get("exec_count") or raw.get("COUNT_STAR", 0) or 0,
-                total_time_ms=float(raw.get("total_seconds", 0) or 0) * 1000,
-                avg_time_ms=float(raw.get("avg_seconds", 0) or 0) * 1000,
-                max_time_ms=float(raw.get("max_seconds", 0) or 0) * 1000,
+                total_time_ms=total_ms,
+                avg_time_ms=avg_ms,
+                max_time_ms=max_ms,
                 rows_examined=raw.get("rows_examined") or raw.get("SUM_ROWS_EXAMINED", 0) or 0,
                 rows_sent=raw.get("rows_sent") or raw.get("SUM_ROWS_SENT", 0) or 0,
             )
 
-            # 保存并分析
-            result = service.add_slow_query(record)
+            # 保存并分析（关联扫描任务）
+            result = service.add_slow_query(record, scan_task_id=task_id)
             results.append(result)
+
+        # 完成扫描任务
+        service.complete_scan_task(task_id, total_fetched=len(results), total_analyzed=len(results))
 
         return {
             "source": request.source,
             "fetched": len(results),
+            "scan_task_id": task_id,
             "results": results,
         }
     except HTTPException:

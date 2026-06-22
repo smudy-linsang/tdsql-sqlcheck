@@ -65,6 +65,69 @@
     .empty-state { text-align: center; padding: 40px; color: #909399; }
     .result-passed { color: #67c23a; font-weight: 600; }
     .result-failed { color: #f56c6c; font-weight: 600; }
+    /* 慢SQL筛选栏 */
+    .slow-filter-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 15px;
+      padding: 12px;
+      background: #f5f7fa;
+      border-radius: 4px;
+    }
+    .slow-filter-bar select, .slow-filter-bar input {
+      padding: 6px 10px;
+      border: 1px solid #dcdfe6;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+    .slow-filter-bar label {
+      font-size: 13px;
+      color: #606266;
+      white-space: nowrap;
+    }
+    /* 分页器 */
+    .pagination {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 15px;
+      padding: 10px 0;
+    }
+    .pagination button {
+      padding: 5px 12px;
+      border: 1px solid #dcdfe6;
+      background: #fff;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.2s;
+    }
+    .pagination button:hover:not(:disabled) {
+      border-color: #409eff;
+      color: #409eff;
+    }
+    .pagination button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .pagination button.active {
+      background: #409eff;
+      color: #fff;
+      border-color: #409eff;
+    }
+    .pagination .page-info {
+      font-size: 13px;
+      color: #606266;
+      margin: 0 10px;
+    }
+    .slow-meta {
+      font-size: 11px;
+      color: #c0c4cc;
+      margin-top: 4px;
+    }
     .connection-status { padding: 10px 20px; font-size: 12px; color: #909399; display: flex; align-items: center; gap: 8px; border-top: 1px solid #3d4f65; margin-top: auto; }
     .status-dot { width: 8px; height: 8px; border-radius: 50%; }
     .status-dot.connected { background: #67c23a; }
@@ -100,7 +163,11 @@
     .category-title.naming { border-color: #409eff; color: #409eff; }
     .category-title.ddl { border-color: #67c23a; color: #67c23a; }
     .category-title.dml { border-color: #e6a23c; color: #e6a23c; }
+    .category-title.index { border-color: #9b59b6; color: #9b59b6; }
     .category-title.distributed { border-color: #f56c6c; color: #f56c6c; }
+    .category-title.security { border-color: #34495e; color: #34495e; }
+    .category-title.performance { border-color: #e74c3c; color: #e74c3c; }
+    .category-title.transaction { border-color: #1abc9c; color: #1abc9c; }
     .category-count { font-size: 14px; color: #909399; font-weight: normal; }
   </style>
 </head>
@@ -164,7 +231,7 @@
           </div>
           <div class="stat-card">
             <div class="label">审核规则数</div>
-            <div class="value primary">{{ stats.rules?.total || 22 }}</div>
+            <div class="value primary">{{ stats.rules?.total || 76 }}</div>
           </div>
         </div>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
@@ -277,6 +344,78 @@
       <!-- 慢SQL分析 -->
       <div v-if="currentPage === 'slow-query'">
         <div class="page-header"><h2>🐌 慢SQL分析</h2></div>
+
+        <!-- 扫描任务管理 -->
+        <div class="card">
+          <div class="card-title">扫描任务管理</div>
+
+          <!-- 新建扫描任务表单 -->
+          <div style="margin-bottom: 15px; padding: 12px; background: #f5f7fa; border-radius: 4px;">
+            <div style="display: grid; grid-template-columns: 1.5fr 1.3fr 1fr 1fr 0.5fr 0.5fr auto; gap: 10px; align-items: end;">
+              <div>
+                <label style="font-size: 13px; color: #606266; display:block; margin-bottom:4px;">任务名称</label>
+                <input v-model="scanTaskForm.task_name" style="width:100%;padding:7px;border:1px solid #dcdfe6;border-radius:4px;" placeholder="如：上午高峰期扫描">
+              </div>
+              <div>
+                <label style="font-size: 13px; color: #606266; display:block; margin-bottom:4px;">数据源</label>
+                <select v-model="scanTaskForm.source" style="width:100%;padding:7px;border:1px solid #dcdfe6;border-radius:4px;">
+                  <option value="digest">性能摘要（performance_schema）</option>
+                  <option value="slow_log">慢查询日志（slow_query_log）</option>
+                  <option value="processlist">实时进程（processlist）</option>
+                </select>
+              </div>
+              <div>
+                <label style="font-size: 13px; color: #606266; display:block; margin-bottom:4px;">时间窗口开始 <span style="color:#f56c6c;">*</span></label>
+                <input v-model="scanTaskForm.time_window_start" type="datetime-local" style="width:100%;padding:7px;border:1px solid #dcdfe6;border-radius:4px;">
+              </div>
+              <div>
+                <label style="font-size: 13px; color: #606266; display:block; margin-bottom:4px;">时间窗口结束 <span style="color:#f56c6c;">*</span></label>
+                <input v-model="scanTaskForm.time_window_end" type="datetime-local" style="width:100%;padding:7px;border:1px solid #dcdfe6;border-radius:4px;">
+              </div>
+              <div>
+                <label style="font-size: 13px; color: #606266; display:block; margin-bottom:4px;">耗时阈值(秒)</label>
+                <input v-model.number="scanTaskForm.min_time" type="number" step="0.1" min="0" style="width:100%;padding:7px;border:1px solid #dcdfe6;border-radius:4px;" title="仅对慢查询日志和实时进程有效">
+              </div>
+              <div>
+                <label style="font-size: 13px; color: #606266; display:block; margin-bottom:4px;">抓取条数</label>
+                <input v-model.number="scanTaskForm.limit" type="number" style="width:100%;padding:7px;border:1px solid #dcdfe6;border-radius:4px;">
+              </div>
+              <el-button type="primary" @click="startScanTask" :loading="scanTaskLoading" style="height:36px;">开始扫描</el-button>
+            </div>
+            <!-- 数据源中文说明 -->
+            <div style="margin-top:8px;padding:6px 10px;background:#eef5ff;border-radius:3px;font-size:12px;color:#409eff;line-height:1.6;">
+              <span v-if="scanTaskForm.source === 'digest'"><strong>性能摘要</strong>：从 performance_schema 抓取按 SQL 模板聚合的统计信息（执行次数、平均/最大耗时、扫描行数等），适合发现累计耗时最高的 SQL 模式。时间窗口按 SQL 首次/末次执行时间过滤。</span>
+              <span v-if="scanTaskForm.source === 'slow_log'"><strong>慢查询日志</strong>：从 mysql.slow_log 表抓取逐条慢查询记录（具体 SQL 文本、执行时长、锁等待等），需 MySQL 开启 slow_query_log 且 log_output=TABLE。时间窗口按记录的执行时间过滤，耗时阈值过滤低于指定秒数的记录。</span>
+              <span v-if="scanTaskForm.source === 'processlist'"><strong>实时进程</strong>：从 information_schema.processlist 抓取当前正在执行的慢 SQL（实时快照）。时间窗口作为任务元数据记录，耗时阈值过滤低于指定秒数的连接。</span>
+            </div>
+            <div v-if="!tdsqlStatus.connected" style="margin-top:8px;color:#e6a23c;font-size:12px;">
+              ⚠️ 请先在"TDSQL管理"页面连接数据库实例
+            </div>
+          </div>
+
+          <!-- 扫描任务列表 -->
+          <div v-if="scanTaskLoading" class="empty-state">扫描中，请稍候...</div>
+          <div v-else-if="scanTasks.length === 0" class="empty-state">暂无扫描任务</div>
+          <div v-for="task in scanTasks" :key="task.id" class="analysis-card"
+               :style="{cursor:'pointer', border: slowFilters.scan_task_id == task.id ? '2px solid #409eff' : '1px solid #ebeef5'}"
+               @click="selectScanTask(task.id)">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <div>
+                <strong>{{ task.task_name }}</strong>
+                <span style="margin-left:10px;font-size:12px;color:#909399;">
+                  {{ sourceLabel(task.source) }} | 库: {{ task.db_name || '-' }} | {{ task.connection_name || '-' }}
+                </span>
+              </div>
+              <div style="font-size:12px;color:#909399;">
+                {{ task.total_fetched }}条 | {{ task.created_at?.substring(0, 19) }}
+              </div>
+            </div>
+            <div v-if="task.time_window_start || task.time_window_end" style="margin-top:4px;font-size:12px;color:#409eff;">
+              ⏱ 时间窗口: {{ task.time_window_start || '不限' }} ~ {{ task.time_window_end || '不限' }}
+            </div>
+          </div>
+        </div>
+
         <div class="card">
           <div class="card-title">输入慢SQL信息</div>
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
@@ -341,8 +480,43 @@
 
         <!-- 慢SQL列表 -->
         <div class="card">
-          <div class="card-title">慢SQL记录</div>
-          <div v-if="slowList.length === 0" class="empty-state">暂无慢SQL记录，请先分析慢SQL</div>
+          <div class="card-title">慢SQL记录 (共 {{ slowPage.total }} 条)</div>
+
+          <!-- 筛选栏 -->
+          <div class="slow-filter-bar">
+            <label>数据库:</label>
+            <select v-model="slowFilters.db_name" @change="handleSlowFilter" style="min-width:120px;">
+              <option value="">全部</option>
+              <option v-for="db in dbNames" :key="db" :value="db">{{ db }}</option>
+            </select>
+            <label>扫描任务:</label>
+            <select v-model="slowFilters.scan_task_id" @change="handleSlowFilter" style="min-width:180px;">
+              <option value="">全部</option>
+              <option v-for="task in scanTasks" :key="task.id" :value="task.id">
+                {{ task.task_name }} ({{ task.created_at?.substring(0, 16) }})
+              </option>
+            </select>
+            <label>级别:</label>
+            <select v-model="slowFilters.severity" @change="handleSlowFilter" style="min-width:100px;">
+              <option value="">全部</option>
+              <option value="ERROR">ERROR</option>
+              <option value="WARNING">WARNING</option>
+              <option value="INFO">INFO</option>
+            </select>
+            <label>状态:</label>
+            <select v-model="slowFilters.status" @change="handleSlowFilter" style="min-width:100px;">
+              <option value="">全部</option>
+              <option value="pending">待处理</option>
+              <option value="optimized">已优化</option>
+              <option value="ignored">已忽略</option>
+            </select>
+            <input v-model="slowFilters.keyword" @keyup.enter="handleSlowFilter" placeholder="搜索SQL关键词..." style="flex:1;min-width:180px;">
+            <el-button size="small" @click="handleSlowFilter">筛选</el-button>
+            <el-button size="small" @click="resetSlowFilter">重置</el-button>
+          </div>
+
+          <div v-if="slowListLoading" class="empty-state">加载中...</div>
+          <div v-else-if="slowList.length === 0" class="empty-state">暂无慢SQL记录</div>
           <div v-for="item in slowList" :key="item.id" class="analysis-card">
             <div style="display:flex;justify-content:space-between;align-items:center;">
               <div>
@@ -355,6 +529,20 @@
             </div>
             <div v-if="item.problem_type" style="margin-top:5px;font-size:12px;color:#e6a23c;">问题: {{ item.problem_type }}</div>
             <div v-if="item.suggestion" style="margin-top:3px;font-size:12px;color:#909399;">建议: {{ item.suggestion }}</div>
+            <div class="slow-meta">
+              ID: {{ item.id }} | 库: {{ item.db_name || '-' }} | 状态: {{ item.status || 'pending' }} | 录入: {{ item.created_at?.substring(0, 19) }}
+            </div>
+          </div>
+
+          <!-- 分页器 -->
+          <div class="pagination" v-if="slowPage.total > 0">
+            <button @click="changeSlowPage(1)" :disabled="slowPage.current === 1">首页</button>
+            <button @click="changeSlowPage(slowPage.current - 1)" :disabled="slowPage.current === 1">上一页</button>
+            <button v-for="p in slowPageNumbers" :key="p" @click="changeSlowPage(p)"
+                    :class="{active: p === slowPage.current}" :disabled="p === '...'">{{ p }}</button>
+            <button @click="changeSlowPage(slowPage.current + 1)" :disabled="slowPage.current === slowPage.totalPages">下一页</button>
+            <button @click="changeSlowPage(slowPage.totalPages)" :disabled="slowPage.current === slowPage.totalPages">末页</button>
+            <span class="page-info">第 {{ slowPage.current }}/{{ slowPage.totalPages }} 页，每页 {{ slowPage.size }} 条</span>
           </div>
         </div>
       </div>
@@ -485,76 +673,30 @@
         <div class="page-header"><h2>📋 SQL审核规则规范</h2></div>
         <div class="card">
           <div style="margin-bottom: 15px; color: #606266; font-size: 14px;">
-            <p>本系统共内置 <strong>{{ rulesList.length }}</strong> 条SQL审核规则，覆盖命名规范、DDL规范、DML规范和分布式场景。</p>
-            <p style="margin-top: 5px;">规则根据严重级别分为 <span style="color: #f56c6c;">● ERROR</span>（错误）和 <span style="color: #e6a23c;">● WARNING</span>（警告）两种类型。</p>
+            <p>本系统共内置 <strong>{{ rulesList.length }}</strong> 条SQL审核规则，覆盖命名规范、DDL规范、DML规范、索引规范、分布式规范、安全规范、性能规范和事务规范共8个分类。</p>
+            <p style="margin-top: 5px;">规则根据严重级别分为 <span style="color: #f56c6c;">● ERROR</span>（错误）、<span style="color: #e6a23c;">● WARNING</span>（警告）和 <span style="color: #909399;">● INFO</span>（提示）三种类型。</p>
           </div>
           <div v-if="rulesLoading" style="text-align: center; padding: 40px; color: #909399;">
             加载中...
           </div>
           <div v-else>
-            <!-- 命名规范 -->
-            <div class="category-section" v-if="rulesByCategory.naming">
-              <div class="category-title naming">
-                🏷️ 命名规范 <span class="category-count">({{ rulesByCategory.naming.length }}条)</span>
-              </div>
-              <div class="rules-grid">
-                <div class="rule-card" v-for="rule in rulesByCategory.naming" :key="rule.rule_id">
-                  <div class="rule-card-header">
-                    <span class="rule-card-id">{{ rule.rule_id }}</span>
-                    <span :class="'badge ' + getSeverityClass(rule.severity)">{{ rule.severity }}</span>
+            <!-- 动态渲染所有分类 -->
+            <template v-for="cat in categoryOrder" :key="cat.key">
+              <div class="category-section" v-if="rulesByCategory[cat.key]">
+                <div :class="'category-title ' + cat.key">
+                  {{ cat.icon }} {{ cat.label }} <span class="category-count">({{ rulesByCategory[cat.key].length }}条)</span>
+                </div>
+                <div class="rules-grid">
+                  <div class="rule-card" v-for="rule in rulesByCategory[cat.key]" :key="rule.rule_id">
+                    <div class="rule-card-header">
+                      <span class="rule-card-id">{{ rule.rule_id }}</span>
+                      <span :class="'badge ' + getSeverityClass(rule.severity)">{{ rule.severity }}</span>
+                    </div>
+                    <div class="rule-card-desc">{{ rule.description }}</div>
                   </div>
-                  <div class="rule-card-desc">{{ rule.description }}</div>
                 </div>
               </div>
-            </div>
-
-            <!-- DDL规范 -->
-            <div class="category-section" v-if="rulesByCategory.ddl">
-              <div class="category-title ddl">
-                🏗️ DDL规范 <span class="category-count">({{ rulesByCategory.ddl.length }}条)</span>
-              </div>
-              <div class="rules-grid">
-                <div class="rule-card" v-for="rule in rulesByCategory.ddl" :key="rule.rule_id">
-                  <div class="rule-card-header">
-                    <span class="rule-card-id">{{ rule.rule_id }}</span>
-                    <span :class="'badge ' + getSeverityClass(rule.severity)">{{ rule.severity }}</span>
-                  </div>
-                  <div class="rule-card-desc">{{ rule.description }}</div>
-                </div>
-              </div>
-            </div>
-
-            <!-- DML规范 -->
-            <div class="category-section" v-if="rulesByCategory.dml">
-              <div class="category-title dml">
-                📝 DML规范 <span class="category-count">({{ rulesByCategory.dml.length }}条)</span>
-              </div>
-              <div class="rules-grid">
-                <div class="rule-card" v-for="rule in rulesByCategory.dml" :key="rule.rule_id">
-                  <div class="rule-card-header">
-                    <span class="rule-card-id">{{ rule.rule_id }}</span>
-                    <span :class="'badge ' + getSeverityClass(rule.severity)">{{ rule.severity }}</span>
-                  </div>
-                  <div class="rule-card-desc">{{ rule.description }}</div>
-                </div>
-              </div>
-            </div>
-
-            <!-- 分布式规范 -->
-            <div class="category-section" v-if="rulesByCategory.distributed">
-              <div class="category-title distributed">
-                🌐 分布式规范 <span class="category-count">({{ rulesByCategory.distributed.length }}条)</span>
-              </div>
-              <div class="rules-grid">
-                <div class="rule-card" v-for="rule in rulesByCategory.distributed" :key="rule.rule_id">
-                  <div class="rule-card-header">
-                    <span class="rule-card-id">{{ rule.rule_id }}</span>
-                    <span :class="'badge ' + getSeverityClass(rule.severity)">{{ rule.severity }}</span>
-                  </div>
-                  <div class="rule-card-desc">{{ rule.description }}</div>
-                </div>
-              </div>
-            </div>
+            </template>
           </div>
         </div>
       </div>
@@ -579,6 +721,31 @@ const app = createApp({
     const analyzing = ref(false);
     const slowResult = ref(null);
     const slowList = ref([]);
+    const slowListLoading = ref(false);
+    const scanTasks = ref([]);
+    const dbNames = ref([]);
+    const slowFilters = reactive({
+      db_name: '',
+      scan_task_id: '',
+      severity: '',
+      status: '',
+      keyword: '',
+    });
+    const slowPage = reactive({
+      current: 1,
+      size: 20,
+      total: 0,
+      totalPages: 0,
+    });
+    const scanTaskForm = reactive({
+      task_name: '',
+      source: 'digest',
+      time_window_start: '',
+      time_window_end: '',
+      min_time: 0.5,
+      limit: 50,
+    });
+    const scanTaskLoading = ref(false);
     const explainInput = ref('');
     const analyzingExplain = ref(false);
     const explainResult = ref(null);
@@ -597,8 +764,20 @@ const app = createApp({
 
     // 规则相关
     const rulesList = ref([]);
-    const rulesByCategory = ref({ naming: [], ddl: [], dml: [], distributed: [] });
+    const rulesByCategory = ref({});
     const rulesLoading = ref(false);
+
+    // 规则分类元数据（顺序、图标、显示名、颜色）
+    const categoryOrder = [
+      { key: 'naming', icon: '🏷️', label: '命名规范', color: '#409eff' },
+      { key: 'ddl', icon: '🏗️', label: 'DDL规范', color: '#67c23a' },
+      { key: 'dml', icon: '📝', label: 'DML规范', color: '#e6a23c' },
+      { key: 'index', icon: '🔗', label: '索引规范', color: '#9b59b6' },
+      { key: 'distributed', icon: '🌐', label: '分布式规范', color: '#f56c6c' },
+      { key: 'security', icon: '🔒', label: '安全规范', color: '#34495e' },
+      { key: 'performance', icon: '⚡', label: '性能规范', color: '#e74c3c' },
+      { key: 'transaction', icon: '🔄', label: '事务规范', color: '#1abc9c' },
+    ];
 
     const connForm = reactive({
       name: '',
@@ -895,13 +1074,153 @@ const app = createApp({
     };
 
     const loadSlowList = async () => {
+      slowListLoading.value = true;
       try {
-        const resp = await fetch(`${API_BASE}/api/v1/slow-queries?limit=20`);
+        const params = new URLSearchParams({
+          limit: slowPage.size,
+          offset: (slowPage.current - 1) * slowPage.size,
+        });
+        if (slowFilters.db_name) params.set('db_name', slowFilters.db_name);
+        if (slowFilters.scan_task_id) params.set('scan_task_id', slowFilters.scan_task_id);
+        if (slowFilters.severity) params.set('severity', slowFilters.severity);
+        if (slowFilters.status) params.set('status', slowFilters.status);
+        if (slowFilters.keyword) params.set('keyword', slowFilters.keyword);
+        const resp = await fetch(`${API_BASE}/api/v1/slow-queries?${params}`);
         if (resp.ok) {
           const data = await resp.json();
           slowList.value = data.items || [];
+          slowPage.total = data.total || 0;
+          slowPage.totalPages = Math.max(1, Math.ceil(slowPage.total / slowPage.size));
+        }
+      } catch (e) {} finally {
+        slowListLoading.value = false;
+      }
+    };
+
+    const loadScanTasks = async () => {
+      try {
+        const resp = await fetch(`${API_BASE}/api/v1/slow-queries/scan-tasks?limit=100`);
+        if (resp.ok) {
+          const data = await resp.json();
+          scanTasks.value = data.items || [];
         }
       } catch (e) {}
+    };
+
+    const loadDbNames = async () => {
+      try {
+        const resp = await fetch(`${API_BASE}/api/v1/slow-queries/db-names`);
+        if (resp.ok) {
+          const data = await resp.json();
+          dbNames.value = data.db_names || [];
+        }
+      } catch (e) {}
+    };
+
+    const handleSlowFilter = () => {
+      slowPage.current = 1;
+      loadSlowList();
+    };
+
+    const resetSlowFilter = () => {
+      slowFilters.db_name = '';
+      slowFilters.scan_task_id = '';
+      slowFilters.severity = '';
+      slowFilters.status = '';
+      slowFilters.keyword = '';
+      slowPage.current = 1;
+      loadSlowList();
+    };
+
+    const changeSlowPage = (page) => {
+      if (page === '...' || page < 1 || page > slowPage.totalPages) return;
+      slowPage.current = page;
+      loadSlowList();
+    };
+
+    const slowPageNumbers = Vue.computed(() => {
+      const total = slowPage.totalPages;
+      const cur = slowPage.current;
+      const pages = [];
+      if (total <= 7) {
+        for (let i = 1; i <= total; i++) pages.push(i);
+      } else {
+        pages.push(1);
+        if (cur > 3) pages.push('...');
+        const start = Math.max(2, cur - 1);
+        const end = Math.min(total - 1, cur + 1);
+        for (let i = start; i <= end; i++) pages.push(i);
+        if (cur < total - 2) pages.push('...');
+        pages.push(total);
+      }
+      return pages;
+    });
+
+    // 扫描任务相关
+    const sourceLabel = (source) => {
+      const labels = { digest: '性能摘要', slow_log: '慢查询日志', processlist: '实时进程', manual: '手动录入' };
+      return labels[source] || source;
+    };
+
+    const startScanTask = async () => {
+      if (!tdsqlStatus.value.connected) {
+        ElementPlus.ElMessage.warning('请先在TDSQL管理页面连接数据库实例');
+        return;
+      }
+      // 校验时间窗口必填
+      if (!scanTaskForm.time_window_start || !scanTaskForm.time_window_end) {
+        ElementPlus.ElMessage.warning('请选择时间窗口开始和结束时间（必填）');
+        return;
+      }
+      // 校验时间窗口顺序
+      if (scanTaskForm.time_window_start > scanTaskForm.time_window_end) {
+        ElementPlus.ElMessage.warning('时间窗口开始时间不能晚于结束时间');
+        return;
+      }
+      scanTaskLoading.value = true;
+      try {
+        // 将 datetime-local 格式转换为 MySQL 兼容格式
+        const formatTime = (val) => val ? val.replace('T', ' ') + ':00' : '';
+        const resp = await fetch(`${API_BASE}/api/v1/tdsql/slow-queries/fetch`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            source: scanTaskForm.source,
+            limit: scanTaskForm.limit,
+            min_time: scanTaskForm.min_time,
+            task_name: scanTaskForm.task_name || '',
+            time_window_start: formatTime(scanTaskForm.time_window_start),
+            time_window_end: formatTime(scanTaskForm.time_window_end),
+          }),
+        });
+        const data = await resp.json();
+        if (resp.ok) {
+          ElementPlus.ElMessage.success(`扫描完成，抓取 ${data.fetched} 条慢SQL`);
+          scanTaskForm.task_name = '';
+          scanTaskForm.time_window_start = '';
+          scanTaskForm.time_window_end = '';
+          loadScanTasks();
+          loadDbNames();
+          loadSlowList();
+        } else {
+          ElementPlus.ElMessage.error(data.detail || '扫描失败');
+        }
+      } catch (e) {
+        ElementPlus.ElMessage.error('扫描失败: ' + e.message);
+      } finally {
+        scanTaskLoading.value = false;
+      }
+    };
+
+    const selectScanTask = (taskId) => {
+      // 点击同一个任务则取消筛选
+      if (slowFilters.scan_task_id == taskId) {
+        slowFilters.scan_task_id = '';
+      } else {
+        slowFilters.scan_task_id = taskId;
+      }
+      slowPage.current = 1;
+      loadSlowList();
     };
 
     const loadSlowExample = () => {
@@ -967,19 +1286,22 @@ const app = createApp({
       const el = document.getElementById('ruleChart');
       if (!el) return;
       const chart = echarts.init(el);
-      const byCat = stats.value.rules?.by_category || { naming: 2, ddl: 9, dml: 8, distributed: 3 };
+      const byCat = stats.value.rules?.by_category || {};
+      // 动态生成图表数据，使用 categoryOrder 中的元数据
+      const chartData = categoryOrder
+        .filter(cat => byCat[cat.key])
+        .map(cat => ({
+          value: byCat[cat.key],
+          name: cat.label,
+          itemStyle: { color: cat.color },
+        }));
       chart.setOption({
         tooltip: { trigger: 'item' },
-        legend: { bottom: 0 },
+        legend: { bottom: 0, type: 'scroll' },
         series: [{
           type: 'pie', radius: ['40%', '65%'],
           label: { formatter: '{b}: {c}条' },
-          data: [
-            { value: byCat.naming, name: '命名规范', itemStyle: { color: '#409eff' } },
-            { value: byCat.ddl, name: 'DDL规范', itemStyle: { color: '#67c23a' } },
-            { value: byCat.dml, name: 'DML规范', itemStyle: { color: '#e6a23c' } },
-            { value: byCat.distributed, name: '分布式规范', itemStyle: { color: '#f56c6c' } },
-          ],
+          data: chartData.length > 0 ? chartData : [{ value: 76, name: '全部规则', itemStyle: { color: '#409eff' } }],
         }],
       });
     };
@@ -988,6 +1310,8 @@ const app = createApp({
       console.log('Vue app mounted');
       loadDashboard();
       loadSlowList();
+      loadScanTasks();
+      loadDbNames();
       checkTdsqlStatus();
       loadSavedConnections();
       loadRules();
@@ -997,15 +1321,24 @@ const app = createApp({
     watch(currentPage, (val) => {
       if (val === 'dashboard') nextTick(renderRuleChart);
       if (val === 'rules' && rulesList.value.length === 0) loadRules();
+      if (val === 'slow-query') {
+        loadSlowList();
+        loadScanTasks();
+        loadDbNames();
+      }
     });
 
     return {
       currentPage, sqlInput, auditing, auditResult, stats,
       isDragover, fileInput, fileAuditResult,
-      slowForm, analyzing, slowResult, slowList,
+      slowForm, analyzing, slowResult, slowList, slowListLoading,
+      slowFilters, slowPage, scanTasks, dbNames, slowPageNumbers,
+      scanTaskForm, scanTaskLoading,
+      analyzeSlowQuery, loadSlowExample, loadSlowList,
+      loadScanTasks, loadDbNames, handleSlowFilter, resetSlowFilter, changeSlowPage,
+      startScanTask, selectScanTask, sourceLabel,
       explainInput, analyzingExplain, explainResult,
       auditSql, triggerFileInput, handleFileSelect, handleFileDrop,
-      analyzeSlowQuery, loadSlowExample, loadSlowList,
       analyzeExplain, loadExplainExample, loadExample,
       // TDSQL管理
       tdsqlStatus, savedConnections, loadingConnections,
@@ -1014,7 +1347,7 @@ const app = createApp({
       loadSavedConnections, testConnection, saveAndConnect,
       connectSavedConn, deleteSavedConn, disconnectTdsql, resetConnForm,
       // 规则
-      rulesList, rulesByCategory, rulesLoading, loadRules, getSeverityClass, switchToRules,
+      rulesList, rulesByCategory, rulesLoading, categoryOrder, loadRules, getSeverityClass, switchToRules,
     };
   },
 });

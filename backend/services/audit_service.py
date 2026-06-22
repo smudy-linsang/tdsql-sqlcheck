@@ -26,9 +26,9 @@ def _save_audit_history(audit_type: str, source: str, results: list[AuditResult]
                         summary: AuditSummary):
     """保存审核历史到数据库"""
     try:
-        # 确保数据库和表已初始化（复用 slow_query_service 的初始化逻辑）
-        from backend.services.slow_query_service import _ensure_db
-        _ensure_db()
+        # 确保数据库和表已初始化（V1.0 database.py）
+        from backend.services.database import ensure_db
+        ensure_db()
 
         conn = sqlite3.connect(str(DB_PATH))
         try:

@@ -84,16 +84,20 @@ async def list_slow_queries(
     db_name: Optional[str] = None,
     status: Optional[str] = None,
     severity: Optional[str] = None,
-    limit: int = 50,
+    scan_task_id: Optional[int] = None,
+    keyword: Optional[str] = None,
+    limit: int = 20,
     offset: int = 0,
 ):
     """
-    获取慢SQL列表，支持按数据库名、状态、严重程度筛选。
+    获取慢SQL列表，支持按数据库名、状态、严重程度、扫描任务、关键词筛选。
     """
     return service.get_slow_queries(
         db_name=db_name,
         status=status,
         severity=severity,
+        scan_task_id=scan_task_id,
+        keyword=keyword,
         limit=limit,
         offset=offset,
     )
@@ -105,6 +109,27 @@ async def get_statistics():
     获取慢SQL的统计概览，包括Top高耗时和高频次SQL。
     """
     return service.get_statistics()
+
+
+@router.get("/scan-tasks", summary="获取扫描任务列表")
+async def list_scan_tasks(limit: int = 50, offset: int = 0):
+    """获取所有慢SQL扫描任务列表"""
+    return service.get_scan_tasks(limit=limit, offset=offset)
+
+
+@router.get("/scan-tasks/{task_id}", summary="获取扫描任务详情")
+async def get_scan_task_detail(task_id: int):
+    """获取指定扫描任务的详情，含统计摘要"""
+    detail = service.get_scan_task_detail(task_id)
+    if not detail:
+        raise HTTPException(status_code=404, detail="扫描任务不存在")
+    return detail
+
+
+@router.get("/db-names", summary="获取数据库名列表")
+async def list_db_names():
+    """获取所有慢SQL记录中出现的数据库名列表（用于筛选下拉框）"""
+    return {"db_names": service.get_db_names()}
 
 
 @router.get("/{slow_id}", summary="获取慢SQL详情")

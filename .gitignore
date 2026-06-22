@@ -25,6 +25,7 @@ dist/
 
 # Database/TDSQL configs (contain sensitive info)
 config/tdsql_connections.json
+config/tdsql.json
 
 # Logs
 *.log
@@ -38,6 +39,9 @@ data/reports/
 # OS
 .DS_Store
 Thumbs.db
+
+# Test cache
+.pytest_cache/
 
 # Node (if any)
 node_modules/

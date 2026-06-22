@@ -102,15 +102,17 @@ class SlowQueryService:
     """慢SQL服务"""
 
     def __init__(self):
-        _ensure_db()
+        from backend.services.database import ensure_db
+        ensure_db()
         self.analyzer = SlowSQLAnalyzer()
 
-    def add_slow_query(self, record: SlowQueryRecord) -> dict:
+    def add_slow_query(self, record: SlowQueryRecord, scan_task_id: int = None) -> dict:
         """
         添加慢SQL记录并自动分析。
 
         Args:
             record: 慢SQL记录
+            scan_task_id: 可选，关联的扫描任务ID
 
         Returns:
             包含分析结果的字典
@@ -128,8 +130,8 @@ class SlowQueryService:
                     rows_examined, rows_sent, lock_time_ms,
                     first_seen, last_seen, problem_type, severity,
                     root_cause, suggestion, optimized_sql,
-                    analysis_json, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    analysis_json, scan_task_id, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 record.fingerprint, record.sql_text, record.db_name,
                 record.exec_count, record.total_time_ms, record.avg_time_ms,
@@ -148,6 +150,7 @@ class SlowQueryService:
                     "suggestion": a.suggestion,
                     "optimized_sql": a.optimized_sql,
                 } for a in report.analyses], ensure_ascii=False),
+                scan_task_id,
                 now, now,
             ))
             conn.commit()
@@ -177,10 +180,12 @@ class SlowQueryService:
         db_name: Optional[str] = None,
         status: Optional[str] = None,
         severity: Optional[str] = None,
-        limit: int = 50,
+        scan_task_id: Optional[int] = None,
+        keyword: Optional[str] = None,
+        limit: int = 20,
         offset: int = 0,
     ) -> dict:
-        """获取慢SQL列表"""
+        """获取慢SQL列表，支持多维度筛选"""
         conn = _get_connection()
         try:
             conditions = []
@@ -194,6 +199,12 @@ class SlowQueryService:
             if severity:
                 conditions.append("severity = ?")
                 params.append(severity)
+            if scan_task_id is not None:
+                conditions.append("scan_task_id = ?")
+                params.append(scan_task_id)
+            if keyword:
+                conditions.append("(fingerprint LIKE ? OR sql_text LIKE ?)")
+                params.extend([f"%{keyword}%", f"%{keyword}%"])
 
             where_clause = " AND ".join(conditions) if conditions else "1=1"
 
@@ -325,5 +336,97 @@ class SlowQueryService:
                 "top_by_time": top_by_time,
                 "top_by_frequency": top_by_freq,
             }
+        finally:
+            conn.close()
+
+    # ============ 扫描任务管理 ============
+
+    def create_scan_task(
+        self,
+        task_name: str,
+        source: str,
+        db_name: str = "",
+        connection_id: str = "",
+        connection_name: str = "",
+        time_window_start: str = "",
+        time_window_end: str = "",
+    ) -> int:
+        """创建扫描任务记录，返回任务ID"""
+        conn = _get_connection()
+        try:
+            cursor = conn.execute(
+                """INSERT INTO scan_tasks
+                   (task_name, source, db_name, connection_id, connection_name,
+                    time_window_start, time_window_end,
+                    total_fetched, total_analyzed, status, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 'running', ?)""",
+                (task_name, source, db_name, connection_id, connection_name,
+                 time_window_start, time_window_end,
+                 datetime.now().isoformat()),
+            )
+            conn.commit()
+            return cursor.lastrowid
+        finally:
+            conn.close()
+
+    def complete_scan_task(self, task_id: int, total_fetched: int, total_analyzed: int):
+        """完成扫描任务"""
+        conn = _get_connection()
+        try:
+            conn.execute(
+                """UPDATE scan_tasks
+                   SET total_fetched = ?, total_analyzed = ?, status = 'completed'
+                   WHERE id = ?""",
+                (total_fetched, total_analyzed, task_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    def get_scan_tasks(self, limit: int = 50, offset: int = 0) -> dict:
+        """获取扫描任务列表"""
+        conn = _get_connection()
+        try:
+            total = conn.execute("SELECT COUNT(*) as cnt FROM scan_tasks").fetchone()["cnt"]
+            rows = conn.execute(
+                """SELECT * FROM scan_tasks ORDER BY created_at DESC LIMIT ? OFFSET ?""",
+                (limit, offset),
+            ).fetchall()
+            return {"items": [dict(r) for r in rows], "total": total}
+        finally:
+            conn.close()
+
+    def get_scan_task_detail(self, task_id: int) -> Optional[dict]:
+        """获取扫描任务详情，含统计摘要"""
+        conn = _get_connection()
+        try:
+            row = conn.execute(
+                "SELECT * FROM scan_tasks WHERE id = ?", (task_id,)
+            ).fetchone()
+            if not row:
+                return None
+            task = dict(row)
+            # 统计该任务下的慢SQL分布
+            stats = {}
+            for r in conn.execute(
+                """SELECT severity, COUNT(*) as cnt
+                   FROM slow_queries WHERE scan_task_id = ?
+                   GROUP BY severity""",
+                (task_id,),
+            ).fetchall():
+                stats[r["severity"]] = r["cnt"]
+            task["severity_stats"] = stats
+            return task
+        finally:
+            conn.close()
+
+    def get_db_names(self) -> list[str]:
+        """获取所有慢SQL记录中出现的数据库名列表（用于筛选下拉框）"""
+        conn = _get_connection()
+        try:
+            rows = conn.execute(
+                "SELECT DISTINCT db_name FROM slow_queries WHERE db_name != '' ORDER BY db_name"
+            ).fetchall()
+            return [r["db_name"] for r in rows]
         finally:
             conn.close()

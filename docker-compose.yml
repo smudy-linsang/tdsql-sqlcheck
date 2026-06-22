@@ -5,6 +5,37 @@
 version: "3.8"
 
 services:
+  # ── MySQL 模拟TDSQL环境 ──
+  # 用于UAT测试，模拟TDSQL MySQL实例
+  mysql:
+    image: mysql:8.0
+    container_name: tdsql-mysql-test
+    ports:
+      - "13306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: tdsql_test_2024
+      MYSQL_DATABASE: tdsql_test
+      TZ: Asia/Shanghai
+    volumes:
+      - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - mysql-data:/var/lib/mysql
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_general_ci
+      --performance-schema=ON
+      --slow-query-log=ON
+      --long-query-time=0.5
+      --log-queries-not-using-indexes=ON
+      --log-output=TABLE
+      --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-ptdsql_test_2024"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 10
+    restart: unless-stopped
+
   backend:
     build:
       context: .
@@ -15,22 +46,23 @@ services:
     volumes:
       # 持久化 SQLite 数据库
       - app-data:/app/data
-      # 可选: 挂载本地配置文件
-      # - ./config/tdsql.yaml:/app/config/tdsql.yaml:ro
     environment:
       - TZ=Asia/Shanghai
-      # TDSQL 连接配置（可通过环境变量覆盖）
-      # - TDSQL_HOST=your-tdsql-host
-      # - TDSQL_PORT=3306
-      # - TDSQL_USER=your-user
-      # - TDSQL_PASSWORD=your-password
-      # - TDSQL_DATABASE=your-database
+      # TDSQL 连接配置（连接Docker内MySQL模拟环境）
+      - TDSQL_HOST=mysql
+      - TDSQL_PORT=3306
+      - TDSQL_USER=root
+      - TDSQL_PASSWORD=tdsql_test_2024
+      - TDSQL_DATABASE=tdsql_test
       # 定时任务开关
       - SCHEDULER_ENABLED=false
       - SCHEDULER_CRON_HOUR=2
       - SCHEDULER_CRON_MINUTE=0
       # 审核报告存储路径
       - REPORT_OUTPUT_DIR=/app/data/reports
+    depends_on:
+      mysql:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
@@ -43,3 +75,6 @@ volumes:
   app-data:
     driver: local
     name: tdsql-sqlcheck-data
+  mysql-data:
+    driver: local
+    name: tdsql-mysql-data
