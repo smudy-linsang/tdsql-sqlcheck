@@ -37,12 +37,14 @@ class TDSQLConnectRequest(BaseModel):
 
 class SlowQueryFetchRequest(BaseModel):
     """慢SQL抓取请求"""
-    source: str = Field("digest", description="数据源: digest/slow_log/processlist")
-    limit: int = Field(50, description="抓取条数")
-    min_time: float = Field(1.0, description="最小耗时阈值(秒)")
+    source: str = Field("digest", description="数据源: digest(性能摘要,推荐)/processlist(实时进程轮询)")
+    limit: int = Field(50, description="抓取条数上限")
+    min_time: float = Field(0.1, description="最小耗时阈值(秒)，digest模式按平均耗时过滤，processlist按当前执行时间过滤")
     task_name: str = Field("", description="自定义扫描任务名称")
     time_window_start: str = Field("", description="时间窗口开始 (YYYY-MM-DD HH:MM:SS)")
     time_window_end: str = Field("", description="时间窗口结束 (YYYY-MM-DD HH:MM:SS)")
+    poll_duration: float = Field(10.0, description="processlist轮询持续时间(秒)，仅processlist模式有效，默认10秒")
+    poll_interval: float = Field(1.0, description="processlist轮询间隔(秒)，仅processlist模式有效，默认1秒")
 
 
 def _get_pool():
@@ -93,6 +95,7 @@ async def connect_tdsql(request: TDSQLConnectRequest):
             "host": request.host,
             "port": request.port,
             "database": request.database,
+            "user": request.user,
         }
     except ImportError:
         raise HTTPException(status_code=500, detail="pymysql未安装，请执行: pip install pymysql")
@@ -255,7 +258,13 @@ async def connection_status():
     global _pool
     with _pool_lock:
         if _pool and _pool.is_connected():
-            return {"connected": True, "host": _pool.config.host}
+            return {
+                "connected": True,
+                "host": _pool.config.host,
+                "port": _pool.config.port,
+                "database": _pool.config.database,
+                "user": _pool.config.user,
+            }
     return {"connected": False}
 
 
@@ -299,59 +308,67 @@ async def get_table_metadata(table_name: str, database: Optional[str] = None):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/sets", summary="发现TDSQL分布式实例的所有SET")
+async def discover_sets():
+    """
+    通过 /*proxy*/show status 发现 TDSQL 分布式实例的所有 SET（分片）。
+
+    对于非分布式实例（集中式），返回空列表。
+    """
+    conn = _get_pool()
+    try:
+        sets = conn.discover_sets()
+        return {"sets": sets, "total": len(sets)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/slow-queries/fetch", summary="从TDSQL抓取慢SQL")
-async def fetch_slow_queries(request: SlowQueryFetchRequest):
+def fetch_slow_queries(request: SlowQueryFetchRequest):
     """
     从TDSQL实例抓取慢SQL并自动分析。
 
-    数据源:
-    - digest: 从 performance_schema.events_statements_summary_by_digest 获取TopN慢SQL
-    - slow_log: 从 mysql.slow_log 表获取
-    - processlist: 从 processlist 获取当前正在执行的慢SQL
+    数据源（基于TDSQL分布式架构设计）:
+    - digest (推荐): 从 Proxy 层 performance_schema.events_statements_summary_by_digest 获取
+      SQL执行统计摘要。这是TDSQL分布式实例唯一可靠的慢SQL数据源，Proxy自动聚合
+      所有SET的执行数据。
+    - processlist: 从 information_schema.processlist 抓取当前正在执行的SQL快照。
+      仅能捕获扫描瞬间正在执行且耗时超过阈值的SQL，适合发现长时间运行的查询。
+
+    注意: TDSQL分布式实例的mysql.slow_log表不记录数据（慢日志由Proxy层统一管理），
+    因此不支持slow_log数据源。所有查询直接通过Proxy执行，无需SET路由。
     """
-    # 校验时间窗口必填（在连接校验之后，避免覆盖未连接的 400 错误）
     conn = _get_pool()
-    if not request.time_window_start or not request.time_window_end:
-        raise HTTPException(status_code=422, detail="时间窗口开始和结束时间为必填项，请指定扫描时间范围以避免拉取海量数据")
-    if request.time_window_start > request.time_window_end:
-        raise HTTPException(status_code=422, detail="时间窗口开始时间不能晚于结束时间")
+
+    # 校验数据源
+    valid_sources = {"digest", "processlist"}
+    if request.source not in valid_sources:
+        raise HTTPException(
+            status_code=400,
+            detail=f"不支持的数据源: {request.source}。"
+                   f"TDSQL分布式实例仅支持: digest(性能摘要分析,推荐)、processlist(实时进程快照)。"
+                   f"注意: mysql.slow_log在TDSQL分布式架构下不可用（数据由Proxy层管理，不写入SET实例表）。"
+        )
+
+    # digest模式校验时间窗口必填（作为扫描任务元数据记录，不作为SQL查询过滤条件）
+    if request.source == "digest":
+        if not request.time_window_start or not request.time_window_end:
+            raise HTTPException(status_code=422, detail="时间窗口开始和结束时间为必填项，请指定扫描时间范围（记录为任务元数据）")
 
     try:
-        if request.source == "digest":
-            raw_queries = conn.get_slow_queries_from_digest(
-                limit=request.limit,
-                time_start=request.time_window_start or None,
-                time_end=request.time_window_end or None,
-            )
-        elif request.source == "slow_log":
-            raw_queries = conn.get_slow_queries_from_slow_log(
-                limit=request.limit, min_time=request.min_time,
-                time_start=request.time_window_start or None,
-                time_end=request.time_window_end or None,
-            )
-        elif request.source == "processlist":
-            raw_queries = conn.get_slow_queries_from_processlist(
-                min_time=int(request.min_time)
-            )
-        else:
-            raise HTTPException(status_code=400, detail=f"不支持的数据源: {request.source}")
+        # 获取连接信息用于创建扫描任务
+        db_name = conn.config.database or ''
+        conn_id = ''
+        conn_name = f"{conn.config.host}:{conn.config.port}"
 
-        # 转换并分析
         from backend.engine.slow_analyzer import SlowQueryRecord, SlowSQLAnalyzer
         from backend.services.slow_query_service import SlowQueryService
 
-        analyzer = SlowSQLAnalyzer()
         service = SlowQueryService()
 
-        # 获取连接信息用于创建扫描任务
-        conn_info = getattr(conn, '_conn_params', {}) or {}
-        db_name = conn_info.get('database', '')
-        conn_id = getattr(conn, '_connection_id', '')
-        conn_name = conn_info.get('host', '') + ':' + str(conn_info.get('port', 3306))
-
-        # 创建扫描任务（使用自定义名称或自动生成）
-        source_labels = {"digest": "performance_schema", "slow_log": "slow_query_log", "processlist": "processlist"}
-        task_name = request.task_name or f"{source_labels.get(request.source, request.source)}扫描 - {conn_name}"
+        # 创建扫描任务
+        source_labels = {"digest": "性能摘要分析", "processlist": "实时进程快照"}
+        task_name = request.task_name or f"{source_labels.get(request.source, request.source)} - {conn_name}"
         task_id = service.create_scan_task(
             task_name=task_name,
             source=request.source,
@@ -362,26 +379,46 @@ async def fetch_slow_queries(request: SlowQueryFetchRequest):
             time_window_end=request.time_window_end,
         )
 
+        # 执行扫描（直接通过Proxy查询，不做SET路由）
         results = []
+        errors = []
+
+        try:
+            if request.source == "digest":
+                # 注意: TDSQL Proxy的performance_schema不支持FIRST_SEEN/LAST_SEEN时间过滤，
+                # 时间窗口仅作为扫描任务元数据记录，不传入SQL查询。
+                raw_queries = conn.get_slow_queries_from_digest(
+                    limit=request.limit,
+                    min_time=request.min_time,
+                )
+            elif request.source == "processlist":
+                # 使用多次轮询模式，提高捕获短时慢SQL的概率
+                poll_duration = max(1.0, min(request.poll_duration, 60.0))  # 限制1-60秒
+                poll_interval = max(0.5, min(request.poll_interval, 5.0))    # 限制0.5-5秒
+                raw_queries = conn.poll_processlist(
+                    duration_seconds=poll_duration,
+                    interval=poll_interval,
+                    min_time=request.min_time,
+                )
+        except Exception as e:
+            errors.append({"source": request.source, "error": str(e)})
+            raw_queries = []
+
+        # 转换并分析
         for raw in raw_queries:
-            sql_text = raw.get("sql_text") or raw.get("info") or raw.get("DIGEST_TEXT", "")
+            sql_text = raw.get("DIGEST_TEXT") or raw.get("info") or raw.get("sql_text", "")
             if not sql_text:
                 continue
-            # mysql.slow_log 的 sql_text 返回 bytes，需要解码
             if isinstance(sql_text, bytes):
                 sql_text = sql_text.decode("utf-8", errors="replace")
             db_val = raw.get("SCHEMA_NAME") or raw.get("db", "") or db_name
             if isinstance(db_val, bytes):
                 db_val = db_val.decode("utf-8", errors="replace")
 
-            # 兼容不同数据源的字段名
-            # digest: total_seconds/avg_seconds/max_seconds
-            # slow_log: query_time (TIME类型，pymysql返回timedelta)
-            # processlist: time (int秒)
+            # 处理时间字段
             query_time_val = raw.get("query_time") or raw.get("time")
             if query_time_val is not None:
                 if hasattr(query_time_val, "total_seconds"):
-                    # timedelta 对象
                     qt_sec = query_time_val.total_seconds()
                 else:
                     qt_sec = float(query_time_val)
@@ -391,19 +428,25 @@ async def fetch_slow_queries(request: SlowQueryFetchRequest):
                 avg_ms = float(raw.get("avg_seconds", 0) or 0) * 1000
                 max_ms = float(raw.get("max_seconds", 0) or 0) * 1000
 
+            lock_time_ms = float(raw.get("lock_time_seconds", 0) or 0) * 1000
+
+            # 无索引使用标记（从performance_schema获取）
+            no_index_count = raw.get("no_index_count", 0) or 0
+
             record = SlowQueryRecord(
                 fingerprint=raw.get("DIGEST_TEXT", sql_text),
                 sql_text=sql_text,
                 db_name=db_val,
+                set_id="",  # Proxy层聚合，不区分SET
                 exec_count=raw.get("exec_count") or raw.get("COUNT_STAR", 0) or 0,
                 total_time_ms=total_ms,
                 avg_time_ms=avg_ms,
                 max_time_ms=max_ms,
+                lock_time_ms=lock_time_ms,
                 rows_examined=raw.get("rows_examined") or raw.get("SUM_ROWS_EXAMINED", 0) or 0,
                 rows_sent=raw.get("rows_sent") or raw.get("SUM_ROWS_SENT", 0) or 0,
             )
 
-            # 保存并分析（关联扫描任务）
             result = service.add_slow_query(record, scan_task_id=task_id)
             results.append(result)
 
@@ -414,6 +457,7 @@ async def fetch_slow_queries(request: SlowQueryFetchRequest):
             "source": request.source,
             "fetched": len(results),
             "scan_task_id": task_id,
+            "errors": errors,
             "results": results,
         }
     except HTTPException:
@@ -738,6 +782,7 @@ async def connect_by_saved_config(conn_id: str):
             "host": conn_config["host"],
             "port": conn_config.get("port", 3306),
             "database": conn_config.get("database", ""),
+            "user": conn_config.get("user", ""),
         }
     except ImportError:
         raise HTTPException(status_code=500, detail="pymysql未安装，请执行: pip install pymysql")
@@ -745,3 +790,26 @@ async def connect_by_saved_config(conn_id: str):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"连接失败: {str(e)}")
+
+
+@router.get("/proxy-config", summary="获取Proxy慢日志配置")
+async def get_proxy_config():
+    """获取TDSQL Proxy层慢日志相关配置
+
+    执行 /*proxy*/show config 命令获取Proxy配置信息，
+    返回慢日志阈值（slow_log_ms）、日志级别（slow_log_level）等参数，
+    方便用户确认Proxy慢日志配置是否符合预期。
+    """
+    pool = _get_pool()
+    try:
+        config = pool.get_proxy_config()
+        return {
+            "status": "success",
+            "proxy_config": config,
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"获取Proxy配置失败: {str(e)}",
+            "proxy_config": None,
+        }

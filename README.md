@@ -35,7 +35,7 @@
 
 - 连接TDSQL实例获取元数据
 - 分片键信息自动识别
-- 从TDSQL抓取慢查询（digest/slow_log/processlist）
+- 从TDSQL抓取慢查询（digest/processlist轮询）
 - 字符集一致性检查
 - 大表检查（L1/L2/L3分级）
 

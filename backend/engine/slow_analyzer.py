@@ -37,6 +37,7 @@ class SlowQueryRecord:
     fingerprint: str = ""
     sql_text: str = ""
     db_name: str = ""
+    set_id: str = ""           # 来源 SET 标识（如 "set_1"），非分布式实例为空
     exec_count: int = 0
     total_time_ms: float = 0.0
     avg_time_ms: float = 0.0

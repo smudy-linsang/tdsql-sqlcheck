@@ -1,9 +1,10 @@
 """
-TDSQL SQL审核工具 - 分布式规范规则 (R020-R022)
+TDSQL SQL审核工具 - 分布式规范规则 (R020-R022, R053-R060, R077)
 
 R020: 分布式表查询必须包含分片键
 R021: 禁止更新分片键字段
 R022: 禁止不带分片键的全局DELETE/UPDATE
+R077: 建表语句必须声明分片键(shard key)或广播表标记
 
 支持通过 table_metadata 参数获取真实的分片键信息，实现精确检测。
 table_metadata 格式: {
@@ -14,6 +15,7 @@ table_metadata 格式: {
     }
 }
 """
+import re
 from typing import Optional
 
 from backend.engine.parser import ParsedSQL
@@ -240,11 +242,27 @@ class R054ShardKeyMustBePrimaryKey(BaseRule):
             meta = table_metadata.get(table, {})
             shard_key = meta.get("shard_key", "")
             if shard_key:
-                # 检查主键是否包含分片键
+                # 检查主键是否包含分片键（三个来源合并，与R077保持一致）
                 pk_cols = set()
+                # 来源1: 列级 PRIMARY KEY 标记
                 for col in parsed.columns:
                     if col.get("is_primary_key"):
                         pk_cols.add(col.get("name", "").lower())
+                # 来源2: 表级 PRIMARY KEY (col1, col2) 声明
+                for idx in parsed.indexes:
+                    if idx.get("type") == "PRIMARY":
+                        pk_cols.update(c.lower() for c in idx.get("columns", []))
+                # 来源3: 正则回退——从原始SQL提取表级主键列
+                if not pk_cols:
+                    pk_match = re.search(
+                        r"primary\s+key\s*(?:using\s+\w+\s*)?\(([^)]+)\)",
+                        parsed.raw_sql, re.IGNORECASE,
+                    )
+                    if pk_match:
+                        pk_cols = {
+                            c.strip('`"\' ').lower()
+                            for c in pk_match.group(1).split(",")
+                        }
                 if shard_key.lower() not in pk_cols:
                     return self._make_violation(
                         f"分片键 '{shard_key}' 不在主键中，TDSQL要求分片键必须是主键的一部分",
@@ -400,3 +418,153 @@ class R060ExplainShardKeyCheck(BaseRule):
                         f"分片表 '{table}' 查询无WHERE条件，建议执行EXPLAIN确认是否全SET扫描",
                     )
         return None
+
+
+# ═══════════════════════════════════════════════════════════════
+# R077: 建表语句必须声明分片键
+# ═══════════════════════════════════════════════════════════════
+
+class R077CreateTableMustHaveShardKey(BaseRule):
+    """R077: 建表语句必须声明分片键(shard key)或广播表标记
+
+    TDSQL分布式实例上只允许创建分片表和广播表，不允许创建单表。
+    分片表必须声明 SHARDKEY，且分片键必须是主键或唯一索引的一个字段。
+    广播表必须声明 BROADCAST。
+
+    注意: R054 也在有 table_metadata 时检查分片键是否在主键中，
+    两者存在职责重叠。实际文件审核场景下 table_metadata 为 None，
+    只有 R077 会触发；有元数据时两者均可能触发但消息不同不算冲突。
+    """
+    rule_id = "R077"
+    category = RuleCategory.DISTRIBUTED
+    severity = Severity.ERROR
+    description = (
+        "TDSQL分布式实例建表必须声明分片键(SHARDKEY)或广播表标记(BROADCAST)，"
+        "不允许创建单表；分片键必须是主键或唯一索引的字段"
+    )
+    enabled = True
+    spec_source = "TDSQL数据库开发规范 - 分布式建表规范"
+    fix_suggestion = (
+        "在建表语句末尾添加 SHARDKEY=列名 声明分片键（该列必须为主键或唯一索引的一部分），"
+        "或添加 BROADCAST 声明为广播表。示例:\n"
+        "  CREATE TABLE t1 (...) ENGINE=InnoDB SHARDKEY=user_id\n"
+        "  CREATE TABLE t1 (...) ENGINE=InnoDB BROADCAST"
+    )
+
+    # 分片键声明的正则模式（\b 词边界防止列名子串误匹配，[`"']? 支持反引号包裹列名）
+    _SHARDKEY_RE = re.compile(
+        r"\bshardkey\b\s*=?\s*\(?[`\"']?([a-z_][a-z0-9_]*)[`\"']?\)?",
+        re.IGNORECASE,
+    )
+    _BROADCAST_RE = re.compile(r"\bbroadcast\b", re.IGNORECASE)
+    # 兼容 shard_key=xxx 写法
+    _SHARD_KEY_RE = re.compile(
+        r"\bshard_key\b\s*=?\s*\(?[`\"']?([a-z_][a-z0-9_]*)[`\"']?\)?",
+        re.IGNORECASE,
+    )
+    # 表级 PRIMARY KEY 列提取正则（回退方案，兼容 USING BTREE 语法）
+    _PK_RE = re.compile(
+        r"primary\s+key\s*(?:using\s+\w+\s*)?\(([^)]+)\)",
+        re.IGNORECASE,
+    )
+    # 表级 UNIQUE KEY/INDEX 列提取正则（回退方案）
+    _UNIQUE_RE = re.compile(
+        r"unique\s+(?:key|index)\s+\w*\s*\(([^)]+)\)",
+        re.IGNORECASE,
+    )
+
+    def check(self, parsed: ParsedSQL, table_metadata: Optional[dict] = None) -> Optional[Violation]:
+        if not parsed.is_create_table:
+            return None
+
+        # 跳过 CREATE TABLE ... SELECT（CTAS 语句）
+        if parsed.is_create_table_select:
+            return None
+
+        # 跳过临时表
+        if parsed.is_temporary_table:
+            return None
+
+        raw_sql = parsed.raw_sql
+
+        # 检查是否声明了 BROADCAST（广播表不需要分片键）
+        if self._BROADCAST_RE.search(raw_sql):
+            return None
+
+        # 提取分片键列名（优先使用解析器结构化数据，回退到正则）
+        shard_key_col = self._extract_shard_key(parsed, raw_sql)
+
+        if not shard_key_col:
+            # 未声明分片键，也未声明广播表 → 违规
+            table_name = parsed.tables[0] if parsed.tables else ""
+            return self._make_violation(
+                f"建表语句未声明分片键(SHARDKEY)或广播表标记(BROADCAST)，"
+                f"TDSQL分布式实例上不允许创建单表{f'（表 {table_name}）' if table_name else ''}。"
+                f"分片表必须通过 SHARDKEY=列名 声明分片键，广播表必须通过 BROADCAST 声明",
+                suggestion=self.fix_suggestion,
+            )
+
+        # 已声明分片键，检查是否为主键或唯一索引的字段
+        pk_cols = self._collect_pk_cols(parsed, raw_sql)
+        unique_index_cols = self._collect_unique_index_cols(parsed, raw_sql)
+
+        if shard_key_col not in pk_cols and shard_key_col not in unique_index_cols:
+            return self._make_violation(
+                f"分片键 '{shard_key_col}' 不在主键或唯一索引中，"
+                f"TDSQL要求分片键必须是主键或唯一索引的一个字段",
+                suggestion=(
+                    f"请将分片键 '{shard_key_col}' 加入主键，如: PRIMARY KEY ({shard_key_col}, id)，"
+                    f"或为该列创建唯一索引"
+                ),
+            )
+
+        return None
+
+    def _extract_shard_key(self, parsed: ParsedSQL, raw_sql: str) -> str:
+        """提取分片键列名，优先使用解析器结构化数据，回退到正则"""
+        # 优先来源: parsed.table_options（sqlglot 已解析的表选项）
+        for key in ("SHARDKEY", "SHARD_KEY"):
+            val = parsed.table_options.get(key, "")
+            if val:
+                return val.strip('`"\' ').lower()
+        # 回退来源1: SHARDKEY 正则
+        shard_match = self._SHARDKEY_RE.search(raw_sql)
+        if not shard_match:
+            # 回退来源2: shard_key 正则
+            shard_match = self._SHARD_KEY_RE.search(raw_sql)
+        if shard_match:
+            return shard_match.group(1).strip('`"\' ').lower()
+        return ""
+
+    def _collect_pk_cols(self, parsed: ParsedSQL, raw_sql: str) -> set[str]:
+        """收集主键列名（三个来源合并，确保不遗漏）"""
+        pk_cols = set()
+        # 来源1: 列级 PRIMARY KEY 标记
+        for col in parsed.columns:
+            if col.get("is_primary_key"):
+                pk_cols.add(col.get("name", "").lower())
+        # 来源2: 表级 PRIMARY KEY (col1, col2) 声明（parsed.indexes）
+        for idx in parsed.indexes:
+            if idx.get("type") == "PRIMARY":
+                pk_cols.update(c.lower() for c in idx.get("columns", []))
+        # 来源3: 正则回退——从原始SQL提取表级 PRIMARY KEY 声明
+        pk_match = self._PK_RE.search(raw_sql)
+        if pk_match:
+            pk_cols.update(
+                c.strip('`"\' ').lower()
+                for c in pk_match.group(1).split(",")
+            )
+        return pk_cols
+
+    def _collect_unique_index_cols(self, parsed: ParsedSQL, raw_sql: str) -> set[str]:
+        """收集唯一索引列名（两个来源合并）"""
+        unique_index_cols = set()
+        # 来源1: parsed.indexes
+        for idx in parsed.indexes:
+            if idx.get("type") == "UNIQUE":
+                unique_index_cols.update(c.lower() for c in idx.get("columns", []))
+        # 来源2: 正则回退——从原始SQL提取表级 UNIQUE KEY/INDEX 声明
+        for m in self._UNIQUE_RE.finditer(raw_sql):
+            cols = {c.strip('`"\' ').lower() for c in m.group(1).split(",")}
+            unique_index_cols.update(cols)
+        return unique_index_cols

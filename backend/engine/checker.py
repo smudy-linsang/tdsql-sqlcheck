@@ -22,7 +22,7 @@ class RuleChecker:
         self.rules: list[BaseRule] = self._load_default_rules()
 
     def _load_default_rules(self) -> list[BaseRule]:
-        """加载全部76条规则"""
+        """加载全部77条规则"""
         return [cls() for cls in ALL_RULE_CLASSES]
 
     def get_enabled_rules(self) -> list[BaseRule]:

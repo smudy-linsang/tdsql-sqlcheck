@@ -66,17 +66,8 @@ def _fetch_and_analyze_slow_queries():
         raw_queries = connector.get_slow_queries_from_digest(limit=SCHEDULER_SLOW_QUERY_LIMIT)
         logger.info(f"[定时任务] 拉取到 {len(raw_queries)} 条慢查询记录")
 
-        # 也尝试从 slow_log 拉取
-        try:
-            slow_log_queries = connector.get_slow_queries_from_slow_log(
-                limit=SCHEDULER_SLOW_QUERY_LIMIT,
-                min_time=SCHEDULER_SLOW_QUERY_MIN_TIME,
-            )
-            if slow_log_queries:
-                logger.info(f"[定时任务] 从 slow_log 拉取到 {len(slow_log_queries)} 条记录")
-                raw_queries.extend(slow_log_queries)
-        except Exception as e:
-            logger.debug(f"[定时任务] slow_log 拉取失败（可能未开启）: {e}")
+        # NOTE: mysql.slow_log 在TDSQL分布式实例中不可用（SET实例不记录数据，
+        # 慢日志由Proxy层统一管理）。仅使用 performance_schema 作为数据源。
 
         connector.disconnect()
 

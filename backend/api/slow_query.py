@@ -85,18 +85,20 @@ async def list_slow_queries(
     status: Optional[str] = None,
     severity: Optional[str] = None,
     scan_task_id: Optional[int] = None,
+    set_id: Optional[str] = None,
     keyword: Optional[str] = None,
     limit: int = 20,
     offset: int = 0,
 ):
     """
-    获取慢SQL列表，支持按数据库名、状态、严重程度、扫描任务、关键词筛选。
+    获取慢SQL列表，支持按数据库名、SET、状态、严重程度、扫描任务、关键词筛选。
     """
     return service.get_slow_queries(
         db_name=db_name,
         status=status,
         severity=severity,
         scan_task_id=scan_task_id,
+        set_id=set_id,
         keyword=keyword,
         limit=limit,
         offset=offset,
@@ -130,6 +132,28 @@ async def get_scan_task_detail(task_id: int):
 async def list_db_names():
     """获取所有慢SQL记录中出现的数据库名列表（用于筛选下拉框）"""
     return {"db_names": service.get_db_names()}
+
+
+@router.get("/set-ids", summary="获取SET ID列表")
+async def list_set_ids():
+    """获取所有慢SQL记录中出现的 SET ID 列表（用于筛选下拉框）"""
+    return {"set_ids": service.get_set_ids()}
+
+
+@router.get("/cross-set-analysis", summary="跨SET对比分析")
+async def cross_set_analysis(scan_task_id: Optional[int] = None):
+    """
+    跨 SET 对比分析，需指定扫描任务ID。
+
+    分析维度:
+    - 各 SET 的慢 SQL 分布（总量/严重程度）
+    - 热点 SET 识别（慢 SQL 远超平均水平的 SET）
+    - 跨 SET 共现 SQL（在多个 SET 上都出现的慢 SQL）
+    - 顾问建议
+    """
+    if not scan_task_id:
+        raise HTTPException(status_code=400, detail="请指定 scan_task_id 进行跨SET分析")
+    return service.get_cross_set_analysis(scan_task_id=scan_task_id)
 
 
 @router.get("/{slow_id}", summary="获取慢SQL详情")

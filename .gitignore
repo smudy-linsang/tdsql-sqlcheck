@@ -43,6 +43,12 @@ Thumbs.db
 # Test cache
 .pytest_cache/
 
+# Debug/temp scripts
+_debug_*.py
+
+# Qoder IDE
+.qoder/
+
 # Node (if any)
 node_modules/
 npm-debug.log

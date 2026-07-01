@@ -43,6 +43,7 @@ def init_db():
                 fingerprint TEXT NOT NULL,
                 sql_text TEXT NOT NULL,
                 db_name TEXT DEFAULT '',
+                set_id TEXT DEFAULT '',           -- 来源 SET（如 set_1），非分布式为空
                 exec_count INTEGER DEFAULT 0,
                 total_time_ms REAL DEFAULT 0,
                 avg_time_ms REAL DEFAULT 0,
@@ -59,6 +60,7 @@ def init_db():
                 optimized_sql TEXT DEFAULT '',
                 status TEXT DEFAULT 'pending',
                 analysis_json TEXT DEFAULT '{}',
+                scan_task_id INTEGER,
                 created_at TEXT DEFAULT (datetime('now')),
                 updated_at TEXT DEFAULT (datetime('now'))
             );
@@ -79,6 +81,7 @@ def init_db():
 
             CREATE INDEX IF NOT EXISTS idx_slow_fingerprint ON slow_queries(fingerprint);
             CREATE INDEX IF NOT EXISTS idx_slow_db ON slow_queries(db_name);
+            CREATE INDEX IF NOT EXISTS idx_slow_set_id ON slow_queries(set_id);
             CREATE INDEX IF NOT EXISTS idx_slow_status ON slow_queries(status);
             CREATE INDEX IF NOT EXISTS idx_audit_type ON audit_history(audit_type);
         """)
@@ -125,15 +128,16 @@ class SlowQueryService:
             now = datetime.now().isoformat()
             cursor = conn.execute("""
                 INSERT INTO slow_queries (
-                    fingerprint, sql_text, db_name, exec_count,
+                    fingerprint, sql_text, db_name, set_id, exec_count,
                     total_time_ms, avg_time_ms, max_time_ms,
                     rows_examined, rows_sent, lock_time_ms,
                     first_seen, last_seen, problem_type, severity,
                     root_cause, suggestion, optimized_sql,
                     analysis_json, scan_task_id, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 record.fingerprint, record.sql_text, record.db_name,
+                record.set_id,
                 record.exec_count, record.total_time_ms, record.avg_time_ms,
                 record.max_time_ms, record.rows_examined, record.rows_sent,
                 record.lock_time_ms, now, now,
@@ -181,6 +185,7 @@ class SlowQueryService:
         status: Optional[str] = None,
         severity: Optional[str] = None,
         scan_task_id: Optional[int] = None,
+        set_id: Optional[str] = None,
         keyword: Optional[str] = None,
         limit: int = 20,
         offset: int = 0,
@@ -202,6 +207,9 @@ class SlowQueryService:
             if scan_task_id is not None:
                 conditions.append("scan_task_id = ?")
                 params.append(scan_task_id)
+            if set_id:
+                conditions.append("set_id = ?")
+                params.append(set_id)
             if keyword:
                 conditions.append("(fingerprint LIKE ? OR sql_text LIKE ?)")
                 params.extend([f"%{keyword}%", f"%{keyword}%"])
@@ -428,5 +436,106 @@ class SlowQueryService:
                 "SELECT DISTINCT db_name FROM slow_queries WHERE db_name != '' ORDER BY db_name"
             ).fetchall()
             return [r["db_name"] for r in rows]
+        finally:
+            conn.close()
+
+    def get_set_ids(self) -> list[str]:
+        """获取所有慢SQL记录中出现的 SET ID 列表（用于筛选下拉框）"""
+        conn = _get_connection()
+        try:
+            rows = conn.execute(
+                "SELECT DISTINCT set_id FROM slow_queries WHERE set_id != '' ORDER BY set_id"
+            ).fetchall()
+            return [r["set_id"] for r in rows]
+        finally:
+            conn.close()
+
+    def get_cross_set_analysis(self, scan_task_id: int = None) -> dict:
+        """跨 SET 对比分析
+
+        分析维度:
+        1. 各 SET 的慢 SQL 分布（总量/严重程度）
+        2. 热点 SET 识别（慢 SQL 远超平均水平的 SET）
+        3. 跨 SET 共现 SQL（在多个 SET 上都出现的慢 SQL）
+        4. 顾问建议
+        """
+        conn = _get_connection()
+        try:
+            # 1. 各 SET 分布
+            query = """
+                SELECT set_id,
+                       COUNT(*) as total,
+                       SUM(CASE WHEN severity = 'ERROR' THEN 1 ELSE 0 END) as error_count,
+                       SUM(CASE WHEN severity = 'WARNING' THEN 1 ELSE 0 END) as warning_count,
+                       ROUND(AVG(avg_time_ms), 2) as avg_time_ms,
+                       MAX(max_time_ms) as max_time_ms
+                FROM slow_queries
+                WHERE set_id != ''
+            """
+            params = []
+            if scan_task_id:
+                query += " AND scan_task_id = ?"
+                params.append(scan_task_id)
+            query += " GROUP BY set_id ORDER BY total DESC"
+
+            set_rows = conn.execute(query, params).fetchall()
+            set_distribution = {row["set_id"]: dict(row) for row in set_rows}
+
+            if not set_distribution:
+                return {
+                    "set_distribution": {},
+                    "hot_sets": [],
+                    "cross_set_sqls": [],
+                    "advice": "未发现带 SET 标识的慢SQL记录，可能扫描的是非分布式实例。",
+                }
+
+            # 2. 热点 SET 识别
+            totals = [s["total"] for s in set_distribution.values()]
+            avg_total = sum(totals) / len(totals) if totals else 0
+            hot_sets = [
+                {"set_id": sid, "total": s["total"], "ratio": round(s["total"] / avg_total, 2) if avg_total else 0}
+                for sid, s in set_distribution.items()
+                if s["total"] > avg_total * 1.5
+            ]
+
+            # 3. 跨 SET 共现 SQL（相同指纹在多个 SET 上出现）
+            co_query = """
+                SELECT fingerprint,
+                       COUNT(DISTINCT set_id) as set_count,
+                       GROUP_CONCAT(DISTINCT set_id) as sets,
+                       SUM(exec_count) as total_exec,
+                       MAX(max_time_ms) as max_time
+                FROM slow_queries
+                WHERE set_id != ''
+            """
+            if scan_task_id:
+                co_query += " AND scan_task_id = ?"
+            co_query += " GROUP BY fingerprint HAVING set_count > 1 ORDER BY total_exec DESC LIMIT 20"
+
+            co_rows = conn.execute(co_query, params).fetchall()
+            cross_set_sqls = [dict(r) for r in co_rows]
+
+            # 4. 顾问建议
+            advice_parts = []
+            if hot_sets:
+                hot_names = ", ".join(f"{h['set_id']}({h['total']}条)" for h in hot_sets)
+                advice_parts.append(
+                    f"热点 SET: {hot_names} 的慢SQL数量远超平均水平({avg_total:.0f}条)，"
+                    f"建议检查该SET的数据分布是否倾斜、是否存在热点表"
+                )
+            if cross_set_sqls:
+                advice_parts.append(
+                    f"发现{len(cross_set_sqls)}个SQL在多个SET上同时出现慢查询，"
+                    f"这些SQL可能是全局性问题（如缺少索引、全表扫描），建议优先优化"
+                )
+            if not advice_parts:
+                advice_parts.append("各SET的慢SQL分布较为均匀，未发现明显的SET热点")
+
+            return {
+                "set_distribution": set_distribution,
+                "hot_sets": hot_sets,
+                "cross_set_sqls": cross_set_sqls,
+                "advice": "；".join(advice_parts),
+            }
         finally:
             conn.close()

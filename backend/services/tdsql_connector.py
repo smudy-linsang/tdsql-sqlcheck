@@ -9,12 +9,15 @@ TDSQL SQL审核工具 - TDSQL数据库连接器
 3. 抓取慢查询日志
 4. 执行EXPLAIN分析
 """
+import logging
 import re
 import threading
 from collections import deque
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Optional
+
+logger = logging.getLogger("tdsql.connector")
 
 # 尝试导入 pymysql，如果不可用则使用模拟模式
 try:
@@ -139,13 +142,13 @@ class TDSQLConnectionPool:
         try:
             yield conn
         except Exception:
-            # 连接异常时，重新创建连接
+            # 连接异常时，关闭旧连接并重建，然后重新抛出原始异常
             try:
                 self._local.conn.close()
             except Exception:
                 pass
             self._local.conn = self._create_connection()
-            yield self._local.conn
+            raise
 
     def is_connected(self) -> bool:
         """检查连接状态（全局标志 + 线程本地ping）"""
@@ -299,32 +302,219 @@ class TDSQLConnectionPool:
             ORDER BY INDEX_NAME, SEQ_IN_INDEX
         """, (db, table_name))
 
+    # ── SET 发现 ─────────────────────────────────────────
+
+    def discover_sets(self) -> list[dict]:
+        """发现 TDSQL 分布式实例的所有 SET（分片）
+
+        通过 /*proxy*/show status 命令获取 SET 列表。
+        对于非分布式实例（集中式），返回空列表。
+
+        Returns:
+            SET 列表，每项含 set_id 和 set_name
+        """
+        sets = []
+        # 方式1: /*proxy*/show status（TDSQL Proxy 命令）
+        try:
+            rows = self._execute("/*proxy*/show status")
+            for row in rows:
+                # 兼容不同版本的返回格式
+                # 可能的字段名: Variable_name/Value, Config_name/Value, name/value 等
+                name = ""
+                value = ""
+                if isinstance(row, dict):
+                    name = str(row.get("Variable_name", row.get("Config_name", row.get("status_name", row.get("name", row.get("Key", ""))))))
+                    value = str(row.get("Value", row.get("value", "")))
+                # 严格匹配 SET 相关行：name 精确为 "set" 或包含 "set_" / "set_id" 前缀
+                name_lower = name.lower()
+                if name_lower == "set":
+                    # name="set" 时 value 是逗号分隔的 SET ID 列表
+                    # 如 "set_1782132369_1,set_1782132389_3"
+                    for s in value.split(","):
+                        s = s.strip()
+                        if s and s not in [x["set_id"] for x in sets]:
+                            sets.append({"set_id": s, "set_name": s})
+                elif "set_" in name_lower or "set_id" in name_lower:
+                    # 从 value 中提取 set 名称（支持 set_N、set_N_M、setN 格式）
+                    set_matches = re.findall(r"set_\d+_\d+|set_\d+|set\d+", value, re.IGNORECASE)
+                    if set_matches:
+                        for s in set_matches:
+                            if s not in [x["set_id"] for x in sets]:
+                                sets.append({"set_id": s, "set_name": s})
+        except Exception as e:
+            logger.debug(f"SET discovery via /*proxy*/show status failed: {e}")
+
+        # 方式2（回退）: 如果方式1未发现 SET，尝试从 TDSQL_SHARDING_RULES 获取分片信息
+        if not sets:
+            try:
+                shard_rows = self._execute("""
+                    SELECT DISTINCT SHARD_TABLE_NAME
+                    FROM information_schema.TDSQL_SHARDING_RULES
+                    WHERE SHARD_TABLE_NAME IS NOT NULL
+                    LIMIT 1
+                """)
+                # 如果有分片规则，说明是分布式实例，但无法获取 SET 名称
+                if shard_rows:
+                    logger.debug("Found sharding rules but could not discover SET names via /*proxy*/show status")
+            except Exception as e:
+                logger.debug(f"SET discovery via TDSQL_SHARDING_RULES failed: {e}")
+
+        return sets
+
+    @staticmethod
+    def _build_set_hint(set_id: str = None) -> str:
+        """构建 SET 路由 hint 前缀
+
+        对 set_id 进行白名单校验，仅允许字母、数字、下划线和逗号，
+        防止 SQL 注入攻击（如 set_id 中包含 */ 或 ; 等特殊字符）。
+        """
+        if set_id:
+            if re.match(r'^[a-zA-Z0-9_,]+$', set_id):
+                return f"/*sets:{set_id}*/"
+            else:
+                logger.warning(f"Invalid set_id format, ignoring SET hint: {set_id}")
+        return ""
+
     # ── 慢查询抓取 ─────────────────────────────────────────
 
-    def get_slow_queries_from_processlist(self, min_time: int = 5) -> list[dict]:
-        """从 processlist 获取当前正在执行的慢SQL"""
+    def get_slow_queries_from_processlist(self, min_time: float = 0.1, set_id: str = None) -> list[dict]:
+        """从 processlist 获取当前正在执行的慢SQL快照（单次）
+
+        注意: 此方法仅捕获扫描瞬间正在执行且耗时超过阈值的SQL。
+        对于TDSQL分布式实例，直接通过Proxy查询（不做SET路由）。
+        推荐使用 poll_processlist() 进行多次轮询以提高捕获率。
+
+        Args:
+            min_time: 最小执行时间阈值（秒），默认0.1s
+            set_id: 已废弃，保留参数兼容性但不使用
+        """
         return self._execute("""
             SELECT id, user, host, db, command, time, state, info
             FROM information_schema.processlist
-            WHERE command <> 'Sleep' AND time > %s
+            WHERE command <> 'Sleep' AND time > %s AND info IS NOT NULL
             ORDER BY time DESC
         """, (min_time,))
 
-    def get_slow_queries_from_digest(self, limit: int = 50, time_start: str = None, time_end: str = None) -> list[dict]:
-        """从 performance_schema 获取TopN慢SQL摘要，支持时间范围过滤"""
+    def poll_processlist(self, duration_seconds: float = 10.0, interval: float = 1.0, min_time: float = 0.1) -> list[dict]:
+        """多次轮询 processlist，合并去重结果
+
+        通过在指定时间窗口内重复采样 processlist，提高捕获短时慢SQL的概率。
+        结果按 (db, info) 去重，保留最大执行时间和最后一次采样时间。
+
+        Args:
+            duration_seconds: 轮询持续时间（秒），默认10秒
+            interval: 采样间隔（秒），默认1秒
+            min_time: 最小执行时间阈值（秒），默认0.1s
+
+        Returns:
+            去重合并后的慢SQL列表，每项包含:
+            id, user, host, db, command, time, state, info, sample_count
+        """
+        import time as _time
+
+        captured = {}  # key: (db, info_normalized) -> merged record
+        start = _time.time()
+        sample_count = 0
+
+        while (_time.time() - start) < duration_seconds:
+            sample_count += 1
+            try:
+                rows = self._execute("""
+                    SELECT id, user, host, db, command, time, state, info
+                    FROM information_schema.processlist
+                    WHERE command <> 'Sleep' AND time >= %s AND info IS NOT NULL
+                      AND info NOT LIKE '%%processlist%%'
+                    ORDER BY time DESC
+                """, (min_time,))
+
+                for row in rows:
+                    info = row.get("info", "")
+                    if isinstance(info, bytes):
+                        info = info.decode("utf-8", errors="replace")
+                    db = row.get("db", "") or ""
+                    if isinstance(db, bytes):
+                        db = db.decode("utf-8", errors="replace")
+
+                    # 归一化key：去除首尾空格
+                    key = (db.strip(), info.strip()[:500])
+
+                    if key in captured:
+                        # 合并：保留最大执行时间
+                        existing = captured[key]
+                        existing["time"] = max(existing["time"], row.get("time", 0) or 0)
+                        existing["sample_count"] = existing.get("sample_count", 1) + 1
+                    else:
+                        captured[key] = {
+                            "id": row.get("id"),
+                            "user": row.get("user", ""),
+                            "host": row.get("host", ""),
+                            "db": db,
+                            "command": row.get("command", ""),
+                            "time": row.get("time", 0) or 0,
+                            "state": row.get("state", ""),
+                            "info": info,
+                            "sample_count": 1,
+                        }
+            except Exception as e:
+                logger.debug(f"processlist poll sample failed: {e}")
+
+            # 等待间隔（最后一次不等待）
+            remaining = duration_seconds - (_time.time() - start)
+            if remaining > interval:
+                _time.sleep(interval)
+            elif remaining > 0.1:
+                _time.sleep(min(remaining, 0.5))
+            else:
+                break
+
+        logger.info(f"processlist poll: {sample_count} samples in {_time.time()-start:.1f}s, captured {len(captured)} unique queries")
+
+        # 按执行时间降序排列
+        result = sorted(captured.values(), key=lambda x: x["time"], reverse=True)
+        return result
+
+    def get_slow_queries_from_digest(self, limit: int = 50, min_time: float = 0.1, time_start: str = None, time_end: str = None, set_id: str = None, database: str = None) -> list[dict]:
+        """从 Proxy层 performance_schema 获取TopN慢SQL摘要
+
+        TDSQL分布式实例中，Proxy层的performance_schema自动聚合所有SET的SQL执行数据，
+        因此直接通过Proxy查询即可获取完整的慢SQL统计（无需SET路由）。
+
+        时间单位说明: performance_schema中TIMER_WAIT单位为皮秒(picosecond=10^-12秒)，
+        转换公式: picoseconds / 1e12 = seconds，即 /1e9/1000 = /1e12。
+
+        Args:
+            limit: 返回条数
+            min_time: 最小平均耗时阈值（秒），低于此值的SQL不返回
+            time_start: 时间窗口开始 (YYYY-MM-DD HH:MM:SS)
+            time_end: 时间窗口结束 (YYYY-MM-DD HH:MM:SS)
+            set_id: 已废弃，保留参数兼容性但不使用
+            database: 可选，仅返回指定数据库的SQL（不指定则返回所有库）
+        """
         sql = """
-            SELECT SCHEMA_NAME, DIGEST_TEXT,
+            SELECT SCHEMA_NAME, DIGEST, DIGEST_TEXT,
                    COUNT_STAR AS exec_count,
-                   ROUND(SUM_TIMER_WAIT/1e9/1000, 2) AS total_seconds,
-                   ROUND(AVG_TIMER_WAIT/1e9/1000, 2) AS avg_seconds,
-                   ROUND(MAX_TIMER_WAIT/1e9/1000, 2) AS max_seconds,
+                   ROUND(SUM_TIMER_WAIT/1e12, 4) AS total_seconds,
+                   ROUND(AVG_TIMER_WAIT/1e12, 4) AS avg_seconds,
+                   ROUND(MAX_TIMER_WAIT/1e12, 4) AS max_seconds,
                    SUM_ROWS_EXAMINED AS rows_examined,
                    SUM_ROWS_SENT AS rows_sent,
+                   SUM_NO_INDEX_USED AS no_index_count,
+                   SUM_LOCK_TIME/1e12 AS lock_time_seconds,
                    FIRST_SEEN, LAST_SEEN
             FROM performance_schema.events_statements_summary_by_digest
             WHERE SCHEMA_NAME NOT IN ('mysql', 'information_schema', 'performance_schema', 'sys')
+              AND SCHEMA_NAME IS NOT NULL
+              AND DIGEST_TEXT IS NOT NULL
         """
         params = []
+        # 可选：按数据库过滤
+        if database:
+            sql += " AND SCHEMA_NAME = %s"
+            params.append(database)
+        # 按平均耗时过滤（picoseconds / 1e12 = seconds）
+        if min_time and min_time > 0:
+            sql += " AND AVG_TIMER_WAIT/1e12 >= %s"
+            params.append(min_time)
         if time_start:
             sql += " AND LAST_SEEN >= %s"
             params.append(time_start)
@@ -335,27 +525,10 @@ class TDSQLConnectionPool:
         params.append(limit)
         return self._execute(sql, tuple(params))
 
-    def get_slow_queries_from_slow_log(self, limit: int = 100, min_time: float = 1.0, time_start: str = None, time_end: str = None) -> list[dict]:
-        """从 mysql.slow_log 表获取慢查询，支持时间范围过滤"""
-        try:
-            sql = """
-                SELECT start_time, user_host, query_time, lock_time,
-                       rows_sent, rows_examined, db, sql_text
-                FROM mysql.slow_log
-                WHERE query_time > %s
-            """
-            params = [min_time]
-            if time_start:
-                sql += " AND start_time >= %s"
-                params.append(time_start)
-            if time_end:
-                sql += " AND start_time <= %s"
-                params.append(time_end)
-            sql += " ORDER BY start_time DESC LIMIT %s"
-            params.append(limit)
-            return self._execute(sql, tuple(params))
-        except Exception:
-            return []
+    # NOTE: get_slow_queries_from_slow_log() 已移除。
+    # TDSQL分布式实例中，SET实例的mysql.slow_log表不记录数据，
+    # 慢日志由Proxy层统一管理（写入本地文件由赤兔平台收集）。
+    # 请使用 get_slow_queries_from_digest() 获取慢SQL统计。
 
     def get_slow_query_variables(self) -> dict:
         """获取慢查询相关配置"""
@@ -367,6 +540,52 @@ class TDSQLConnectionPool:
             )
         """)
         return {row["Variable_name"]: row["Value"] for row in result}
+
+    def get_proxy_config(self) -> dict:
+        """获取Proxy层慢日志相关配置
+
+        执行 /*proxy*/show config 获取Proxy配置，
+        提取慢日志相关参数（slow_log_level, slow_log_ms等）。
+
+        Returns:
+            包含Proxy慢日志配置的字典，如:
+            {
+                "slow_log_level": "1",
+                "slow_log_ms": "100",
+                "all_config": {...}  # 完整配置
+            }
+        """
+        try:
+            rows = self._execute("/*proxy*/show config")
+            all_config = {}
+            slow_config = {}
+            for row in rows:
+                # show config 返回格式可能是 (config_name, config_value) 或 dict
+                if isinstance(row, dict):
+                    name = row.get("config_name") or row.get("name") or row.get("Variable_name", "")
+                    value = row.get("config_value") or row.get("value") or row.get("Value", "")
+                else:
+                    continue
+                all_config[name] = value
+                # 提取慢日志相关配置
+                if "slow" in name.lower() or "log" in name.lower():
+                    slow_config[name] = value
+
+            return {
+                "slow_log_level": all_config.get("slow_log_level", "unknown"),
+                "slow_log_ms": all_config.get("slow_log_ms", "unknown"),
+                "slow_config": slow_config,
+                "all_config": all_config,
+            }
+        except Exception as e:
+            logger.warning(f"获取Proxy配置失败: {e}")
+            return {
+                "slow_log_level": "unknown",
+                "slow_log_ms": "unknown",
+                "slow_config": {},
+                "all_config": {},
+                "error": str(e),
+            }
 
     # ── EXPLAIN 分析 ────────────────────────────────────────
 
@@ -707,28 +926,9 @@ class TDSQLConnector:
         params.append(limit)
         return self._execute(sql, tuple(params))
 
-    def get_slow_queries_from_slow_log(self, limit: int = 100, min_time: float = 1.0, time_start: str = None, time_end: str = None) -> list[dict]:
-        """从 mysql.slow_log 表获取慢查询（如果开启），支持时间范围过滤"""
-        try:
-            sql = """
-                SELECT start_time, user_host, query_time, lock_time,
-                       rows_sent, rows_examined, db, sql_text
-                FROM mysql.slow_log
-                WHERE query_time > %s
-            """
-            params = [min_time]
-            if time_start:
-                sql += " AND start_time >= %s"
-                params.append(time_start)
-            if time_end:
-                sql += " AND start_time <= %s"
-                params.append(time_end)
-            sql += " ORDER BY start_time DESC LIMIT %s"
-            params.append(limit)
-            return self._execute(sql, tuple(params))
-        except Exception:
-            # slow_log 表可能不存在或未开启
-            return []
+    # NOTE: get_slow_queries_from_slow_log() 已移除。
+    # TDSQL分布式实例中，SET实例的mysql.slow_log表不记录数据。
+    # 请使用 get_slow_queries_from_digest() 获取慢SQL统计。
 
     def get_slow_query_variables(self) -> dict:
         """获取慢查询相关配置"""

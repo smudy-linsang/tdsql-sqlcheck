@@ -92,6 +92,7 @@ def _migrate_v04_tables(conn: sqlite3.Connection):
         _add_column_if_not_exists(conn, "slow_queries", "assigned_to", "TEXT DEFAULT ''")
         _add_column_if_not_exists(conn, "slow_queries", "updated_at", "TEXT DEFAULT (datetime('now'))")
         _add_column_if_not_exists(conn, "slow_queries", "scan_task_id", "INTEGER DEFAULT NULL")
+        _add_column_if_not_exists(conn, "slow_queries", "set_id", "TEXT DEFAULT ''")
 
     if "audit_history" in table_names:
         _add_column_if_not_exists(conn, "audit_history", "project_id", "TEXT DEFAULT ''")
@@ -131,6 +132,7 @@ def _create_all_tables(conn: sqlite3.Connection):
         sql_text            TEXT NOT NULL,
         normalized_sql      TEXT DEFAULT '',
         db_name             TEXT DEFAULT '',
+        set_id              TEXT DEFAULT '',           -- 来源 SET（如 set_1），非分布式为空
         connection_id       TEXT DEFAULT '',
         project_id          TEXT DEFAULT '',
         exec_count          INTEGER DEFAULT 0,
@@ -159,6 +161,7 @@ def _create_all_tables(conn: sqlite3.Connection):
     );
     CREATE INDEX IF NOT EXISTS idx_slow_fingerprint ON slow_queries(fingerprint);
     CREATE INDEX IF NOT EXISTS idx_slow_db ON slow_queries(db_name);
+    CREATE INDEX IF NOT EXISTS idx_slow_set_id ON slow_queries(set_id);
     CREATE INDEX IF NOT EXISTS idx_slow_status ON slow_queries(status);
     CREATE INDEX IF NOT EXISTS idx_slow_connection ON slow_queries(connection_id);
     CREATE INDEX IF NOT EXISTS idx_slow_project ON slow_queries(project_id);

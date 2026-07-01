@@ -169,6 +169,25 @@
     .category-title.performance { border-color: #e74c3c; color: #e74c3c; }
     .category-title.transaction { border-color: #1abc9c; color: #1abc9c; }
     .category-count { font-size: 14px; color: #909399; font-weight: normal; }
+    /* 审核治理概览 - 统计卡片副文本 */
+    .stat-sub { font-size: 12px; color: #909399; margin-top: 6px; }
+    /* 审核治理概览 - 高频违规规则列表 */
+    .rule-hit-item { display: flex; align-items: center; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
+    .rule-hit-item:last-child { border-bottom: none; }
+    .rule-hit-rank { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background: #f0f2f5; color: #606266; font-size: 12px; font-weight: 600; margin-right: 10px; flex-shrink: 0; }
+    .rule-hit-item:nth-child(1) .rule-hit-rank { background: #fef0f0; color: #f56c6c; }
+    .rule-hit-item:nth-child(2) .rule-hit-rank { background: #fdf6ec; color: #e6a23c; }
+    .rule-hit-desc { flex: 1; font-size: 13px; color: #303133; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .rule-hit-count { font-size: 13px; font-weight: 600; color: #f56c6c; margin-left: 10px; flex-shrink: 0; }
+    /* 审核治理概览 - 最近审核记录 */
+    .audit-record-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
+    .audit-record-item:last-child { border-bottom: none; }
+    .audit-record-info { display: flex; align-items: center; gap: 8px; flex: 1; overflow: hidden; }
+    .audit-record-passed { color: #67c23a; font-weight: 600; font-size: 13px; flex-shrink: 0; }
+    .audit-record-failed { color: #f56c6c; font-weight: 600; font-size: 13px; flex-shrink: 0; }
+    .audit-record-type { font-size: 13px; color: #409eff; flex-shrink: 0; }
+    .audit-record-meta { font-size: 12px; color: #909399; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .audit-record-time { font-size: 12px; color: #c0c4cc; margin-left: 10px; flex-shrink: 0; }
   </style>
 </head>
 <body>
@@ -179,7 +198,7 @@
       <div class="sidebar-title">🔍 TDSQL SQL审核工具</div>
       <ul class="sidebar-menu">
         <li :class="{active: currentPage === 'dashboard'}" @click="currentPage = 'dashboard'">
-          📊 Dashboard
+          📋 审核治理概览
         </li>
         <li :class="{active: currentPage === 'audit'}" @click="currentPage = 'audit'">
           📝 SQL审核
@@ -203,7 +222,7 @@
       <!-- 连接状态指示器 -->
       <div class="connection-status" v-if="tdsqlStatus.connected">
         <div class="status-dot connected"></div>
-        <span>已连接: {{ tdsqlStatus.host }}</span>
+        <span>已连接: {{ tdsqlStatus.host }}:{{ tdsqlStatus.port }}/{{ tdsqlStatus.database || '-' }}</span>
       </div>
       <div class="connection-status" v-else>
         <div class="status-dot disconnected"></div>
@@ -213,35 +232,68 @@
 
     <!-- 主内容区 -->
     <div class="main-content">
-      <!-- Dashboard -->
+      <!-- 审核治理概览 -->
       <div v-if="currentPage === 'dashboard'">
-        <div class="page-header"><h2>📊 Dashboard</h2></div>
-        <div class="stat-cards">
-          <div class="stat-card">
-            <div class="label">今日审核数</div>
-            <div class="value primary">{{ stats.audit?.today_count || 0 }}</div>
-          </div>
-          <div class="stat-card">
-            <div class="label">通过率</div>
-            <div class="value success">{{ stats.audit?.today_pass_rate || 0 }}%</div>
-          </div>
-          <div class="stat-card">
-            <div class="label">待处理慢SQL</div>
-            <div class="value warning">{{ stats.slow_queries?.pending || 0 }}</div>
-          </div>
-          <div class="stat-card">
-            <div class="label">审核规则数</div>
-            <div class="value primary">{{ stats.rules?.total || 76 }}</div>
+        <div class="page-header"><h2>📋 审核治理概览</h2></div>
+
+        <!-- 1. SQL审核拦截效果 -->
+        <div class="card">
+          <div class="card-title">SQL审核拦截效果</div>
+          <div class="stat-cards">
+            <div class="stat-card">
+              <div class="label">今日审核SQL</div>
+              <div class="value primary">{{ stats.audit?.today_count || 0 }}</div>
+              <div class="stat-sub">通过 {{ stats.audit?.today_passed || 0 }} | 拦截 {{ stats.audit?.today_failed || 0 }}</div>
+            </div>
+            <div class="stat-card">
+              <div class="label">今日通过率</div>
+              <div class="value success">{{ stats.audit?.today_pass_rate || 0 }}%</div>
+              <div class="stat-sub">ERROR {{ stats.audit?.today_errors || 0 }} | WARNING {{ stats.audit?.today_warnings || 0 }}</div>
+            </div>
+            <div class="stat-card">
+              <div class="label">今日发现违规</div>
+              <div class="value danger">{{ stats.audit?.today_violations || 0 }}</div>
+              <div class="stat-sub">其中ERROR {{ stats.audit?.today_errors || 0 }} 条</div>
+            </div>
+            <div class="stat-card">
+              <div class="label">待处理慢SQL</div>
+              <div class="value warning">{{ stats.slow_queries?.pending || 0 }}</div>
+              <div class="stat-sub">高风险 {{ stats.slow_queries?.critical_count || 0 }} | 已优化 {{ stats.slow_queries?.optimized || 0 }}</div>
+            </div>
           </div>
         </div>
+
+        <!-- 2. 近7天审核趋势 + 高频违规规则TOP5 -->
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
           <div class="card">
-            <div class="card-title">Top5 高耗时慢SQL</div>
-            <div v-if="stats.slow_queries?.top5_time?.length">
-              <div v-for="item in stats.slow_queries.top5_time" :key="item.id" class="analysis-card">
+            <div class="card-title">近7天审核趋势</div>
+            <div id="trendChart" style="height: 300px;"></div>
+          </div>
+          <div class="card">
+            <div class="card-title">高频违规规则 TOP5</div>
+            <div v-if="ruleHits && ruleHits.length">
+              <div v-for="(item, idx) in ruleHits.slice(0, 5)" :key="item.rule_id" class="rule-hit-item">
+                <span class="rule-hit-rank">{{ idx + 1 }}</span>
+                <span :class="'badge ' + (item.severity || 'WARNING').toLowerCase()" style="margin-right: 6px;">{{ item.severity }}</span>
+                <span class="rule-hit-desc">{{ (item.description || item.rule_id).substring(0, 35) }}{{ (item.description || '').length > 35 ? '...' : '' }}</span>
+                <span class="rule-hit-count">{{ item.hit_count }}次</span>
+              </div>
+            </div>
+            <div v-else class="empty-state">暂无违规规则数据</div>
+          </div>
+        </div>
+
+        <!-- 3. Top3高耗时慢SQL + 最近审核记录 -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+          <div class="card">
+            <div class="card-title">Top3 高耗时慢SQL</div>
+            <div v-if="stats.slow_queries?.top3_time?.length">
+              <div v-for="item in stats.slow_queries.top3_time" :key="item.id" class="analysis-card">
                 <div class="problem-type">
                   <span :class="'badge ' + (item.severity || 'info').toLowerCase()">{{ item.severity }}</span>
-                  {{ item.fingerprint?.substring(0, 60) }}...
+                  <span v-if="item.status === 'optimized'" class="badge" style="background: #67c23a; margin-left: 6px;">已优化</span>
+                  <span v-else class="badge" style="background: #e6a23c; margin-left: 6px;">待处理</span>
+                  {{ item.fingerprint?.substring(0, 50) }}...
                 </div>
                 <div class="description">平均耗时: {{ item.avg_time_ms?.toFixed(1) }}ms | 执行次数: {{ item.exec_count }}</div>
               </div>
@@ -249,8 +301,18 @@
             <div v-else class="empty-state">暂无慢SQL数据</div>
           </div>
           <div class="card">
-            <div class="card-title">规则分布</div>
-            <div id="ruleChart" class="chart-container"></div>
+            <div class="card-title">今日审核记录</div>
+            <div v-if="stats.recent_audits && stats.recent_audits.length">
+              <div v-for="item in stats.recent_audits" :key="item.id" class="audit-record-item">
+                <div class="audit-record-info">
+                  <span :class="item.failed > 0 ? 'audit-record-failed' : 'audit-record-passed'">{{ item.failed > 0 ? '未通过' : '通过' }}</span>
+                  <span class="audit-record-type">{{ auditTypeLabel(item.audit_type) }}</span>
+                  <span class="audit-record-meta">{{ item.total_sql }}条 | ERROR {{ item.error_count }} | WARN {{ item.warning_count }}</span>
+                </div>
+                <div class="audit-record-time">{{ formatTime(item.created_at) }}</div>
+              </div>
+            </div>
+            <div v-else class="empty-state">暂无审核记录</div>
           </div>
         </div>
       </div>
@@ -323,10 +385,11 @@
             <div>通过率: <strong>{{ fileAuditResult.summary?.pass_rate }}%</strong></div>
           </div>
           <div v-for="(result, idx) in fileAuditResult.results" :key="idx" style="margin-bottom: 10px;">
-            <div style="font-size: 13px; color: #909399; margin-bottom: 5px;">
-              SQL #{{ idx + 1 }} ({{ result.sql_type }})
+            <div style="font-size: 13px; color: #909399; margin-bottom: 5px; display: flex; align-items: center; gap: 8px;">
+              <span>SQL #{{ idx + 1 }} ({{ result.sql_type }})</span>
               <span v-if="result.passed" style="color: #67c23a;"> ✅ 通过</span>
               <span v-else style="color: #f56c6c;"> ❌ {{ result.violations?.length }}个问题</span>
+              <el-button size="small" text type="primary" @click="showSqlDialog(result.sql)">📄 查看SQL原文</el-button>
             </div>
             <div v-for="v in result.violations" :key="v.rule_id + v.message" 
                  :class="'violation-item ' + v.severity.toLowerCase()">
@@ -340,6 +403,15 @@
           </div>
         </div>
       </div>
+
+      <!-- SQL原文弹窗 -->
+      <el-dialog v-model="sqlDialogVisible" title="SQL原文" width="70%" top="8vh">
+        <pre style="background: #f5f7fa; padding: 16px; border-radius: 4px; font-size: 13px; line-height: 1.6; overflow-x: auto; max-height: 60vh; white-space: pre-wrap; word-break: break-all;">{{ sqlDialogContent }}</pre>
+        <template #footer>
+          <el-button @click="sqlDialogVisible = false">关闭</el-button>
+          <el-button type="primary" @click="copySqlToClipboard">复制SQL</el-button>
+        </template>
+      </el-dialog>
 
       <!-- 慢SQL分析 -->
       <div v-if="currentPage === 'slow-query'">
@@ -359,9 +431,8 @@
               <div>
                 <label style="font-size: 13px; color: #606266; display:block; margin-bottom:4px;">数据源</label>
                 <select v-model="scanTaskForm.source" style="width:100%;padding:7px;border:1px solid #dcdfe6;border-radius:4px;">
-                  <option value="digest">性能摘要（performance_schema）</option>
-                  <option value="slow_log">慢查询日志（slow_query_log）</option>
-                  <option value="processlist">实时进程（processlist）</option>
+                  <option value="digest">性能摘要分析（推荐）</option>
+                  <option value="processlist">实时进程快照</option>
                 </select>
               </div>
               <div>
@@ -374,7 +445,7 @@
               </div>
               <div>
                 <label style="font-size: 13px; color: #606266; display:block; margin-bottom:4px;">耗时阈值(秒)</label>
-                <input v-model.number="scanTaskForm.min_time" type="number" step="0.1" min="0" style="width:100%;padding:7px;border:1px solid #dcdfe6;border-radius:4px;" title="仅对慢查询日志和实时进程有效">
+                <input v-model.number="scanTaskForm.min_time" type="number" step="0.01" min="0" style="width:100%;padding:7px;border:1px solid #dcdfe6;border-radius:4px;" title="性能摘要模式按平均耗时过滤，实时进程模式按当前执行时间过滤">
               </div>
               <div>
                 <label style="font-size: 13px; color: #606266; display:block; margin-bottom:4px;">抓取条数</label>
@@ -382,14 +453,63 @@
               </div>
               <el-button type="primary" @click="startScanTask" :loading="scanTaskLoading" style="height:36px;">开始扫描</el-button>
             </div>
+            <!-- processlist轮询参数（仅processlist模式显示） -->
+            <div v-if="scanTaskForm.source === 'processlist'" style="margin-top:8px;display:flex;gap:12px;align-items:center;padding:8px 10px;background:#f0f9eb;border-radius:3px;border:1px solid #e1f3d8;">
+              <span style="font-size:12px;color:#67c23a;font-weight:600;">轮询参数：</span>
+              <label style="font-size:12px;color:#606266;">轮询时长(秒)</label>
+              <input v-model.number="scanTaskForm.poll_duration" type="number" min="1" max="60" step="1" style="width:70px;padding:4px 6px;border:1px solid #dcdfe6;border-radius:3px;font-size:12px;" title="在此时间窗口内重复采样processlist，范围1-60秒">
+              <label style="font-size:12px;color:#606266;">采样间隔(秒)</label>
+              <input v-model.number="scanTaskForm.poll_interval" type="number" min="0.5" max="5" step="0.5" style="width:70px;padding:4px 6px;border:1px solid #dcdfe6;border-radius:3px;font-size:12px;" title="每次采样间隔，范围0.5-5秒">
+              <span style="font-size:11px;color:#909399;">（轮询时长内重复采样，合并去重结果，提高捕获率）</span>
+            </div>
             <!-- 数据源中文说明 -->
             <div style="margin-top:8px;padding:6px 10px;background:#eef5ff;border-radius:3px;font-size:12px;color:#409eff;line-height:1.6;">
-              <span v-if="scanTaskForm.source === 'digest'"><strong>性能摘要</strong>：从 performance_schema 抓取按 SQL 模板聚合的统计信息（执行次数、平均/最大耗时、扫描行数等），适合发现累计耗时最高的 SQL 模式。时间窗口按 SQL 首次/末次执行时间过滤。</span>
-              <span v-if="scanTaskForm.source === 'slow_log'"><strong>慢查询日志</strong>：从 mysql.slow_log 表抓取逐条慢查询记录（具体 SQL 文本、执行时长、锁等待等），需 MySQL 开启 slow_query_log 且 log_output=TABLE。时间窗口按记录的执行时间过滤，耗时阈值过滤低于指定秒数的记录。</span>
-              <span v-if="scanTaskForm.source === 'processlist'"><strong>实时进程</strong>：从 information_schema.processlist 抓取当前正在执行的慢 SQL（实时快照）。时间窗口作为任务元数据记录，耗时阈值过滤低于指定秒数的连接。</span>
+              <span v-if="scanTaskForm.source === 'digest'"><strong>性能摘要分析</strong>（推荐）：从 Proxy 层 performance_schema 抽取按 SQL 模板聚合的执行统计（执行次数、平均/最大耗时、扫描行数、无索引次数等）。TDSQL分布式实例中Proxy自动聚合所有SET数据，无需额外配置。耗时阈值按SQL平均执行时间过滤。</span>
+              <span v-if="scanTaskForm.source === 'processlist'"><strong>实时进程快照（重复轮询模式）</strong>：在设定的轮询时长内多次采样正在执行的SQL，合并去重后返回。相比单次快照，大幅提高捕获短时慢SQL的概率。适合发现运行中的大查询、死锁及高频短时慢SQL。</span>
+            </div>
+            <!-- TDSQL架构说明 -->
+            <div style="margin-top:6px;padding:5px 10px;background:#fdf6ec;border-radius:3px;font-size:11px;color:#e6a23c;line-height:1.5;">
+              💡 <strong>TDSQL分布式实例架构说明</strong>：Proxy层统一聚合所有SET的SQL执行数据，直接通过Proxy查询即可获取全局慢SQL统计，无需逐SET扫描。各SET实例的 mysql.slow_log 表不记录数据（慢日志由Proxy写入本地文件，通过赤兔平台收集），因此本工具不支持slow_log数据源。
+            </div>
+            <!-- Proxy慢日志配置 -->
+            <div v-if="proxyConfig" style="margin-top:6px;padding:6px 10px;background:#f5f0ff;border-radius:3px;border:1px solid #e8dff5;">
+              <div style="font-size:12px;font-weight:600;color:#7c3aed;margin-bottom:4px;">Proxy慢日志配置</div>
+              <div style="display:flex;gap:16px;font-size:12px;color:#606266;">
+                <span>慢日志阈值: <strong style="color:#7c3aed;">{{ proxyConfig.slow_log_ms }}ms</strong></span>
+                <span>日志级别: <strong style="color:#7c3aed;">{{ proxyConfig.slow_log_level }}</strong></span>
+              </div>
+              <div v-if="proxyConfig.error" style="font-size:11px;color:#f56c6c;margin-top:2px;">获取失败: {{ proxyConfig.error }}</div>
             </div>
             <div v-if="!tdsqlStatus.connected" style="margin-top:8px;color:#e6a23c;font-size:12px;">
               ⚠️ 请先在"TDSQL管理"页面连接数据库实例
+            </div>
+          </div>
+
+          <!-- 跨SET分析区域（选中扫描任务时显示） -->
+          <div v-if="slowFilters.scan_task_id && crossSetData" style="margin-top:15px;padding:12px;background:#f0f9eb;border-radius:4px;border:1px solid #e1f3d8;">
+            <div style="font-size:14px;font-weight:600;color:#67c23a;margin-bottom:8px;">🌐 跨SET对比分析</div>
+            <div v-if="crossSetData.set_distribution && Object.keys(crossSetData.set_distribution).length > 0">
+              <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin-bottom:10px;">
+                <div v-for="(info, sid) in crossSetData.set_distribution" :key="sid" style="padding:8px;background:#fff;border-radius:4px;border:1px solid #ebeef5;">
+                  <div style="font-weight:600;font-size:13px;">{{ sid }}</div>
+                  <div style="font-size:12px;color:#606266;">总数: {{ info.total }}</div>
+                  <div style="font-size:12px;color:#f56c6c;">ERROR: {{ info.error_count }}</div>
+                  <div style="font-size:12px;color:#e6a23c;">WARNING: {{ info.warning_count }}</div>
+                  <div style="font-size:12px;color:#909399;">平均: {{ info.avg_time_ms?.toFixed(1) }}ms</div>
+                </div>
+              </div>
+              <div v-if="crossSetData.hot_sets && crossSetData.hot_sets.length > 0" style="font-size:12px;color:#e6a23c;margin-bottom:6px;">
+                🔥 热点SET: <span v-for="hs in crossSetData.hot_sets" :key="hs.set_id">{{ hs.set_id }}({{ hs.total }}条, {{ hs.ratio }}x) </span>
+              </div>
+              <div v-if="crossSetData.cross_set_sqls && crossSetData.cross_set_sqls.length > 0" style="font-size:12px;color:#409eff;margin-bottom:6px;">
+                ⚠️ 跨SET共现SQL: {{ crossSetData.cross_set_sqls.length }}个（在多个SET上同时出现慢查询）
+              </div>
+              <div style="font-size:12px;color:#606266;line-height:1.6;padding:6px;background:#fff;border-radius:3px;">
+                💡 {{ crossSetData.advice }}
+              </div>
+            </div>
+            <div v-else style="font-size:12px;color:#909399;">
+              {{ crossSetData.advice || '该扫描任务未发现带SET标识的慢SQL记录，可能扫描的是非分布式实例。' }}
             </div>
           </div>
 
@@ -489,6 +609,11 @@
               <option value="">全部</option>
               <option v-for="db in dbNames" :key="db" :value="db">{{ db }}</option>
             </select>
+            <label>SET:</label>
+            <select v-model="slowFilters.set_id" @change="handleSlowFilter" style="min-width:100px;">
+              <option value="">全部</option>
+              <option v-for="sid in setIds" :key="sid" :value="sid">{{ sid }}</option>
+            </select>
             <label>扫描任务:</label>
             <select v-model="slowFilters.scan_task_id" @change="handleSlowFilter" style="min-width:180px;">
               <option value="">全部</option>
@@ -530,7 +655,7 @@
             <div v-if="item.problem_type" style="margin-top:5px;font-size:12px;color:#e6a23c;">问题: {{ item.problem_type }}</div>
             <div v-if="item.suggestion" style="margin-top:3px;font-size:12px;color:#909399;">建议: {{ item.suggestion }}</div>
             <div class="slow-meta">
-              ID: {{ item.id }} | 库: {{ item.db_name || '-' }} | 状态: {{ item.status || 'pending' }} | 录入: {{ item.created_at?.substring(0, 19) }}
+              ID: {{ item.id }} | 库: {{ item.db_name || '-' }} | SET: {{ item.set_id || '-' }} | 状态: {{ item.status || 'pending' }} | 录入: {{ item.created_at?.substring(0, 19) }}
             </div>
           </div>
 
@@ -653,12 +778,17 @@
         <!-- 当前连接状态 -->
         <div class="card" style="margin-top: 20px;">
           <div class="card-title">当前连接状态</div>
-          <div v-if="tdsqlStatus.connected" style="display: flex; align-items: center; gap: 15px;">
+          <div v-if="tdsqlStatus.connected" style="display: flex; align-items: center; gap: 20px; flex-wrap: wrap;">
             <div style="display: flex; align-items: center; gap: 8px;">
               <div class="status-dot connected"></div>
               <span style="color: #67c23a; font-weight: 600;">已连接</span>
             </div>
-            <span>{{ tdsqlStatus.host }}</span>
+            <div style="display: flex; gap: 20px; flex-wrap: wrap; font-size: 13px; color: #606266;">
+              <span><strong>主机:</strong> {{ tdsqlStatus.host }}</span>
+              <span><strong>端口:</strong> {{ tdsqlStatus.port }}</span>
+              <span><strong>数据库:</strong> {{ tdsqlStatus.database || '-' }}</span>
+              <span><strong>用户:</strong> {{ tdsqlStatus.user }}</span>
+            </div>
             <el-button size="small" type="danger" @click="disconnectTdsql">断开连接</el-button>
           </div>
           <div v-else style="display: flex; align-items: center; gap: 8px;">
@@ -718,6 +848,8 @@ const app = createApp({
     const isDragover = ref(false);
     const fileInput = ref(null);
     const fileAuditResult = ref(null);
+        const sqlDialogVisible = ref(false);
+        const sqlDialogContent = ref('');
     const analyzing = ref(false);
     const slowResult = ref(null);
     const slowList = ref([]);
@@ -729,8 +861,12 @@ const app = createApp({
       scan_task_id: '',
       severity: '',
       status: '',
+      set_id: '',
       keyword: '',
     });
+    const setIds = ref([]);
+    const crossSetData = ref(null);
+    const crossSetLoading = ref(false);
     const slowPage = reactive({
       current: 1,
       size: 20,
@@ -742,17 +878,21 @@ const app = createApp({
       source: 'digest',
       time_window_start: '',
       time_window_end: '',
-      min_time: 0.5,
+      min_time: 0.1,
       limit: 50,
+      poll_duration: 10,
+      poll_interval: 1,
     });
+    const proxyConfig = ref(null);
     const scanTaskLoading = ref(false);
     const explainInput = ref('');
     const analyzingExplain = ref(false);
     const explainResult = ref(null);
-    const stats = ref({ audit: {}, slow_queries: {}, rules: {} });
+    const stats = ref({ audit: {}, slow_queries: {}, rules: {}, recent_audits: [] });
+    const ruleHits = ref([]);
 
     // TDSQL管理相关
-    const tdsqlStatus = ref({ connected: false, host: '' });
+    const tdsqlStatus = ref({ connected: false, host: '', port: '', database: '', user: '' });
     const savedConnections = ref([]);
     const loadingConnections = ref(false);
     const testingConn = ref(false);
@@ -807,12 +947,44 @@ const app = createApp({
       }
     };
 
-    // 加载Dashboard数据
+    // 加载审核治理概览数据
     const loadDashboard = async () => {
       try {
         const resp = await fetch(`${API_BASE}/api/v1/dashboard/summary`);
         if (resp.ok) stats.value = await resp.json();
+        // 并行加载高频违规规则统计
+        loadRuleHits();
       } catch (e) { console.log('Dashboard API not available'); }
+    };
+
+    // 加载高频违规规则统计
+    const loadRuleHits = async () => {
+      try {
+        const resp = await fetch(`${API_BASE}/api/v1/dashboard/rule-stats`);
+        if (resp.ok) {
+          const data = await resp.json();
+          ruleHits.value = data.rules || [];
+        }
+      } catch (e) { console.log('Rule stats API not available'); }
+    };
+
+    // 审核类型中文标签
+    const auditTypeLabel = (type) => {
+      const labels = { 'sql': '单条SQL', 'file': '文件', 'upload': '上传文件', 'mybatis': 'MyBatis' };
+      return labels[type] || type || '-';
+    };
+
+    // 格式化时间显示
+    const formatTime = (isoStr) => {
+      if (!isoStr) return '';
+      try {
+        const dt = new Date(isoStr);
+        const m = String(dt.getMonth() + 1).padStart(2, '0');
+        const d = String(dt.getDate()).padStart(2, '0');
+        const h = String(dt.getHours()).padStart(2, '0');
+        const min = String(dt.getMinutes()).padStart(2, '0');
+        return `${m}-${d} ${h}:${min}`;
+      } catch { return isoStr; }
     };
 
     // TDSQL连接状态检查
@@ -824,7 +996,7 @@ const app = createApp({
           tdsqlStatus.value = data;
         }
       } catch (e) {
-        tdsqlStatus.value = { connected: false, host: '' };
+        tdsqlStatus.value = { connected: false, host: '', port: '', database: '', user: '' };
       }
     };
 
@@ -900,8 +1072,9 @@ const app = createApp({
 
         if (connectResp.ok) {
           ElementPlus.ElMessage.success('连接成功');
-          tdsqlStatus.value = { connected: true, host: connForm.host };
+          tdsqlStatus.value = { connected: true, host: connForm.host, port: connForm.port, database: connForm.database, user: connForm.user };
           loadSavedConnections();
+          loadProxyConfig();
         } else {
           ElementPlus.ElMessage.error('连接失败: ' + (connectData.detail || '未知错误'));
         }
@@ -922,8 +1095,9 @@ const app = createApp({
         if (resp.ok) {
           const data = await resp.json();
           ElementPlus.ElMessage.success('连接成功: ' + data.name);
-          tdsqlStatus.value = { connected: true, host: data.host };
+          tdsqlStatus.value = { connected: true, host: data.host, port: data.port, database: data.database, user: data.user || '' };
           currentConnId.value = connId;
+          loadProxyConfig();
         } else {
           const data = await resp.json();
           ElementPlus.ElMessage.error('连接失败: ' + (data.detail || '未知错误'));
@@ -961,7 +1135,7 @@ const app = createApp({
         });
         if (resp.ok) {
           ElementPlus.ElMessage.success('已断开连接');
-          tdsqlStatus.value = { connected: false, host: '' };
+          tdsqlStatus.value = { connected: false, host: '', port: '', database: '', user: '' };
           currentConnId.value = null;
         }
       } catch (e) {
@@ -1051,6 +1225,19 @@ const app = createApp({
       }
     };
 
+    // SQL原文弹窗
+    const showSqlDialog = (sql) => {
+      sqlDialogContent.value = sql;
+      sqlDialogVisible.value = true;
+    };
+    const copySqlToClipboard = () => {
+      navigator.clipboard.writeText(sqlDialogContent.value).then(() => {
+        ElementPlus.ElMessage.success('已复制到剪贴板');
+      }).catch(() => {
+        ElementPlus.ElMessage.error('复制失败');
+      });
+    };
+
     // 慢SQL分析
     const analyzeSlowQuery = async () => {
       if (!slowForm.fingerprint || !slowForm.sql_text) {
@@ -1081,6 +1268,7 @@ const app = createApp({
           offset: (slowPage.current - 1) * slowPage.size,
         });
         if (slowFilters.db_name) params.set('db_name', slowFilters.db_name);
+        if (slowFilters.set_id) params.set('set_id', slowFilters.set_id);
         if (slowFilters.scan_task_id) params.set('scan_task_id', slowFilters.scan_task_id);
         if (slowFilters.severity) params.set('severity', slowFilters.severity);
         if (slowFilters.status) params.set('status', slowFilters.status);
@@ -1107,6 +1295,18 @@ const app = createApp({
       } catch (e) {}
     };
 
+    const loadProxyConfig = async () => {
+      try {
+        const resp = await fetch(`${API_BASE}/api/v1/tdsql/proxy-config`);
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data.status === 'success' && data.proxy_config) {
+            proxyConfig.value = data.proxy_config;
+          }
+        }
+      } catch (e) { proxyConfig.value = null; }
+    };
+
     const loadDbNames = async () => {
       try {
         const resp = await fetch(`${API_BASE}/api/v1/slow-queries/db-names`);
@@ -1115,6 +1315,33 @@ const app = createApp({
           dbNames.value = data.db_names || [];
         }
       } catch (e) {}
+    };
+
+    const loadSetIds = async () => {
+      try {
+        const resp = await fetch(`${API_BASE}/api/v1/slow-queries/set-ids`);
+        if (resp.ok) {
+          const data = await resp.json();
+          setIds.value = data.set_ids || [];
+        }
+      } catch (e) {}
+    };
+
+    const loadCrossSetAnalysis = async (taskId) => {
+      if (!taskId) { crossSetData.value = null; return; }
+      crossSetLoading.value = true;
+      try {
+        const resp = await fetch(`${API_BASE}/api/v1/slow-queries/cross-set-analysis?scan_task_id=${taskId}`);
+        if (resp.ok) {
+          crossSetData.value = await resp.json();
+        } else {
+          crossSetData.value = null;
+        }
+      } catch (e) {
+        crossSetData.value = null;
+      } finally {
+        crossSetLoading.value = false;
+      }
     };
 
     const handleSlowFilter = () => {
@@ -1127,6 +1354,7 @@ const app = createApp({
       slowFilters.scan_task_id = '';
       slowFilters.severity = '';
       slowFilters.status = '';
+      slowFilters.set_id = '';
       slowFilters.keyword = '';
       slowPage.current = 1;
       loadSlowList();
@@ -1158,7 +1386,7 @@ const app = createApp({
 
     // 扫描任务相关
     const sourceLabel = (source) => {
-      const labels = { digest: '性能摘要', slow_log: '慢查询日志', processlist: '实时进程', manual: '手动录入' };
+      const labels = { digest: '性能摘要分析', processlist: '实时进程快照', manual: '手动录入' };
       return labels[source] || source;
     };
 
@@ -1191,11 +1419,21 @@ const app = createApp({
             task_name: scanTaskForm.task_name || '',
             time_window_start: formatTime(scanTaskForm.time_window_start),
             time_window_end: formatTime(scanTaskForm.time_window_end),
+            poll_duration: scanTaskForm.poll_duration,
+            poll_interval: scanTaskForm.poll_interval,
           }),
         });
         const data = await resp.json();
         if (resp.ok) {
-          ElementPlus.ElMessage.success(`扫描完成，抓取 ${data.fetched} 条慢SQL`);
+          let msg = `扫描完成，抓取 ${data.fetched} 条慢SQL`;
+          if (data.errors && data.errors.length > 0) {
+            msg += `（${data.errors.length}个错误）`;
+          }
+          if (data.fetched === 0) {
+            ElementPlus.ElMessage.warning(msg + '。建议：使用"性能摘要分析"模式（统计累积数据），或增大轮询时长并降低耗时阈值。');
+          } else {
+            ElementPlus.ElMessage.success(msg);
+          }
           scanTaskForm.task_name = '';
           scanTaskForm.time_window_start = '';
           scanTaskForm.time_window_end = '';
@@ -1216,8 +1454,10 @@ const app = createApp({
       // 点击同一个任务则取消筛选
       if (slowFilters.scan_task_id == taskId) {
         slowFilters.scan_task_id = '';
+        crossSetData.value = null;
       } else {
         slowFilters.scan_task_id = taskId;
+        loadCrossSetAnalysis(taskId);
       }
       slowPage.current = 1;
       loadSlowList();
@@ -1281,29 +1521,26 @@ const app = createApp({
       sqlInput.value = examples[type] || '';
     };
 
-    // 渲染规则分布图表
-    const renderRuleChart = () => {
-      const el = document.getElementById('ruleChart');
+    // 渲染近7天审核趋势图
+    const renderTrendChart = async () => {
+      const el = document.getElementById('trendChart');
       if (!el) return;
-      const chart = echarts.init(el);
-      const byCat = stats.value.rules?.by_category || {};
-      // 动态生成图表数据，使用 categoryOrder 中的元数据
-      const chartData = categoryOrder
-        .filter(cat => byCat[cat.key])
-        .map(cat => ({
-          value: byCat[cat.key],
-          name: cat.label,
-          itemStyle: { color: cat.color },
-        }));
-      chart.setOption({
-        tooltip: { trigger: 'item' },
-        legend: { bottom: 0, type: 'scroll' },
-        series: [{
-          type: 'pie', radius: ['40%', '65%'],
-          label: { formatter: '{b}: {c}条' },
-          data: chartData.length > 0 ? chartData : [{ value: 76, name: '全部规则', itemStyle: { color: '#409eff' } }],
-        }],
-      });
+      try {
+        const resp = await fetch(`${API_BASE}/api/v1/dashboard/audit-trend?days=7`);
+        const trendData = resp.ok ? await resp.json() : { dates: [], passed: [], failed: [] };
+        const chart = echarts.init(el);
+        chart.setOption({
+          tooltip: { trigger: 'axis' },
+          legend: { data: ['通过', '拦截'], bottom: 0 },
+          grid: { left: '3%', right: '4%', bottom: '15%', top: '5%', containLabel: true },
+          xAxis: { type: 'category', data: trendData.dates || [], axisLabel: { fontSize: 11 } },
+          yAxis: { type: 'value', minInterval: 1, axisLabel: { fontSize: 11 } },
+          series: [
+            { name: '通过', type: 'bar', stack: 'total', data: trendData.passed || [], itemStyle: { color: '#67c23a' } },
+            { name: '拦截', type: 'bar', stack: 'total', data: trendData.failed || [], itemStyle: { color: '#f56c6c' } },
+          ],
+        });
+      } catch (e) { console.log('Trend chart render failed'); }
     };
 
     onMounted(() => {
@@ -1312,6 +1549,7 @@ const app = createApp({
       loadSlowList();
       loadScanTasks();
       loadDbNames();
+      loadSetIds();
       checkTdsqlStatus();
       loadSavedConnections();
       loadRules();
@@ -1319,26 +1557,31 @@ const app = createApp({
     });
 
     watch(currentPage, (val) => {
-      if (val === 'dashboard') nextTick(renderRuleChart);
+      if (val === 'dashboard') nextTick(renderTrendChart);
       if (val === 'rules' && rulesList.value.length === 0) loadRules();
       if (val === 'slow-query') {
         loadSlowList();
         loadScanTasks();
         loadDbNames();
+        loadSetIds();
       }
     });
 
     return {
-      currentPage, sqlInput, auditing, auditResult, stats,
+      currentPage, sqlInput, auditing, auditResult, stats, ruleHits,
+      auditTypeLabel, formatTime,
       isDragover, fileInput, fileAuditResult,
+      sqlDialogVisible, sqlDialogContent,
       slowForm, analyzing, slowResult, slowList, slowListLoading,
-      slowFilters, slowPage, scanTasks, dbNames, slowPageNumbers,
+      slowFilters, slowPage, scanTasks, dbNames, setIds, slowPageNumbers,
+      crossSetData, crossSetLoading, loadCrossSetAnalysis,
       scanTaskForm, scanTaskLoading,
       analyzeSlowQuery, loadSlowExample, loadSlowList,
-      loadScanTasks, loadDbNames, handleSlowFilter, resetSlowFilter, changeSlowPage,
+      loadScanTasks, loadDbNames, loadSetIds, handleSlowFilter, resetSlowFilter, changeSlowPage,
       startScanTask, selectScanTask, sourceLabel,
       explainInput, analyzingExplain, explainResult,
       auditSql, triggerFileInput, handleFileSelect, handleFileDrop,
+      showSqlDialog, copySqlToClipboard,
       analyzeExplain, loadExplainExample, loadExample,
       // TDSQL管理
       tdsqlStatus, savedConnections, loadingConnections,

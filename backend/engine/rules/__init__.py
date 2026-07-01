@@ -1,12 +1,12 @@
 """
 TDSQL SQL审核工具 - 规则引擎 (V1.0)
 
-共76条规则，按7个类别组织:
+共77条规则，按8个类别组织:
 - 命名规范 (NAMING): R001-R002, R033-R034, R049
 - DDL规范 (DDL): R003-R011, R023-R032, R035-R038
 - DML规范 (DML): R012-R015, R017, R040-R041, R043, R047
 - 性能规范 (PERFORMANCE): R016, R044, R047, R050-R052
-- 分布式规范 (DISTRIBUTED): R020-R022, R025, R048, R053-R060
+- 分布式规范 (DISTRIBUTED): R020-R022, R025, R048, R053-R060, R077
 - 索引规范 (INDEX): R018-R019, R061-R068
 - 事务规范 (TRANSACTION): R069-R072
 - 安全规范 (SECURITY): R039, R042, R045-R046, R073-R076
@@ -40,6 +40,7 @@ from backend.engine.rules.distributed import (
     R055NoGlobalIndexOnly, R056SuggestShardKeyInOrderBy,
     R057NoBulkInsertWithoutShardKey, R058BatchUpdateLimit,
     R059NoDistributedTransaction, R060ExplainShardKeyCheck,
+    R077CreateTableMustHaveShardKey,
 )
 from backend.engine.rules.index import (
     R061IndexNaming, R062CompositeIndexOrder, R063NoIndexOnLowCardinality,
@@ -88,6 +89,7 @@ ALL_RULE_CLASSES = [
     R055NoGlobalIndexOnly, R056SuggestShardKeyInOrderBy,
     R057NoBulkInsertWithoutShardKey, R058BatchUpdateLimit,
     R059NoDistributedTransaction, R060ExplainShardKeyCheck,
+    R077CreateTableMustHaveShardKey,
     # 索引规范
     R061IndexNaming, R062CompositeIndexOrder, R063NoIndexOnLowCardinality,
     R064CoveringIndexSuggestion, R065IndexColumnCountLimit,
@@ -134,6 +136,7 @@ __all__ = [
     "R055NoGlobalIndexOnly", "R056SuggestShardKeyInOrderBy",
     "R057NoBulkInsertWithoutShardKey", "R058BatchUpdateLimit",
     "R059NoDistributedTransaction", "R060ExplainShardKeyCheck",
+    "R077CreateTableMustHaveShardKey",
     # 索引规范
     "R061IndexNaming", "R062CompositeIndexOrder", "R063NoIndexOnLowCardinality",
     "R064CoveringIndexSuggestion", "R065IndexColumnCountLimit",
