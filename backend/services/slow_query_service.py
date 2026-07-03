@@ -272,8 +272,16 @@ class SlowQueryService:
         # 注册连接（如果尚未活跃则自动建连）
         pool = registry.register(connection_id, cfg, validate=True)
 
+        # 预处理SQL：将 ? 占位符替换为示例值（EXPLAIN不支持参数占位符）
+        # ? 在指纹SQL中代表参数值位置，EXPLAIN只需要执行计划，值不影响结果
+        processed_sql = sql.strip().rstrip(';')
+        if '?' in processed_sql:
+            import re
+            # 将独立的 ? 替换为 '1'（引号包裹，兼容字符串和数字上下文）
+            processed_sql = re.sub(r"(?<!['\"\w])\?(?!['\"\w])", "'1'", processed_sql)
+
         # 执行 EXPLAIN
-        explain_sql = f"EXPLAIN {sql.strip().rstrip(';')}"
+        explain_sql = f"EXPLAIN {processed_sql}"
         with pool.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(explain_sql)
@@ -295,6 +303,7 @@ class SlowQueryService:
         result = self.analyze_explain(explain_data)
         result["explain_rows"] = explain_data
         result["explain_columns"] = columns
+        result["executed_sql"] = processed_sql
         return result
 
     def get_statistics(self) -> dict:
