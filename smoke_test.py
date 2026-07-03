@@ -1,12 +1,19 @@
 #!/usr/bin/env python
 """
-TDSQL SQL审核工具 V1.0 冒烟测试脚本
-覆盖：数据库初始化 → 规则引擎 → V1.0核心引擎 → 服务层 → API端点 → CLI工具
+TDSQL SQL审核平台 V2.0 冒烟测试脚本
+覆盖：数据库初始化 → 规则引擎 → 核心引擎 → 服务层 → API端点 → CLI工具
+      → V2.0 安全与平台能力（认证/RBAC/连接注册表/规则集/脱敏/保留/指标）
 """
 import sys
 import os
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
+
+# 冒烟测试为进程内验证，API段以免认证模式执行（部署后健康检查见部署手册）
+os.environ.setdefault("AUTH_ENABLED", "false")
+os.environ.setdefault("DATA_MASKING_ENABLED", "false")
+os.environ.setdefault("GITLAB_WEBHOOK_ALLOW_INSECURE", "true")
+os.environ.setdefault("SCHEDULER_ENABLED", "false")
 
 # 确保项目根目录在 Python path 中
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -564,6 +571,151 @@ try:
 except Exception as e:
     import traceback
     fail("CLI工具测试", traceback.format_exc())
+
+# ─────────────────────────────────────────────
+# [7] V2.0 安全与平台能力测试
+# ─────────────────────────────────────────────
+section("[7] V2.0 安全与平台能力测试")
+try:
+    # 7.1 口令与令牌
+    from backend.services.auth_service import (
+        hash_password, verify_password, issue_token, verify_token,
+        check_permission, validate_password_strength, auth_service,
+    )
+    h, s = hash_password("Smoke@2026Pw")
+    if verify_password("Smoke@2026Pw", h, s) and not verify_password("bad", h, s):
+        ok("PBKDF2口令哈希与验证")
+    else:
+        fail("PBKDF2口令哈希与验证")
+
+    if validate_password_strength("123") and validate_password_strength("Smoke@2026Pw") is None:
+        ok("口令强度校验")
+    else:
+        fail("口令强度校验")
+
+    t = issue_token("smoke_user", "dba")
+    payload = verify_token(t)
+    if payload and payload["sub"] == "smoke_user" and verify_token(t + "x") is None:
+        ok("HMAC令牌签发/验证/防篡改")
+    else:
+        fail("HMAC令牌签发/验证/防篡改")
+
+    # 7.2 RBAC权限矩阵
+    matrix_ok = (
+        check_permission("admin", "POST", "/api/v1/auth/users")
+        and not check_permission("dba", "GET", "/api/v1/auth/users")
+        and check_permission("dba", "POST", "/api/v1/tdsql/connections")
+        and check_permission("developer", "POST", "/api/v1/audit/sql")
+        and not check_permission("developer", "POST", "/api/v1/tdsql/connections")
+        and not check_permission("auditor", "POST", "/api/v1/audit/sql")
+        and check_permission("auditor", "GET", "/api/v1/admin/operation-logs")
+    )
+    if matrix_ok:
+        ok("RBAC四角色权限矩阵")
+    else:
+        fail("RBAC四角色权限矩阵")
+
+    # 7.3 用户管理
+    admin_pw = auth_service.ensure_bootstrap_admin()
+    ok("初始管理员引导（存在即幂等）")
+    auth_service.delete_user("smoke_dev", operator="smoke")
+    u, err = auth_service.create_user("smoke_dev", "Smoke@2026Pw", "developer",
+                                      operator="smoke")
+    if u and not err:
+        ok("用户创建")
+    else:
+        fail("用户创建", str(err))
+    auth_service.delete_user("smoke_dev", operator="smoke")
+
+    # 7.4 连接注册表（加密持久化）
+    from backend.services.connection_registry import registry
+    from backend.services.security_service import decrypt_password
+    cid = registry.save_connection(
+        name="冒烟测试库", host="10.9.9.9", port=15000, username="smoke",
+        password="SmokeConn@1", database="smoke_db", operator="smoke")
+    saved = registry.get_saved(cid)
+    if saved and saved["password_encrypted"] != "SmokeConn@1" \
+            and decrypt_password(saved["password_encrypted"]) == "SmokeConn@1":
+        ok("连接配置加密持久化与解密")
+    else:
+        fail("连接配置加密持久化与解密")
+    listed = [c for c in registry.list_saved() if c["id"] == cid]
+    if listed and listed[0]["password"] == "***":
+        ok("连接列表密码脱敏")
+    else:
+        fail("连接列表密码脱敏")
+    registry.delete_saved(cid, operator="smoke")
+
+    # 7.5 规则集覆盖
+    from backend.engine.checker import RuleChecker
+    from backend.services.ruleset_service import ruleset_service
+    ruleset_service.delete_ruleset("smoke_rs", operator="smoke")
+    _, err = ruleset_service.create_ruleset(
+        "smoke_rs", "冒烟规则集",
+        items=[{"rule_id": "R012", "enabled": False}], operator="smoke")
+    overrides = ruleset_service.get_overrides("smoke_rs")
+    checker_v2 = RuleChecker()
+    r = checker_v2.audit_sql("SELECT * FROM t_x WHERE id=1", rule_overrides=overrides)
+    if not err and not any(v.rule_id == "R012" for v in r.violations):
+        ok("规则集覆盖生效（R012禁用）")
+    else:
+        fail("规则集覆盖生效", str(err))
+    ruleset_service.delete_ruleset("smoke_rs", operator="smoke")
+
+    # 7.6 数据脱敏
+    os.environ["DATA_MASKING_ENABLED"] = "true"
+    from backend.engine.slow_analyzer import SlowQueryRecord
+    from backend.services.slow_query_service import SlowQueryService
+    from backend.services.database import _get_connection as _gc
+    sq = SlowQueryService()
+    res = sq.add_slow_query(SlowQueryRecord(
+        fingerprint="smoke_mask", db_name="smoke",
+        sql_text="SELECT * FROM t WHERE card='6222020200112233'"))
+    conn = _gc()
+    row = conn.execute("SELECT sql_text FROM slow_queries WHERE id=?",
+                       (res["id"],)).fetchone()
+    conn.execute("DELETE FROM slow_queries WHERE id=?", (res["id"],))
+    conn.commit()
+    conn.close()
+    os.environ["DATA_MASKING_ENABLED"] = "false"
+    if "6222020200112233" not in row["sql_text"]:
+        ok("慢SQL入库脱敏（卡号→?）")
+    else:
+        fail("慢SQL入库脱敏", row["sql_text"])
+
+    # 7.7 数据保留策略
+    from backend.services.retention_service import retention_service
+    policies = retention_service.get_policies()
+    if len(policies) >= 5:
+        ok(f"数据保留策略已初始化（{len(policies)}张表）")
+    else:
+        fail("数据保留策略初始化")
+
+    # 7.8 Prometheus指标
+    from backend.services.metrics_service import render_prometheus
+    metrics_text = render_prometheus()
+    if "tdsql_app_info" in metrics_text:
+        ok("Prometheus指标渲染")
+    else:
+        fail("Prometheus指标渲染")
+
+    # 7.9 前端内网化资产
+    vendor_dir = os.path.join(PROJECT_ROOT, "frontend", "static", "vendor")
+    required_assets = ["vue.global.prod.js", "element-plus.full.min.js",
+                       "element-plus.css", "echarts.min.js"]
+    missing = [a for a in required_assets
+               if not os.path.isfile(os.path.join(vendor_dir, a))]
+    with open(os.path.join(PROJECT_ROOT, "frontend", "index.html"),
+              encoding="utf-8") as f:
+        html = f.read()
+    if not missing and "unpkg.com" not in html:
+        ok("前端静态资产本地化（纯内网可用）")
+    else:
+        fail("前端静态资产本地化", f"missing={missing}")
+
+except Exception as e:
+    import traceback
+    fail("V2.0安全与平台能力测试", traceback.format_exc())
 
 # ─────────────────────────────────────────────
 # 汇总

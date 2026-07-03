@@ -200,7 +200,7 @@ class TestDDLRules:
             status TINYINT NOT NULL DEFAULT 0 COMMENT '状态',
             create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
             update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='订单表'
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='订单表' SHARDKEY=id
         """
         resp = client.post("/api/v1/audit/sql", json={"sql": sql})
         data = resp.json()
@@ -541,11 +541,11 @@ class TestDashboard:
         assert "audit" in data
         assert "slow_queries" in data
         assert "rules" in data
-        assert data["rules"]["total"] == 76
+        assert data["rules"]["total"] == 77
         assert data["rules"]["by_category"]["naming"] == 5
         assert data["rules"]["by_category"]["ddl"] == 22
         assert data["rules"]["by_category"]["dml"] == 9
-        assert data["rules"]["by_category"]["distributed"] == 13
+        assert data["rules"]["by_category"]["distributed"] == 14
 
     def test_audit_trend(self):
         """审核趋势"""

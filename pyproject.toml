@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tdsql-sqlcheck"
-version = "0.4.0"
-description = "TDSQL SQL审核与慢SQL分析工具"
+version = "2.0.0"
+description = "TDSQL SQL质量管控与慢SQL分析平台（银行级）"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115.0",

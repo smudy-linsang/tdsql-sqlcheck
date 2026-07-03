@@ -33,8 +33,15 @@ logs/
 
 # Data files (contain runtime data)
 data/*.db
+data/*.db-shm
+data/*.db-wal
 data/*.pdf
 data/reports/
+
+# V2.0 Security keys (NEVER commit)
+data/encryption.key
+data/auth_secret.key
+*.key
 
 # OS
 .DS_Store

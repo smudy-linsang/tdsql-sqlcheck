@@ -1,15 +1,18 @@
 """
-TDSQL SQL审核工具 - 规则引擎 (V1.0)
+TDSQL SQL审核工具 - 规则引擎 (V2.0)
 
-共77条规则，按8个类别组织:
+共77条规则（R001-R077），按8个类别组织:
 - 命名规范 (NAMING): R001-R002, R033-R034, R049
 - DDL规范 (DDL): R003-R011, R023-R032, R035-R038
 - DML规范 (DML): R012-R015, R017, R040-R041, R043, R047
-- 性能规范 (PERFORMANCE): R016, R044, R047, R050-R052
+- 性能规范 (PERFORMANCE): R016, R044, R050-R052
 - 分布式规范 (DISTRIBUTED): R020-R022, R025, R048, R053-R060, R077
 - 索引规范 (INDEX): R018-R019, R061-R068
 - 事务规范 (TRANSACTION): R069-R072
 - 安全规范 (SECURITY): R039, R042, R045-R046, R073-R076
+
+V2.0: 支持规则集(rule_sets)按项目覆盖规则启停与严重级别，
+详见 services/ruleset_service.py。
 """
 from backend.engine.rules.base import BaseRule
 from backend.engine.rules.naming import R001NamingLength, R002ReservedKeywords

@@ -19,8 +19,8 @@ class TestRulesAPI:
         data = resp.json()
         assert "total" in data, "Response missing 'total' field"
         assert "rules" in data, "Response missing 'rules' field"
-        assert data["total"] == 76, f"Expected 76 rules, got {data['total']}"
-        assert len(data["rules"]) == 76, f"Expected 76 rules in list, got {len(data['rules'])}"
+        assert data["total"] == 77, f"Expected 76 rules, got {data['total']}"
+        assert len(data["rules"]) == 77, f"Expected 76 rules in list, got {len(data['rules'])}"
 
     def test_rules_structure(self):
         """测试规则数据结构"""
@@ -49,7 +49,7 @@ class TestRulesAPI:
         assert len(categories["ddl"]) == 22, f"Expected 22 DDL rules"
         assert len(categories["dml"]) == 9, f"Expected 9 DML rules"
         assert len(categories["index"]) == 10, f"Expected 10 index rules"
-        assert len(categories["distributed"]) == 13, f"Expected 13 distributed rules"
+        assert len(categories["distributed"]) == 14, f"Expected 14 distributed rules"
         assert len(categories["security"]) == 8, f"Expected 8 security rules"
         assert len(categories["performance"]) == 5, f"Expected 5 performance rules"
         assert len(categories["transaction"]) == 4, f"Expected 4 transaction rules"
@@ -112,7 +112,7 @@ class TestRulesAPI:
         dist_rules = [r for r in data["rules"] if r["category"] == "distributed"]
         dist_ids = {r["rule_id"] for r in dist_rules}
         assert "R020" in dist_ids, "Missing R020 distributed rule"
-        assert len(dist_ids) == 13, f"Expected 13 distributed rule IDs, got {len(dist_ids)}"
+        assert len(dist_ids) == 14, f"Expected 14 distributed rule IDs, got {len(dist_ids)}"
 
 
 class TestFrontendIntegration:
@@ -154,8 +154,8 @@ class TestEndToEnd:
         data = resp.json()
 
         # 2. 验证数据完整性
-        assert data["total"] == 76
-        assert len(data["rules"]) == 76
+        assert data["total"] == 77
+        assert len(data["rules"]) == 77
 
         # 3. 验证每条规则都有描述
         for rule in data["rules"]:

@@ -50,12 +50,20 @@ class AuditWebhookResult(BaseModel):
 # ============ 辅助函数 ============
 
 def _verify_gitlab_token(token_header: Optional[str]) -> bool:
-    """验证GitLab Webhook Token"""
-    if not GITLAB_WEBHOOK_SECRET:
-        return True  # 未配置secret则跳过验证
+    """
+    验证GitLab Webhook Token。
+
+    V2.0 安全加固: 未配置 GITLAB_WEBHOOK_SECRET 时默认拒绝 webhook 请求
+    （生产要求），仅当显式设置 GITLAB_WEBHOOK_ALLOW_INSECURE=true 时放行
+    （仅限开发/测试环境）。
+    """
+    secret = os.getenv("GITLAB_WEBHOOK_SECRET", "") or GITLAB_WEBHOOK_SECRET
+    if not secret:
+        from backend import config as app_config
+        return app_config.gitlab_webhook_allow_insecure()
     if not token_header:
         return False
-    return hmac.compare_digest(token_header, GITLAB_WEBHOOK_SECRET)
+    return hmac.compare_digest(token_header, secret)
 
 
 def _is_sql_related_file(file_path: str) -> bool:

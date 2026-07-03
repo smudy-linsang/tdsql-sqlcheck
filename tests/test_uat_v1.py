@@ -418,8 +418,8 @@ class TestUAT40_RulesUserAcceptance:
         resp = client.get("/api/v1/rules")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["total"] == 76
-        assert len(data["rules"]) == 76
+        assert data["total"] == 77
+        assert len(data["rules"]) == 77
 
     def test_uat40_02_filter_by_category(self):
         """UAT-40-02: 用户按类别筛选规则（客户端过滤）"""
@@ -629,7 +629,7 @@ class TestUAT42_CLIUserAcceptance:
         runner = CliRunner()
         result = runner.invoke(cli, ["--version"])
         assert result.exit_code == 0
-        assert "1.0" in result.output
+        assert "2.0" in result.output  # V2.0银行级改造版本
 
 
 # ═══════════════════════════════════════════════════════════

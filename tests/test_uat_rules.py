@@ -197,14 +197,14 @@ class TestRulesUATContentQuality:
         assert len(categories["ddl"]) == 22, "DDL语句应有22条规则"
         assert len(categories["dml"]) == 9, "DML语句应有9条规则"
         assert len(categories["index"]) == 10, "索引规范应有10条规则"
-        assert len(categories["distributed"]) == 13, "分布式场景应有13条规则"
+        assert len(categories["distributed"]) == 14, "分布式场景应有14条规则"
         assert len(categories["security"]) == 8, "安全规范应有8条规则"
         assert len(categories["performance"]) == 5, "性能规范应有5条规则"
         assert len(categories["transaction"]) == 4, "事务规范应有4条规则"
         
         # 验证总数
         total = sum(len(rules) for rules in categories.values())
-        assert total == 76, f"规则总数应为76条，实际{total}条"
+        assert total == 77, f"规则总数应为77条，实际{total}条"
 
 
 class TestRulesUATIntegration:

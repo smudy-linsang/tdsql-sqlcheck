@@ -1,8 +1,11 @@
 """
-TDSQL SQL审核工具 - 数据库管理层 (V1.0)
+TDSQL SQL审核工具 - 数据库管理层 (V2.0)
 
 负责SQLite数据库的初始化、迁移和连接管理。
-V1.0: 20张表完整建表 + V0.4→V1.0增量迁移。
+V2.0: 27张表（新增用户/规则集/扫描计划/保留策略/调度租约）+ 历史版本增量迁移。
+
+注: 生产环境如需集中式存储高可用，参见 docs/V2.0银行级改造设计说明书.md 中的
+存储迁移方案（表结构与SQL已尽量保持 MySQL 兼容写法）。
 """
 import json
 import logging
@@ -104,6 +107,8 @@ def _migrate_v04_tables(conn: sqlite3.Connection):
         _add_column_if_not_exists(conn, "audit_history", "gate_detail", "TEXT DEFAULT ''")
         _add_column_if_not_exists(conn, "audit_history", "top_violations", "TEXT DEFAULT '[]'")
         _add_column_if_not_exists(conn, "audit_history", "results_summary", "TEXT DEFAULT '{}'")
+        # V2.0: 审计主体（操作用户）
+        _add_column_if_not_exists(conn, "audit_history", "created_by", "TEXT DEFAULT ''")
 
     conn.commit()
 
@@ -547,6 +552,82 @@ def _create_all_tables(conn: sqlite3.Connection):
     CREATE INDEX IF NOT EXISTS idx_scan_task_db ON scan_tasks(db_name);
     CREATE INDEX IF NOT EXISTS idx_scan_task_source ON scan_tasks(source);
     CREATE INDEX IF NOT EXISTS idx_slow_scan_task ON slow_queries(scan_task_id);
+
+    -- ═══════════════ V2.0 新增表 ═══════════════
+
+    -- T22. users (用户与角色，V2.0认证授权)
+    CREATE TABLE IF NOT EXISTS users (
+        id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+        username              TEXT NOT NULL UNIQUE,
+        display_name          TEXT DEFAULT '',
+        role                  TEXT NOT NULL DEFAULT 'developer',  -- admin/dba/developer/auditor
+        password_hash         TEXT NOT NULL,
+        salt                  TEXT NOT NULL,
+        status                TEXT DEFAULT 'active',              -- active/disabled
+        must_change_password  INTEGER DEFAULT 0,
+        failed_attempts       INTEGER DEFAULT 0,
+        locked_until          TEXT DEFAULT NULL,
+        last_login_at         TEXT DEFAULT NULL,
+        created_by            TEXT DEFAULT '',
+        created_at            TEXT DEFAULT (datetime('now')),
+        updated_at            TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
+    CREATE INDEX IF NOT EXISTS idx_users_status ON users(status);
+
+    -- T23. rule_sets (规则集，V2.0多租户规则)
+    CREATE TABLE IF NOT EXISTS rule_sets (
+        id                  TEXT PRIMARY KEY,
+        name                TEXT NOT NULL,
+        description         TEXT DEFAULT '',
+        is_builtin          INTEGER DEFAULT 0,
+        created_by          TEXT DEFAULT '',
+        created_at          TEXT DEFAULT (datetime('now')),
+        updated_at          TEXT DEFAULT (datetime('now'))
+    );
+
+    -- T24. rule_set_items (规则集条目：按规则集覆盖规则启停/级别)
+    CREATE TABLE IF NOT EXISTS rule_set_items (
+        rule_set_id         TEXT NOT NULL,
+        rule_id             TEXT NOT NULL,
+        enabled             INTEGER DEFAULT 1,
+        severity_override   TEXT DEFAULT NULL,   -- NULL=使用规则默认级别
+        PRIMARY KEY (rule_set_id, rule_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_rsi_set ON rule_set_items(rule_set_id);
+
+    -- T25. scan_schedules (按连接的慢SQL扫描计划，V2.0多实例调度)
+    CREATE TABLE IF NOT EXISTS scan_schedules (
+        id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+        connection_id       TEXT NOT NULL,
+        source              TEXT DEFAULT 'digest',   -- digest/processlist
+        cron_hour           INTEGER DEFAULT 2,
+        cron_minute         INTEGER DEFAULT 0,
+        limit_rows          INTEGER DEFAULT 100,
+        min_time            REAL DEFAULT 1.0,
+        enabled             INTEGER DEFAULT 1,
+        last_run_at         TEXT DEFAULT NULL,
+        last_run_status     TEXT DEFAULT '',
+        created_by          TEXT DEFAULT '',
+        created_at          TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_sched_conn ON scan_schedules(connection_id);
+    CREATE INDEX IF NOT EXISTS idx_sched_enabled ON scan_schedules(enabled);
+
+    -- T26. retention_policies (数据保留策略，V2.0数据生命周期)
+    CREATE TABLE IF NOT EXISTS retention_policies (
+        table_name          TEXT PRIMARY KEY,
+        retention_days      INTEGER NOT NULL,
+        enabled             INTEGER DEFAULT 1,
+        updated_at          TEXT DEFAULT (datetime('now'))
+    );
+
+    -- T27. scheduler_lease (调度器leader租约，多副本部署防重复执行)
+    CREATE TABLE IF NOT EXISTS scheduler_lease (
+        id                  INTEGER PRIMARY KEY CHECK (id = 1),
+        holder              TEXT NOT NULL,
+        expires_at          TEXT NOT NULL
+    );
     """)
 
 
@@ -572,9 +653,31 @@ def _init_default_data(conn: sqlite3.Connection):
             VALUES (?, ?, ?, ?, ?)
         """, (metric, warning, urgent, interval, enabled))
 
+    # V2.0: 默认规则集（空条目 = 全部规则使用默认启停/级别）
+    conn.execute("""
+        INSERT OR IGNORE INTO rule_sets(id, name, description, is_builtin, created_by)
+        VALUES ('default', '默认规则集', '全部规则按内置默认启停与级别执行', 1, 'system')
+    """)
+
+    # V2.0: 默认数据保留策略
+    retention_defaults = [
+        ("slow_queries", 180),
+        ("audit_history", 365),
+        ("scan_tasks", 180),
+        ("alerts", 90),
+        ("operation_logs", 365),
+        ("gate_audit_logs", 365),
+        ("fingerprint_stats", 180),
+    ]
+    for table, days in retention_defaults:
+        conn.execute("""
+            INSERT OR IGNORE INTO retention_policies(table_name, retention_days, enabled)
+            VALUES (?, ?, 1)
+        """, (table, days))
+
     # 更新版本号
     conn.execute("""
-        INSERT OR REPLACE INTO schema_version(key, value) VALUES('version', '1.0')
+        INSERT OR REPLACE INTO schema_version(key, value) VALUES('version', '2.0')
     """)
 
     conn.commit()

@@ -1,4 +1,15 @@
-# TDSQL SQL审核工具 - 系统部署手册
+# TDSQL SQL审核平台 - 系统部署手册 (V2.0)
+
+> **V2.0 生产部署必读**：认证/密钥/脱敏等安全配置、V1.x升级步骤、纯内网部署说明、
+> 目标库最小权限、Prometheus接入，见中文版《[部署手册.md](部署手册.md)》第0章
+> "V2.0 生产部署必读"。本文其余章节的通用步骤（Docker/pip部署、健康检查）继续适用。
+>
+> V2.0 关键变化速览：
+> - 认证默认开启（`AUTH_ENABLED=true`），首次启动创建 admin 账户
+> - 前端资产本地化（`frontend/static/vendor/`），无外网CDN依赖
+> - 连接密码 Fernet 加密存储，密钥经 `TDSQL_ENCRYPTION_KEY`/`AUTH_SECRET_KEY` 管理
+> - 慢SQL入库脱敏默认开启（`DATA_MASKING_ENABLED=true`）
+> - 新增 `/metrics` Prometheus 端点与操作审计日志
 
 ## 1. 环境要求
 

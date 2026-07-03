@@ -1,6 +1,8 @@
-# ── TDSQL SQL审核工具 - Docker Compose ──
+# ── TDSQL SQL审核平台 (V2.0) - Docker Compose ──
 # 启动方式: docker-compose up -d
 # 查看日志: docker-compose logs -f backend
+#
+# 生产部署前必读: docs/部署手册.md 第0章（安全配置与升级）
 
 version: "3.8"
 
@@ -44,20 +46,38 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      # 持久化 SQLite 数据库
+      # 持久化 SQLite 数据库与密钥文件（务必定期备份该卷）
       - app-data:/app/data
     environment:
       - TZ=Asia/Shanghai
-      # TDSQL 连接配置（连接Docker内MySQL模拟环境）
+      # ── V2.0 安全配置（生产环境必须修改以下值！） ──
+      - AUTH_ENABLED=true
+      # 令牌签名密钥（多副本必须统一；生产从KMS/配置中心注入）
+      - AUTH_SECRET_KEY=${AUTH_SECRET_KEY:-}
+      # 连接密码加密密钥（丢失将无法解密已存连接密码，必须备份）
+      - TDSQL_ENCRYPTION_KEY=${TDSQL_ENCRYPTION_KEY:-}
+      # 初始管理员口令（仅首次启动生效，登录后立即修改）
+      - ADMIN_INITIAL_PASSWORD=${ADMIN_INITIAL_PASSWORD:-}
+      # 慢SQL入库脱敏（生产必须保持true）
+      - DATA_MASKING_ENABLED=true
+      # GitLab Webhook密钥（使用GitLab集成时必须配置）
+      - GITLAB_WEBHOOK_SECRET=${GITLAB_WEBHOOK_SECRET:-}
+      # API文档是否免认证（生产建议false）
+      - DOCS_PUBLIC=true
+      # ── 扫描限流 ──
+      - MAX_CONCURRENT_SCANS_PER_CONNECTION=2
+      - MAX_CONCURRENT_SCANS_GLOBAL=8
+      # ── TDSQL 连接配置（V1.0兼容单实例模式；V2.0推荐前端连接管理） ──
       - TDSQL_HOST=mysql
       - TDSQL_PORT=3306
       - TDSQL_USER=root
       - TDSQL_PASSWORD=tdsql_test_2024
       - TDSQL_DATABASE=tdsql_test
-      # 定时任务开关
+      # ── 定时任务（扫描计划/数据保留清理需开启） ──
       - SCHEDULER_ENABLED=false
       - SCHEDULER_CRON_HOUR=2
       - SCHEDULER_CRON_MINUTE=0
+      - RETENTION_CRON_HOUR=3
       # 审核报告存储路径
       - REPORT_OUTPUT_DIR=/app/data/reports
     depends_on:

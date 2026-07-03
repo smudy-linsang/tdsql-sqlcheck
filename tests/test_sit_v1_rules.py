@@ -344,7 +344,7 @@ class TestRuleEngineIntegrity:
     def test_total_rule_count(self):
         """验证规则总数为76"""
         rules_info = checker.get_rules_info()
-        assert len(rules_info) == 76
+        assert len(rules_info) == 77
 
     def test_all_rules_have_required_fields(self):
         """每条规则必须有rule_id/category/severity/description"""
@@ -364,12 +364,12 @@ class TestRuleEngineIntegrity:
         assert cats.issubset(expected), f"未预期的规则类别: {cats - expected}"
 
     def test_rules_api_endpoint(self):
-        """API: GET /api/v1/rules 返回76条规则"""
+        """API: GET /api/v1/rules 返回77条规则"""
         resp = client.get("/api/v1/rules")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["total"] == 76
-        assert len(data["rules"]) == 76
+        assert data["total"] == 77
+        assert len(data["rules"]) == 77
 
     def test_audit_sql_api_with_new_rules(self):
         """API: POST /api/v1/audit/sql 审核触发新规则"""

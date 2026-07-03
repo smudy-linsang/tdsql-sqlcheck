@@ -77,7 +77,7 @@ class TestEdgeCasesAudit:
             update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
             INDEX idx_order_id (order_id),
             INDEX idx_product_id (product_id)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='订单明细表'
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='订单明细表' SHARDKEY=id
         """
         resp = client.post("/api/v1/audit/sql", json={"sql": sql})
         data = resp.json()
@@ -507,7 +507,7 @@ class TestEdgeCasesDashboard:
         assert resp.status_code == 200
         data = resp.json()
         assert data["slow_queries"]["total"] >= 1
-        assert data["rules"]["total"] == 22
+        assert data["rules"]["total"] == 77
 
     def test_audit_trend_different_days(self):
         """不同天数的趋势"""

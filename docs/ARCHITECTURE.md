@@ -1,324 +1,154 @@
-# TDSQL SQL审核工具 - 系统架构文档
+# TDSQL SQL审核平台 - 系统架构文档 (V2.0)
 
 ## 1. 系统架构图
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              用户层 (User Layer)                              │
-├─────────────────────────────────────────────────────────────────────────────┤
-│  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐       │
-│  │   前端界面      │    │   GitLab Webhook │    │   API调用       │       │
-│  │   (Vue 3 SPA)   │    │   (MR事件)       │    │   (curl/SDK)    │       │
-│  └────────┬────────┘    └────────┬────────┘    └────────┬────────┘       │
-│           │                      │                      │                │
-│           └──────────────────────┼──────────────────────┘                │
-│                                  │                                        │
-└──────────────────────────────────┼──────────────────────────────────────┘
-                                   │
-┌───────────────────────────────────┼──────────────────────────────────────┘
-│                                   ▼
-┌───────────────────────────────────────────────────────────────────────────┐
-│                           网关层 (Gateway Layer)                           │
-├───────────────────────────────────────────────────────────────────────────┤
-│  ┌─────────────────────────────────────────────────────────────────────┐  │
-│  │                    FastAPI Server (:8000)                           │  │
-│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐              │  │
-│  │  │  /health     │  │  /docs       │  │  /openapi.json│              │  │
-│  │  └──────────────┘  └──────────────┘  └──────────────┘              │  │
-│  └─────────────────────────────────────────────────────────────────────┘  │
-└───────────────────────────────────────────────────────────────────────────┘
-                                   │
-┌───────────────────────────────────┼───────────────────────────────────────┘
-│                                   ▼
-┌───────────────────────────────────────────────────────────────────────────┐
-│                           API路由层 (API Router Layer)                      │
-├───────────────────────────────────────────────────────────────────────────┤
-│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐           │
-│  │ sql_audit.py    │  │ slow_query.py   │  │ dashboard.py    │           │
-│  │ /api/v1/audit/*│  │ /api/v1/slow-*  │  │ /api/v1/dashboard│          │
-│  └────────┬────────┘  └────────┬────────┘  └────────┬────────┘           │
-│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐           │
-│  │ gitlab_hook.py │  │ tdsql_manage.py │  │ (其他API)        │           │
-│  │ /api/v1/gitlab │  │ /api/v1/tdsql   │  │                 │           │
-│  └────────┬────────┘  └────────┬────────┘  └─────────────────┘           │
-│           │                    │                                        │
-└───────────┼────────────────────┼────────────────────────────────────────┘
-            │                    │
-            ▼                    ▼
-┌───────────────────────────────────────────────────────────────────────────┐
-│                           服务层 (Service Layer)                           │
-├───────────────────────────────────────────────────────────────────────────┤
-│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐           │
-│  │ AuditService    │  │ SlowQueryService│  │ ReportService    │           │
-│  │ 审核服务         │  │ 慢SQL服务        │  │ 报告服务         │           │
-│  └────────┬────────┘  └────────┬────────┘  └────────┬────────┘           │
-│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐           │
-│  │ TDSQLConnector  │  │ SchedulerService│  │ (其他服务)       │           │
-│  │ TDSQL连接池     │  │ 定时任务调度     │  │                 │           │
-│  └────────┬────────┘  └─────────────────┘  └─────────────────┘           │
-│           │                                                                
-└───────────┼─────────────────────────────────────────────────────────────┘
-            │
-            ▼
-┌───────────────────────────────────────────────────────────────────────────┐
-│                           引擎层 (Engine Layer)                          │
-├───────────────────────────────────────────────────────────────────────────┤
-│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐           │
-│  │ RuleChecker     │  │ SQLParser        │  │ SlowSQLAnalyzer │           │
-│  │ 规则引擎         │  │ SQL解析器        │  │ 慢SQL分析器     │           │
-│  └────────┬────────┘  └────────┬────────┘  └────────┬────────┘           │
-│  ┌────────┴───────────────────┴──────────────────────┴────────┐            │
-│  │                    规则库 (Rules)                       │            │
-│  │  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐         │            │
-│  │  │ naming  │ │   ddl   │ │   dml   │ │distributed│        │            │
-│  │  │ R001-002│ │R003-R011│ │R012-R019│ │ R020-R022 │        │            │
-│  │  └─────────┘ └─────────┘ └─────────┘ └─────────┘         │            │
-│  └───────────────────────────────────────────────────────┘            │
-└───────────────────────────────────────────────────────────────────────────┘
-            │
-            ▼
-┌───────────────────────────────────────────────────────────────────────────┐
-│                           数据层 (Data Layer)                             │
-├───────────────────────────────────────────────────────────────────────────┤
-│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐           │
-│  │ SQLite Database │  │ TDSQL远程数据库  │  │ 文件系统        │           │
-│  │ (本地审核记录)   │  │ (元数据/慢日志)  │  │ (报告PDF等)     │           │
-│  └─────────────────┘  └─────────────────┘  └─────────────────┘           │
-└───────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                            用户层 (内网)                                  │
+│   浏览器(Vue3 SPA)   GitLab Webhook   CI流水线(CLI)   Prometheus抓取      │
+└──────────┬───────────────┬───────────────┬───────────────┬──────────────┘
+           ▼               ▼               ▼               ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                     FastAPI Server (:8000)                               │
+│  ┌────────────────────────────────────────────────────────────────────┐ │
+│  │ RequestContextMiddleware: X-Request-ID / 访问日志 / 指标采集         │ │
+│  ├────────────────────────────────────────────────────────────────────┤ │
+│  │ AuthMiddleware: Bearer令牌验签 → 用户状态 → RBAC矩阵 → 操作审计      │ │
+│  │   角色: admin / dba / developer / auditor                          │ │
+│  └────────────────────────────────────────────────────────────────────┘ │
+├─────────────────────────────────────────────────────────────────────────┤
+│  API路由层 (14模块)                                                       │
+│  auth  sql_audit  slow_query  tdsql_manage  rulesets  admin              │
+│  dashboard  gitlab_hook  rules  project  bigtable  gate  monitor  insp   │
+├─────────────────────────────────────────────────────────────────────────┤
+│  服务层                                                                   │
+│  ┌──────────────────────┐  ┌──────────────────┐  ┌───────────────────┐  │
+│  │ ConnectionRegistry   │  │ AuthService      │  │ Scheduler         │  │
+│  │ conn_id→池(数百实例)  │  │ 用户/口令/令牌    │  │ leader租约        │  │
+│  │ LRU/空闲回收          │  │ 权限矩阵          │  │ 扫描计划(每分钟)   │  │
+│  │ 扫描槽位限流          │  │ 登录锁定          │  │ 保留清理(每日)     │  │
+│  └──────────┬───────────┘  └──────────────────┘  └───────────────────┘  │
+│  ┌──────────┴───────────┐  ┌──────────────────┐  ┌───────────────────┐  │
+│  │ ScanService          │  │ RulesetService   │  │ RetentionService  │  │
+│  │ 扫描编排/入库脱敏      │  │ 规则集多租户      │  │ 数据生命周期       │  │
+│  └──────────────────────┘  └──────────────────┘  └───────────────────┘  │
+│  AuditService  SlowQueryService  GateService  MetricsService             │
+│  SecurityService(Fernet加密)  ReportService(PDF)  BigTable/Monitor/Insp  │
+├─────────────────────────────────────────────────────────────────────────┤
+│  引擎层（纯逻辑，可独立测试）                                               │
+│  SQLParser(sqlglot+正则双轨)  RuleChecker(77规则+规则集覆盖)               │
+│  SlowSQLAnalyzer  FingerprintEngine(指纹/脱敏)  IndexAdvisor  SQLRewriter │
+│  规则库: naming(5) ddl(22) dml(9) index(10) distributed(14) security(8)  │
+│         performance(5) transaction(4)                                   │
+├─────────────────────────────────────────────────────────────────────────┤
+│  数据层                                                                   │
+│  SQLite data/tdsql_check.db (27表, WAL)   TDSQL远程(只读账号)   PDF报告   │
+│  密钥文件 data/*.key (0600, 不入库不入Git)                                │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## 2. 系统组件说明
 
-### 2.1 前端层 (Frontend Layer)
+### 2.1 中间件层（V2.0新增）
 
-| 组件 | 技术栈 | 说明 |
-|------|--------|------|
-| 前端界面 | Vue 3 + Element Plus + ECharts | 单页应用，563行代码 |
-| 静态文件 | HTML + CDN | 部署在 `frontend/index.html` |
+| 组件 | 文件 | 说明 |
+|------|------|------|
+| RequestContextMiddleware | `backend/middleware.py` | 请求ID透传/生成、访问日志、Prometheus指标 |
+| AuthMiddleware | `backend/middleware.py` | 令牌认证、RBAC权限判定、变更操作审计 |
 
-### 2.2 网关层 (Gateway Layer)
+### 2.2 API路由层
 
-| 组件 | 技术栈 | 说明 |
-|------|--------|------|
-| Web服务器 | FastAPI (Uvicorn) | 端口8000 |
-| API文档 | Swagger UI `/docs` | 自动生成 |
-| 健康检查 | `/health` | 存活探针 |
+| 路由文件 | 路径 | 功能 | 写权限 |
+|----------|------|------|--------|
+| `auth.py` | `/api/v1/auth/*` | 登录/用户管理 (V2.0) | 用户管理仅admin |
+| `sql_audit.py` | `/api/v1/audit/*` | SQL/文件审核 | developer+ |
+| `slow_query.py` | `/api/v1/slow-queries/*` | 慢SQL管理、分析 | dba+（analyze-explain: developer+） |
+| `tdsql_manage.py` | `/api/v1/tdsql/*` | 多实例连接/元数据/扫描/扫描计划 | dba+ |
+| `rulesets.py` | `/api/v1/rulesets/*` | 规则集管理 (V2.0) | dba+ |
+| `admin.py` | `/api/v1/admin/*` | 保留策略/操作日志/系统信息 (V2.0) | dba+ |
+| `dashboard.py` `rules.py` `project.py` `bigtable.py` `quality_gate.py` `monitor.py` `inspection.py` `gitlab_hook.py` | ... | 同V1.0 | dba+（webhook走Secret） |
 
-### 2.3 API路由层 (API Router Layer)
-
-| 路由文件 | 路径 | 功能 |
-|----------|------|------|
-| `sql_audit.py` | `/api/v1/audit/*` | SQL审核、文件审核 |
-| `slow_query.py` | `/api/v1/slow-queries/*` | 慢SQL管理、分析 |
-| `dashboard.py` | `/api/v1/dashboard/*` | 统计Dashboard |
-| `gitlab_hook.py` | `/api/v1/gitlab/*` | GitLab Webhook |
-| `tdsql_manage.py` | `/api/v1/tdsql/*` | TDSQL连接管理 |
-| `rules.py` | `/api/v1/rules/*` | 审核规则查询 |
-
-### 2.4 服务层 (Service Layer)
+### 2.3 服务层核心组件
 
 | 服务 | 文件 | 功能 |
 |------|------|------|
-| AuditService | `audit_service.py` | 审核记录持久化 |
-| SlowQueryService | `slow_query_service.py` | 慢SQL存储和分析 |
-| ReportService | `report_service.py` | PDF报告生成、中文字体注册 |
-| TDSQLConnector | `tdsql_connector.py` | TDSQL连接池（线程本地） |
-| SchedulerService | `scheduler.py` | APScheduler定时任务 |
+| ConnectionRegistry | `connection_registry.py` | V2.0 多实例注册表：conn_id→池、LRU淘汰、空闲回收、扫描槽位限流、加密持久化 |
+| AuthService | `auth_service.py` | V2.0 用户管理、PBKDF2口令、HMAC令牌、权限矩阵、登录锁定 |
+| ScanService | `scan_service.py` | V2.0 扫描编排（API与调度器共用）、入库脱敏 |
+| RulesetService | `ruleset_service.py` | V2.0 规则集CRUD与覆盖解析 |
+| RetentionService | `retention_service.py` | V2.0 保留策略与过期清理 |
+| MetricsService | `metrics_service.py` | V2.0 进程内指标、Prometheus文本渲染 |
+| SecurityService | `security_service.py` | Fernet加密（V2.0密钥管理：env→密钥文件→遗留兼容） |
+| Scheduler | `scheduler.py` | V2.0 leader租约、按连接扫描计划、每日保留清理 |
+| AuditService / SlowQueryService / GateService / ReportService | ... | 同V1.0（V2.0增加用户身份/规则集/门禁联动） |
 
-### 2.5 引擎层 (Engine Layer)
+### 2.4 数据层（27张表）
 
-| 引擎 | 文件 | 功能 |
-|------|------|------|
-| RuleChecker | `checker.py` | 规则引擎调度器 |
-| SQLParser | `parser.py` | sqlglot SQL解析 |
-| SlowSQLAnalyzer | `slow_analyzer.py` | EXPLAIN计划分析 |
-| BaseRule | `rules/base.py` | 规则基类 |
+| 分组 | 表 |
+|------|-----|
+| 审核 | audit_history, audit_results, rule_configs, rule_whitelist |
+| 规则集 (V2.0) | rule_sets, rule_set_items |
+| 慢SQL | slow_queries, scan_tasks, fingerprint_stats, optimization_records |
+| 连接与调度 | tdsql_connections(密码加密), scan_schedules (V2.0), scheduler_lease (V2.0) |
+| 用户与审计 (V2.0) | users, operation_logs |
+| 门禁 | gate_rules, gate_audit_logs |
+| 治理 | bigtable_inventory, bigtable_classification, partition_watermarks, change_controls, retention_policies (V2.0) |
+| 监控巡检 | alerts, alert_rules, inspection_tasks, inspection_results |
+| 其他 | projects, schema_version |
 
-### 2.6 规则库 (Rules Library)
+## 3. 关键数据流
 
-| 类别 | 规则ID | 说明 |
-|------|--------|------|
-| **命名规范** | R001, R002 | 表名长度/格式、保留关键字 |
-| **DDL规范** | R003-R011 | 主键、引擎、字符集、字段类型等 |
-| **DML规范** | R012-R019 | SELECT *、WHERE条件、子查询、索引等 |
-| **分布式规范** | R020-R022 | 分片键检查、禁止跨分片更新 |
-
-### 2.7 数据层 (Data Layer)
-
-| 数据源 | 用途 |
-|--------|------|
-| SQLite (`data/tdsql_check.db`) | 本地审核记录、慢SQL记录 |
-| TDSQL (远程) | 元数据查询、慢日志拉取 |
-| 文件系统 | PDF报告存储 (`output/reports/`) |
-
-## 3. 数据流图
-
-### 3.1 SQL审核数据流
+### 3.1 认证 + 审核数据流（V2.0）
 
 ```
-用户输入SQL
-     │
-     ▼
-┌─────────────┐
-│  API Router │
-└──────┬──────┘
-       │
-       ▼
-┌─────────────┐     ┌─────────────┐
-│ SQLParser   │────▶│ ParsedSQL   │
-└──────┬──────┘     └─────────────┘
-       │
-       ▼
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│RuleChecker │────▶│ table_meta │────▶│ 22 Rules    │
-└──────┬──────┘     └─────────────┘     └──────┬──────┘
-       │                                        │
-       ▼                                        ▼
-┌─────────────┐                          ┌─────────────┐
-│ AuditResult│◀────────────────────────│ Violations │
-└──────┬─────┘                          └─────────────┘
-       │
-       ▼
-┌─────────────┐
-│AuditService│
-└──────┬──────┘
-       │
-       ▼
-┌─────────────┐
-│   SQLite   │
-└─────────────┘
-```
-
-### 3.2 GitLab Webhook数据流
-
-```
-GitLab MR Event
-      │
-      ▼
-┌──────────────┐
-│ gitlab_hook  │
-│ /webhook     │
-└──────┬───────┘
-       │
-       ▼
-┌──────────────┐     ┌──────────────┐
-│ parse diff  │────▶│ SQL Fragments│
-└──────┬───────┘     └──────────────┘
-       │
-       ▼
-┌──────────────┐
-│ RuleChecker  │
-└──────┬───────┘
-       │
-       ▼
-┌──────────────┐     ┌──────────────┐
-│AuditResult  │────▶│ MR Comment   │
-└──────────────┘     │ _post_mr_comment
-                    └──────────────┘
-```
-
-### 3.3 慢SQL分析数据流
-
-```
-EXPLAIN数据
+用户登录(/auth/login) ──▶ AuthService.authenticate ──▶ 签发HMAC令牌
     │
-    ▼
-┌─────────────┐
-│ SlowSQL    │
-│Analyzer   │
-└──────┬─────┘
-       │
-       ▼
-┌─────────────┐
-│AnalysisResult│
-│ - issues    │
-│ - summary   │
-│ - suggestion│
-└─────────────┘
+    ▼ Bearer令牌
+POST /audit/sql {sql, project_id}
+    ├─ AuthMiddleware: 验签→用户状态→RBAC(developer可写audit)
+    ├─ AuditService: project_id → RulesetService.get_overrides (规则集覆盖)
+    ├─ RuleChecker.audit_sql(sql, rule_overrides) → 77规则(过滤/级别覆盖)
+    ├─ GateService.evaluate(violations) → 门禁结果
+    └─ audit_history落库(created_by=登录用户) + metrics + operation_log
 ```
 
-## 4. 线程模型
-
-### 4.1 连接池模型 (TDSQLConnectionPool)
+### 3.2 多实例慢SQL扫描数据流（V2.0）
 
 ```
-                    ┌──────────────────┐
-                    │  TDSQLConnectionPool │
-                    │  threading.local()   │
-                    └─────────┬──────────┘
-                              │
-         ┌────────────────────┼────────────────────┐
-         │                    │                    │
-         ▼                    ▼                    ▼
-   ┌──────────┐         ┌──────────┐         ┌──────────┐
-   │ Thread 1 │         │ Thread 2 │         │ Thread N │
-   │ conn=... │         │ conn=... │         │ conn=... │
-   └──────────┘         └──────────┘         └──────────┘
+POST /tdsql/slow-queries/fetch {connection_id, source, time_window}
+    ├─ ScanService.run_scan
+    │    ├─ registry.get(connection_id)  ← 未激活时按已保存配置自动建连(解密密码)
+    │    ├─ registry.scan_slot(conn)     ← 并发限流(单连接2/全局8, 超限429)
+    │    ├─ digest: perf_schema聚合 / processlist: 多次轮询采样去重
+    │    ├─ SlowQueryService.add_slow_query ← DATA_MASKING: 字面量→? 后落库
+    │    └─ scan_tasks 任务记录 + metrics
+    └─ 定时路径: Scheduler(仅leader) 每分钟检查 scan_schedules 到期计划 → 同上
 ```
 
-每个线程拥有独立的数据库连接，通过 `threading.local()` 实现。
+## 4. 部署形态
+
+- **单副本**（当前，SQLite存储）：uvicorn/容器 + data目录持久化 + 定期备份
+- **多副本预留**：调度器leader租约已实现；需先完成集中式存储迁移（见V2.0设计说明书§5）
+- 纯内网：前端资产本地化（frontend/static/vendor），无任何外网依赖
+- 观测：/metrics 接入行内Prometheus，operation_logs 对接SIEM
 
 ## 5. 技术栈汇总
 
 | 层级 | 技术 | 版本 |
 |------|------|------|
-| 后端框架 | FastAPI | latest |
+| 后端框架 | FastAPI + Uvicorn | ≥0.115 |
 | Python | Python | 3.11+ |
-| SQL解析 | sqlglot | latest |
-| 数据库连接 | pymysql | latest |
-| 任务调度 | APScheduler | latest |
-| PDF生成 | reportlab | latest |
-| 前端框架 | Vue 3 | 3.x |
-| UI组件 | Element Plus | latest |
-| 图表 | ECharts | 5.x |
-| 本地存储 | SQLite | 3.x |
+| SQL解析 | sqlglot | ≥26.0 |
+| 数据库连接 | pymysql | ≥1.1 |
+| 加密 | cryptography (Fernet) | ≥41.0 |
+| 任务调度 | APScheduler | ≥3.10 |
+| PDF生成 | reportlab | ≥4.0 |
+| 前端 | Vue 3.4 / Element Plus 2.7 / ECharts 5.5（本地化） | - |
+| 本地存储 | SQLite (WAL) | 3.x |
 
-## 6. 目录结构
-
-```
-TDSQL-SQLCheck/
-├── backend/
-│   ├── main.py              # FastAPI应用入口
-│   ├── config.py            # 配置管理
-│   ├── models/             # 数据模型
-│   ├── api/                # API路由
-│   │   ├── sql_audit.py
-│   │   ├── slow_query.py
-│   │   ├── dashboard.py
-│   │   ├── gitlab_hook.py
-│   │   └── tdsql_manage.py
-│   ├── engine/              # 审核引擎
-│   │   ├── checker.py
-│   │   ├── parser.py
-│   │   ├── slow_analyzer.py
-│   │   └── rules/          # 规则库
-│   ├── services/           # 服务层
-│   │   ├── audit_service.py
-│   │   ├── slow_query_service.py
-│   │   ├── report_service.py
-│   │   ├── tdsql_connector.py
-│   │   └── scheduler.py
-│   └── utils/
-├── frontend/
-│   └── index.html          # Vue 3 SPA
-├── docs/                   # 文档
-│   ├── ARCHITECTURE.md      # 本文档
-│   ├── DEPLOYMENT.md       # 部署手册
-│   └── USER_GUIDE.md       # 使用手册
-├── tests/                  # 测试
-│   ├── test_*.py
-│   └── conftest.py
-├── data/                   # SQLite数据库
-├── output/                 # 报告输出
-├── requirements.txt
-├── docker-compose.yml
-└── README.md
-```
-
-## 7. 版本历史
+## 6. 版本历史
 
 | 版本 | 日期 | 更新内容 |
 |------|------|----------|
-| 1.0 | 2024-01-01 | 初始版本 |
-| 1.1 | 2024-06-13 | 新增5项改进: 元数据支持、MR Comment、中文字体、连接池、表去重 |
-| 1.2 | 2025-01-20 | 新增审核规则展示页面，API动态获取22条规则信息 |
+| 1.0 | 2026-06 | 77条规则、慢SQL六维分析、大表治理、质量门禁、多SET扫描 |
+| 2.0 | 2026-07-03 | 银行级改造：认证与RBAC、多实例连接注册表、规则集多租户、数据脱敏与保留、可观测性、调度leader租约、前端内网化、密钥管理 |

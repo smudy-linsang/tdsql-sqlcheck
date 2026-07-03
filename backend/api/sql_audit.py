@@ -3,7 +3,7 @@ TDSQL SQL审核工具 - SQL审核 API
 
 提供 RESTful 接口用于 SQL 审核和审核报告导出。
 """
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from backend.models import (
@@ -21,44 +21,59 @@ router = APIRouter(prefix="/api/v1/audit", tags=["SQL审核"])
 audit_service = AuditService()
 
 
+def _operator(request: Request) -> str:
+    return getattr(request.state, "username", "anonymous")
+
+
 @router.post("/sql", response_model=AuditResponse, summary="审核单条SQL")
-async def audit_sql(request: AuditRequest):
+async def audit_sql(request: AuditRequest, http_request: Request):
     """
     审核单条 SQL 语句。
 
     - **sql**: 待审核的 SQL 语句
-    - **db_type**: 数据库类型（默认 tdsql）
+    - **project_id**: 项目ID（可选，绑定项目的规则集与门禁）
     """
     try:
-        result = audit_service.audit_single_sql(request.sql)
+        result, gate_result = audit_service.audit_single_sql(
+            request.sql,
+            created_by=_operator(http_request),
+            project_id=request.project_id or "",
+            evaluate_gate=bool(request.project_id),
+        )
         return AuditResponse(
             passed=result.passed,
             violations=result.violations,
             sql_type=result.sql_type,
+            gate_result=gate_result,
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"SQL解析失败: {str(e)}")
 
 
 @router.post("/file", response_model=FileAuditResponse, summary="审核文件内容")
-async def audit_file(request: FileAuditRequest):
+async def audit_file(request: FileAuditRequest, http_request: Request):
     """
     审核文件内容（支持 MyBatis XML、纯 SQL 文件）。
 
     - **content**: 文件内容
     - **file_path**: 文件路径（可选，用于 MyBatis XML 识别）
+    - **project_id**: 项目ID（可选，绑定项目的规则集与门禁）
     """
     try:
-        results, summary = audit_service.audit_file_content(
-            request.content, file_path=request.file_path
+        results, summary, gate_result = audit_service.audit_file_content(
+            request.content, file_path=request.file_path,
+            created_by=_operator(http_request),
+            project_id=request.project_id or "",
+            evaluate_gate=bool(request.project_id),
         )
-        return FileAuditResponse(results=results, summary=summary)
+        return FileAuditResponse(results=results, summary=summary,
+                                 gate_result=gate_result)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"文件审核失败: {str(e)}")
 
 
 @router.post("/upload", response_model=FileAuditResponse, summary="上传文件审核")
-async def audit_upload(file: UploadFile = File(...)):
+async def audit_upload(http_request: Request, file: UploadFile = File(...)):
     """
     上传文件进行 SQL 审核。
 
@@ -77,8 +92,9 @@ async def audit_upload(file: UploadFile = File(...)):
     try:
         content = await file.read()
         text = content.decode("utf-8")
-        results, summary = audit_service.audit_file_content(
-            text, file_path=file.filename
+        results, summary, _ = audit_service.audit_file_content(
+            text, file_path=file.filename,
+            created_by=_operator(http_request),
         )
         return FileAuditResponse(results=results, summary=summary)
     except UnicodeDecodeError:

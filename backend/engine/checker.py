@@ -25,9 +25,24 @@ class RuleChecker:
         """加载全部77条规则"""
         return [cls() for cls in ALL_RULE_CLASSES]
 
-    def get_enabled_rules(self) -> list[BaseRule]:
-        """获取所有启用的规则"""
-        return [r for r in self.rules if r.enabled]
+    def get_enabled_rules(self, rule_overrides: Optional[dict] = None) -> list[BaseRule]:
+        """
+        获取所有启用的规则。
+
+        Args:
+            rule_overrides: 规则集覆盖（V2.0），格式:
+                {rule_id: {"enabled": bool, "severity_override": str|None}}
+                None 表示全部规则按默认配置执行
+        """
+        if not rule_overrides:
+            return [r for r in self.rules if r.enabled]
+        result = []
+        for r in self.rules:
+            override = rule_overrides.get(r.rule_id)
+            enabled = override["enabled"] if override else r.enabled
+            if enabled:
+                result.append(r)
+        return result
 
     def get_rules_info(self) -> list[dict]:
         """
@@ -74,7 +89,8 @@ class RuleChecker:
         return categories
 
     def audit_sql(self, sql: str, file_path: str = "", line_number: Optional[int] = None,
-                  table_metadata: Optional[dict] = None) -> AuditResult:
+                  table_metadata: Optional[dict] = None,
+                  rule_overrides: Optional[dict] = None) -> AuditResult:
         """
         审核单条 SQL。
 
@@ -84,6 +100,7 @@ class RuleChecker:
             line_number: 行号（可选）
             table_metadata: 表元数据字典（可选），用于分布式规则增强。
                            格式: {"table_name": {"shard_key": "...", "is_shard_table": True, ...}}
+            rule_overrides: 规则集覆盖（V2.0多租户，可选），按规则集调整启停/级别
 
         Returns:
             AuditResult 审核结果
@@ -91,7 +108,7 @@ class RuleChecker:
         parsed = self.parser.parse(sql)
         violations: list[Violation] = []
 
-        for rule in self.get_enabled_rules():
+        for rule in self.get_enabled_rules(rule_overrides):
             # DDL 规则只在 CREATE/ALTER/DROP 时检查
             if rule.category.value == "ddl" and not (parsed.is_create_table or parsed.is_alter_table or parsed.sql_type == "DROP"):
                 continue
@@ -101,6 +118,11 @@ class RuleChecker:
                     # 确保行号信息传递
                     if violation.line_number is None and line_number is not None:
                         violation.line_number = line_number
+                    # V2.0: 规则集级别覆盖
+                    if rule_overrides:
+                        override = rule_overrides.get(rule.rule_id)
+                        if override and override.get("severity_override"):
+                            violation.severity = override["severity_override"]
                     violations.append(violation)
             except Exception as e:
                 # 规则执行异常时记录为 WARNING
@@ -123,13 +145,15 @@ class RuleChecker:
             line_number=line_number,
         )
 
-    def audit_file(self, content: str, file_path: str = "") -> list[AuditResult]:
+    def audit_file(self, content: str, file_path: str = "",
+                   rule_overrides: Optional[dict] = None) -> list[AuditResult]:
         """
         审核文件内容（支持 MyBatis XML、纯 SQL 文件）。
 
         Args:
             content: 文件内容
             file_path: 文件路径
+            rule_overrides: 规则集覆盖（V2.0多租户，可选）
 
         Returns:
             审核结果列表
@@ -140,13 +164,15 @@ class RuleChecker:
             # MyBatis XML 文件
             sqls = self._extract_sql_from_mybatis(content)
             for sql_text, line_no in sqls:
-                result = self.audit_sql(sql_text, file_path=file_path, line_number=line_no)
+                result = self.audit_sql(sql_text, file_path=file_path, line_number=line_no,
+                                        rule_overrides=rule_overrides)
                 results.append(result)
         else:
             # 纯 SQL 文件：按分号分割
             sqls = self._split_sql_file(content)
             for sql_text, line_no in sqls:
-                result = self.audit_sql(sql_text, file_path=file_path, line_number=line_no)
+                result = self.audit_sql(sql_text, file_path=file_path, line_number=line_no,
+                                        rule_overrides=rule_overrides)
                 results.append(result)
 
         return results

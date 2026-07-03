@@ -488,7 +488,7 @@ class TestCLIV1:
         """CLI版本"""
         result = self.runner.invoke(cli, ["--version"])
         assert result.exit_code == 0
-        assert "1.0.0" in result.output
+        assert "2.0.0" in result.output
 
 
 # ═══════════════════════════════════════════════════════════

@@ -627,7 +627,7 @@ class TestBusinessScenarios:
             UNIQUE INDEX uk_transaction_no (transaction_no),
             INDEX idx_account_id (account_id),
             INDEX idx_create_time (create_time)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='交易流水表'
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='交易流水表' SHARDKEY=id
         """
         resp = client.post("/api/v1/audit/sql", json={"sql": sql})
         data = resp.json()

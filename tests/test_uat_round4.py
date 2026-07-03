@@ -286,9 +286,12 @@ class TestUAT25_ReportGeneration:
         assert resp.status_code == 200
 
     def test_uat25_03_font_detection_windows(self):
-        """测试Windows字体检测"""
+        """测试Windows字体检测（仅Windows环境执行，Linux/容器部署跳过）"""
+        import os
+        if not os.path.isdir("C:/Windows/Fonts"):
+            pytest.skip("非Windows环境，跳过Windows字体目录检测")
         from backend.services.report_service import _scan_directory_for_fonts
-        
+
         fonts = _scan_directory_for_fonts("C:/Windows/Fonts", (".ttf", ".otf"))
         assert len(fonts) > 0
         # 验证找到的是字体文件

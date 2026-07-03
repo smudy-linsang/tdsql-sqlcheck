@@ -201,7 +201,11 @@ class TestCheckerIntegration:
     """规则检查器集成测试"""
 
     def test_clean_ddl_passes(self, checker):
-        """合规的 DDL 应该通过所有检查"""
+        """合规的 DDL 应该通过所有检查
+
+        注: R077 要求 TDSQL 分布式建表必须声明分片键(SHARDKEY)或广播表(BROADCAST)，
+        且分片键必须是主键/唯一索引字段，因此合规 DDL 包含 SHARDKEY=id（id 为主键）。
+        """
         sql = """
         CREATE TABLE t_order (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY COMMENT '主键',
@@ -211,10 +215,10 @@ class TestCheckerIntegration:
             status TINYINT NOT NULL DEFAULT 0 COMMENT '状态',
             create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
             update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='订单表'
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='订单表' SHARDKEY=id
         """
         result = checker.audit_sql(sql)
-        assert result.passed is True
+        assert result.passed is True, f"violations: {[(v.rule_id, v.message) for v in result.violations]}"
         assert result.sql_type == "CREATE TABLE"
 
     def test_bad_select_fails(self, checker):

@@ -63,6 +63,8 @@ def client(test_db):
 
         with TestClient(app) as c:
             yield c
+        # 清理V1.0兼容测试席位，避免污染后续"未连接"用例
+        tdsql_manage._pool = None
 
 
 def _make_mock_pool(digest_data=None, processlist_data=None):
@@ -74,7 +76,8 @@ def _make_mock_pool(digest_data=None, processlist_data=None):
     pool.config.port = 3306
 
     pool.get_slow_queries_from_digest = MagicMock(return_value=digest_data or [])
-    pool.get_slow_queries_from_processlist = MagicMock(return_value=processlist_data or [])
+    # processlist扫描自slow_log重构后走poll_processlist（多次轮询采样）
+    pool.poll_processlist = MagicMock(return_value=processlist_data or [])
     return pool
 
 

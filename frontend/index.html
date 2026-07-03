@@ -3,17 +3,18 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TDSQL SQL审核工具</title>
+  <title>TDSQL SQL审核平台</title>
+  <!-- V2.0: 全部静态资源本地化，支持纯内网环境部署（无外网CDN依赖） -->
   <!-- Vue 3 -->
-  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <script src="/static/vendor/vue.global.prod.js"></script>
   <!-- Element Plus -->
-  <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
-  <script src="https://unpkg.com/element-plus"></script>
-  <script src="https://unpkg.com/element-plus/dist/locale/zh-cn.js"></script>
+  <link rel="stylesheet" href="/static/vendor/element-plus.css">
+  <script src="/static/vendor/element-plus.full.min.js"></script>
+  <script src="/static/vendor/element-plus-locale-zh-cn.min.js"></script>
   <!-- Element Plus Icons -->
-  <script src="https://unpkg.com/@element-plus/icons-vue"></script>
+  <script src="/static/vendor/element-plus-icons.iife.min.js"></script>
   <!-- ECharts -->
-  <script src="https://unpkg.com/echarts@5/dist/echarts.min.js"></script>
+  <script src="/static/vendor/echarts.min.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Arial, sans-serif; }
@@ -188,14 +189,51 @@
     .audit-record-type { font-size: 13px; color: #409eff; flex-shrink: 0; }
     .audit-record-meta { font-size: 12px; color: #909399; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .audit-record-time { font-size: 12px; color: #c0c4cc; margin-left: 10px; flex-shrink: 0; }
+    /* V2.0 登录页 */
+    .login-overlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(135deg, #304156 0%, #1f2d3d 100%); z-index: 2000; }
+    .login-box { width: 380px; background: #fff; border-radius: 8px; padding: 40px 36px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.3); }
+    .login-title { font-size: 22px; font-weight: 600; text-align: center; color: #303133; }
+    .login-subtitle { font-size: 13px; text-align: center; color: #909399; margin: 8px 0 24px; }
+    .login-error { color: #f56c6c; font-size: 13px; margin-top: 12px; text-align: center; }
+    /* V2.0 侧边栏用户区 */
+    .user-bar { position: absolute; bottom: 0; width: 220px; padding: 12px 16px;
+      border-top: 1px solid #3d4f65; background: #263445; }
+    .sidebar { position: relative; }
+    .user-info { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+    .user-name { font-size: 13px; color: #fff; }
+    .user-role { font-size: 11px; color: #409eff; border: 1px solid #409eff; border-radius: 8px; padding: 1px 8px; }
+    .user-actions { display: flex; gap: 4px; }
   </style>
 </head>
 <body>
 <div id="app">
-  <div class="app-container">
+  <!-- V2.0 登录页 -->
+  <div v-if="!authState.loggedIn" class="login-overlay">
+    <div class="login-box">
+      <div class="login-title">🔍 TDSQL SQL审核平台</div>
+      <div class="login-subtitle">银行级SQL质量管控 · V2.0</div>
+      <el-form @submit.prevent="doLogin" label-position="top">
+        <el-form-item label="用户名">
+          <el-input v-model="loginForm.username" placeholder="请输入用户名"
+                    @keyup.enter="doLogin" autocomplete="username" />
+        </el-form-item>
+        <el-form-item label="口令">
+          <el-input v-model="loginForm.password" type="password" placeholder="请输入口令"
+                    @keyup.enter="doLogin" show-password autocomplete="current-password" />
+        </el-form-item>
+        <el-button type="primary" style="width:100%" :loading="loginForm.loading"
+                   @click="doLogin">登 录</el-button>
+        <div class="login-error" v-if="loginForm.error">{{ loginForm.error }}</div>
+      </el-form>
+    </div>
+  </div>
+
+  <div class="app-container" v-else>
     <!-- 侧边栏 -->
     <div class="sidebar">
-      <div class="sidebar-title">🔍 TDSQL SQL审核工具</div>
+      <div class="sidebar-title">🔍 TDSQL SQL审核平台</div>
       <ul class="sidebar-menu">
         <li :class="{active: currentPage === 'dashboard'}" @click="currentPage = 'dashboard'">
           📋 审核治理概览
@@ -218,6 +256,10 @@
         <li :class="{active: currentPage === 'rules'}" @click="switchToRules">
           📋 审核规则
         </li>
+        <li v-if="authState.role === 'admin'"
+            :class="{active: currentPage === 'users'}" @click="switchToUsers">
+          👥 用户管理
+        </li>
       </ul>
       <!-- 连接状态指示器 -->
       <div class="connection-status" v-if="tdsqlStatus.connected">
@@ -227,6 +269,17 @@
       <div class="connection-status" v-else>
         <div class="status-dot disconnected"></div>
         <span>未连接TDSQL</span>
+      </div>
+      <!-- V2.0 当前用户 -->
+      <div class="user-bar">
+        <div class="user-info">
+          <span class="user-name">👤 {{ authState.displayName || authState.username }}</span>
+          <span class="user-role">{{ authState.roleLabel }}</span>
+        </div>
+        <div class="user-actions">
+          <el-button link size="small" @click="pwdDialog.visible = true">修改口令</el-button>
+          <el-button link size="small" type="danger" @click="doLogout">退出</el-button>
+        </div>
       </div>
     </div>
 
@@ -836,18 +889,380 @@
           </div>
         </div>
       </div>
+
+      <!-- V2.0 用户管理（仅admin） -->
+      <div v-if="currentPage === 'users'">
+        <div class="page-header"><h2>👥 用户与角色管理</h2></div>
+        <div class="card">
+          <div style="margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">
+            <div style="color: #606266; font-size: 14px;">
+              角色权限：<strong>系统管理员</strong>(全部+用户管理) /
+              <strong>数据库管理员</strong>(连接/规则/扫描读写) /
+              <strong>开发人员</strong>(SQL审核+只读) /
+              <strong>审计员</strong>(全局只读)
+            </div>
+            <el-button type="primary" @click="openCreateUser">➕ 新建用户</el-button>
+          </div>
+          <el-table :data="usersList" v-loading="usersLoading" stripe>
+            <el-table-column prop="username" label="用户名" width="140" />
+            <el-table-column prop="display_name" label="姓名" width="120" />
+            <el-table-column label="角色" width="130">
+              <template #default="{ row }">
+                <el-tag :type="row.role === 'admin' ? 'danger' : row.role === 'dba' ? 'warning' : row.role === 'auditor' ? 'info' : 'success'" size="small">
+                  {{ roleLabel(row.role) }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="状态" width="90">
+              <template #default="{ row }">
+                <el-tag :type="row.status === 'active' ? 'success' : 'danger'" size="small">
+                  {{ row.status === 'active' ? '正常' : '禁用' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="last_login_at" label="最后登录" width="170" />
+            <el-table-column prop="created_by" label="创建人" width="100" />
+            <el-table-column label="操作" min-width="280">
+              <template #default="{ row }">
+                <el-button link size="small" type="primary" @click="openResetPwd(row)">重置口令</el-button>
+                <el-button link size="small" @click="unlockUser(row)">解锁</el-button>
+                <el-button link size="small" :type="row.status === 'active' ? 'warning' : 'success'"
+                           @click="toggleUserStatus(row)">
+                  {{ row.status === 'active' ? '禁用' : '启用' }}
+                </el-button>
+                <el-button link size="small" type="danger" @click="deleteUser(row)"
+                           :disabled="row.username === authState.username">删除</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+        </div>
+
+        <!-- 新建用户对话框 -->
+        <el-dialog v-model="userDialog.visible" title="新建用户" width="420px">
+          <el-form label-width="80px">
+            <el-form-item label="用户名"><el-input v-model="userDialog.form.username" /></el-form-item>
+            <el-form-item label="姓名"><el-input v-model="userDialog.form.display_name" /></el-form-item>
+            <el-form-item label="角色">
+              <el-select v-model="userDialog.form.role" style="width:100%">
+                <el-option label="系统管理员" value="admin" />
+                <el-option label="数据库管理员" value="dba" />
+                <el-option label="开发人员" value="developer" />
+                <el-option label="审计员" value="auditor" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="初始口令">
+              <el-input v-model="userDialog.form.password" type="password" show-password
+                        placeholder="≥8位，含大小写/数字/特殊字符中三类" />
+            </el-form-item>
+          </el-form>
+          <template #footer>
+            <el-button @click="userDialog.visible = false">取消</el-button>
+            <el-button type="primary" :loading="userDialog.loading" @click="createUser">创建</el-button>
+          </template>
+        </el-dialog>
+
+        <!-- 重置口令对话框 -->
+        <el-dialog v-model="resetDialog.visible" :title="'重置口令: ' + resetDialog.username" width="420px">
+          <el-form label-width="80px">
+            <el-form-item label="新口令">
+              <el-input v-model="resetDialog.password" type="password" show-password
+                        placeholder="≥8位，含大小写/数字/特殊字符中三类" />
+            </el-form-item>
+          </el-form>
+          <template #footer>
+            <el-button @click="resetDialog.visible = false">取消</el-button>
+            <el-button type="primary" @click="resetUserPwd">重置</el-button>
+          </template>
+        </el-dialog>
+      </div>
     </div>
   </div>
+
+  <!-- V2.0 修改口令对话框（全局） -->
+  <el-dialog v-model="pwdDialog.visible" title="修改口令" width="420px">
+    <el-form label-width="80px">
+      <el-form-item label="原口令">
+        <el-input v-model="pwdDialog.oldPassword" type="password" show-password />
+      </el-form-item>
+      <el-form-item label="新口令">
+        <el-input v-model="pwdDialog.newPassword" type="password" show-password
+                  placeholder="≥8位，含大小写/数字/特殊字符中三类" />
+      </el-form-item>
+      <el-form-item label="确认口令">
+        <el-input v-model="pwdDialog.confirmPassword" type="password" show-password />
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button @click="pwdDialog.visible = false">取消</el-button>
+      <el-button type="primary" :loading="pwdDialog.loading" @click="changePassword">确认修改</el-button>
+    </template>
+  </el-dialog>
 </div>
 
 <script>
-const API_BASE = 'http://localhost:8000';
+// V2.0: 同源相对路径（支持任意主机/端口/反向代理部署）
+const API_BASE = '';
 
-const { createApp, ref, reactive, onMounted, watch, nextTick } = Vue;
+const { createApp, ref, reactive, onMounted, watch, nextTick, computed } = Vue;
+
+// ══════════════════════════════════════════════════════════════
+// V2.0 认证支持: 令牌管理 + 统一请求封装（401自动跳转登录）
+// ══════════════════════════════════════════════════════════════
+const AUTH_TOKEN_KEY = 'tdsql_token';
+const AUTH_USER_KEY = 'tdsql_user';
+
+function getToken() { return localStorage.getItem(AUTH_TOKEN_KEY) || ''; }
+function setToken(t) { localStorage.setItem(AUTH_TOKEN_KEY, t); }
+function clearToken() {
+  localStorage.removeItem(AUTH_TOKEN_KEY);
+  localStorage.removeItem(AUTH_USER_KEY);
+}
+
+let onUnauthorized = null;  // 由应用注册的401回调
+
+async function apiFetch(url, options = {}) {
+  const opts = Object.assign({}, options);
+  opts.headers = Object.assign({}, options.headers || {});
+  const token = getToken();
+  if (token) opts.headers['Authorization'] = 'Bearer ' + token;
+  const resp = await fetch(url, opts);
+  if (resp.status === 401 && onUnauthorized) {
+    clearToken();
+    onUnauthorized();
+  }
+  return resp;
+}
 
 const app = createApp({
   setup() {
     const currentPage = ref('dashboard');
+
+    // ══════════════ V2.0 认证状态 ══════════════
+    const authState = reactive({
+      loggedIn: false, username: '', displayName: '', role: '', roleLabel: '',
+      authDisabled: false,
+    });
+    const loginForm = reactive({ username: '', password: '', loading: false, error: '' });
+    const pwdDialog = reactive({
+      visible: false, oldPassword: '', newPassword: '', confirmPassword: '', loading: false,
+    });
+
+    const roleLabel = (r) => ({
+      admin: '系统管理员', dba: '数据库管理员',
+      developer: '开发人员', auditor: '审计员',
+    }[r] || r);
+
+    const applyUser = (user) => {
+      authState.loggedIn = true;
+      authState.username = user.username;
+      authState.displayName = user.display_name || user.username;
+      authState.role = user.role;
+      authState.roleLabel = user.role_label || roleLabel(user.role);
+    };
+
+    const doLogin = async () => {
+      if (!loginForm.username || !loginForm.password) {
+        loginForm.error = '请输入用户名和口令';
+        return;
+      }
+      loginForm.loading = true;
+      loginForm.error = '';
+      try {
+        const resp = await fetch(`${API_BASE}/api/v1/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: loginForm.username, password: loginForm.password }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) {
+          loginForm.error = data.detail || '登录失败';
+          return;
+        }
+        setToken(data.token);
+        applyUser(data.user);
+        loginForm.password = '';
+        if (data.user.must_change_password) {
+          ElementPlus.ElMessage.warning('首次登录请修改口令');
+          pwdDialog.visible = true;
+        }
+        loadAll();
+      } catch (e) {
+        loginForm.error = '登录请求失败: ' + e.message;
+      } finally {
+        loginForm.loading = false;
+      }
+    };
+
+    const doLogout = async () => {
+      try { await apiFetch(`${API_BASE}/api/v1/auth/logout`, { method: 'POST' }); } catch (e) {}
+      clearToken();
+      authState.loggedIn = false;
+      authState.username = '';
+      loginForm.username = '';
+    };
+
+    const changePassword = async () => {
+      if (pwdDialog.newPassword !== pwdDialog.confirmPassword) {
+        ElementPlus.ElMessage.error('两次输入的新口令不一致');
+        return;
+      }
+      pwdDialog.loading = true;
+      try {
+        const resp = await apiFetch(`${API_BASE}/api/v1/auth/change-password`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            old_password: pwdDialog.oldPassword,
+            new_password: pwdDialog.newPassword,
+          }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) {
+          ElementPlus.ElMessage.error(data.detail || '修改失败');
+          return;
+        }
+        ElementPlus.ElMessage.success('口令修改成功，请重新登录');
+        pwdDialog.visible = false;
+        pwdDialog.oldPassword = pwdDialog.newPassword = pwdDialog.confirmPassword = '';
+        doLogout();
+      } catch (e) {
+        ElementPlus.ElMessage.error('修改失败: ' + e.message);
+      } finally {
+        pwdDialog.loading = false;
+      }
+    };
+
+    const checkSession = async () => {
+      // 已有令牌或认证关闭模式：拉取当前用户
+      try {
+        const resp = await apiFetch(`${API_BASE}/api/v1/auth/me`);
+        if (resp.ok) {
+          const user = await resp.json();
+          applyUser(user);
+          return true;
+        }
+      } catch (e) {}
+      return false;
+    };
+
+    // ══════════════ V2.0 用户管理（admin） ══════════════
+    const usersList = ref([]);
+    const usersLoading = ref(false);
+    const userDialog = reactive({
+      visible: false, loading: false,
+      form: { username: '', display_name: '', role: 'developer', password: '' },
+    });
+    const resetDialog = reactive({ visible: false, username: '', password: '' });
+
+    const loadUsers = async () => {
+      usersLoading.value = true;
+      try {
+        const resp = await apiFetch(`${API_BASE}/api/v1/auth/users`);
+        if (resp.ok) {
+          const data = await resp.json();
+          usersList.value = data.users || [];
+        }
+      } catch (e) {
+        ElementPlus.ElMessage.error('加载用户列表失败: ' + e.message);
+      } finally {
+        usersLoading.value = false;
+      }
+    };
+
+    const switchToUsers = () => {
+      currentPage.value = 'users';
+      loadUsers();
+    };
+
+    const openCreateUser = () => {
+      userDialog.form = { username: '', display_name: '', role: 'developer', password: '' };
+      userDialog.visible = true;
+    };
+
+    const createUser = async () => {
+      userDialog.loading = true;
+      try {
+        const resp = await apiFetch(`${API_BASE}/api/v1/auth/users`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(userDialog.form),
+        });
+        const data = await resp.json();
+        if (!resp.ok) {
+          ElementPlus.ElMessage.error(data.detail || '创建失败');
+          return;
+        }
+        ElementPlus.ElMessage.success('用户创建成功');
+        userDialog.visible = false;
+        loadUsers();
+      } catch (e) {
+        ElementPlus.ElMessage.error('创建失败: ' + e.message);
+      } finally {
+        userDialog.loading = false;
+      }
+    };
+
+    const openResetPwd = (row) => {
+      resetDialog.username = row.username;
+      resetDialog.password = '';
+      resetDialog.visible = true;
+    };
+
+    const resetUserPwd = async () => {
+      try {
+        const resp = await apiFetch(
+          `${API_BASE}/api/v1/auth/users/${resetDialog.username}/reset-password`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ new_password: resetDialog.password }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) { ElementPlus.ElMessage.error(data.detail || '重置失败'); return; }
+        ElementPlus.ElMessage.success('口令已重置');
+        resetDialog.visible = false;
+      } catch (e) {
+        ElementPlus.ElMessage.error('重置失败: ' + e.message);
+      }
+    };
+
+    const unlockUser = async (row) => {
+      try {
+        const resp = await apiFetch(`${API_BASE}/api/v1/auth/users/${row.username}/unlock`,
+          { method: 'POST' });
+        if (resp.ok) { ElementPlus.ElMessage.success('已解锁'); loadUsers(); }
+      } catch (e) {}
+    };
+
+    const toggleUserStatus = async (row) => {
+      const newStatus = row.status === 'active' ? 'disabled' : 'active';
+      try {
+        const resp = await apiFetch(`${API_BASE}/api/v1/auth/users/${row.username}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: newStatus }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) { ElementPlus.ElMessage.error(data.detail || '操作失败'); return; }
+        ElementPlus.ElMessage.success(newStatus === 'active' ? '已启用' : '已禁用');
+        loadUsers();
+      } catch (e) {}
+    };
+
+    const deleteUser = async (row) => {
+      try {
+        await ElementPlus.ElMessageBox.confirm(
+          `确认删除用户 ${row.username}？`, '删除确认', { type: 'warning' });
+      } catch (e) { return; }
+      try {
+        const resp = await apiFetch(`${API_BASE}/api/v1/auth/users/${row.username}`,
+          { method: 'DELETE' });
+        const data = await resp.json();
+        if (!resp.ok) { ElementPlus.ElMessage.error(data.detail || '删除失败'); return; }
+        ElementPlus.ElMessage.success('用户已删除');
+        loadUsers();
+      } catch (e) {}
+    };
+
     const sqlInput = ref('');
     const auditing = ref(false);
     const auditResult = ref(null);
@@ -956,7 +1371,7 @@ const app = createApp({
     // 加载审核治理概览数据
     const loadDashboard = async () => {
       try {
-        const resp = await fetch(`${API_BASE}/api/v1/dashboard/summary`);
+        const resp = await apiFetch(`${API_BASE}/api/v1/dashboard/summary`);
         if (resp.ok) stats.value = await resp.json();
         // 并行加载高频违规规则统计
         loadRuleHits();
@@ -966,7 +1381,7 @@ const app = createApp({
     // 加载高频违规规则统计
     const loadRuleHits = async () => {
       try {
-        const resp = await fetch(`${API_BASE}/api/v1/dashboard/rule-stats`);
+        const resp = await apiFetch(`${API_BASE}/api/v1/dashboard/rule-stats`);
         if (resp.ok) {
           const data = await resp.json();
           ruleHits.value = data.rules || [];
@@ -996,7 +1411,7 @@ const app = createApp({
     // TDSQL连接状态检查
     const checkTdsqlStatus = async () => {
       try {
-        const resp = await fetch(`${API_BASE}/api/v1/tdsql/status`);
+        const resp = await apiFetch(`${API_BASE}/api/v1/tdsql/status`);
         if (resp.ok) {
           const data = await resp.json();
           tdsqlStatus.value = data;
@@ -1010,7 +1425,7 @@ const app = createApp({
     const loadSavedConnections = async () => {
       loadingConnections.value = true;
       try {
-        const resp = await fetch(`${API_BASE}/api/v1/tdsql/connections`);
+        const resp = await apiFetch(`${API_BASE}/api/v1/tdsql/connections`);
         if (resp.ok) {
           const data = await resp.json();
           savedConnections.value = data.connections || [];
@@ -1032,7 +1447,7 @@ const app = createApp({
       testingConn.value = true;
       testResult.value = null;
       try {
-        const resp = await fetch(`${API_BASE}/api/v1/tdsql/test-connection?host=${encodeURIComponent(connForm.host)}&port=${connForm.port}&user=${encodeURIComponent(connForm.user)}&password=${encodeURIComponent(connForm.password)}&database=${encodeURIComponent(connForm.database)}`);
+        const resp = await apiFetch(`${API_BASE}/api/v1/tdsql/test-connection?host=${encodeURIComponent(connForm.host)}&port=${connForm.port}&user=${encodeURIComponent(connForm.user)}&password=${encodeURIComponent(connForm.password)}&database=${encodeURIComponent(connForm.database)}`);
         const data = await resp.json();
         if (data.status === 'connected') {
           testResult.value = { type: 'success', message: `连接成功！服务器版本: ${data.server_version}，延迟: ${data.latency_ms}ms` };
@@ -1055,7 +1470,7 @@ const app = createApp({
       connecting.value = true;
       try {
         // 先保存连接配置
-        const saveResp = await fetch(`${API_BASE}/api/v1/tdsql/connections`, {
+        const saveResp = await apiFetch(`${API_BASE}/api/v1/tdsql/connections`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(connForm),
@@ -1063,7 +1478,7 @@ const app = createApp({
         const saveData = await saveResp.json();
 
         // 再连接
-        const connectResp = await fetch(`${API_BASE}/api/v1/tdsql/connect`, {
+        const connectResp = await apiFetch(`${API_BASE}/api/v1/tdsql/connect`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1095,7 +1510,7 @@ const app = createApp({
     const connectSavedConn = async (connId) => {
       connecting.value = true;
       try {
-        const resp = await fetch(`${API_BASE}/api/v1/tdsql/connections/${connId}/connect`, {
+        const resp = await apiFetch(`${API_BASE}/api/v1/tdsql/connections/${connId}/connect`, {
           method: 'POST',
         });
         if (resp.ok) {
@@ -1118,7 +1533,7 @@ const app = createApp({
     // 删除已保存的连接配置
     const deleteSavedConn = async (connId) => {
       try {
-        const resp = await fetch(`${API_BASE}/api/v1/tdsql/connections/${connId}`, {
+        const resp = await apiFetch(`${API_BASE}/api/v1/tdsql/connections/${connId}`, {
           method: 'DELETE',
         });
         if (resp.ok) {
@@ -1136,7 +1551,7 @@ const app = createApp({
     // 断开TDSQL连接
     const disconnectTdsql = async () => {
       try {
-        const resp = await fetch(`${API_BASE}/api/v1/tdsql/disconnect`, {
+        const resp = await apiFetch(`${API_BASE}/api/v1/tdsql/disconnect`, {
           method: 'POST',
         });
         if (resp.ok) {
@@ -1165,7 +1580,7 @@ const app = createApp({
     const loadRules = async () => {
       rulesLoading.value = true;
       try {
-        const resp = await fetch(`${API_BASE}/api/v1/rules`);
+        const resp = await apiFetch(`${API_BASE}/api/v1/rules`);
         if (resp.ok) {
           const data = await resp.json();
           rulesList.value = data.rules || [];
@@ -1196,7 +1611,7 @@ const app = createApp({
       if (!sqlInput.value.trim()) return;
       auditing.value = true;
       try {
-        const resp = await fetch(`${API_BASE}/api/v1/audit/sql`, {
+        const resp = await apiFetch(`${API_BASE}/api/v1/audit/sql`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ sql: sqlInput.value, db_type: 'tdsql' }),
@@ -1219,7 +1634,7 @@ const app = createApp({
     const uploadFile = async (file) => {
       const content = await file.text();
       try {
-        const resp = await fetch(`${API_BASE}/api/v1/audit/file`, {
+        const resp = await apiFetch(`${API_BASE}/api/v1/audit/file`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ content, file_path: file.name }),
@@ -1252,7 +1667,7 @@ const app = createApp({
       }
       analyzing.value = true;
       try {
-        const resp = await fetch(`${API_BASE}/api/v1/slow-queries`, {
+        const resp = await apiFetch(`${API_BASE}/api/v1/slow-queries`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(slowForm),
@@ -1279,7 +1694,7 @@ const app = createApp({
         if (slowFilters.severity) params.set('severity', slowFilters.severity);
         if (slowFilters.status) params.set('status', slowFilters.status);
         if (slowFilters.keyword) params.set('keyword', slowFilters.keyword);
-        const resp = await fetch(`${API_BASE}/api/v1/slow-queries?${params}`);
+        const resp = await apiFetch(`${API_BASE}/api/v1/slow-queries?${params}`);
         if (resp.ok) {
           const data = await resp.json();
           slowList.value = data.items || [];
@@ -1293,7 +1708,7 @@ const app = createApp({
 
     const loadScanTasks = async () => {
       try {
-        const resp = await fetch(`${API_BASE}/api/v1/slow-queries/scan-tasks?limit=100`);
+        const resp = await apiFetch(`${API_BASE}/api/v1/slow-queries/scan-tasks?limit=100`);
         if (resp.ok) {
           const data = await resp.json();
           scanTasks.value = data.items || [];
@@ -1303,7 +1718,7 @@ const app = createApp({
 
     const loadProxyConfig = async () => {
       try {
-        const resp = await fetch(`${API_BASE}/api/v1/tdsql/proxy-config`);
+        const resp = await apiFetch(`${API_BASE}/api/v1/tdsql/proxy-config`);
         if (resp.ok) {
           const data = await resp.json();
           if (data.status === 'success' && data.proxy_config) {
@@ -1315,7 +1730,7 @@ const app = createApp({
 
     const loadDbNames = async () => {
       try {
-        const resp = await fetch(`${API_BASE}/api/v1/slow-queries/db-names`);
+        const resp = await apiFetch(`${API_BASE}/api/v1/slow-queries/db-names`);
         if (resp.ok) {
           const data = await resp.json();
           dbNames.value = data.db_names || [];
@@ -1325,7 +1740,7 @@ const app = createApp({
 
     const loadSetIds = async () => {
       try {
-        const resp = await fetch(`${API_BASE}/api/v1/slow-queries/set-ids`);
+        const resp = await apiFetch(`${API_BASE}/api/v1/slow-queries/set-ids`);
         if (resp.ok) {
           const data = await resp.json();
           setIds.value = data.set_ids || [];
@@ -1337,7 +1752,7 @@ const app = createApp({
       if (!taskId) { crossSetData.value = null; return; }
       crossSetLoading.value = true;
       try {
-        const resp = await fetch(`${API_BASE}/api/v1/slow-queries/cross-set-analysis?scan_task_id=${taskId}`);
+        const resp = await apiFetch(`${API_BASE}/api/v1/slow-queries/cross-set-analysis?scan_task_id=${taskId}`);
         if (resp.ok) {
           crossSetData.value = await resp.json();
         } else {
@@ -1415,7 +1830,7 @@ const app = createApp({
       try {
         // 将 datetime-local 格式转换为 MySQL 兼容格式
         const formatTime = (val) => val ? val.replace('T', ' ') + ':00' : '';
-        const resp = await fetch(`${API_BASE}/api/v1/tdsql/slow-queries/fetch`, {
+        const resp = await apiFetch(`${API_BASE}/api/v1/tdsql/slow-queries/fetch`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1485,7 +1900,7 @@ const app = createApp({
       analyzingExplain.value = true;
       try {
         const data = JSON.parse(explainInput.value);
-        const resp = await fetch(`${API_BASE}/api/v1/slow-queries/analyze-explain`, {
+        const resp = await apiFetch(`${API_BASE}/api/v1/slow-queries/analyze-explain`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ explain_data: Array.isArray(data) ? data : [data] }),
@@ -1532,7 +1947,7 @@ const app = createApp({
       const el = document.getElementById('trendChart');
       if (!el) return;
       try {
-        const resp = await fetch(`${API_BASE}/api/v1/dashboard/audit-trend?days=7`);
+        const resp = await apiFetch(`${API_BASE}/api/v1/dashboard/audit-trend?days=7`);
         const trendData = resp.ok ? await resp.json() : { dates: [], passed: [], failed: [] };
         const chart = echarts.init(el);
         chart.setOption({
@@ -1549,8 +1964,8 @@ const app = createApp({
       } catch (e) { console.log('Trend chart render failed'); }
     };
 
-    onMounted(() => {
-      console.log('Vue app mounted');
+    // 登录成功后加载全部数据
+    const loadAll = () => {
       loadDashboard();
       loadSlowList();
       loadScanTasks();
@@ -1559,7 +1974,15 @@ const app = createApp({
       checkTdsqlStatus();
       loadSavedConnections();
       loadRules();
-      console.log('Rules page state:', { currentPage: currentPage.value, rulesList: rulesList.value.length });
+    };
+
+    onMounted(async () => {
+      console.log('Vue app mounted (V2.0)');
+      // 401时回到登录页
+      onUnauthorized = () => { authState.loggedIn = false; };
+      // 会话恢复：有令牌或认证关闭模式
+      const ok = await checkSession();
+      if (ok) loadAll();
     });
 
     watch(currentPage, (val) => {
@@ -1597,6 +2020,11 @@ const app = createApp({
       connectSavedConn, deleteSavedConn, disconnectTdsql, resetConnForm,
       // 规则
       rulesList, rulesByCategory, rulesLoading, categoryOrder, loadRules, getSeverityClass, switchToRules,
+      // V2.0 认证与用户管理
+      authState, loginForm, pwdDialog, doLogin, doLogout, changePassword, roleLabel,
+      usersList, usersLoading, userDialog, resetDialog,
+      switchToUsers, loadUsers, openCreateUser, createUser,
+      openResetPwd, resetUserPwd, unlockUser, toggleUserStatus, deleteUser,
     };
   },
 });

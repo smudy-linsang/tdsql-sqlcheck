@@ -95,6 +95,8 @@ def client(test_db):
 
         with TestClient(app) as c:
             yield c
+        # 清理V1.0兼容测试席位，避免污染后续"未连接"用例
+        tdsql_manage._pool = None
 
 
 # ── 1. SET发现机制 ──────────────────────────────────────
@@ -408,7 +410,8 @@ class TestFetchSlowQueries:
         """测试processlist数据源扫描"""
         from backend.api import tdsql_manage
 
-        tdsql_manage._pool.get_slow_queries_from_processlist = MagicMock(return_value=[
+        # processlist扫描自slow_log重构后走poll_processlist（多次轮询采样）
+        tdsql_manage._pool.poll_processlist = MagicMock(return_value=[
             {"id": 1, "user": "root", "host": "localhost", "db": "test",
              "command": "Query", "time": 15, "state": "Sending data",
              "info": "SELECT * FROM t1 WHERE id=1"},

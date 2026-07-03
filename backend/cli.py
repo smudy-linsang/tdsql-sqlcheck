@@ -20,7 +20,7 @@ from backend.engine.sql_rewriter import SQLRewriter
 
 
 @click.group()
-@click.version_option("1.0.0", prog_name="TDSQL-SQLCheck")
+@click.version_option("2.0.0", prog_name="TDSQL-SQLCheck")
 def cli():
     """TDSQL SQL审核工具 CLI"""
     pass

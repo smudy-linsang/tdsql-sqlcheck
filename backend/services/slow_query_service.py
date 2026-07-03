@@ -9,6 +9,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+from backend import config
 from backend.engine.slow_analyzer import (
     SlowAnalysisReport,
     SlowQueryRecord,
@@ -109,19 +110,35 @@ class SlowQueryService:
         ensure_db()
         self.analyzer = SlowSQLAnalyzer()
 
-    def add_slow_query(self, record: SlowQueryRecord, scan_task_id: int = None) -> dict:
+    def add_slow_query(self, record: SlowQueryRecord, scan_task_id: int = None,
+                       connection_id: str = "") -> dict:
         """
         添加慢SQL记录并自动分析。
 
         Args:
             record: 慢SQL记录
             scan_task_id: 可选，关联的扫描任务ID
+            connection_id: 可选，来源连接ID（V2.0多实例）
+
+        V2.0: DATA_MASKING_ENABLED 开启时（默认），SQL文本入库前将字面量
+        替换为 ?，防止WHERE条件中的客户敏感数据（身份证/卡号等）落地。
+        分析在脱敏前的原文上执行，不影响诊断质量。
 
         Returns:
             包含分析结果的字典
         """
-        # 执行分析
+        # 执行分析（在原文上分析，保证诊断质量）
         report = self.analyzer.analyze_slow_query(record)
+
+        # V2.0: 入库脱敏
+        stored_sql = record.sql_text
+        stored_fingerprint = record.fingerprint
+        if config.data_masking_enabled():
+            from backend.engine.fingerprint import FingerprintEngine
+            engine = FingerprintEngine()
+            stored_sql = engine.normalize_for_display(record.sql_text)
+            stored_fingerprint = engine.normalize_for_display(record.fingerprint) \
+                if record.fingerprint else stored_sql
 
         conn = _get_connection()
         try:
@@ -132,15 +149,17 @@ class SlowQueryService:
             cursor = conn.execute("""
                 INSERT INTO slow_queries (
                     fingerprint, sql_text, db_name, set_id, client_user, client_host,
+                    connection_id,
                     exec_count, total_time_ms, avg_time_ms, max_time_ms,
                     rows_examined, rows_sent, lock_time_ms,
                     first_seen, last_seen, problem_type, severity,
                     root_cause, suggestion, optimized_sql,
                     analysis_json, scan_task_id, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
-                record.fingerprint, record.sql_text, record.db_name,
+                stored_fingerprint, stored_sql, record.db_name,
                 record.set_id, record.client_user, record.client_host,
+                connection_id,
                 record.exec_count, record.total_time_ms, record.avg_time_ms,
                 record.max_time_ms, record.rows_examined, record.rows_sent,
                 record.lock_time_ms, first_seen, last_seen,

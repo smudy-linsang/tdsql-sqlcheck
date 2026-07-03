@@ -8,7 +8,8 @@
 
 **TDSQL-SQLCheck** 是覆盖开发、测试、生产全生命周期的 TDSQL SQL 质量管控与慢 SQL 分析平台。基于《TDSQL 数据库开发规范》和《TDSQL-MySQL 慢查询发现与优化方案》构建。
 
-当前版本：**V1.0**（76 条审核规则 / 8 大分类 / 3 级严重级别）
+当前版本：**V2.0**（77 条审核规则 / 8 大分类 / 3 级严重级别；银行级改造：
+认证与RBAC / 多实例连接注册表 / 规则集多租户 / 数据脱敏与保留 / 可观测性 / 纯内网部署）
 
 ---
 
@@ -33,10 +34,18 @@
 | DDL 规范 | DDL | 22 | 建表语句：主键、引擎、字符集、字段类型 |
 | DML 规范 | DML | 9 | 增删改查：SELECT*、无 WHERE、子查询深度 |
 | 索引规范 | Index | 10 | 索引数量、冗余索引、前缀索引 |
-| 分布式规范 | Distributed | 13 | 分片键查询、更新分片键、跨分片操作 |
+| 分布式规范 | Distributed | 14 | 分片键查询/更新/建表声明(R077)、跨分片操作 |
 | 安全规范 | Security | 8 | 权限、敏感数据、SQL 注入风险 |
 | 性能规范 | Performance | 5 | 大表全表扫描、ORDER BY RAND、笛卡尔积 |
 | 事务规范 | Transaction | 4 | 长事务、自动提交、事务隔离级别 |
+
+### 规则集 (Rule Set, V2.0)
+
+| 术语 | 定义 |
+|------|------|
+| 规则集 | 一组规则覆盖配置（启停/级别），项目通过 rule_set_id 绑定 |
+| 规则覆盖 | 规则集条目对单条规则的 enabled / severity_override 调整 |
+| 默认规则集 | 内置 default 规则集，空覆盖=全部规则按内置默认执行，不可修改 |
 
 ### 严重级别 (Severity)
 
@@ -132,11 +141,28 @@
 
 | 层级 | 目录 | 职责 |
 |------|------|------|
+| 中间件层 | `backend/middleware.py` | V2.0 认证/RBAC/请求ID/指标/操作审计 |
 | API 路由层 | `backend/api/` | FastAPI 路由定义、请求/响应模型、参数校验 |
 | 服务层 | `backend/services/` | 业务逻辑、数据持久化、外部系统集成 |
 | 引擎层 | `backend/engine/` | SQL 解析、规则检查、慢 SQL 分析 |
-| 规则库 | `backend/engine/rules/` | 76 条审核规则的实现 |
-| 数据层 | `data/` + TDSQL | SQLite 本地存储 + TDSQL 远程数据库 + PDF 报告 |
+| 规则库 | `backend/engine/rules/` | 77 条审核规则的实现 |
+| 数据层 | `data/` + TDSQL | SQLite 本地存储(27表) + TDSQL 远程数据库 + PDF 报告 |
+
+### V2.0 安全与平台术语
+
+| 术语 | 英文 | 定义 |
+|------|------|------|
+| 角色 | Role | admin(系统管理员)/dba(数据库管理员)/developer(开发人员)/auditor(审计员) |
+| 权限矩阵 | Permission Matrix | (角色, HTTP方法, 路径前缀) → 允许/拒绝 的判定规则 |
+| 访问令牌 | Access Token | HMAC-SHA256 签名的自包含令牌，默认8小时有效 |
+| 连接注册表 | Connection Registry | connection_id → 连接池 的多实例管理器（LRU/空闲回收/限流） |
+| 即席连接 | Adhoc Connection | 通过 /connect 直接建立的临时连接，ID固定为 adhoc（V1.0兼容） |
+| 扫描槽位 | Scan Slot | 扫描并发信号量（按连接+全局双重限制） |
+| 扫描计划 | Scan Schedule | 按连接配置的每日定时扫描（scan_schedules 表） |
+| Leader租约 | Scheduler Lease | 多副本部署时的调度器互斥机制（scheduler_lease 表） |
+| 数据脱敏 | Data Masking | 慢SQL入库前字面量→?，敏感数据不落地 |
+| 保留策略 | Retention Policy | 按表配置的数据保留天数与自动清理 |
+| 操作审计 | Operation Audit | 变更操作记录操作人/IP/路径/状态（operation_logs） |
 
 ### 核心组件
 
@@ -226,3 +252,4 @@
 |------|------|------|
 | 2026-06-17 | 初始创建 | V1.0 版本领域术语梳理 |
 | 2026-06-17 | 新增扫描任务、质量门禁、大表治理术语 | V1.0 新增模块 |
+| 2026-07-03 | 规则数修正为77（分布式14含R077）；新增规则集、角色/权限矩阵、连接注册表、扫描计划、Leader租约、数据脱敏、保留策略等术语 | V2.0 银行级改造 |
