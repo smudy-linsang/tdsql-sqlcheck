@@ -93,6 +93,9 @@ def _migrate_v04_tables(conn: sqlite3.Connection):
         _add_column_if_not_exists(conn, "slow_queries", "updated_at", "TEXT DEFAULT (datetime('now'))")
         _add_column_if_not_exists(conn, "slow_queries", "scan_task_id", "INTEGER DEFAULT NULL")
         _add_column_if_not_exists(conn, "slow_queries", "set_id", "TEXT DEFAULT ''")
+        # V1.1: 新增执行者信息字段
+        _add_column_if_not_exists(conn, "slow_queries", "client_user", "TEXT DEFAULT ''")
+        _add_column_if_not_exists(conn, "slow_queries", "client_host", "TEXT DEFAULT ''")
 
     if "audit_history" in table_names:
         _add_column_if_not_exists(conn, "audit_history", "project_id", "TEXT DEFAULT ''")
@@ -135,6 +138,8 @@ def _create_all_tables(conn: sqlite3.Connection):
         set_id              TEXT DEFAULT '',           -- 来源 SET（如 set_1），非分布式为空
         connection_id       TEXT DEFAULT '',
         project_id          TEXT DEFAULT '',
+        client_user         TEXT DEFAULT '',           -- 执行SQL的用户
+        client_host         TEXT DEFAULT '',           -- 发起SQL的客户端IP
         exec_count          INTEGER DEFAULT 0,
         total_time_ms       REAL DEFAULT 0,
         avg_time_ms         REAL DEFAULT 0,

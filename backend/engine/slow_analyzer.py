@@ -38,6 +38,8 @@ class SlowQueryRecord:
     sql_text: str = ""
     db_name: str = ""
     set_id: str = ""           # 来源 SET 标识（如 "set_1"），非分布式实例为空
+    client_user: str = ""      # 执行SQL的用户
+    client_host: str = ""      # 发起SQL的客户端IP
     exec_count: int = 0
     total_time_ms: float = 0.0
     avg_time_ms: float = 0.0
@@ -45,6 +47,8 @@ class SlowQueryRecord:
     rows_examined: int = 0
     rows_sent: int = 0
     lock_time_ms: float = 0.0
+    first_seen: str = ""       # SQL首次执行时间
+    last_seen: str = ""        # SQL最后执行时间
 
 
 @dataclass

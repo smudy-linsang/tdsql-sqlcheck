@@ -126,21 +126,24 @@ class SlowQueryService:
         conn = _get_connection()
         try:
             now = datetime.now().isoformat()
+            # first_seen/last_seen: 优先使用record中的真实执行时间，否则用当前时间
+            first_seen = record.first_seen or now
+            last_seen = record.last_seen or now
             cursor = conn.execute("""
                 INSERT INTO slow_queries (
-                    fingerprint, sql_text, db_name, set_id, exec_count,
-                    total_time_ms, avg_time_ms, max_time_ms,
+                    fingerprint, sql_text, db_name, set_id, client_user, client_host,
+                    exec_count, total_time_ms, avg_time_ms, max_time_ms,
                     rows_examined, rows_sent, lock_time_ms,
                     first_seen, last_seen, problem_type, severity,
                     root_cause, suggestion, optimized_sql,
                     analysis_json, scan_task_id, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 record.fingerprint, record.sql_text, record.db_name,
-                record.set_id,
+                record.set_id, record.client_user, record.client_host,
                 record.exec_count, record.total_time_ms, record.avg_time_ms,
                 record.max_time_ms, record.rows_examined, record.rows_sent,
-                record.lock_time_ms, now, now,
+                record.lock_time_ms, first_seen, last_seen,
                 report.problem_type, report.severity,
                 report.analyses[0].root_cause if report.analyses else "",
                 report.analyses[0].suggestion if report.analyses else "",

@@ -366,9 +366,17 @@ def fetch_slow_queries(request: SlowQueryFetchRequest):
 
         service = SlowQueryService()
 
-        # 创建扫描任务
+        # 创建扫描任务（任务名自动包含时间段）
         source_labels = {"digest": "性能摘要分析", "processlist": "实时进程快照"}
+        # 自动拼接时间段到任务名称
+        time_range_str = ""
+        if request.time_window_start and request.time_window_end:
+            # 提取简短的时间表示: "07-01 00:00 ~ 23:59"
+            start_short = request.time_window_start[5:16]  # MM-DD HH:MM
+            end_short = request.time_window_end[5:16]
+            time_range_str = f" [{start_short} ~ {end_short}]"
         task_name = request.task_name or f"{source_labels.get(request.source, request.source)} - {conn_name}"
+        task_name = task_name + time_range_str
         task_id = service.create_scan_task(
             task_name=task_name,
             source=request.source,
@@ -433,11 +441,31 @@ def fetch_slow_queries(request: SlowQueryFetchRequest):
             # 无索引使用标记（从performance_schema获取）
             no_index_count = raw.get("no_index_count", 0) or 0
 
+            # 执行者信息（processlist模式有具体用户/IP，digest模式为聚合数据无法区分）
+            client_user = raw.get("user", "")
+            client_host = raw.get("host", "")
+            if isinstance(client_user, bytes):
+                client_user = client_user.decode("utf-8", errors="replace")
+            if isinstance(client_host, bytes):
+                client_host = client_host.decode("utf-8", errors="replace")
+
+            # 执行时间信息
+            # digest模式: FIRST_SEEN/LAST_SEEN 是performance_schema记录的真实执行时间范围
+            # processlist模式: 使用当前扫描时间
+            first_seen_val = ""
+            last_seen_val = ""
+            if raw.get("FIRST_SEEN"):
+                first_seen_val = str(raw["FIRST_SEEN"])
+            if raw.get("LAST_SEEN"):
+                last_seen_val = str(raw["LAST_SEEN"])
+
             record = SlowQueryRecord(
                 fingerprint=raw.get("DIGEST_TEXT", sql_text),
                 sql_text=sql_text,
                 db_name=db_val,
                 set_id="",  # Proxy层聚合，不区分SET
+                client_user=client_user,
+                client_host=client_host,
                 exec_count=raw.get("exec_count") or raw.get("COUNT_STAR", 0) or 0,
                 total_time_ms=total_ms,
                 avg_time_ms=avg_ms,
@@ -445,6 +473,8 @@ def fetch_slow_queries(request: SlowQueryFetchRequest):
                 lock_time_ms=lock_time_ms,
                 rows_examined=raw.get("rows_examined") or raw.get("SUM_ROWS_EXAMINED", 0) or 0,
                 rows_sent=raw.get("rows_sent") or raw.get("SUM_ROWS_SENT", 0) or 0,
+                first_seen=first_seen_val,
+                last_seen=last_seen_val,
             )
 
             result = service.add_slow_query(record, scan_task_id=task_id)

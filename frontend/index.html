@@ -655,7 +655,13 @@
             <div v-if="item.problem_type" style="margin-top:5px;font-size:12px;color:#e6a23c;">问题: {{ item.problem_type }}</div>
             <div v-if="item.suggestion" style="margin-top:3px;font-size:12px;color:#909399;">建议: {{ item.suggestion }}</div>
             <div class="slow-meta">
-              ID: {{ item.id }} | 库: {{ item.db_name || '-' }} | SET: {{ item.set_id || '-' }} | 状态: {{ item.status || 'pending' }} | 录入: {{ item.created_at?.substring(0, 19) }}
+              ID: {{ item.id }} | 库: {{ item.db_name || '-' }} | SET: {{ item.set_id || '-' }}
+              <template v-if="item.client_user"> | 用户: {{ item.client_user }}</template>
+              <template v-if="item.client_host"> | 来源: {{ item.client_host }}</template>
+              | 状态: {{ item.status || 'pending' }}
+              <template v-if="item.first_seen"> | 首次执行: {{ item.first_seen?.substring(0, 19) }}</template>
+              <template v-if="item.last_seen"> | 末次执行: {{ item.last_seen?.substring(0, 19) }}</template>
+              <template v-if="!item.first_seen"> | 录入: {{ item.created_at?.substring(0, 19) }}</template>
             </div>
           </div>
 

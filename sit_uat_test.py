@@ -7,7 +7,7 @@ import json
 import time
 import sys
 
-BASE = "http://localhost:8002"
+BASE = "http://localhost:8003"
 RESULTS = {"pass": 0, "fail": 0, "errors": []}
 
 def test(name, condition, detail=""):
