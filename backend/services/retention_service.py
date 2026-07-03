@@ -6,7 +6,7 @@ TDSQL SQL审核工具 - 数据保留服务 (V2.0)
 
 - 保留策略存于 retention_policies 表（默认策略见 database._init_default_data）
 - 调度器每日执行清理（仅leader副本），也可通过 API 手动触发
-- 清理后执行增量 VACUUM 优化（PRAGMA incremental_vacuum 或 wal_checkpoint）
+- 存储引擎为 MySQL/InnoDB，删除后空间由引擎复用（如需物理回缩可离线 OPTIMIZE TABLE）
 """
 import logging
 from typing import Optional
@@ -87,18 +87,13 @@ class RetentionService:
                     continue
                 try:
                     cursor = conn.execute(
-                        f"DELETE FROM {table} WHERE {time_col} < datetime('now', ?)",
-                        (f"-{days} days",))
+                        f"DELETE FROM {table} WHERE {time_col} < DATE_SUB(NOW(), INTERVAL ? DAY)",
+                        (int(days),))
                     if cursor.rowcount > 0:
                         deleted[table] = cursor.rowcount
                 except Exception as e:
                     logger.warning("清理表 %s 失败: %s", table, e)
             conn.commit()
-            # WAL检查点回收空间
-            try:
-                conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-            except Exception:
-                pass
         finally:
             conn.close()
 

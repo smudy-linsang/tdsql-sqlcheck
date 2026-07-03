@@ -11,6 +11,21 @@ from backend.services.database import _get_connection, ensure_db, log_operation
 
 logger = logging.getLogger("tdsql.project")
 
+# MySQL中TEXT列不带默认值(NULL)，而Project模型的str字段不接受None，
+# 行数据构造模型前统一将这些字段的NULL归一为空串
+_TEXT_FIELDS_DEFAULT_EMPTY = (
+    "tdsql_connection_id", "rule_set_id", "gate_rule_id",
+    "gitlab_url", "description", "status",
+)
+
+
+def _row_to_project(row: dict) -> Project:
+    data = dict(row)
+    for f in _TEXT_FIELDS_DEFAULT_EMPTY:
+        if data.get(f) is None:
+            data[f] = ""
+    return Project(**data)
+
 
 class ProjectService:
     """项目管理服务"""
@@ -44,7 +59,7 @@ class ProjectService:
             row = conn.execute("SELECT * FROM projects WHERE project_id = ?", (project_id,)).fetchone()
             if not row:
                 return None
-            return Project(**dict(row))
+            return _row_to_project(row)
         finally:
             conn.close()
 
@@ -54,7 +69,7 @@ class ProjectService:
         conn = _get_connection()
         try:
             rows = conn.execute("SELECT * FROM projects ORDER BY created_at DESC").fetchall()
-            return [Project(**dict(r)) for r in rows]
+            return [_row_to_project(r) for r in rows]
         finally:
             conn.close()
 

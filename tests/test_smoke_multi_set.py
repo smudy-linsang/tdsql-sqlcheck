@@ -11,92 +11,77 @@ TDSQL慢SQL扫描 - 冒烟测试
 6. 跨SET对比分析（基于已有数据）
 """
 import json
-import sqlite3
-import tempfile
 import os
-from pathlib import Path
 from unittest.mock import patch, MagicMock, PropertyMock
 
 import pytest
 from fastapi.testclient import TestClient
 
 
-# ── 辅助：初始化测试数据库 ──────────────────────────────
+# ── 辅助：初始化测试数据（MySQL元数据库版） ──────────────────
 
 @pytest.fixture(scope="module")
 def test_db():
-    """创建临时测试数据库"""
-    fd, db_path = tempfile.mkstemp(suffix=".db")
-    os.close(fd)
+    """在MySQL测试库中准备种子数据（V2.1: 系统库已迁移到MySQL，不再使用临时SQLite文件）"""
+    from backend.services.database import _get_connection, ensure_db
+    ensure_db()
 
-    # 同时 patch 两个模块的 DB_PATH（slow_query_service 和 database 各有一份）
-    with patch("backend.services.slow_query_service.DB_PATH", Path(db_path)), \
-         patch("backend.services.database.DB_PATH", Path(db_path)):
+    conn = _get_connection()
+    # 模块级全清（等价旧版临时SQLite文件的隔离语义，防止跨模块残留影响total断言）
+    conn.execute("DELETE FROM slow_queries")
+    conn.execute("DELETE FROM scan_tasks")
+    conn.commit()
 
-        # 重置 database 模块的初始化标志
-        import backend.services.database as db_mod
-        db_mod._db_initialized = False
+    now = "2026-06-17 10:00:00"
+    # 插入3个SET的模拟慢SQL数据
+    test_data = [
+        # set_1: 3条
+        ("SELECT * FROM t_order WHERE uid=?", "SELECT * FROM t_order WHERE uid=123", "tdsql_check", "set_1", 500, 200.5, 150.0, 300.0, 800000, 100, "全表扫描", "ERROR", "", "", "{}", 1, now, now, "pending"),
+        ("UPDATE t_user SET name=? WHERE id=?", "UPDATE t_user SET name='test' WHERE id=1", "tdsql_check", "set_1", 200, 100.0, 80.0, 150.0, 50000, 1, "锁等待严重", "WARNING", "", "", "{}", 2, now, now, "pending"),
+        ("SELECT * FROM t_order WHERE uid=?", "SELECT * FROM t_order WHERE uid=456", "tdsql_check", "set_1", 300, 180.0, 120.0, 250.0, 600000, 50, "全表扫描", "ERROR", "", "", "{}", 1, now, now, "pending"),
+        # set_2: 2条
+        ("SELECT * FROM t_order WHERE uid=?", "SELECT * FROM t_order WHERE uid=789", "tdsql_check", "set_2", 400, 220.0, 160.0, 280.0, 700000, 80, "全表扫描", "ERROR", "", "", "{}", 1, now, now, "pending"),
+        ("DELETE FROM t_log WHERE created<?", "DELETE FROM t_log WHERE created<'2026-01-01'", "tdsql_check", "set_2", 50, 500.0, 400.0, 600.0, 2000000, 0, "扫描行数过多", "WARNING", "", "", "{}", 2, now, now, "pending"),
+        # set_3: 1条
+        ("SELECT * FROM t_order WHERE uid=?", "SELECT * FROM t_order WHERE uid=999", "tdsql_check", "set_3", 600, 300.0, 200.0, 400.0, 900000, 120, "全表扫描", "ERROR", "", "", "{}", 1, now, now, "pending"),
+    ]
+    for row in test_data:
+        conn.execute("""
+            INSERT INTO slow_queries (fingerprint, sql_text, db_name, set_id, exec_count,
+                total_time_ms, avg_time_ms, max_time_ms, rows_examined, rows_sent,
+                problem_type, severity, root_cause, suggestion, analysis_json,
+                scan_task_id, first_seen, last_seen, status)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        """, row)
+    conn.commit()
+    conn.close()
 
-        from backend.services.database import ensure_db
-        ensure_db()  # 创建所有表（含 scan_tasks）
+    yield "mysql"
 
-        # 插入模拟数据（用于set_id筛选和跨SET分析测试）
-        conn = sqlite3.connect(db_path)
-        conn.row_factory = sqlite3.Row
-        now = "2026-06-17 10:00:00"
-        # 插入3个SET的模拟慢SQL数据
-        test_data = [
-            # set_1: 3条
-            ("SELECT * FROM t_order WHERE uid=?", "SELECT * FROM t_order WHERE uid=123", "tdsql_check", "set_1", 500, 200.5, 150.0, 300.0, 800000, 100, "全表扫描", "ERROR", "", "", "{}", 1, now, now, "pending"),
-            ("UPDATE t_user SET name=? WHERE id=?", "UPDATE t_user SET name='test' WHERE id=1", "tdsql_check", "set_1", 200, 100.0, 80.0, 150.0, 50000, 1, "锁等待严重", "WARNING", "", "", "{}", 2, now, now, "pending"),
-            ("SELECT * FROM t_order WHERE uid=?", "SELECT * FROM t_order WHERE uid=456", "tdsql_check", "set_1", 300, 180.0, 120.0, 250.0, 600000, 50, "全表扫描", "ERROR", "", "", "{}", 1, now, now, "pending"),
-            # set_2: 2条
-            ("SELECT * FROM t_order WHERE uid=?", "SELECT * FROM t_order WHERE uid=789", "tdsql_check", "set_2", 400, 220.0, 160.0, 280.0, 700000, 80, "全表扫描", "ERROR", "", "", "{}", 1, now, now, "pending"),
-            ("DELETE FROM t_log WHERE created<?", "DELETE FROM t_log WHERE created<'2026-01-01'", "tdsql_check", "set_2", 50, 500.0, 400.0, 600.0, 2000000, 0, "扫描行数过多", "WARNING", "", "", "{}", 2, now, now, "pending"),
-            # set_3: 1条
-            ("SELECT * FROM t_order WHERE uid=?", "SELECT * FROM t_order WHERE uid=999", "tdsql_check", "set_3", 600, 300.0, 200.0, 400.0, 900000, 120, "全表扫描", "ERROR", "", "", "{}", 1, now, now, "pending"),
-        ]
-        for row in test_data:
-            conn.execute("""
-                INSERT INTO slow_queries (fingerprint, sql_text, db_name, set_id, exec_count,
-                    total_time_ms, avg_time_ms, max_time_ms, rows_examined, rows_sent,
-                    problem_type, severity, root_cause, suggestion, analysis_json,
-                    scan_task_id, first_seen, last_seen, status)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-            """, row)
-        conn.commit()
-        conn.close()
-
-    yield db_path
-
-    # 清理
-    os.unlink(db_path)
+    # 清理种子数据
+    conn = _get_connection()
+    conn.execute("DELETE FROM slow_queries WHERE db_name = 'tdsql_check'")
+    conn.commit()
+    conn.close()
 
 
 @pytest.fixture(scope="module")
 def client(test_db):
     """创建测试客户端"""
-    with patch("backend.services.slow_query_service.DB_PATH", Path(test_db)), \
-         patch("backend.services.database.DB_PATH", Path(test_db)):
+    from backend.main import app
+    from backend.api import tdsql_manage
+    # Mock连接池
+    mock_pool = MagicMock()
+    mock_pool.config = MagicMock()
+    mock_pool.config.database = "tdsql_check"
+    mock_pool.config.host = "192.168.1.100"
+    mock_pool.config.port = 3306
+    tdsql_manage._pool = mock_pool
 
-        # 重置 database 模块的初始化标志
-        import backend.services.database as db_mod
-        db_mod._db_initialized = True  # 避免重复初始化
-
-        from backend.main import app
-        from backend.api import tdsql_manage
-        # Mock连接池
-        mock_pool = MagicMock()
-        mock_pool.config = MagicMock()
-        mock_pool.config.database = "tdsql_check"
-        mock_pool.config.host = "192.168.1.100"
-        mock_pool.config.port = 3306
-        tdsql_manage._pool = mock_pool
-
-        with TestClient(app) as c:
-            yield c
-        # 清理V1.0兼容测试席位，避免污染后续"未连接"用例
-        tdsql_manage._pool = None
+    with TestClient(app) as c:
+        yield c
+    # 清理V1.0兼容测试席位，避免污染后续"未连接"用例
+    tdsql_manage._pool = None
 
 
 # ── 1. SET发现机制 ──────────────────────────────────────

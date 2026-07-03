@@ -6,8 +6,6 @@
 """
 import os
 import re
-import sqlite3
-import tempfile
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
@@ -17,46 +15,35 @@ from fastapi.testclient import TestClient
 
 @pytest.fixture(scope="module")
 def test_db():
-    """创建临时测试数据库"""
-    fd, db_path = tempfile.mkstemp(suffix=".db")
-    os.close(fd)
-    with patch("backend.services.slow_query_service.DB_PATH", Path(db_path)), \
-         patch("backend.services.database.DB_PATH", Path(db_path)):
-        import backend.services.database as db_mod
-        db_mod._db_initialized = False
-        from backend.services.database import ensure_db
-        ensure_db()
-    yield db_path
-    os.unlink(db_path)
+    """确保MySQL测试库初始化（V2.1: 系统库已迁移到MySQL，不再使用临时SQLite文件）"""
+    from backend.services.database import ensure_db
+    ensure_db()
+    yield "mysql"
 
 
 @pytest.fixture
 def client(test_db):
-    """每个测试独立的客户端"""
-    conn = sqlite3.connect(test_db)
+    """每个测试独立的客户端（每次重置慢SQL相关数据）"""
+    from backend.services.database import _get_connection
+    conn = _get_connection()
     conn.execute("DELETE FROM slow_queries")
     conn.execute("DELETE FROM scan_tasks")
     conn.commit()
     conn.close()
 
-    with patch("backend.services.slow_query_service.DB_PATH", Path(test_db)), \
-         patch("backend.services.database.DB_PATH", Path(test_db)):
-        import backend.services.database as db_mod
-        db_mod._db_initialized = True
+    from backend.main import app
+    from backend.api import tdsql_manage
+    mock_pool = MagicMock()
+    mock_pool.config = MagicMock()
+    mock_pool.config.database = "tdsql_check"
+    mock_pool.config.host = "192.168.1.100"
+    mock_pool.config.port = 3306
+    tdsql_manage._pool = mock_pool
 
-        from backend.main import app
-        from backend.api import tdsql_manage
-        mock_pool = MagicMock()
-        mock_pool.config = MagicMock()
-        mock_pool.config.database = "tdsql_check"
-        mock_pool.config.host = "192.168.1.100"
-        mock_pool.config.port = 3306
-        tdsql_manage._pool = mock_pool
-
-        with TestClient(app) as c:
-            yield c
-        # 清理V1.0兼容测试席位，避免污染后续"未连接"用例
-        tdsql_manage._pool = None
+    with TestClient(app) as c:
+        yield c
+    # 清理V1.0兼容测试席位，避免污染后续"未连接"用例
+    tdsql_manage._pool = None
 
 
 # ── UAT-1: 前端HTML结构验证 ─────────────────────────────

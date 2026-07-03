@@ -17,3 +17,11 @@ os.environ.setdefault("AUTH_ENABLED", "false")
 os.environ.setdefault("DATA_MASKING_ENABLED", "false")
 os.environ.setdefault("GITLAB_WEBHOOK_ALLOW_INSECURE", "true")
 os.environ.setdefault("SCHEDULER_ENABLED", "false")
+
+# V2.1: 系统元数据库为MySQL。测试使用独立的测试库(tdsql_sqlcheck_test)，
+# 与部署库(tdsql_sqlcheck)隔离，避免测试数据污染。
+os.environ.setdefault("SQLCHECK_DB_HOST", "127.0.0.1")
+os.environ.setdefault("SQLCHECK_DB_PORT", "13306")
+os.environ.setdefault("SQLCHECK_DB_USER", "root")
+os.environ.setdefault("SQLCHECK_DB_PASSWORD", "tdsql_test_2024")
+os.environ.setdefault("SQLCHECK_DB_NAME", "tdsql_sqlcheck_test")

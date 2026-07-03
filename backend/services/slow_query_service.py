@@ -4,6 +4,7 @@ TDSQL SQL审核工具 - 慢SQL服务层
 提供慢SQL的管理、分析和优化建议服务。
 """
 import json
+import re
 from datetime import datetime
 from typing import Optional
 
@@ -276,7 +277,6 @@ class SlowQueryService:
         # ? 在指纹SQL中代表参数值位置，EXPLAIN只需要执行计划，值不影响结果
         processed_sql = sql.strip().rstrip(';')
         if '?' in processed_sql:
-            import re
             # 将独立的 ? 替换为 '1'（引号包裹，兼容字符串和数字上下文）
             processed_sql = re.sub(r"(?<!['\"\w])\?(?!['\"\w])", "'1'", processed_sql)
 
@@ -292,17 +292,28 @@ class SlowQueryService:
         explain_data = []
         for row in rows:
             if isinstance(row, dict):
-                explain_data.append(dict(row))
+                raw = dict(row)
             else:
-                row_dict = {}
-                for i, col in enumerate(columns):
-                    row_dict[col] = row[i]
-                explain_data.append(row_dict)
+                raw = {col: row[i] for i, col in enumerate(columns)}
+            # 键归一化: 真实EXPLAIN返回 'Extra'(首字母大写)，分析器按小写键取值；
+            # 数值列(rows/filtered)可能为Decimal/None，统一转为分析器可比较的类型
+            normalized = {}
+            for k, v in raw.items():
+                key = k.lower()
+                if key in ("rows",):
+                    normalized[key] = int(v) if v is not None else 0
+                elif key in ("filtered",):
+                    normalized[key] = float(v) if v is not None else 100.0
+                elif v is None:
+                    normalized[key] = ""
+                else:
+                    normalized[key] = str(v) if not isinstance(v, (int, float)) else v
+            explain_data.append(normalized)
 
         # 调用已有的分析方法
         result = self.analyze_explain(explain_data)
         result["explain_rows"] = explain_data
-        result["explain_columns"] = columns
+        result["explain_columns"] = [c.lower() for c in columns]
         result["executed_sql"] = processed_sql
         return result
 

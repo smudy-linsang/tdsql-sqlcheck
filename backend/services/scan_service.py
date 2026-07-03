@@ -63,6 +63,9 @@ def run_scan(connection_id: Optional[str] = None, source: str = "digest",
     if source == "digest" and (not time_window_start or not time_window_end):
         raise ValueError("时间窗口开始和结束时间为必填项，请指定扫描时间范围（记录为任务元数据）")
 
+    if time_window_start and time_window_end and time_window_start > time_window_end:
+        raise ValueError("时间窗口开始时间不能晚于结束时间")
+
     conn_key = connection_id or "default"
 
     with registry.scan_slot(conn_key):

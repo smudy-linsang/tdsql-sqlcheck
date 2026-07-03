@@ -178,14 +178,14 @@ class TestRetention:
         # 幂等: 清理历史运行残留
         conn.execute("DELETE FROM slow_queries WHERE fingerprint IN "
                      "('old_fp_retention', 'new_fp_retention')")
-        # 插入一条过期记录和一条新记录
+        # 插入一条过期记录和一条新记录（MySQL日期函数）
         conn.execute("""
             INSERT INTO slow_queries(fingerprint, sql_text, db_name, created_at)
-            VALUES ('old_fp_retention', 'SELECT 1', 'ret_test', datetime('now', '-400 days'))
+            VALUES ('old_fp_retention', 'SELECT 1', 'ret_test', DATE_SUB(NOW(), INTERVAL 400 DAY))
         """)
         conn.execute("""
             INSERT INTO slow_queries(fingerprint, sql_text, db_name, created_at)
-            VALUES ('new_fp_retention', 'SELECT 2', 'ret_test', datetime('now'))
+            VALUES ('new_fp_retention', 'SELECT 2', 'ret_test', NOW())
         """)
         conn.commit()
         conn.close()

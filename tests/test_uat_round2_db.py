@@ -300,7 +300,11 @@ class TestUAT47_SlowQueryFetch:
 
     @pytest.mark.skipif(not MYSQL_AVAILABLE, reason=SKIP_REASON)
     def test_uat47_02_fetch_from_slow_log(self, connected_client):
-        """测试从slow_log抓取慢SQL"""
+        """slow_log数据源已按TDSQL分布式架构移除，应返回400并给出说明
+
+        （TDSQL分布式实例的SET不记录mysql.slow_log，慢日志由Proxy层统一管理，
+        自slow_log重构后仅支持 digest/processlist 两个数据源）
+        """
         resp = connected_client.post("/api/v1/tdsql/slow-queries/fetch", json={
             "source": "slow_log",
             "limit": 10,
@@ -308,9 +312,8 @@ class TestUAT47_SlowQueryFetch:
             "time_window_start": "2026-01-01 00:00:00",
             "time_window_end": "2026-12-31 23:59:59",
         })
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["source"] == "slow_log"
+        assert resp.status_code == 400
+        assert "slow_log" in resp.json()["detail"]
 
     @pytest.mark.skipif(not MYSQL_AVAILABLE, reason=SKIP_REASON)
     def test_uat47_03_fetch_from_processlist(self, connected_client):
@@ -654,9 +657,11 @@ class TestUAT52_ConnectionManagement:
         data = resp.json()
         assert "connections" in data
         assert len(data["connections"]) >= 1
-        # 密码不应返回
+        # V2.0契约: 密码脱敏为 *** 展示，密文字段绝不返回
         for conn in data["connections"]:
-            assert "password" not in conn
+            assert conn.get("password") in (None, "***"), "密码必须脱敏"
+            assert "password_encrypted" not in conn, "密文字段不得返回"
+            assert TDSQL_TEST_CONFIG["password"] not in str(conn), "明文密码泄漏"
         # 清理
         client.delete(f"/api/v1/tdsql/connections/{conn_id}")
 

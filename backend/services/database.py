@@ -83,7 +83,15 @@ class _MySQLCompatCursor:
                     row[k] = str(v)
             return row
         return row
-    
+
+    def __iter__(self):
+        """支持 for row in cursor 迭代（兼容sqlite3游标行为）"""
+        while True:
+            row = self.fetchone()
+            if row is None:
+                return
+            yield row
+
     @property
     def lastrowid(self):
         return self._cursor.lastrowid
@@ -170,14 +178,33 @@ class _MySQLCompatConnection:
 
 def _get_connection() -> _MySQLCompatConnection:
     """获取MySQL数据库连接（兼容SQLite代码风格）
-    
+
     返回一个包装后的连接对象，支持:
     - conn.execute(sql, params)  直接执行（自动 ? → %s）
     - conn.cursor().execute(sql, params)  通过游标执行
     - conn.executescript(sql)  批量执行
     - conn.commit() / conn.close()
+
+    元数据库不存在时自动创建（全新部署引导，errno 1049）。
     """
-    raw_conn = pymysql.connect(**MYSQL_CONFIG)
+    try:
+        raw_conn = pymysql.connect(**MYSQL_CONFIG)
+    except pymysql.err.OperationalError as e:
+        if e.args and e.args[0] == 1049:  # Unknown database
+            bootstrap_cfg = {k: v for k, v in MYSQL_CONFIG.items() if k != "database"}
+            boot_conn = pymysql.connect(**bootstrap_cfg)
+            try:
+                with boot_conn.cursor() as cur:
+                    cur.execute(
+                        f"CREATE DATABASE IF NOT EXISTS `{MYSQL_CONFIG['database']}` "
+                        f"DEFAULT CHARACTER SET utf8mb4")
+                boot_conn.commit()
+                logger.info("元数据库 %s 不存在，已自动创建", MYSQL_CONFIG['database'])
+            finally:
+                boot_conn.close()
+            raw_conn = pymysql.connect(**MYSQL_CONFIG)
+        else:
+            raise
     return _MySQLCompatConnection(raw_conn)
 
 
@@ -230,7 +257,11 @@ def _execute_sql(conn, sql: str, params=None):
 
 
 def _executescript(conn, sql_script: str):
-    """执行多条SQL（按分号分割，MySQL不原生支持executescript）"""
+    """执行多条SQL（按分号分割，MySQL不原生支持executescript）
+
+    单条失败时回滚并记录警告后继续后续语句（幂等DDL场景），
+    不做重复执行（避免同一错误二次抛出）。
+    """
     # 移除注释行
     lines = []
     for line in sql_script.split('\n'):
@@ -255,9 +286,8 @@ def _executescript(conn, sql_script: str):
         try:
             conn.cursor().execute(stmt)
         except Exception as e:
-            logger.warning(f"SQL执行警告(可忽略): {str(e)[:100]}")
+            logger.warning(f"SQL执行警告(已跳过): {str(e)[:100]}")
             conn.rollback()
-            conn.cursor().execute(stmt)
 
 
 def _table_exists(conn, table_name: str) -> bool:

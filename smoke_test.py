@@ -54,14 +54,19 @@ try:
     init_rule_configs()
     ok("init_rule_configs() 执行成功")
 
+    # V2.1: 系统库为MySQL，通过 information_schema 检查表结构
+    from backend.services.database import MYSQL_CONFIG
     conn = _get_connection()
-    tables = [r[0] for r in conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
-    ).fetchall()]
+    rows = conn.execute(
+        "SELECT TABLE_NAME AS tn FROM information_schema.tables "
+        "WHERE TABLE_SCHEMA = ? ORDER BY TABLE_NAME",
+        (MYSQL_CONFIG["database"],)
+    ).fetchall()
+    tables = [r["tn"] for r in rows]
     conn.close()
 
     expected_tables = [
-        # V1.0实际20张业务表 + schema_version
+        # V2.0核心业务表 + schema_version
         "slow_queries", "audit_history", "audit_results",
         "rule_configs", "rule_whitelist",
         "gate_rules", "gate_audit_logs",
@@ -72,6 +77,9 @@ try:
         "alerts", "alert_rules",
         "projects", "operation_logs",
         "fingerprint_stats", "optimization_records",
+        # V2.0新增
+        "users", "rule_sets", "rule_set_items",
+        "scan_schedules", "retention_policies", "scheduler_lease",
     ]
     for t in expected_tables:
         if t in tables:
@@ -81,7 +89,7 @@ try:
 
     # 检查规则配置
     conn = _get_connection()
-    rule_count = conn.execute("SELECT COUNT(*) FROM rule_configs").fetchone()[0]
+    rule_count = conn.execute("SELECT COUNT(*) AS cnt FROM rule_configs").fetchone()["cnt"]
     conn.close()
     if rule_count >= 76:
         ok(f"规则配置表有 {rule_count} 条规则")

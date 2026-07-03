@@ -24,7 +24,7 @@
 ### 🗄️ 多实例连接管理（V2.0重构）
 
 - 连接注册表：`connection_id → 连接池`，数百实例并存，LRU淘汰+空闲回收
-- 连接配置持久化到 SQLite，密码 **Fernet AES 加密**存储（密钥来自环境变量/密钥文件）
+- 连接配置持久化到系统 MySQL 元数据库，密码 **Fernet AES 加密**存储（密钥来自环境变量/密钥文件）
 - 所有查询类 API 支持 `connection_id` 参数路由到指定实例
 - 扫描限流：按连接 + 全局双重并发信号量，保护目标库
 
@@ -82,7 +82,7 @@
 | 数据库连接 | pymysql |
 | 加密 | cryptography (Fernet AES) |
 | 前端 | Vue 3 / Element Plus / ECharts（**全部本地化，纯内网可用**） |
-| 存储 | SQLite（嵌入式；集中式存储迁移方案见设计文档） |
+| 存储 | MySQL 5.7+/8.0（V2.1 系统元数据库，支撑生产级并发与多副本；环境变量 SQLCHECK_DB_* 配置） |
 
 ## 快速开始
 
@@ -95,6 +95,12 @@ pip install -r requirements.txt
 ### 2. 生产环境必要配置
 
 ```bash
+# 系统元数据库（V2.1: MySQL，替代SQLite）
+export SQLCHECK_DB_HOST=127.0.0.1
+export SQLCHECK_DB_PORT=3306
+export SQLCHECK_DB_USER=sqlcheck
+export SQLCHECK_DB_PASSWORD='<元数据库口令>'
+export SQLCHECK_DB_NAME=tdsql_sqlcheck   # 不存在时自动创建
 # 认证令牌签名密钥（多副本必须统一；未配置则自动生成密钥文件）
 export AUTH_SECRET_KEY='<从KMS/配置中心注入的随机密钥>'
 # 连接密码加密密钥
