@@ -253,24 +253,24 @@ class ConnectionRegistry:
             if not conn_id:
                 # 同 host:port:database 视为同一连接，更新
                 row = conn.execute(
-                    "SELECT id FROM tdsql_connections WHERE host=? AND port=? AND database=?",
+                    "SELECT id FROM tdsql_connections WHERE host=? AND port=? AND `database`=?",
                     (host, port, database)).fetchone()
                 conn_id = row["id"] if row else uuid.uuid4().hex[:8]
             if is_default:
                 conn.execute("UPDATE tdsql_connections SET is_default = 0")
             conn.execute("""
                 INSERT INTO tdsql_connections
-                    (id, name, host, port, username, password_encrypted, database,
+                    (id, name, host, port, username, password_encrypted, `database`,
                      charset, is_default, is_distributed, description, status, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'disconnected', NOW())
-                ON CONFLICT(id) DO UPDATE SET
-                    name=excluded.name, host=excluded.host, port=excluded.port,
-                    username=excluded.username,
-                    password_encrypted=excluded.password_encrypted,
-                    database=excluded.database, charset=excluded.charset,
-                    is_default=excluded.is_default,
-                    is_distributed=excluded.is_distributed,
-                    description=excluded.description, updated_at=NOW()
+                ON DUPLICATE KEY UPDATE
+                    name=VALUES(name), host=VALUES(host), port=VALUES(port),
+                    username=VALUES(username),
+                    password_encrypted=VALUES(password_encrypted),
+                    `database`=VALUES(`database`), charset=VALUES(charset),
+                    is_default=VALUES(is_default),
+                    is_distributed=VALUES(is_distributed),
+                    description=VALUES(description), updated_at=NOW()
             """, (conn_id, name or f"{host}:{port}", host, port, username,
                   encrypt_password(password), database, charset,
                   1 if is_default else 0, 1 if is_distributed else 0, description))

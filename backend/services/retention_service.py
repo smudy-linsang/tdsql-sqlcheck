@@ -54,9 +54,9 @@ class RetentionService:
             conn.execute("""
                 INSERT INTO retention_policies(table_name, retention_days, enabled, updated_at)
                 VALUES (?, ?, ?, NOW())
-                ON CONFLICT(table_name) DO UPDATE SET
-                    retention_days=excluded.retention_days,
-                    enabled=excluded.enabled,
+                ON DUPLICATE KEY UPDATE
+                    retention_days=VALUES(retention_days),
+                    enabled=VALUES(enabled),
                     updated_at=NOW()
             """, (table_name, retention_days, 1 if enabled else 0))
             conn.commit()
