@@ -31,7 +31,7 @@ class MonitorService:
         conn = _get_connection()
         try:
             conn.execute("""
-                INSERT OR REPLACE INTO alert_rules
+                REPLACE INTO alert_rules
                 (metric_name, warning_threshold, urgent_threshold, check_interval_sec,
                  notify_webhook, notify_email, enabled, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)

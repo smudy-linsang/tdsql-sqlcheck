@@ -53,11 +53,11 @@ class RetentionService:
         try:
             conn.execute("""
                 INSERT INTO retention_policies(table_name, retention_days, enabled, updated_at)
-                VALUES (?, ?, ?, datetime('now'))
+                VALUES (?, ?, ?, NOW())
                 ON CONFLICT(table_name) DO UPDATE SET
                     retention_days=excluded.retention_days,
                     enabled=excluded.enabled,
-                    updated_at=datetime('now')
+                    updated_at=NOW()
             """, (table_name, retention_days, 1 if enabled else 0))
             conn.commit()
             log_operation(operator, "set_retention_policy", "retention",

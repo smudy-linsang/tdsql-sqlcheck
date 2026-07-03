@@ -9,10 +9,8 @@ TDSQL SQL审核工具 - 审核报告PDF导出服务
 import json
 import logging
 import os
-import sqlite3
 from datetime import datetime
 from io import BytesIO
-from pathlib import Path
 from typing import Optional
 
 from backend.config import REPORT_OUTPUT_DIR
@@ -39,17 +37,7 @@ try:
 except ImportError:
     HAS_REPORTLAB = False
 
-# 数据库路径
-DB_PATH = Path(__file__).parent.parent.parent / "data" / "tdsql_check.db"
-
-
-def _get_connection() -> sqlite3.Connection:
-    """获取数据库连接（WAL模式 + 超时）"""
-    conn = sqlite3.connect(str(DB_PATH), timeout=30)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA busy_timeout=5000")
-    return conn
+from backend.services.database import _get_connection
 
 # ── 中文字体注册 ──
 _font_registered = False

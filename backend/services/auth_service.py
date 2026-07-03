@@ -328,7 +328,7 @@ class AuthService:
                         minutes=config.auth_lock_minutes())).isoformat()
                 conn.execute(
                     "UPDATE users SET failed_attempts = ?, locked_until = ?, "
-                    "updated_at = datetime('now') WHERE username = ?",
+                    "updated_at = NOW() WHERE username = ?",
                     (failures, locked_until, username))
                 conn.commit()
                 log_operation(username, "login_failed", "user", username,
@@ -340,7 +340,7 @@ class AuthService:
             # 认证成功：清零失败计数
             conn.execute(
                 "UPDATE users SET failed_attempts = 0, locked_until = NULL, "
-                "last_login_at = datetime('now'), updated_at = datetime('now') "
+                "last_login_at = NOW(), updated_at = NOW() "
                 "WHERE username = ?", (username,))
             conn.commit()
             _user_cache.pop(username, None)
@@ -387,7 +387,7 @@ class AuthService:
             pw_hash, salt = hash_password(new_password)
             conn.execute(
                 "UPDATE users SET password_hash = ?, salt = ?, must_change_password = 0, "
-                "updated_at = datetime('now') WHERE username = ?",
+                "updated_at = NOW() WHERE username = ?",
                 (pw_hash, salt, username))
             conn.commit()
             _user_cache.pop(username, None)
@@ -470,7 +470,7 @@ class AuthService:
                 sets.append("status = ?"); params.append(status)
             if not sets:
                 return None
-            sets.append("updated_at = datetime('now')")
+            sets.append("updated_at = NOW()")
             params.append(username)
             conn.execute(f"UPDATE users SET {', '.join(sets)} WHERE username = ?", params)
             conn.commit()
@@ -497,7 +497,7 @@ class AuthService:
             pw_hash, salt = hash_password(new_password)
             conn.execute(
                 "UPDATE users SET password_hash = ?, salt = ?, must_change_password = 1, "
-                "failed_attempts = 0, locked_until = NULL, updated_at = datetime('now') "
+                "failed_attempts = 0, locked_until = NULL, updated_at = NOW() "
                 "WHERE username = ?", (pw_hash, salt, username))
             conn.commit()
             _user_cache.pop(username, None)
@@ -517,7 +517,7 @@ class AuthService:
                 return "用户不存在"
             conn.execute(
                 "UPDATE users SET failed_attempts = 0, locked_until = NULL, "
-                "updated_at = datetime('now') WHERE username = ?", (username,))
+                "updated_at = NOW() WHERE username = ?", (username,))
             conn.commit()
             _user_cache.pop(username, None)
             log_operation(operator, "unlock_user", "user", username)

@@ -262,7 +262,7 @@ class ConnectionRegistry:
                 INSERT INTO tdsql_connections
                     (id, name, host, port, username, password_encrypted, database,
                      charset, is_default, is_distributed, description, status, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'disconnected', datetime('now'))
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'disconnected', NOW())
                 ON CONFLICT(id) DO UPDATE SET
                     name=excluded.name, host=excluded.host, port=excluded.port,
                     username=excluded.username,
@@ -270,7 +270,7 @@ class ConnectionRegistry:
                     database=excluded.database, charset=excluded.charset,
                     is_default=excluded.is_default,
                     is_distributed=excluded.is_distributed,
-                    description=excluded.description, updated_at=datetime('now')
+                    description=excluded.description, updated_at=NOW()
             """, (conn_id, name or f"{host}:{port}", host, port, username,
                   encrypt_password(password), database, charset,
                   1 if is_default else 0, 1 if is_distributed else 0, description))
@@ -353,7 +353,7 @@ class ConnectionRegistry:
                 return False
             conn.execute("UPDATE tdsql_connections SET is_default = 0")
             conn.execute(
-                "UPDATE tdsql_connections SET is_default = 1, updated_at = datetime('now') "
+                "UPDATE tdsql_connections SET is_default = 1, updated_at = NOW() "
                 "WHERE id = ?", (conn_id,))
             conn.commit()
             return True
@@ -366,7 +366,7 @@ class ConnectionRegistry:
         try:
             conn.execute(
                 "UPDATE tdsql_connections SET status = 'connected', "
-                "last_connected_at = datetime('now') WHERE id = ?", (conn_id,))
+                "last_connected_at = NOW() WHERE id = ?", (conn_id,))
             conn.commit()
         finally:
             conn.close()

@@ -4,9 +4,7 @@ TDSQL SQL审核工具 - 审核治理概览 API
 提供审核拦截效果、慢SQL治理进展和高频违规规则的统计概览数据。
 """
 import json
-import sqlite3
 from datetime import datetime, timedelta
-from pathlib import Path
 
 from fastapi import APIRouter
 
@@ -38,20 +36,16 @@ def _get_rule_stats() -> dict:
     except Exception:
         return {"total": 77, "enabled": 77, "by_category": {}}
 
-DB_PATH = Path(__file__).parent.parent.parent / "data" / "tdsql_check.db"
-
-
-def _get_connection() -> sqlite3.Connection:
-    """获取数据库连接（WAL模式 + 超时）"""
-    conn = sqlite3.connect(str(DB_PATH), timeout=30)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA busy_timeout=5000")
-    return conn
+from backend.services.database import _get_connection, ensure_db
 
 
 def _db_exists() -> bool:
-    return DB_PATH.exists()
+    """数据库是否可用"""
+    try:
+        ensure_db()
+        return True
+    except Exception:
+        return False
 
 
 @router.get("/summary", summary="获取审核治理概览数据")

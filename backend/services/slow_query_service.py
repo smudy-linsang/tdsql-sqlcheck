@@ -4,9 +4,7 @@ TDSQL SQL审核工具 - 慢SQL服务层
 提供慢SQL的管理、分析和优化建议服务。
 """
 import json
-import sqlite3
 from datetime import datetime
-from pathlib import Path
 from typing import Optional
 
 from backend import config
@@ -17,96 +15,13 @@ from backend.engine.slow_analyzer import (
 )
 
 
-# 数据库路径
-DB_DIR = Path(__file__).parent.parent.parent / "data"
-DB_PATH = DB_DIR / "tdsql_check.db"
-
-
-def _get_connection() -> sqlite3.Connection:
-    """获取数据库连接（WAL模式 + 超时设置，避免并发写入冲突）"""
-    DB_DIR.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(DB_PATH), timeout=30)
-    conn.row_factory = sqlite3.Row
-    # 启用WAL模式，提升并发读写性能
-    conn.execute("PRAGMA journal_mode=WAL")
-    # 设置busy超时，避免 "database is locked" 错误
-    conn.execute("PRAGMA busy_timeout=5000")
-    return conn
-
-
-def init_db():
-    """初始化数据库表"""
-    conn = _get_connection()
-    try:
-        conn.executescript("""
-            CREATE TABLE IF NOT EXISTS slow_queries (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                fingerprint TEXT NOT NULL,
-                sql_text TEXT NOT NULL,
-                db_name TEXT DEFAULT '',
-                set_id TEXT DEFAULT '',           -- 来源 SET（如 set_1），非分布式为空
-                exec_count INTEGER DEFAULT 0,
-                total_time_ms REAL DEFAULT 0,
-                avg_time_ms REAL DEFAULT 0,
-                max_time_ms REAL DEFAULT 0,
-                rows_examined INTEGER DEFAULT 0,
-                rows_sent INTEGER DEFAULT 0,
-                lock_time_ms REAL DEFAULT 0,
-                first_seen TEXT,
-                last_seen TEXT,
-                problem_type TEXT DEFAULT '',
-                severity TEXT DEFAULT 'INFO',
-                root_cause TEXT DEFAULT '',
-                suggestion TEXT DEFAULT '',
-                optimized_sql TEXT DEFAULT '',
-                status TEXT DEFAULT 'pending',
-                analysis_json TEXT DEFAULT '{}',
-                scan_task_id INTEGER,
-                created_at TEXT DEFAULT (datetime('now')),
-                updated_at TEXT DEFAULT (datetime('now'))
-            );
-
-            CREATE TABLE IF NOT EXISTS audit_history (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                audit_type TEXT NOT NULL,
-                source TEXT DEFAULT '',
-                total_sql INTEGER DEFAULT 0,
-                passed INTEGER DEFAULT 0,
-                failed INTEGER DEFAULT 0,
-                error_count INTEGER DEFAULT 0,
-                warning_count INTEGER DEFAULT 0,
-                pass_rate REAL DEFAULT 0,
-                results_json TEXT DEFAULT '[]',
-                created_at TEXT DEFAULT (datetime('now'))
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_slow_fingerprint ON slow_queries(fingerprint);
-            CREATE INDEX IF NOT EXISTS idx_slow_db ON slow_queries(db_name);
-            CREATE INDEX IF NOT EXISTS idx_slow_set_id ON slow_queries(set_id);
-            CREATE INDEX IF NOT EXISTS idx_slow_status ON slow_queries(status);
-            CREATE INDEX IF NOT EXISTS idx_audit_type ON audit_history(audit_type);
-        """)
-        conn.commit()
-    finally:
-        conn.close()
-
-
-_db_initialized = False
-
-
-def _ensure_db():
-    """确保数据库已初始化（懒加载）"""
-    global _db_initialized
-    if not _db_initialized:
-        init_db()
-        _db_initialized = True
+from backend.services.database import _get_connection, ensure_db
 
 
 class SlowQueryService:
     """慢SQL服务"""
 
     def __init__(self):
-        from backend.services.database import ensure_db
         ensure_db()
         self.analyzer = SlowSQLAnalyzer()
 

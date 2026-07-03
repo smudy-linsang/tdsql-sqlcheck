@@ -109,7 +109,7 @@ class GateService:
         conn = _get_connection()
         try:
             conn.execute("""
-                INSERT OR REPLACE INTO gate_rules
+                REPLACE INTO gate_rules
                 (project_id, max_error_count, max_warning_count, required_rules, blocked_rules, description, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
             """, (

@@ -61,7 +61,7 @@ def _try_acquire_lease() -> bool:
                 "SELECT holder, expires_at FROM scheduler_lease WHERE id = 1").fetchone()
             if row is None:
                 conn.execute(
-                    "INSERT OR IGNORE INTO scheduler_lease(id, holder, expires_at) VALUES (1, ?, ?)",
+                    "INSERT IGNORE INTO scheduler_lease(id, holder, expires_at) VALUES (1, ?, ?)",
                     (_HOLDER_ID, expires))
                 conn.commit()
                 # 重新读取确认（并发场景下可能被其他副本抢先）

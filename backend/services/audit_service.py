@@ -10,9 +10,7 @@ V2.0 变更:
 """
 import json
 import logging
-import sqlite3
 from datetime import datetime
-from pathlib import Path
 from typing import Optional
 
 from backend.engine.checker import RuleChecker
@@ -24,8 +22,7 @@ from backend.models import (
 
 logger = logging.getLogger("tdsql.audit_service")
 
-# 数据库路径
-DB_PATH = Path(__file__).parent.parent.parent / "data" / "tdsql_check.db"
+from backend.services.database import _get_connection, ensure_db
 
 
 def _save_audit_history(audit_type: str, source: str, results: list[AuditResult],
@@ -34,11 +31,8 @@ def _save_audit_history(audit_type: str, source: str, results: list[AuditResult]
                         gate_result: Optional[GateResult] = None):
     """保存审核历史到数据库"""
     try:
-        # 确保数据库和表已初始化
-        from backend.services.database import ensure_db
         ensure_db()
-
-        conn = sqlite3.connect(str(DB_PATH))
+        conn = _get_connection()
         try:
             results_json = json.dumps([{
                 "sql": r.sql[:500],

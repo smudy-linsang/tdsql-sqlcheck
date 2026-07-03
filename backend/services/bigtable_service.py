@@ -28,7 +28,7 @@ class BigTableService:
             now = datetime.now().strftime("%Y-%m-%d")
             for bt in big_tables:
                 conn.execute("""
-                    INSERT OR REPLACE INTO bigtable_inventory
+                    REPLACE INTO bigtable_inventory
                     (connection_id, schema_name, table_name, size_gb, size_mb, rows_count,
                      level, is_partitioned, partition_count, has_global_index, shard_key, inspection_date)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -89,7 +89,7 @@ class BigTableService:
         conn = _get_connection()
         try:
             conn.execute("""
-                INSERT OR REPLACE INTO bigtable_classification
+                REPLACE INTO bigtable_classification
                 (connection_id, schema_name, table_name, table_type, table_type_label,
                  retention_days, partition_key, partition_granularity, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)

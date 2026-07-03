@@ -108,7 +108,7 @@ class RulesetService:
                 conn.execute(
                     "UPDATE rule_sets SET name = COALESCE(?, name), "
                     "description = COALESCE(?, description), "
-                    "updated_at = datetime('now') WHERE id = ?",
+                    "updated_at = NOW() WHERE id = ?",
                     (name, description, rule_set_id))
             if items is not None:
                 conn.execute(
