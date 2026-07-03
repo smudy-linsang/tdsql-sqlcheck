@@ -193,8 +193,12 @@ def _run_due_scan_schedules():
     """
     检查并执行到期的扫描计划（每分钟调用，仅leader执行）。
 
-    到期判定: enabled=1 且 (cron_hour, cron_minute) 等于当前时间(分钟精度)
-    且今天尚未执行过。
+    到期判定（V2.1修复，支持积压补跑）: enabled=1 且 今日应跑时刻(cron_hour:cron_minute)
+    已到/已过 且 今天尚未执行过。
+
+    此前按"分钟相等"判定：当大量计划配置在同一时刻、单轮执行超过一分钟时，
+    错过匹配窗口的计划会被跳到次日。改为"已过且未跑"后，
+    积压计划会在后续每分钟tick中依次补跑，规模化接入数百实例时不再丢任务。
     """
     if not _try_acquire_lease():
         return
@@ -209,9 +213,11 @@ def _run_due_scan_schedules():
         try:
             rows = conn.execute("""
                 SELECT * FROM scan_schedules
-                WHERE enabled = 1 AND cron_hour = ? AND cron_minute = ?
+                WHERE enabled = 1
+                  AND (cron_hour < ? OR (cron_hour = ? AND cron_minute <= ?))
                   AND (last_run_at IS NULL OR last_run_at < ?)
-            """, (now.hour, now.minute, today)).fetchall()
+                ORDER BY cron_hour, cron_minute, id
+            """, (now.hour, now.hour, now.minute, today)).fetchall()
             schedules = [dict(r) for r in rows]
         finally:
             conn.close()

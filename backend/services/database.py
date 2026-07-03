@@ -7,6 +7,7 @@ V2.1: 从SQLite迁移到MySQL，支撑生产级并发场景。
 """
 import json
 import logging
+import queue
 import re
 import threading
 import os
@@ -32,6 +33,12 @@ MYSQL_CONFIG = {
     "cursorclass": pymysql.cursors.DictCursor,
     "autocommit": False,
 }
+
+# ── 元数据库连接池（V2.1性能优化：避免每次请求新建TCP连接引发连接风暴） ──
+# 池中保留最多 SQLCHECK_DB_POOL_SIZE 个空闲连接复用；
+# 超出池容量的并发请求按需新建、用完直接关闭（不阻塞排队）。
+POOL_SIZE = int(os.getenv("SQLCHECK_DB_POOL_SIZE", "10"))
+_conn_pool: "queue.Queue" = queue.Queue(maxsize=POOL_SIZE)
 
 
 class _MySQLCompatCursor:
@@ -110,13 +117,17 @@ class _MySQLCompatCursor:
 
 class _MySQLCompatConnection:
     """兼容SQLite风格的MySQL连接包装器
-    
+
     提供 conn.execute() 和 conn.executescript() 方法，
     兼容原有基于sqlite3的代码，无需修改业务层。
+
+    V2.1: close() 将底层连接归还连接池复用（回滚未提交事务后入池），
+    池满或连接异常时才真正关闭。
     """
     def __init__(self, raw_conn):
         self._conn = raw_conn
         self._total_changes = 0
+        self._closed = False
     
     def cursor(self):
         return _MySQLCompatCursor(self._conn.cursor())
@@ -154,12 +165,16 @@ class _MySQLCompatConnection:
     
     def commit(self):
         return self._conn.commit()
-    
+
     def rollback(self):
         return self._conn.rollback()
-    
+
     def close(self):
-        return self._conn.close()
+        """归还连接到池（幂等；异常连接直接关闭）"""
+        if self._closed:
+            return
+        self._closed = True
+        _checkin_connection(self._conn)
     
     @property
     def row_factory(self):
@@ -176,19 +191,10 @@ class _MySQLCompatConnection:
         return self._total_changes
 
 
-def _get_connection() -> _MySQLCompatConnection:
-    """获取MySQL数据库连接（兼容SQLite代码风格）
-
-    返回一个包装后的连接对象，支持:
-    - conn.execute(sql, params)  直接执行（自动 ? → %s）
-    - conn.cursor().execute(sql, params)  通过游标执行
-    - conn.executescript(sql)  批量执行
-    - conn.commit() / conn.close()
-
-    元数据库不存在时自动创建（全新部署引导，errno 1049）。
-    """
+def _create_raw_connection():
+    """新建底层pymysql连接（元数据库不存在时自动创建，errno 1049）"""
     try:
-        raw_conn = pymysql.connect(**MYSQL_CONFIG)
+        return pymysql.connect(**MYSQL_CONFIG)
     except pymysql.err.OperationalError as e:
         if e.args and e.args[0] == 1049:  # Unknown database
             bootstrap_cfg = {k: v for k, v in MYSQL_CONFIG.items() if k != "database"}
@@ -202,10 +208,58 @@ def _get_connection() -> _MySQLCompatConnection:
                 logger.info("元数据库 %s 不存在，已自动创建", MYSQL_CONFIG['database'])
             finally:
                 boot_conn.close()
-            raw_conn = pymysql.connect(**MYSQL_CONFIG)
-        else:
-            raise
-    return _MySQLCompatConnection(raw_conn)
+            return pymysql.connect(**MYSQL_CONFIG)
+        raise
+
+
+def _checkout_connection():
+    """从连接池取连接；空闲连接ping校验，失效则重建；池空则新建"""
+    while True:
+        try:
+            raw = _conn_pool.get_nowait()
+        except queue.Empty:
+            return _create_raw_connection()
+        try:
+            raw.ping(reconnect=False)  # 仅校验存活；失效连接直接淘汰重建
+            return raw
+        except Exception:
+            try:
+                raw.close()
+            except Exception:
+                pass
+            # 继续尝试池中下一个，直至池空新建
+
+
+def _checkin_connection(raw):
+    """归还连接到池：回滚未提交事务后入池；池满或连接异常则关闭"""
+    try:
+        raw.rollback()  # 清理事务状态，避免复用连接携带旧快照/未提交变更
+        _conn_pool.put_nowait(raw)
+    except queue.Full:
+        try:
+            raw.close()
+        except Exception:
+            pass
+    except Exception:
+        try:
+            raw.close()
+        except Exception:
+            pass
+
+
+def _get_connection() -> _MySQLCompatConnection:
+    """获取MySQL数据库连接（兼容SQLite代码风格，V2.1连接池复用）
+
+    返回一个包装后的连接对象，支持:
+    - conn.execute(sql, params)  直接执行（自动 ? → %s）
+    - conn.cursor().execute(sql, params)  通过游标执行
+    - conn.executescript(sql)  批量执行
+    - conn.commit() / conn.close()  close()归还连接池
+
+    连接池容量由 SQLCHECK_DB_POOL_SIZE 控制（默认10）；
+    元数据库不存在时自动创建（全新部署引导）。
+    """
+    return _MySQLCompatConnection(_checkout_connection())
 
 
 def ensure_db():
