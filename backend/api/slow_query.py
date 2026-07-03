@@ -47,8 +47,14 @@ class ExplainRowRequest(BaseModel):
 
 
 class ExplainAnalyzeRequest(BaseModel):
-    """EXPLAIN分析请求"""
+    """EXPLAIN分析请求（JSON模式）"""
     explain_data: list[ExplainRowRequest] = Field(..., description="EXPLAIN输出数据")
+
+
+class ExplainBySqlRequest(BaseModel):
+    """直接用SQL语句分析EXPLAIN"""
+    sql: str = Field(..., description="要分析的SQL语句")
+    connection_id: str = Field(..., description="已保存的TDSQL连接ID")
 
 
 class StatusUpdateRequest(BaseModel):
@@ -176,10 +182,10 @@ async def update_status(slow_id: int, request: StatusUpdateRequest):
     return {"message": "状态更新成功", "status": request.status}
 
 
-@router.post("/analyze-explain", summary="分析EXPLAIN执行计划")
+@router.post("/analyze-explain", summary="分析EXPLAIN执行计划（JSON模式）")
 async def analyze_explain(request: ExplainAnalyzeRequest):
     """
-    传入EXPLAIN输出数据，自动分析执行计划并给出优化建议。
+    传入EXPLAIN输出数据（JSON格式），自动分析执行计划并给出优化建议。
 
     使用方式：
     1. 在MySQL中执行 EXPLAIN SELECT ... 
@@ -188,3 +194,24 @@ async def analyze_explain(request: ExplainAnalyzeRequest):
     """
     explain_data = [row.model_dump() for row in request.explain_data]
     return service.analyze_explain(explain_data)
+
+
+@router.post("/analyze-explain-by-sql", summary="直接用SQL语句分析EXPLAIN")
+async def analyze_explain_by_sql(request: ExplainBySqlRequest):
+    """
+    直接传入SQL语句，系统自动连接目标数据库执行EXPLAIN并分析。
+
+    使用方式：
+    1. 在TDSQL管理中保存一个数据库连接
+    2. 选择该连接，输入要分析的SQL语句
+    3. 系统自动执行 EXPLAIN 并返回分析报告
+    """
+    try:
+        return service.analyze_explain_by_sql(
+            sql=request.sql,
+            connection_id=request.connection_id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"EXPLAIN执行失败: {str(e)}")

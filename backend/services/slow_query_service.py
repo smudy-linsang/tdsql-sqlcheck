@@ -239,6 +239,64 @@ class SlowQueryService:
             } for a in report.analyses],
         }
 
+    def analyze_explain_by_sql(self, sql: str, connection_id: str) -> dict:
+        """
+        直接传入SQL语句，连接目标数据库执行EXPLAIN并分析。
+
+        Args:
+            sql: 要分析的SQL语句（如 SELECT * FROM t WHERE id=1）
+            connection_id: 已保存的TDSQL连接ID
+
+        Returns:
+            分析报告（含原始EXPLAIN结果）
+        """
+        from backend.services.connection_registry import registry
+        from backend.services.tdsql_connector import TDSQLConnectionConfig
+        from backend.services.security_service import decrypt_password
+
+        # 获取已保存的连接配置
+        saved = registry.get_saved(connection_id)
+        if not saved:
+            raise ValueError(f"连接配置不存在: {connection_id}")
+
+        # 构建连接配置
+        cfg = TDSQLConnectionConfig(
+            host=saved["host"],
+            port=saved["port"],
+            user=saved["username"],
+            password=decrypt_password(saved["password_encrypted"]),
+            database=saved["database"] or "",
+            charset=saved["charset"] or "utf8mb4",
+        )
+
+        # 注册连接（如果尚未活跃则自动建连）
+        pool = registry.register(connection_id, cfg, validate=True)
+
+        # 执行 EXPLAIN
+        explain_sql = f"EXPLAIN {sql.strip().rstrip(';')}"
+        with pool.get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(explain_sql)
+                columns = [desc[0] for desc in cursor.description]
+                rows = cursor.fetchall()
+
+        # 转换为分析器所需的字典列表格式（DictCursor已返回字典）
+        explain_data = []
+        for row in rows:
+            if isinstance(row, dict):
+                explain_data.append(dict(row))
+            else:
+                row_dict = {}
+                for i, col in enumerate(columns):
+                    row_dict[col] = row[i]
+                explain_data.append(row_dict)
+
+        # 调用已有的分析方法
+        result = self.analyze_explain(explain_data)
+        result["explain_rows"] = explain_data
+        result["explain_columns"] = columns
+        return result
+
     def get_statistics(self) -> dict:
         """获取慢SQL统计信息"""
         conn = _get_connection()

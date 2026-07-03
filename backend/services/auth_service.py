@@ -182,6 +182,7 @@ _DEVELOPER_WRITE_PREFIXES = (
     "/api/v1/audit/",                       # SQL/文件审核
     "/api/v1/gitlab/audit/",                # diff/仓库审核
     "/api/v1/slow-queries/analyze-explain", # EXPLAIN分析
+    "/api/v1/slow-queries/analyze-explain-by-sql", # EXPLAIN分析(SQL直连)
     "/api/v1/auth/logout",
     "/api/v1/auth/change-password",
 )

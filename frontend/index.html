@@ -734,10 +734,44 @@
       <!-- EXPLAIN分析 -->
       <div v-if="currentPage === 'explain'">
         <div class="page-header"><h2>📈 EXPLAIN执行计划分析</h2></div>
-        <div class="card">
-          <div class="card-title">输入EXPLAIN结果</div>
+
+        <!-- 模式切换 -->
+        <div style="margin-bottom:15px;">
+          <el-radio-group v-model="explainMode">
+            <el-radio-button label="sql">SQL直接分析</el-radio-button>
+            <el-radio-button label="json">JSON粘贴模式</el-radio-button>
+          </el-radio-group>
+        </div>
+
+        <!-- SQL直接分析模式 -->
+        <div v-if="explainMode === 'sql'" class="card">
+          <div class="card-title">输入SQL语句分析执行计划</div>
           <div style="font-size:13px;color:#606266;margin-bottom:10px;">
-            请将MySQL EXPLAIN输出以JSON格式粘贴到下方。格式示例:
+            选择一个已保存的数据库连接，输入SQL语句，系统将自动执行 EXPLAIN 并分析。
+          </div>
+          <div style="margin-bottom:10px;">
+            <label style="font-size:13px;color:#606266;margin-right:8px;">数据库连接：</label>
+            <el-select v-model="explainConnId" placeholder="选择数据库连接" style="width:320px;" @visible-change="(v) => v && loadConnectionsForExplain()">
+              <el-option
+                v-for="conn in savedConnections"
+                :key="conn.id"
+                :label="conn.name + ' (' + conn.host + ':' + conn.port + ')'"
+                :value="conn.id">
+              </el-option>
+            </el-select>
+          </div>
+          <textarea v-model="explainSqlInput" style="width:100%;min-height:120px;padding:10px;font-family:monospace;font-size:13px;border:1px solid #dcdfe6;border-radius:4px;" placeholder='输入要分析的SQL语句，如: SELECT * FROM t_order WHERE user_id = 123'></textarea>
+          <div style="margin-top:10px;">
+            <el-button type="primary" @click="analyzeExplainBySql" :loading="analyzingExplain" :disabled="!explainConnId || !explainSqlInput.trim()">分析执行计划</el-button>
+            <el-button @click="explainSqlInput = 'SELECT * FROM t_order WHERE user_id = 123 ORDER BY create_time DESC LIMIT 10;'">加载示例</el-button>
+          </div>
+        </div>
+
+        <!-- JSON粘贴模式 -->
+        <div v-if="explainMode === 'json'" class="card">
+          <div class="card-title">粘贴EXPLAIN JSON数据</div>
+          <div style="font-size:13px;color:#606266;margin-bottom:10px;">
+            手动在MySQL中执行 EXPLAIN 后，将结果转为JSON粘贴。格式示例:
             <pre style="background:#f5f7fa;padding:8px;border-radius:4px;font-size:12px;margin-top:5px;">[{"id":1,"select_type":"SIMPLE","table":"t_order","type":"ALL","possible_keys":null,"key":null,"rows":850000,"filtered":10.0,"extra":"Using where"}]</pre>
           </div>
           <textarea v-model="explainInput" style="width:100%;min-height:100px;padding:10px;font-family:monospace;font-size:13px;border:1px solid #dcdfe6;border-radius:4px;" placeholder='粘贴EXPLAIN JSON数据...'></textarea>
@@ -747,6 +781,24 @@
           </div>
         </div>
 
+        <!-- EXPLAIN原始结果表格 -->
+        <div v-if="explainResult && explainResult.explain_rows" class="card">
+          <div class="card-title">EXPLAIN原始结果</div>
+          <table style="width:100%;border-collapse:collapse;font-size:12px;">
+            <thead>
+              <tr style="background:#f5f7fa;">
+                <th v-for="col in explainResult.explain_columns" :key="col" style="padding:6px 8px;border:1px solid #ebeef5;text-align:left;">{{ col }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(row, idx) in explainResult.explain_rows" :key="idx">
+                <td v-for="col in explainResult.explain_columns" :key="col" style="padding:6px 8px;border:1px solid #ebeef5;">{{ row[col] }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- 分析结果 -->
         <div v-if="explainResult" class="card">
           <div class="card-title">分析结果</div>
           <div style="margin-bottom:15px;">{{ explainResult.summary }}</div>
@@ -1309,6 +1361,9 @@ const app = createApp({
     const explainInput = ref('');
     const analyzingExplain = ref(false);
     const explainResult = ref(null);
+    const explainMode = ref('sql');
+    const explainSqlInput = ref('');
+    const explainConnId = ref('');
     const stats = ref({ audit: {}, slow_queries: {}, rules: {}, recent_audits: [] });
     const ruleHits = ref([]);
 
@@ -1913,6 +1968,39 @@ const app = createApp({
       }
     };
 
+    const analyzeExplainBySql = async () => {
+      if (!explainSqlInput.value.trim() || !explainConnId.value) return;
+      analyzingExplain.value = true;
+      explainResult.value = null;
+      try {
+        const resp = await apiFetch(`${API_BASE}/api/v1/slow-queries/analyze-explain-by-sql`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sql: explainSqlInput.value, connection_id: explainConnId.value }),
+        });
+        if (!resp.ok) {
+          const err = await resp.json();
+          throw new Error(err.detail || 'EXPLAIN执行失败');
+        }
+        explainResult.value = await resp.json();
+        ElementPlus.ElMessage.success('EXPLAIN分析完成');
+      } catch (e) {
+        ElementPlus.ElMessage.error('分析失败: ' + e.message);
+      } finally {
+        analyzingExplain.value = false;
+      }
+    };
+
+    const loadConnectionsForExplain = async () => {
+      try {
+        const resp = await apiFetch(`${API_BASE}/api/v1/tdsql/connections`);
+        const data = await resp.json();
+        savedConnections.value = data.connections || [];
+      } catch (e) {
+        // 忽略错误，用户可能未登录
+      }
+    };
+
     const loadExplainExample = () => {
       explainInput.value = JSON.stringify([{
         id: 1, select_type: "SIMPLE", table: "t_order", type: "ALL",
@@ -2009,6 +2097,8 @@ const app = createApp({
       loadScanTasks, loadDbNames, loadSetIds, handleSlowFilter, resetSlowFilter, changeSlowPage,
       startScanTask, selectScanTask, sourceLabel,
       explainInput, analyzingExplain, explainResult,
+      explainMode, explainSqlInput, explainConnId,
+      analyzeExplainBySql, loadConnectionsForExplain,
       auditSql, triggerFileInput, handleFileSelect, handleFileDrop,
       showSqlDialog, copySqlToClipboard,
       analyzeExplain, loadExplainExample, loadExample,
