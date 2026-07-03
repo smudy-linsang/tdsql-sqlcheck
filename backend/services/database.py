@@ -416,6 +416,7 @@ def _create_all_tables(conn):
     if _table_exists(conn, "scan_tasks"):
         _add_column_if_not_exists(conn, "scan_tasks", "time_window_start", "VARCHAR(32) DEFAULT ''")
         _add_column_if_not_exists(conn, "scan_tasks", "time_window_end", "VARCHAR(32) DEFAULT ''")
+        _add_column_if_not_exists(conn, "scan_tasks", "created_by", "VARCHAR(64) DEFAULT ''")
 
     table_ddls = [
         # T01. slow_queries
@@ -826,6 +827,7 @@ def _create_all_tables(conn):
             connection_name     VARCHAR(256) DEFAULT '',
             time_window_start   VARCHAR(32) DEFAULT '',
             time_window_end     VARCHAR(32) DEFAULT '',
+            created_by          VARCHAR(64) DEFAULT '',
             total_fetched       INT DEFAULT 0,
             total_analyzed      INT DEFAULT 0,
             status              VARCHAR(32) DEFAULT 'completed',

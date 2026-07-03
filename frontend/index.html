@@ -567,7 +567,20 @@
           </div>
 
           <!-- 扫描任务列表 -->
-          <div v-if="scanTaskLoading" class="empty-state">扫描中，请稍候...</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <span style="font-size:13px;color:#606266;">共 {{ scanTaskTotal }} 个扫描任务</span>
+            <el-pagination
+              v-if="scanTaskTotal > scanTaskPageSize"
+              small
+              layout="prev, pager, next"
+              :total="scanTaskTotal"
+              :page-size="scanTaskPageSize"
+              v-model:current-page="scanTaskCurrentPage"
+              @current-change="loadScanTasks"
+              style="margin:0;"
+            />
+          </div>
+          <div v-if="scanTaskLoading" class="empty-state">加载中，请稍候...</div>
           <div v-else-if="scanTasks.length === 0" class="empty-state">暂无扫描任务</div>
           <div v-for="task in scanTasks" :key="task.id" class="analysis-card"
                :style="{cursor:'pointer', border: slowFilters.scan_task_id == task.id ? '2px solid #409eff' : '1px solid #ebeef5'}"
@@ -578,9 +591,23 @@
                 <span style="margin-left:10px;font-size:12px;color:#909399;">
                   {{ sourceLabel(task.source) }} | 库: {{ task.db_name || '-' }} | {{ task.connection_name || '-' }}
                 </span>
+                <span v-if="task.created_by" style="margin-left:8px;font-size:12px;color:#409eff;">
+                  👤 {{ task.created_by }}
+                </span>
               </div>
-              <div style="font-size:12px;color:#909399;">
-                {{ task.total_fetched }}条 | {{ task.created_at?.substring(0, 19) }}
+              <div style="display:flex;align-items:center;gap:10px;">
+                <span style="font-size:12px;color:#909399;">
+                  {{ task.total_fetched }}条 | {{ task.created_at?.substring(0, 19) }}
+                </span>
+                <el-button
+                  type="danger"
+                  size="small"
+                  circle
+                  icon="Delete"
+                  @click.stop="deleteScanTask(task.id, task.task_name)"
+                  :loading="deletingTaskId === task.id"
+                  title="删除扫描任务"
+                />
               </div>
             </div>
             <div v-if="task.time_window_start || task.time_window_end" style="margin-top:4px;font-size:12px;color:#409eff;">
@@ -1337,6 +1364,10 @@ const app = createApp({
     const slowList = ref([]);
     const slowListLoading = ref(false);
     const scanTasks = ref([]);
+        const scanTaskTotal = ref(0);
+        const scanTaskCurrentPage = ref(1);
+        const scanTaskPageSize = ref(10);
+        const deletingTaskId = ref(null);
     const dbNames = ref([]);
     const slowFilters = reactive({
       db_name: '',
@@ -1772,12 +1803,47 @@ const app = createApp({
 
     const loadScanTasks = async () => {
       try {
-        const resp = await apiFetch(`${API_BASE}/api/v1/slow-queries/scan-tasks?limit=100`);
+        const offset = (scanTaskCurrentPage.value - 1) * scanTaskPageSize.value;
+        const resp = await apiFetch(`${API_BASE}/api/v1/slow-queries/scan-tasks?limit=${scanTaskPageSize.value}&offset=${offset}`);
         if (resp.ok) {
           const data = await resp.json();
           scanTasks.value = data.items || [];
+          scanTaskTotal.value = data.total || 0;
         }
       } catch (e) {}
+    };
+
+    const deleteScanTask = async (taskId, taskName) => {
+      try {
+        await ElementPlus.ElMessageBox.confirm(
+          `确定要删除扫描任务「${taskName}」吗？该任务下的所有慢SQL记录将一并删除。`,
+          '删除确认',
+          { type: 'warning', confirmButtonText: '确定删除', cancelButtonText: '取消' }
+        );
+      } catch (e) {
+        return; // 用户取消
+      }
+      deletingTaskId.value = taskId;
+      try {
+        const resp = await apiFetch(`${API_BASE}/api/v1/slow-queries/scan-tasks/${taskId}`, {
+          method: 'DELETE',
+        });
+        if (resp.ok) {
+          ElementPlus.ElMessage.success('扫描任务已删除');
+          // 如果当前选中的被删除了，清除选中状态
+          if (slowFilters.scan_task_id == taskId) {
+            slowFilters.scan_task_id = '';
+          }
+          loadScanTasks();
+        } else {
+          const err = await resp.json();
+          ElementPlus.ElMessage.error(err.detail || '删除失败');
+        }
+      } catch (e) {
+        ElementPlus.ElMessage.error('删除失败: ' + e.message);
+      } finally {
+        deletingTaskId.value = null;
+      }
     };
 
     const loadProxyConfig = async () => {
@@ -2105,6 +2171,7 @@ const app = createApp({
       analyzeSlowQuery, loadSlowExample, loadSlowList,
       loadScanTasks, loadDbNames, loadSetIds, handleSlowFilter, resetSlowFilter, changeSlowPage,
       startScanTask, selectScanTask, sourceLabel,
+      deleteScanTask, scanTaskTotal, scanTaskCurrentPage, scanTaskPageSize, deletingTaskId,
       explainInput, analyzingExplain, explainResult,
       explainMode, explainSqlInput, explainConnId,
       analyzeExplainBySql, loadConnectionsForExplain,

@@ -98,6 +98,7 @@ def _do_scan(pool, connection_id: str, source: str, limit: int, min_time: float,
         task_name=final_task_name, source=source, db_name=db_name,
         connection_id=connection_id, connection_name=conn_name,
         time_window_start=time_window_start, time_window_end=time_window_end,
+        created_by=operator,
     )
 
     results = []

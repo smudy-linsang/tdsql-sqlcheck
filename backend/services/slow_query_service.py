@@ -373,6 +373,7 @@ class SlowQueryService:
         connection_name: str = "",
         time_window_start: str = "",
         time_window_end: str = "",
+        created_by: str = "",
     ) -> int:
         """创建扫描任务记录，返回任务ID"""
         conn = _get_connection()
@@ -380,11 +381,11 @@ class SlowQueryService:
             cursor = conn.execute(
                 """INSERT INTO scan_tasks
                    (task_name, source, db_name, connection_id, connection_name,
-                    time_window_start, time_window_end,
+                    time_window_start, time_window_end, created_by,
                     total_fetched, total_analyzed, status, created_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 'running', ?)""",
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 'running', ?)""",
                 (task_name, source, db_name, connection_id, connection_name,
-                 time_window_start, time_window_end,
+                 time_window_start, time_window_end, created_by,
                  datetime.now().isoformat()),
             )
             conn.commit()
@@ -440,6 +441,31 @@ class SlowQueryService:
                 stats[r["severity"]] = r["cnt"]
             task["severity_stats"] = stats
             return task
+        finally:
+            conn.close()
+
+    def delete_scan_task(self, task_id: int, operator: str, is_admin: bool = False) -> tuple[bool, str]:
+        """删除扫描任务及其关联的慢SQL记录
+
+        权限: 只有管理员或任务创建者可以删除
+        Returns: (是否成功, 错误信息)
+        """
+        conn = _get_connection()
+        try:
+            row = conn.execute(
+                "SELECT created_by FROM scan_tasks WHERE id = ?", (task_id,)
+            ).fetchone()
+            if not row:
+                return False, "扫描任务不存在"
+            task_creator = row["created_by"] if row["created_by"] else ""
+            if not is_admin and task_creator != operator:
+                return False, "无权删除此扫描任务：只有任务创建者或管理员可以删除"
+            # 先删除关联的慢SQL记录
+            conn.execute("DELETE FROM slow_queries WHERE scan_task_id = ?", (task_id,))
+            # 再删除扫描任务
+            conn.execute("DELETE FROM scan_tasks WHERE id = ?", (task_id,))
+            conn.commit()
+            return True, ""
         finally:
             conn.close()
 

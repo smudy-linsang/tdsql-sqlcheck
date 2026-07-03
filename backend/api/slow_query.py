@@ -5,7 +5,7 @@ TDSQL SQL审核工具 - 慢SQL API
 """
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from backend.engine.slow_analyzer import SlowQueryRecord
@@ -132,6 +132,22 @@ async def get_scan_task_detail(task_id: int):
     if not detail:
         raise HTTPException(status_code=404, detail="扫描任务不存在")
     return detail
+
+
+@router.delete("/scan-tasks/{task_id}", summary="删除扫描任务")
+async def delete_scan_task(task_id: int, request: Request):
+    """
+    删除扫描任务及其关联的慢SQL记录。
+
+    权限: 只有管理员或任务创建者可以删除。
+    """
+    operator = getattr(request.state, "username", "anonymous")
+    role = getattr(request.state, "role", "")
+    is_admin = role == "admin"
+    success, err = service.delete_scan_task(task_id, operator, is_admin)
+    if not success:
+        raise HTTPException(status_code=403 if "无权" in err else 404, detail=err)
+    return {"message": "扫描任务已删除"}
 
 
 @router.get("/db-names", summary="获取数据库名列表")
