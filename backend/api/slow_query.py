@@ -214,4 +214,49 @@ async def analyze_explain_by_sql(request: ExplainBySqlRequest):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"EXPLAIN执行失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=_friendly_error(e))
+
+
+def _friendly_error(e: Exception) -> str:
+    """将MySQL/TDSQL错误转换为中文提示"""
+    msg = str(e)
+    errno = getattr(e, 'args', [None])[0] if e.args else None
+
+    # pymysql错误: e.args = (errno, message)
+    if isinstance(e.args, tuple) and len(e.args) >= 2:
+        errno = e.args[0]
+        msg = e.args[1]
+
+    error_map = {
+        1045: "数据库用户名或密码错误，请检查连接配置",
+        1049: "数据库不存在，请检查连接配置中的数据库名",
+        1146: "表不存在，请检查SQL中的表名或确认选择的数据库连接是否正确",
+        1054: "SQL中存在未知的列名，请检查字段拼写",
+        1064: "SQL语法错误，请检查SQL语句是否完整正确",
+        1102: "数据库名称格式错误",
+        1105: "目标数据库执行出错，请稍后重试",
+        1142: "当前用户没有查询该表的权限",
+        1227: "权限不足，请联系数据库管理员",
+        2003: "无法连接到数据库服务器，请检查主机地址和端口是否正确",
+        2006: "MySQL服务器已不可用，连接可能已断开",
+        2013: "连接在查询期间丢失，数据库服务器可能已重启",
+    }
+
+    if errno in error_map:
+        return error_map[errno]
+
+    # 通配匹配
+    if "doesn't exist" in msg or "not exist" in msg.lower():
+        return "表或数据库不存在，请检查SQL中的表名及所选连接对应的数据库"
+    if "Access denied" in msg:
+        return "数据库访问被拒绝，请检查用户名和密码"
+    if "syntax" in msg.lower():
+        return "SQL语法错误，请检查SQL语句格式是否正确"
+    if "Connection refused" in msg or "Can't connect" in msg:
+        return "无法连接到数据库服务器，请检查地址和端口"
+    if "timed out" in msg.lower() or "timeout" in msg.lower():
+        return "连接数据库超时，请检查网络或稍后重试"
+    if "Unknown column" in msg:
+        return "SQL中引用了不存在的列，请检查字段名"
+
+    return f"EXPLAIN执行失败: {msg}"
