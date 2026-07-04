@@ -414,6 +414,9 @@
       <!-- 文件审核 -->
       <div v-if="currentPage === 'file-audit'">
         <div class="page-header"><h2>📄 文件审核</h2></div>
+
+        <el-tabs v-model="fileAuditTab" class="slow-query-tabs">
+        <el-tab-pane label="文件上传" name="upload">
         <div class="card">
           <div class="card-title">上传文件审核</div>
           <div class="file-upload-area" 
@@ -455,6 +458,54 @@
             </div>
           </div>
         </div>
+        </el-tab-pane>
+
+        <!-- 审核报告列表 -->
+        <el-tab-pane label="审核报告" name="reports">
+          <div class="card">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;">
+              <div class="card-title">文件审核报告历史</div>
+              <el-button size="small" @click="loadFileReports">刷新</el-button>
+            </div>
+            <div v-if="fileReportsLoading" class="empty-state">加载中...</div>
+            <div v-else-if="fileReports.length === 0" class="empty-state">暂无审核报告</div>
+            <div v-for="report in fileReports" :key="report.id" class="analysis-card"
+                 style="cursor:default;">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div>
+                  <strong>{{ report.source || '未知文件' }}</strong>
+                  <span style="margin-left:10px;font-size:12px;color:#909399;">
+                    ID:#{{ report.id }} | {{ report.created_at?.substring(0, 19) }}
+                  </span>
+                  <span v-if="report.created_by" style="margin-left:8px;font-size:12px;color:#409eff;">
+                    👤 {{ report.created_by }}
+                  </span>
+                </div>
+                <div style="display:flex;align-items:center;gap:12px;">
+                  <span style="font-size:12px;color:#909399;">
+                    {{ report.total_sql }}条SQL | 通过{{ report.passed }} | 失败{{ report.failed }}
+                  </span>
+                  <span :class="'badge ' + (report.pass_rate >= 80 ? 'PASS' : report.pass_rate >= 50 ? 'WARNING' : 'ERROR')"
+                        style="font-size:11px;">
+                    {{ report.pass_rate?.toFixed(1) }}%
+                  </span>
+                  <el-button type="primary" size="small" @click="downloadFileReport(report.id)">下载HTML报告</el-button>
+                </div>
+              </div>
+            </div>
+            <el-pagination
+              v-if="fileReportsTotal > 10"
+              small
+              layout="prev, pager, next"
+              :total="fileReportsTotal"
+              :page-size="10"
+              v-model:current-page="fileReportsPage"
+              @current-change="loadFileReports"
+              style="margin-top:15px;justify-content:center;"
+            ></el-pagination>
+          </div>
+        </el-tab-pane>
+        </el-tabs>
       </div>
 
       <!-- SQL原文弹窗 -->
@@ -1404,6 +1455,11 @@ const app = createApp({
         const selectedTaskIds = ref(new Set());
         const batchDeleting = ref(false);
         const clearingOrphan = ref(false);
+    const fileAuditTab = ref('upload');
+    const fileReports = ref([]);
+    const fileReportsLoading = ref(false);
+    const fileReportsTotal = ref(0);
+    const fileReportsPage = ref(1);
     const dbNames = ref([]);
     const slowFilters = reactive({
       db_name: '',
@@ -1974,6 +2030,28 @@ const app = createApp({
       }
     };
 
+    const loadFileReports = async () => {
+      fileReportsLoading.value = true;
+      try {
+        const offset = (fileReportsPage.value - 1) * 10;
+        const resp = await apiFetch(`${API_BASE}/api/v1/audit/file-reports?limit=10&offset=${offset}`);
+        if (resp.ok) {
+          const data = await resp.json();
+          fileReports.value = data.items || [];
+          fileReportsTotal.value = data.total || 0;
+        }
+      } catch (e) {
+        // 忽略
+      } finally {
+        fileReportsLoading.value = false;
+      }
+    };
+
+    const downloadFileReport = (reportId) => {
+      const token = localStorage.getItem('tdsql_token') || '';
+      window.open(`${API_BASE}/api/v1/audit/file-reports/${reportId}/html?access_token=${token}`, '_blank');
+    };
+
     const loadProxyConfig = async () => {
       try {
         const resp = await apiFetch(`${API_BASE}/api/v1/tdsql/proxy-config`);
@@ -2300,6 +2378,10 @@ const app = createApp({
       }
     });
 
+    watch(fileAuditTab, (val) => {
+      if (val === 'reports') loadFileReports();
+    });
+
     return {
       currentPage, sqlInput, auditing, auditResult, stats, ruleHits,
       auditTypeLabel, formatTime,
@@ -2316,6 +2398,8 @@ const app = createApp({
       slowQueryTab, selectedTaskIds, batchDeleting,
       allTasksSelected, toggleAllTasks, toggleTaskSelection, batchDeleteScanTasks,
       clearOrphanRecords, clearingOrphan,
+      fileAuditTab, fileReports, fileReportsLoading, fileReportsTotal, fileReportsPage,
+      loadFileReports, downloadFileReport,
       explainInput, analyzingExplain, explainResult,
       explainMode, explainSqlInput, explainConnId,
       analyzeExplainBySql, loadConnectionsForExplain, getCellValue, onConnDropdownVisible, hasPlaceholderReplaced,

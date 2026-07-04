@@ -4,7 +4,11 @@ TDSQL SQL审核工具 - SQL审核 API
 提供 RESTful 接口用于 SQL 审核和审核报告导出。
 """
 from fastapi import APIRouter, UploadFile, File, HTTPException, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, HTMLResponse
+from typing import Optional
+from urllib.parse import quote
+import json
+from datetime import datetime
 
 from backend.models import (
     AuditRequest,
@@ -14,6 +18,7 @@ from backend.models import (
     Violation,
 )
 from backend.services.audit_service import AuditService
+from backend.services.database import _get_connection, ensure_db
 
 router = APIRouter(prefix="/api/v1/audit", tags=["SQL审核"])
 
@@ -143,6 +148,139 @@ async def export_audit_report(report_id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"PDF生成失败: {str(e)}")
 
+
+# ============ 文件审核报告 ============
+
+@router.get("/file-reports", summary="获取文件审核报告列表")
+async def list_file_reports(limit: int = 50, offset: int = 0):
+    """获取文件审核历史记录列表"""
+    ensure_db()
+    conn = _get_connection()
+    try:
+        total = conn.execute(
+            "SELECT COUNT(*) AS cnt FROM audit_history WHERE audit_type = 'file'"
+        ).fetchone()["cnt"]
+        rows = conn.execute(
+            """SELECT id, source, total_sql, passed, failed, error_count, warning_count,
+                      pass_rate, created_by, created_at, gate_passed
+               FROM audit_history WHERE audit_type = 'file'
+               ORDER BY created_at DESC LIMIT ? OFFSET ?""",
+            (limit, offset),
+        ).fetchall()
+        return {"items": [dict(r) for r in rows], "total": total}
+    finally:
+        conn.close()
+
+
+@router.get("/file-reports/{report_id}/html", summary="下载文件审核HTML报告")
+async def export_file_report_html(report_id: int):
+    """生成并下载指定文件审核记录的HTML报告"""
+    try:
+        ensure_db()
+        conn = _get_connection()
+        try:
+            row = conn.execute(
+                "SELECT * FROM audit_history WHERE id = %s AND audit_type = 'file'",
+                (report_id,),
+            ).fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="审核报告不存在")
+            report = dict(row)
+        finally:
+            conn.close()
+
+        results = json.loads(report.get("results_json") or "[]")
+        created_at = report.get("created_at", "")
+        time_display = created_at[:19].replace("T", " ") if isinstance(created_at, str) else str(created_at)[:19]
+        pass_rate = float(report.get("pass_rate") or 0)
+        rate_class = "pass" if pass_rate >= 80 else "warn" if pass_rate >= 50 else "fail"
+
+        html_parts = []
+        html_parts.append(f"""<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TDSQL SQL审核报告 - {report.get('source', '未知文件')}</title>
+<style>
+* {{ margin:0; padding:0; box-sizing:border-box; }}
+body {{ font-family:"Microsoft YaHei","Segoe UI",Arial,sans-serif; background:#f0f2f5; color:#303030; padding:20px; }}
+.container {{ max-width:900px; margin:0 auto; background:#fff; border-radius:8px; box-shadow:0 2px 12px rgba(0,0,0,0.08); overflow:hidden; }}
+.header {{ background:#1a1a2e; color:#fff; padding:24px 32px; }}
+.header h1 {{ font-size:22px; margin-bottom:6px; }}
+.header .sub {{ font-size:13px; color:#a0aec0; }}
+.meta {{ display:flex; flex-wrap:wrap; gap:24px; padding:20px 32px; background:#f7f8fa; border-bottom:1px solid #ebeef5; }}
+.meta-item {{ font-size:14px; }}
+.meta-item .label {{ color:#909399; margin-right:6px; }}
+.meta-item .value {{ font-weight:600; }}
+.summary {{ display:flex; gap:16px; padding:24px 32px; flex-wrap:wrap; }}
+.sc {{ flex:1; min-width:100px; text-align:center; padding:16px; border-radius:6px; }}
+.sc.total {{ background:#e8f4fd; }} .sc.pass {{ background:#e8f7e8; }} .sc.fail {{ background:#fde8e8; }}
+.sc.rate.pass {{ background:#e8f7e8; }} .sc.rate.warn {{ background:#fdf6e8; }} .sc.rate.fail {{ background:#fde8e8; }}
+.sc .num {{ font-size:28px; font-weight:700; }} .sc .lbl {{ font-size:12px; color:#606266; margin-top:4px; }}
+.stitle {{ padding:16px 32px 8px; font-size:16px; font-weight:600; border-top:1px solid #ebeef5; }}
+.sql-item {{ margin:0 32px 16px; padding:16px; border:1px solid #ebeef5; border-radius:6px; }}
+.sql-item .sh {{ display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }}
+.sql-text {{ font-family:Consolas,Courier New,monospace; font-size:13px; background:#f5f7fa; padding:8px 12px; border-radius:4px; margin:8px 0; white-space:pre-wrap; word-break:break-all; }}
+.badge {{ display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600; }}
+.badge.ERROR {{ background:#fde8e8; color:#f56c6c; }} .badge.WARNING {{ background:#fdf6e8; color:#e6a23c; }} .badge.PASS {{ background:#e8f7e8; color:#67c23a; }}
+.viol {{ margin:6px 0; padding:8px 12px; border-left:3px solid #f56c6c; background:#fef0f0; border-radius:0 4px 4px 0; font-size:13px; }}
+.viol.warn {{ border-left-color:#e6a23c; background:#fdf6ec; }}
+.viol .vr {{ font-weight:600; }} .viol .vm {{ color:#606266; margin:2px 0; }} .viol .vs {{ color:#67c23a; font-size:12px; }}
+.footer {{ padding:16px 32px; text-align:center; font-size:12px; color:#909399; border-top:1px solid #ebeef5; }}
+.no-data {{ padding:32px; text-align:center; color:#909399; }}
+</style></head><body>
+<div class="container">
+<div class="header"><h1>TDSQL SQL审核平台 - 文件审核报告</h1><div class="sub">TDSQL SQL Audit Platform / File Audit Report</div></div>
+<div class="meta">
+<div class="meta-item"><span class="label">审核人:</span><span class="value">{report.get('created_by') or '匿名'}</span></div>
+<div class="meta-item"><span class="label">文件名:</span><span class="value">{report.get('source', '-')}</span></div>
+<div class="meta-item"><span class="label">审核时间:</span><span class="value">{time_display}</span></div>
+<div class="meta-item"><span class="label">报告ID:</span><span class="value">#{report.get('id')}</span></div>
+</div>
+<div class="summary">
+<div class="sc total"><div class="num">{report.get('total_sql', 0)}</div><div class="lbl">SQL总数</div></div>
+<div class="sc pass"><div class="num">{report.get('passed', 0)}</div><div class="lbl">通过</div></div>
+<div class="sc fail"><div class="num">{report.get('failed', 0)}</div><div class="lbl">未通过</div></div>
+<div class="sc rate {rate_class}"><div class="num">{pass_rate:.1f}%</div><div class="lbl">通过率</div></div>
+<div class="sc total"><div class="num" style="color:#f56c6c">{report.get('error_count', 0)}</div><div class="lbl">ERROR</div></div>
+<div class="sc total"><div class="num" style="color:#e6a23c">{report.get('warning_count', 0)}</div><div class="lbl">WARNING</div></div>
+</div>
+<div class="stitle">逐条审核结果（共 {len(results)} 条）</div>""")
+
+        if not results:
+            html_parts.append('<div class="no-data">无审核结果数据</div>')
+        else:
+            for i, r in enumerate(results, 1):
+                passed = r.get("passed", False)
+                violations = r.get("violations", [])
+                sql_text = r.get("sql", "")[:300]
+                sql_type = r.get("sql_type", "")
+                line_no = r.get("line_number", "")
+                status_badge = '<span class="badge PASS">通过</span>' if passed else f'<span class="badge ERROR">{len(violations)}项违规</span>'
+                line_info = f" | 行号: {line_no}" if line_no else ""
+                html_parts.append(f'<div class="sql-item"><div class="sh"><span><strong>#{i}</strong> {sql_type}{line_info}</span>{status_badge}</div><div class="sql-text">{sql_text}</div>')
+                for v in violations:
+                    sev = v.get("severity", "WARNING")
+                    sev_class = "warn" if sev == "WARNING" else ""
+                    rule_id = v.get("rule_id", "")
+                    msg = v.get("message", "")
+                    sug = v.get("suggestion", "")
+                    sug_html = f'<div class="vs">建议: {sug}</div>' if sug else ""
+                    html_parts.append(f'<div class="viol {sev_class}"><div class="vr">[{rule_id}] {sev}</div><div class="vm">{msg}</div>{sug_html}</div>')
+                html_parts.append('</div>')
+
+        html_parts.append(f'<div class="footer">TDSQL SQL审核平台 V2.0 | 报告生成时间: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")} | 报告ID: #{report.get("id")}</div></div></body></html>')
+        html = "\n".join(html_parts)
+
+        filename = f"TDSQL审核报告_{report.get('source', 'file')}_{time_display[:10]}.html"
+        encoded_filename = quote(filename)
+        return HTMLResponse(
+            content=html,
+            headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"}
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"HTML报告生成失败: {str(e)}")
 
 @router.get("/slow-report/{slow_id}/export", summary="导出慢SQL分析报告PDF")
 async def export_slow_query_report(slow_id: int):
