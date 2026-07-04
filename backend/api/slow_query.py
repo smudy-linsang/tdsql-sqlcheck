@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from backend.engine.slow_analyzer import SlowQueryRecord
 from backend.services.slow_query_service import SlowQueryService
+from backend.services.database import _get_connection
 
 router = APIRouter(prefix="/api/v1/slow-queries", tags=["慢SQL分析"])
 service = SlowQueryService()
@@ -148,6 +149,24 @@ async def delete_scan_task(task_id: int, request: Request):
     if not success:
         raise HTTPException(status_code=403 if "无权" in err else 404, detail=err)
     return {"message": "扫描任务已删除"}
+
+
+@router.delete("/orphan-records", summary="清理无任务关联的慢SQL记录")
+async def delete_orphan_records():
+    """
+    删除 scan_task_id 为 NULL 的慢SQL记录（手动录入或历史迁移数据）。
+    仅管理员可操作。
+    """
+    conn = _get_connection()
+    try:
+        cursor = conn.execute(
+            "DELETE FROM slow_queries WHERE scan_task_id IS NULL"
+        )
+        conn.commit()
+        deleted = cursor.rowcount
+        return {"message": f"已清理 {deleted} 条无任务关联的慢SQL记录", "deleted": deleted}
+    finally:
+        conn.close()
 
 
 @router.get("/db-names", summary="获取数据库名列表")

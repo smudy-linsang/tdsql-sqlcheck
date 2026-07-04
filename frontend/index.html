@@ -707,7 +707,10 @@
         <el-tab-pane label="慢SQL记录" name="records">
         <!-- 慢SQL列表 -->
         <div class="card">
-          <div class="card-title">慢SQL记录 (共 {{ slowPage.total }} 条)</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div class="card-title">慢SQL记录 (共 {{ slowPage.total }} 条)</div>
+            <el-button type="warning" size="small" @click="clearOrphanRecords" :loading="clearingOrphan">清理无任务关联记录</el-button>
+          </div>
 
           <!-- 筛选栏 -->
           <div class="slow-filter-bar">
@@ -1400,6 +1403,7 @@ const app = createApp({
         const slowQueryTab = ref('tasks');
         const selectedTaskIds = ref(new Set());
         const batchDeleting = ref(false);
+        const clearingOrphan = ref(false);
     const dbNames = ref([]);
     const slowFilters = reactive({
       db_name: '',
@@ -1940,6 +1944,36 @@ const app = createApp({
       loadScanTasks();
     };
 
+    const clearOrphanRecords = async () => {
+      try {
+        await ElementPlus.ElMessageBox.confirm(
+          '确定要清理所有无任务关联的慢SQL记录吗？这些记录为手动录入或历史迁移数据，清理后不可恢复。',
+          '清理确认',
+          { type: 'warning', confirmButtonText: '确定清理', cancelButtonText: '取消' }
+        );
+      } catch (e) {
+        return;
+      }
+      clearingOrphan.value = true;
+      try {
+        const resp = await apiFetch(`${API_BASE}/api/v1/slow-queries/orphan-records`, { method: 'DELETE' });
+        if (resp.ok) {
+          const data = await resp.json();
+          ElementPlus.ElMessage.success(data.message);
+          loadSlowList();
+          loadDbNames();
+          loadSetIds();
+        } else {
+          const err = await resp.json();
+          ElementPlus.ElMessage.error(err.detail || '清理失败');
+        }
+      } catch (e) {
+        ElementPlus.ElMessage.error('清理失败: ' + e.message);
+      } finally {
+        clearingOrphan.value = false;
+      }
+    };
+
     const loadProxyConfig = async () => {
       try {
         const resp = await apiFetch(`${API_BASE}/api/v1/tdsql/proxy-config`);
@@ -2281,6 +2315,7 @@ const app = createApp({
       deleteScanTask, scanTaskTotal, scanTaskCurrentPage, scanTaskPageSize, deletingTaskId,
       slowQueryTab, selectedTaskIds, batchDeleting,
       allTasksSelected, toggleAllTasks, toggleTaskSelection, batchDeleteScanTasks,
+      clearOrphanRecords, clearingOrphan,
       explainInput, analyzingExplain, explainResult,
       explainMode, explainSqlInput, explainConnId,
       analyzeExplainBySql, loadConnectionsForExplain, getCellValue, onConnDropdownVisible, hasPlaceholderReplaced,
