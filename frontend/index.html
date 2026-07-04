@@ -578,7 +578,7 @@
               v-model:current-page="scanTaskCurrentPage"
               @current-change="loadScanTasks"
               style="margin:0;"
-            />
+            ></el-pagination>
           </div>
           <div v-if="scanTaskLoading" class="empty-state">加载中，请稍候...</div>
           <div v-else-if="scanTasks.length === 0" class="empty-state">暂无扫描任务</div>
@@ -607,7 +607,7 @@
                   @click.stop="deleteScanTask(task.id, task.task_name)"
                   :loading="deletingTaskId === task.id"
                   title="删除扫描任务"
-                />
+                ></el-button>
               </div>
             </div>
             <div v-if="task.time_window_start || task.time_window_end" style="margin-top:4px;font-size:12px;color:#409eff;">
@@ -778,7 +778,7 @@
           </div>
           <div style="margin-bottom:10px;">
             <label style="font-size:13px;color:#606266;margin-right:8px;">数据库连接：</label>
-            <el-select v-model="explainConnId" placeholder="选择数据库连接" style="width:320px;" @visible-change="(v) => v && loadConnectionsForExplain()">
+            <el-select v-model="explainConnId" placeholder="选择数据库连接" style="width:320px;" @visible-change="onConnDropdownVisible">
               <el-option
                 v-for="conn in savedConnections"
                 :key="conn.id"
@@ -812,7 +812,7 @@
         <div v-if="explainResult && explainResult.executed_sql" class="card">
           <div class="card-title">实际执行的SQL</div>
           <pre style="background:#f5f7fa;padding:10px;border-radius:4px;font-size:13px;font-family:monospace;white-space:pre-wrap;word-break:break-all;">{{ explainResult.executed_sql }}</pre>
-          <div v-if="explainResult.executed_sql.includes("'1'")" style="font-size:12px;color:#909399;margin-top:5px;">
+          <div v-if="hasPlaceholderReplaced" style="font-size:12px;color:#909399;margin-top:5px;">
             提示: 检测到SQL中含参数占位符(?)，已自动替换为示例值 '1' 进行EXPLAIN分析。执行计划不受参数值影响。
           </div>
         </div>
@@ -828,7 +828,7 @@
             </thead>
             <tbody>
               <tr v-for="(row, idx) in explainResult.explain_rows" :key="idx">
-                <td v-for="col in explainResult.explain_columns" :key="col" style="padding:6px 8px;border:1px solid #ebeef5;">{{ row[col] }}</td>
+                <td v-for="col in explainResult.explain_columns" :key="col" style="padding:6px 8px;border:1px solid #ebeef5;">{{ getCellValue(row, col) }}</td>
               </tr>
             </tbody>
           </table>
@@ -2076,6 +2076,19 @@ const app = createApp({
       }
     };
 
+    const getCellValue = (row, col) => {
+      if (!row || !col) return '';
+      return row[col] != null ? String(row[col]) : '';
+    };
+
+    const onConnDropdownVisible = (visible) => {
+      if (visible) loadConnectionsForExplain();
+    };
+
+    const hasPlaceholderReplaced = computed(() => {
+      return explainResult.value && explainResult.value.executed_sql && explainResult.value.executed_sql.includes("'1'");
+    });
+
     const loadExplainExample = () => {
       explainInput.value = JSON.stringify([{
         id: 1, select_type: "SIMPLE", table: "t_order", type: "ALL",
@@ -2174,7 +2187,7 @@ const app = createApp({
       deleteScanTask, scanTaskTotal, scanTaskCurrentPage, scanTaskPageSize, deletingTaskId,
       explainInput, analyzingExplain, explainResult,
       explainMode, explainSqlInput, explainConnId,
-      analyzeExplainBySql, loadConnectionsForExplain,
+      analyzeExplainBySql, loadConnectionsForExplain, getCellValue, onConnDropdownVisible, hasPlaceholderReplaced,
       auditSql, triggerFileInput, handleFileSelect, handleFileDrop,
       showSqlDialog, copySqlToClipboard,
       analyzeExplain, loadExplainExample, loadExample,
