@@ -470,7 +470,10 @@
       <div v-if="currentPage === 'slow-query'">
         <div class="page-header"><h2>🐌 慢SQL分析</h2></div>
 
-        <!-- 扫描任务管理 -->
+        <el-tabs v-model="slowQueryTab" class="slow-query-tabs">
+
+        <!-- Tab 1: 扫描任务管理 -->
+        <el-tab-pane label="扫描任务" name="tasks">
         <div class="card">
           <div class="card-title">扫描任务管理</div>
 
@@ -568,7 +571,17 @@
 
           <!-- 扫描任务列表 -->
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-            <span style="font-size:13px;color:#606266;">共 {{ scanTaskTotal }} 个扫描任务</span>
+            <div style="display:flex;align-items:center;gap:12px;">
+              <el-checkbox v-model="allTasksSelected" @change="toggleAllTasks" size="small">全选</el-checkbox>
+              <span style="font-size:13px;color:#606266;">共 {{ scanTaskTotal }} 个扫描任务</span>
+              <el-button
+                v-if="selectedTaskIds.size > 0"
+                type="danger"
+                size="small"
+                @click="batchDeleteScanTasks"
+                :loading="batchDeleting"
+              >批量删除({{ selectedTaskIds.size }})</el-button>
+            </div>
             <el-pagination
               v-if="scanTaskTotal > scanTaskPageSize"
               small
@@ -583,10 +596,16 @@
           <div v-if="scanTaskLoading" class="empty-state">加载中，请稍候...</div>
           <div v-else-if="scanTasks.length === 0" class="empty-state">暂无扫描任务</div>
           <div v-for="task in scanTasks" :key="task.id" class="analysis-card"
-               :style="{cursor:'pointer', border: slowFilters.scan_task_id == task.id ? '2px solid #409eff' : '1px solid #ebeef5'}"
+               :style="{cursor:'pointer', border: slowFilters.scan_task_id == task.id ? '2px solid #409eff' : '1px solid #ebeef5', background: selectedTaskIds.has(task.id) ? '#ecf5ff' : ''}"
                @click="selectScanTask(task.id)">
             <div style="display:flex;justify-content:space-between;align-items:center;">
-              <div>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <el-checkbox
+                  :model-value="selectedTaskIds.has(task.id)"
+                  @change="(val) => toggleTaskSelection(task.id, val)"
+                  @click.stop
+                  size="small"
+                ></el-checkbox>
                 <strong>{{ task.task_name }}</strong>
                 <span style="margin-left:10px;font-size:12px;color:#909399;">
                   {{ sourceLabel(task.source) }} | 库: {{ task.db_name || '-' }} | {{ task.connection_name || '-' }}
@@ -616,6 +635,10 @@
           </div>
         </div>
 
+        </el-tab-pane>
+
+        <!-- Tab 2: 手动分析 -->
+        <el-tab-pane label="手动分析" name="manual">
         <div class="card">
           <div class="card-title">输入慢SQL信息</div>
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
@@ -678,6 +701,10 @@
           </div>
         </div>
 
+        </el-tab-pane>
+
+        <!-- Tab 3: 慢SQL记录 -->
+        <el-tab-pane label="慢SQL记录" name="records">
         <!-- 慢SQL列表 -->
         <div class="card">
           <div class="card-title">慢SQL记录 (共 {{ slowPage.total }} 条)</div>
@@ -756,6 +783,8 @@
             <span class="page-info">第 {{ slowPage.current }}/{{ slowPage.totalPages }} 页，每页 {{ slowPage.size }} 条</span>
           </div>
         </div>
+        </el-tab-pane>
+        </el-tabs>
       </div>
 
       <!-- EXPLAIN分析 -->
@@ -1368,6 +1397,9 @@ const app = createApp({
         const scanTaskCurrentPage = ref(1);
         const scanTaskPageSize = ref(10);
         const deletingTaskId = ref(null);
+        const slowQueryTab = ref('tasks');
+        const selectedTaskIds = ref(new Set());
+        const batchDeleting = ref(false);
     const dbNames = ref([]);
     const slowFilters = reactive({
       db_name: '',
@@ -1830,7 +1862,6 @@ const app = createApp({
         });
         if (resp.ok) {
           ElementPlus.ElMessage.success('扫描任务已删除');
-          // 如果当前选中的被删除了，清除选中状态
           if (slowFilters.scan_task_id == taskId) {
             slowFilters.scan_task_id = '';
           }
@@ -1844,6 +1875,69 @@ const app = createApp({
       } finally {
         deletingTaskId.value = null;
       }
+    };
+
+    const allTasksSelected = computed(() => {
+      return scanTasks.value.length > 0 && scanTasks.value.every(t => selectedTaskIds.value.has(t.id));
+    });
+
+    const toggleAllTasks = (val) => {
+      if (val) {
+        scanTasks.value.forEach(t => selectedTaskIds.value.add(t.id));
+      } else {
+        selectedTaskIds.value.clear();
+      }
+      selectedTaskIds.value = new Set(selectedTaskIds.value);
+    };
+
+    const toggleTaskSelection = (taskId, checked) => {
+      if (checked) {
+        selectedTaskIds.value.add(taskId);
+      } else {
+        selectedTaskIds.value.delete(taskId);
+      }
+      selectedTaskIds.value = new Set(selectedTaskIds.value);
+    };
+
+    const batchDeleteScanTasks = async () => {
+      const count = selectedTaskIds.value.size;
+      if (count === 0) return;
+      try {
+        await ElementPlus.ElMessageBox.confirm(
+          `确定要删除选中的 ${count} 个扫描任务吗？关联的慢SQL记录将一并删除。`,
+          '批量删除确认',
+          { type: 'warning', confirmButtonText: '确定删除', cancelButtonText: '取消' }
+        );
+      } catch (e) {
+        return;
+      }
+      batchDeleting.value = true;
+      let successCount = 0;
+      let failCount = 0;
+      for (const taskId of selectedTaskIds.value) {
+        try {
+          const resp = await apiFetch(`${API_BASE}/api/v1/slow-queries/scan-tasks/${taskId}`, { method: 'DELETE' });
+          if (resp.ok) {
+            successCount++;
+            if (slowFilters.scan_task_id == taskId) {
+              slowFilters.scan_task_id = '';
+            }
+          } else {
+            failCount++;
+          }
+        } catch (e) {
+          failCount++;
+        }
+      }
+      selectedTaskIds.value.clear();
+      selectedTaskIds.value = new Set();
+      batchDeleting.value = false;
+      if (failCount === 0) {
+        ElementPlus.ElMessage.success(`成功删除 ${successCount} 个扫描任务`);
+      } else {
+        ElementPlus.ElMessage.warning(`删除完成: 成功 ${successCount} 个, 失败 ${failCount} 个`);
+      }
+      loadScanTasks();
     };
 
     const loadProxyConfig = async () => {
@@ -2185,6 +2279,8 @@ const app = createApp({
       loadScanTasks, loadDbNames, loadSetIds, handleSlowFilter, resetSlowFilter, changeSlowPage,
       startScanTask, selectScanTask, sourceLabel,
       deleteScanTask, scanTaskTotal, scanTaskCurrentPage, scanTaskPageSize, deletingTaskId,
+      slowQueryTab, selectedTaskIds, batchDeleting,
+      allTasksSelected, toggleAllTasks, toggleTaskSelection, batchDeleteScanTasks,
       explainInput, analyzingExplain, explainResult,
       explainMode, explainSqlInput, explainConnId,
       analyzeExplainBySql, loadConnectionsForExplain, getCellValue, onConnDropdownVisible, hasPlaceholderReplaced,
