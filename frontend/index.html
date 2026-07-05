@@ -207,8 +207,8 @@
             <el-menu-item index="projects">项目管理</el-menu-item>
             <el-menu-item index="rulesets">规则集</el-menu-item>
             <el-menu-item index="gate">质量门禁</el-menu-item>
-            <el-menu-item index="monitor">监控告警</el-menu-item>
-            <el-menu-item index="inspection">巡检管理</el-menu-item>
+            <el-menu-item v-if="canViewMonitor" index="monitor">监控告警</el-menu-item>
+            <el-menu-item v-if="canViewMonitor" index="inspection">巡检管理</el-menu-item>
           </el-sub-menu>
           <el-sub-menu index="system-group">
             <template #title><el-icon><User /></el-icon><span>系统管理</span></template>
@@ -232,9 +232,13 @@
             <el-row :gutter="16" style="margin-bottom:16px">
               <el-col :xs="12" :sm="12" :md="6" v-for="kpi in kpiCards" :key="kpi.key">
                 <div class="kpi-card" @click="kpi.onClick&&kpi.onClick()">
-                  <div class="kpi-num" :style="{color: kpi.color}">{{ kpi.value }}</div>
-                  <div class="kpi-label">{{ kpi.label }}</div>
-                  <div class="kpi-sub" v-if="kpi.sub">{{ kpi.sub }}</div>
+                  <el-skeleton :loading="statsLoading" animated :rows="2">
+                    <template #default>
+                      <div class="kpi-num" :style="{color: kpi.color}">{{ kpi.value }}</div>
+                      <div class="kpi-label">{{ kpi.label }}</div>
+                      <div class="kpi-sub" v-if="kpi.sub">{{ kpi.sub }}</div>
+                    </template>
+                  </el-skeleton>
                 </div>
               </el-col>
             </el-row>
@@ -630,18 +634,35 @@
               <div v-loading="healthLoading">
                 <el-empty v-if="!healthResult" description="选择检查类型后点击开始"></el-empty>
                 <div v-else>
-                  <el-alert v-if="healthCheckType==='charset'" :title="healthResult.summary||'字符集检查完成'" :type="(healthResult.issues&&healthResult.issues.length)?'warning':'success'" show-icon :closable="false" style="margin-bottom:12px"></el-alert>
-                  <el-table v-if="healthResult.issues&&healthResult.issues.length" :data="healthResult.issues" stripe size="small" style="width:100%">
-                    <el-table-column prop="table_name" label="表" show-overflow-tooltip></el-table-column>
-                    <el-table-column prop="column_name" label="列" show-overflow-tooltip></el-table-column>
-                    <el-table-column prop="issue" label="问题" show-overflow-tooltip></el-table-column>
+                  <template v-if="healthCheckType==='charset'">
+                    <el-alert :title="healthResult.is_consistent?'字符集一致':'发现字符集不一致'" :type="healthResult.is_consistent?'success':'warning'" show-icon :closable="false" style="margin-bottom:12px"></el-alert>
+                    <div v-if="healthResult.column_mismatches&&healthResult.column_mismatches.length" style="margin-bottom:16px">
+                      <div class="page-card-title" style="font-size:14px">列级不一致</div>
+                      <el-table :data="healthResult.column_mismatches" stripe size="small" style="width:100%">
+                        <el-table-column prop="TABLE_NAME" label="表" show-overflow-tooltip></el-table-column>
+                        <el-table-column prop="COLUMN_NAME" label="列" show-overflow-tooltip></el-table-column>
+                        <el-table-column prop="col_collation" label="列排序规则" show-overflow-tooltip></el-table-column>
+                        <el-table-column prop="tbl_collation" label="表排序规则" show-overflow-tooltip></el-table-column>
+                      </el-table>
+                    </div>
+                    <div v-if="healthResult.cross_table_mismatches&&healthResult.cross_table_mismatches.length">
+                      <div class="page-card-title" style="font-size:14px">跨表同名字段不一致</div>
+                      <el-table :data="healthResult.cross_table_mismatches" stripe size="small" style="width:100%">
+                        <el-table-column prop="COLUMN_NAME" label="字段" show-overflow-tooltip></el-table-column>
+                        <el-table-column prop="tbl_a" label="表A" show-overflow-tooltip></el-table-column>
+                        <el-table-column prop="col_a" label="A排序规则" show-overflow-tooltip></el-table-column>
+                        <el-table-column prop="tbl_b" label="表B" show-overflow-tooltip></el-table-column>
+                        <el-table-column prop="col_b" label="B排序规则" show-overflow-tooltip></el-table-column>
+                      </el-table>
+                    </div>
+                  </template>
+                  <el-table v-if="healthCheckType==='large-tables'&&(healthResult.tables||[]).length" :data="healthResult.tables||[]" stripe size="small" style="width:100%">
+                    <el-table-column prop="TABLE_NAME" label="表名" show-overflow-tooltip></el-table-column>
+                    <el-table-column prop="size_gb" label="大小(GB)" width="80" sortable></el-table-column>
+                    <el-table-column prop="TABLE_ROWS" label="行数" width="100" sortable></el-table-column>
+                    <el-table-column prop="level" label="级别" width="110"><template #default="{row}"><el-tag :type="row.level&&row.level.startsWith('L3')?'danger':row.level&&row.level.startsWith('L2')?'warning':'info'" size="small">{{ row.level }}</el-tag></template></el-table-column>
                   </el-table>
-                  <el-table v-if="healthCheckType==='large-tables'&&(healthResult.items||healthResult).length" :data="healthResult.items||healthResult" stripe size="small" style="width:100%">
-                    <el-table-column prop="table_name" label="表名" show-overflow-tooltip></el-table-column>
-                    <el-table-column prop="size_gb" label="大小(GB)" width="80"></el-table-column>
-                    <el-table-column prop="rows" label="行数" width="100"></el-table-column>
-                    <el-table-column prop="level" label="级别" width="60"><template #default="{row}"><el-tag :type="row.level==='L3'?'danger':row.level==='L2'?'warning':'info'" size="small">{{ row.level }}</el-tag></template></el-table-column>
-                  </el-table>
+                  <el-empty v-if="healthCheckType==='large-tables'&&!(healthResult.tables||[]).length" description="未发现大表"></el-empty>
                 </div>
               </div>
             </div>
@@ -650,14 +671,21 @@
           <!-- ═══ 大表治理 ═══ -->
           <div v-if="currentPage==='bigtable'">
             <div class="page-card">
-              <div class="page-card-title">大表治理 <el-button size="small" @click="loadBigtable" style="margin-left:8px">刷新</el-button></div>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+                <div class="page-card-title" style="margin-bottom:0">大表治理</div>
+                <div>
+                  <el-button size="small" @click="loadBigtable">刷新清单</el-button>
+                  <el-button v-if="canManageInstances" type="primary" size="small" :loading="bigtableCollecting" @click="collectBigtable">采集大表清单</el-button>
+                </div>
+              </div>
               <el-table :data="bigtableData||[]" v-loading="bigtableLoading" stripe style="width:100%">
+                <el-table-column prop="schema_name" label="库" width="120" show-overflow-tooltip></el-table-column>
                 <el-table-column prop="table_name" label="表名" show-overflow-tooltip></el-table-column>
-                <el-table-column prop="size_gb" label="大小(GB)" width="80" sortable></el-table-column>
-                <el-table-column prop="rows" label="行数" width="100" sortable></el-table-column>
-                <el-table-column prop="level" label="级别" width="60"><template #default="{row}"><el-tag :type="row.level==='L3'?'danger':row.level==='L2'?'warning':'info'" size="small">{{ row.level }}</el-tag></template></el-table-column>
+                <el-table-column prop="size_gb" label="大小(GB)" width="90" sortable></el-table-column>
+                <el-table-column prop="rows_count" label="行数" width="100" sortable></el-table-column>
+                <el-table-column prop="level" label="级别" width="110"><template #default="{row}"><el-tag :type="row.level&&String(row.level).startsWith('L3')?'danger':row.level&&String(row.level).startsWith('L2')?'warning':'info'" size="small">{{ row.level }}</el-tag></template></el-table-column>
                 <el-table-column prop="is_partitioned" label="分区" width="60"><template #default="{row}">{{ row.is_partitioned?'是':'否' }}</template></el-table-column>
-                <el-table-column prop="shard_key" label="分片键" width="80"></el-table-column>
+                <el-table-column prop="shard_key" label="分片键" width="100" show-overflow-tooltip></el-table-column>
               </el-table>
             </div>
           </div>
@@ -682,6 +710,8 @@
             <el-form label-position="top">
               <el-form-item label="项目名称"><el-input v-model="projectDialog.form.project_name"></el-input></el-form-item>
               <el-form-item label="关联实例"><el-select v-model="projectDialog.form.tdsql_connection_id" filterable clearable style="width:100%"><el-option v-for="c in savedConnections" :key="c.id" :label="c.name" :value="c.id"></el-option></el-select></el-form-item>
+              <el-form-item label="绑定规则集"><el-select v-model="projectDialog.form.rule_set_id" style="width:100%"><el-option label="default" value="default"></el-option><el-option v-for="rs in rulesets" :key="rs.id" :label="rs.name" :value="rs.id"></el-option></el-select></el-form-item>
+              <el-form-item label="绑定门禁"><el-select v-model="projectDialog.form.gate_rule_id" style="width:100%"><el-option label="default" value="default"></el-option><el-option v-for="s in gateStrategies" :key="s.name" :label="s.name" :value="s.name"></el-option></el-select></el-form-item>
               <el-form-item label="描述"><el-input v-model="projectDialog.form.description" type="textarea"></el-input></el-form-item>
             </el-form>
             <template #footer><el-button @click="projectDialog.visible=false">取消</el-button><el-button type="primary" :loading="projectDialog.loading" @click="createProject">创建</el-button></template>
@@ -690,20 +720,36 @@
           <!-- ═══ 规则集 ═══ -->
           <div v-if="currentPage==='rulesets'">
             <div class="page-card">
-              <div class="page-card-title">规则集管理</div>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+                <div class="page-card-title" style="margin-bottom:0">规则集管理</div>
+                <el-button v-if="canManagePlatform" type="primary" size="small" @click="rulesetDialog.visible=true">+ 新建规则集</el-button>
+              </div>
               <el-table :data="rulesets" v-loading="rulesetsLoading" stripe style="width:100%">
                 <el-table-column prop="name" label="名称" show-overflow-tooltip></el-table-column>
                 <el-table-column prop="description" label="描述" show-overflow-tooltip></el-table-column>
+                <el-table-column prop="item_count" label="规则数" width="80"></el-table-column>
                 <el-table-column prop="is_builtin" label="内置" width="60"><template #default="{row}">{{ row.is_builtin?'是':'否' }}</template></el-table-column>
                 <el-table-column prop="created_by" label="创建人" width="80"></el-table-column>
+                <el-table-column label="操作" width="80" fixed="right" v-if="canManagePlatform"><template #default="{row}"><el-button link type="danger" size="small" :disabled="!!row.is_builtin" @click="deleteRuleset(row)">删除</el-button></template></el-table-column>
               </el-table>
             </div>
           </div>
+          <el-dialog v-model="rulesetDialog.visible" title="新建规则集" width="440px">
+            <el-form label-position="top">
+              <el-form-item label="规则集ID"><el-input v-model="rulesetDialog.form.id" placeholder="如：dev_ruleset（2-64字符）"></el-input></el-form-item>
+              <el-form-item label="名称"><el-input v-model="rulesetDialog.form.name"></el-input></el-form-item>
+              <el-form-item label="描述"><el-input v-model="rulesetDialog.form.description" type="textarea"></el-input></el-form-item>
+            </el-form>
+            <template #footer><el-button @click="rulesetDialog.visible=false">取消</el-button><el-button type="primary" :loading="rulesetDialog.loading" @click="createRuleset">创建</el-button></template>
+          </el-dialog>
 
           <!-- ═══ 质量门禁 ═══ -->
           <div v-if="currentPage==='gate'">
             <div class="page-card">
-              <div class="page-card-title">质量门禁</div>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+                <div class="page-card-title" style="margin-bottom:0">质量门禁</div>
+                <el-button v-if="currentProjectId&&canManagePlatform" type="primary" size="small" @click="openGateCustom">自定义门禁</el-button>
+              </div>
               <el-empty v-if="!currentProjectId" description="请在顶栏选择项目"></el-empty>
               <div v-else v-loading="gateLoading">
                 <div style="margin-bottom:16px">
@@ -717,6 +763,13 @@
               </div>
             </div>
           </div>
+          <el-dialog v-model="gateCustom.visible" title="自定义门禁规则" width="400px">
+            <el-form label-position="top">
+              <el-form-item label="最大ERROR数"><el-input-number v-model="gateCustom.max_error_count" :min="0"></el-input-number></el-form-item>
+              <el-form-item label="最大WARNING数"><el-input-number v-model="gateCustom.max_warning_count" :min="0"></el-input-number></el-form-item>
+            </el-form>
+            <template #footer><el-button @click="gateCustom.visible=false">取消</el-button><el-button type="primary" @click="saveGateCustom">保存</el-button></template>
+          </el-dialog>
 
           <!-- ═══ 监控告警 ═══ -->
           <div v-if="currentPage==='monitor'">
@@ -735,6 +788,9 @@
               </el-tab-pane>
               <el-tab-pane label="告警规则" name="rules">
                 <div class="page-card">
+                  <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+                    <el-button type="primary" size="small" @click="monitorRuleDialog.visible=true">+ 新建告警规则</el-button>
+                  </div>
                   <el-table :data="monitorRules" stripe style="width:100%">
                     <el-table-column prop="metric_name" label="指标" show-overflow-tooltip></el-table-column>
                     <el-table-column prop="warning_threshold" label="警告阈值" width="100"></el-table-column>
@@ -745,20 +801,49 @@
               </el-tab-pane>
             </el-tabs>
           </div>
+          <el-dialog v-model="monitorRuleDialog.visible" title="新建告警规则" width="440px">
+            <el-form label-position="top">
+              <el-form-item label="指标名"><el-input v-model="monitorRuleDialog.form.metric_name" placeholder="如：cpu_usage"></el-input></el-form-item>
+              <el-form-item label="警告阈值"><el-input-number v-model="monitorRuleDialog.form.warning_threshold" :min="0"></el-input-number></el-form-item>
+              <el-form-item label="紧急阈值"><el-input-number v-model="monitorRuleDialog.form.urgent_threshold" :min="0"></el-input-number></el-form-item>
+              <el-form-item label="检查间隔(秒)"><el-input-number v-model="monitorRuleDialog.form.check_interval_sec" :min="10"></el-input-number></el-form-item>
+            </el-form>
+            <template #footer><el-button @click="monitorRuleDialog.visible=false">取消</el-button><el-button type="primary" :loading="monitorRuleDialog.loading" @click="createMonitorRule">保存</el-button></template>
+          </el-dialog>
 
           <!-- ═══ 巡检管理 ═══ -->
           <div v-if="currentPage==='inspection'">
             <div class="page-card">
-              <div class="page-card-title">巡检管理</div>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+                <div class="page-card-title" style="margin-bottom:0">巡检管理</div>
+                <el-button v-if="canManagePlatform" type="primary" size="small" @click="inspectionDialog.visible=true">+ 新建巡检</el-button>
+              </div>
               <el-table :data="inspectionTasks" v-loading="inspectionLoading" stripe style="width:100%">
                 <el-table-column prop="connection_id" label="实例" show-overflow-tooltip></el-table-column>
                 <el-table-column prop="inspection_type" label="类型" width="100"></el-table-column>
                 <el-table-column prop="status" label="状态" width="80"><template #default="{row}"><el-tag :type="row.status==='completed'?'success':row.status==='running'?'warning':'info'" size="small">{{ row.status }}</el-tag></template></el-table-column>
                 <el-table-column label="开始时间" width="140"><template #default="{row}">{{ formatTime(row.started_at) }}</template></el-table-column>
                 <el-table-column label="完成时间" width="140"><template #default="{row}">{{ formatTime(row.completed_at) }}</template></el-table-column>
+                <el-table-column label="操作" width="80" fixed="right"><template #default="{row}"><el-button link size="small" @click="viewInspectionResult(row)">查看结果</el-button></template></el-table-column>
               </el-table>
             </div>
           </div>
+          <el-dialog v-model="inspectionDialog.visible" title="新建巡检" width="440px">
+            <el-form label-position="top">
+              <el-form-item label="目标实例"><el-select v-model="inspectionDialog.form.connection_id" filterable placeholder="选择实例" style="width:100%"><el-option v-for="c in savedConnections" :key="c.id" :label="c.name+' ('+c.host+')'" :value="c.id"></el-option></el-select></el-form-item>
+              <el-form-item label="巡检类型"><el-select v-model="inspectionDialog.form.inspection_type" style="width:100%"><el-option label="全面巡检" value="full"></el-option><el-option label="性能巡检" value="performance"></el-option><el-option label="安全巡检" value="security"></el-option></el-select></el-form-item>
+            </el-form>
+            <template #footer><el-button @click="inspectionDialog.visible=false">取消</el-button><el-button type="primary" :loading="inspectionDialog.loading" @click="createInspection">创建</el-button></template>
+          </el-dialog>
+          <el-drawer v-model="inspectionResultDrawer" title="巡检结果" size="50%">
+            <el-empty v-if="!inspectionResults.length" description="暂无巡检结果"></el-empty>
+            <el-table v-else :data="inspectionResults" stripe style="width:100%">
+              <el-table-column prop="category" label="分类" width="100"></el-table-column>
+              <el-table-column prop="severity" label="级别" width="80"><template #default="{row}"><el-tag :type="sevTagType(row.severity)" size="small">{{ row.severity }}</el-tag></template></el-table-column>
+              <el-table-column prop="message" label="问题" show-overflow-tooltip></el-table-column>
+              <el-table-column prop="suggestion" label="建议" show-overflow-tooltip></el-table-column>
+            </el-table>
+          </el-drawer>
 
           <!-- ═══ 用户管理 ═══ -->
           <div v-if="currentPage==='sys-users'">
@@ -806,15 +891,27 @@
             <div class="page-card">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
                 <div class="page-card-title" style="margin-bottom:0">数据保留策略</div>
-                <el-button type="danger" plain size="small" @click="runRetentionCleanup">立即清理</el-button>
+                <div>
+                  <el-button type="primary" size="small" @click="openRetentionEdit(null)">+ 新增策略</el-button>
+                  <el-button type="danger" plain size="small" @click="runRetentionCleanup">立即清理</el-button>
+                </div>
               </div>
               <el-table :data="retentionPolicies" v-loading="retentionLoading" stripe style="width:100%">
                 <el-table-column prop="table_name" label="表名" show-overflow-tooltip></el-table-column>
                 <el-table-column prop="retention_days" label="保留天数" width="80"></el-table-column>
                 <el-table-column prop="enabled" label="启用" width="60"><template #default="{row}"><el-tag :type="row.enabled?'success':'info'" size="small">{{ row.enabled?'是':'否' }}</el-tag></template></el-table-column>
+                <el-table-column label="操作" width="70" fixed="right"><template #default="{row}"><el-button link size="small" @click="openRetentionEdit(row)">编辑</el-button></template></el-table-column>
               </el-table>
             </div>
           </div>
+          <el-dialog v-model="retentionDialog.visible" title="保留策略" width="400px">
+            <el-form label-position="top">
+              <el-form-item label="表名"><el-select v-model="retentionDialog.form.table_name" placeholder="选择表" style="width:100%" :disabled="retentionEditMode"><el-option label="slow_queries (慢SQL)" value="slow_queries"></el-option><el-option label="audit_history (审核历史)" value="audit_history"></el-option><el-option label="scan_tasks (扫描任务)" value="scan_tasks"></el-option><el-option label="alerts (告警)" value="alerts"></el-option><el-option label="operation_logs (操作日志)" value="operation_logs"></el-option><el-option label="gate_audit_logs (门禁日志)" value="gate_audit_logs"></el-option><el-option label="fingerprint_stats (指纹统计)" value="fingerprint_stats"></el-option></el-select></el-form-item>
+              <el-form-item label="保留天数"><el-input-number v-model="retentionDialog.form.retention_days" :min="7"></el-input-number></el-form-item>
+              <el-form-item label="启用"><el-switch v-model="retentionDialog.form.enabled"></el-switch></el-form-item>
+            </el-form>
+            <template #footer><el-button @click="retentionDialog.visible=false">取消</el-button><el-button type="primary" :loading="retentionDialog.loading" @click="saveRetention">保存</el-button></template>
+          </el-dialog>
           <!-- ═══ 操作审计 ═══ -->
           <div v-if="currentPage==='sys-auditlog'">
             <div class="page-card">
@@ -957,26 +1054,35 @@ const app=createApp({
     const healthDbName=ref('');
     const bigtableLoading=ref(false);
     const bigtableData=ref(null);
+    const bigtableCollecting=ref(false);
     const projectsList=ref([]);
     const projectsLoading=ref(false);
     const projectDialog=reactive({visible:false,loading:false,form:{project_name:'',tdsql_connection_id:'',rule_set_id:'default',gate_rule_id:'default',gitlab_url:'',description:''}});
     const rulesets=ref([]);
     const rulesetsLoading=ref(false);
+    const rulesetDialog=reactive({visible:false,loading:false,form:{id:'',name:'',description:''}});
     const gateRules=ref(null);
     const gateStrategies=ref([]);
     const gateLoading=ref(false);
+    const gateCustom=reactive({visible:false,max_error_count:0,max_warning_count:10});
     const monitorAlerts=ref([]);
     const monitorRules=ref([]);
     const monitorLoading=ref(false);
     const monitorTab=ref('alerts');
+    const monitorRuleDialog=reactive({visible:false,loading:false,form:{metric_name:'',warning_threshold:0,urgent_threshold:0,check_interval_sec:60,enabled:true}});
     const inspectionTasks=ref([]);
     const inspectionLoading=ref(false);
+    const inspectionDialog=reactive({visible:false,loading:false,form:{connection_id:'',inspection_type:'full'}});
+    const inspectionResultDrawer=ref(false);
+    const inspectionResults=ref([]);
     const auditLogs=ref([]);
     const auditLogsLoading=ref(false);
     const auditLogsTotal=ref(0);
     const auditLogsPage=ref(1);
     const retentionPolicies=ref([]);
     const retentionLoading=ref(false);
+    const retentionDialog=reactive({visible:false,loading:false,form:{table_name:'',retention_days:30,enabled:true}});
+    const retentionEditMode=ref(false);
     const sysInfo=ref(null);
     const sysInfoLoading=ref(false);
     // RBAC权限 (P2-17: 对照附录B校正)
@@ -1010,7 +1116,7 @@ const app=createApp({
     // P1-03: 项目切换后刷新受影响页面
     const onProjectSwitch=()=>{if(currentPage.value==='audit-sql'||currentPage.value==='file-audit'){ElementPlus.ElMessage.info('项目已切换，审核将使用项目规则集')}};
     // P1-02: 加载项目列表
-    const loadProjects=async()=>{try{const resp=await apiFetch(`${API_BASE}/api/v1/projects`);if(resp.ok){const d=await resp.json();projects.value=d.items||d||[]}}catch(e){}};
+    const loadProjects=async()=>{try{const resp=await apiFetch(`${API_BASE}/api/v1/projects`);if(resp.ok){const d=await resp.json();projects.value=d.data||[]}}catch(e){}};
     const loadDashboard=async()=>{statsLoading.value=true;try{const resp=await apiFetch(`${API_BASE}/api/v1/dashboard/summary`);if(resp.ok)stats.value=await resp.json();loadRuleHits()}catch(e){}finally{statsLoading.value=false}};
     const loadRuleHits=async()=>{try{const resp=await apiFetch(`${API_BASE}/api/v1/dashboard/rule-stats`);if(resp.ok)ruleHits.value=(await resp.json()).rules||[]}catch(e){}};
     const renderTrendChart=async()=>{const el=trendChartRef.value;if(!el)return;try{const resp=await apiFetch(`${API_BASE}/api/v1/dashboard/audit-trend?days=7`);const td=resp.ok?await resp.json():{dates:[],passed:[],failed:[]};const chart=echarts.init(el);chart.setOption({tooltip:{trigger:'axis'},legend:{data:['通过','拦截'],bottom:0},grid:{left:'3%',right:'4%',bottom:'15%',top:'5%',containLabel:true},xAxis:{type:'category',data:td.dates||[]},yAxis:{type:'value',minInterval:1},series:[{name:'通过',type:'bar',stack:'t',data:td.passed||[],itemStyle:{color:'#16a34a'}},{name:'拦截',type:'bar',stack:'t',data:td.failed||[],itemStyle:{color:'#dc2626'}}]})}catch(e){}};
@@ -1052,44 +1158,55 @@ const app=createApp({
     const toggleUserStatus=async(row)=>{const ns=row.status==='active'?'disabled':'active';if(ns==='disabled'){try{await ElementPlus.ElMessageBox.confirm(`确认禁用用户 ${row.username}？禁用后该用户将无法登录。`,'禁用确认',{type:'warning'})}catch(e){return}}try{const resp=await apiFetch(`${API_BASE}/api/v1/auth/users/${row.username}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:ns})});if(resp.ok){ElementPlus.ElMessage.success(ns==='active'?'已启用':'已禁用');loadUsers()}}catch(e){}};
     const deleteUser=async(row)=>{try{await ElementPlus.ElMessageBox.confirm(`确认删除用户 ${row.username}？`,'删除确认',{type:'warning'})}catch(e){return}try{const resp=await apiFetch(`${API_BASE}/api/v1/auth/users/${row.username}`,{method:'DELETE'});if(resp.ok){ElementPlus.ElMessage.success('用户已删除');loadUsers()}}catch(e){}};
     // P1-07: 加载活跃告警数
-    const loadActiveAlerts=async()=>{try{const resp=await apiFetch(`${API_BASE}/api/v1/monitor/alerts`);if(resp.ok){const d=await resp.json();activeAlerts.value=(d.items||d||[]).length||0}}catch(e){}};
+    const loadActiveAlerts=async()=>{try{const resp=await apiFetch(`${API_BASE}/api/v1/monitor/alerts`);if(resp.ok){const d=await resp.json();activeAlerts.value=(d.data||[]).length}}catch(e){}};
     // P0-01: 扫描计划
-    const loadScanSchedules=async()=>{scanScheduleLoading.value=true;try{const resp=await apiFetch(`${API_BASE}/api/v1/tdsql/scan-schedules`);if(resp.ok){const d=await resp.json();scanSchedules.value=d.items||d||[]}}catch(e){}finally{scanScheduleLoading.value=false}};
+    const loadScanSchedules=async()=>{scanScheduleLoading.value=true;try{const resp=await apiFetch(`${API_BASE}/api/v1/tdsql/scan-schedules`);if(resp.ok){const d=await resp.json();scanSchedules.value=d.schedules||[]}}catch(e){}finally{scanScheduleLoading.value=false}};
     const createScanSchedule=async()=>{if(!scheduleForm.connection_id){ElementPlus.ElMessage.warning('请选择目标实例');return}try{const resp=await apiFetch(`${API_BASE}/api/v1/tdsql/scan-schedules`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(scheduleForm)});if(resp.ok){ElementPlus.ElMessage.success('计划已创建');scheduleDrawer.value=false;loadScanSchedules()}else{const d=await resp.json();ElementPlus.ElMessage.error(d.detail||'创建失败')}}catch(e){ElementPlus.ElMessage.error('创建失败: '+e.message)}};
     const deleteScanSchedule=async(row)=>{try{await ElementPlus.ElMessageBox.confirm(`确认删除扫描计划「${row.task_name||row.id}」？`,'删除确认',{type:'warning'})}catch(e){return}try{await apiFetch(`${API_BASE}/api/v1/tdsql/scan-schedules/${row.id}`,{method:'DELETE'});ElementPlus.ElMessage.success('已删除');loadScanSchedules()}catch(e){ElementPlus.ElMessage.error('删除失败')}};
     const toggleScheduleEnabled=async(row)=>{try{await apiFetch(`${API_BASE}/api/v1/tdsql/scan-schedules/${row.id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:row.enabled?0:1})});ElementPlus.ElMessage.success('已更新');loadScanSchedules()}catch(e){ElementPlus.ElMessage.error('更新失败')}};
     // P0-01: 数据库体检
     const runHealthCheck=async()=>{if(!currentConnectionId.value){ElementPlus.ElMessage.warning('请先选择实例');return}healthLoading.value=true;healthResult.value=null;try{const resp=await apiFetch(`${API_BASE}/api/v1/tdsql/check/${healthCheckType.value}?connection_id=${currentConnectionId.value}${healthDbName.value?'&database='+healthDbName.value:''}`);if(resp.ok){healthResult.value=await resp.json()}else{const d=await resp.json();ElementPlus.ElMessage.error(d.detail||'检查失败')}}catch(e){ElementPlus.ElMessage.error('检查失败: '+e.message)}finally{healthLoading.value=false}};
     // P0-01: 大表治理
-    const loadBigtable=async()=>{if(!currentConnectionId.value){ElementPlus.ElMessage.warning('请先选择实例');return}bigtableLoading.value=true;try{const resp=await apiFetch(`${API_BASE}/api/v1/bigtable/inventory/${currentConnectionId.value}`);if(resp.ok){const d=await resp.json();bigtableData.value=d.items||d||[]}}catch(e){}finally{bigtableLoading.value=false}};
+    const loadBigtable=async()=>{if(!currentConnectionId.value){ElementPlus.ElMessage.warning('请先选择实例');return}bigtableLoading.value=true;try{const resp=await apiFetch(`${API_BASE}/api/v1/bigtable/inventory/${currentConnectionId.value}`);if(resp.ok){const d=await resp.json();bigtableData.value=d.data||[]}}catch(e){}finally{bigtableLoading.value=false}};
     // P0-01: 项目管理
-    const loadProjectsList=async()=>{projectsLoading.value=true;try{const resp=await apiFetch(`${API_BASE}/api/v1/projects`);if(resp.ok){const d=await resp.json();projectsList.value=d.items||d||[]}}catch(e){}finally{projectsLoading.value=false}};
+    const loadProjectsList=async()=>{projectsLoading.value=true;try{const resp=await apiFetch(`${API_BASE}/api/v1/projects`);if(resp.ok){const d=await resp.json();projectsList.value=d.data||[]}}catch(e){}finally{projectsLoading.value=false}};
     const createProject=async()=>{projectDialog.loading=true;try{const resp=await apiFetch(`${API_BASE}/api/v1/projects`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(projectDialog.form)});if(resp.ok){ElementPlus.ElMessage.success('项目已创建');projectDialog.visible=false;loadProjectsList();loadProjects()}else{const d=await resp.json();ElementPlus.ElMessage.error(d.detail||'创建失败')}}catch(e){ElementPlus.ElMessage.error('创建失败: '+e.message)}finally{projectDialog.loading=false}};
     const deleteProject=async(row)=>{try{await ElementPlus.ElMessageBox.confirm(`确认删除项目「${row.project_name}」？`,'删除确认',{type:'warning'})}catch(e){return}try{await apiFetch(`${API_BASE}/api/v1/projects/${row.project_id}`,{method:'DELETE'});ElementPlus.ElMessage.success('已删除');loadProjectsList();loadProjects()}catch(e){ElementPlus.ElMessage.error('删除失败')}};
     // P0-01: 规则集
-    const loadRulesets=async()=>{rulesetsLoading.value=true;try{const resp=await apiFetch(`${API_BASE}/api/v1/rulesets`);if(resp.ok){const d=await resp.json();rulesets.value=d.items||d||[]}}catch(e){}finally{rulesetsLoading.value=false}};
+    const loadRulesets=async()=>{rulesetsLoading.value=true;try{const resp=await apiFetch(`${API_BASE}/api/v1/rulesets`);if(resp.ok){const d=await resp.json();rulesets.value=d.rulesets||[]}}catch(e){}finally{rulesetsLoading.value=false}};
     // P0-01: 质量门禁
-    const loadGateRules=async()=>{if(!currentProjectId.value){gateRules.value=null;return}gateLoading.value=true;try{const resp=await apiFetch(`${API_BASE}/api/v1/gate/rules/${currentProjectId.value}`);if(resp.ok)gateRules.value=await resp.json();else gateRules.value=null}catch(e){gateRules.value=null}finally{gateLoading.value=false}};
-    const loadGateStrategies=async()=>{try{const resp=await apiFetch(`${API_BASE}/api/v1/gate/strategies`);if(resp.ok)gateStrategies.value=(await resp.json()).items||[]}catch(e){}};
+    const loadGateRules=async()=>{if(!currentProjectId.value){gateRules.value=null;return}gateLoading.value=true;try{const resp=await apiFetch(`${API_BASE}/api/v1/gate/rules/${currentProjectId.value}`);if(resp.ok){const d=await resp.json();gateRules.value=d.data||d}else gateRules.value=null}catch(e){gateRules.value=null}finally{gateLoading.value=false}};
+    const loadGateStrategies=async()=>{try{const resp=await apiFetch(`${API_BASE}/api/v1/gate/strategies`);if(resp.ok){const d=await resp.json();gateStrategies.value=Object.keys(d.data||{}).map(k=>({name:k,...d.data[k]}))}}catch(e){}};
     const applyGateStrategy=async(strategy)=>{if(!currentProjectId.value){ElementPlus.ElMessage.warning('请先选择项目');return}try{const resp=await apiFetch(`${API_BASE}/api/v1/gate/strategy/${currentProjectId.value}?strategy=${strategy}`,{method:'POST'});if(resp.ok){ElementPlus.ElMessage.success('策略已应用');loadGateRules()}else{const d=await resp.json();ElementPlus.ElMessage.error(d.detail||'应用失败')}}catch(e){ElementPlus.ElMessage.error('应用失败')}};
     // P0-01: 监控告警
-    const loadMonitorAlerts=async()=>{monitorLoading.value=true;try{const resp=await apiFetch(`${API_BASE}/api/v1/monitor/alerts`);if(resp.ok){const d=await resp.json();monitorAlerts.value=d.items||d||[]}}catch(e){}finally{monitorLoading.value=false}};
+    const loadMonitorAlerts=async()=>{monitorLoading.value=true;try{const resp=await apiFetch(`${API_BASE}/api/v1/monitor/alerts`);if(resp.ok){const d=await resp.json();monitorAlerts.value=d.data||[]}}catch(e){}finally{monitorLoading.value=false}};
     const acknowledgeAlert=async(row)=>{try{await apiFetch(`${API_BASE}/api/v1/monitor/alerts/${row.id}/acknowledge`,{method:'POST'});ElementPlus.ElMessage.success('已确认');loadMonitorAlerts();loadActiveAlerts()}catch(e){ElementPlus.ElMessage.error('确认失败')}};
-    const loadMonitorRules=async()=>{try{const resp=await apiFetch(`${API_BASE}/api/v1/monitor/rules`);if(resp.ok){const d=await resp.json();monitorRules.value=d.items||d||[]}}catch(e){}};
+    const loadMonitorRules=async()=>{try{const resp=await apiFetch(`${API_BASE}/api/v1/monitor/rules`);if(resp.ok){const d=await resp.json();monitorRules.value=d.data||[]}}catch(e){}};
     // P0-01: 巡检管理
-    const loadInspectionTasks=async()=>{inspectionLoading.value=true;try{const resp=await apiFetch(`${API_BASE}/api/v1/inspection/tasks`);if(resp.ok){const d=await resp.json();inspectionTasks.value=d.items||d||[]}}catch(e){}finally{inspectionLoading.value=false}};
+    const loadInspectionTasks=async()=>{inspectionLoading.value=true;try{const resp=await apiFetch(`${API_BASE}/api/v1/inspection/tasks`);if(resp.ok){const d=await resp.json();inspectionTasks.value=d.data||[]}}catch(e){}finally{inspectionLoading.value=false}};
     // P0-01: 操作审计日志
     const loadAuditLogs=async()=>{auditLogsLoading.value=true;try{const offset=(auditLogsPage.value-1)*20;const resp=await apiFetch(`${API_BASE}/api/v1/admin/operation-logs?limit=20&offset=${offset}`);if(resp.ok){const d=await resp.json();auditLogs.value=d.items||d.logs||[];auditLogsTotal.value=d.total||0}}catch(e){}finally{auditLogsLoading.value=false}};
     // P0-01: 数据保留
-    const loadRetention=async()=>{retentionLoading.value=true;try{const resp=await apiFetch(`${API_BASE}/api/v1/admin/retention`);if(resp.ok){const d=await resp.json();retentionPolicies.value=d.items||d||[]}}catch(e){}finally{retentionLoading.value=false}};
+    const loadRetention=async()=>{retentionLoading.value=true;try{const resp=await apiFetch(`${API_BASE}/api/v1/admin/retention`);if(resp.ok){const d=await resp.json();retentionPolicies.value=d.policies||[]}}catch(e){}finally{retentionLoading.value=false}};
     const runRetentionCleanup=async()=>{try{await ElementPlus.ElMessageBox.confirm('确认立即执行数据清理？此操作将删除超过保留期限的数据。','清理确认',{type:'warning'})}catch(e){return}try{const resp=await apiFetch(`${API_BASE}/api/v1/admin/retention/run`,{method:'POST'});if(resp.ok){const d=await resp.json();ElementPlus.ElMessage.success(d.message||'清理完成');loadRetention()}}catch(e){ElementPlus.ElMessage.error('清理失败')}};
     // P0-01: 系统信息
     const loadSysInfo=async()=>{sysInfoLoading.value=true;try{const resp=await apiFetch(`${API_BASE}/api/v1/admin/info`);if(resp.ok)sysInfo.value=await resp.json()}catch(e){}finally{sysInfoLoading.value=false}};
+    // 第三节增删改
+    const collectBigtable=async()=>{if(!currentConnectionId.value){ElementPlus.ElMessage.warning('请先选择实例');return}bigtableCollecting.value=true;try{const cr=await apiFetch(`${API_BASE}/api/v1/tdsql/check/large-tables?connection_id=${currentConnectionId.value}`);if(!cr.ok){const d=await cr.json();ElementPlus.ElMessage.error(d.detail||'采集失败');return}const cd=await cr.json();const tables=(cd.tables||[]).map(t=>({schema:cd.database||'',table:t.TABLE_NAME,size_gb:t.size_gb,rows:t.TABLE_ROWS,is_partitioned:false,partition_count:0,shard_key:''}));if(!tables.length){ElementPlus.ElMessage.info('未发现大表');return}const sr=await apiFetch(`${API_BASE}/api/v1/bigtable/inventory/${currentConnectionId.value}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(tables)});if(sr.ok){ElementPlus.ElMessage.success(`已采集 ${tables.length} 张大表`);loadBigtable()}else{const d=await sr.json();ElementPlus.ElMessage.error(d.detail||'保存失败')}}catch(e){ElementPlus.ElMessage.error('采集失败: '+e.message)}finally{bigtableCollecting.value=false}};
+    const createInspection=async()=>{if(!inspectionDialog.form.connection_id){ElementPlus.ElMessage.warning('请选择实例');return}inspectionDialog.loading=true;try{const resp=await apiFetch(`${API_BASE}/api/v1/inspection/tasks`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(inspectionDialog.form)});if(resp.ok){ElementPlus.ElMessage.success('巡检任务已创建');inspectionDialog.visible=false;loadInspectionTasks()}else{const d=await resp.json();ElementPlus.ElMessage.error(d.detail||'创建失败')}}catch(e){ElementPlus.ElMessage.error('创建失败: '+e.message)}finally{inspectionDialog.loading=false}};
+    const viewInspectionResult=async(row)=>{inspectionResultDrawer.value=true;inspectionResults.value=[];try{const resp=await apiFetch(`${API_BASE}/api/v1/inspection/tasks/${row.id}`);if(resp.ok){const d=await resp.json();const data=d.data||d;inspectionResults.value=data.results||data.inspection_results||[]}}catch(e){}};
+    const createRuleset=async()=>{if(!rulesetDialog.form.id||!rulesetDialog.form.name){ElementPlus.ElMessage.warning('请输入规则集ID和名称');return}rulesetDialog.loading=true;try{const resp=await apiFetch(`${API_BASE}/api/v1/rulesets`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:rulesetDialog.form.id,name:rulesetDialog.form.name,description:rulesetDialog.form.description,items:[]})});if(resp.ok){ElementPlus.ElMessage.success('规则集已创建');rulesetDialog.visible=false;rulesetDialog.form={id:'',name:'',description:''};loadRulesets()}else{const d=await resp.json();ElementPlus.ElMessage.error((d.detail&&d.detail[0]&&d.detail[0].msg)||d.detail||'创建失败')}}catch(e){ElementPlus.ElMessage.error('创建失败: '+e.message)}finally{rulesetDialog.loading=false}};
+    const deleteRuleset=async(row)=>{if(row.is_builtin){ElementPlus.ElMessage.warning('内置规则集不可删除');return}try{await ElementPlus.ElMessageBox.confirm(`确认删除规则集「${row.name}」？`,'删除确认',{type:'warning'})}catch(e){return}try{await apiFetch(`${API_BASE}/api/v1/rulesets/${row.id}`,{method:'DELETE'});ElementPlus.ElMessage.success('已删除');loadRulesets()}catch(e){ElementPlus.ElMessage.error('删除失败')}};
+    const createMonitorRule=async()=>{if(!monitorRuleDialog.form.metric_name){ElementPlus.ElMessage.warning('请输入指标名');return}monitorRuleDialog.loading=true;try{const resp=await apiFetch(`${API_BASE}/api/v1/monitor/rules`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(monitorRuleDialog.form)});if(resp.ok){ElementPlus.ElMessage.success('告警规则已保存');monitorRuleDialog.visible=false;loadMonitorRules()}else{const d=await resp.json();ElementPlus.ElMessage.error(d.detail||'保存失败')}}catch(e){ElementPlus.ElMessage.error('保存失败: '+e.message)}finally{monitorRuleDialog.loading=false}};
+    const openGateCustom=()=>{if(gateRules.value){gateCustom.max_error_count=gateRules.value.max_error_count||0;gateCustom.max_warning_count=gateRules.value.max_warning_count||10}gateCustom.visible=true};
+    const saveGateCustom=async()=>{if(!currentProjectId.value){ElementPlus.ElMessage.warning('请先选择项目');return}try{const resp=await apiFetch(`${API_BASE}/api/v1/gate/rules`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({project_id:currentProjectId.value,max_error_count:gateCustom.max_error_count,max_warning_count:gateCustom.max_warning_count})});if(resp.ok){ElementPlus.ElMessage.success('门禁规则已保存');gateCustom.visible=false;loadGateRules()}else{const d=await resp.json();ElementPlus.ElMessage.error(d.detail||'保存失败')}}catch(e){ElementPlus.ElMessage.error('保存失败: '+e.message)}};
+    const openRetentionEdit=(row)=>{if(row){retentionEditMode.value=true;retentionDialog.form={table_name:row.table_name,retention_days:row.retention_days,enabled:!!row.enabled}}else{retentionEditMode.value=false;retentionDialog.form={table_name:'',retention_days:30,enabled:true}}retentionDialog.visible=true};
+    const saveRetention=async()=>{if(!retentionDialog.form.table_name){ElementPlus.ElMessage.warning('请输入表名');return}retentionDialog.loading=true;try{const resp=await apiFetch(`${API_BASE}/api/v1/admin/retention`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(retentionDialog.form)});if(resp.ok){ElementPlus.ElMessage.success('保留策略已保存');retentionDialog.visible=false;loadRetention()}else{const d=await resp.json();ElementPlus.ElMessage.error(d.detail||'保存失败')}}catch(e){ElementPlus.ElMessage.error('保存失败: '+e.message)}finally{retentionDialog.loading=false}};
     const loadAll=()=>{loadDashboard();loadSavedConnections();loadRules();loadScanTasks();loadSlowList();loadProjects();loadActiveAlerts()};
     onMounted(async()=>{onUnauthorized=()=>{authState.token='';authState.user=null};const ok=await checkSession();if(ok)loadAll()});
-    watch(currentPage,(v)=>{if(v==='dashboard')nextTick(renderTrendChart);if(v==='rules'&&rulesList.value.length===0)loadRules();if(v==='file-audit'&&fileAuditTab.value==='reports')loadFileReports();if(v==='slow-tasks')loadScanTasks();if(v==='slow-records')loadSlowList();if(v==='sys-users')loadUsers();if(v==='slow-schedule')loadScanSchedules();if(v==='health-check')runHealthCheck();if(v==='bigtable')loadBigtable();if(v==='projects')loadProjectsList();if(v==='rulesets')loadRulesets();if(v==='gate'){loadGateStrategies();loadGateRules()};if(v==='monitor'){loadMonitorAlerts();loadMonitorRules()};if(v==='inspection')loadInspectionTasks();if(v==='sys-auditlog')loadAuditLogs();if(v==='sys-retention')loadRetention();if(v==='sys-info')loadSysInfo()});
+    watch(currentPage,(v)=>{if(v==='dashboard')nextTick(renderTrendChart);if(v==='rules'&&rulesList.value.length===0)loadRules();if(v==='file-audit'&&fileAuditTab.value==='reports')loadFileReports();if(v==='slow-tasks')loadScanTasks();if(v==='slow-records')loadSlowList();if(v==='sys-users')loadUsers();if(v==='slow-schedule')loadScanSchedules();if(v==='bigtable')loadBigtable();if(v==='projects')loadProjectsList();if(v==='rulesets')loadRulesets();if(v==='gate'){loadGateStrategies();loadGateRules()};if(v==='monitor'){loadMonitorAlerts();loadMonitorRules()};if(v==='inspection')loadInspectionTasks();if(v==='sys-auditlog')loadAuditLogs();if(v==='sys-retention')loadRetention();if(v==='sys-info')loadSysInfo()});
     watch(fileAuditTab,(v)=>{if(v==='reports')loadFileReports()});
-    return{currentPage,sidebarCollapsed,authState,loginForm,loginLoading,loginError,pwdDialog,savedConnections,currentConnectionId,projects,currentProjectId,activeAlerts,metadataEnhanced,statsLoading,stats,ruleHits,trendChartRef,kpiCards,sqlInput,auditing,auditResult,auditProjectId,fileAuditTab,fileAuditResult,fileReports,fileReportsLoading,fileReportsTotal,fileReportsPage,rulesList,rulesByCategory,ruleSearch,expandedCategories,filteredCategories,slowList,slowListLoading,slowFilters,slowPage,scanTasks,scanTaskTotal,scanTaskCurrentPage,scanTaskLoading,selectedTaskIds,batchDeleting,clearingOrphan,scanDrawer,scanTimeWindow,scanTaskForm,slowDetailDrawer,slowDetail,explainMode,explainSqlInput,explainInput,explainConnId,analyzingExplain,explainResult,tdsqlStatus,connDrawer,connForm,connTestResult,connTesting,connLoading,usersList,usersLoading,userDialog,resetDialog,scanSchedules,scanScheduleLoading,scheduleDrawer,scheduleForm,healthLoading,healthResult,healthCheckType,healthDbName,bigtableLoading,bigtableData,projectsList,projectsLoading,projectDialog,rulesets,rulesetsLoading,gateRules,gateStrategies,gateLoading,monitorAlerts,monitorRules,monitorLoading,monitorTab,inspectionTasks,inspectionLoading,auditLogs,auditLogsLoading,auditLogsTotal,auditLogsPage,retentionPolicies,retentionLoading,sysInfo,sysInfoLoading,roleLabel,canManagePlatform,canManageInstances,canViewAuditLog,canViewSysInfo,canViewProjects,canViewMonitor,canViewSchedule,canViewBigtable,breadcrumbItems,formatTime,sevTagType,statusLabel,sourceLabel,categoryOrder,doLogin,doLogout,changePassword,onUserCommand,onMenuSelect,onConnectionSwitch,onProjectSwitch,auditSql,loadExample,onFileChange,loadFileReports,downloadFileReport,loadRules,loadSlowList,resetSlowFilter,openSlowDetail,setSlowStatus,exportSlowReport,goSlowDetail,goExplainFromSlow,loadScanTasks,onTaskSelectChange,deleteScanTask,batchDeleteScanTasks,startScanTask,viewTaskSlowQueries,clearOrphanRecords,analyzeExplainBySql,analyzeExplain,loadSavedConnections,testConn,saveConn,deleteConn,setDefaultConn,connectInstance,loadUsers,createUser,openResetPwd,resetUserPwd,unlockUser,toggleUserStatus,deleteUser,loadAll,renderTrendChart,loadProjects,loadActiveAlerts,loadScanSchedules,createScanSchedule,deleteScanSchedule,toggleScheduleEnabled,runHealthCheck,loadBigtable,loadProjectsList,createProject,deleteProject,loadRulesets,loadGateRules,loadGateStrategies,applyGateStrategy,loadMonitorAlerts,acknowledgeAlert,loadMonitorRules,loadInspectionTasks,loadAuditLogs,loadRetention,runRetentionCleanup,loadSysInfo};
+    return{currentPage,sidebarCollapsed,authState,loginForm,loginLoading,loginError,pwdDialog,savedConnections,currentConnectionId,projects,currentProjectId,activeAlerts,metadataEnhanced,statsLoading,stats,ruleHits,trendChartRef,kpiCards,sqlInput,auditing,auditResult,auditProjectId,fileAuditTab,fileAuditResult,fileReports,fileReportsLoading,fileReportsTotal,fileReportsPage,rulesList,rulesByCategory,ruleSearch,expandedCategories,filteredCategories,slowList,slowListLoading,slowFilters,slowPage,scanTasks,scanTaskTotal,scanTaskCurrentPage,scanTaskLoading,selectedTaskIds,batchDeleting,clearingOrphan,scanDrawer,scanTimeWindow,scanTaskForm,slowDetailDrawer,slowDetail,explainMode,explainSqlInput,explainInput,explainConnId,analyzingExplain,explainResult,tdsqlStatus,connDrawer,connForm,connTestResult,connTesting,connLoading,usersList,usersLoading,userDialog,resetDialog,scanSchedules,scanScheduleLoading,scheduleDrawer,scheduleForm,healthLoading,healthResult,healthCheckType,healthDbName,bigtableLoading,bigtableData,projectsList,projectsLoading,projectDialog,rulesets,rulesetsLoading,gateRules,gateStrategies,gateLoading,monitorAlerts,monitorRules,monitorLoading,monitorTab,inspectionTasks,inspectionLoading,auditLogs,auditLogsLoading,auditLogsTotal,auditLogsPage,retentionPolicies,retentionLoading,sysInfo,sysInfoLoading,roleLabel,canManagePlatform,canManageInstances,canViewAuditLog,canViewSysInfo,canViewProjects,canViewMonitor,canViewSchedule,canViewBigtable,breadcrumbItems,formatTime,sevTagType,statusLabel,sourceLabel,categoryOrder,doLogin,doLogout,changePassword,onUserCommand,onMenuSelect,onConnectionSwitch,onProjectSwitch,auditSql,loadExample,onFileChange,loadFileReports,downloadFileReport,loadRules,loadSlowList,resetSlowFilter,openSlowDetail,setSlowStatus,exportSlowReport,goSlowDetail,goExplainFromSlow,loadScanTasks,onTaskSelectChange,deleteScanTask,batchDeleteScanTasks,startScanTask,viewTaskSlowQueries,clearOrphanRecords,analyzeExplainBySql,analyzeExplain,loadSavedConnections,testConn,saveConn,deleteConn,setDefaultConn,connectInstance,loadUsers,createUser,openResetPwd,resetUserPwd,unlockUser,toggleUserStatus,deleteUser,loadAll,renderTrendChart,loadProjects,loadActiveAlerts,loadScanSchedules,createScanSchedule,deleteScanSchedule,toggleScheduleEnabled,runHealthCheck,loadBigtable,loadProjectsList,createProject,deleteProject,loadRulesets,loadGateRules,loadGateStrategies,applyGateStrategy,loadMonitorAlerts,acknowledgeAlert,loadMonitorRules,loadInspectionTasks,loadAuditLogs,loadRetention,runRetentionCleanup,loadSysInfo,bigtableCollecting,collectBigtable,rulesetDialog,createRuleset,deleteRuleset,gateCustom,openGateCustom,saveGateCustom,monitorRuleDialog,createMonitorRule,inspectionDialog,createInspection,inspectionResultDrawer,inspectionResults,viewInspectionResult,retentionDialog,openRetentionEdit,saveRetention,retentionEditMode};
   }
 });
 app.use(ElementPlus,{locale:ElementPlusLocaleZhCn});
