@@ -324,9 +324,10 @@
                 <el-table-column prop="fetched_count" label="抓取数" width="70"></el-table-column>
                 <el-table-column prop="created_by" label="创建人" width="80"></el-table-column>
                 <el-table-column label="时间" width="140"><template #default="{row}">{{ formatTime(row.created_at) }}</template></el-table-column>
-                <el-table-column label="操作" width="180" fixed="right">
+                <el-table-column label="操作" width="240" fixed="right">
                   <template #default="{row}">
                     <el-button link size="small" @click="viewTaskSlowQueries(row)">查看慢SQL</el-button>
+                    <el-button link size="small" @click="downloadScanReport(row.id)">下载报告</el-button>
                     <el-button link type="danger" size="small" @click="deleteScanTask(row)">删除</el-button>
                   </template>
                 </el-table-column>
@@ -368,6 +369,8 @@
                 <el-input v-model="slowFilters.set_id" placeholder="SET" clearable size="small" class="w-100"></el-input>
                 <el-select v-model="slowFilters.severity" placeholder="级别" clearable size="small" class="w-100"><el-option label="CRITICAL" value="CRITICAL"></el-option><el-option label="WARNING" value="WARNING"></el-option><el-option label="INFO" value="INFO"></el-option></el-select>
                 <el-select v-model="slowFilters.status" placeholder="状态" clearable size="small" class="w-100"><el-option label="待处理" value="pending"></el-option><el-option label="已优化" value="optimized"></el-option><el-option label="已忽略" value="ignored"></el-option></el-select>
+                <el-select v-model="slowFilters.scan_task_id" placeholder="扫描任务" clearable filterable size="small" class="w-200"><el-option v-for="t in scanTasks" :key="t.id" :label="t.task_name" :value="t.id"></el-option></el-select>
+                <el-input v-model="slowFilters.created_by" placeholder="操作人" clearable size="small" class="w-120"></el-input>
                 <el-input v-model="slowFilters.keyword" placeholder="关键词" clearable size="small" class="w-140"></el-input>
                 <el-button type="primary" size="small" @click="loadSlowList">筛选</el-button>
                 <el-button size="small" @click="resetSlowFilter">重置</el-button>

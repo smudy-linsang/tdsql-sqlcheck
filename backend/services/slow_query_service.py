@@ -125,44 +125,56 @@ class SlowQueryService:
         scan_task_id: Optional[int] = None,
         set_id: Optional[str] = None,
         keyword: Optional[str] = None,
+        created_by: Optional[str] = None,
+        task_name: Optional[str] = None,
         limit: int = 20,
         offset: int = 0,
     ) -> dict:
-        """获取慢SQL列表，支持多维度筛选"""
+        """获取慢SQL列表，支持多维度筛选（含操作者和任务名跨表筛选）"""
         conn = _get_connection()
         try:
             conditions = []
             params = []
+            join_clause = ""
             if db_name:
-                conditions.append("db_name = ?")
+                conditions.append("sq.db_name = ?")
                 params.append(db_name)
             if status:
-                conditions.append("status = ?")
+                conditions.append("sq.status = ?")
                 params.append(status)
             if severity:
-                conditions.append("severity = ?")
+                conditions.append("sq.severity = ?")
                 params.append(severity)
             if scan_task_id is not None:
-                conditions.append("scan_task_id = ?")
+                conditions.append("sq.scan_task_id = ?")
                 params.append(scan_task_id)
             if set_id:
-                conditions.append("set_id = ?")
+                conditions.append("sq.set_id = ?")
                 params.append(set_id)
             if keyword:
-                conditions.append("(fingerprint LIKE ? OR sql_text LIKE ?)")
+                conditions.append("(sq.fingerprint LIKE ? OR sq.sql_text LIKE ?)")
                 params.extend([f"%{keyword}%", f"%{keyword}%"])
+            if created_by:
+                join_clause = " LEFT JOIN scan_tasks st ON sq.scan_task_id = st.id"
+                conditions.append("st.created_by = ?")
+                params.append(created_by)
+            if task_name:
+                if not join_clause:
+                    join_clause = " LEFT JOIN scan_tasks st ON sq.scan_task_id = st.id"
+                conditions.append("st.task_name LIKE ?")
+                params.append(f"%{task_name}%")
 
             where_clause = " AND ".join(conditions) if conditions else "1=1"
 
             # 总数
-            count_sql = f"SELECT COUNT(*) as cnt FROM slow_queries WHERE {where_clause}"
+            count_sql = f"SELECT COUNT(*) as cnt FROM slow_queries sq{join_clause} WHERE {where_clause}"
             total = conn.execute(count_sql, params).fetchone()["cnt"]
 
             # 分页查询
             query_sql = f"""
-                SELECT * FROM slow_queries
+                SELECT sq.* FROM slow_queries sq{join_clause}
                 WHERE {where_clause}
-                ORDER BY avg_time_ms DESC, exec_count DESC
+                ORDER BY sq.avg_time_ms DESC, sq.exec_count DESC
                 LIMIT ? OFFSET ?
             """
             params.extend([limit, offset])

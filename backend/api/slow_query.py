@@ -94,11 +94,13 @@ async def list_slow_queries(
     scan_task_id: Optional[int] = None,
     set_id: Optional[str] = None,
     keyword: Optional[str] = None,
+    created_by: Optional[str] = None,
+    task_name: Optional[str] = None,
     limit: int = 20,
     offset: int = 0,
 ):
     """
-    获取慢SQL列表，支持按数据库名、SET、状态、严重程度、扫描任务、关键词筛选。
+    获取慢SQL列表，支持按数据库名、SET、状态、严重程度、扫描任务、关键词、操作者、任务名筛选。
     """
     return service.get_slow_queries(
         db_name=db_name,
@@ -107,6 +109,8 @@ async def list_slow_queries(
         scan_task_id=scan_task_id,
         set_id=set_id,
         keyword=keyword,
+        created_by=created_by,
+        task_name=task_name,
         limit=limit,
         offset=offset,
     )
@@ -295,3 +299,150 @@ def _friendly_error(e: Exception) -> str:
         return "SQL中引用了不存在的列，请检查字段名"
 
     return f"EXPLAIN执行失败: {msg}"
+
+
+# ============ 扫描任务HTML报告 ============
+
+@router.get("/scan-tasks/{task_id}/html", summary="下载扫描任务HTML报告")
+async def export_scan_task_html(task_id: int):
+    """生成并下载指定扫描任务的HTML报告"""
+    import json
+    from datetime import datetime
+    from urllib.parse import quote
+    from fastapi.responses import HTMLResponse
+    from backend.services.database import ensure_db
+
+    try:
+        ensure_db()
+        conn = _get_connection()
+        try:
+            task = conn.execute(
+                "SELECT * FROM scan_tasks WHERE id = %s", (task_id,)
+            ).fetchone()
+            if not task:
+                raise HTTPException(status_code=404, detail="扫描任务不存在")
+            task = dict(task)
+            # 获取该任务下的慢SQL记录
+            rows = conn.execute(
+                "SELECT * FROM slow_queries WHERE scan_task_id = %s ORDER BY avg_time_ms DESC",
+                (task_id,),
+            ).fetchall()
+            slow_queries = []
+            for row in rows:
+                item = dict(row)
+                if item.get("analysis_json"):
+                    try:
+                        item["analyses"] = json.loads(item["analysis_json"])
+                    except Exception:
+                        item["analyses"] = []
+                slow_queries.append(item)
+        finally:
+            conn.close()
+
+        created_at = str(task.get("created_at", ""))
+        time_display = created_at[:19].replace("T", " ") if created_at else ""
+        source_label = {"digest": "性能摘要", "processlist": "实时进程", "manual": "手动录入"}.get(task.get("source", ""), task.get("source", ""))
+
+        # 严重级别统计
+        sev_stats = {}
+        for sq in slow_queries:
+            sev = sq.get("severity", "INFO")
+            sev_stats[sev] = sev_stats.get(sev, 0) + 1
+
+        html_parts = []
+        html_parts.append(f"""<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TDSQL慢SQL扫描报告 - {task.get('task_name', '')}</title>
+<style>
+* {{ margin:0; padding:0; box-sizing:border-box; }}
+body {{ font-family:"Microsoft YaHei","Segoe UI",Arial,sans-serif; background:#f0f2f5; color:#303030; padding:20px; }}
+.container {{ max-width:1000px; margin:0 auto; background:#fff; border-radius:8px; box-shadow:0 2px 12px rgba(0,0,0,0.08); overflow:hidden; }}
+.header {{ background:#1a1a2e; color:#fff; padding:24px 32px; }}
+.header h1 {{ font-size:22px; margin-bottom:6px; }}
+.header .sub {{ font-size:13px; color:#a0aec0; }}
+.meta {{ display:flex; flex-wrap:wrap; gap:24px; padding:20px 32px; background:#f7f8fa; border-bottom:1px solid #ebeef5; }}
+.meta-item {{ font-size:14px; }}
+.meta-item .label {{ color:#909399; margin-right:6px; }}
+.meta-item .value {{ font-weight:600; }}
+.summary {{ display:flex; gap:16px; padding:24px 32px; flex-wrap:wrap; }}
+.sc {{ flex:1; min-width:100px; text-align:center; padding:16px; border-radius:6px; }}
+.sc.total {{ background:#e8f4fd; }} .sc.crit {{ background:#fde8e8; }} .sc.warn {{ background:#fdf6e8; }} .sc.info {{ background:#f0f4f8; }}
+.sc .num {{ font-size:28px; font-weight:700; }} .sc .lbl {{ font-size:12px; color:#606266; margin-top:4px; }}
+.stitle {{ padding:16px 32px 8px; font-size:16px; font-weight:600; border-top:1px solid #ebeef5; }}
+.sql-item {{ margin:0 32px 16px; padding:16px; border:1px solid #ebeef5; border-radius:6px; }}
+.sql-item .sh {{ display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }}
+.sql-text {{ font-family:Consolas,Courier New,monospace; font-size:13px; background:#f5f7fa; padding:8px 12px; border-radius:4px; margin:8px 0; white-space:pre-wrap; word-break:break-all; }}
+.badge {{ display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600; }}
+.badge.CRITICAL {{ background:#fde8e8; color:#f56c6c; }} .badge.WARNING {{ background:#fdf6e8; color:#e6a23c; }} .badge.INFO {{ background:#e8f4fd; color:#409eff; }}
+.stats-row {{ display:flex; gap:16px; flex-wrap:wrap; margin:4px 0; }}
+.stats-row span {{ font-size:13px; color:#606266; }}
+.viol {{ margin:6px 0; padding:8px 12px; border-left:3px solid #f56c6c; background:#fef0f0; border-radius:0 4px 4px 0; font-size:13px; }}
+.footer {{ padding:16px 32px; text-align:center; font-size:12px; color:#909399; border-top:1px solid #ebeef5; }}
+.no-data {{ padding:32px; text-align:center; color:#909399; }}
+</style></head><body>
+<div class="container">
+<div class="header"><h1>TDSQL SQL审核平台 - 慢SQL扫描报告</h1><div class="sub">TDSQL SQL Audit Platform / Slow Query Scan Report</div></div>
+<div class="meta">
+<div class="meta-item"><span class="label">任务名称:</span><span class="value">{task.get('task_name', '-')}</span></div>
+<div class="meta-item"><span class="label">数据源:</span><span class="value">{source_label}</span></div>
+<div class="meta-item"><span class="label">操作人:</span><span class="value">{task.get('created_by', '匿名')}</span></div>
+<div class="meta-item"><span class="label">扫描时间:</span><span class="value">{time_display}</span></div>
+<div class="meta-item"><span class="label">实例:</span><span class="value">{task.get('connection_name', '-')}</span></div>
+<div class="meta-item"><span class="label">时间窗口:</span><span class="value">{task.get('time_window_start', '-')} ~ {task.get('time_window_end', '-')}</span></div>
+<div class="meta-item"><span class="label">报告ID:</span><span class="value">#{task.get('id')}</span></div>
+</div>
+<div class="summary">
+<div class="sc total"><div class="num">{len(slow_queries)}</div><div class="lbl">慢SQL总数</div></div>
+<div class="sc crit"><div class="num" style="color:#f56c6c">{sev_stats.get('CRITICAL', 0)}</div><div class="lbl">CRITICAL</div></div>
+<div class="sc warn"><div class="num" style="color:#e6a23c">{sev_stats.get('WARNING', 0)}</div><div class="lbl">WARNING</div></div>
+<div class="sc info"><div class="num" style="color:#409eff">{sev_stats.get('INFO', 0)}</div><div class="lbl">INFO</div></div>
+</div>
+<div class="stitle">逐条慢SQL详情（共 {len(slow_queries)} 条）</div>""")
+
+        if not slow_queries:
+            html_parts.append('<div class="no-data">本次扫描未抓取到慢SQL记录</div>')
+        else:
+            for i, sq in enumerate(slow_queries, 1):
+                sev = sq.get("severity", "INFO")
+                fingerprint = (sq.get("fingerprint") or "")[:500]
+                sql_text = (sq.get("sql_text") or "")[:500]
+                avg_time = sq.get("avg_time_ms", 0)
+                exec_count = sq.get("exec_count", 0)
+                rows_examined = sq.get("rows_examined", 0)
+                db = sq.get("db_name", "")
+                set_id = sq.get("set_id", "")
+                analyses = sq.get("analyses", [])
+                problem = sq.get("problem_type", "")
+
+                html_parts.append(f'<div class="sql-item"><div class="sh"><span><strong>#{i}</strong> [{db}] SET:{set_id}</span><span class="badge {sev}">{sev}</span></div>')
+                html_parts.append(f'<div class="stats-row"><span>平均耗时: <strong>{avg_time:.1f}ms</strong></span><span>执行次数: <strong>{exec_count}</strong></span><span>扫描行数: <strong>{rows_examined}</strong></span></div>')
+                if problem:
+                    html_parts.append(f'<div style="font-size:13px;color:#606266;margin:4px 0">问题类型: {problem}</div>')
+                html_parts.append(f'<div class="sql-text">{sql_text}</div>')
+                for a in analyses:
+                    a_type = a.get("problem_type", a.get("type", ""))
+                    a_msg = a.get("evidence", a.get("message", ""))
+                    a_cause = a.get("root_cause", "")
+                    a_sug = a.get("suggestion", "")
+                    html_parts.append(f'<div class="viol"><strong>{a_type}</strong>:{a_msg}')
+                    if a_cause:
+                        html_parts.append(f'<br>根因: {a_cause}')
+                    if a_sug:
+                        html_parts.append(f'<br><span style="color:#67c23a">建议: {a_sug}</span>')
+                    html_parts.append('</div>')
+                html_parts.append('</div>')
+
+        html_parts.append(f'<div class="footer">TDSQL SQL审核平台 V3.0 | 报告生成时间: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")} | 任务ID: #{task.get("id")}</div></div></body></html>')
+        html = "\n".join(html_parts)
+
+        filename = f"TDSQL慢SQL扫描报告_{task.get('task_name', 'task')}_{time_display[:10]}.html"
+        encoded_filename = quote(filename)
+        return HTMLResponse(
+            content=html,
+            headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"}
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"HTML报告生成失败: {str(e)}")
