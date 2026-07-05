@@ -125,10 +125,10 @@
         <div class="login-title">用户登录</div>
         <el-form ref="loginFormRef" :model="loginForm" label-position="top" @submit.prevent="doLogin">
           <el-form-item>
-            <el-input v-model="loginForm.username" placeholder="用户名" size="large" :prefix-icon="UserIcon" @keyup.enter="doLogin"></el-input>
+            <el-input v-model="loginForm.username" placeholder="用户名" size="large" @keyup.enter="doLogin"></el-input>
           </el-form-item>
           <el-form-item>
-            <el-input v-model="loginForm.password" type="password" placeholder="口令" size="large" show-password :prefix-icon="LockIcon" @keyup.enter="doLogin"></el-input>
+            <el-input v-model="loginForm.password" type="password" placeholder="口令" size="large" show-password @keyup.enter="doLogin"></el-input>
           </el-form-item>
           <el-alert v-if="loginError" :title="loginError" type="error" show-icon :closable="false" style="margin-bottom:16px"></el-alert>
           <el-button type="primary" size="large" style="width:100%" :loading="loginLoading" @click="doLogin">登 录</el-button>
@@ -554,7 +554,7 @@
               <el-table v-if="explainResult.explain_rows" :data="explainResult.explain_rows" stripe style="width:100%;margin-bottom:16px">
                 <el-table-column v-for="col in explainResult.explain_columns" :key="col" :prop="col" :label="col" show-overflow-tooltip></el-table-column>
               </el-table>
-              <div v-for="(a,i) in (explainResult.analyses||[])." :key="i" class="page-card" style="padding:12px;margin-bottom:8px">
+              <div v-for="(a,i) in (explainResult.analyses||[])" :key="i" class="page-card" style="padding:12px;margin-bottom:8px">
                 <div style="font-weight:600;font-size:14px;margin-bottom:4px">{{ a.type }}</div>
                 <div style="font-size:13px;color:var(--text-regular)">{{ a.message }}</div>
                 <div v-if="a.suggestion" style="font-size:12px;color:var(--success-500);margin-top:4px">建议: {{ a.suggestion }}</div>
@@ -795,7 +795,7 @@ const app=createApp({
     const categoryOrder=[{key:'naming',label:'命名规范'},{key:'ddl',label:'DDL规范'},{key:'dml',label:'DML规范'},{key:'index',label:'索引规范'},{key:'distributed',label:'分布式规范'},{key:'security',label:'安全规范'},{key:'performance',label:'性能规范'},{key:'transaction',label:'事务规范'}];
     const filteredCategories=computed(()=>{if(!ruleSearch.value)return categoryOrder;const q=ruleSearch.value.toLowerCase();return categoryOrder.filter(c=>{const rs=rulesByCategory.value[c.key]||[];return rs.some(r=>r.rule_id.toLowerCase().includes(q)||r.description.toLowerCase().includes(q))})});
     const applyUser=(u)=>{authState.user=u;authState.role=u.role};
-    const doLogin=async()=>{if(!loginForm.username||!loginForm.password){loginError.value='请输入用户名和口令';return}loginLoading.value=true;loginError.value='';try{const resp=await fetch(`${API_BASE}/api/v1/auth/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:loginForm.username,password:loginForm.password})});const data=await resp.json();if(!resp.ok){loginError.value=data.detail||'登录失败';return}setToken(data.token);applyUser(data.user);loginForm.password='';if(data.user.must_change_password){ElementPlus.ElMessage.warning('首次登录请修改口令');pwdDialog.visible=true}loadAll()}catch(e){loginError.value='登录请求失败: '+e.message}finally{loginLoading.value=false}};
+    const doLogin=async()=>{if(!loginForm.username||!loginForm.password){loginError.value='请输入用户名和口令';return}loginLoading.value=true;loginError.value='';try{const resp=await fetch(`${API_BASE}/api/v1/auth/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:loginForm.username,password:loginForm.password})});const data=await resp.json();if(!resp.ok){loginError.value=data.detail||'登录失败';return}setToken(data.token);authState.token=data.token;applyUser(data.user);loginForm.password='';if(data.user.must_change_password){ElementPlus.ElMessage.warning('首次登录请修改口令');pwdDialog.visible=true}loadAll()}catch(e){loginError.value='登录请求失败: '+e.message}finally{loginLoading.value=false}};
     const doLogout=async()=>{try{await apiFetch(`${API_BASE}/api/v1/auth/logout`,{method:'POST'})}catch(e){}clearToken();authState.token='';authState.user=null;loginForm.username='';loginForm.password=''};
     const changePassword=async()=>{if(!pwdDialog.new_password){ElementPlus.ElMessage.warning('请输入新口令');return}pwdDialog.loading=true;try{const resp=await apiFetch(`${API_BASE}/api/v1/auth/change-password`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({old_password:pwdDialog.old_password,new_password:pwdDialog.new_password})});const data=await resp.json();if(!resp.ok){ElementPlus.ElMessage.error(data.detail||'修改失败');return}ElementPlus.ElMessage.success('口令修改成功，请重新登录');pwdDialog.visible=false;pwdDialog.old_password='';pwdDialog.new_password='';doLogout()}catch(e){ElementPlus.ElMessage.error('修改失败: '+e.message)}finally{pwdDialog.loading=false}};
     const checkSession=async()=>{try{const resp=await apiFetch(`${API_BASE}/api/v1/auth/me`);if(resp.ok){applyUser(await resp.json());return true}}catch(e){}return false};
