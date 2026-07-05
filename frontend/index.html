@@ -1,2430 +1,856 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TDSQL SQL审核平台</title>
-  <!-- V2.0: 全部静态资源本地化，支持纯内网环境部署（无外网CDN依赖） -->
-  <!-- Vue 3 -->
+  <title>TDSQL SQL审核平台 V3.0</title>
   <script src="/static/vendor/vue.global.prod.js"></script>
-  <!-- Element Plus -->
   <link rel="stylesheet" href="/static/vendor/element-plus.css">
   <script src="/static/vendor/element-plus.full.min.js"></script>
   <script src="/static/vendor/element-plus-locale-zh-cn.min.js"></script>
-  <!-- Element Plus Icons -->
   <script src="/static/vendor/element-plus-icons.iife.min.js"></script>
-  <!-- ECharts -->
   <script src="/static/vendor/echarts.min.js"></script>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Arial, sans-serif; }
-    .app-container { display: flex; height: 100vh; }
-    .sidebar { width: 220px; background: #304156; color: #bfcbd9; }
-    .sidebar-title { padding: 20px; text-align: center; font-size: 16px; color: #fff; border-bottom: 1px solid #3d4f65; }
-    .sidebar-menu { list-style: none; padding: 10px 0; }
-    .sidebar-menu li { padding: 14px 20px; cursor: pointer; transition: all 0.3s; font-size: 14px; }
-    .sidebar-menu li:hover, .sidebar-menu li.active { background: #263445; color: #409eff; }
-    .sidebar-menu li i { margin-right: 8px; }
-    .main-content { flex: 1; background: #f0f2f5; overflow-y: auto; padding: 20px; }
-    .page-header { margin-bottom: 20px; }
-    .page-header h2 { font-size: 20px; color: #303133; }
-    .card { background: #fff; border-radius: 4px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 12px 0 rgba(0,0,0,0.1); }
-    .card-title { font-size: 16px; font-weight: 600; margin-bottom: 15px; color: #303133; border-left: 3px solid #409eff; padding-left: 10px; }
-    .stat-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 20px; }
-    .stat-card { background: #fff; border-radius: 4px; padding: 20px; box-shadow: 0 2px 12px 0 rgba(0,0,0,0.1); }
-    .stat-card .label { font-size: 14px; color: #909399; margin-bottom: 8px; }
-    .stat-card .value { font-size: 28px; font-weight: 600; }
-    .stat-card .value.success { color: #67c23a; }
-    .stat-card .value.danger { color: #f56c6c; }
-    .stat-card .value.warning { color: #e6a23c; }
-    .stat-card .value.primary { color: #409eff; }
-    .chart-container { height: 350px; }
-    .sql-input { margin-bottom: 20px; }
-    .sql-input textarea { width: 100%; min-height: 120px; padding: 10px; font-family: 'Consolas', 'Monaco', monospace; font-size: 13px; border: 1px solid #dcdfe6; border-radius: 4px; resize: vertical; }
-    .sql-input textarea:focus { outline: none; border-color: #409eff; }
-    .violation-item { padding: 12px; margin-bottom: 8px; border-radius: 4px; border-left: 4px solid; }
-    .violation-item.error { background: #fef0f0; border-color: #f56c6c; }
-    .violation-item.warning { background: #fdf6ec; border-color: #e6a23c; }
-    .violation-item .rule-id { font-weight: 600; margin-right: 8px; }
-    .violation-item .message { font-size: 14px; color: #303133; }
-    .violation-item .suggestion { font-size: 12px; color: #909399; margin-top: 6px; }
-    .file-upload-area { border: 2px dashed #dcdfe6; border-radius: 8px; padding: 40px; text-align: center; cursor: pointer; transition: all 0.3s; }
-    .file-upload-area:hover { border-color: #409eff; background: #f5f7fa; }
-    .file-upload-area.dragover { border-color: #409eff; background: #ecf5ff; }
-    .analysis-card { padding: 15px; margin-bottom: 10px; border-radius: 4px; border: 1px solid #ebeef5; }
-    .analysis-card .problem-type { font-weight: 600; font-size: 14px; margin-bottom: 5px; }
-    .analysis-card .description { font-size: 13px; color: #606266; margin-bottom: 5px; }
-    .analysis-card .suggestion { font-size: 12px; color: #909399; }
-    .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 12px; color: #fff; }
-    .badge.error, .badge.ERROR { background: #f56c6c; }
-    .badge.warning, .badge.WARNING { background: #e6a23c; }
-    .badge.info { background: #909399; }
-    .tabs { display: flex; border-bottom: 1px solid #ebeef5; margin-bottom: 20px; }
-    .tabs .tab { padding: 10px 20px; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.3s; }
-    .tabs .tab:hover { color: #409eff; }
-    .tabs .tab.active { color: #409eff; border-bottom-color: #409eff; }
-    .empty-state { text-align: center; padding: 40px; color: #909399; }
-    .result-passed { color: #67c23a; font-weight: 600; }
-    .result-failed { color: #f56c6c; font-weight: 600; }
-    /* 慢SQL筛选栏 */
-    .slow-filter-bar {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      align-items: center;
-      margin-bottom: 15px;
-      padding: 12px;
-      background: #f5f7fa;
-      border-radius: 4px;
+    /* ════════════════════════════════════════════════════════
+       V3.0 Design Tokens（第3章 设计系统 — 唯一真理来源）
+       ════════════════════════════════════════════════════════ */
+    :root {
+      /* 品牌主色 */
+      --brand-50: #eef4ff; --brand-100: #d9e6ff; --brand-500: #2563eb;
+      --brand-600: #1d4ed8; --brand-700: #1e40af;
+      /* 语义色 */
+      --success-50: #f0fdf4; --success-500: #16a34a;
+      --warning-50: #fffbeb; --warning-500: #d97706;
+      --danger-50: #fef2f2; --danger-500: #dc2626;
+      --info-50: #f8fafc; --info-500: #64748b;
+      /* 中性灰阶 */
+      --text-primary: #1e293b; --text-regular: #475569; --text-secondary: #94a3b8;
+      --border-base: #e2e8f0; --border-light: #f1f5f9; --fill-base: #f8fafc;
+      --bg-page: #f5f7fa; --bg-container: #ffffff;
+      /* 导航 */
+      --nav-bg: #0f1e34; --nav-bg-active: #1c3050; --nav-text: #b9c4d4; --nav-text-active: #ffffff; --nav-accent: #4c8dff;
+      /* 字体 */
+      --font-family: "Microsoft YaHei","PingFang SC","Segoe UI",Roboto,Arial,sans-serif;
+      --font-mono: "JetBrains Mono","Cascadia Code",Consolas,"Courier New",monospace;
+      /* 间距 */
+      --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:20px; --sp-6:24px; --sp-8:32px;
+      /* 圆角 */
+      --radius-sm:4px; --radius-md:8px; --radius-lg:12px; --radius-full:999px;
+      /* 阴影 */
+      --shadow-card: 0 1px 3px rgba(15,23,42,.06),0 1px 2px rgba(15,23,42,.04);
+      --shadow-raised: 0 4px 12px rgba(15,23,42,.08);
+      --shadow-overlay: 0 12px 32px rgba(15,23,42,.16);
+      /* z-index */
+      --z-sticky:100; --z-dropdown:1000; --z-drawer:1500; --z-modal:2000; --z-loading:2500; --z-toast:3000;
+      /* Element Plus 主色覆盖 */
+      --el-color-primary: var(--brand-500);
+      --el-color-primary-light-3: #6193f0;
+      --el-color-primary-light-5: #8aacf4;
+      --el-color-primary-light-7: #b3cdf8;
+      --el-color-primary-light-9: #d9e6ff;
+      --el-color-primary-dark-2: #1d4ed8;
+      --el-color-success: var(--success-500);
+      --el-color-warning: var(--warning-500);
+      --el-color-danger: var(--danger-500);
+      --el-color-info: var(--info-500);
     }
-    .slow-filter-bar select, .slow-filter-bar input {
-      padding: 6px 10px;
-      border: 1px solid #dcdfe6;
-      border-radius: 4px;
-      font-size: 13px;
-    }
-    .slow-filter-bar label {
-      font-size: 13px;
-      color: #606266;
-      white-space: nowrap;
-    }
-    /* 分页器 */
-    .pagination {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      margin-top: 15px;
-      padding: 10px 0;
-    }
-    .pagination button {
-      padding: 5px 12px;
-      border: 1px solid #dcdfe6;
-      background: #fff;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 13px;
-      transition: all 0.2s;
-    }
-    .pagination button:hover:not(:disabled) {
-      border-color: #409eff;
-      color: #409eff;
-    }
-    .pagination button:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-    .pagination button.active {
-      background: #409eff;
-      color: #fff;
-      border-color: #409eff;
-    }
-    .pagination .page-info {
-      font-size: 13px;
-      color: #606266;
-      margin: 0 10px;
-    }
-    .slow-meta {
-      font-size: 11px;
-      color: #c0c4cc;
-      margin-top: 4px;
-    }
-    .connection-status { padding: 10px 20px; font-size: 12px; color: #909399; display: flex; align-items: center; gap: 8px; border-top: 1px solid #3d4f65; margin-top: auto; }
-    .status-dot { width: 8px; height: 8px; border-radius: 50%; }
-    .status-dot.connected { background: #67c23a; }
-    .status-dot.disconnected { background: #f56c6c; }
-    .tdsql-form { max-width: 500px; }
-    .tdsql-form .form-group { margin-bottom: 15px; }
-    .tdsql-form label { display: block; font-size: 13px; color: #606266; margin-bottom: 5px; }
-    .tdsql-form input { width: 100%; padding: 8px 12px; border: 1px solid #dcdfe6; border-radius: 4px; font-size: 14px; }
-    .tdsql-form input:focus { outline: none; border-color: #409eff; }
-    .connection-list { margin-top: 20px; }
-    .connection-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 15px; border: 1px solid #ebeef5; border-radius: 4px; margin-bottom: 10px; transition: all 0.3s; }
-    .connection-item:hover { background: #f5f7fa; }
-    .connection-item.active { border-color: #409eff; background: #ecf5ff; }
-    .connection-item .conn-info { flex: 1; }
-    .connection-item .conn-name { font-weight: 600; font-size: 14px; color: #303133; }
-    .connection-item .conn-details { font-size: 12px; color: #909399; margin-top: 4px; }
-    .connection-item .conn-actions { display: flex; gap: 8px; }
-    .tdsql-page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-    .tdsql-page-header h2 { font-size: 20px; color: #303133; margin: 0; }
-    .test-result { margin-top: 15px; padding: 12px; border-radius: 4px; font-size: 13px; }
-    .test-result.success { background: #f0f9eb; border: 1px solid #e1f3d8; color: #67c23a; }
-    .test-result.error { background: #fef0f0; border: 1px solid #fde2e2; color: #f56c6c; }
-    .rules-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }
-    .rule-card { background: #fff; border-radius: 4px; padding: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); transition: all 0.3s; }
-    .rule-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.12); }
-    .rule-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-    .rule-card-id { font-weight: 700; font-size: 15px; color: #303133; }
-    .rule-card-category { font-size: 12px; padding: 2px 8px; border-radius: 4px; background: #f0f2f5; color: #606266; }
-    .rule-card-desc { font-size: 14px; color: #606266; line-height: 1.6; margin-bottom: 8px; }
-    .rule-card-severity { font-size: 12px; }
-    .category-section { margin-bottom: 25px; }
-    .category-title { font-size: 18px; font-weight: 600; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 2px solid; display: flex; align-items: center; gap: 10px; }
-    .category-title.naming { border-color: #409eff; color: #409eff; }
-    .category-title.ddl { border-color: #67c23a; color: #67c23a; }
-    .category-title.dml { border-color: #e6a23c; color: #e6a23c; }
-    .category-title.index { border-color: #9b59b6; color: #9b59b6; }
-    .category-title.distributed { border-color: #f56c6c; color: #f56c6c; }
-    .category-title.security { border-color: #34495e; color: #34495e; }
-    .category-title.performance { border-color: #e74c3c; color: #e74c3c; }
-    .category-title.transaction { border-color: #1abc9c; color: #1abc9c; }
-    .category-count { font-size: 14px; color: #909399; font-weight: normal; }
-    /* 审核治理概览 - 统计卡片副文本 */
-    .stat-sub { font-size: 12px; color: #909399; margin-top: 6px; }
-    /* 审核治理概览 - 高频违规规则列表 */
-    .rule-hit-item { display: flex; align-items: center; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
-    .rule-hit-item:last-child { border-bottom: none; }
-    .rule-hit-rank { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background: #f0f2f5; color: #606266; font-size: 12px; font-weight: 600; margin-right: 10px; flex-shrink: 0; }
-    .rule-hit-item:nth-child(1) .rule-hit-rank { background: #fef0f0; color: #f56c6c; }
-    .rule-hit-item:nth-child(2) .rule-hit-rank { background: #fdf6ec; color: #e6a23c; }
-    .rule-hit-desc { flex: 1; font-size: 13px; color: #303133; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .rule-hit-count { font-size: 13px; font-weight: 600; color: #f56c6c; margin-left: 10px; flex-shrink: 0; }
-    /* 审核治理概览 - 最近审核记录 */
-    .audit-record-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
-    .audit-record-item:last-child { border-bottom: none; }
-    .audit-record-info { display: flex; align-items: center; gap: 8px; flex: 1; overflow: hidden; }
-    .audit-record-passed { color: #67c23a; font-weight: 600; font-size: 13px; flex-shrink: 0; }
-    .audit-record-failed { color: #f56c6c; font-weight: 600; font-size: 13px; flex-shrink: 0; }
-    .audit-record-type { font-size: 13px; color: #409eff; flex-shrink: 0; }
-    .audit-record-meta { font-size: 12px; color: #909399; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .audit-record-time { font-size: 12px; color: #c0c4cc; margin-left: 10px; flex-shrink: 0; }
-    /* V2.0 登录页 */
-    .login-overlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
-      background: linear-gradient(135deg, #304156 0%, #1f2d3d 100%); z-index: 2000; }
-    .login-box { width: 380px; background: #fff; border-radius: 8px; padding: 40px 36px;
-      box-shadow: 0 8px 30px rgba(0,0,0,0.3); }
-    .login-title { font-size: 22px; font-weight: 600; text-align: center; color: #303133; }
-    .login-subtitle { font-size: 13px; text-align: center; color: #909399; margin: 8px 0 24px; }
-    .login-error { color: #f56c6c; font-size: 13px; margin-top: 12px; text-align: center; }
-    /* V2.0 侧边栏用户区 */
-    .user-bar { position: absolute; bottom: 0; width: 220px; padding: 12px 16px;
-      border-top: 1px solid #3d4f65; background: #263445; }
-    .sidebar { position: relative; }
-    .user-info { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
-    .user-name { font-size: 13px; color: #fff; }
-    .user-role { font-size: 11px; color: #409eff; border: 1px solid #409eff; border-radius: 8px; padding: 1px 8px; }
-    .user-actions { display: flex; gap: 4px; }
+    /* Reset */
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:var(--font-family);background:var(--bg-page);color:var(--text-primary)}
+    /* ═══ Layout ═══ */
+    .app-layout{display:flex;flex-direction:column;height:100vh}
+    .topbar{height:56px;background:var(--nav-bg);display:flex;align-items:center;padding:0 var(--sp-6);gap:var(--sp-4);flex-shrink:0;z-index:var(--z-sticky);box-shadow:0 1px 4px rgba(0,0,0,.12)}
+    .topbar .brand{color:#fff;font-size:16px;font-weight:600;white-space:nowrap;display:flex;align-items:center;gap:var(--sp-2)}
+    .topbar .brand .logo{width:28px;height:28px;background:var(--brand-500);border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;font-size:14px}
+    .topbar .switchers{display:flex;gap:var(--sp-3);margin-left:auto;margin-right:auto}
+    .topbar .switchers .el-select{width:220px}
+    .topbar .right-area{display:flex;align-items:center;gap:var(--sp-4);color:var(--nav-text)}
+    .topbar .user-menu{cursor:pointer;display:flex;align-items:center;gap:var(--sp-2);color:#fff;font-size:13px}
+    .topbar .user-menu .role-tag{font-size:11px;padding:1px 6px;border-radius:var(--radius-full);background:var(--brand-600)}
+    .main-body{display:flex;flex:1;overflow:hidden}
+    .sidebar{width:240px;background:var(--nav-bg);flex-shrink:0;overflow-y:auto;transition:width .3s}
+    .sidebar.collapsed{width:64px}
+    .sidebar .el-menu{background:transparent;border:none}
+    .sidebar .el-sub-menu__title,.sidebar .el-menu-item{color:var(--nav-text)}
+    .sidebar .el-sub-menu__title:hover,.sidebar .el-menu-item:hover{background:var(--nav-bg-active)}
+    .sidebar .el-menu-item.is-active{background:var(--nav-bg-active);color:var(--nav-text-active);border-left:3px solid var(--nav-accent)}
+    .sidebar .el-sub-menu .el-menu{background:rgba(0,0,0,.15)}
+    .content-area{flex:1;overflow-y:auto;display:flex;flex-direction:column}
+    .breadcrumb-bar{padding:var(--sp-3) var(--sp-6);background:var(--bg-container);border-bottom:1px solid var(--border-light);flex-shrink:0}
+    .page-content{padding:var(--sp-6);flex:1}
+    /* ═══ Components ═══ */
+    .page-card{background:var(--bg-container);border-radius:var(--radius-md);box-shadow:var(--shadow-card);padding:var(--sp-5);margin-bottom:var(--sp-4)}
+    .page-card-title{font-size:16px;font-weight:600;color:var(--text-primary);border-left:3px solid var(--brand-500);padding-left:var(--sp-3);margin-bottom:var(--sp-4)}
+    .kpi-card{background:var(--bg-container);border-radius:var(--radius-md);box-shadow:var(--shadow-card);padding:var(--sp-5);cursor:pointer;transition:box-shadow .3s}
+    .kpi-card:hover{box-shadow:var(--shadow-raised)}
+    .kpi-card .kpi-num{font-family:var(--font-mono);font-size:28px;font-weight:700;line-height:1.2}
+    .kpi-card .kpi-label{font-size:13px;color:var(--text-secondary);margin-top:var(--sp-1)}
+    .kpi-card .kpi-sub{font-size:12px;color:var(--text-secondary);margin-top:var(--sp-2)}
+    .sql-block{font-family:var(--font-mono);font-size:13px;background:var(--fill-base);padding:var(--sp-3);border-radius:var(--radius-sm);white-space:pre-wrap;word-break:break-all;line-height:1.6}
+    .violation-card{padding:var(--sp-3);margin-bottom:var(--sp-2);border-radius:var(--radius-sm);border-left:3px solid}
+    .violation-card.error{border-color:var(--danger-500);background:var(--danger-50)}
+    .violation-card.warning{border-color:var(--warning-500);background:var(--warning-50)}
+    .violation-card .v-rule{font-weight:600;font-size:13px}
+    .violation-card .v-msg{color:var(--text-regular);font-size:13px;margin-top:2px}
+    .violation-card .v-sug{color:var(--success-500);font-size:12px;margin-top:4px}
+    .filter-bar{display:flex;flex-wrap:wrap;gap:var(--sp-3);align-items:center;margin-bottom:var(--sp-4);padding:var(--sp-3);background:var(--fill-base);border-radius:var(--radius-sm)}
+    .empty-guide{text-align:center;padding:var(--sp-8);color:var(--text-secondary)}
+    /* Login */
+    .login-page{display:flex;height:100vh;background:var(--bg-page)}
+    .login-brand{flex:1;background:linear-gradient(135deg,var(--nav-bg),var(--brand-700));display:flex;flex-direction:column;justify-content:center;padding:var(--sp-8);color:#fff}
+    .login-brand h1{font-size:32px;margin-bottom:var(--sp-4)}
+    .login-brand .sub{font-size:16px;color:rgba(255,255,255,.7);max-width:400px;line-height:1.8}
+    .login-brand .version{margin-top:auto;font-size:13px;color:rgba(255,255,255,.5)}
+    .login-form{width:440px;display:flex;align-items:center;justify-content:center;padding:var(--sp-8)}
+    .login-form .el-card{width:100%;max-width:380px;border:none;box-shadow:var(--shadow-overlay)}
+    .login-form .el-card .login-title{font-size:20px;font-weight:600;text-align:center;margin-bottom:var(--sp-6)}
+    @media(max-width:900px){.login-brand{display:none}.login-form{flex:1}}
+    /* Scrollbar */
+    ::-webkit-scrollbar{width:6px;height:6px}
+    ::-webkit-scrollbar-thumb{background:var(--border-base);border-radius:3px}
+    ::-webkit-scrollbar-thumb:hover{background:var(--text-secondary)}
   </style>
 </head>
 <body>
 <div id="app">
-  <!-- V2.0 登录页 -->
-  <div v-if="!authState.loggedIn" class="login-overlay">
-    <div class="login-box">
-      <div class="login-title">🔍 TDSQL SQL审核平台</div>
-      <div class="login-subtitle">银行级SQL质量管控 · V2.0</div>
-      <el-form @submit.prevent="doLogin" label-position="top">
-        <el-form-item label="用户名">
-          <el-input v-model="loginForm.username" placeholder="请输入用户名"
-                    @keyup.enter="doLogin" autocomplete="username" />
-        </el-form-item>
-        <el-form-item label="口令">
-          <el-input v-model="loginForm.password" type="password" placeholder="请输入口令"
-                    @keyup.enter="doLogin" show-password autocomplete="current-password" />
-        </el-form-item>
-        <el-button type="primary" style="width:100%" :loading="loginForm.loading"
-                   @click="doLogin">登 录</el-button>
-        <div class="login-error" v-if="loginForm.error">{{ loginForm.error }}</div>
-      </el-form>
+  <!-- ═══ 登录页 ═══ -->
+  <div v-if="!authState.token" class="login-page">
+    <div class="login-brand">
+      <h1>TDSQL SQL审核平台</h1>
+      <div class="sub">银行级 SQL 质量管控与慢查询治理平台<br>77条审核规则 · 多实例管理 · 分布式EXPLAIN分析</div>
+      <div class="version">V3.0 · Powered by TDSQL</div>
+    </div>
+    <div class="login-form">
+      <el-card>
+        <div class="login-title">用户登录</div>
+        <el-form ref="loginFormRef" :model="loginForm" label-position="top" @submit.prevent="doLogin">
+          <el-form-item>
+            <el-input v-model="loginForm.username" placeholder="用户名" size="large" :prefix-icon="UserIcon" @keyup.enter="doLogin"></el-input>
+          </el-form-item>
+          <el-form-item>
+            <el-input v-model="loginForm.password" type="password" placeholder="口令" size="large" show-password :prefix-icon="LockIcon" @keyup.enter="doLogin"></el-input>
+          </el-form-item>
+          <el-alert v-if="loginError" :title="loginError" type="error" show-icon :closable="false" style="margin-bottom:16px"></el-alert>
+          <el-button type="primary" size="large" style="width:100%" :loading="loginLoading" @click="doLogin">登 录</el-button>
+        </el-form>
+      </el-card>
     </div>
   </div>
 
-  <div class="app-container" v-else>
-    <!-- 侧边栏 -->
-    <div class="sidebar">
-      <div class="sidebar-title">🔍 TDSQL SQL审核平台</div>
-      <ul class="sidebar-menu">
-        <li :class="{active: currentPage === 'dashboard'}" @click="currentPage = 'dashboard'">
-          📋 审核治理概览
-        </li>
-        <li :class="{active: currentPage === 'audit'}" @click="currentPage = 'audit'">
-          📝 SQL审核
-        </li>
-        <li :class="{active: currentPage === 'file-audit'}" @click="currentPage = 'file-audit'">
-          📄 文件审核
-        </li>
-        <li :class="{active: currentPage === 'slow-query'}" @click="currentPage = 'slow-query'">
-          🐌 慢SQL分析
-        </li>
-        <li :class="{active: currentPage === 'explain'}" @click="currentPage = 'explain'">
-          📈 EXPLAIN分析
-        </li>
-        <li :class="{active: currentPage === 'tdsql-manage'}" @click="currentPage = 'tdsql-manage'">
-          🗄️ TDSQL管理
-        </li>
-        <li :class="{active: currentPage === 'rules'}" @click="switchToRules">
-          📋 审核规则
-        </li>
-        <li v-if="authState.role === 'admin'"
-            :class="{active: currentPage === 'users'}" @click="switchToUsers">
-          👥 用户管理
-        </li>
-      </ul>
-      <!-- 连接状态指示器 -->
-      <div class="connection-status" v-if="tdsqlStatus.connected">
-        <div class="status-dot connected"></div>
-        <span>已连接: {{ tdsqlStatus.host }}:{{ tdsqlStatus.port }}/{{ tdsqlStatus.database || '-' }}</span>
+  <!-- ═══ 主布局 ═══ -->
+  <div v-else class="app-layout">
+    <!-- 顶栏 -->
+    <header class="topbar">
+      <div class="brand">
+        <div class="logo">T</div>
+        <span>TDSQL SQL审核</span>
       </div>
-      <div class="connection-status" v-else>
-        <div class="status-dot disconnected"></div>
-        <span>未连接TDSQL</span>
-      </div>
-      <!-- V2.0 当前用户 -->
-      <div class="user-bar">
-        <div class="user-info">
-          <span class="user-name">👤 {{ authState.displayName || authState.username }}</span>
-          <span class="user-role">{{ authState.roleLabel }}</span>
-        </div>
-        <div class="user-actions">
-          <el-button link size="small" @click="pwdDialog.visible = true">修改口令</el-button>
-          <el-button link size="small" type="danger" @click="doLogout">退出</el-button>
-        </div>
-      </div>
-    </div>
-
-    <!-- 主内容区 -->
-    <div class="main-content">
-      <!-- 审核治理概览 -->
-      <div v-if="currentPage === 'dashboard'">
-        <div class="page-header"><h2>📋 审核治理概览</h2></div>
-
-        <!-- 1. SQL审核拦截效果 -->
-        <div class="card">
-          <div class="card-title">SQL审核拦截效果</div>
-          <div class="stat-cards">
-            <div class="stat-card">
-              <div class="label">今日审核SQL</div>
-              <div class="value primary">{{ stats.audit?.today_count || 0 }}</div>
-              <div class="stat-sub">通过 {{ stats.audit?.today_passed || 0 }} | 拦截 {{ stats.audit?.today_failed || 0 }}</div>
-            </div>
-            <div class="stat-card">
-              <div class="label">今日通过率</div>
-              <div class="value success">{{ stats.audit?.today_pass_rate || 0 }}%</div>
-              <div class="stat-sub">ERROR {{ stats.audit?.today_errors || 0 }} | WARNING {{ stats.audit?.today_warnings || 0 }}</div>
-            </div>
-            <div class="stat-card">
-              <div class="label">今日发现违规</div>
-              <div class="value danger">{{ stats.audit?.today_violations || 0 }}</div>
-              <div class="stat-sub">其中ERROR {{ stats.audit?.today_errors || 0 }} 条</div>
-            </div>
-            <div class="stat-card">
-              <div class="label">待处理慢SQL</div>
-              <div class="value warning">{{ stats.slow_queries?.pending || 0 }}</div>
-              <div class="stat-sub">高风险 {{ stats.slow_queries?.critical_count || 0 }} | 已优化 {{ stats.slow_queries?.optimized || 0 }}</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 2. 近7天审核趋势 + 高频违规规则TOP5 -->
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-          <div class="card">
-            <div class="card-title">近7天审核趋势</div>
-            <div id="trendChart" style="height: 300px;"></div>
-          </div>
-          <div class="card">
-            <div class="card-title">高频违规规则 TOP5</div>
-            <div v-if="ruleHits && ruleHits.length">
-              <div v-for="(item, idx) in ruleHits.slice(0, 5)" :key="item.rule_id" class="rule-hit-item">
-                <span class="rule-hit-rank">{{ idx + 1 }}</span>
-                <span :class="'badge ' + (item.severity || 'WARNING').toLowerCase()" style="margin-right: 6px;">{{ item.severity }}</span>
-                <span class="rule-hit-desc">{{ (item.description || item.rule_id).substring(0, 35) }}{{ (item.description || '').length > 35 ? '...' : '' }}</span>
-                <span class="rule-hit-count">{{ item.hit_count }}次</span>
-              </div>
-            </div>
-            <div v-else class="empty-state">暂无违规规则数据</div>
-          </div>
-        </div>
-
-        <!-- 3. Top3高耗时慢SQL + 最近审核记录 -->
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-          <div class="card">
-            <div class="card-title">Top3 高耗时慢SQL</div>
-            <div v-if="stats.slow_queries?.top3_time?.length">
-              <div v-for="item in stats.slow_queries.top3_time" :key="item.id" class="analysis-card">
-                <div class="problem-type">
-                  <span :class="'badge ' + (item.severity || 'info').toLowerCase()">{{ item.severity }}</span>
-                  <span v-if="item.status === 'optimized'" class="badge" style="background: #67c23a; margin-left: 6px;">已优化</span>
-                  <span v-else class="badge" style="background: #e6a23c; margin-left: 6px;">待处理</span>
-                  {{ item.fingerprint?.substring(0, 50) }}...
-                </div>
-                <div class="description">平均耗时: {{ item.avg_time_ms?.toFixed(1) }}ms | 执行次数: {{ item.exec_count }}</div>
-              </div>
-            </div>
-            <div v-else class="empty-state">暂无慢SQL数据</div>
-          </div>
-          <div class="card">
-            <div class="card-title">今日审核记录</div>
-            <div v-if="stats.recent_audits && stats.recent_audits.length">
-              <div v-for="item in stats.recent_audits" :key="item.id" class="audit-record-item">
-                <div class="audit-record-info">
-                  <span :class="item.failed > 0 ? 'audit-record-failed' : 'audit-record-passed'">{{ item.failed > 0 ? '未通过' : '通过' }}</span>
-                  <span class="audit-record-type">{{ auditTypeLabel(item.audit_type) }}</span>
-                  <span class="audit-record-meta">{{ item.total_sql }}条 | ERROR {{ item.error_count }} | WARN {{ item.warning_count }}</span>
-                </div>
-                <div class="audit-record-time">{{ formatTime(item.created_at) }}</div>
-              </div>
-            </div>
-            <div v-else class="empty-state">暂无审核记录</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- SQL审核 -->
-      <div v-if="currentPage === 'audit'">
-        <div class="page-header"><h2>📝 SQL审核</h2></div>
-        <div class="card">
-          <div class="card-title">输入SQL语句</div>
-          <div class="sql-input">
-            <textarea v-model="sqlInput" placeholder="请输入待审核的SQL语句，支持 SELECT/INSERT/UPDATE/DELETE/CREATE TABLE 等...&#10;&#10;示例:&#10;SELECT * FROM t_order WHERE user_id = 123&#10;&#10;CREATE TABLE t_user (&#10;  id BIGINT PRIMARY KEY,&#10;  name VARCHAR(50)&#10;) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"></textarea>
-          </div>
-          <div style="display: flex; gap: 10px;">
-            <el-button type="primary" @click="auditSql" :loading="auditing">开始审核</el-button>
-            <el-button @click="sqlInput = ''">清空</el-button>
-            <el-button @click="loadExample('select')">SELECT示例</el-button>
-            <el-button @click="loadExample('create')">CREATE示例</el-button>
-            <el-button @click="loadExample('update')">UPDATE示例</el-button>
-          </div>
-        </div>
-
-        <!-- 审核结果 -->
-        <div v-if="auditResult" class="card">
-          <div class="card-title">审核结果</div>
-          <div style="margin-bottom: 15px;">
-            <span :class="auditResult.passed ? 'result-passed' : 'result-failed'">
-              {{ auditResult.passed ? '✅ 审核通过' : '❌ 审核未通过' }}
+      <div class="switchers">
+        <el-select v-model="currentConnectionId" placeholder="选择实例" filterable size="small" @change="onConnectionSwitch" style="width:240px">
+          <el-option v-for="c in savedConnections" :key="c.id" :label="c.name + ' (' + c.host + ':' + c.port + ')'" :value="c.id">
+            <span style="display:flex;align-items:center;gap:6px">
+              <span :style="{color: c.active ? '#16a34a' : '#94a3b8'}">●</span>
+              <span>{{ c.name }} ({{ c.host }}:{{ c.port }}{{ c.database ? '/' + c.database : '' }})</span>
             </span>
-            <span style="margin-left: 20px; color: #909399;">SQL类型: {{ auditResult.sql_type }}</span>
-            <span v-if="auditResult.violations?.length" style="margin-left: 20px; color: #f56c6c;">
-              发现 {{ auditResult.violations.length }} 个问题
-            </span>
-          </div>
-          <div v-for="v in auditResult.violations" :key="v.rule_id + v.message" 
-               :class="'violation-item ' + v.severity.toLowerCase()">
-            <div class="message">
-              <span class="rule-id">[{{ v.rule_id }}]</span>
-              <span :class="'badge ' + v.severity.toLowerCase()">{{ v.severity }}</span>
-              {{ v.message }}
-            </div>
-            <div v-if="v.suggestion" class="suggestion">💡 建议: {{ v.suggestion }}</div>
-          </div>
-        </div>
+          </el-option>
+        </el-select>
+        <el-select v-model="currentProjectId" placeholder="选择项目" clearable size="small" @change="onProjectSwitch" style="width:180px">
+          <el-option v-for="p in projects" :key="p.project_id" :label="p.project_name" :value="p.project_id"></el-option>
+        </el-select>
       </div>
-
-      <!-- 文件审核 -->
-      <div v-if="currentPage === 'file-audit'">
-        <div class="page-header"><h2>📄 文件审核</h2></div>
-
-        <el-tabs v-model="fileAuditTab" class="slow-query-tabs">
-        <el-tab-pane label="文件上传" name="upload">
-        <div class="card">
-          <div class="card-title">上传文件审核</div>
-          <div class="file-upload-area" 
-               @click="triggerFileInput"
-               @dragover.prevent="isDragover = true"
-               @dragleave="isDragover = false"
-               @drop.prevent="handleFileDrop"
-               :class="{dragover: isDragover}">
-            <div style="font-size: 40px; margin-bottom: 10px;">📁</div>
-            <div>点击或拖拽文件到此处上传</div>
-            <div style="font-size: 12px; color: #909399; margin-top: 5px;">支持 .xml (MyBatis)、.sql 文件</div>
-          </div>
-          <input type="file" ref="fileInput" style="display:none" @change="handleFileSelect" accept=".xml,.sql">
-        </div>
-
-        <div v-if="fileAuditResult" class="card">
-          <div class="card-title">文件审核结果</div>
-          <div style="display: flex; gap: 30px; margin-bottom: 20px;">
-            <div>SQL总数: <strong>{{ fileAuditResult.summary?.total_sql }}</strong></div>
-            <div>通过: <strong style="color:#67c23a">{{ fileAuditResult.summary?.passed }}</strong></div>
-            <div>未通过: <strong style="color:#f56c6c">{{ fileAuditResult.summary?.failed }}</strong></div>
-            <div>通过率: <strong>{{ fileAuditResult.summary?.pass_rate }}%</strong></div>
-          </div>
-          <div v-for="(result, idx) in fileAuditResult.results" :key="idx" style="margin-bottom: 10px;">
-            <div style="font-size: 13px; color: #909399; margin-bottom: 5px; display: flex; align-items: center; gap: 8px;">
-              <span>SQL #{{ idx + 1 }} ({{ result.sql_type }})</span>
-              <span v-if="result.passed" style="color: #67c23a;"> ✅ 通过</span>
-              <span v-else style="color: #f56c6c;"> ❌ {{ result.violations?.length }}个问题</span>
-              <el-button size="small" text type="primary" @click="showSqlDialog(result.sql)">📄 查看SQL原文</el-button>
-            </div>
-            <div v-for="v in result.violations" :key="v.rule_id + v.message" 
-                 :class="'violation-item ' + v.severity.toLowerCase()">
-              <div class="message">
-                <span class="rule-id">[{{ v.rule_id }}]</span>
-                <span :class="'badge ' + v.severity.toLowerCase()">{{ v.severity }}</span>
-                {{ v.message }}
-              </div>
-              <div v-if="v.suggestion" class="suggestion">💡 {{ v.suggestion }}</div>
-            </div>
-          </div>
-        </div>
-        </el-tab-pane>
-
-        <!-- 审核报告列表 -->
-        <el-tab-pane label="审核报告" name="reports">
-          <div class="card">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;">
-              <div class="card-title">文件审核报告历史</div>
-              <el-button size="small" @click="loadFileReports">刷新</el-button>
-            </div>
-            <div v-if="fileReportsLoading" class="empty-state">加载中...</div>
-            <div v-else-if="fileReports.length === 0" class="empty-state">暂无审核报告</div>
-            <div v-for="report in fileReports" :key="report.id" class="analysis-card"
-                 style="cursor:default;">
-              <div style="display:flex;justify-content:space-between;align-items:center;">
-                <div>
-                  <strong>{{ report.source || '未知文件' }}</strong>
-                  <span style="margin-left:10px;font-size:12px;color:#909399;">
-                    ID:#{{ report.id }} | {{ report.created_at?.substring(0, 19) }}
-                  </span>
-                  <span v-if="report.created_by" style="margin-left:8px;font-size:12px;color:#409eff;">
-                    👤 {{ report.created_by }}
-                  </span>
-                </div>
-                <div style="display:flex;align-items:center;gap:12px;">
-                  <span style="font-size:12px;color:#909399;">
-                    {{ report.total_sql }}条SQL | 通过{{ report.passed }} | 失败{{ report.failed }}
-                  </span>
-                  <span :class="'badge ' + (report.pass_rate >= 80 ? 'PASS' : report.pass_rate >= 50 ? 'WARNING' : 'ERROR')"
-                        style="font-size:11px;">
-                    {{ report.pass_rate?.toFixed(1) }}%
-                  </span>
-                  <el-button type="primary" size="small" @click="downloadFileReport(report.id)">下载HTML报告</el-button>
-                </div>
-              </div>
-            </div>
-            <el-pagination
-              v-if="fileReportsTotal > 10"
-              small
-              layout="prev, pager, next"
-              :total="fileReportsTotal"
-              :page-size="10"
-              v-model:current-page="fileReportsPage"
-              @current-change="loadFileReports"
-              style="margin-top:15px;justify-content:center;"
-            ></el-pagination>
-          </div>
-        </el-tab-pane>
-        </el-tabs>
+      <div class="right-area">
+        <el-badge :value="activeAlerts" :hidden="activeAlerts===0" class="alert-badge">
+          <el-icon size="20" style="cursor:pointer" @click="currentPage='monitor'"><Bell /></el-icon>
+        </el-badge>
+        <el-dropdown @command="onUserCommand">
+          <span class="user-menu">
+            <el-avatar size="small" style="background:var(--brand-600)">{{ (authState.user||{}).display_name?.[0] || 'U' }}</el-avatar>
+            <span>{{ (authState.user||{}).display_name || '用户' }}</span>
+            <span class="role-tag">{{ roleLabel }}</span>
+          </span>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="password">修改口令</el-dropdown-item>
+              <el-dropdown-item command="logout" divided>退出登录</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
       </div>
+    </header>
 
-      <!-- SQL原文弹窗 -->
-      <el-dialog v-model="sqlDialogVisible" title="SQL原文" width="70%" top="8vh">
-        <pre style="background: #f5f7fa; padding: 16px; border-radius: 4px; font-size: 13px; line-height: 1.6; overflow-x: auto; max-height: 60vh; white-space: pre-wrap; word-break: break-all;">{{ sqlDialogContent }}</pre>
-        <template #footer>
-          <el-button @click="sqlDialogVisible = false">关闭</el-button>
-          <el-button type="primary" @click="copySqlToClipboard">复制SQL</el-button>
-        </template>
-      </el-dialog>
+    <!-- 侧边栏 + 内容区 -->
+    <div class="main-body">
+      <aside class="sidebar" :class="{collapsed: sidebarCollapsed}">
+        <el-menu :default-active="currentPage" :collapse="sidebarCollapsed" @select="onMenuSelect" background-color="transparent" text-color="#b9c4d4" active-text-color="#fff">
+          <el-menu-item index="dashboard"><el-icon><Odometer /></el-icon><span>治理概览</span></el-menu-item>
+          <el-sub-menu index="audit-group">
+            <template #title><el-icon><Document /></el-icon><span>SQL审核</span></template>
+            <el-menu-item index="audit-sql">即时审核</el-menu-item>
+            <el-menu-item index="file-audit">文件审核</el-menu-item>
+            <el-menu-item index="rules">审核规则库</el-menu-item>
+          </el-sub-menu>
+          <el-sub-menu index="slow-group">
+            <template #title><el-icon><DataAnalysis /></el-icon><span>慢SQL治理</span></template>
+            <el-menu-item index="slow-tasks">扫描任务</el-menu-item>
+            <el-menu-item index="slow-records">慢SQL记录</el-menu-item>
+            <el-menu-item index="slow-schedule">扫描计划</el-menu-item>
+            <el-menu-item index="explain">EXPLAIN分析</el-menu-item>
+          </el-sub-menu>
+          <el-sub-menu index="instance-group">
+            <template #title><el-icon><Coin /></el-icon><span>实例与体检</span></template>
+            <el-menu-item index="instances">实例管理</el-menu-item>
+            <el-menu-item index="health-check">数据库体检</el-menu-item>
+            <el-menu-item v-if="canManageInstances" index="bigtable">大表治理</el-menu-item>
+          </el-sub-menu>
+          <el-sub-menu v-if="canManagePlatform" index="platform-group">
+            <template #title><el-icon><Setting /></el-icon><span>平台治理</span></template>
+            <el-menu-item index="projects">项目管理</el-menu-item>
+            <el-menu-item index="rulesets">规则集</el-menu-item>
+            <el-menu-item index="gate">质量门禁</el-menu-item>
+            <el-menu-item index="monitor">监控告警</el-menu-item>
+            <el-menu-item index="inspection">巡检管理</el-menu-item>
+          </el-sub-menu>
+          <el-sub-menu index="system-group">
+            <template #title><el-icon><User /></el-icon><span>系统管理</span></template>
+            <el-menu-item v-if="authState.role==='admin'" index="sys-users">用户管理</el-menu-item>
+            <el-menu-item v-if="canManagePlatform" index="sys-retention">数据保留</el-menu-item>
+            <el-menu-item v-if="canViewAuditLog" index="sys-auditlog">操作审计</el-menu-item>
+            <el-menu-item v-if="authState.role==='admin'" index="sys-info">系统信息</el-menu-item>
+          </el-sub-menu>
+        </el-menu>
+      </aside>
 
-      <!-- 慢SQL分析 -->
-      <div v-if="currentPage === 'slow-query'">
-        <div class="page-header"><h2>🐌 慢SQL分析</h2></div>
-
-        <el-tabs v-model="slowQueryTab" class="slow-query-tabs">
-
-        <!-- Tab 1: 扫描任务管理 -->
-        <el-tab-pane label="扫描任务" name="tasks">
-        <div class="card">
-          <div class="card-title">扫描任务管理</div>
-
-          <!-- 新建扫描任务表单 -->
-          <div style="margin-bottom: 15px; padding: 12px; background: #f5f7fa; border-radius: 4px;">
-            <div style="display: grid; grid-template-columns: 1.5fr 1.3fr 1fr 1fr 0.5fr 0.5fr auto; gap: 10px; align-items: end;">
-              <div>
-                <label style="font-size: 13px; color: #606266; display:block; margin-bottom:4px;">任务名称</label>
-                <input v-model="scanTaskForm.task_name" style="width:100%;padding:7px;border:1px solid #dcdfe6;border-radius:4px;" placeholder="如：上午高峰期扫描">
-              </div>
-              <div>
-                <label style="font-size: 13px; color: #606266; display:block; margin-bottom:4px;">数据源</label>
-                <select v-model="scanTaskForm.source" style="width:100%;padding:7px;border:1px solid #dcdfe6;border-radius:4px;">
-                  <option value="digest">性能摘要分析（推荐）</option>
-                  <option value="processlist">实时进程快照</option>
-                </select>
-              </div>
-              <div>
-                <label style="font-size: 13px; color: #606266; display:block; margin-bottom:4px;">时间窗口开始 <span style="color:#f56c6c;">*</span></label>
-                <input v-model="scanTaskForm.time_window_start" type="datetime-local" style="width:100%;padding:7px;border:1px solid #dcdfe6;border-radius:4px;">
-              </div>
-              <div>
-                <label style="font-size: 13px; color: #606266; display:block; margin-bottom:4px;">时间窗口结束 <span style="color:#f56c6c;">*</span></label>
-                <input v-model="scanTaskForm.time_window_end" type="datetime-local" style="width:100%;padding:7px;border:1px solid #dcdfe6;border-radius:4px;">
-              </div>
-              <div>
-                <label style="font-size: 13px; color: #606266; display:block; margin-bottom:4px;">耗时阈值(秒)</label>
-                <input v-model.number="scanTaskForm.min_time" type="number" step="0.01" min="0" style="width:100%;padding:7px;border:1px solid #dcdfe6;border-radius:4px;" title="性能摘要模式按平均耗时过滤，实时进程模式按当前执行时间过滤">
-              </div>
-              <div>
-                <label style="font-size: 13px; color: #606266; display:block; margin-bottom:4px;">抓取条数</label>
-                <input v-model.number="scanTaskForm.limit" type="number" style="width:100%;padding:7px;border:1px solid #dcdfe6;border-radius:4px;">
-              </div>
-              <el-button type="primary" @click="startScanTask" :loading="scanTaskLoading" style="height:36px;">开始扫描</el-button>
-            </div>
-            <!-- processlist轮询参数（仅processlist模式显示） -->
-            <div v-if="scanTaskForm.source === 'processlist'" style="margin-top:8px;display:flex;gap:12px;align-items:center;padding:8px 10px;background:#f0f9eb;border-radius:3px;border:1px solid #e1f3d8;">
-              <span style="font-size:12px;color:#67c23a;font-weight:600;">轮询参数：</span>
-              <label style="font-size:12px;color:#606266;">轮询时长(秒)</label>
-              <input v-model.number="scanTaskForm.poll_duration" type="number" min="1" max="60" step="1" style="width:70px;padding:4px 6px;border:1px solid #dcdfe6;border-radius:3px;font-size:12px;" title="在此时间窗口内重复采样processlist，范围1-60秒">
-              <label style="font-size:12px;color:#606266;">采样间隔(秒)</label>
-              <input v-model.number="scanTaskForm.poll_interval" type="number" min="0.5" max="5" step="0.5" style="width:70px;padding:4px 6px;border:1px solid #dcdfe6;border-radius:3px;font-size:12px;" title="每次采样间隔，范围0.5-5秒">
-              <span style="font-size:11px;color:#909399;">（轮询时长内重复采样，合并去重结果，提高捕获率）</span>
-            </div>
-            <!-- 数据源中文说明 -->
-            <div style="margin-top:8px;padding:6px 10px;background:#eef5ff;border-radius:3px;font-size:12px;color:#409eff;line-height:1.6;">
-              <span v-if="scanTaskForm.source === 'digest'"><strong>性能摘要分析</strong>（推荐）：从 Proxy 层 performance_schema 抽取按 SQL 模板聚合的执行统计（执行次数、平均/最大耗时、扫描行数、无索引次数等）。TDSQL分布式实例中Proxy自动聚合所有SET数据，无需额外配置。耗时阈值按SQL平均执行时间过滤。</span>
-              <span v-if="scanTaskForm.source === 'processlist'"><strong>实时进程快照（重复轮询模式）</strong>：在设定的轮询时长内多次采样正在执行的SQL，合并去重后返回。相比单次快照，大幅提高捕获短时慢SQL的概率。适合发现运行中的大查询、死锁及高频短时慢SQL。</span>
-            </div>
-            <!-- TDSQL架构说明 -->
-            <div style="margin-top:6px;padding:5px 10px;background:#fdf6ec;border-radius:3px;font-size:11px;color:#e6a23c;line-height:1.5;">
-              💡 <strong>TDSQL分布式实例架构说明</strong>：Proxy层统一聚合所有SET的SQL执行数据，直接通过Proxy查询即可获取全局慢SQL统计，无需逐SET扫描。各SET实例的 mysql.slow_log 表不记录数据（慢日志由Proxy写入本地文件，通过赤兔平台收集），因此本工具不支持slow_log数据源。
-            </div>
-            <!-- Proxy慢日志配置 -->
-            <div v-if="proxyConfig" style="margin-top:6px;padding:6px 10px;background:#f5f0ff;border-radius:3px;border:1px solid #e8dff5;">
-              <div style="font-size:12px;font-weight:600;color:#7c3aed;margin-bottom:4px;">Proxy慢日志配置</div>
-              <div style="display:flex;gap:16px;font-size:12px;color:#606266;">
-                <span>慢日志阈值: <strong style="color:#7c3aed;">{{ proxyConfig.slow_log_ms }}ms</strong></span>
-                <span>日志级别: <strong style="color:#7c3aed;">{{ proxyConfig.slow_log_level }}</strong></span>
-              </div>
-              <div v-if="proxyConfig.error" style="font-size:11px;color:#f56c6c;margin-top:2px;">获取失败: {{ proxyConfig.error }}</div>
-            </div>
-            <div v-if="!tdsqlStatus.connected" style="margin-top:8px;color:#e6a23c;font-size:12px;">
-              ⚠️ 请先在"TDSQL管理"页面连接数据库实例
-            </div>
-          </div>
-
-          <!-- 跨SET分析区域（选中扫描任务时显示） -->
-          <div v-if="slowFilters.scan_task_id && crossSetData" style="margin-top:15px;padding:12px;background:#f0f9eb;border-radius:4px;border:1px solid #e1f3d8;">
-            <div style="font-size:14px;font-weight:600;color:#67c23a;margin-bottom:8px;">🌐 跨SET对比分析</div>
-            <div v-if="crossSetData.set_distribution && Object.keys(crossSetData.set_distribution).length > 0">
-              <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin-bottom:10px;">
-                <div v-for="(info, sid) in crossSetData.set_distribution" :key="sid" style="padding:8px;background:#fff;border-radius:4px;border:1px solid #ebeef5;">
-                  <div style="font-weight:600;font-size:13px;">{{ sid }}</div>
-                  <div style="font-size:12px;color:#606266;">总数: {{ info.total }}</div>
-                  <div style="font-size:12px;color:#f56c6c;">ERROR: {{ info.error_count }}</div>
-                  <div style="font-size:12px;color:#e6a23c;">WARNING: {{ info.warning_count }}</div>
-                  <div style="font-size:12px;color:#909399;">平均: {{ info.avg_time_ms?.toFixed(1) }}ms</div>
+      <div class="content-area">
+        <div class="breadcrumb-bar">
+          <el-breadcrumb separator="/">
+            <el-breadcrumb-item v-for="b in breadcrumbItems" :key="b.key">{{ b.label }}</el-breadcrumb-item>
+          </el-breadcrumb>
+        </div>
+        <div class="page-content">
+          <!-- ═══ 治理概览 ═══ -->
+          <div v-if="currentPage==='dashboard'">
+            <el-row :gutter="16" style="margin-bottom:16px">
+              <el-col :xs="12" :sm="12" :md="6" v-for="kpi in kpiCards" :key="kpi.key">
+                <div class="kpi-card" @click="kpi.onClick&&kpi.onClick()">
+                  <div class="kpi-num" :style="{color: kpi.color}">{{ kpi.value }}</div>
+                  <div class="kpi-label">{{ kpi.label }}</div>
+                  <div class="kpi-sub" v-if="kpi.sub">{{ kpi.sub }}</div>
                 </div>
-              </div>
-              <div v-if="crossSetData.hot_sets && crossSetData.hot_sets.length > 0" style="font-size:12px;color:#e6a23c;margin-bottom:6px;">
-                🔥 热点SET: <span v-for="hs in crossSetData.hot_sets" :key="hs.set_id">{{ hs.set_id }}({{ hs.total }}条, {{ hs.ratio }}x) </span>
-              </div>
-              <div v-if="crossSetData.cross_set_sqls && crossSetData.cross_set_sqls.length > 0" style="font-size:12px;color:#409eff;margin-bottom:6px;">
-                ⚠️ 跨SET共现SQL: {{ crossSetData.cross_set_sqls.length }}个（在多个SET上同时出现慢查询）
-              </div>
-              <div style="font-size:12px;color:#606266;line-height:1.6;padding:6px;background:#fff;border-radius:3px;">
-                💡 {{ crossSetData.advice }}
-              </div>
-            </div>
-            <div v-else style="font-size:12px;color:#909399;">
-              {{ crossSetData.advice || '该扫描任务未发现带SET标识的慢SQL记录，可能扫描的是非分布式实例。' }}
-            </div>
-          </div>
-
-          <!-- 扫描任务列表 -->
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-            <div style="display:flex;align-items:center;gap:12px;">
-              <el-checkbox v-model="allTasksSelected" @change="toggleAllTasks" size="small">全选</el-checkbox>
-              <span style="font-size:13px;color:#606266;">共 {{ scanTaskTotal }} 个扫描任务</span>
-              <el-button
-                v-if="selectedTaskIds.size > 0"
-                type="danger"
-                size="small"
-                @click="batchDeleteScanTasks"
-                :loading="batchDeleting"
-              >批量删除({{ selectedTaskIds.size }})</el-button>
-            </div>
-            <el-pagination
-              v-if="scanTaskTotal > scanTaskPageSize"
-              small
-              layout="prev, pager, next"
-              :total="scanTaskTotal"
-              :page-size="scanTaskPageSize"
-              v-model:current-page="scanTaskCurrentPage"
-              @current-change="loadScanTasks"
-              style="margin:0;"
-            ></el-pagination>
-          </div>
-          <div v-if="scanTaskLoading" class="empty-state">加载中，请稍候...</div>
-          <div v-else-if="scanTasks.length === 0" class="empty-state">暂无扫描任务</div>
-          <div v-for="task in scanTasks" :key="task.id" class="analysis-card"
-               :style="{cursor:'pointer', border: slowFilters.scan_task_id == task.id ? '2px solid #409eff' : '1px solid #ebeef5', background: selectedTaskIds.has(task.id) ? '#ecf5ff' : ''}"
-               @click="selectScanTask(task.id)">
-            <div style="display:flex;justify-content:space-between;align-items:center;">
-              <div style="display:flex;align-items:center;gap:8px;">
-                <el-checkbox
-                  :model-value="selectedTaskIds.has(task.id)"
-                  @change="(val) => toggleTaskSelection(task.id, val)"
-                  @click.stop
-                  size="small"
-                ></el-checkbox>
-                <strong>{{ task.task_name }}</strong>
-                <span style="margin-left:10px;font-size:12px;color:#909399;">
-                  {{ sourceLabel(task.source) }} | 库: {{ task.db_name || '-' }} | {{ task.connection_name || '-' }}
-                </span>
-                <span v-if="task.created_by" style="margin-left:8px;font-size:12px;color:#409eff;">
-                  👤 {{ task.created_by }}
-                </span>
-              </div>
-              <div style="display:flex;align-items:center;gap:10px;">
-                <span style="font-size:12px;color:#909399;">
-                  {{ task.total_fetched }}条 | {{ task.created_at?.substring(0, 19) }}
-                </span>
-                <el-button
-                  type="danger"
-                  size="small"
-                  circle
-                  icon="Delete"
-                  @click.stop="deleteScanTask(task.id, task.task_name)"
-                  :loading="deletingTaskId === task.id"
-                  title="删除扫描任务"
-                ></el-button>
-              </div>
-            </div>
-            <div v-if="task.time_window_start || task.time_window_end" style="margin-top:4px;font-size:12px;color:#409eff;">
-              ⏱ 时间窗口: {{ task.time_window_start || '不限' }} ~ {{ task.time_window_end || '不限' }}
-            </div>
-          </div>
-        </div>
-
-        </el-tab-pane>
-
-        <!-- Tab 2: 手动分析 -->
-        <el-tab-pane label="手动分析" name="manual">
-        <div class="card">
-          <div class="card-title">输入慢SQL信息</div>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
-            <div>
-              <label style="font-size: 13px; color: #606266;">SQL指纹</label>
-              <input v-model="slowForm.fingerprint" style="width:100%;padding:8px;border:1px solid #dcdfe6;border-radius:4px;" placeholder="SELECT * FROM t_order WHERE user_id = ?">
-            </div>
-            <div>
-              <label style="font-size: 13px; color: #606266;">数据库名</label>
-              <input v-model="slowForm.db_name" style="width:100%;padding:8px;border:1px solid #dcdfe6;border-radius:4px;" placeholder="order_db">
-            </div>
-            <div>
-              <label style="font-size: 13px; color: #606266;">原始SQL</label>
-              <textarea v-model="slowForm.sql_text" style="width:100%;padding:8px;border:1px solid #dcdfe6;border-radius:4px;min-height:60px;font-family:monospace;" placeholder="SELECT * FROM t_order WHERE user_id = 123"></textarea>
-            </div>
-            <div>
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                <div>
-                  <label style="font-size: 13px; color: #606266;">执行次数</label>
-                  <input v-model.number="slowForm.exec_count" type="number" style="width:100%;padding:8px;border:1px solid #dcdfe6;border-radius:4px;">
+              </el-col>
+            </el-row>
+            <el-row :gutter="16">
+              <el-col :xs="24" :md="12">
+                <div class="page-card">
+                  <div class="page-card-title">近7天审核趋势</div>
+                  <div ref="trendChartRef" style="height:300px"></div>
                 </div>
-                <div>
-                  <label style="font-size: 13px; color: #606266;">平均耗时(ms)</label>
-                  <input v-model.number="slowForm.avg_time_ms" type="number" style="width:100%;padding:8px;border:1px solid #dcdfe6;border-radius:4px;">
+              </el-col>
+              <el-col :xs="24" :md="12">
+                <div class="page-card">
+                  <div class="page-card-title">高频违规规则 TOP5</div>
+                  <el-table :data="ruleHits.slice(0,5)" stripe v-loading="statsLoading" style="width:100%">
+                    <el-table-column prop="rule_id" label="规则ID" width="80"></el-table-column>
+                    <el-table-column prop="severity" label="级别" width="80">
+                      <template #default="{row}"><el-tag :type="sevTagType(row.severity)" size="small">{{ row.severity }}</el-tag></template>
+                    </el-table-column>
+                    <el-table-column prop="description" label="描述" show-overflow-tooltip></el-table-column>
+                    <el-table-column prop="hit_count" label="命中" width="60"></el-table-column>
+                  </el-table>
                 </div>
-                <div>
-                  <label style="font-size: 13px; color: #606266;">扫描行数</label>
-                  <input v-model.number="slowForm.rows_examined" type="number" style="width:100%;padding:8px;border:1px solid #dcdfe6;border-radius:4px;">
+              </el-col>
+            </el-row>
+            <el-row :gutter="16">
+              <el-col :xs="24" :md="12">
+                <div class="page-card">
+                  <div class="page-card-title">Top3 高耗时慢SQL</div>
+                  <el-table :data="(stats.slow_queries||{}).top3_time||[]" stripe size="small" style="width:100%" @row-click="r=>goSlowDetail(r)">
+                    <el-table-column prop="fingerprint" label="SQL指纹" show-overflow-tooltip></el-table-column>
+                    <el-table-column prop="avg_time_ms" label="平均耗时(ms)" width="120" sortable></el-table-column>
+                    <el-table-column prop="exec_count" label="执行次数" width="100"></el-table-column>
+                  </el-table>
                 </div>
-                <div>
-                  <label style="font-size: 13px; color: #606266;">返回行数</label>
-                  <input v-model.number="slowForm.rows_sent" type="number" style="width:100%;padding:8px;border:1px solid #dcdfe6;border-radius:4px;">
+              </el-col>
+              <el-col :xs="24" :md="12">
+                <div class="page-card">
+                  <div class="page-card-title">今日审核记录</div>
+                  <el-table :data="(stats.recent_audits||[]).slice(0,8)" stripe size="small" style="width:100%">
+                    <el-table-column prop="source" label="来源" show-overflow-tooltip></el-table-column>
+                    <el-table-column prop="total_sql" label="SQL数" width="70"></el-table-column>
+                    <el-table-column label="通过率" width="80"><template #default="{row}">{{ row.pass_rate?.toFixed(1) }}%</template></el-table-column>
+                    <el-table-column label="时间" width="100"><template #default="{row}">{{ formatTime(row.created_at) }}</template></el-table-column>
+                  </el-table>
                 </div>
+              </el-col>
+            </el-row>
+          </div>
+
+          <!-- ═══ 即时审核 ═══ -->
+          <div v-if="currentPage==='audit-sql'">
+            <div class="page-card">
+              <div class="page-card-title">即时SQL审核</div>
+              <el-input v-model="sqlInput" type="textarea" :autosize="{minRows:6}" placeholder="粘贴SQL语句，Ctrl+Enter 快速审核" style="font-family:var(--font-mono);margin-bottom:16px" @keydown.ctrl.enter="auditSql" @keydown.meta.enter="auditSql"></el-input>
+              <div style="display:flex;gap:12px;align-items:center">
+                <el-button type="primary" :loading="auditing" @click="auditSql">开始审核</el-button>
+                <el-select v-model="currentProjectId" placeholder="绑定项目" clearable size="small" style="width:200px">
+                  <el-option v-for="p in projects" :key="p.project_id" :label="p.project_name" :value="p.project_id"></el-option>
+                </el-select>
+                <el-switch v-model="metadataEnhanced" active-text="元数据增强" inactive-text=""></el-switch>
+                <el-dropdown @command="loadExample" style="margin-left:auto">
+                  <el-button size="small">示例 <el-icon><ArrowDown /></el-icon></el-button>
+                  <template #dropdown>
+                    <el-dropdown-menu>
+                      <el-dropdown-item command="select">SELECT查询</el-dropdown-item>
+                      <el-dropdown-item command="create">CREATE建表</el-dropdown-item>
+                      <el-dropdown-item command="update">UPDATE更新</el-dropdown-item>
+                      <el-dropdown-item command="delete">DELETE删除</el-dropdown-item>
+                    </el-dropdown-menu>
+                  </template>
+                </el-dropdown>
               </div>
             </div>
-          </div>
-          <el-button type="primary" @click="analyzeSlowQuery" :loading="analyzing">分析慢SQL</el-button>
-          <el-button @click="loadSlowExample">加载示例</el-button>
-        </div>
-
-        <div v-if="slowResult" class="card">
-          <div class="card-title">分析结果</div>
-          <div style="margin-bottom: 15px;">
-            <span :class="'badge ' + (slowResult.severity || 'info').toLowerCase()">{{ slowResult.severity }}</span>
-            <span style="margin-left: 10px;">问题类型: <strong>{{ slowResult.problem_type }}</strong></span>
-            <span style="margin-left: 20px; color: #909399;">{{ slowResult.summary }}</span>
-          </div>
-          <div v-for="(a, idx) in slowResult.analyses" :key="idx" class="analysis-card">
-            <div class="problem-type">
-              <span :class="'badge ' + a.severity.toLowerCase()">{{ a.severity }}</span>
-              {{ a.problem_type }}
-            </div>
-            <div class="description">{{ a.description }}</div>
-            <div v-if="a.evidence" style="font-size:12px;color:#909399;margin:4px 0;">证据: {{ a.evidence }}</div>
-            <div v-if="a.root_cause" style="font-size:13px;color:#e6a23c;margin:4px 0;">根因: {{ a.root_cause }}</div>
-            <div v-if="a.suggestion" class="suggestion">💡 建议: {{ a.suggestion }}</div>
-            <div v-if="a.optimized_sql" style="margin-top:8px;padding:8px;background:#f0f9eb;border-radius:4px;font-family:monospace;font-size:12px;">
-              优化SQL: {{ a.optimized_sql }}
-            </div>
-          </div>
-        </div>
-
-        </el-tab-pane>
-
-        <!-- Tab 3: 慢SQL记录 -->
-        <el-tab-pane label="慢SQL记录" name="records">
-        <!-- 慢SQL列表 -->
-        <div class="card">
-          <div style="display:flex;justify-content:space-between;align-items:center;">
-            <div class="card-title">慢SQL记录 (共 {{ slowPage.total }} 条)</div>
-            <el-button type="warning" size="small" @click="clearOrphanRecords" :loading="clearingOrphan">清理无任务关联记录</el-button>
-          </div>
-
-          <!-- 筛选栏 -->
-          <div class="slow-filter-bar">
-            <label>数据库:</label>
-            <select v-model="slowFilters.db_name" @change="handleSlowFilter" style="min-width:120px;">
-              <option value="">全部</option>
-              <option v-for="db in dbNames" :key="db" :value="db">{{ db }}</option>
-            </select>
-            <label>SET:</label>
-            <select v-model="slowFilters.set_id" @change="handleSlowFilter" style="min-width:100px;">
-              <option value="">全部</option>
-              <option v-for="sid in setIds" :key="sid" :value="sid">{{ sid }}</option>
-            </select>
-            <label>扫描任务:</label>
-            <select v-model="slowFilters.scan_task_id" @change="handleSlowFilter" style="min-width:180px;">
-              <option value="">全部</option>
-              <option v-for="task in scanTasks" :key="task.id" :value="task.id">
-                {{ task.task_name }} ({{ task.created_at?.substring(0, 16) }})
-              </option>
-            </select>
-            <label>级别:</label>
-            <select v-model="slowFilters.severity" @change="handleSlowFilter" style="min-width:100px;">
-              <option value="">全部</option>
-              <option value="ERROR">ERROR</option>
-              <option value="WARNING">WARNING</option>
-              <option value="INFO">INFO</option>
-            </select>
-            <label>状态:</label>
-            <select v-model="slowFilters.status" @change="handleSlowFilter" style="min-width:100px;">
-              <option value="">全部</option>
-              <option value="pending">待处理</option>
-              <option value="optimized">已优化</option>
-              <option value="ignored">已忽略</option>
-            </select>
-            <input v-model="slowFilters.keyword" @keyup.enter="handleSlowFilter" placeholder="搜索SQL关键词..." style="flex:1;min-width:180px;">
-            <el-button size="small" @click="handleSlowFilter">筛选</el-button>
-            <el-button size="small" @click="resetSlowFilter">重置</el-button>
-          </div>
-
-          <div v-if="slowListLoading" class="empty-state">加载中...</div>
-          <div v-else-if="slowList.length === 0" class="empty-state">暂无慢SQL记录</div>
-          <div v-for="item in slowList" :key="item.id" class="analysis-card">
-            <div style="display:flex;justify-content:space-between;align-items:center;">
-              <div>
-                <span :class="'badge ' + (item.severity || 'info').toLowerCase()">{{ item.severity }}</span>
-                <span style="margin-left:8px;font-family:monospace;font-size:13px;">{{ item.fingerprint?.substring(0, 80) }}</span>
+            <div v-if="auditResult" class="page-card">
+              <el-alert :title="auditResult.passed ? '审核通过' : `发现 ${auditResult.violations.length} 项违规`" :type="auditResult.passed?'success':'error'" show-icon :closable="false" style="margin-bottom:16px">
+                <template #default>
+                  <span>SQL类型: {{ auditResult.sql_type }}</span>
+                  <span v-if="auditResult.gate_result" style="margin-left:16px">门禁: <el-tag :type="auditResult.gate_result.passed?'success':'danger'" size="small">{{ auditResult.gate_result.passed?'通过':'阻断' }}</el-tag></span>
+                </template>
+              </el-alert>
+              <div v-if="auditResult.gate_result && !auditResult.gate_result.passed" style="margin-bottom:16px">
+                <el-alert type="error" :closable="false" show-icon>
+                  <template #title>门禁阻断: {{ auditResult.gate_result.detail }}</template>
+                </el-alert>
               </div>
-              <div style="font-size:12px;color:#909399;">
-                平均: {{ item.avg_time_ms?.toFixed(1) }}ms | 次数: {{ item.exec_count }} | 扫描: {{ item.rows_examined }}
-              </div>
-            </div>
-            <div v-if="item.problem_type" style="margin-top:5px;font-size:12px;color:#e6a23c;">问题: {{ item.problem_type }}</div>
-            <div v-if="item.suggestion" style="margin-top:3px;font-size:12px;color:#909399;">建议: {{ item.suggestion }}</div>
-            <div class="slow-meta">
-              ID: {{ item.id }} | 库: {{ item.db_name || '-' }} | SET: {{ item.set_id || '-' }}
-              <template v-if="item.client_user"> | 用户: {{ item.client_user }}</template>
-              <template v-if="item.client_host"> | 来源: {{ item.client_host }}</template>
-              | 状态: {{ item.status || 'pending' }}
-              <template v-if="item.first_seen"> | 首次执行: {{ item.first_seen?.substring(0, 19) }}</template>
-              <template v-if="item.last_seen"> | 末次执行: {{ item.last_seen?.substring(0, 19) }}</template>
-              <template v-if="!item.first_seen"> | 录入: {{ item.created_at?.substring(0, 19) }}</template>
-            </div>
-          </div>
-
-          <!-- 分页器 -->
-          <div class="pagination" v-if="slowPage.total > 0">
-            <button @click="changeSlowPage(1)" :disabled="slowPage.current === 1">首页</button>
-            <button @click="changeSlowPage(slowPage.current - 1)" :disabled="slowPage.current === 1">上一页</button>
-            <button v-for="p in slowPageNumbers" :key="p" @click="changeSlowPage(p)"
-                    :class="{active: p === slowPage.current}" :disabled="p === '...'">{{ p }}</button>
-            <button @click="changeSlowPage(slowPage.current + 1)" :disabled="slowPage.current === slowPage.totalPages">下一页</button>
-            <button @click="changeSlowPage(slowPage.totalPages)" :disabled="slowPage.current === slowPage.totalPages">末页</button>
-            <span class="page-info">第 {{ slowPage.current }}/{{ slowPage.totalPages }} 页，每页 {{ slowPage.size }} 条</span>
-          </div>
-        </div>
-        </el-tab-pane>
-        </el-tabs>
-      </div>
-
-      <!-- EXPLAIN分析 -->
-      <div v-if="currentPage === 'explain'">
-        <div class="page-header"><h2>📈 EXPLAIN执行计划分析</h2></div>
-
-        <!-- 模式切换 -->
-        <div style="margin-bottom:15px;">
-          <el-radio-group v-model="explainMode">
-            <el-radio-button label="sql">SQL直接分析</el-radio-button>
-            <el-radio-button label="json">JSON粘贴模式</el-radio-button>
-          </el-radio-group>
-        </div>
-
-        <!-- SQL直接分析模式 -->
-        <div v-if="explainMode === 'sql'" class="card">
-          <div class="card-title">输入SQL语句分析执行计划</div>
-          <div style="font-size:13px;color:#606266;margin-bottom:10px;">
-            选择一个已保存的数据库连接，输入SQL语句，系统将自动执行 EXPLAIN 并分析。
-          </div>
-          <div style="margin-bottom:10px;">
-            <label style="font-size:13px;color:#606266;margin-right:8px;">数据库连接：</label>
-            <el-select v-model="explainConnId" placeholder="选择数据库连接" style="width:320px;" @visible-change="onConnDropdownVisible">
-              <el-option
-                v-for="conn in savedConnections"
-                :key="conn.id"
-                :label="conn.name + ' (' + conn.host + ':' + conn.port + ')'"
-                :value="conn.id">
-              </el-option>
-            </el-select>
-          </div>
-          <textarea v-model="explainSqlInput" style="width:100%;min-height:120px;padding:10px;font-family:monospace;font-size:13px;border:1px solid #dcdfe6;border-radius:4px;" placeholder='输入要分析的SQL语句，如: SELECT * FROM t_order WHERE user_id = 123'></textarea>
-          <div style="margin-top:10px;">
-            <el-button type="primary" @click="analyzeExplainBySql" :loading="analyzingExplain" :disabled="!explainConnId || !explainSqlInput.trim()">分析执行计划</el-button>
-            <el-button @click="explainSqlInput = 'SELECT * FROM t_order WHERE user_id = 123 ORDER BY create_time DESC LIMIT 10;'">加载示例</el-button>
-          </div>
-        </div>
-
-        <!-- JSON粘贴模式 -->
-        <div v-if="explainMode === 'json'" class="card">
-          <div class="card-title">粘贴EXPLAIN JSON数据</div>
-          <div style="font-size:13px;color:#606266;margin-bottom:10px;">
-            手动在MySQL中执行 EXPLAIN 后，将结果转为JSON粘贴。格式示例:
-            <pre style="background:#f5f7fa;padding:8px;border-radius:4px;font-size:12px;margin-top:5px;">[{"id":1,"select_type":"SIMPLE","table":"t_order","type":"ALL","possible_keys":null,"key":null,"rows":850000,"filtered":10.0,"extra":"Using where"}]</pre>
-          </div>
-          <textarea v-model="explainInput" style="width:100%;min-height:100px;padding:10px;font-family:monospace;font-size:13px;border:1px solid #dcdfe6;border-radius:4px;" placeholder='粘贴EXPLAIN JSON数据...'></textarea>
-          <div style="margin-top:10px;">
-            <el-button type="primary" @click="analyzeExplain" :loading="analyzingExplain">分析执行计划</el-button>
-            <el-button @click="loadExplainExample">加载示例</el-button>
-          </div>
-        </div>
-
-        <!-- 实际执行的SQL -->
-        <div v-if="explainResult && explainResult.executed_sql" class="card">
-          <div class="card-title">实际执行的SQL</div>
-          <pre style="background:#f5f7fa;padding:10px;border-radius:4px;font-size:13px;font-family:monospace;white-space:pre-wrap;word-break:break-all;">{{ explainResult.executed_sql }}</pre>
-          <div v-if="hasPlaceholderReplaced" style="font-size:12px;color:#909399;margin-top:5px;">
-            提示: 检测到SQL中含参数占位符(?)，已自动替换为示例值 '1' 进行EXPLAIN分析。执行计划不受参数值影响。
-          </div>
-        </div>
-
-        <!-- EXPLAIN原始结果表格 -->
-        <div v-if="explainResult && explainResult.explain_rows" class="card">
-          <div class="card-title">EXPLAIN原始结果</div>
-          <table style="width:100%;border-collapse:collapse;font-size:12px;">
-            <thead>
-              <tr style="background:#f5f7fa;">
-                <th v-for="col in explainResult.explain_columns" :key="col" style="padding:6px 8px;border:1px solid #ebeef5;text-align:left;">{{ col }}</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="(row, idx) in explainResult.explain_rows" :key="idx">
-                <td v-for="col in explainResult.explain_columns" :key="col" style="padding:6px 8px;border:1px solid #ebeef5;">{{ getCellValue(row, col) }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <!-- 分析结果 -->
-        <div v-if="explainResult" class="card">
-          <div class="card-title">分析结果</div>
-          <div style="margin-bottom:15px;">{{ explainResult.summary }}</div>
-          <div v-for="(a, idx) in explainResult.analyses" :key="idx" class="analysis-card">
-            <div class="problem-type">
-              <span :class="'badge ' + a.severity.toLowerCase()">{{ a.severity }}</span>
-              {{ a.problem_type }}
-            </div>
-            <div class="description">{{ a.description }}</div>
-            <div v-if="a.evidence" style="font-size:12px;color:#909399;">{{ a.evidence }}</div>
-            <div v-if="a.root_cause" style="font-size:13px;color:#e6a23c;">根因: {{ a.root_cause }}</div>
-            <div v-if="a.suggestion" class="suggestion">💡 {{ a.suggestion }}</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- TDSQL管理 -->
-      <div v-if="currentPage === 'tdsql-manage'">
-        <div class="tdsql-page-header">
-          <h2>🗄️ TDSQL连接管理</h2>
-          <div>
-            <el-button @click="loadSavedConnections" :loading="loadingConnections">刷新</el-button>
-          </div>
-        </div>
-
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-          <!-- 连接表单 -->
-          <div class="card">
-            <div class="card-title">{{ editingConnection ? '编辑连接' : '新建连接' }}</div>
-            <div class="tdsql-form">
-              <div class="form-group">
-                <label>连接名称（可选）</label>
-                <input v-model="connForm.name" placeholder="如：生产环境MySQL">
-              </div>
-              <div class="form-group">
-                <label>Host *</label>
-                <input v-model="connForm.host" placeholder="如：192.168.1.100">
-              </div>
-              <div class="form-group">
-                <label>Port *</label>
-                <input v-model.number="connForm.port" type="number" placeholder="3306">
-              </div>
-              <div class="form-group">
-                <label>用户名 *</label>
-                <input v-model="connForm.user" placeholder="数据库用户名">
-              </div>
-              <div class="form-group">
-                <label>密码 *</label>
-                <input v-model="connForm.password" type="password" placeholder="数据库密码">
-              </div>
-              <div class="form-group">
-                <label>默认数据库</label>
-                <input v-model="connForm.database" placeholder="默认连接的数据库名">
-              </div>
-              <div style="display: flex; gap: 10px; margin-top: 20px;">
-                <el-button type="primary" @click="testConnection" :loading="testingConn">测试连接</el-button>
-                <el-button type="success" @click="saveAndConnect" :loading="connecting">保存并连接</el-button>
-                <el-button @click="resetConnForm">重置</el-button>
-              </div>
-              <div v-if="testResult" :class="'test-result ' + testResult.type">
-                {{ testResult.message }}
+              <div v-for="(v,i) in auditResult.violations" :key="i" :class="'violation-card ' + (v.severity==='ERROR'?'error':'warning')">
+                <div class="v-rule">[{{ v.rule_id }}] <el-tag :type="sevTagType(v.severity)" size="small">{{ v.severity }}</el-tag> {{ v.message }}</div>
+                <div class="v-sug" v-if="v.suggestion">💡 {{ v.suggestion }}</div>
               </div>
             </div>
           </div>
 
-          <!-- 已保存的连接列表 -->
-          <div class="card">
-            <div class="card-title">已保存的连接</div>
-            <div v-if="savedConnections.length === 0" class="empty-state">
-              暂无保存的连接配置
-            </div>
-            <div v-else class="connection-list">
-              <div v-for="conn in savedConnections" :key="conn.id" 
-                   :class="'connection-item ' + (currentConnId === conn.id ? 'active' : '')">
-                <div class="conn-info">
-                  <div class="conn-name">{{ conn.name || conn.host }}</div>
-                  <div class="conn-details">{{ conn.user }}@{{ conn.host }}:{{ conn.port }} / {{ conn.database || '无默认库' }}</div>
+          <!-- ═══ 文件审核 ═══ -->
+          <div v-if="currentPage==='file-audit'">
+            <el-tabs v-model="fileAuditTab">
+              <el-tab-pane label="文件上传" name="upload">
+                <div class="page-card">
+                  <div class="page-card-title">上传文件审核</div>
+                  <el-upload drag accept=".sql,.xml" :auto-upload="false" :on-change="onFileChange" :show-file-list="false">
+                    <el-icon style="font-size:40px;color:var(--text-secondary)"><UploadFilled /></el-icon>
+                    <div style="margin-top:8px">拖拽文件到此处或<em>点击上传</em></div>
+                    <template #tip><div style="font-size:12px;color:var(--text-secondary)">支持 .xml (MyBatis)、.sql 文件</div></template>
+                  </el-upload>
                 </div>
-                <div class="conn-actions">
-                  <el-button size="small" type="primary" @click="connectSavedConn(conn.id)" :loading="connecting">连接</el-button>
-                  <el-button size="small" type="danger" @click="deleteSavedConn(conn.id)" :loading="deletingConn">删除</el-button>
+                <div v-if="fileAuditResult" class="page-card">
+                  <div class="page-card-title">审核结果</div>
+                  <el-descriptions :column="4" border style="margin-bottom:16px">
+                    <el-descriptions-item label="SQL总数">{{ fileAuditResult.summary?.total_sql }}</el-descriptions-item>
+                    <el-descriptions-item label="通过">{{ fileAuditResult.summary?.passed }}</el-descriptions-item>
+                    <el-descriptions-item label="未通过">{{ fileAuditResult.summary?.failed }}</el-descriptions-item>
+                    <el-descriptions-item label="通过率">{{ fileAuditResult.summary?.pass_rate?.toFixed(1) }}%</el-descriptions-item>
+                  </el-descriptions>
+                  <el-collapse>
+                    <el-collapse-item v-for="(r,idx) in fileAuditResult.results" :key="idx" :name="idx">
+                      <template #title>
+                        <span style="margin-right:8px"><strong>#{{ idx+1 }}</strong> {{ r.sql_type }}</span>
+                        <el-tag v-if="r.passed" type="success" size="small">通过</el-tag>
+                        <el-tag v-else type="danger" size="small">{{ r.violations?.length }}项违规</el-tag>
+                      </template>
+                      <div class="sql-block" style="margin:8px 0">{{ r.sql }}</div>
+                      <div v-for="v in r.violations" :key="v.rule_id+v.message" :class="'violation-card ' + (v.severity==='ERROR'?'error':'warning')">
+                        <div class="v-rule">[{{ v.rule_id }}] <el-tag :type="sevTagType(v.severity)" size="small">{{ v.severity }}</el-tag> {{ v.message }}</div>
+                        <div class="v-sug" v-if="v.suggestion">💡 {{ v.suggestion }}</div>
+                      </div>
+                    </el-collapse-item>
+                  </el-collapse>
                 </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 当前连接状态 -->
-        <div class="card" style="margin-top: 20px;">
-          <div class="card-title">当前连接状态</div>
-          <div v-if="tdsqlStatus.connected" style="display: flex; align-items: center; gap: 20px; flex-wrap: wrap;">
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <div class="status-dot connected"></div>
-              <span style="color: #67c23a; font-weight: 600;">已连接</span>
-            </div>
-            <div style="display: flex; gap: 20px; flex-wrap: wrap; font-size: 13px; color: #606266;">
-              <span><strong>主机:</strong> {{ tdsqlStatus.host }}</span>
-              <span><strong>端口:</strong> {{ tdsqlStatus.port }}</span>
-              <span><strong>数据库:</strong> {{ tdsqlStatus.database || '-' }}</span>
-              <span><strong>用户:</strong> {{ tdsqlStatus.user }}</span>
-            </div>
-            <el-button size="small" type="danger" @click="disconnectTdsql">断开连接</el-button>
-          </div>
-          <div v-else style="display: flex; align-items: center; gap: 8px;">
-            <div class="status-dot disconnected"></div>
-            <span style="color: #f56c6c;">未连接TDSQL实例</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- 审核规则 -->
-      <div v-if="currentPage === 'rules'">
-        <div class="page-header"><h2>📋 SQL审核规则规范</h2></div>
-        <div class="card">
-          <div style="margin-bottom: 15px; color: #606266; font-size: 14px;">
-            <p>本系统共内置 <strong>{{ rulesList.length }}</strong> 条SQL审核规则，覆盖命名规范、DDL规范、DML规范、索引规范、分布式规范、安全规范、性能规范和事务规范共8个分类。</p>
-            <p style="margin-top: 5px;">规则根据严重级别分为 <span style="color: #f56c6c;">● ERROR</span>（错误）、<span style="color: #e6a23c;">● WARNING</span>（警告）和 <span style="color: #909399;">● INFO</span>（提示）三种类型。</p>
-          </div>
-          <div v-if="rulesLoading" style="text-align: center; padding: 40px; color: #909399;">
-            加载中...
-          </div>
-          <div v-else>
-            <!-- 动态渲染所有分类 -->
-            <template v-for="cat in categoryOrder" :key="cat.key">
-              <div class="category-section" v-if="rulesByCategory[cat.key]">
-                <div :class="'category-title ' + cat.key">
-                  {{ cat.icon }} {{ cat.label }} <span class="category-count">({{ rulesByCategory[cat.key].length }}条)</span>
-                </div>
-                <div class="rules-grid">
-                  <div class="rule-card" v-for="rule in rulesByCategory[cat.key]" :key="rule.rule_id">
-                    <div class="rule-card-header">
-                      <span class="rule-card-id">{{ rule.rule_id }}</span>
-                      <span :class="'badge ' + getSeverityClass(rule.severity)">{{ rule.severity }}</span>
-                    </div>
-                    <div class="rule-card-desc">{{ rule.description }}</div>
+              </el-tab-pane>
+              <el-tab-pane label="审核报告" name="reports">
+                <div class="page-card">
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+                    <div class="page-card-title" style="margin-bottom:0">文件审核报告历史</div>
+                    <el-button size="small" @click="loadFileReports">刷新</el-button>
                   </div>
+                  <el-table :data="fileReports" v-loading="fileReportsLoading" stripe style="width:100%">
+                    <el-table-column prop="source" label="文件名" show-overflow-tooltip></el-table-column>
+                    <el-table-column prop="created_by" label="审核人" width="100"></el-table-column>
+                    <el-table-column prop="total_sql" label="SQL数" width="70"></el-table-column>
+                    <el-table-column label="通过/失败" width="100"><template #default="{row}"><span style="color:var(--success-500)">{{ row.passed }}</span> / <span style="color:var(--danger-500)">{{ row.failed }}</span></template></el-table-column>
+                    <el-table-column label="通过率" width="80"><template #default="{row}"><el-tag :type="row.pass_rate>=80?'success':row.pass_rate>=50?'warning':'danger'" size="small">{{ row.pass_rate?.toFixed(1) }}%</el-tag></template></el-table-column>
+                    <el-table-column label="时间" width="160"><template #default="{row}">{{ formatTime(row.created_at) }}</template></el-table-column>
+                    <el-table-column label="操作" width="120" fixed="right"><template #default="{row}"><el-button type="primary" link size="small" @click="downloadFileReport(row.id)">下载HTML</el-button></template></el-table-column>
+                  </el-table>
+                  <el-pagination v-if="fileReportsTotal>10" small layout="total,prev,pager,next" :total="fileReportsTotal" :page-size="10" v-model:current-page="fileReportsPage" @current-change="loadFileReports" style="margin-top:12px;justify-content:flex-end"></el-pagination>
+                </div>
+              </el-tab-pane>
+            </el-tabs>
+          </div>
+
+          <!-- ═══ 审核规则库 ═══ -->
+          <div v-if="currentPage==='rules'">
+            <div class="page-card">
+              <div class="page-card-title">审核规则库（共 {{ rulesList.length }} 条）</div>
+              <el-input v-model="ruleSearch" placeholder="搜索规则..." clearable size="small" style="margin-bottom:16px;width:300px"></el-input>
+              <el-collapse v-model="expandedCategories">
+                <el-collapse-item v-for="cat in filteredCategories" :key="cat.key" :name="cat.key" :title="cat.label + ' (' + (rulesByCategory[cat.key]||[]).length + ')'">
+                  <el-table :data="rulesByCategory[cat.key]||[]" stripe size="small" style="width:100%">
+                    <el-table-column prop="rule_id" label="规则ID" width="80"></el-table-column>
+                    <el-table-column prop="severity" label="级别" width="80"><template #default="{row}"><el-tag :type="sevTagType(row.severity)" size="small">{{ row.severity }}</el-tag></template></el-table-column>
+                    <el-table-column prop="description" label="描述" show-overflow-tooltip></el-table-column>
+                    <el-table-column label="状态" width="60"><template #default="{row}"><el-tag :type="row.enabled?'success':'info'" size="small">{{ row.enabled?'启用':'禁用' }}</el-tag></template></el-table-column>
+                  </el-table>
+                </el-collapse-item>
+              </el-collapse>
+            </div>
+          </div>
+
+          <!-- ═══ 慢SQL扫描任务 ═══ -->
+          <div v-if="currentPage==='slow-tasks'">
+            <div class="page-card">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+                <div class="page-card-title" style="margin-bottom:0">扫描任务</div>
+                <div style="display:flex;gap:8px">
+                  <el-button type="primary" size="small" @click="scanDrawer=true">+ 新建扫描</el-button>
+                  <el-button v-if="selectedTaskIds.size>0" type="danger" size="small" :loading="batchDeleting" @click="batchDeleteScanTasks">删除选中({{ selectedTaskIds.size }})</el-button>
                 </div>
               </div>
-            </template>
-          </div>
-        </div>
-      </div>
-
-      <!-- V2.0 用户管理（仅admin） -->
-      <div v-if="currentPage === 'users'">
-        <div class="page-header"><h2>👥 用户与角色管理</h2></div>
-        <div class="card">
-          <div style="margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">
-            <div style="color: #606266; font-size: 14px;">
-              角色权限：<strong>系统管理员</strong>(全部+用户管理) /
-              <strong>数据库管理员</strong>(连接/规则/扫描读写) /
-              <strong>开发人员</strong>(SQL审核+只读) /
-              <strong>审计员</strong>(全局只读)
+              <el-table :data="scanTasks" v-loading="scanTaskLoading" stripe style="width:100%" @selection-change="onTaskSelectChange">
+                <el-table-column type="selection" width="40"></el-table-column>
+                <el-table-column prop="task_name" label="任务名" show-overflow-tooltip></el-table-column>
+                <el-table-column prop="source" label="数据源" width="80"><template #default="{row}">{{ sourceLabel(row.source) }}</template></el-table-column>
+                <el-table-column prop="fetched_count" label="抓取数" width="70"></el-table-column>
+                <el-table-column prop="created_by" label="创建人" width="80"></el-table-column>
+                <el-table-column label="时间" width="140"><template #default="{row}">{{ formatTime(row.created_at) }}</template></el-table-column>
+                <el-table-column label="操作" width="180" fixed="right">
+                  <template #default="{row}">
+                    <el-button link size="small" @click="viewTaskSlowQueries(row)">查看慢SQL</el-button>
+                    <el-button link type="danger" size="small" @click="deleteScanTask(row)">删除</el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+              <el-pagination v-if="scanTaskTotal>10" small layout="total,prev,pager,next" :total="scanTaskTotal" :page-size="10" v-model:current-page="scanTaskCurrentPage" @current-change="loadScanTasks" style="margin-top:12px;justify-content:flex-end"></el-pagination>
             </div>
-            <el-button type="primary" @click="openCreateUser">➕ 新建用户</el-button>
           </div>
-          <el-table :data="usersList" v-loading="usersLoading" stripe>
-            <el-table-column prop="username" label="用户名" width="140" />
-            <el-table-column prop="display_name" label="姓名" width="120" />
-            <el-table-column label="角色" width="130">
-              <template #default="{ row }">
-                <el-tag :type="row.role === 'admin' ? 'danger' : row.role === 'dba' ? 'warning' : row.role === 'auditor' ? 'info' : 'success'" size="small">
-                  {{ roleLabel(row.role) }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="状态" width="90">
-              <template #default="{ row }">
-                <el-tag :type="row.status === 'active' ? 'success' : 'danger'" size="small">
-                  {{ row.status === 'active' ? '正常' : '禁用' }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column prop="last_login_at" label="最后登录" width="170" />
-            <el-table-column prop="created_by" label="创建人" width="100" />
-            <el-table-column label="操作" min-width="280">
-              <template #default="{ row }">
-                <el-button link size="small" type="primary" @click="openResetPwd(row)">重置口令</el-button>
-                <el-button link size="small" @click="unlockUser(row)">解锁</el-button>
-                <el-button link size="small" :type="row.status === 'active' ? 'warning' : 'success'"
-                           @click="toggleUserStatus(row)">
-                  {{ row.status === 'active' ? '禁用' : '启用' }}
-                </el-button>
-                <el-button link size="small" type="danger" @click="deleteUser(row)"
-                           :disabled="row.username === authState.username">删除</el-button>
-              </template>
-            </el-table-column>
-          </el-table>
+
+          <!-- 新建扫描抽屉 -->
+          <el-drawer v-model="scanDrawer" title="新建扫描任务" size="480px">
+            <el-form label-position="top">
+              <el-form-item label="任务名称"><el-input v-model="scanTaskForm.task_name" placeholder="如：核心库晨间扫描"></el-input></el-form-item>
+              <el-form-item label="数据源">
+                <el-radio-group v-model="scanTaskForm.source">
+                  <el-radio value="digest">慢日志(digest)</el-radio>
+                  <el-radio value="processlist">进程列表(processlist)</el-radio>
+                </el-radio-group>
+              </el-form-item>
+              <el-form-item label="时间窗口">
+                <el-date-picker v-model="scanTimeWindow" type="datetimerange" range-separator="至" start-placeholder="开始" end-placeholder="结束" format="YYYY-MM-DD HH:mm" value-format="YYYY-MM-DD HH:mm:ss" style="width:100%"></el-date-picker>
+              </el-form-item>
+              <el-form-item label="耗时阈值(ms)"><el-input-number v-model="scanTaskForm.min_time" :min="0" :step="0.1"></el-input-number></el-form-item>
+              <el-form-item label="抓取条数"><el-input-number v-model="scanTaskForm.limit" :min="1" :max="1000"></el-input-number></el-form-item>
+              <el-collapse v-if="scanTaskForm.source==='processlist'">
+                <el-collapse-item title="轮询参数" name="poll">
+                  <el-form-item label="轮询时长(秒)"><el-input-number v-model="scanTaskForm.poll_duration" :min="1"></el-input-number></el-form-item>
+                  <el-form-item label="轮询间隔(秒)"><el-input-number v-model="scanTaskForm.poll_interval" :min="1"></el-input-number></el-form-item>
+                </el-collapse-item>
+              </el-collapse>
+            </el-form>
+            <template #footer><el-button @click="scanDrawer=false">取消</el-button><el-button type="primary" :loading="scanTaskLoading" @click="startScanTask">开始扫描</el-button></template>
+          </el-drawer>
+
+          <!-- ═══ 慢SQL记录 ═══ -->
+          <div v-if="currentPage==='slow-records'">
+            <div class="page-card">
+              <div class="filter-bar">
+                <el-input v-model="slowFilters.db_name" placeholder="库名" clearable size="small" style="width:120px"></el-input>
+                <el-input v-model="slowFilters.set_id" placeholder="SET" clearable size="small" style="width:100px"></el-input>
+                <el-select v-model="slowFilters.severity" placeholder="级别" clearable size="small" style="width:100px"><el-option label="CRITICAL" value="CRITICAL"></el-option><el-option label="WARNING" value="WARNING"></el-option><el-option label="INFO" value="INFO"></el-option></el-select>
+                <el-select v-model="slowFilters.status" placeholder="状态" clearable size="small" style="width:100px"><el-option label="待处理" value="pending"></el-option><el-option label="已优化" value="optimized"></el-option><el-option label="已忽略" value="ignored"></el-option></el-select>
+                <el-input v-model="slowFilters.keyword" placeholder="关键词" clearable size="small" style="width:140px"></el-input>
+                <el-button type="primary" size="small" @click="loadSlowList">筛选</el-button>
+                <el-button size="small" @click="resetSlowFilter">重置</el-button>
+                <el-button v-if="canManagePlatform" type="danger" plain size="small" :loading="clearingOrphan" @click="clearOrphanRecords" style="margin-left:auto">清理无任务关联记录</el-button>
+              </div>
+              <el-table :data="slowList" v-loading="slowListLoading" stripe style="width:100%" @row-click="r=>openSlowDetail(r)">
+                <el-table-column prop="severity" label="级别" width="80"><template #default="{row}"><el-tag :type="sevTagType(row.severity)" size="small">{{ row.severity }}</el-tag></template></el-table-column>
+                <el-table-column prop="fingerprint" label="SQL指纹" show-overflow-tooltip></el-table-column>
+                <el-table-column prop="avg_time_ms" label="平均耗时(ms)" width="120" sortable></el-table-column>
+                <el-table-column prop="exec_count" label="执行次数" width="90" sortable></el-table-column>
+                <el-table-column prop="db_name" label="库" width="80"></el-table-column>
+                <el-table-column prop="set_id" label="SET" width="60"></el-table-column>
+                <el-table-column prop="status" label="状态" width="80"><template #default="{row}"><el-tag :type="row.status==='optimized'?'success':row.status==='ignored'?'info':'warning'" size="small">{{ statusLabel(row.status) }}</el-tag></template></el-table-column>
+                <el-table-column label="操作" width="200" fixed="right">
+                  <template #default="{row}">
+                    <el-button link size="small" @click.stop="openSlowDetail(row)">详情</el-button>
+                    <el-dropdown @command="c=>setSlowStatus(row,c)" style="margin-left:8px"><el-button link size="small">标记<el-icon><ArrowDown /></el-icon></el-button><template #dropdown><el-dropdown-menu><el-dropdown-item command="pending">待处理</el-dropdown-item><el-dropdown-item command="optimized">已优化</el-dropdown-item><el-dropdown-item command="ignored">已忽略</el-dropdown-item></el-dropdown-menu></template></el-dropdown>
+                    <el-button link size="small" @click.stop="exportSlowReport(row)">导出</el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+              <el-pagination v-if="slowPage.total>20" small layout="total,sizes,prev,pager,next,jumper" :total="slowPage.total" :page-size="slowPage.size" v-model:current-page="slowPage.current" @current-change="loadSlowList" @size-change="v=>{slowPage.size=v;loadSlowList()}" style="margin-top:12px;justify-content:flex-end"></el-pagination>
+            </div>
+          </div>
+
+          <!-- 慢SQL详情抽屉 -->
+          <el-drawer v-model="slowDetailDrawer" title="慢SQL详情" size="50%">
+            <template v-if="slowDetail">
+              <el-descriptions :column="2" border style="margin-bottom:16px">
+                <el-descriptions-item label="SQL指纹"><span class="sql-block">{{ slowDetail.fingerprint }}</span></el-descriptions-item>
+                <el-descriptions-item label="级别"><el-tag :type="sevTagType(slowDetail.severity)" size="small">{{ slowDetail.severity }}</el-tag></el-descriptions-item>
+                <el-descriptions-item label="平均耗时">{{ slowDetail.avg_time_ms }} ms</el-descriptions-item>
+                <el-descriptions-item label="执行次数">{{ slowDetail.exec_count }}</el-descriptions-item>
+                <el-descriptions-item label="扫描行数">{{ slowDetail.rows_examined }}</el-descriptions-item>
+                <el-descriptions-item label="返回行数">{{ slowDetail.rows_sent }}</el-descriptions-item>
+                <el-descriptions-item label="库">{{ slowDetail.db_name }}</el-descriptions-item>
+                <el-descriptions-item label="SET">{{ slowDetail.set_id }}</el-descriptions-item>
+              </el-descriptions>
+              <div v-if="slowDetail.analyses && slowDetail.analyses.length" style="margin-top:16px">
+                <div class="page-card-title">分析结果</div>
+                <div v-for="(a,i) in slowDetail.analyses" :key="i" class="page-card" style="padding:12px;margin-bottom:8px">
+                  <div style="font-weight:600;font-size:14px;margin-bottom:4px">{{ a.problem_type }}</div>
+                  <div style="font-size:13px;color:var(--text-regular)">{{ a.evidence }}</div>
+                  <div style="font-size:13px;color:var(--text-regular);margin-top:4px">根因: {{ a.root_cause }}</div>
+                  <div v-if="a.suggestion" style="font-size:12px;color:var(--success-500);margin-top:4px">建议: {{ a.suggestion }}</div>
+                </div>
+              </div>
+              <el-button type="primary" plain style="margin-top:16px" @click="goExplainFromSlow(slowDetail)">去 EXPLAIN 分析</el-button>
+            </template>
+          </el-drawer>
+
+          <!-- ═══ 扫描计划 ═══ -->
+          <div v-if="currentPage==='slow-schedule'">
+            <div class="page-card">
+              <div class="page-card-title">定时扫描计划</div>
+              <el-empty v-if="!scanSchedules.length" description="暂无扫描计划"></el-empty>
+              <el-table v-else :data="scanSchedules" stripe style="width:100%">
+                <el-table-column prop="task_name" label="计划名称"></el-table-column>
+                <el-table-column label="执行时刻" width="80"><template #default="{row}">{{ String(row.cron_hour).padStart(2,'0') }}:{{ String(row.cron_minute).padStart(2,'0') }}</template></el-table-column>
+                <el-table-column prop="limit_rows" label="条数" width="60"></el-table-column>
+                <el-table-column prop="enabled" label="启用" width="60"><template #default="{row}"><el-switch :model-value="row.enabled" size="small"></el-switch></template></el-table-column>
+              </el-table>
+            </div>
+          </div>
+
+          <!-- ═══ EXPLAIN分析 ═══ -->
+          <div v-if="currentPage==='explain'">
+            <div class="page-card">
+              <div class="page-card-title">EXPLAIN执行计划分析</div>
+              <el-radio-group v-model="explainMode" style="margin-bottom:16px">
+                <el-radio-button value="sql">SQL直连</el-radio-button>
+                <el-radio-button value="json">JSON粘贴</el-radio-button>
+              </el-radio-group>
+              <div v-if="explainMode==='sql'">
+                <el-input v-model="explainSqlInput" type="textarea" :autosize="{minRows:4}" placeholder="输入SQL语句" style="font-family:var(--font-mono);margin-bottom:12px"></el-input>
+                <el-select v-model="explainConnId" placeholder="选择实例" filterable size="small" style="width:300px;margin-bottom:12px">
+                  <el-option v-for="c in savedConnections" :key="c.id" :label="c.name+' ('+c.host+':'+c.port+')'" :value="c.id"></el-option>
+                </el-select>
+                <el-button type="primary" :loading="analyzingExplain" @click="analyzeExplainBySql">分析</el-button>
+              </div>
+              <div v-else>
+                <el-input v-model="explainInput" type="textarea" :autosize="{minRows:6}" placeholder="粘贴EXPLAIN JSON数据" style="font-family:var(--font-mono);margin-bottom:12px"></el-input>
+                <el-button type="primary" :loading="analyzingExplain" @click="analyzeExplain">分析</el-button>
+              </div>
+            </div>
+            <div v-if="explainResult" class="page-card">
+              <div class="page-card-title">分析结果</div>
+              <div v-if="explainResult.executed_sql" style="margin-bottom:12px"><strong>实际执行SQL:</strong><div class="sql-block" style="margin-top:4px">{{ explainResult.executed_sql }}</div></div>
+              <el-table v-if="explainResult.explain_rows" :data="explainResult.explain_rows" stripe style="width:100%;margin-bottom:16px">
+                <el-table-column v-for="col in explainResult.explain_columns" :key="col" :prop="col" :label="col" show-overflow-tooltip></el-table-column>
+              </el-table>
+              <div v-for="(a,i) in (explainResult.analyses||[])." :key="i" class="page-card" style="padding:12px;margin-bottom:8px">
+                <div style="font-weight:600;font-size:14px;margin-bottom:4px">{{ a.type }}</div>
+                <div style="font-size:13px;color:var(--text-regular)">{{ a.message }}</div>
+                <div v-if="a.suggestion" style="font-size:12px;color:var(--success-500);margin-top:4px">建议: {{ a.suggestion }}</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ═══ 实例管理 ═══ -->
+          <div v-if="currentPage==='instances'">
+            <div class="page-card">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+                <div class="page-card-title" style="margin-bottom:0">实例管理</div>
+                <el-button type="primary" size="small" @click="connDrawer=true">+ 新建连接</el-button>
+              </div>
+              <el-table :data="savedConnections" v-loading="false" stripe style="width:100%">
+                <el-table-column prop="name" label="连接名" show-overflow-tooltip></el-table-column>
+                <el-table-column label="地址" width="180"><template #default="{row}">{{ row.host }}:{{ row.port }}{{ row.database?'/'+row.database:'' }}</template></el-table-column>
+                <el-table-column label="类型" width="80"><template #default="{row}"><el-tag size="small">{{ row.is_distributed?'分布式':'集中式' }}</el-tag></template></el-table-column>
+                <el-table-column label="状态" width="80"><template #default="{row}"><span :style="{color:row.active?'#16a34a':'#94a3b8'}">●</span> {{ row.active?'已连接':'未连接' }}</template></el-table-column>
+                <el-table-column label="默认" width="60"><template #default="{row}"><el-tag v-if="row.is_default" type="primary" size="small">默认</el-tag></template></el-table-column>
+                <el-table-column label="操作" width="240" fixed="right">
+                  <template #default="{row}">
+                    <el-button link size="small" @click="connectInstance(row)" v-if="!row.active">连接</el-button>
+                    <el-button link size="small" @click="setDefaultConn(row)" v-if="!row.is_default">设为默认</el-button>
+                    <el-button link type="danger" size="small" @click="deleteConn(row)">删除</el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </div>
+          </div>
+
+          <!-- 新建连接抽屉 -->
+          <el-drawer v-model="connDrawer" title="新建连接" size="440px">
+            <el-form label-position="top">
+              <el-form-item label="连接名称"><el-input v-model="connForm.name"></el-input></el-form-item>
+              <el-form-item label="主机地址"><el-input v-model="connForm.host"></el-input></el-form-item>
+              <el-form-item label="端口"><el-input-number v-model="connForm.port" :min="1"></el-input-number></el-form-item>
+              <el-form-item label="用户名"><el-input v-model="connForm.username"></el-input></el-form-item>
+              <el-form-item label="密码"><el-input v-model="connForm.password" type="password" show-password></el-input></el-form-item>
+              <el-form-item label="默认库"><el-input v-model="connForm.database"></el-input></el-form-item>
+              <el-form-item label="分布式实例"><el-switch v-model="connForm.is_distributed"></el-switch></el-form-item>
+              <el-alert v-if="connTestResult" :title="connTestResult.msg" :type="connTestResult.type" show-icon :closable="false" style="margin-bottom:12px"></el-alert>
+            </el-form>
+            <template #footer>
+              <el-button @click="testConn" :loading="connTesting">测试连接</el-button>
+              <el-button type="primary" @click="saveConn">保存</el-button>
+            </template>
+          </el-drawer>
+
+          <!-- ═══ 数据库体检 ═══ -->
+          <div v-if="currentPage==='health-check'">
+            <div class="page-card">
+              <div class="page-card-title">数据库体检</div>
+              <el-empty description="选择实例后点击检查"></el-empty>
+            </div>
+          </div>
+
+          <!-- ═══ 大表治理 ═══ -->
+          <div v-if="currentPage==='bigtable'">
+            <div class="page-card">
+              <div class="page-card-title">大表治理</div>
+              <el-empty description="暂无大表数据"></el-empty>
+            </div>
+          </div>
+
+          <!-- ═══ 平台治理-项目 ═══ -->
+          <div v-if="currentPage==='projects'">
+            <div class="page-card"><div class="page-card-title">项目管理</div><el-empty description="暂无项目"></el-empty></div>
+          </div>
+
+          <!-- ═══ 规则集 ═══ -->
+          <div v-if="currentPage==='rulesets'">
+            <div class="page-card"><div class="page-card-title">规则集管理</div><el-empty description="暂无规则集"></el-empty></div>
+          </div>
+
+          <!-- ═══ 质量门禁 ═══ -->
+          <div v-if="currentPage==='gate'">
+            <div class="page-card"><div class="page-card-title">质量门禁</div><el-empty description="暂无门禁规则"></el-empty></div>
+          </div>
+
+          <!-- ═══ 监控告警 ═══ -->
+          <div v-if="currentPage==='monitor'">
+            <div class="page-card"><div class="page-card-title">监控告警</div><el-empty description="暂无活跃告警"></el-empty></div>
+          </div>
+
+          <!-- ═══ 巡检管理 ═══ -->
+          <div v-if="currentPage==='inspection'">
+            <div class="page-card"><div class="page-card-title">巡检管理</div><el-empty description="暂无巡检任务"></el-empty></div>
+          </div>
+
+          <!-- ═══ 用户管理 ═══ -->
+          <div v-if="currentPage==='sys-users'">
+            <div class="page-card">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+                <div class="page-card-title" style="margin-bottom:0">用户管理</div>
+                <el-button type="primary" size="small" @click="userDialog.visible=true">+ 新建用户</el-button>
+              </div>
+              <el-table :data="usersList" v-loading="usersLoading" stripe style="width:100%">
+                <el-table-column prop="username" label="用户名" width="120"></el-table-column>
+                <el-table-column prop="display_name" label="姓名" width="120"></el-table-column>
+                <el-table-column prop="role" label="角色" width="100"><template #default="{row}"><el-tag size="small">{{ roleLabel(row.role) }}</el-tag></template></el-table-column>
+                <el-table-column prop="status" label="状态" width="80"><template #default="{row}"><el-tag :type="row.status==='active'?'success':'danger'" size="small">{{ row.status==='active'?'正常':'禁用' }}</el-tag></template></el-table-column>
+                <el-table-column label="操作" width="240" fixed="right">
+                  <template #default="{row}">
+                    <el-button link size="small" @click="openResetPwd(row)">重置口令</el-button>
+                    <el-button link size="small" @click="unlockUser(row)" v-if="row.status==='locked'">解锁</el-button>
+                    <el-button link size="small" @click="toggleUserStatus(row)">{{ row.status==='active'?'禁用':'启用' }}</el-button>
+                    <el-button link type="danger" size="small" @click="deleteUser(row)">删除</el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </div>
+          </div>
+
+          <!-- 新建用户对话框 -->
+          <el-dialog v-model="userDialog.visible" title="新建用户" width="440px">
+            <el-form label-position="top">
+              <el-form-item label="用户名"><el-input v-model="userDialog.form.username"></el-input></el-form-item>
+              <el-form-item label="姓名"><el-input v-model="userDialog.form.display_name"></el-input></el-form-item>
+              <el-form-item label="角色"><el-select v-model="userDialog.form.role" style="width:100%"><el-option label="系统管理员" value="admin"></el-option><el-option label="数据库管理员" value="dba"></el-option><el-option label="开发人员" value="developer"></el-option><el-option label="审计员" value="auditor"></el-option></el-select></el-form-item>
+              <el-form-item label="口令"><el-input v-model="userDialog.form.password" type="password" show-password></el-input></el-form-item>
+            </el-form>
+            <template #footer><el-button @click="userDialog.visible=false">取消</el-button><el-button type="primary" :loading="userDialog.loading" @click="createUser">创建</el-button></template>
+          </el-dialog>
+
+          <!-- 重置口令对话框 -->
+          <el-dialog v-model="resetDialog.visible" title="重置口令" width="400px">
+            <el-form label-position="top"><el-form-item label="新口令"><el-input v-model="resetDialog.password" type="password" show-password></el-input></el-form-item></el-form>
+            <template #footer><el-button @click="resetDialog.visible=false">取消</el-button><el-button type="primary" @click="resetUserPwd">确认</el-button></template>
+          </el-dialog>
+
+          <!-- ═══ 数据保留 ═══ -->
+          <div v-if="currentPage==='sys-retention'"><div class="page-card"><div class="page-card-title">数据保留策略</div><el-empty description="暂无保留策略"></el-empty></div></div>
+          <!-- ═══ 操作审计 ═══ -->
+          <div v-if="currentPage==='sys-auditlog'"><div class="page-card"><div class="page-card-title">操作审计日志</div><el-empty description="暂无审计日志"></el-empty></div></div>
+          <!-- ═══ 系统信息 ═══ -->
+          <div v-if="currentPage==='sys-info'"><div class="page-card"><div class="page-card-title">系统信息</div><el-empty description="加载中..."></el-empty></div></div>
+
         </div>
-
-        <!-- 新建用户对话框 -->
-        <el-dialog v-model="userDialog.visible" title="新建用户" width="420px">
-          <el-form label-width="80px">
-            <el-form-item label="用户名"><el-input v-model="userDialog.form.username" /></el-form-item>
-            <el-form-item label="姓名"><el-input v-model="userDialog.form.display_name" /></el-form-item>
-            <el-form-item label="角色">
-              <el-select v-model="userDialog.form.role" style="width:100%">
-                <el-option label="系统管理员" value="admin" />
-                <el-option label="数据库管理员" value="dba" />
-                <el-option label="开发人员" value="developer" />
-                <el-option label="审计员" value="auditor" />
-              </el-select>
-            </el-form-item>
-            <el-form-item label="初始口令">
-              <el-input v-model="userDialog.form.password" type="password" show-password
-                        placeholder="≥8位，含大小写/数字/特殊字符中三类" />
-            </el-form-item>
-          </el-form>
-          <template #footer>
-            <el-button @click="userDialog.visible = false">取消</el-button>
-            <el-button type="primary" :loading="userDialog.loading" @click="createUser">创建</el-button>
-          </template>
-        </el-dialog>
-
-        <!-- 重置口令对话框 -->
-        <el-dialog v-model="resetDialog.visible" :title="'重置口令: ' + resetDialog.username" width="420px">
-          <el-form label-width="80px">
-            <el-form-item label="新口令">
-              <el-input v-model="resetDialog.password" type="password" show-password
-                        placeholder="≥8位，含大小写/数字/特殊字符中三类" />
-            </el-form-item>
-          </el-form>
-          <template #footer>
-            <el-button @click="resetDialog.visible = false">取消</el-button>
-            <el-button type="primary" @click="resetUserPwd">重置</el-button>
-          </template>
-        </el-dialog>
       </div>
     </div>
   </div>
 
-  <!-- V2.0 修改口令对话框（全局） -->
+  <!-- 修改口令对话框 -->
   <el-dialog v-model="pwdDialog.visible" title="修改口令" width="420px">
-    <el-form label-width="80px">
-      <el-form-item label="原口令">
-        <el-input v-model="pwdDialog.oldPassword" type="password" show-password />
-      </el-form-item>
-      <el-form-item label="新口令">
-        <el-input v-model="pwdDialog.newPassword" type="password" show-password
-                  placeholder="≥8位，含大小写/数字/特殊字符中三类" />
-      </el-form-item>
-      <el-form-item label="确认口令">
-        <el-input v-model="pwdDialog.confirmPassword" type="password" show-password />
-      </el-form-item>
+    <el-form label-position="top">
+      <el-form-item label="旧口令"><el-input v-model="pwdDialog.old_password" type="password" show-password></el-input></el-form-item>
+      <el-form-item label="新口令"><el-input v-model="pwdDialog.new_password" type="password" show-password></el-input></el-form-item>
+      <div style="font-size:12px;color:var(--text-secondary)">≥8位，含大小写字母/数字/特殊字符三类</div>
     </el-form>
-    <template #footer>
-      <el-button @click="pwdDialog.visible = false">取消</el-button>
-      <el-button type="primary" :loading="pwdDialog.loading" @click="changePassword">确认修改</el-button>
-    </template>
+    <template #footer><el-button @click="pwdDialog.visible=false">取消</el-button><el-button type="primary" @click="changePassword">确认</el-button></template>
   </el-dialog>
 </div>
 
 <script>
-// V2.0: 同源相对路径（支持任意主机/端口/反向代理部署）
 const API_BASE = '';
-
 const { createApp, ref, reactive, onMounted, watch, nextTick, computed } = Vue;
-
-// ══════════════════════════════════════════════════════════════
-// V2.0 认证支持: 令牌管理 + 统一请求封装（401自动跳转登录）
-// ══════════════════════════════════════════════════════════════
 const AUTH_TOKEN_KEY = 'tdsql_token';
-const AUTH_USER_KEY = 'tdsql_user';
-
-function getToken() { return localStorage.getItem(AUTH_TOKEN_KEY) || ''; }
-function setToken(t) { localStorage.setItem(AUTH_TOKEN_KEY, t); }
-function clearToken() {
-  localStorage.removeItem(AUTH_TOKEN_KEY);
-  localStorage.removeItem(AUTH_USER_KEY);
-}
-
-let onUnauthorized = null;  // 由应用注册的401回调
-
-async function apiFetch(url, options = {}) {
-  const opts = Object.assign({}, options);
-  opts.headers = Object.assign({}, options.headers || {});
-  const token = getToken();
-  if (token) opts.headers['Authorization'] = 'Bearer ' + token;
-  const resp = await fetch(url, opts);
-  if (resp.status === 401 && onUnauthorized) {
-    clearToken();
-    onUnauthorized();
+function getToken(){return localStorage.getItem(AUTH_TOKEN_KEY)||''}
+function setToken(t){localStorage.setItem(AUTH_TOKEN_KEY,t)}
+function clearToken(){localStorage.removeItem(AUTH_TOKEN_KEY)}
+let onUnauthorized=null;
+async function apiFetch(url,options={}){const opts=Object.assign({},options);opts.headers=Object.assign({},options.headers||{});const token=getToken();if(token)opts.headers['Authorization']='Bearer '+token;const resp=await fetch(url,opts);if(resp.status===401&&onUnauthorized){clearToken();onUnauthorized()}return resp}
+const app=createApp({
+  setup(){
+    const currentPage=ref('dashboard');
+    const sidebarCollapsed=ref(false);
+    const authState=reactive({token:getToken(),user:null,role:''});
+    const loginForm=reactive({username:'',password:''});
+    const loginLoading=ref(false);
+    const loginError=ref('');
+    const pwdDialog=reactive({visible:false,old_password:'',new_password:'',loading:false});
+    const savedConnections=ref([]);
+    const currentConnectionId=ref('');
+    const projects=ref([]);
+    const currentProjectId=ref('');
+    const activeAlerts=ref(0);
+    const metadataEnhanced=ref(false);
+    const statsLoading=ref(false);
+    const stats=ref({audit:{},slow_queries:{},rules:{},recent_audits:[]});
+    const ruleHits=ref([]);
+    const trendChartRef=ref(null);
+    const sqlInput=ref('');
+    const auditing=ref(false);
+    const auditResult=ref(null);
+    const fileAuditTab=ref('upload');
+    const fileAuditResult=ref(null);
+    const fileReports=ref([]);
+    const fileReportsLoading=ref(false);
+    const fileReportsTotal=ref(0);
+    const fileReportsPage=ref(1);
+    const rulesList=ref([]);
+    const rulesByCategory=ref({});
+    const ruleSearch=ref('');
+    const expandedCategories=ref([]);
+    const slowList=ref([]);
+    const slowListLoading=ref(false);
+    const slowFilters=reactive({db_name:'',set_id:'',severity:'',status:'',keyword:'',scan_task_id:''});
+    const slowPage=reactive({current:1,size:20,total:0});
+    const scanTasks=ref([]);
+    const scanTaskTotal=ref(0);
+    const scanTaskCurrentPage=ref(1);
+    const scanTaskLoading=ref(false);
+    const selectedTaskIds=ref(new Set());
+    const batchDeleting=ref(false);
+    const clearingOrphan=ref(false);
+    const scanDrawer=ref(false);
+    const scanTimeWindow=ref([]);
+    const scanTaskForm=reactive({task_name:'',source:'digest',min_time:0.1,limit:50,poll_duration:10,poll_interval:1});
+    const slowDetailDrawer=ref(false);
+    const slowDetail=ref(null);
+    const explainMode=ref('sql');
+    const explainSqlInput=ref('');
+    const explainInput=ref('');
+    const explainConnId=ref('');
+    const analyzingExplain=ref(false);
+    const explainResult=ref(null);
+    const tdsqlStatus=ref({connected:false});
+    const connDrawer=ref(false);
+    const connForm=reactive({id:'',name:'',host:'',port:3306,username:'',password:'',database:'',is_distributed:true,description:''});
+    const connTestResult=ref(null);
+    const connTesting=ref(false);
+    const scanSchedules=ref([]);
+    const usersList=ref([]);
+    const usersLoading=ref(false);
+    const userDialog=reactive({visible:false,loading:false,form:{username:'',display_name:'',role:'developer',password:''}});
+    const resetDialog=reactive({visible:false,username:'',password:''});
+    const roleLabel=computed(()=>({admin:'系统管理员',dba:'DBA',developer:'开发',auditor:'审计员'}[authState.role]||''));
+    const canManagePlatform=computed(()=>['admin','dba'].includes(authState.role));
+    const canManageInstances=computed(()=>['admin','dba'].includes(authState.role));
+    const canViewAuditLog=computed(()=>['admin','auditor'].includes(authState.role));
+    const breadcrumbItems=computed(()=>{const m={dashboard:[{key:'d',label:'工作台'},{key:'c',label:'治理概览'}],'audit-sql':[{key:'a',label:'SQL审核'},{key:'c',label:'即时审核'}],'file-audit':[{key:'a',label:'SQL审核'},{key:'c',label:'文件审核'}],rules:[{key:'a',label:'SQL审核'},{key:'c',label:'审核规则库'}],'slow-tasks':[{key:'s',label:'慢SQL治理'},{key:'c',label:'扫描任务'}],'slow-records':[{key:'s',label:'慢SQL治理'},{key:'c',label:'慢SQL记录'}],'slow-schedule':[{key:'s',label:'慢SQL治理'},{key:'c',label:'扫描计划'}],explain:[{key:'s',label:'慢SQL治理'},{key:'c',label:'EXPLAIN分析'}],instances:[{key:'i',label:'实例与体检'},{key:'c',label:'实例管理'}],'health-check':[{key:'i',label:'实例与体检'},{key:'c',label:'数据库体检'}],bigtable:[{key:'i',label:'实例与体检'},{key:'c',label:'大表治理'}],projects:[{key:'p',label:'平台治理'},{key:'c',label:'项目管理'}],rulesets:[{key:'p',label:'平台治理'},{key:'c',label:'规则集'}],gate:[{key:'p',label:'平台治理'},{key:'c',label:'质量门禁'}],monitor:[{key:'p',label:'平台治理'},{key:'c',label:'监控告警'}],inspection:[{key:'p',label:'平台治理'},{key:'c',label:'巡检管理'}],'sys-users':[{key:'sys',label:'系统管理'},{key:'c',label:'用户管理'}],'sys-retention':[{key:'sys',label:'系统管理'},{key:'c',label:'数据保留'}],'sys-auditlog':[{key:'sys',label:'系统管理'},{key:'c',label:'操作审计'}],'sys-info':[{key:'sys',label:'系统管理'},{key:'c',label:'系统信息'}]};return m[currentPage.value]||[]});
+    const kpiCards=computed(()=>{const a=stats.value.audit||{};const s=stats.value.slow_queries||{};return[{key:'audit_today',label:'今日审核',value:a.today_count||0,color:'var(--brand-500)',sub:`通过 ${a.today_passed||0} / 拦截 ${a.today_failed||0}`,onClick:()=>currentPage.value='audit-sql'},{key:'pass_rate',label:'今日通过率',value:(a.today_pass_rate||0).toFixed(1)+'%',color:(a.today_pass_rate||0)>=80?'var(--success-500)':'var(--danger-500)',sub:`ERROR ${a.today_errors||0} / WARNING ${a.today_warnings||0}`},{key:'slow_pending',label:'待处理慢SQL',value:s.pending||0,color:'var(--warning-500)',sub:`严重 ${s.critical_count||0}`,onClick:()=>{currentPage.value='slow-records';slowFilters.status='pending';loadSlowList()}},{key:'slow_optimized',label:'已优化慢SQL',value:s.optimized||0,color:'var(--success-500)'}]});
+    const formatTime=(iso)=>{if(!iso)return'';try{const d=new Date(iso);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')}catch{return iso}};
+    const sevTagType=(s)=>s==='ERROR'?'danger':s==='WARNING'?'warning':s==='INFO'?'info':'success';
+    const statusLabel=(s)=>({pending:'待处理',optimized:'已优化',ignored:'已忽略'}[s]||s);
+    const sourceLabel=(s)=>({digest:'性能摘要',processlist:'进程快照',manual:'手动录入'}[s]||s);
+    const categoryOrder=[{key:'naming',label:'命名规范'},{key:'ddl',label:'DDL规范'},{key:'dml',label:'DML规范'},{key:'index',label:'索引规范'},{key:'distributed',label:'分布式规范'},{key:'security',label:'安全规范'},{key:'performance',label:'性能规范'},{key:'transaction',label:'事务规范'}];
+    const filteredCategories=computed(()=>{if(!ruleSearch.value)return categoryOrder;const q=ruleSearch.value.toLowerCase();return categoryOrder.filter(c=>{const rs=rulesByCategory.value[c.key]||[];return rs.some(r=>r.rule_id.toLowerCase().includes(q)||r.description.toLowerCase().includes(q))})});
+    const applyUser=(u)=>{authState.user=u;authState.role=u.role};
+    const doLogin=async()=>{if(!loginForm.username||!loginForm.password){loginError.value='请输入用户名和口令';return}loginLoading.value=true;loginError.value='';try{const resp=await fetch(`${API_BASE}/api/v1/auth/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:loginForm.username,password:loginForm.password})});const data=await resp.json();if(!resp.ok){loginError.value=data.detail||'登录失败';return}setToken(data.token);applyUser(data.user);loginForm.password='';if(data.user.must_change_password){ElementPlus.ElMessage.warning('首次登录请修改口令');pwdDialog.visible=true}loadAll()}catch(e){loginError.value='登录请求失败: '+e.message}finally{loginLoading.value=false}};
+    const doLogout=async()=>{try{await apiFetch(`${API_BASE}/api/v1/auth/logout`,{method:'POST'})}catch(e){}clearToken();authState.token='';authState.user=null;loginForm.username='';loginForm.password=''};
+    const changePassword=async()=>{if(!pwdDialog.new_password){ElementPlus.ElMessage.warning('请输入新口令');return}pwdDialog.loading=true;try{const resp=await apiFetch(`${API_BASE}/api/v1/auth/change-password`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({old_password:pwdDialog.old_password,new_password:pwdDialog.new_password})});const data=await resp.json();if(!resp.ok){ElementPlus.ElMessage.error(data.detail||'修改失败');return}ElementPlus.ElMessage.success('口令修改成功，请重新登录');pwdDialog.visible=false;pwdDialog.old_password='';pwdDialog.new_password='';doLogout()}catch(e){ElementPlus.ElMessage.error('修改失败: '+e.message)}finally{pwdDialog.loading=false}};
+    const checkSession=async()=>{try{const resp=await apiFetch(`${API_BASE}/api/v1/auth/me`);if(resp.ok){applyUser(await resp.json());return true}}catch(e){}return false};
+    const onUserCommand=(cmd)=>{if(cmd==='password'){pwdDialog.visible=true;pwdDialog.old_password='';pwdDialog.new_password=''}else if(cmd==='logout'){doLogout()}};
+    const onMenuSelect=(key)=>{currentPage.value=key};
+    const onConnectionSwitch=async(connId)=>{if(!connId)return;try{const conn=savedConnections.value.find(c=>c.id===connId);if(conn&&!conn.active){const resp=await apiFetch(`${API_BASE}/api/v1/tdsql/connections/${connId}/connect`,{method:'POST'});if(resp.ok){ElementPlus.ElMessage.success('实例已连接');tdsqlStatus.value={connected:true}}else{const d=await resp.json();ElementPlus.ElMessage.error(d.detail||'连接失败')}}}catch(e){ElementPlus.ElMessage.error('切换实例失败: '+e.message)}};
+    const onProjectSwitch=()=>{};
+    const loadDashboard=async()=>{statsLoading.value=true;try{const resp=await apiFetch(`${API_BASE}/api/v1/dashboard/summary`);if(resp.ok)stats.value=await resp.json();loadRuleHits()}catch(e){}finally{statsLoading.value=false}};
+    const loadRuleHits=async()=>{try{const resp=await apiFetch(`${API_BASE}/api/v1/dashboard/rule-stats`);if(resp.ok)ruleHits.value=(await resp.json()).rules||[]}catch(e){}};
+    const renderTrendChart=async()=>{const el=trendChartRef.value;if(!el)return;try{const resp=await apiFetch(`${API_BASE}/api/v1/dashboard/audit-trend?days=7`);const td=resp.ok?await resp.json():{dates:[],passed:[],failed:[]};const chart=echarts.init(el);chart.setOption({tooltip:{trigger:'axis'},legend:{data:['通过','拦截'],bottom:0},grid:{left:'3%',right:'4%',bottom:'15%',top:'5%',containLabel:true},xAxis:{type:'category',data:td.dates||[]},yAxis:{type:'value',minInterval:1},series:[{name:'通过',type:'bar',stack:'t',data:td.passed||[],itemStyle:{color:'#16a34a'}},{name:'拦截',type:'bar',stack:'t',data:td.failed||[],itemStyle:{color:'#dc2626'}}]})}catch(e){}};
+    const auditSql=async()=>{if(!sqlInput.value.trim())return;auditing.value=true;try{const body={sql:sqlInput.value};if(currentProjectId.value)body.project_id=currentProjectId.value;const resp=await apiFetch(`${API_BASE}/api/v1/audit/sql`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});auditResult.value=await resp.json()}catch(e){ElementPlus.ElMessage.error('审核请求失败: '+e.message)}finally{auditing.value=false}};
+    const loadExample=(type)=>{const ex={select:'SELECT * FROM t_order WHERE user_id=123 ORDER BY RAND() LIMIT 10',create:'CREATE TABLE t_user (\n  id BIGINT NOT NULL AUTO_INCREMENT,\n  name VARCHAR(100),\n  phone VARCHAR(20),\n  status VARCHAR(10),\n  amount FLOAT,\n  created_at TIMESTAMP,\n  notes TEXT,\n  INDEX idx_name (name),\n  INDEX idx_phone (phone)\n)',update:'UPDATE t_order SET status=0',delete:'DELETE FROM t_order WHERE status=0'};sqlInput.value=ex[type]||''};
+    const onFileChange=async(file)=>{if(!file||!file.raw)return;const content=await file.raw.text();try{const body={content,file_path:file.name};if(currentProjectId.value)body.project_id=currentProjectId.value;const resp=await apiFetch(`${API_BASE}/api/v1/audit/file`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});fileAuditResult.value=await resp.json();ElementPlus.ElMessage.success('文件审核完成')}catch(e){ElementPlus.ElMessage.error('文件审核失败: '+e.message)}};
+    const loadFileReports=async()=>{fileReportsLoading.value=true;try{const offset=(fileReportsPage.value-1)*10;const resp=await apiFetch(`${API_BASE}/api/v1/audit/file-reports?limit=10&offset=${offset}`);if(resp.ok){const d=await resp.json();fileReports.value=d.items||[];fileReportsTotal.value=d.total||0}}catch(e){}finally{fileReportsLoading.value=false}};
+    const downloadFileReport=(reportId)=>{const t=getToken();window.open(`${API_BASE}/api/v1/audit/file-reports/${reportId}/html?access_token=${t}`,'_blank')};
+    const loadRules=async()=>{try{const resp=await apiFetch(`${API_BASE}/api/v1/rules`);if(resp.ok){const d=await resp.json();rulesList.value=d.rules||[];const by={};for(const r of rulesList.value){if(!by[r.category])by[r.category]=[];by[r.category].push(r)}rulesByCategory.value=by}}catch(e){}};
+    const loadSlowList=async()=>{slowListLoading.value=true;try{const p=new URLSearchParams({limit:slowPage.size,offset:(slowPage.current-1)*slowPage.size});if(slowFilters.db_name)p.set('db_name',slowFilters.db_name);if(slowFilters.set_id)p.set('set_id',slowFilters.set_id);if(slowFilters.severity)p.set('severity',slowFilters.severity);if(slowFilters.status)p.set('status',slowFilters.status);if(slowFilters.scan_task_id)p.set('scan_task_id',slowFilters.scan_task_id);if(slowFilters.keyword)p.set('keyword',slowFilters.keyword);const resp=await apiFetch(`${API_BASE}/api/v1/slow-queries?${p}`);if(resp.ok){const d=await resp.json();slowList.value=d.items||[];slowPage.total=d.total||0}}catch(e){}finally{slowListLoading.value=false}};
+    const resetSlowFilter=()=>{slowFilters.db_name='';slowFilters.set_id='';slowFilters.severity='';slowFilters.status='';slowFilters.scan_task_id='';slowFilters.keyword='';slowPage.current=1;loadSlowList()};
+    const openSlowDetail=async(row)=>{slowDetailDrawer.value=true;slowDetail.value=row;try{const resp=await apiFetch(`${API_BASE}/api/v1/slow-queries/${row.id}`);if(resp.ok)slowDetail.value=await resp.json()}catch(e){}};
+    const setSlowStatus=async(row,status)=>{try{const resp=await apiFetch(`${API_BASE}/api/v1/slow-queries/${row.id}/status`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})});if(resp.ok){ElementPlus.ElMessage.success('状态已更新');loadSlowList()}}catch(e){ElementPlus.ElMessage.error('更新失败')}};
+    const exportSlowReport=(row)=>{const t=getToken();window.open(`${API_BASE}/api/v1/audit/slow-report/${row.id}/export?access_token=${t}`,'_blank')};
+    const goSlowDetail=(r)=>{currentPage.value='slow-records';openSlowDetail(r)};
+    const goExplainFromSlow=(d)=>{currentPage.value='explain';explainMode.value='sql';explainSqlInput.value=d.fingerprint||''};
+    const loadScanTasks=async()=>{try{const offset=(scanTaskCurrentPage.value-1)*10;const resp=await apiFetch(`${API_BASE}/api/v1/slow-queries/scan-tasks?limit=10&offset=${offset}`);if(resp.ok){const d=await resp.json();scanTasks.value=d.items||[];scanTaskTotal.value=d.total||0}}catch(e){}};
+    const onTaskSelectChange=(rows)=>{selectedTaskIds.value=new Set(rows.map(r=>r.id))};
+    const deleteScanTask=async(row)=>{try{await ElementPlus.ElMessageBox.confirm(`确认删除扫描任务「${row.task_name||row.id}」？关联的慢SQL记录将一并删除。`,'删除确认',{type:'warning'})}catch(e){return}try{const resp=await apiFetch(`${API_BASE}/api/v1/slow-queries/scan-tasks/${row.id}`,{method:'DELETE'});if(resp.ok){ElementPlus.ElMessage.success('已删除');loadScanTasks()}}catch(e){ElementPlus.ElMessage.error('删除失败')}};
+    const batchDeleteScanTasks=async()=>{const n=selectedTaskIds.value.size;if(!n)return;try{await ElementPlus.ElMessageBox.confirm(`确认删除选中的 ${n} 个扫描任务？`,'批量删除',{type:'warning'})}catch(e){return}batchDeleting.value=true;let ok=0;for(const id of selectedTaskIds.value){try{const r=await apiFetch(`${API_BASE}/api/v1/slow-queries/scan-tasks/${id}`,{method:'DELETE'});if(r.ok)ok++}catch(e){}}selectedTaskIds.value=new Set();batchDeleting.value=false;ElementPlus.ElMessage.success(`成功删除 ${ok} 个任务`);loadScanTasks()};
+    const startScanTask=async()=>{if(!currentConnectionId.value){ElementPlus.ElMessage.warning('请先在顶栏选择实例');return}if(!scanTimeWindow.value||scanTimeWindow.value.length<2){ElementPlus.ElMessage.warning('请选择时间窗口');return}scanTaskLoading.value=true;try{const resp=await apiFetch(`${API_BASE}/api/v1/tdsql/slow-queries/fetch`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({source:scanTaskForm.source,connection_id:currentConnectionId.value,limit:scanTaskForm.limit,min_time:scanTaskForm.min_time,task_name:scanTaskForm.task_name||'',time_window_start:scanTimeWindow.value[0],time_window_end:scanTimeWindow.value[1],poll_duration:scanTaskForm.poll_duration,poll_interval:scanTaskForm.poll_interval})});const d=await resp.json();if(resp.ok){ElementPlus.ElMessage.success(`扫描完成，抓取 ${d.fetched} 条慢SQL`);scanDrawer.value=false;scanTaskForm.task_name='';loadScanTasks();loadSlowList()}else{ElementPlus.ElMessage.error(d.detail||'扫描失败')}}catch(e){ElementPlus.ElMessage.error('扫描失败: '+e.message)}finally{scanTaskLoading.value=false}};
+    const viewTaskSlowQueries=(row)=>{currentPage.value='slow-records';slowFilters.scan_task_id=row.id;slowPage.current=1;loadSlowList()};
+    const clearOrphanRecords=async()=>{try{await ElementPlus.ElMessageBox.confirm('确认清理所有无任务关联的慢SQL记录？此操作不可恢复。','清理确认',{type:'warning'})}catch(e){return}clearingOrphan.value=true;try{const resp=await apiFetch(`${API_BASE}/api/v1/slow-queries/orphan-records`,{method:'DELETE'});if(resp.ok){const d=await resp.json();ElementPlus.ElMessage.success(d.message||'清理完成');loadSlowList()}}catch(e){ElementPlus.ElMessage.error('清理失败')}finally{clearingOrphan.value=false}};
+    const analyzeExplainBySql=async()=>{if(!explainSqlInput.value.trim()||!explainConnId.value)return;analyzingExplain.value=true;explainResult.value=null;try{const resp=await apiFetch(`${API_BASE}/api/v1/slow-queries/analyze-explain-by-sql`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sql:explainSqlInput.value,connection_id:explainConnId.value})});if(!resp.ok){const err=await resp.json();throw new Error(err.detail||'EXPLAIN执行失败')}explainResult.value=await resp.json();ElementPlus.ElMessage.success('EXPLAIN分析完成')}catch(e){ElementPlus.ElMessage.error('分析失败: '+e.message)}finally{analyzingExplain.value=false}};
+    const analyzeExplain=async()=>{if(!explainInput.value.trim())return;analyzingExplain.value=true;try{const data=JSON.parse(explainInput.value);const resp=await apiFetch(`${API_BASE}/api/v1/slow-queries/analyze-explain`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({explain_data:Array.isArray(data)?data:[data]})});explainResult.value=await resp.json()}catch(e){ElementPlus.ElMessage.error('分析失败: '+e.message)}finally{analyzingExplain.value=false}};
+    const loadSavedConnections=async()=>{try{const resp=await apiFetch(`${API_BASE}/api/v1/tdsql/connections`);if(resp.ok){const d=await resp.json();savedConnections.value=d.connections||[];if(d.default)currentConnectionId.value=d.default}}catch(e){}};
+    const testConn=async()=>{connTesting.value=true;connTestResult.value=null;try{const resp=await apiFetch(`${API_BASE}/api/v1/tdsql/test-connection?host=${encodeURIComponent(connForm.host)}&port=${connForm.port}&user=${encodeURIComponent(connForm.username)}&password=${encodeURIComponent(connForm.password)}&database=${encodeURIComponent(connForm.database)}`);const d=await resp.json();connTestResult.value=d.status==='connected'?{type:'success',msg:`连接成功！${d.server_version}，延迟${d.latency_ms}ms`}:{type:'error',msg:'连接失败: '+(d.message||'')}}catch(e){connTestResult.value={type:'error',msg:e.message}}finally{connTesting.value=false}};
+    const saveConn=async()=>{try{const body={...connForm};if(!body.id)delete body.id;const resp=await apiFetch(`${API_BASE}/api/v1/tdsql/connections`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(resp.ok){ElementPlus.ElMessage.success('连接已保存');connDrawer.value=false;loadSavedConnections()}else{const d=await resp.json();ElementPlus.ElMessage.error(d.detail||'保存失败')}}catch(e){ElementPlus.ElMessage.error('保存失败: '+e.message)}};
+    const deleteConn=async(row)=>{try{await ElementPlus.ElMessageBox.confirm(`确认删除连接「${row.name}」？`,'删除确认',{type:'warning'})}catch(e){return}try{await apiFetch(`${API_BASE}/api/v1/tdsql/connections/${row.id}`,{method:'DELETE'});ElementPlus.ElMessage.success('已删除');loadSavedConnections()}catch(e){ElementPlus.ElMessage.error('删除失败')}};
+    const setDefaultConn=async(row)=>{try{await apiFetch(`${API_BASE}/api/v1/tdsql/connections/${row.id}/set-default`,{method:'POST'});ElementPlus.ElMessage.success('已设为默认');loadSavedConnections()}catch(e){ElementPlus.ElMessage.error('设置失败')}};
+    const connectInstance=async(row)=>{try{const resp=await apiFetch(`${API_BASE}/api/v1/tdsql/connections/${row.id}/connect`,{method:'POST'});if(resp.ok){ElementPlus.ElMessage.success('已连接');loadSavedConnections()}else{const d=await resp.json();ElementPlus.ElMessage.error(d.detail||'连接失败')}}catch(e){ElementPlus.ElMessage.error('连接失败')}};
+    const loadUsers=async()=>{usersLoading.value=true;try{const resp=await apiFetch(`${API_BASE}/api/v1/auth/users`);if(resp.ok){const d=await resp.json();usersList.value=d.users||[]}}catch(e){ElementPlus.ElMessage.error('加载用户列表失败')}finally{usersLoading.value=false}};
+    const createUser=async()=>{userDialog.loading=true;try{const resp=await apiFetch(`${API_BASE}/api/v1/auth/users`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(userDialog.form)});const d=await resp.json();if(!resp.ok){ElementPlus.ElMessage.error(d.detail||'创建失败');return}ElementPlus.ElMessage.success('用户创建成功');userDialog.visible=false;loadUsers()}catch(e){ElementPlus.ElMessage.error('创建失败: '+e.message)}finally{userDialog.loading=false}};
+    const openResetPwd=(row)=>{resetDialog.username=row.username;resetDialog.password='';resetDialog.visible=true};
+    const resetUserPwd=async()=>{try{const resp=await apiFetch(`${API_BASE}/api/v1/auth/users/${resetDialog.username}/reset-password`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({new_password:resetDialog.password})});const d=await resp.json();if(!resp.ok){ElementPlus.ElMessage.error(d.detail||'重置失败');return}ElementPlus.ElMessage.success('口令已重置');resetDialog.visible=false}catch(e){ElementPlus.ElMessage.error('重置失败: '+e.message)}};
+    const unlockUser=async(row)=>{try{const resp=await apiFetch(`${API_BASE}/api/v1/auth/users/${row.username}/unlock`,{method:'POST'});if(resp.ok){ElementPlus.ElMessage.success('已解锁');loadUsers()}}catch(e){}};
+    const toggleUserStatus=async(row)=>{const ns=row.status==='active'?'disabled':'active';try{const resp=await apiFetch(`${API_BASE}/api/v1/auth/users/${row.username}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:ns})});if(resp.ok){ElementPlus.ElMessage.success(ns==='active'?'已启用':'已禁用');loadUsers()}}catch(e){}};
+    const deleteUser=async(row)=>{try{await ElementPlus.ElMessageBox.confirm(`确认删除用户 ${row.username}？`,'删除确认',{type:'warning'})}catch(e){return}try{const resp=await apiFetch(`${API_BASE}/api/v1/auth/users/${row.username}`,{method:'DELETE'});if(resp.ok){ElementPlus.ElMessage.success('用户已删除');loadUsers()}}catch(e){}};
+    const loadAll=()=>{loadDashboard();loadSavedConnections();loadRules();loadScanTasks();loadSlowList()};
+    onMounted(async()=>{onUnauthorized=()=>{authState.token='';authState.user=null};const ok=await checkSession();if(ok)loadAll()});
+    watch(currentPage,(v)=>{if(v==='dashboard')nextTick(renderTrendChart);if(v==='rules'&&rulesList.value.length===0)loadRules();if(v==='file-audit'&&fileAuditTab.value==='reports')loadFileReports();if(v==='slow-tasks')loadScanTasks();if(v==='slow-records')loadSlowList();if(v==='sys-users')loadUsers()});
+    watch(fileAuditTab,(v)=>{if(v==='reports')loadFileReports()});
+    return{currentPage,sidebarCollapsed,authState,loginForm,loginLoading,loginError,pwdDialog,savedConnections,currentConnectionId,projects,currentProjectId,activeAlerts,metadataEnhanced,statsLoading,stats,ruleHits,trendChartRef,kpiCards,sqlInput,auditing,auditResult,fileAuditTab,fileAuditResult,fileReports,fileReportsLoading,fileReportsTotal,fileReportsPage,rulesList,rulesByCategory,ruleSearch,expandedCategories,filteredCategories,slowList,slowListLoading,slowFilters,slowPage,scanTasks,scanTaskTotal,scanTaskCurrentPage,scanTaskLoading,selectedTaskIds,batchDeleting,clearingOrphan,scanDrawer,scanTimeWindow,scanTaskForm,slowDetailDrawer,slowDetail,explainMode,explainSqlInput,explainInput,explainConnId,analyzingExplain,explainResult,tdsqlStatus,connDrawer,connForm,connTestResult,connTesting,scanSchedules,usersList,usersLoading,userDialog,resetDialog,roleLabel,canManagePlatform,canManageInstances,canViewAuditLog,breadcrumbItems,formatTime,sevTagType,statusLabel,sourceLabel,categoryOrder,doLogin,doLogout,changePassword,onUserCommand,onMenuSelect,onConnectionSwitch,onProjectSwitch,auditSql,loadExample,onFileChange,loadFileReports,downloadFileReport,loadRules,loadSlowList,resetSlowFilter,openSlowDetail,setSlowStatus,exportSlowReport,goSlowDetail,goExplainFromSlow,loadScanTasks,onTaskSelectChange,deleteScanTask,batchDeleteScanTasks,startScanTask,viewTaskSlowQueries,clearOrphanRecords,analyzeExplainBySql,analyzeExplain,loadSavedConnections,testConn,saveConn,deleteConn,setDefaultConn,connectInstance,loadUsers,createUser,openResetPwd,resetUserPwd,unlockUser,toggleUserStatus,deleteUser,loadAll,renderTrendChart};
   }
-  return resp;
-}
-
-const app = createApp({
-  setup() {
-    const currentPage = ref('dashboard');
-
-    // ══════════════ V2.0 认证状态 ══════════════
-    const authState = reactive({
-      loggedIn: false, username: '', displayName: '', role: '', roleLabel: '',
-      authDisabled: false,
-    });
-    const loginForm = reactive({ username: '', password: '', loading: false, error: '' });
-    const pwdDialog = reactive({
-      visible: false, oldPassword: '', newPassword: '', confirmPassword: '', loading: false,
-    });
-
-    const roleLabel = (r) => ({
-      admin: '系统管理员', dba: '数据库管理员',
-      developer: '开发人员', auditor: '审计员',
-    }[r] || r);
-
-    const applyUser = (user) => {
-      authState.loggedIn = true;
-      authState.username = user.username;
-      authState.displayName = user.display_name || user.username;
-      authState.role = user.role;
-      authState.roleLabel = user.role_label || roleLabel(user.role);
-    };
-
-    const doLogin = async () => {
-      if (!loginForm.username || !loginForm.password) {
-        loginForm.error = '请输入用户名和口令';
-        return;
-      }
-      loginForm.loading = true;
-      loginForm.error = '';
-      try {
-        const resp = await fetch(`${API_BASE}/api/v1/auth/login`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username: loginForm.username, password: loginForm.password }),
-        });
-        const data = await resp.json();
-        if (!resp.ok) {
-          loginForm.error = data.detail || '登录失败';
-          return;
-        }
-        setToken(data.token);
-        applyUser(data.user);
-        loginForm.password = '';
-        if (data.user.must_change_password) {
-          ElementPlus.ElMessage.warning('首次登录请修改口令');
-          pwdDialog.visible = true;
-        }
-        loadAll();
-      } catch (e) {
-        loginForm.error = '登录请求失败: ' + e.message;
-      } finally {
-        loginForm.loading = false;
-      }
-    };
-
-    const doLogout = async () => {
-      try { await apiFetch(`${API_BASE}/api/v1/auth/logout`, { method: 'POST' }); } catch (e) {}
-      clearToken();
-      authState.loggedIn = false;
-      authState.username = '';
-      loginForm.username = '';
-    };
-
-    const changePassword = async () => {
-      if (pwdDialog.newPassword !== pwdDialog.confirmPassword) {
-        ElementPlus.ElMessage.error('两次输入的新口令不一致');
-        return;
-      }
-      pwdDialog.loading = true;
-      try {
-        const resp = await apiFetch(`${API_BASE}/api/v1/auth/change-password`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            old_password: pwdDialog.oldPassword,
-            new_password: pwdDialog.newPassword,
-          }),
-        });
-        const data = await resp.json();
-        if (!resp.ok) {
-          ElementPlus.ElMessage.error(data.detail || '修改失败');
-          return;
-        }
-        ElementPlus.ElMessage.success('口令修改成功，请重新登录');
-        pwdDialog.visible = false;
-        pwdDialog.oldPassword = pwdDialog.newPassword = pwdDialog.confirmPassword = '';
-        doLogout();
-      } catch (e) {
-        ElementPlus.ElMessage.error('修改失败: ' + e.message);
-      } finally {
-        pwdDialog.loading = false;
-      }
-    };
-
-    const checkSession = async () => {
-      // 已有令牌或认证关闭模式：拉取当前用户
-      try {
-        const resp = await apiFetch(`${API_BASE}/api/v1/auth/me`);
-        if (resp.ok) {
-          const user = await resp.json();
-          applyUser(user);
-          return true;
-        }
-      } catch (e) {}
-      return false;
-    };
-
-    // ══════════════ V2.0 用户管理（admin） ══════════════
-    const usersList = ref([]);
-    const usersLoading = ref(false);
-    const userDialog = reactive({
-      visible: false, loading: false,
-      form: { username: '', display_name: '', role: 'developer', password: '' },
-    });
-    const resetDialog = reactive({ visible: false, username: '', password: '' });
-
-    const loadUsers = async () => {
-      usersLoading.value = true;
-      try {
-        const resp = await apiFetch(`${API_BASE}/api/v1/auth/users`);
-        if (resp.ok) {
-          const data = await resp.json();
-          usersList.value = data.users || [];
-        }
-      } catch (e) {
-        ElementPlus.ElMessage.error('加载用户列表失败: ' + e.message);
-      } finally {
-        usersLoading.value = false;
-      }
-    };
-
-    const switchToUsers = () => {
-      currentPage.value = 'users';
-      loadUsers();
-    };
-
-    const openCreateUser = () => {
-      userDialog.form = { username: '', display_name: '', role: 'developer', password: '' };
-      userDialog.visible = true;
-    };
-
-    const createUser = async () => {
-      userDialog.loading = true;
-      try {
-        const resp = await apiFetch(`${API_BASE}/api/v1/auth/users`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(userDialog.form),
-        });
-        const data = await resp.json();
-        if (!resp.ok) {
-          ElementPlus.ElMessage.error(data.detail || '创建失败');
-          return;
-        }
-        ElementPlus.ElMessage.success('用户创建成功');
-        userDialog.visible = false;
-        loadUsers();
-      } catch (e) {
-        ElementPlus.ElMessage.error('创建失败: ' + e.message);
-      } finally {
-        userDialog.loading = false;
-      }
-    };
-
-    const openResetPwd = (row) => {
-      resetDialog.username = row.username;
-      resetDialog.password = '';
-      resetDialog.visible = true;
-    };
-
-    const resetUserPwd = async () => {
-      try {
-        const resp = await apiFetch(
-          `${API_BASE}/api/v1/auth/users/${resetDialog.username}/reset-password`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ new_password: resetDialog.password }),
-        });
-        const data = await resp.json();
-        if (!resp.ok) { ElementPlus.ElMessage.error(data.detail || '重置失败'); return; }
-        ElementPlus.ElMessage.success('口令已重置');
-        resetDialog.visible = false;
-      } catch (e) {
-        ElementPlus.ElMessage.error('重置失败: ' + e.message);
-      }
-    };
-
-    const unlockUser = async (row) => {
-      try {
-        const resp = await apiFetch(`${API_BASE}/api/v1/auth/users/${row.username}/unlock`,
-          { method: 'POST' });
-        if (resp.ok) { ElementPlus.ElMessage.success('已解锁'); loadUsers(); }
-      } catch (e) {}
-    };
-
-    const toggleUserStatus = async (row) => {
-      const newStatus = row.status === 'active' ? 'disabled' : 'active';
-      try {
-        const resp = await apiFetch(`${API_BASE}/api/v1/auth/users/${row.username}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: newStatus }),
-        });
-        const data = await resp.json();
-        if (!resp.ok) { ElementPlus.ElMessage.error(data.detail || '操作失败'); return; }
-        ElementPlus.ElMessage.success(newStatus === 'active' ? '已启用' : '已禁用');
-        loadUsers();
-      } catch (e) {}
-    };
-
-    const deleteUser = async (row) => {
-      try {
-        await ElementPlus.ElMessageBox.confirm(
-          `确认删除用户 ${row.username}？`, '删除确认', { type: 'warning' });
-      } catch (e) { return; }
-      try {
-        const resp = await apiFetch(`${API_BASE}/api/v1/auth/users/${row.username}`,
-          { method: 'DELETE' });
-        const data = await resp.json();
-        if (!resp.ok) { ElementPlus.ElMessage.error(data.detail || '删除失败'); return; }
-        ElementPlus.ElMessage.success('用户已删除');
-        loadUsers();
-      } catch (e) {}
-    };
-
-    const sqlInput = ref('');
-    const auditing = ref(false);
-    const auditResult = ref(null);
-    const isDragover = ref(false);
-    const fileInput = ref(null);
-    const fileAuditResult = ref(null);
-        const sqlDialogVisible = ref(false);
-        const sqlDialogContent = ref('');
-    const analyzing = ref(false);
-    const slowResult = ref(null);
-    const slowList = ref([]);
-    const slowListLoading = ref(false);
-    const scanTasks = ref([]);
-        const scanTaskTotal = ref(0);
-        const scanTaskCurrentPage = ref(1);
-        const scanTaskPageSize = ref(10);
-        const deletingTaskId = ref(null);
-        const slowQueryTab = ref('tasks');
-        const selectedTaskIds = ref(new Set());
-        const batchDeleting = ref(false);
-        const clearingOrphan = ref(false);
-    const fileAuditTab = ref('upload');
-    const fileReports = ref([]);
-    const fileReportsLoading = ref(false);
-    const fileReportsTotal = ref(0);
-    const fileReportsPage = ref(1);
-    const dbNames = ref([]);
-    const slowFilters = reactive({
-      db_name: '',
-      scan_task_id: '',
-      severity: '',
-      status: '',
-      set_id: '',
-      keyword: '',
-    });
-    const setIds = ref([]);
-    const crossSetData = ref(null);
-    const crossSetLoading = ref(false);
-    const slowPage = reactive({
-      current: 1,
-      size: 20,
-      total: 0,
-      totalPages: 0,
-    });
-    const scanTaskForm = reactive({
-      task_name: '',
-      source: 'digest',
-      time_window_start: '',
-      time_window_end: '',
-      min_time: 0.1,
-      limit: 50,
-      poll_duration: 10,
-      poll_interval: 1,
-    });
-    const proxyConfig = ref(null);
-    const scanTaskLoading = ref(false);
-    const explainInput = ref('');
-    const analyzingExplain = ref(false);
-    const explainResult = ref(null);
-    const explainMode = ref('sql');
-    const explainSqlInput = ref('');
-    const explainConnId = ref('');
-    const stats = ref({ audit: {}, slow_queries: {}, rules: {}, recent_audits: [] });
-    const ruleHits = ref([]);
-
-    // TDSQL管理相关
-    const tdsqlStatus = ref({ connected: false, host: '', port: '', database: '', user: '' });
-    const savedConnections = ref([]);
-    const loadingConnections = ref(false);
-    const testingConn = ref(false);
-    const connecting = ref(false);
-    const deletingConn = ref(false);
-    const currentConnId = ref(null);
-    const testResult = ref(null);
-    const editingConnection = ref(false);
-
-    // 规则相关
-    const rulesList = ref([]);
-    const rulesByCategory = ref({});
-    const rulesLoading = ref(false);
-
-    // 规则分类元数据（顺序、图标、显示名、颜色）
-    const categoryOrder = [
-      { key: 'naming', icon: '🏷️', label: '命名规范', color: '#409eff' },
-      { key: 'ddl', icon: '🏗️', label: 'DDL规范', color: '#67c23a' },
-      { key: 'dml', icon: '📝', label: 'DML规范', color: '#e6a23c' },
-      { key: 'index', icon: '🔗', label: '索引规范', color: '#9b59b6' },
-      { key: 'distributed', icon: '🌐', label: '分布式规范', color: '#f56c6c' },
-      { key: 'security', icon: '🔒', label: '安全规范', color: '#34495e' },
-      { key: 'performance', icon: '⚡', label: '性能规范', color: '#e74c3c' },
-      { key: 'transaction', icon: '🔄', label: '事务规范', color: '#1abc9c' },
-    ];
-
-    const connForm = reactive({
-      name: '',
-      host: '',
-      port: 3306,
-      user: '',
-      password: '',
-      database: '',
-    });
-
-    const slowForm = reactive({
-      fingerprint: '',
-      sql_text: '',
-      db_name: '',
-      exec_count: 0,
-      avg_time_ms: 0,
-      rows_examined: 0,
-      rows_sent: 0,
-    });
-
-    // 切换到审核规则页面
-    const switchToRules = () => {
-      console.log('switchToRules called');
-      currentPage.value = 'rules';
-      if (rulesList.value.length === 0) {
-        loadRules();
-      }
-    };
-
-    // 加载审核治理概览数据
-    const loadDashboard = async () => {
-      try {
-        const resp = await apiFetch(`${API_BASE}/api/v1/dashboard/summary`);
-        if (resp.ok) stats.value = await resp.json();
-        // 并行加载高频违规规则统计
-        loadRuleHits();
-      } catch (e) { console.log('Dashboard API not available'); }
-    };
-
-    // 加载高频违规规则统计
-    const loadRuleHits = async () => {
-      try {
-        const resp = await apiFetch(`${API_BASE}/api/v1/dashboard/rule-stats`);
-        if (resp.ok) {
-          const data = await resp.json();
-          ruleHits.value = data.rules || [];
-        }
-      } catch (e) { console.log('Rule stats API not available'); }
-    };
-
-    // 审核类型中文标签
-    const auditTypeLabel = (type) => {
-      const labels = { 'sql': '单条SQL', 'file': '文件', 'upload': '上传文件', 'mybatis': 'MyBatis' };
-      return labels[type] || type || '-';
-    };
-
-    // 格式化时间显示
-    const formatTime = (isoStr) => {
-      if (!isoStr) return '';
-      try {
-        const dt = new Date(isoStr);
-        const m = String(dt.getMonth() + 1).padStart(2, '0');
-        const d = String(dt.getDate()).padStart(2, '0');
-        const h = String(dt.getHours()).padStart(2, '0');
-        const min = String(dt.getMinutes()).padStart(2, '0');
-        return `${m}-${d} ${h}:${min}`;
-      } catch { return isoStr; }
-    };
-
-    // TDSQL连接状态检查
-    const checkTdsqlStatus = async () => {
-      try {
-        const resp = await apiFetch(`${API_BASE}/api/v1/tdsql/status`);
-        if (resp.ok) {
-          const data = await resp.json();
-          tdsqlStatus.value = data;
-        }
-      } catch (e) {
-        tdsqlStatus.value = { connected: false, host: '', port: '', database: '', user: '' };
-      }
-    };
-
-    // 加载已保存的连接列表
-    const loadSavedConnections = async () => {
-      loadingConnections.value = true;
-      try {
-        const resp = await apiFetch(`${API_BASE}/api/v1/tdsql/connections`);
-        if (resp.ok) {
-          const data = await resp.json();
-          savedConnections.value = data.connections || [];
-          currentConnId.value = data.default;
-        }
-      } catch (e) {
-        ElementPlus.ElMessage.error('加载连接列表失败: ' + e.message);
-      } finally {
-        loadingConnections.value = false;
-      }
-    };
-
-    // 测试连接
-    const testConnection = async () => {
-      if (!connForm.host || !connForm.user || !connForm.password) {
-        ElementPlus.ElMessage.warning('请填写必填字段（Host、用户名、密码）');
-        return;
-      }
-      testingConn.value = true;
-      testResult.value = null;
-      try {
-        const resp = await apiFetch(`${API_BASE}/api/v1/tdsql/test-connection?host=${encodeURIComponent(connForm.host)}&port=${connForm.port}&user=${encodeURIComponent(connForm.user)}&password=${encodeURIComponent(connForm.password)}&database=${encodeURIComponent(connForm.database)}`);
-        const data = await resp.json();
-        if (data.status === 'connected') {
-          testResult.value = { type: 'success', message: `连接成功！服务器版本: ${data.server_version}，延迟: ${data.latency_ms}ms` };
-        } else {
-          testResult.value = { type: 'error', message: `连接失败: ${data.message}` };
-        }
-      } catch (e) {
-        testResult.value = { type: 'error', message: '测试连接失败: ' + e.message };
-      } finally {
-        testingConn.value = false;
-      }
-    };
-
-    // 保存并连接
-    const saveAndConnect = async () => {
-      if (!connForm.host || !connForm.user || !connForm.password) {
-        ElementPlus.ElMessage.warning('请填写必填字段（Host、用户名、密码）');
-        return;
-      }
-      connecting.value = true;
-      try {
-        // 先保存连接配置
-        const saveResp = await apiFetch(`${API_BASE}/api/v1/tdsql/connections`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(connForm),
-        });
-        const saveData = await saveResp.json();
-
-        // 再连接
-        const connectResp = await apiFetch(`${API_BASE}/api/v1/tdsql/connect`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            host: connForm.host,
-            port: connForm.port,
-            user: connForm.user,
-            password: connForm.password,
-            database: connForm.database,
-          }),
-        });
-        const connectData = await connectResp.json();
-
-        if (connectResp.ok) {
-          ElementPlus.ElMessage.success('连接成功');
-          tdsqlStatus.value = { connected: true, host: connForm.host, port: connForm.port, database: connForm.database, user: connForm.user };
-          loadSavedConnections();
-          loadProxyConfig();
-        } else {
-          ElementPlus.ElMessage.error('连接失败: ' + (connectData.detail || '未知错误'));
-        }
-      } catch (e) {
-        ElementPlus.ElMessage.error('保存并连接失败: ' + e.message);
-      } finally {
-        connecting.value = false;
-      }
-    };
-
-    // 连接已保存的配置
-    const connectSavedConn = async (connId) => {
-      connecting.value = true;
-      try {
-        const resp = await apiFetch(`${API_BASE}/api/v1/tdsql/connections/${connId}/connect`, {
-          method: 'POST',
-        });
-        if (resp.ok) {
-          const data = await resp.json();
-          ElementPlus.ElMessage.success('连接成功: ' + data.name);
-          tdsqlStatus.value = { connected: true, host: data.host, port: data.port, database: data.database, user: data.user || '' };
-          currentConnId.value = connId;
-          loadProxyConfig();
-        } else {
-          const data = await resp.json();
-          ElementPlus.ElMessage.error('连接失败: ' + (data.detail || '未知错误'));
-        }
-      } catch (e) {
-        ElementPlus.ElMessage.error('连接失败: ' + e.message);
-      } finally {
-        connecting.value = false;
-      }
-    };
-
-    // 删除已保存的连接配置
-    const deleteSavedConn = async (connId) => {
-      try {
-        const resp = await apiFetch(`${API_BASE}/api/v1/tdsql/connections/${connId}`, {
-          method: 'DELETE',
-        });
-        if (resp.ok) {
-          ElementPlus.ElMessage.success('删除成功');
-          loadSavedConnections();
-        } else {
-          const data = await resp.json();
-          ElementPlus.ElMessage.error('删除失败: ' + (data.detail || '未知错误'));
-        }
-      } catch (e) {
-        ElementPlus.ElMessage.error('删除失败: ' + e.message);
-      }
-    };
-
-    // 断开TDSQL连接
-    const disconnectTdsql = async () => {
-      try {
-        const resp = await apiFetch(`${API_BASE}/api/v1/tdsql/disconnect`, {
-          method: 'POST',
-        });
-        if (resp.ok) {
-          ElementPlus.ElMessage.success('已断开连接');
-          tdsqlStatus.value = { connected: false, host: '', port: '', database: '', user: '' };
-          currentConnId.value = null;
-        }
-      } catch (e) {
-        ElementPlus.ElMessage.error('断开连接失败: ' + e.message);
-      }
-    };
-
-    // 重置连接表单
-    const resetConnForm = () => {
-      connForm.name = '';
-      connForm.host = '';
-      connForm.port = 3306;
-      connForm.user = '';
-      connForm.password = '';
-      connForm.database = '';
-      testResult.value = null;
-      editingConnection.value = false;
-    };
-
-    // 加载规则列表
-    const loadRules = async () => {
-      rulesLoading.value = true;
-      try {
-        const resp = await apiFetch(`${API_BASE}/api/v1/rules`);
-        if (resp.ok) {
-          const data = await resp.json();
-          rulesList.value = data.rules || [];
-          // 按类别分组
-          const byCategory = {};
-          for (const rule of rulesList.value) {
-            const cat = rule.category;
-            if (!byCategory[cat]) byCategory[cat] = [];
-            byCategory[cat].push(rule);
-          }
-          rulesByCategory.value = byCategory;
-        }
-      } catch (e) {
-        console.error('加载规则失败:', e);
-      } finally {
-        rulesLoading.value = false;
-      }
-    };
-
-    // 获取严重级别对应的CSS类
-    const getSeverityClass = (severity) => {
-      if (!severity) return 'info';
-      return severity.toLowerCase();
-    };
-
-    // SQL审核
-    const auditSql = async () => {
-      if (!sqlInput.value.trim()) return;
-      auditing.value = true;
-      try {
-        const resp = await apiFetch(`${API_BASE}/api/v1/audit/sql`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sql: sqlInput.value, db_type: 'tdsql' }),
-        });
-        auditResult.value = await resp.json();
-      } catch (e) {
-        ElementPlus.ElMessage.error('审核请求失败: ' + e.message);
-      } finally {
-        auditing.value = false;
-      }
-    };
-
-    // 文件审核
-    const triggerFileInput = () => fileInput.value?.click();
-    const handleFileSelect = (e) => { if (e.target.files[0]) uploadFile(e.target.files[0]); };
-    const handleFileDrop = (e) => {
-      isDragover.value = false;
-      if (e.dataTransfer.files[0]) uploadFile(e.dataTransfer.files[0]);
-    };
-    const uploadFile = async (file) => {
-      const content = await file.text();
-      try {
-        const resp = await apiFetch(`${API_BASE}/api/v1/audit/file`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content, file_path: file.name }),
-        });
-        fileAuditResult.value = await resp.json();
-        ElementPlus.ElMessage.success('文件审核完成');
-      } catch (e) {
-        ElementPlus.ElMessage.error('文件审核失败: ' + e.message);
-      }
-    };
-
-    // SQL原文弹窗
-    const showSqlDialog = (sql) => {
-      sqlDialogContent.value = sql;
-      sqlDialogVisible.value = true;
-    };
-    const copySqlToClipboard = () => {
-      navigator.clipboard.writeText(sqlDialogContent.value).then(() => {
-        ElementPlus.ElMessage.success('已复制到剪贴板');
-      }).catch(() => {
-        ElementPlus.ElMessage.error('复制失败');
-      });
-    };
-
-    // 慢SQL分析
-    const analyzeSlowQuery = async () => {
-      if (!slowForm.fingerprint || !slowForm.sql_text) {
-        ElementPlus.ElMessage.warning('请填写SQL指纹和原始SQL');
-        return;
-      }
-      analyzing.value = true;
-      try {
-        const resp = await apiFetch(`${API_BASE}/api/v1/slow-queries`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(slowForm),
-        });
-        slowResult.value = await resp.json();
-        loadSlowList();
-      } catch (e) {
-        ElementPlus.ElMessage.error('分析失败: ' + e.message);
-      } finally {
-        analyzing.value = false;
-      }
-    };
-
-    const loadSlowList = async () => {
-      slowListLoading.value = true;
-      try {
-        const params = new URLSearchParams({
-          limit: slowPage.size,
-          offset: (slowPage.current - 1) * slowPage.size,
-        });
-        if (slowFilters.db_name) params.set('db_name', slowFilters.db_name);
-        if (slowFilters.set_id) params.set('set_id', slowFilters.set_id);
-        if (slowFilters.scan_task_id) params.set('scan_task_id', slowFilters.scan_task_id);
-        if (slowFilters.severity) params.set('severity', slowFilters.severity);
-        if (slowFilters.status) params.set('status', slowFilters.status);
-        if (slowFilters.keyword) params.set('keyword', slowFilters.keyword);
-        const resp = await apiFetch(`${API_BASE}/api/v1/slow-queries?${params}`);
-        if (resp.ok) {
-          const data = await resp.json();
-          slowList.value = data.items || [];
-          slowPage.total = data.total || 0;
-          slowPage.totalPages = Math.max(1, Math.ceil(slowPage.total / slowPage.size));
-        }
-      } catch (e) {} finally {
-        slowListLoading.value = false;
-      }
-    };
-
-    const loadScanTasks = async () => {
-      try {
-        const offset = (scanTaskCurrentPage.value - 1) * scanTaskPageSize.value;
-        const resp = await apiFetch(`${API_BASE}/api/v1/slow-queries/scan-tasks?limit=${scanTaskPageSize.value}&offset=${offset}`);
-        if (resp.ok) {
-          const data = await resp.json();
-          scanTasks.value = data.items || [];
-          scanTaskTotal.value = data.total || 0;
-        }
-      } catch (e) {}
-    };
-
-    const deleteScanTask = async (taskId, taskName) => {
-      try {
-        await ElementPlus.ElMessageBox.confirm(
-          `确定要删除扫描任务「${taskName}」吗？该任务下的所有慢SQL记录将一并删除。`,
-          '删除确认',
-          { type: 'warning', confirmButtonText: '确定删除', cancelButtonText: '取消' }
-        );
-      } catch (e) {
-        return; // 用户取消
-      }
-      deletingTaskId.value = taskId;
-      try {
-        const resp = await apiFetch(`${API_BASE}/api/v1/slow-queries/scan-tasks/${taskId}`, {
-          method: 'DELETE',
-        });
-        if (resp.ok) {
-          ElementPlus.ElMessage.success('扫描任务已删除');
-          if (slowFilters.scan_task_id == taskId) {
-            slowFilters.scan_task_id = '';
-          }
-          loadScanTasks();
-        } else {
-          const err = await resp.json();
-          ElementPlus.ElMessage.error(err.detail || '删除失败');
-        }
-      } catch (e) {
-        ElementPlus.ElMessage.error('删除失败: ' + e.message);
-      } finally {
-        deletingTaskId.value = null;
-      }
-    };
-
-    const allTasksSelected = computed(() => {
-      return scanTasks.value.length > 0 && scanTasks.value.every(t => selectedTaskIds.value.has(t.id));
-    });
-
-    const toggleAllTasks = (val) => {
-      if (val) {
-        scanTasks.value.forEach(t => selectedTaskIds.value.add(t.id));
-      } else {
-        selectedTaskIds.value.clear();
-      }
-      selectedTaskIds.value = new Set(selectedTaskIds.value);
-    };
-
-    const toggleTaskSelection = (taskId, checked) => {
-      if (checked) {
-        selectedTaskIds.value.add(taskId);
-      } else {
-        selectedTaskIds.value.delete(taskId);
-      }
-      selectedTaskIds.value = new Set(selectedTaskIds.value);
-    };
-
-    const batchDeleteScanTasks = async () => {
-      const count = selectedTaskIds.value.size;
-      if (count === 0) return;
-      try {
-        await ElementPlus.ElMessageBox.confirm(
-          `确定要删除选中的 ${count} 个扫描任务吗？关联的慢SQL记录将一并删除。`,
-          '批量删除确认',
-          { type: 'warning', confirmButtonText: '确定删除', cancelButtonText: '取消' }
-        );
-      } catch (e) {
-        return;
-      }
-      batchDeleting.value = true;
-      let successCount = 0;
-      let failCount = 0;
-      for (const taskId of selectedTaskIds.value) {
-        try {
-          const resp = await apiFetch(`${API_BASE}/api/v1/slow-queries/scan-tasks/${taskId}`, { method: 'DELETE' });
-          if (resp.ok) {
-            successCount++;
-            if (slowFilters.scan_task_id == taskId) {
-              slowFilters.scan_task_id = '';
-            }
-          } else {
-            failCount++;
-          }
-        } catch (e) {
-          failCount++;
-        }
-      }
-      selectedTaskIds.value.clear();
-      selectedTaskIds.value = new Set();
-      batchDeleting.value = false;
-      if (failCount === 0) {
-        ElementPlus.ElMessage.success(`成功删除 ${successCount} 个扫描任务`);
-      } else {
-        ElementPlus.ElMessage.warning(`删除完成: 成功 ${successCount} 个, 失败 ${failCount} 个`);
-      }
-      loadScanTasks();
-    };
-
-    const clearOrphanRecords = async () => {
-      try {
-        await ElementPlus.ElMessageBox.confirm(
-          '确定要清理所有无任务关联的慢SQL记录吗？这些记录为手动录入或历史迁移数据，清理后不可恢复。',
-          '清理确认',
-          { type: 'warning', confirmButtonText: '确定清理', cancelButtonText: '取消' }
-        );
-      } catch (e) {
-        return;
-      }
-      clearingOrphan.value = true;
-      try {
-        const resp = await apiFetch(`${API_BASE}/api/v1/slow-queries/orphan-records`, { method: 'DELETE' });
-        if (resp.ok) {
-          const data = await resp.json();
-          ElementPlus.ElMessage.success(data.message);
-          loadSlowList();
-          loadDbNames();
-          loadSetIds();
-        } else {
-          const err = await resp.json();
-          ElementPlus.ElMessage.error(err.detail || '清理失败');
-        }
-      } catch (e) {
-        ElementPlus.ElMessage.error('清理失败: ' + e.message);
-      } finally {
-        clearingOrphan.value = false;
-      }
-    };
-
-    const loadFileReports = async () => {
-      fileReportsLoading.value = true;
-      try {
-        const offset = (fileReportsPage.value - 1) * 10;
-        const resp = await apiFetch(`${API_BASE}/api/v1/audit/file-reports?limit=10&offset=${offset}`);
-        if (resp.ok) {
-          const data = await resp.json();
-          fileReports.value = data.items || [];
-          fileReportsTotal.value = data.total || 0;
-        }
-      } catch (e) {
-        // 忽略
-      } finally {
-        fileReportsLoading.value = false;
-      }
-    };
-
-    const downloadFileReport = (reportId) => {
-      const token = localStorage.getItem('tdsql_token') || '';
-      window.open(`${API_BASE}/api/v1/audit/file-reports/${reportId}/html?access_token=${token}`, '_blank');
-    };
-
-    const loadProxyConfig = async () => {
-      try {
-        const resp = await apiFetch(`${API_BASE}/api/v1/tdsql/proxy-config`);
-        if (resp.ok) {
-          const data = await resp.json();
-          if (data.status === 'success' && data.proxy_config) {
-            proxyConfig.value = data.proxy_config;
-          }
-        }
-      } catch (e) { proxyConfig.value = null; }
-    };
-
-    const loadDbNames = async () => {
-      try {
-        const resp = await apiFetch(`${API_BASE}/api/v1/slow-queries/db-names`);
-        if (resp.ok) {
-          const data = await resp.json();
-          dbNames.value = data.db_names || [];
-        }
-      } catch (e) {}
-    };
-
-    const loadSetIds = async () => {
-      try {
-        const resp = await apiFetch(`${API_BASE}/api/v1/slow-queries/set-ids`);
-        if (resp.ok) {
-          const data = await resp.json();
-          setIds.value = data.set_ids || [];
-        }
-      } catch (e) {}
-    };
-
-    const loadCrossSetAnalysis = async (taskId) => {
-      if (!taskId) { crossSetData.value = null; return; }
-      crossSetLoading.value = true;
-      try {
-        const resp = await apiFetch(`${API_BASE}/api/v1/slow-queries/cross-set-analysis?scan_task_id=${taskId}`);
-        if (resp.ok) {
-          crossSetData.value = await resp.json();
-        } else {
-          crossSetData.value = null;
-        }
-      } catch (e) {
-        crossSetData.value = null;
-      } finally {
-        crossSetLoading.value = false;
-      }
-    };
-
-    const handleSlowFilter = () => {
-      slowPage.current = 1;
-      loadSlowList();
-    };
-
-    const resetSlowFilter = () => {
-      slowFilters.db_name = '';
-      slowFilters.scan_task_id = '';
-      slowFilters.severity = '';
-      slowFilters.status = '';
-      slowFilters.set_id = '';
-      slowFilters.keyword = '';
-      slowPage.current = 1;
-      loadSlowList();
-    };
-
-    const changeSlowPage = (page) => {
-      if (page === '...' || page < 1 || page > slowPage.totalPages) return;
-      slowPage.current = page;
-      loadSlowList();
-    };
-
-    const slowPageNumbers = Vue.computed(() => {
-      const total = slowPage.totalPages;
-      const cur = slowPage.current;
-      const pages = [];
-      if (total <= 7) {
-        for (let i = 1; i <= total; i++) pages.push(i);
-      } else {
-        pages.push(1);
-        if (cur > 3) pages.push('...');
-        const start = Math.max(2, cur - 1);
-        const end = Math.min(total - 1, cur + 1);
-        for (let i = start; i <= end; i++) pages.push(i);
-        if (cur < total - 2) pages.push('...');
-        pages.push(total);
-      }
-      return pages;
-    });
-
-    // 扫描任务相关
-    const sourceLabel = (source) => {
-      const labels = { digest: '性能摘要分析', processlist: '实时进程快照', manual: '手动录入' };
-      return labels[source] || source;
-    };
-
-    const startScanTask = async () => {
-      if (!tdsqlStatus.value.connected) {
-        ElementPlus.ElMessage.warning('请先在TDSQL管理页面连接数据库实例');
-        return;
-      }
-      // 校验时间窗口必填
-      if (!scanTaskForm.time_window_start || !scanTaskForm.time_window_end) {
-        ElementPlus.ElMessage.warning('请选择时间窗口开始和结束时间（必填）');
-        return;
-      }
-      // 校验时间窗口顺序
-      if (scanTaskForm.time_window_start > scanTaskForm.time_window_end) {
-        ElementPlus.ElMessage.warning('时间窗口开始时间不能晚于结束时间');
-        return;
-      }
-      scanTaskLoading.value = true;
-      try {
-        // 将 datetime-local 格式转换为 MySQL 兼容格式
-        const formatTime = (val) => val ? val.replace('T', ' ') + ':00' : '';
-        const resp = await apiFetch(`${API_BASE}/api/v1/tdsql/slow-queries/fetch`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            source: scanTaskForm.source,
-            limit: scanTaskForm.limit,
-            min_time: scanTaskForm.min_time,
-            task_name: scanTaskForm.task_name || '',
-            time_window_start: formatTime(scanTaskForm.time_window_start),
-            time_window_end: formatTime(scanTaskForm.time_window_end),
-            poll_duration: scanTaskForm.poll_duration,
-            poll_interval: scanTaskForm.poll_interval,
-          }),
-        });
-        const data = await resp.json();
-        if (resp.ok) {
-          let msg = `扫描完成，抓取 ${data.fetched} 条慢SQL`;
-          if (data.errors && data.errors.length > 0) {
-            msg += `（${data.errors.length}个错误）`;
-          }
-          if (data.fetched === 0) {
-            ElementPlus.ElMessage.warning(msg + '。建议：使用"性能摘要分析"模式（统计累积数据），或增大轮询时长并降低耗时阈值。');
-          } else {
-            ElementPlus.ElMessage.success(msg);
-          }
-          scanTaskForm.task_name = '';
-          scanTaskForm.time_window_start = '';
-          scanTaskForm.time_window_end = '';
-          loadScanTasks();
-          loadDbNames();
-          loadSlowList();
-        } else {
-          ElementPlus.ElMessage.error(data.detail || '扫描失败');
-        }
-      } catch (e) {
-        ElementPlus.ElMessage.error('扫描失败: ' + e.message);
-      } finally {
-        scanTaskLoading.value = false;
-      }
-    };
-
-    const selectScanTask = (taskId) => {
-      // 点击同一个任务则取消筛选
-      if (slowFilters.scan_task_id == taskId) {
-        slowFilters.scan_task_id = '';
-        crossSetData.value = null;
-      } else {
-        slowFilters.scan_task_id = taskId;
-        loadCrossSetAnalysis(taskId);
-      }
-      slowPage.current = 1;
-      loadSlowList();
-    };
-
-    const loadSlowExample = () => {
-      slowForm.fingerprint = 'SELECT * FROM t_order WHERE user_id = ? AND status = ?';
-      slowForm.sql_text = 'SELECT * FROM t_order WHERE user_id = 123 AND status = 1';
-      slowForm.db_name = 'order_db';
-      slowForm.exec_count = 5000;
-      slowForm.avg_time_ms = 200;
-      slowForm.rows_examined = 850000;
-      slowForm.rows_sent = 100;
-    };
-
-    // EXPLAIN分析
-    const analyzeExplain = async () => {
-      if (!explainInput.value.trim()) return;
-      analyzingExplain.value = true;
-      try {
-        const data = JSON.parse(explainInput.value);
-        const resp = await apiFetch(`${API_BASE}/api/v1/slow-queries/analyze-explain`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ explain_data: Array.isArray(data) ? data : [data] }),
-        });
-        explainResult.value = await resp.json();
-      } catch (e) {
-        ElementPlus.ElMessage.error('分析失败: ' + e.message);
-      } finally {
-        analyzingExplain.value = false;
-      }
-    };
-
-    const analyzeExplainBySql = async () => {
-      if (!explainSqlInput.value.trim() || !explainConnId.value) return;
-      analyzingExplain.value = true;
-      explainResult.value = null;
-      try {
-        const resp = await apiFetch(`${API_BASE}/api/v1/slow-queries/analyze-explain-by-sql`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sql: explainSqlInput.value, connection_id: explainConnId.value }),
-        });
-        if (!resp.ok) {
-          const err = await resp.json();
-          throw new Error(err.detail || 'EXPLAIN执行失败');
-        }
-        explainResult.value = await resp.json();
-        ElementPlus.ElMessage.success('EXPLAIN分析完成');
-      } catch (e) {
-        ElementPlus.ElMessage.error('分析失败: ' + e.message);
-      } finally {
-        analyzingExplain.value = false;
-      }
-    };
-
-    const loadConnectionsForExplain = async () => {
-      try {
-        const resp = await apiFetch(`${API_BASE}/api/v1/tdsql/connections`);
-        const data = await resp.json();
-        savedConnections.value = data.connections || [];
-      } catch (e) {
-        // 忽略错误，用户可能未登录
-      }
-    };
-
-    const getCellValue = (row, col) => {
-      if (!row || !col) return '';
-      return row[col] != null ? String(row[col]) : '';
-    };
-
-    const onConnDropdownVisible = (visible) => {
-      if (visible) loadConnectionsForExplain();
-    };
-
-    const hasPlaceholderReplaced = computed(() => {
-      return explainResult.value && explainResult.value.executed_sql && explainResult.value.executed_sql.includes("'1'");
-    });
-
-    const loadExplainExample = () => {
-      explainInput.value = JSON.stringify([{
-        id: 1, select_type: "SIMPLE", table: "t_order", type: "ALL",
-        possible_keys: null, key: null, rows: 850000, filtered: 10.0,
-        extra: "Using where"
-      }], null, 2);
-    };
-
-    // SQL示例
-    const loadExample = (type) => {
-      const examples = {
-        select: "SELECT * FROM t_order WHERE user_id = 123 ORDER BY RAND() LIMIT 10",
-        create: `CREATE TABLE t_user (
-  id BIGINT NOT NULL AUTO_INCREMENT,
-  name VARCHAR(100),
-  phone VARCHAR(20),
-  status VARCHAR(10),
-  amount FLOAT,
-  created_at TIMESTAMP,
-  notes TEXT,
-  INDEX idx_name (name),
-  INDEX idx_name_phone (name, phone),
-  INDEX idx_phone (phone)
-)`,
-        update: "UPDATE t_order SET status = 0",
-      };
-      sqlInput.value = examples[type] || '';
-    };
-
-    // 渲染近7天审核趋势图
-    const renderTrendChart = async () => {
-      const el = document.getElementById('trendChart');
-      if (!el) return;
-      try {
-        const resp = await apiFetch(`${API_BASE}/api/v1/dashboard/audit-trend?days=7`);
-        const trendData = resp.ok ? await resp.json() : { dates: [], passed: [], failed: [] };
-        const chart = echarts.init(el);
-        chart.setOption({
-          tooltip: { trigger: 'axis' },
-          legend: { data: ['通过', '拦截'], bottom: 0 },
-          grid: { left: '3%', right: '4%', bottom: '15%', top: '5%', containLabel: true },
-          xAxis: { type: 'category', data: trendData.dates || [], axisLabel: { fontSize: 11 } },
-          yAxis: { type: 'value', minInterval: 1, axisLabel: { fontSize: 11 } },
-          series: [
-            { name: '通过', type: 'bar', stack: 'total', data: trendData.passed || [], itemStyle: { color: '#67c23a' } },
-            { name: '拦截', type: 'bar', stack: 'total', data: trendData.failed || [], itemStyle: { color: '#f56c6c' } },
-          ],
-        });
-      } catch (e) { console.log('Trend chart render failed'); }
-    };
-
-    // 登录成功后加载全部数据
-    const loadAll = () => {
-      loadDashboard();
-      loadSlowList();
-      loadScanTasks();
-      loadDbNames();
-      loadSetIds();
-      checkTdsqlStatus();
-      loadSavedConnections();
-      loadRules();
-    };
-
-    onMounted(async () => {
-      console.log('Vue app mounted (V2.0)');
-      // 401时回到登录页
-      onUnauthorized = () => { authState.loggedIn = false; };
-      // 会话恢复：有令牌或认证关闭模式
-      const ok = await checkSession();
-      if (ok) loadAll();
-    });
-
-    watch(currentPage, (val) => {
-      if (val === 'dashboard') nextTick(renderTrendChart);
-      if (val === 'rules' && rulesList.value.length === 0) loadRules();
-      if (val === 'slow-query') {
-        loadSlowList();
-        loadScanTasks();
-        loadDbNames();
-        loadSetIds();
-      }
-    });
-
-    watch(fileAuditTab, (val) => {
-      if (val === 'reports') loadFileReports();
-    });
-
-    return {
-      currentPage, sqlInput, auditing, auditResult, stats, ruleHits,
-      auditTypeLabel, formatTime,
-      isDragover, fileInput, fileAuditResult,
-      sqlDialogVisible, sqlDialogContent,
-      slowForm, analyzing, slowResult, slowList, slowListLoading,
-      slowFilters, slowPage, scanTasks, dbNames, setIds, slowPageNumbers,
-      crossSetData, crossSetLoading, loadCrossSetAnalysis,
-      scanTaskForm, scanTaskLoading,
-      analyzeSlowQuery, loadSlowExample, loadSlowList,
-      loadScanTasks, loadDbNames, loadSetIds, handleSlowFilter, resetSlowFilter, changeSlowPage,
-      startScanTask, selectScanTask, sourceLabel,
-      deleteScanTask, scanTaskTotal, scanTaskCurrentPage, scanTaskPageSize, deletingTaskId,
-      slowQueryTab, selectedTaskIds, batchDeleting,
-      allTasksSelected, toggleAllTasks, toggleTaskSelection, batchDeleteScanTasks,
-      clearOrphanRecords, clearingOrphan,
-      fileAuditTab, fileReports, fileReportsLoading, fileReportsTotal, fileReportsPage,
-      loadFileReports, downloadFileReport,
-      explainInput, analyzingExplain, explainResult,
-      explainMode, explainSqlInput, explainConnId,
-      analyzeExplainBySql, loadConnectionsForExplain, getCellValue, onConnDropdownVisible, hasPlaceholderReplaced,
-      auditSql, triggerFileInput, handleFileSelect, handleFileDrop,
-      showSqlDialog, copySqlToClipboard,
-      analyzeExplain, loadExplainExample, loadExample,
-      // TDSQL管理
-      tdsqlStatus, savedConnections, loadingConnections,
-      testingConn, connecting, deletingConn, currentConnId,
-      testResult, editingConnection, connForm,
-      loadSavedConnections, testConnection, saveAndConnect,
-      connectSavedConn, deleteSavedConn, disconnectTdsql, resetConnForm,
-      // 规则
-      rulesList, rulesByCategory, rulesLoading, categoryOrder, loadRules, getSeverityClass, switchToRules,
-      // V2.0 认证与用户管理
-      authState, loginForm, pwdDialog, doLogin, doLogout, changePassword, roleLabel,
-      usersList, usersLoading, userDialog, resetDialog,
-      switchToUsers, loadUsers, openCreateUser, createUser,
-      openResetPwd, resetUserPwd, unlockUser, toggleUserStatus, deleteUser,
-    };
-  },
 });
-
-app.use(ElementPlus, { locale: ElementPlusLocaleZhCn });
+app.use(ElementPlus,{locale:ElementPlusLocaleZhCn});
 app.mount('#app');
+
 </script>
 </body>
 </html>
