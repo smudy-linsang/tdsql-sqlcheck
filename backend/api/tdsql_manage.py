@@ -364,13 +364,9 @@ async def check_charset(database: Optional[str] = None,
                         connection_id: Optional[str] = None):
     """
     检查库内字符集和排序规则一致性。
-
-    基于慢SQL优化方案4.6.6的诊断SQL，检查：
-    1. 库级别默认字符集
-    2. 表级别字符集分布
-    3. 字段级别字符集与表不一致
-    4. 跨表同名字段字符集不一致
     """
+    if not connection_id:
+        raise HTTPException(status_code=400, detail="请先选择实例（connection_id必填）")
     conn = _get_pool(connection_id)
     try:
         result = conn.check_charset_consistency(database)
@@ -387,9 +383,9 @@ async def check_large_tables(
 ):
     """
     检查大表（参考大表治理规范）。
-
-    默认阈值1GB，返回L1/L2/L3分级。
     """
+    if not connection_id:
+        raise HTTPException(status_code=400, detail="请先选择实例（connection_id必填）")
     conn = _get_pool(connection_id)
     try:
         tables = conn.check_large_tables(database, threshold_gb)

@@ -198,6 +198,11 @@ _ADMIN_ONLY_PREFIXES = (
     "/api/v1/auth/users",
 )
 
+# developer 禁止访问的路径（即使读操作也不允许）
+_DEVELOPER_DENIED_PREFIXES = (
+    "/api/v1/admin/operation-logs",
+)
+
 
 def is_public_path(path: str) -> bool:
     if path in PUBLIC_PATHS:
@@ -233,6 +238,8 @@ def check_permission(role: str, method: str, path: str) -> bool:
         return method in _READ_METHODS
 
     if role == "developer":
+        if any(path.startswith(p) for p in _DEVELOPER_DENIED_PREFIXES):
+            return False
         if method in _READ_METHODS:
             return True
         return any(path.startswith(p) for p in _DEVELOPER_WRITE_PREFIXES)

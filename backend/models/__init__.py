@@ -142,6 +142,7 @@ class GateResult(BaseModel):
 
 class Project(BaseModel):
     """项目"""
+    id: Optional[int] = Field(None, description="自增ID")
     project_id: str = Field(..., description="项目ID")
     project_name: str = Field(..., description="项目名称")
     tdsql_connection_id: str = Field("", description="关联TDSQL连接")
