@@ -537,8 +537,8 @@ def clean_sql(sql: str) -> str:
 - `backend/models/__init__.py`：`RuleCategory` 新增 `ORACLE_COMPAT = "oracle_compat"`。
 
 ### E6 前端适配（必须，否则新分类在规则库页不可见）
-- `frontend/static/js/app.js` 第 143 行 `categoryOrder` 数组追加：`{key:'oracle_compat',label:'Oracle迁移兼容'}`（追加到数组末尾）。
-- `frontend/index.html` 第 21 行登录页文案：`77条审核规则` → `119条审核规则`。
+- `frontend/static/js/app.js` 第 158 行 `categoryOrder` 数组追加：`{key:'oracle_compat',label:'Oracle迁移兼容'}`（追加到数组末尾；行号以实际为准，搜索 `categoryOrder` 定位）。
+- 登录页"77条审核规则"副标题已在近期改版（commit 22bedb0）中删除，无需处理；但仍须全局 `grep -rn "77" frontend/ docs/ README*` 复查残留规则数口径，一并改为 119。
 - 规则库页/规则集编辑器均从 `GET /api/v1/rules` 动态取数，新增分类加入 categoryOrder 后自动展示，无需其他改动。
 
 ---
