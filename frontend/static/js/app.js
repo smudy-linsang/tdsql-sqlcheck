@@ -256,7 +256,21 @@ const app=createApp({
     // V3.0: 角色管理
     const loadRoles=async()=>{rolesLoading.value=true;try{const resp=await apiFetch(`${API_BASE}/api/v1/auth/roles`);if(resp.ok){const d=await resp.json();rolesList.value=d.roles||[]}}catch(e){}finally{rolesLoading.value=false}};
     const openRoleEdit=(row)=>{roleDialog.isEdit=true;roleDialog.form={role_id:row.role_id,role_name:row.role_name,description:row.description||''};roleDialog.visible=true};
-    const saveRole=async()=>{if(!roleDialog.form.role_id||!roleDialog.form.role_name){ElementPlus.ElMessage.warning('请输入角色ID和名称');return}roleDialog.loading=true;try{if(roleDialog.isEdit){const resp=await apiFetch(`${API_BASE}/api/v1/auth/roles/${roleDialog.form.role_id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({role_name:roleDialog.form.role_name,description:roleDialog.form.description})});if(resp.ok){ElementPlus.ElMessage.success('角色已更新');roleDialog.visible=false;loadRoles()}else{const d=await resp.json();ElementPlus.ElMessage.error(d.detail||'更新失败')}}}else{const resp=await apiFetch(`${API_BASE}/api/v1/auth/roles`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(roleDialog.form)});if(resp.ok){ElementPlus.ElMessage.success('角色已创建');roleDialog.visible=false;roleDialog.form={role_id:'',role_name:'',description:''};loadRoles()}else{const d=await resp.json();ElementPlus.ElMessage.error(d.detail||'创建失败')}}}catch(e){ElementPlus.ElMessage.error('操作失败: '+e.message)}finally{roleDialog.loading=false}};
+    const saveRole=async()=>{
+      if(!roleDialog.form.role_id||!roleDialog.form.role_name){ElementPlus.ElMessage.warning('请输入角色ID和名称');return}
+      roleDialog.loading=true;
+      try{
+        if(roleDialog.isEdit){
+          const resp=await apiFetch(`${API_BASE}/api/v1/auth/roles/${roleDialog.form.role_id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({role_name:roleDialog.form.role_name,description:roleDialog.form.description})});
+          if(resp.ok){ElementPlus.ElMessage.success('角色已更新');roleDialog.visible=false;loadRoles()}
+          else{const d=await resp.json();ElementPlus.ElMessage.error(d.detail||'更新失败')}
+        }else{
+          const resp=await apiFetch(`${API_BASE}/api/v1/auth/roles`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(roleDialog.form)});
+          if(resp.ok){ElementPlus.ElMessage.success('角色已创建');roleDialog.visible=false;roleDialog.form={role_id:'',role_name:'',description:''};loadRoles()}
+          else{const d=await resp.json();ElementPlus.ElMessage.error(d.detail||'创建失败')}
+        }
+      }catch(e){ElementPlus.ElMessage.error('操作失败: '+e.message)}finally{roleDialog.loading=false}
+    };
     const deleteRole=async(row)=>{if(row.is_builtin){ElementPlus.ElMessage.warning('内置角色不可删除');return}try{await ElementPlus.ElMessageBox.confirm(`确认删除角色「${row.role_name}」？`,'删除确认',{type:'warning'})}catch(e){return}try{const resp=await apiFetch(`${API_BASE}/api/v1/auth/roles/${row.role_id}`,{method:'DELETE'});if(resp.ok){ElementPlus.ElMessage.success('已删除');loadRoles()}else{const d=await resp.json();ElementPlus.ElMessage.error(d.detail||'删除失败')}}catch(e){ElementPlus.ElMessage.error('删除失败')}};
     // V3.0: 权限矩阵
     const loadPerms=async()=>{permsLoading.value=true;try{const resp=await apiFetch(`${API_BASE}/api/v1/auth/role-permissions`);if(resp.ok){const d=await resp.json();permsMenuList.value=d.menus||[];const roleMap={};for(const p of(d.permissions||[])){if(!roleMap[p.role_id])roleMap[p.role_id]={role_id:p.role_id,role_name:p.role_name};roleMap[p.role_id][p.menu_key]=!!p.visible}permsMatrixData.value=Object.values(roleMap)}}catch(e){}finally{permsLoading.value=false}};
