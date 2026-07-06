@@ -1,0 +1,729 @@
+
+
+TDSQL兼容业务系统适配改造方案
+
+版本号V1.5.1
+
+
+
+
+
+修订记录 |  | 序号 | 时间 | 说明 | 修改人 |  | 1 | 2022-04-12 | 创建 | 鲁越、贾瓅园 |  | 2 | 2022-04-15 | 添加函数中修改关注和异常内容；
+增加业务各场景使用分析 | 贾瓅园 |  | 3 | 2022-04-15 | 添加to_number\merge into等用法中的问题说明 | 鲁越 |  | 4 | 2022-04-20 | 增加sequence使用说明、to_char精度格式等、窗口函数业务场景分析 | 贾瓅园 |  | 5 | 2022-04-28～2022-05-11 | 增加函数、语句子查询说明和方案调整 | 鲁越 |  | 6 | 2022-05-13～2022-05-18 | 修改分页、窗口函数部分场景、with as视图查询改造方案说明 | 贾瓅园 |  | 7 | 2022-07-01 | 主键长度限制说明 | 鲁越 |  | 8 | 2022-07-01 | 多表关联注意事项 | 鲁越 |  | 9 | 2022-09-27 | 新增新的方案和适配方法 | 杨平 |  | 10 | 2022-10-27 | 新增流式查询推荐实践 | 彭武坚 |  | 11 | 2202-12-14 | 非int类型做hash分区，新增解决方案2
+Minus替换改写
+Full join 替换改写 | 安伟明 |  | 12 | 2022-01-16 | 新增章节注意事项，包括：
+sql别名语法改造
+函数区别
+业务删除分区
+分页问题 | 顾健楠 |  | 
+Oracle函数、类型相关语法改写
+Oracle 数据类型相关 （集中式、分布式）
+数据类型对等转换，需要识别部分数据是否为整型但同时设置了带精度数据类型；部分原number型需要结合含义转换为int型；decimal、varchar、int、datetime；
+例如：基于历史设计原因，系统中出现过number中放置整型数据作为业务字段判断标志，转换后，可能会带入精度，导致java侧代码获取值时提示数据类型错误。
+Oracle Rownum替换改写 （集中式、分布式）
+改写方式： limit替换
+使用方法：
+SELECT * FROM 表名 limit m,n;
+SELECT * FROM table LIMIT [offset,] rows;
+//m代表从m+1条记录行开始检索，n代表取出n条数据（可设置-1）。(m可设为0)
+SELECT * FROM table LIMIT n;
+//检索前 n 个记录行，LIMIT n 等价于 LIMIT 0,n;
+样例Oracle语句：SELECT * FROM tableX where 条件 and rownum < 4
+备注：如需要order by排序，limit使用位置在order by 后面
+样例：SELECT * FROM tableX WHERE 条件 ORDER BY 字段 LIMIT m,n;
+ Oracle nvl替换改写（集中式、分布式）
+改写方式：使用IFNULL代替
+判空赋值使用IFNULL函数用法(expr1,expr2)，涉及多条件的，需要嵌套；
+使用方法：
+IFNULL函数用法(expr1,expr2)
+如果expr1不是NULL，IFNULL()返回expr1，否则它返回expr2
+样例Oracle语句：
+select nvl(max(tempa),0)  as 变量名 from tableX where 条件
+样例TDSQL语句：
+Oracle中nvl替换为TDSQL中ifnull
+select IFNULL(max(tempa),0)  as 变量名 from tableX where 条件
+ Oracle decode替换改写（集中式、分布式）
+改写方式：case when或者if
+decode判断赋值替换为case when else end方式，else可以不写，默认会赋值null；
+样例Oracle语句：
+SELECT a.*,decode(substr(a.字段,2,1),'A','1','B','2','C','3') AS tempX
+FROM tableX a WHERE  条件
+样例TDSQL语句：
+SELECT a.*,CASE substr(a.字段, 2, 1) 
+WHEN 'A' then '1'
+WHEN 'B' then '2'
+WHEN 'C' then '3'
+ELSE '6'
+END
+AS tempX
+FROM tableX a
+WHERE  条件
+Oracle to_char替换改写（集中式、分布式）
+改写方式：CONVERT(value, type)、DATE_FORMAT()
+使用方法：
+CONVERT(value, type)
+type类型包括
+二进制,同带binary前缀的效果 : BINARY    
+   字符型,可带参数 : CHAR()     
+   日期 : DATE     
+   时间: TIME     
+   日期时间型 : DATETIME     
+   HYPERLINK "http://www.jbxue.com/zt/fudianshu/" \t "_blank" 浮点数 : DECIMAL      
+   整数 : SIGNED     
+   无符号整数 : UNSIGNED
+
+ Oracle to_number替换改写（集中式、分布式）
+改写方式：cast
+使用方法：
+ HYPERLINK "https://www.baidu.com/s?wd=cast&tn=44039180_cpr&fenlei=mv6quAkxTZn0IZRqIHckPjm4nH00T1d-mymkrjI9nH7BnvfLmWN90ZwV5Hcvrjm3rH6sPfKWUMw85HfYnjn4nH6sgvPsT6KdThsqpZwYTjCEQLGCpyw9Uz4Bmy-bIi4WUvYETgN-TLwGUv3EnHTzn1c3rHT4" \t "_blank" cast(11 as unsigned int) /*整型*/
+ HYPERLINK "https://www.baidu.com/s?wd=cast&tn=44039180_cpr&fenlei=mv6quAkxTZn0IZRqIHckPjm4nH00T1d-mymkrjI9nH7BnvfLmWN90ZwV5Hcvrjm3rH6sPfKWUMw85HfYnjn4nH6sgvPsT6KdThsqpZwYTjCEQLGCpyw9Uz4Bmy-bIi4WUvYETgN-TLwGUv3EnHTzn1c3rHT4" \t "_blank" cast(11 as decimal(10,2)) /* HYPERLINK "https://www.baidu.com/s?wd=%E6%B5%AE%E7%82%B9%E5%9E%8B&tn=44039180_cpr&fenlei=mv6quAkxTZn0IZRqIHckPjm4nH00T1d-mymkrjI9nH7BnvfLmWN90ZwV5Hcvrjm3rH6sPfKWUMw85HfYnjn4nH6sgvPsT6KdThsqpZwYTjCEQLGCpyw9Uz4Bmy-bIi4WUvYETgN-TLwGUv3EnHTzn1c3rHT4" \t "_blank" 浮点型*/
+注意：cast函数在输入不为规范数字时，会进行截断，不会像to_number一样直接报错
+比如 cast(‘11a’ as unsigned int)返回结果为11
+ Oracle || ||拼接替换改写（集中式、分布式）
+使用方法：
+'%' || '111' || '%' 改写成concat(str1,str2,str3,...)
+Oracle to_date替换改写（集中式、分布式）
+使用方法：
+to_date  改成  str_to_date
+str_to_date(date,format)
+date 参数是合法的日期，format 规定日期/时间的输出格式
+格式如下
+%a | 缩写星期名 |  | %b | 缩写月名 |  | %c | 月，数值 |  | %D | 带有英文前缀的月中的天 |  | %d | 月的天，数值(00-31) |  | %e | 月的天，数值(0-31) |  | %f | 微秒 |  | %H | 小时 (00-23) |  | %h | 小时 (01-12) |  | %I | 小时 (01-12) |  | %i | 分钟，数值(00-59) |  | %j | 年的天 (001-366) |  | %k | 小时 (0-23) |  | %l | 小时 (1-12) |  | %M | 月名 |  | %m | 月，数值(00-12) |  | %p | AM 或 PM |  | %r | 时间，12-小时（hh:mm:ss AM 或 PM） |  | %S | 秒(00-59) |  | %s | 秒(00-59) |  | %T | 时间, 24-小时 (hh:mm:ss) |  | %U | 周 (00-53) 星期日是一周的第一天 |  | %u | 周 (00-53) 星期一是一周的第一天 |  | %V | 周 (01-53) 星期日是一周的第一天，与 %X 使用 |  | %v | 周 (01-53) 星期一是一周的第一天，与 %x 使用 |  | %W | 星期名 |  | %w | 周的天 （0=星期日, 6=星期六） |  | %X | 年，其中的星期日是周的第一天，4 位，与 %V 使用 |  | %x | 年，其中的星期一是周的第一天，4 位，与 %v 使用 |  | %Y | 年，4 位 |  | %y | 年，2 位 |  | 
+Oracle trunc替换改写（集中式、分布式）
+改写方式：truncate(X,D)函数
+使用方法：
+TRUNCATE(X,D)函数返回数值X保留到小数点后D位的值
+返回数字X，截断到D小数位。 如果D为0，结果没有小数点或小数部分。 D是负数，导致值X的小数点左边的D数字变为零
+Oracle样例SQL：
+SELECT trunc (变量A or SQL/变量B or SQL, 2)  AS taskinfo FROM DUAL
+TDSQL样例SQL：
+SELECT TRUNCATE (变量A or SQL/变量B or SQL, 2)  AS taskinfo FROM DUAL
+
+TDSQL与Oracle语句中的trim、rtrim、ltrim用法差异（集中式、分布式）
+trim和ltrim关键字相同，用法传参不同，需要调整，ltrim和rtrim仅能去除空格操作，原有的替换去除特定字符操作需要使用trim配合“{BOTH | LEADING | TRAILING}”完成
+Oracle中用法：
+1、trim(str) : 去除指定字符串 str的左右空格
+
+2、trim( leading | trailing | both string1 FROM string2)：从string2中去除左侧 | 右侧 | 左右两侧（默认是both，即左右侧都去掉）的string1字符，注意，string1只能是单个字符；
+
+3、ltrim（str）: 去除指定字符串 str的左空格
+
+4、ltrim(str1,str2)：去除str1从左侧开始的与str2字符集合中匹配的单个字符，直到在str1中遇上某个字符，该字符不在str2字符集合中
+
+
+
+5、rtrim（str）: 去除指定字符串 str的右空格
+
+6、rtrim（str1，str2）: 去除str1从右侧开始的与str2字符集合中匹配的单个字符，直到在str1中遇上某个字符，该字符不在str2字符集合中
+
+
+
+
+TDSQL中用法：
+1、ltrim(str)、rtrim(str) :参数值只能是一个，去除str左右空字符
+
+
+2、trim(str) :去除str左右两侧空格
+
+3、
+完整格式：TRIM([{BOTH | LEADING | TRAILING} [remstr] FROM] str) 
+简化格式：TRIM([remstr FROM] str)
+
+Oracle add_months替换改写（集中式、分布式）
+改写方式：adddate函数
+使用方法：add_months()函数替换成TDSQL中adddate函数，
+ADDDATE(date,INTERVAL expr unit)
+date时间,expr 表达式值,unit表达式对应的时间单位
+unit :  SECOND,MINUTE,HOUR,DAY,MONTH,YEAR
+样例Oracle语句：	add_months (		to_date (			#变量#, 'YYYYMMDD'), -1), 'YYYYMMDD')
+样例TDSQL语句：
+adddate(str_to_date(			#变量#, '%Y%m%d'), INTERVAL -1 MONTH), date)
+TDSQL与Oracle语句中substr用法差异（集中式、分布式）
+Oracle中用法：
+格式1： substr(string string, int a, int b);样例：
+格式2：substr(string string, int a) ;
+其中：
+    格式1：
+        1、string 需要截取的字符串 
+        2、a 截取字符串的开始位置（注：当a等于0或1时，都是从第一位开始截取）
+        3、b 要截取的字符串的长度
+
+    格式2：
+        1、string 需要截取的字符串
+        2、a 可以理解为从第a个字符开始截取后面所有的字符串。
+
+TDSQL中用法：
+格式1: substr(string, start); 从start开始的位置，一直截取到最后
+格式2：substr(string,start,length)
+其中：
+格式1：
+       1、string 需要截取的字符串 
+        2、start 截取字符串的开始位置（注：start只能从1开始）
+
+格式2：
+ 1、string 需要截取的字符串 
+        2、start 截取字符串的开始位置（注：start只能从1开始）
+       3、length要截取的字符串的长度
+
+样例Oracle语句：
+SELECT distinct (substr(变量/字段, '0', '9')) AS tempa from tableX
+样例TDSQL语句：
+SELECT distinct (substr(变量/字段, '1', '9')) AS tempa from tableX
+Oracle sysdate替换
+Sysdate\ systimestamp替换为sysdate()函数
+需要截取日期，如获取当天日期或获取当月第一天的日期，使用date_format()
+原Oracle语句：
+SELECT TRUNC(sysdate) from dual;
+SELECT TRUNC(sysdate,’mm’) from dual;
+TDSQL语句:
+SELECT DATE_FORMAT(sysdate(),’%Y%m%d’)
+SELECT DATE_FORMAT(sysdate(),’%Y%m%01’)
+Oracle merge into替换
+集中式：
+如果merge into关联的字段是表的主键或者唯一键，可以使用insert into xxx on duplicate key update代替
+如果关联的字段不是主键或者唯一键，只能将sql语句拆开，由程序逻辑来实现
+
+分布式：
+将sql语句拆开，由程序逻辑来实现
+
+如果是使用merge into是用来只做相同项的更新，不做插入的话，可以修改为update join的sql
+update a join b on a.id=b.id set a.xx=b.xx
+
+With as
+场景描述：with as 子查询使用。
+例如：
+with a as(SELECT id,name FROM TEST1 WHERE id>#id#) SELECT * FROM a JOIN TEST2 b ON a.name=b.name
+适配说明：不支持
+适配方法：
+方式一：复杂SQL的多关联和union all一起使用场景下，如果每个单表在with中使用带有条件的查询，则建议拆出该查询或新增中间表放入临时数据；
+方式二：多次交互处理方式，由java逻辑先进行数据的一次处理，并放入中间表，再进行二次关联数据查询与处理；
+方式三：按当前with as语句语义，直接改写为大SQL，但会面临执行效率、应用改造时二次分析等问题。
+使用示例：
+子查询写法
+SELECT * FROM (SELECT id,name FROM TEST1 WHERE id>3)a JOIN TEST2 b ON a.name=b.name
+JOIN写法
+SELECT a.id,a.name,b.* FROM TEST1 a JOIN TEST2 b ON a.name=b.name AND a.id>3
+COALESCE函数
+场景描述：在 Oracle 数据库中，该COALESCE()函数返回表达式列表中的第一个非空表达式。
+语法：COALESCE(expr [, expr ]...)
+至少必须传递两个表达式。
+适配说明：MySQL COALESCE与IFNULL对比
+IFNULL函数接受两个参数，如果不为NULL则返回第一个参数，否则返回第二个参数。
+IFNULL函数有两个参数，而COALESCE函数使用n个参数。如果参数的数量为2，则两个函数都相同。
+适配方法：使用coalesce或ifnull兼容。
+DECODE函数
+场景描述：在 Oracle 数据库中，decode有两种形式，第一种：decode(条件,值1,返回值1,值2,返回值2,...值n,返回值n,缺省值)），语义同case when语句一样；第二种：decode(字段或字段的运算，值1，值2，值3），当字段或字段的运算的值等于值1时，该函数返回值2，否则返回值3。
+适配说明：TDSQL中可以使用 if()  函数完成需要使用 DECODE() 函数的简单情景，复杂一点的可以使用 CASE() 函数。
+适配方法：  
+1、case when then
+如：select title,case Emergency when 1 then '紧急'  else '普通' End  as  emergency   from already_sign
+2、if
+如：select a.title,if (a.Emergency=1,'紧急','普通') emergency from already_sign a
+使用示例：
+样例Oracle语句：
+SELECT a.*,decode(substr(a.字段,2,1),'A','1','B','2','C','3') AS tempX FROM tableX a WHERE  条件样例TDSQL语句：
+SELECT a.*,CASE substr(a.字段, 2, 1) WHEN 'A' 
+then '1' 
+WHEN 'B' then '2'
+WHEN 'C' then '3'
+ELSE '6'ENDAS tempX 
+FROM tableX a WHERE  条件
+LENGTH函数
+场景描述：length()函数与Oracle的length()函数计算结果不一致:
+适配说明：Oralce设置length为字符长度；TDSQL以及mysql语法上，length返回的是字节数。
+适配方法：使用char_length计算字符，进行替换即可。
+使用示例：
+select length(xx) from xxx;
+select char_length(xx) from xxx;
+2.1.12 ROWNUM函数
+场景描述：rownum是Oracle系统顺序分配为从查询返回的行的编号，返回的第一行分配的是1，第二行是2，依此类推，这个伪字段可以用于限制查询返回的总行数，
+例如：
+SELECT * FROM tableX where 条件 and rownum < 4；
+适配说明：TDSQL使用limit替换。
+适配方法：
+SELECT * FROM 表名 limit m,n;
+SELECT * FROM table LIMIT [offset,] rows;
+//m代表从m+1条记录行开始检索，n代表取出n条数据（可设置-1）。(m可设为0)
+SELECT * FROM table LIMIT n;
+//检索前 n 个记录行，LIMIT n 等价于 LIMIT 0,n;
+使用示例：
+SELECT * FROM tableX WHERE 条件 LIMIT m,n 
+如需要order by排序，limit使用位置在order by 后面：
+SELECT * FROM tableX WHERE 条件 ORDER BY 字段 LIMIT m,n
+TRUNC函数
+场景描述：TRUNC函数用于对值进行截断。
+例如：
+select TRUNC(15.79) from dual;
+适配说明：TDSQL使用truncate代替trunc
+适配方法：
+X表示需要处理的数字，D 表示需要截取的位数。如果 D 为零，则返回的数字不含小数。D 也可以是负数，这样会把整数的部分置零。
+使用示例：
+Oracle样例SQL：
+    SELECT trunc (变量A or SQL/变量B or SQL, 2)  AS taskinfo FROM DUAL
+TDSQL样例SQL：
+    SELECT TRUNCATE (变量A or SQL/变量B or SQL, 2)  AS taskinfo FROM DUAL
+TRIM、RTRIM、LTRIM函数差异
+场景描述：Oracle中用法
+1、trim(str) : 去除指定字符串 str的左右空格;
+2、trim( leading | trailing | both string1 FROM string2)：从string2中去除左侧 | 右侧 | 左右两侧（默认是both，即左右侧都去掉）的string1字符，注意，string1只能是单个字符；
+3、ltrim（str）: 去除指定字符串 str的左空格;
+4、ltrim(str1,str2)：去除str1从左侧开始的与str2字符集合中匹配的单个字符，直到在str1中遇上某个字符，该字符不在str2字符集合中;
+5、rtrim（str）: 去除指定字符串 str的右空格;
+6、rtrim（str1，str2）: 去除str1从右侧开始的与str2字符集合中匹配的单个字符，直到在str1中遇上某个字符，该字符不在str2字符集合中
+适配说明：TDSQL中的用法
+1、ltrim(str)去除左空格函数、rtrim(str)去除右空格函数；
+2、trim(str)去除str左右两侧空格；
+3、完整格式：TRIM([{BOTH | LEADING | TRAILING} [remstr] FROM] str) 简化格式：TRIM([remstr FROM] str
+适配方法：
+trim和ltrim关键字相同，用法传参不同，需要调整；ltrim和rtrim仅能去除空格操作，原有的替换去除特定字符操作需要使用trim配合“{BOTH | LEADING | TRAILING}”完成。
+SUBSTR函数差异
+场景描述：Oracle中用法
+格式1： substr(string string, int a, int b);
+格式2：substr(string string, int a) ;
+  其中：    
+   格式1：        
+    1、string 需要截取的字符串         
+    2、a 截取字符串的开始位置（注：当a等于0或1时，都是从第一位开始截取）        
+    3、b 要截取的字符串的长度    
+   格式2：        
+    1、string 需要截取的字符串        
+    2、a 可以理解为从第a个字符开始截取后面所有的字符串。
+适配说明：TDSQL中的用法
+TDSQL中用法：
+格式1: substr(string, start); 从start开始的位置，一直截取到最后
+格式2：substr(string,start,length)
+  其中：
+    格式1：       
+       1、string 需要截取的字符串        
+       2、start 截取字符串的开始位置（注：start只能从1开始）
+    格式2：
+       1、string 需要截取的字符串        
+       2、start 截取字符串的开始位置（注：start只能从1开始）       
+       3、length要截取的字符串的长度
+适配方法：函数名相同，需要注意start参数的不同，TDSQL只能从1开始。
+使用示例：
+样例Oracle语句：
+   SELECT distinct (substr(变量/字段, '0', '9')) AS tempa from tableX
+样例TDSQL语句：
+   SELECT distinct (substr(变量/字段, '1', '9')) AS tempa from tableX
+LISTAGG函数差异
+场景描述：Oracle中的LISTAGG() WITHIN GROUP ()每个分组内，LISTAGG根据order by子句对列植进行排序，将排序后的结果拼接起来。
+适配说明：使用group_concat改造。
+适配方法：
+group_concat( [DISTINCT]  要连接的字段   [Order BY 排序字段 ASC/DESC]   [Separator '分隔符'] )
+使用示例：
+Oracle：
+select LISTAGG(MyString, ', ') as myList where id < 4
+TDSQL：
+select group_concat(MyString separator ', ') as myList from table where id < 4
+Minus替换改写
+场景描述：返回的总是左边表中的数据，它返回的是差集。也就是(左表减去右表剩余的数据)。注意：minus有剃重作用
+使用示例：
+Oracle：
+select * from t_eg_01
+minus
+select * from t_eg_02;
+TDSQL：
+select a.* from t_eg_01 a
+left join
+t_eg_02 b
+on a.id=b.id
+where b.id is null;
+Full join 替换改写
+因为底层MySQL不支持FULL JOIN操作，需要进行替换改写
+使用示例：
+Oracle：
+Select * from a 
+Full jion
+Select * from b;
+TDSQL:
+select * from A inner join B on A.id = B.id
+Union
+select * from A left join B on A.id = B.id 
+union
+select * from A right join B on A.id = B.id ;
+
+Oracle语句相关语法改写
+建表使用类型转换函数设置字段默认值
+场景描述：Oracle中支持建表时指定的字段默认值使用类型转换函数。
+例如：                
+Oracle中支持建表时指定的字段默认值使用类型转换函数。例如：
+create table xxx（...data_dt char(8) default date_format(current_timestamp,'%Y%m%d),...
+适配说明：TDSQL不支持该语法，default字段不支持类型转换函数。如使用会报错：
+ERROR 1064（HY000）：Proxy ERROR
+适配方法：1、对这种类型的字段不用默认值，由应用去解决默认值的问题；2、修改字段类型，默认值中不使用类型转换
+使用示例：
+create table xxx（...data_dt char(8) not null...）// 在应用层处理默认赋值
+非int类型做hash分区
+场景描述：tdsq中，业务使用非int类型做hash分区。
+适配说明：partition字段的类型不满足，hash分区需要字段是int类型，目标字段是char或varchar。
+适配方法：使用改造
+使用示例：
+1、partition by hash(murmurHashCodeAndMod(col_name,N))
+2、使用key分区代替hash，key -Hash模式的一种延伸。
+Oracle listagg within group写法
+使用方法：listagg() within group() 改成 group_concat()
+group_concat( [DISTINCT]  要连接的字段   [Order BY 排序字段 ASC/DESC]   [Separator '分隔符'] )
+样例Oracle语句：
+select listtest (a.tempa || ':' || a.tempb, '|') within GROUP (ORDER by a.tempa,a.tempb) tableX from tableM a
+样例TDSQL语句：
+select GROUP_CONCAT(a.tempa,':',a.tempb ORDER by a.tempa,a.tempb SEPARATOR '|') tableX from tableM a
+Oracle语句中派生/子查询别名表查询
+使用方法：
+进行嵌套查询的时候子查询出来的的结果是作为一个派生表来进行上一级的查询的，所以子查询的结果必须要有一个别名
+样例Oracle语句：
+select * from (select * from tableX) 
+类似的改写成select * from (select * from tableX) B
+from 后面select集合加上别名B
+DELETE语句不支持设置表别名
+分布式实例DELETE语句中不支持被删除数据表设置别名（分布式模式），将语句中的别名改为真实表名
+ORACLE语句：
+DELETE FROM TEST1 a WHERE EXISTS (SELECT 1 FROM TEST2 b WHERE a.id=b.id) 
+TDSQL语句
+DELETE FROM TEST1 WHERE EXISTS (SELECT 1 FROM TEST2 WHERE TEST1.id=TEST2.id)
+
+Oracle ‘CONDITION’关键字使用
+使用方法：CONDITION在MYSQL为保留关键字，需增加` `,才能使用
+样例Oracle语句：
+select CONDITION  from tableX where table_name = #{tableName,jdbcType=VARCHAR} AND temp_NO = 'XXX'
+样例TDSQL语句：
+Select `CONDITION` from tableX where table_name = #{tableName,jdbcType=VARCHAR} AND temp_NO = 'XXX'
+Oracle Escape ‘\’ 转义字符 ”/”
+样例Oracle语句:
+LIKE '%\_%' ESCAPE '\'
+样例TDSQL语句：
+LIKE '%/_%' ESCAPE '/'
+
+< =或> =的空格字符
+去掉运算符中间的空格
+常规函数与括号间不能带有空格
+例1:
+SUM函数不能带有空格
+关键字SUM和(之间不能有空格
+正例：SUM(
+反例：SUM （
+
+例2:
+COUNT函数不能带有空格
+关键字COUNT和(之间不能有空格
+正例：COUNT(
+反例：COUNT（
+字节字符长度计算
+基于数据库字符字节设置问题，length()函数与Oracle的length()函数计算结果不一致，如果需要获取字符length，建议使用char_length()
+Oracle (+)改成left outer join
+样例Oracle语句：
+SELECT 字段
+      FROM tableX tabX, tableM tabM
+      WHERE MAID.SPLIT_FLAG = 'Y'
+      AND tabX.INTE_KEY = tabM.INTE_KEY(+)
+      AND tabX.INT_CLASS = tabM.INT_CLASS(+);
+样例SQL语句：
+SELECT 字段
+      FROM tableX tabX left join tableM tabM on
+      tabX.INTE_KEY = tabM.INTE_KEY(+)
+      AND tabX.INT_CLASS = tabM.INT_CLASS(+)
+      WHERE MAID.SPLIT_FLAG = 'Y';
+TDSQL差异化用法与改造分析
+
+查询结果大小写字段说明
+支持查询条件不区分大小写，返回结果集字段以查询时的大小写为准。*号会被转义为小写字段名称
+
+Oracle start with ...connect by 语句
+语句 | 替换方式 | 支持模式 |  | START WITH … CONNECT BY	 | WITH RECURSIVE mysql8.0递归语法 | 集中式 |  | START WITH … CONNECT BY NOCYCLE | WITH RECURSIVE mysql8.0递归语法加limit语法 | 集中式 |  | START WITH … CONNECT BY LEVEL（批量获取某连续数值如sequence） | 业务逻辑代码获取 | 无 |  | 
+在MYSQL8.0集中式下，如果使用with recursive语法来实现树结构递归，返回结果集的顺序为树的层次遍历，而Oracle返回是树的前序遍历。如果对结果集顺序有要求需要注意。建议是程序拿到结果后再进行一次重新排序。
+递归语法，在分布式模式下，需要借助应用代码先进行数据查询（必要信息获取），再进行递归的调用，使用while 循环方式或for语句。
+分布式数据库插入Insert语句修改
+基于插入数据时TSDSQL需要路由关键字，即分片键进行路由和访问，以提升访问目标效率。因此，新增语句必须指定字段名。
+原Oracle插入语句：
+INSERT INTO tableX VALUES ('value1', 'value2', 'value3');
+现TDSQL插入语句：
+insert into tableX (字段名1,字段名2, 字段名3) values ('value1', 'value2', 'value3');
+Oracle语句中的USERENV()写法
+样例Oracle语句：
+USERENV('INSTANCE') 、USERENV('SID')
+备注：
+USERENV()主要为获取系统参数/会话上下文参数，进行相关逻辑判断或执行时使用。TDSQL暂不支持，如需要使用系统级参数，建议从应用侧调整使用方式。
+有限条件支持insert into select from 写法
+insert into select from写法，具有使用限定条件，有两种场景有限制，无法满足。1，目标表有自增列。2，目标表有分区
+样例如下：
+insert into testaa (FARENDMA,MOKUAIII) select a.farendma,a.SUOSHUMK from kapp_bmguiz a;
+
+TDSQL sequence不支持批量获取
+下列场景TDSQL使用sequence返回结果的逻辑与Oracle不同，如果业务有使用的话需要改造
+select xxx,xxx,xxx,sequence from table
+TDSQL该用法select出的sequence是相同的值，不像Oracle会基于行数依次递增
+insert into tablea select xxx,xxx,xxx,sequence from tableb
+不支持该用法
+
+   改造方案：
+方案一：改成自增序列，代码调整小，多分片可能有重复（限制大，可能影响当前业务逻辑，不一定适用）牵扯业务原始数据逻辑和新增逻辑调整。
+方案二：insert into select 插入数据，第二步代码批量获取序列字段二次赋值，由中间表再次insert into select插入业务表（需要建立一个中间表，绕开序列不为空问题），业务改造大。
+方案三：建立批量序列表（中间表三/四字段 序列值、序列使用记录标记、创建时间、使用时间）日终批量定时任务获取一定序列值插入，序列需要拼接分片参数，在移植时建立一个参数表，将分片序号插入（序列拼接时使用），使用时insert into select 业务表 + 批量序列表，更新序列表使用标记字段。（应该是改造最小量，但对序号拼接有一定要求）
+update中使用case when注意事项
+下列在update中使用case when的场景，执行效果与Oracle不一致，这是mysql原生实现导致，开发需要注意
+update uptest t set 
+t.stcd=case t.stcd 
+when 1 then 2 
+when 2 then 3 
+else stcd end, 
+
+t.exec_sttm = case t.stcd 
+when 1 then sysdate(3) 
+else t.exec_sttm end,
+
+t.exec_edtm=case t.stcd 
+when 2 then sysdate(3) 
+else t.exec_edtm end 
+
+where stcd=1;
+
+这条sql在第一次case when之后，由于满足将stcd设置为2条件，所以stcd被设置为2，在后续的判断逻辑中，stcd的值都会被当作2的来作为判断条件，这点逻辑与Oracle不同，业务需要注意
+
+修改方案：将修改判断条件的case when分支放到最后。
+
+主键长度限制说明
+
+在分布式实例中，部分sql请求无法完全从proxy下推到mysql去执行，这样的语句包括：不带分片键查询或带多个分片键查询后的group by、order by、limit等。
+这样的SQL需要proxy到各个mysql中去拿到相应的数据，然后在proxy中处理group by、order by等逻辑。Proxy为了快速的处理这样的逻辑，在proxy中有一个内嵌的mysql myisam引擎，通过在这个内嵌引擎中使用临时表来处理。
+myisam引擎的索引长度限制为1000字节(innodb为3072字节)，所以在使用到上述需要内嵌引擎的SQL执行时，表结构需要满足myisam引擎的限制。如果使用utf8mb4字符集，那么索引的长度就不能超过varchar(250) (1000/4)，如果使用utf8字符集，索引的长度不能超过varchar(333) (1000/3)，其他字符集已此类推。 
+Proxy在19.6版本中解决了这种情况下select的场景，但是使用update/delete .. limit语法时，仍然需要遵循此规则。
+
+建议：对需要使用update/delete..limit语法的表，限制主键长度必须小于varchar(250)
+语法不兼容业务改造风险问题分析
+分布式中row_number() over写法不支持
+Oracle函数：分组、排序功能
+row_number() over( partition by expr1,expr2... order by expr1)
+当前分析语法使用不支持该语法环境使用：
+Select … row_number() over()… | 普通select查询（计算处理数据较少） |  | Select … row_number() over()… with … group by… | 复杂嵌套查询，且有数据处理、数据计算等 |  | Insert into … select … row_number() over()… | 业务数据计算、分组、查询处理并进行数据库数据批量新增操作 |  | 
+Select … row_number() over()…普通select查询（计算处理数据较少）
+普通查询尽量使用查询分组、嵌套查询、再排序方式进行SQL调整。
+Select … row_number() over()…复杂嵌套查询，且有数据处理、数据计算等
+业务场景比较复杂，需要根据具体业务场景进行区别拆解分析和改造：
+1、拆解查询嵌套，将部分关联的数据先进行处理并落地到新创建的中间数据业务表中；
+2、关联中间数据业务表数据，在表中设计排序字段，按照业务规则排序后以主键或唯一键形式更新数据排序字段，部分业务可能需要再次拆解
+3、关联中间数据业务表数据，以及查询条件，进行最终逻辑查询
+4、使用java List方法，借助JDK8 stream 特性进行处理，sort 、distinct处理可以取代上面步骤，但需结合具体业务交易考虑数据量大小问题，避免OOM内存溢出。
+Insert into … select … row_number() over()…业务数据计算、分组、查询处理并进行数据库数据批量新增操作
+1、考虑逻辑最终进行数据库新增批量数据操作，需要先将数据处理成中间态，并进行落地表操作。检索相关数据，以最小字段数（如主键、唯一索引等筛选数据）
+2、依据筛选信息进行排序、分组、计算逻辑拆分并更新到中间表中。
+分布式实例下with as的替换调整语句
+需要将with as语句改成子查询或者join
+ORACLE语句
+WITH AS a (SELECT id,name FROM TEST1 WHERE id>#id#) SELECT * FROM a JOIN TEST2 b ON a.name=b.name
+TDSQL语句
+子查询写法
+SELECT * FROM (SELECT id,name FROM TEST1 WHERE id>3)a JOIN TEST2 b ON a.name=b.name
+JOIN写法
+SELECT a.id,a.name,b.* FROM TEST1 a JOIN TEST2 b ON a.name=b.name AND a.id>3
+
+非直接join可改造内容建议：
+方式一：复杂SQL的多关联和union all一起使用场景下，如果每个单表在with中使用带有条件的查询，则建议拆出该查询或新增中间表放入临时数据；
+方式二：多次交互处理方式，由java逻辑先进行数据的一次处理，并放入中间表，再进行二次关联数据查询与处理；
+分布式实例不支持临时表
+分布式实例不支持创建临时表，需要通过建实体表或者业务缓存等方式来实现；
+事务级临时表：ON COMMIT DELETE ROWS ；
+会话级临时表：ON COMMIT PRESERVE ROWS ；
+去除临时表使用；
+采用中间数据表、缓存等方式进行处理，但需要考虑清理问题，可采用记录唯一标示ID方式用以表示最小单元事务级；
+需要结合具体业务场景，进行分析，采用java端，配合缓存方式进行业务处理；
+分布式场景
+场景：份额与流水、登记簿操作，当前份额未进行锁定限制for update操作
+改造方式：
+加入校验和for update操作，确保份额不超配的提前校验
+2、使用分布式事务场景
+数据库方式：基于数据库2PC模式，在异常发生时，除业务异常外，需要获取数据库错误码，以及未知异常（且代表数据库侧异常，如超时无响应等特殊条件）下，根据异常进行业务级冲正或撤销，以及数据异常状态登记的处理。
+业务应用侧方式：基于存在该特点场景不多，且有差异，可以采用tcc模式对业务侧代码做调整改造，以保证业务连续性和完整性。
+系统估值、额度、费用计算问题
+To_char(数值含精度/整型,’FM9999999999.09999999’)，字符、数值计算格式化精度相关使用lpad、format方式，涉及‘FM9999.0999’类似精度格式化的，目前发现有多种格式进位方式，需要检索所有格式，再确认以上方式是否能全部满足。如果lpad、format形式无法完全满足，则需要java应用侧/数据库侧进行二次转换。
+翻页改写方法
+
+强排序、复杂逻辑类查询与分页：
+处理方式：每次获取总量/分片N的数据量=单分片数据获取量；当从偏移量较大时，则采用逼近算法，取中间值，使用流式方式获取数据值，避免应用侧内存溢出。
+限定条件：尽量采用日期、业务分类等要素进行缩减初筛查询量级。
+不需要排序的分页查询：
+处理方式：随机/顺序选择分片返回单页数据。
+限定条件：尽量采用日期、业务分类等要素进行缩减初筛查询量级。
+游标限制（分布式）
+场景描述：Oracle支持游标。TDSQL分布式不支持游标。
+适配说明：应用侧改造
+适配方法：
+1、where cond and col > lastval ORDER BY LIMIT N
+2、jdbc /odbc流式查询（参考后续的“推荐实践”章节内容说明）
+3、分片透传（该方案优先级最低，对数据模型有依赖，存在结果不正确的风险）
+4、使用TDSQL-PG版	
+分片键规则重点项说明
+分片键只支持一个分片关键字，不支持多个字段做联合分片键
+唯一索引必须包含分片键，否则无法创建
+分片键字段的值不能更新，值不能为NULL
+查询尽可能的带上分片键，否则查询性能可能会不好
+shardkey字段的类型必须是int,bigint,smallint/char/varchar
+shardkey字段的值不应该有中文，proxy不会转换字符集，所以不同字符集可能会路由到不同的分区
+
+分布式实例多表关联注意事项
+分布式实例如何做多表关联
+分布式实例proxy在执行SQL时，分为下推和不下推两种情况。
+下推是指查询条件中指定了单个分片键或者指定的多个分片键都在同一个后端set上面时，proxy可以将该SQL请求直接透传到对应的set上面，拿到set返回的结果后可以不做处理，直接返回给客户端，下推的场景是分布式实例中效率较高的。
+不下推是指查询条件中没有指定分片键或者指定的多个分片键不在同一个后端set上面，proxy需要把SQL请求发到多个set上面，拿到set返回的结果后需要再对结果进行一轮处理，然后再返回给客户端，不下推场景的性能需要看拿到proxy聚合的数据有多少以及聚合的逻辑是否复杂。
+
+数据库层面多表关联优化思路（基于优化效果排序）：
+多表的关联条件都是分片键且过滤条件中分片键有固定值，可以做到完全下推。对表结构和sql语句设计要求较高
+多表的关联条件都是分片键但涉及的分片键没有固定值或者有多个值，可以做到join下推，尽可能在查询条件中把不需要的数据都过滤掉，减少proxy聚合时的数据量。对表结构设计要求较高。
+多表的关联条件某一些不是分片键或者都不是分片键，请求无法下推，但是关联表中有一些表是数据量和写入量都不大的表（如配置表），可以将这些表设计成广播表，使部分的join可以下推。
+多表的关联条件某一些不是分片键或者都不是分片键，请求无法下推，且没有表适合做广播表，尽可能在查询条件中把不需要的数据都过滤掉，减少proxy聚合时的数据量。需要注意：如果关联的表中有子查询表，尽可能把过滤条件都写到子查询中，减小子表的大小。
+
+
+业务层面优化思路（一般针对上述3、4的情况可以考虑业务层面优化）：
+将请求拆分，比如按日期拆分，将日期条件带入到sql中，减少单次聚合的处理量。
+使用中间表，用一张或多张单分片表来作为中间表，先通过过滤条件把需要的数据加载到单分片表中，再在单分片表之间做join。
+业务其他层面的一些改造来减少关联的次数或者减少关联涉及的数据量。
+
+
+SQL请求是否下推可以查看proxy的执行计划，以下是proxy执行计划各字段的含义：
+OpType：显示操作类型，如Load table、TableRename等
+TableName：显示操作的表名
+PushedDownCond：显示下推条件
+NumOfRows：显示操作的数据行数
+AddedCond：显示查询使用的其他过滤条件
+AggFunc：显示查询使用的聚合函数
+DBGroupColumns：显示分组列
+DBSortedColumns：显示排序列
+ProxyDeduplicate：网关对set返回的结果是否执行去重操作
+ProxyTmptable：显示临时表创建语句
+ProxyQuery：显示需要在临时表上执行的查询
+ProxySortedColumns：显示网关层排序列
+Query：显示当前sql发送到哪一个set，多个set之间用空格分割，AllSets代表所有的set。逗号后显示查询语句。若包含多表操作时，最后一个Query只显示内部构建的查询逻辑。
+QueryMode：First代表第一个set，Rand代表随机set，Hash代表根据shardkey进行路由, All代表所有的set。
+timecost：显示对应操作的耗时
+推荐实践
+流式查询
+1、背景描述：
+我们在做SQL查询的时候，一般来讲服务端会把结果集一次性返回给客户端，但有时候会有这样的问题：结果集太多(数十万甚至上百万条数据，又不想采用分页查询)、数据量太大(需要数十M甚至上百M内存)，那么这时候就很有可能造成客户端内存溢出(OOM)。针对此种情况，我们就不能将数据全部缓存到客户端，而是后续依次到服务端获取，从而避免客户端OOM的风险。
+实现方案：
+（Java）JDBC：
+在Java应用中同样应该避免一次性从数据库中查询大量数据，客户端缓存大结果集有内存溢出（OOM）风险。如果不采用分页可以使用流式查询避免大数据量一次查询返回带来的OOM风险。以下介绍MyBatis结合TDSQL JDBC驱动来进行流式计算:
+使用ResultHandler进行流式查询
+ResultHandler可以分批进行结果集处理。流式查询不会随着记录的增长而增长。其内存大小取决于批处理大小BATCH_SIZE的设置，该值越大内存会越大。所以BATCH_SIZE应该根据业务情况设置合适的大小。
+示例代码：
+<select id="listOrder" resultMap="BaseResultMap" fetchSize="1000">  
+  SELECT  <include refid="Base_Column_List"/> from t_order  
+</select>  
+
+public class OrderResultHandler implements ResultHandler<OrderDO> {  
+    private final static int BATCH_SIZE = 1000;  
+    private int size;  
+    private List<OrderDO> orders = new ArrayList<>();  
+  
+    @Override  
+    public void handleResult(ResultContext<? extends OrderDO> resultContext) {  
+        // 这里获取流式查询每次返回的单条结果  
+        OrderDO order = resultContext.getResultObject();  
+        // TODO 分批进行处理或者单个处理，这里以分批处理为例  
+        orders.add(orderId);  
+        size++;  
+        if (size == BATCH_SIZE) {  
+            getResult();  
+        }  
+    }  
+    
+    private List<OrderDO> getResult() {  
+        try {  
+            // TODO 在这里可以对你获取到的批量结果数据进行需要的业务处理  
+          return orders;  
+        } finally {  
+            // 处理完每批数据后后将临时清空  
+            size = 0;  
+            orders.clear();  
+        }  
+    }  
+
+@Override  
+public List<OrderDO> listOrders() {  
+    OrderResultHandler handler = new OrderResultHandler();  
+    sqlSessionTemplate.select("com.tencent.example.mapper.OrderMapper.listOrder", handler);  
+    return handler.getResult();  
+} 
+注意：每次处理完一批结果要记得释放存储数据的临时容器。即上文中的orders.clear();
+使用Cursor进行流式查询
+Cursor取数据的过程中需要保持数据库连接，而 Mapper 方法通常在执行完后连接就关闭了，因此 Cusor 也一并关闭了，会导致应用层报错：java.lang.IllegalStateException: A Cursor is already closed.
+示例最简洁做法是在使用到Cursor的流式查询方法中添加事务注解 @Transactional。另外也可以采用手动打开sqlSession或者使用TransactionTemplate手动执行事务处理。
+示例代码：
+<select id="listOrder" resultMap="BaseResultMap" fetchSize="1000">  
+  SELECT  <include refid="Base_Column_List"/> from t_order  
+</select>  
+
+@Override  
+@Transactional  
+public List<OrderDO> listOrdersByCursor() {  
+    Cursor<OrderDO> cursor = orderMapper.listOrder();  
+    List<OrderDO> list = new ArrayList<>();  
+    cursor.forEach(order -> {  
+        //TODO 业务处理  
+    });  
+    return list;  
+}  
+
+（C语言）ODBC
+SQL_ATTR_CONCURRENCY设置为SQL_CONCUR_READ_ONLY
+SQL_ATTR_CURSOR_TYPE设置为SQL_CURSOR_FORWARD_ONLY
+以上均为默认值，可以不用再次设置
+配置数据源：加上NO_CACHE=1
+linux:	
+[TDSQL_mysql_test_01]  
+driver=TDSQL_MySQL  
+server=IP地址  
+port=端口  
+user=用户名  
+password=密码  
+database=库名  
+NO_CACHE=1  
+Windows：
+
+SQLDriverConnect连接字符串：加上NO_CACHE=1
+SQLCHAR szConnStr[] = "DRIVER=驱动名;SERVER=IP地址;PORT=端口;DATABASE=库名;UID=用户名;PWD=密码;NO_CACHE=1"  
+更多参数可参考：
+ HYPERLINK "https://dev.mysql.com/doc/connector-odbc/en/connector-odbc-configuration-connection-parameters.html" https://dev.mysql.com/doc/connector-odbc/en/connector-odbc-configuration-connection-parameters.html
+示例代码：
+ EMBED Word.Document.12 \s 
+更多函数及参数介绍可参考:
+ HYPERLINK "https://docs.microsoft.com/en-us/sql/odbc/reference/syntax/odbc-api-reference?view=sql-server-ver15" https://docs.microsoft.com/en-us/sql/odbc/reference/syntax/odbc-api-reference?view=sql-server-ver15
+测试示例：
+
+
+
+注意事项
+8.1sql别名语法改造
+
+问题描述：
+查询语句使用到别名时，部分别名会报语法报错
+说明：
+tdsql的某些特殊单词作为查询字段的别名，在不同的版本中有不同的处理机制，项目适配过程中发现之前的sql没问题，升级完之后sql报错了
+原因是修复sequence的某个问题时，会把这些特殊单词作为关键字处理，因此报错
+样例：
+select id as id,seq_name as seqName,(next_val + increment_by) as nextVal,next_val_high as nextValHigh,final_max as finalMax,min_value as minValue,max_value as max,increment_by as incrementBy,cycle_flag as cycleFlag from seq_generator_config where seq_name = 'xxx';
+修改方法：
+修改别名为普通别名，比如将nextVal，minValue等一些特殊字符改为普通的字符，来避免报错的问题
+
+8.2函数区别
+说明：
+同样的函数在不同的数据库中是不相同的，比如函数名、参数等等，在oracle改造tdsql过程中，一定要注意，绝对不能直接沿用oracle数据库中函数的用法，使用前一定要进行查询和验证后才能使用
+
+案例：
+
+某系统在oracle改造成tdsql过程中，为了实现某个日期函数，未做验证直接使用了oracle里面的 date_format(sysdate()-15,'%Y%m%d') 来实现获取当前日期的15天前的日期，而实际上在tdsql里面并不能这样实现，而是要用别的函数 date_add(sysdate(), interval -15 day) 来实现
+
+8.3业务删除分区注意事项
+问题描述：
+分布式shard表，二级分区按照日期分区，高并发的业务中定期删除之前的分区，有小概率会报分区不存在的错误
+说明：
+定期清理多个表中的日期分区数据，执行了删除分区的操作，但是在高并发场景下，由于drop分区操作完成和更新路由元数据的间隙，有非常小的几率会有sql没拿到最新的分区信息，解析的sql中仍持有的是旧的分区信息，导致在后台db的查询中报分区不存在的异常，此过程持续时间在毫秒级，对于配置了重试机制的应用连接，不会影响正常业务
+建议：
+将原有的drop partition 和 analyze table 任务拆分成单个表进行执行，即改变原来多张表都drop partition完成后再去批量analyze table，改成依次对每张表的drop partition 和 analyze table的循环操作,以减少分区的路由的更新时间;
+将原有的sql进行改写，改写成仅查当日的时间区间，保证路由的分区信息为最新当前日期，以避免路由信息秒切状态下的异常
+8.4分页问题注意事项
+问题描述：
+分页应用造成性能问题一般是因为需要对大量数据进行排序，所以优化此类SQL的两种主要方法是避免排序或限制需要排序的数据量，本文档针对这两种方法进行解释说明以供参考
+建议：
+尽量避免排序，利用索引有序性来达到排序的效果，结果集的有序性是通过索引完成的，数据库不需要做排序操作，能大大降低sql执行
+
+限制排序数据量，限制排序数据量是一种优化思想，核心是SQL只对满足当前页面需求的数据进行排序，针对具体SQL做相关调整
+
