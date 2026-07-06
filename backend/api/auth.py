@@ -21,6 +21,9 @@ from pydantic import BaseModel, Field
 from backend.services import metrics_service
 from backend.services.auth_service import (
     ROLES, auth_service, issue_token,
+    get_all_roles, get_role_ids, create_custom_role, update_role, delete_role,
+    get_role_permissions, set_role_permissions, get_visible_menus,
+    ALL_MENU_KEYS, MENU_LABELS,
 )
 
 router = APIRouter(prefix="/api/v1/auth", tags=["认证与用户管理"])
@@ -131,7 +134,66 @@ def change_password(body: ChangePasswordRequest, request: Request):
 
 @router.get("/roles", summary="角色清单")
 def roles():
-    return {"roles": [{"role": r, "label": ROLE_LABELS[r]} for r in ROLES]}
+    """从DB动态获取角色列表"""
+    db_roles = get_all_roles()
+    if db_roles:
+        return {"roles": [{"role": r["role_id"], "label": r["role_name"], "is_builtin": r["is_builtin"], "description": r.get("description","")} for r in db_roles]}
+    return {"roles": [{"role": r, "label": ROLE_LABELS.get(r, r)} for r in ROLES]}
+
+
+# ── V3.0: 角色CRUD + 权限矩阵（admin only） ─────────────────────
+
+class RoleCreateRequest(BaseModel):
+    role_id: str = Field(..., min_length=2, max_length=32, description="角色ID")
+    role_name: str = Field(..., description="角色名称")
+    description: str = Field("", description="描述")
+
+class RoleUpdateRequest(BaseModel):
+    role_name: Optional[str] = None
+    description: Optional[str] = None
+
+class RolePermissionsRequest(BaseModel):
+    permissions: dict = Field(..., description="{menu_key: 0|1}")
+
+@router.get("/role-permissions", summary="获取角色权限矩阵")
+def get_all_role_permissions():
+    perms = get_role_permissions()
+    roles_list = get_all_roles()
+    return {
+        "roles": [{"role_id": r["role_id"], "role_name": r["role_name"], "is_builtin": r["is_builtin"]} for r in roles_list],
+        "menus": [{"key": mk, "label": MENU_LABELS.get(mk, mk)} for mk in ALL_MENU_KEYS],
+        "permissions": perms,
+    }
+
+@router.put("/role-permissions/{role_id}", summary="设置角色权限")
+def update_role_permissions(role_id: str, body: RolePermissionsRequest):
+    set_role_permissions(role_id, body.permissions)
+    return {"message": f"角色 {role_id} 权限已更新"}
+
+@router.post("/roles", summary="创建角色")
+def create_role(body: RoleCreateRequest):
+    result = create_custom_role(body.role_id, body.role_name, body.description)
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return {"message": "角色创建成功", "role": result}
+
+@router.put("/roles/{role_id}", summary="编辑角色")
+def edit_role(role_id: str, body: RoleUpdateRequest):
+    update_role(role_id, body.role_name, body.description)
+    return {"message": "角色已更新"}
+
+@router.delete("/roles/{role_id}", summary="删除角色")
+def remove_role(role_id: str):
+    result = delete_role(role_id)
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+@router.get("/visible-menus", summary="获取当前用户可见菜单")
+def visible_menus(request: Request):
+    role = getattr(request.state, "role", "admin")
+    menus = get_visible_menus(role)
+    return {"menus": menus}
 
 
 # ── 用户管理（admin only，中间件强制） ─────────────────────

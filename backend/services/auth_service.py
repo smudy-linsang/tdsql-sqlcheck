@@ -35,7 +35,9 @@ logger = logging.getLogger("tdsql.auth")
 # 常量
 # ══════════════════════════════════════════════════════════════════
 
-ROLES = ("admin", "dba", "developer", "auditor")
+# 内置角色（DB中roles表也是数据源，这里作为回退默认值）
+_BUILTIN_ROLES = ("admin", "dba", "developer", "auditor")
+ROLES = _BUILTIN_ROLES  # 兼容旧代码引用
 
 PBKDF2_ITERATIONS = 240_000
 
@@ -245,6 +247,172 @@ def check_permission(role: str, method: str, path: str) -> bool:
         return any(path.startswith(p) for p in _DEVELOPER_WRITE_PREFIXES)
 
     return False
+
+
+# ══════════════════════════════════════════════════════════════════
+# V3.0: 角色管理 + 权限矩阵
+# ══════════════════════════════════════════════════════════════════
+
+# 全部菜单key清单
+ALL_MENU_KEYS = [
+    'dashboard', 'audit-sql', 'file-audit', 'rules',
+    'slow-tasks', 'slow-records', 'slow-schedule', 'explain',
+    'instances', 'health-check', 'bigtable',
+    'projects', 'rulesets', 'gate', 'monitor', 'inspection',
+    'sys-users', 'sys-retention', 'sys-auditlog', 'sys-info',
+    'sys-roles', 'sys-perms',
+]
+
+# 菜单中文标签
+MENU_LABELS = {
+    'dashboard': '治理概览', 'audit-sql': '即时审核', 'file-audit': '文件审核',
+    'rules': '审核规则库', 'slow-tasks': '扫描任务', 'slow-records': '慢SQL记录',
+    'slow-schedule': '扫描计划', 'explain': 'EXPLAIN分析', 'instances': '实例管理',
+    'health-check': '数据库体检', 'bigtable': '大表治理', 'projects': '项目管理',
+    'rulesets': '规则集', 'gate': '质量门禁', 'monitor': '监控告警',
+    'inspection': '巡检管理', 'sys-users': '用户管理', 'sys-retention': '数据保留',
+    'sys-auditlog': '操作审计', 'sys-info': '系统信息',
+    'sys-roles': '角色管理', 'sys-perms': '权限矩阵',
+}
+
+def get_all_roles() -> list[dict]:
+    """从DB获取全部角色"""
+    ensure_db()
+    conn = _get_connection()
+    try:
+        rows = conn.execute("SELECT * FROM roles ORDER BY is_builtin DESC, role_id").fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+def get_role_ids() -> tuple[str, ...]:
+    """获取全部角色ID元组（替代原ROLES常量）"""
+    try:
+        roles = get_all_roles()
+        if roles:
+            return tuple(r['role_id'] for r in roles)
+    except Exception:
+        pass
+    return _BUILTIN_ROLES
+
+def create_custom_role(role_id: str, role_name: str, description: str = "") -> dict:
+    """创建自定义角色"""
+    ensure_db()
+    conn = _get_connection()
+    try:
+        existing = conn.execute("SELECT role_id FROM roles WHERE role_id = ?", (role_id,)).fetchone()
+        if existing:
+            return {"error": f"角色ID '{role_id}' 已存在"}
+        conn.execute("""
+            INSERT INTO roles(role_id, role_name, is_builtin, description)
+            VALUES (?, ?, 0, ?)
+        """, (role_id, role_name, description))
+        # 默认全部菜单不可见，管理员后续配置
+        for mk in ALL_MENU_KEYS:
+            conn.execute("INSERT IGNORE INTO role_permissions(role_id, menu_key, visible) VALUES(?, ?, 0)", (role_id, mk))
+        conn.commit()
+        log_operation("system", "create_role", "role", role_id)
+        return {"role_id": role_id, "role_name": role_name, "is_builtin": 0, "description": description}
+    finally:
+        conn.close()
+
+def update_role(role_id: str, role_name: str = None, description: str = None) -> bool:
+    """编辑角色"""
+    ensure_db()
+    conn = _get_connection()
+    try:
+        sets = []
+        params = []
+        if role_name is not None:
+            sets.append("role_name = ?")
+            params.append(role_name)
+        if description is not None:
+            sets.append("description = ?")
+            params.append(description)
+        if not sets:
+            return False
+        params.append(role_id)
+        conn.execute(f"UPDATE roles SET {', '.join(sets)} WHERE role_id = ?", params)
+        conn.commit()
+        return True
+    finally:
+        conn.close()
+
+def delete_role(role_id: str) -> dict:
+    """删除自定义角色（内置不可删）"""
+    ensure_db()
+    conn = _get_connection()
+    try:
+        row = conn.execute("SELECT is_builtin FROM roles WHERE role_id = ?", (role_id,)).fetchone()
+        if not row:
+            return {"error": "角色不存在"}
+        if row["is_builtin"]:
+            return {"error": "内置角色不可删除"}
+        # 检查是否有用户使用该角色
+        users = conn.execute("SELECT COUNT(*) AS c FROM users WHERE role = ?", (role_id,)).fetchone()
+        if users["c"] > 0:
+            return {"error": f"该角色下还有 {users['c']} 个用户，请先调整用户角色"}
+        conn.execute("DELETE FROM role_permissions WHERE role_id = ?", (role_id,))
+        conn.execute("DELETE FROM roles WHERE role_id = ?", (role_id,))
+        conn.commit()
+        log_operation("system", "delete_role", "role", role_id)
+        return {"message": f"角色 {role_id} 已删除"}
+    finally:
+        conn.close()
+
+def get_role_permissions() -> list[dict]:
+    """获取全部角色权限矩阵"""
+    ensure_db()
+    conn = _get_connection()
+    try:
+        rows = conn.execute("""
+            SELECT rp.role_id, rp.menu_key, rp.visible, r.role_name, r.is_builtin
+            FROM role_permissions rp
+            JOIN roles r ON rp.role_id = r.role_id
+            ORDER BY rp.role_id, rp.menu_key
+        """).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+def set_role_permissions(role_id: str, permissions: dict) -> bool:
+    """批量设置某角色的菜单可见性。permissions = {menu_key: 0|1, ...}"""
+    ensure_db()
+    conn = _get_connection()
+    try:
+        for mk, visible in permissions.items():
+            conn.execute("""
+                INSERT INTO role_permissions(role_id, menu_key, visible)
+                VALUES (?, ?, ?)
+                ON DUPLICATE KEY UPDATE visible = VALUES(visible)
+            """, (role_id, mk, 1 if visible else 0))
+        conn.commit()
+        log_operation("system", "set_role_permissions", "role", role_id)
+        return True
+    finally:
+        conn.close()
+
+def get_visible_menus(role: str) -> list[str]:
+    """获取某角色可见的菜单key列表"""
+    ensure_db()
+    conn = _get_connection()
+    try:
+        rows = conn.execute(
+            "SELECT menu_key FROM role_permissions WHERE role_id = ? AND visible = 1",
+            (role,)
+        ).fetchall()
+        if rows:
+            return [r["menu_key"] for r in rows]
+        # 无记录时回退：admin全部可见，其他角色仅基础菜单
+        if role == "admin":
+            return ALL_MENU_KEYS
+        return ['dashboard', 'audit-sql', 'file-audit', 'rules']
+    except Exception:
+        if role == "admin":
+            return ALL_MENU_KEYS
+        return ['dashboard', 'audit-sql', 'file-audit', 'rules']
+    finally:
+        conn.close()
 
 
 # ══════════════════════════════════════════════════════════════════

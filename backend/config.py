@@ -52,11 +52,37 @@ def _env_float(name: str, default: float) -> float:
 
 
 # ══════════════════════════════════════════════════════════════════
+# V3.0: 从system_config表读取配置（优先DB > 环境变量 > 默认值）
+# ══════════════════════════════════════════════════════════════════
+
+def _get_db_config(key: str, default: str = "") -> str:
+    """从system_config表读取配置值，失败时返回default"""
+    try:
+        from backend.services.database import _get_connection, ensure_db
+        ensure_db()
+        conn = _get_connection()
+        try:
+            row = conn.execute(
+                "SELECT config_value FROM system_config WHERE config_key = ?", (key,)
+            ).fetchone()
+            if row:
+                return row["config_value"]
+        finally:
+            conn.close()
+    except Exception:
+        pass
+    return default
+
+
+# ══════════════════════════════════════════════════════════════════
 # 认证与授权配置（V2.0，动态读取）
 # ══════════════════════════════════════════════════════════════════
 
 def auth_enabled() -> bool:
-    """认证开关。生产环境必须保持 true（默认）。"""
+    """认证开关。优先读DB system_config，回退环境变量。"""
+    db_val = _get_db_config("auth_enabled")
+    if db_val:
+        return db_val.lower() == "true"
     return _env_bool("AUTH_ENABLED", "true")
 
 
@@ -98,7 +124,10 @@ def cors_allow_origins() -> list[str]:
 # ══════════════════════════════════════════════════════════════════
 
 def data_masking_enabled() -> bool:
-    """慢SQL入库脱敏开关：SQL文本中的字面量替换为 ?，防止客户敏感数据落地"""
+    """慢SQL入库脱敏开关。优先读DB system_config。"""
+    db_val = _get_db_config("data_masking_enabled")
+    if db_val:
+        return db_val.lower() == "true"
     return _env_bool("DATA_MASKING_ENABLED", "true")
 
 
@@ -136,7 +165,10 @@ def connection_pool_idle_seconds() -> int:
 # ══════════════════════════════════════════════════════════════════
 
 def metrics_enabled() -> bool:
-    """Prometheus /metrics 端点开关"""
+    """Prometheus /metrics 端点开关。优先读DB system_config。"""
+    db_val = _get_db_config("metrics_enabled")
+    if db_val:
+        return db_val.lower() == "true"
     return _env_bool("METRICS_ENABLED", "true")
 
 

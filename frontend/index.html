@@ -43,7 +43,8 @@
     <!-- 顶栏 -->
     <header class="topbar">
       <div class="brand">
-        <div class="logo">T</div>
+        <img v-if="logoUrl" :src="logoUrl" class="logo" alt="logo" style="height:28px;border-radius:var(--radius-sm);object-fit:contain" />
+        <div v-else class="logo">T</div>
         <span>TDSQL SQL审核</span>
       </div>
       <div class="switchers">
@@ -114,6 +115,8 @@
           <el-sub-menu index="system-group">
             <template #title><el-icon><User /></el-icon><span>系统管理</span></template>
             <el-menu-item v-if="authState.role==='admin'" index="sys-users">用户管理</el-menu-item>
+            <el-menu-item v-if="authState.role==='admin'" index="sys-roles">角色管理</el-menu-item>
+            <el-menu-item v-if="authState.role==='admin'" index="sys-perms">权限矩阵</el-menu-item>
             <el-menu-item v-if="canManagePlatform" index="sys-retention">数据保留</el-menu-item>
             <el-menu-item v-if="canViewAuditLog" index="sys-auditlog">操作审计</el-menu-item>
             <el-menu-item v-if="canViewSysInfo" index="sys-info">系统信息</el-menu-item>
@@ -696,7 +699,7 @@
                     <el-button type="primary" size="small" @click="monitorRuleDialog.visible=true">+ 新建告警规则</el-button>
                   </div>
                   <el-table :data="monitorRules" stripe class="w-full">
-                    <el-table-column prop="metric_name" label="指标" show-overflow-tooltip></el-table-column>
+                    <el-table-column label="指标" show-overflow-tooltip><template #default="{row}">{{ metricLabel(row.metric_name) }}</template></el-table-column>
                     <el-table-column prop="warning_threshold" label="警告阈值" width="100"></el-table-column>
                     <el-table-column prop="urgent_threshold" label="紧急阈值" width="100"></el-table-column>
                     <el-table-column prop="enabled" label="启用" width="60"><template #default="{row}"><el-tag :type="row.enabled?'success':'info'" size="small">{{ row.enabled?'是':'否' }}</el-tag></template></el-table-column>
@@ -801,7 +804,7 @@
                 </div>
               </div>
               <el-table :data="retentionPolicies" v-loading="retentionLoading" stripe class="w-full">
-                <el-table-column prop="table_name" label="表名" show-overflow-tooltip></el-table-column>
+                <el-table-column label="数据表" show-overflow-tooltip><template #default="{row}">{{ tableNameLabel(row.table_name) }}</template></el-table-column>
                 <el-table-column prop="retention_days" label="保留天数" width="80"></el-table-column>
                 <el-table-column prop="enabled" label="启用" width="60"><template #default="{row}"><el-tag :type="row.enabled?'success':'info'" size="small">{{ row.enabled?'是':'否' }}</el-tag></template></el-table-column>
                 <el-table-column label="操作" width="70" fixed="right"><template #default="{row}"><el-button link size="small" @click="openRetentionEdit(row)">编辑</el-button></template></el-table-column>
@@ -820,6 +823,14 @@
           <div v-if="currentPage==='sys-auditlog'">
             <div class="page-card">
               <div class="page-card-title">操作审计日志</div>
+              <div class="filter-bar">
+                <el-input v-model="auditFilter.operator" placeholder="操作人" clearable size="small" class="w-120"></el-input>
+                <el-select v-model="auditFilter.operation_type" placeholder="操作类型" clearable filterable size="small" class="w-140"><el-option label="登录" value="login"></el-option><el-option label="登出" value="logout"></el-option><el-option label="创建" value="create"></el-option><el-option label="删除" value="delete"></el-option><el-option label="扫描" value="scan"></el-option><el-option label="修改" value="update"></el-option><el-option label="修改口令" value="change_password"></el-option></el-select>
+                <el-select v-model="auditFilter.target_type" placeholder="目标类型" clearable size="small" class="w-120"><el-option label="用户" value="user"></el-option><el-option label="项目" value="project"></el-option><el-option label="连接" value="connection"></el-option><el-option label="扫描任务" value="scan_task"></el-option><el-option label="角色" value="role"></el-option><el-option label="规则集" value="ruleset"></el-option></el-select>
+                <el-date-picker v-model="auditFilter.dateRange" type="daterange" range-separator="至" start-placeholder="开始" end-placeholder="结束" format="YYYY-MM-DD" value-format="YYYY-MM-DD" size="small" class="w-300"></el-date-picker>
+                <el-button type="primary" size="small" @click="loadAuditLogs">筛选</el-button>
+                <el-button size="small" @click="resetAuditFilter">重置</el-button>
+              </div>
               <el-table :data="auditLogs" v-loading="auditLogsLoading" stripe class="w-full">
                 <el-table-column prop="operator" label="操作人" width="100"></el-table-column>
                 <el-table-column prop="operation_type" label="操作类型" width="100"></el-table-column>
@@ -831,7 +842,7 @@
               <el-pagination v-if="auditLogsTotal>20" small layout="total,prev,pager,next" :total="auditLogsTotal" :page-size="20" v-model:current-page="auditLogsPage" @current-change="loadAuditLogs" class="pager"></el-pagination>
             </div>
           </div>
-          <!-- ═══ 系统信息 ═══ -->
+          <!-- ═══ 系统信息(开关可配) ═══ -->
           <div v-if="currentPage==='sys-info'">
             <div class="page-card">
               <div class="page-card-title">系统信息</div>
@@ -839,11 +850,54 @@
                 <el-empty v-if="!sysInfo" description="暂无信息"></el-empty>
                 <el-descriptions v-else :column="2" border>
                   <el-descriptions-item label="版本">{{ sysInfo.version }}</el-descriptions-item>
-                  <el-descriptions-item label="认证开关">{{ sysInfo.auth_enabled?'开启':'关闭' }}</el-descriptions-item>
-                  <el-descriptions-item label="脱敏开关">{{ sysInfo.data_masking_enabled?'开启':'关闭' }}</el-descriptions-item>
-                  <el-descriptions-item label="指标开关">{{ sysInfo.metrics_enabled?'开启':'关闭' }}</el-descriptions-item>
+                  <el-descriptions-item label="认证开关"><el-switch :model-value="sysInfo.auth_enabled" @change="v=>toggleSysConfig('auth_enabled',v)" :disabled="!canManagePlatform"></el-switch></el-descriptions-item>
+                  <el-descriptions-item label="脱敏开关"><el-switch :model-value="sysInfo.data_masking_enabled" @change="v=>toggleSysConfig('data_masking_enabled',v)" :disabled="!canManagePlatform"></el-switch></el-descriptions-item>
+                  <el-descriptions-item label="指标开关"><el-switch :model-value="sysInfo.metrics_enabled" @change="v=>toggleSysConfig('metrics_enabled',v)" :disabled="!canManagePlatform"></el-switch></el-descriptions-item>
                 </el-descriptions>
+                <div v-if="canManagePlatform" class="card-head mt-16">
+                  <div class="page-card-title mb0">Logo自定义</div>
+                  <div>
+                    <el-upload :show-file-list="false" :before-upload="onLogoUpload" accept=".png,.jpg,.jpeg,.svg,.ico">
+                      <el-button type="primary" size="small">上传Logo</el-button>
+                    </el-upload>
+                    <el-button v-if="logoUrl" size="small" @click="resetLogo">恢复默认</el-button>
+                  </div>
+                </div>
               </div>
+            </div>
+          </div>
+          <!-- ═══ 角色管理 ═══ -->
+          <div v-if="currentPage==='sys-roles'">
+            <div class="page-card">
+              <div class="card-head">
+                <div class="page-card-title mb0">角色管理</div>
+                <el-button type="primary" size="small" @click="roleDialog.visible=true">+ 新建角色</el-button>
+              </div>
+              <el-table :data="rolesList" v-loading="rolesLoading" stripe class="w-full">
+                <el-table-column prop="role_id" label="角色ID" width="120"></el-table-column>
+                <el-table-column prop="role_name" label="名称" width="120"></el-table-column>
+                <el-table-column prop="is_builtin" label="内置" width="60"><template #default="{row}">{{ row.is_builtin?'是':'否' }}</template></el-table-column>
+                <el-table-column prop="description" label="描述" show-overflow-tooltip></el-table-column>
+                <el-table-column label="操作" width="80" fixed="right"><template #default="{row}"><el-button link type="danger" size="small" :disabled="!!row.is_builtin" @click="deleteRole(row)">删除</el-button></template></el-table-column>
+              </el-table>
+            </div>
+          </div>
+          <el-dialog v-model="roleDialog.visible" title="新建角色" width="440px">
+            <el-form label-position="top">
+              <el-form-item label="角色ID"><el-input v-model="roleDialog.form.role_id" placeholder="如：ops_admin（2-32字符）"></el-input></el-form-item>
+              <el-form-item label="角色名称"><el-input v-model="roleDialog.form.role_name"></el-input></el-form-item>
+              <el-form-item label="描述"><el-input v-model="roleDialog.form.description" type="textarea"></el-input></el-form-item>
+            </el-form>
+            <template #footer><el-button @click="roleDialog.visible=false">取消</el-button><el-button type="primary" :loading="roleDialog.loading" @click="createRole">创建</el-button></template>
+          </el-dialog>
+          <!-- ═══ 权限矩阵 ═══ -->
+          <div v-if="currentPage==='sys-perms'">
+            <div class="page-card">
+              <div class="page-card-title">角色权限矩阵</div>
+              <el-table :data="permsMatrixData" v-loading="permsLoading" stripe border class="w-full">
+                <el-table-column prop="role_name" label="角色" width="120" fixed="left"></el-table-column>
+                <el-table-column v-for="mk in permsMenuList" :key="mk.key" :label="mk.label" :prop="mk.key" width="90" align="center"><template #default="{row}"><el-switch :model-value="row[mk.key]" @change="v=>onPermChange(row.role_id, mk.key, v)" size="small"></el-switch></template></el-table-column>
+              </el-table>
             </div>
           </div>
 

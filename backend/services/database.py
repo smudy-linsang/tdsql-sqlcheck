@@ -910,6 +910,31 @@ def _create_all_tables(conn):
             expires_at          VARCHAR(32) NOT NULL,
             CONSTRAINT chk_lease_id CHECK (id = 1)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""",
+
+        # T28. system_config (系统配置键值对)
+        """CREATE TABLE IF NOT EXISTS system_config (
+            config_key          VARCHAR(64) PRIMARY KEY,
+            config_value        VARCHAR(256) DEFAULT '',
+            updated_at          DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""",
+
+        # T29. roles (角色管理)
+        """CREATE TABLE IF NOT EXISTS roles (
+            role_id             VARCHAR(32) PRIMARY KEY,
+            role_name           VARCHAR(64) NOT NULL,
+            is_builtin          INT DEFAULT 0,
+            description         TEXT,
+            created_at          DATETIME DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""",
+
+        # T30. role_permissions (角色-菜单权限矩阵)
+        """CREATE TABLE IF NOT EXISTS role_permissions (
+            role_id             VARCHAR(32) NOT NULL,
+            menu_key            VARCHAR(64) NOT NULL,
+            visible             INT DEFAULT 1,
+            PRIMARY KEY (role_id, menu_key),
+            INDEX idx_rp_role (role_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""",
     ]
 
     for ddl in table_ddls:
@@ -962,6 +987,42 @@ def _init_default_data(conn):
             INSERT IGNORE INTO retention_policies(table_name, retention_days, enabled)
             VALUES (%s, %s, 1)
         """, (table, days))
+
+    # V3.0: 初始化内置角色
+    builtin_roles = [
+        ('admin', '系统管理员', 1, '拥有全部权限'),
+        ('dba', '数据库管理员', 1, '管理实例/扫描/规则集/门禁'),
+        ('developer', '开发人员', 1, 'SQL审核/EXPLAIN分析'),
+        ('auditor', '审计员', 1, '只读审计/操作日志/报告导出'),
+    ]
+    for rid, rname, builtin, desc in builtin_roles:
+        conn.cursor().execute("""
+            INSERT IGNORE INTO roles(role_id, role_name, is_builtin, description)
+            VALUES (%s, %s, %s, %s)
+        """, (rid, rname, builtin, desc))
+
+    # V3.0: 初始化角色权限矩阵（全菜单默认可见=1）
+    all_menus = [
+        'dashboard', 'audit-sql', 'file-audit', 'rules',
+        'slow-tasks', 'slow-records', 'slow-schedule', 'explain',
+        'instances', 'health-check', 'bigtable',
+        'projects', 'rulesets', 'gate', 'monitor', 'inspection',
+        'sys-users', 'sys-retention', 'sys-auditlog', 'sys-info',
+        'sys-roles', 'sys-perms',
+    ]
+    for rid, _, _, _ in builtin_roles:
+        for mk in all_menus:
+            visible = 1
+            # developer 默认不可见监控/巡检/扫描计划/用户管理/数据保留/系统信息
+            if rid == 'developer' and mk in ('monitor', 'inspection', 'slow-schedule', 'sys-users', 'sys-retention', 'sys-info', 'sys-roles', 'sys-perms'):
+                visible = 0
+            # auditor 默认不可见扫描计划/用户管理/数据保留/角色管理
+            if rid == 'auditor' and mk in ('slow-schedule', 'sys-users', 'sys-retention', 'sys-roles', 'sys-perms'):
+                visible = 0
+            conn.cursor().execute("""
+                INSERT IGNORE INTO role_permissions(role_id, menu_key, visible)
+                VALUES (%s, %s, %s)
+            """, (rid, mk, visible))
 
     # 更新版本号
     conn.cursor().execute("""
