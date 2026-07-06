@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TDSQL SQL审核平台 V3.0</title>
+  <title>TDSQL数据库SQL审核工具 V3.0</title>
   <script src="/static/vendor/vue.global.prod.js"></script>
   <link rel="stylesheet" href="/static/vendor/element-plus.css">
   <script src="/static/vendor/element-plus.full.min.js"></script>
@@ -17,8 +17,7 @@
   <!-- ═══ 登录页 ═══ -->
   <div v-if="!authState.token" class="login-page">
     <div class="login-brand">
-      <h1>TDSQL SQL审核平台</h1>
-      <div class="sub">银行级 SQL 质量管控与慢查询治理平台<br>77条审核规则 · 多实例管理 · 分布式EXPLAIN分析</div>
+      <h1>TDSQL数据库SQL审核工具</h1>
       <div class="version">V3.0 · Powered by TDSQL</div>
     </div>
     <div class="login-form">
@@ -45,7 +44,7 @@
       <div class="brand">
         <img v-if="logoUrl" :src="logoUrl" class="logo" alt="logo" style="height:28px;border-radius:var(--radius-sm);object-fit:contain" />
         <div v-else class="logo">T</div>
-        <span>TDSQL SQL审核</span>
+        <span>TDSQL数据库SQL审核工具</span>
       </div>
       <div class="switchers">
         <el-select v-model="currentConnectionId" placeholder="选择实例" filterable size="small" @change="onConnectionSwitch" style="width:240px">
@@ -498,7 +497,7 @@
                 <el-table-column prop="name" label="连接名" show-overflow-tooltip></el-table-column>
                 <el-table-column label="地址" width="200"><template #default="{row}">{{ row.host }}:{{ row.port }}{{ row.database?'/'+row.database:'' }}</template></el-table-column>
                 <el-table-column prop="username" label="用户名" width="100"></el-table-column>
-                <el-table-column label="类型" width="80"><template #default="{row}"><el-tag size="small">{{ row.is_distributed?'分布式':'集中式' }}</el-tag></template></el-table-column>
+                <el-table-column label="类型" width="90"><template #default="{row}"><el-tag size="small" :type="row.is_distributed?'warning':'info'">{{ row.is_distributed?'分布式':'集中式' }}</el-tag></template></el-table-column>
                 <el-table-column label="状态" width="80"><template #default="{row}"><span :style="{color:row.active?'#16a34a':'#94a3b8'}">●</span> {{ row.active?'已连接':'未连接' }}</template></el-table-column>
                 <el-table-column label="默认" width="60"><template #default="{row}"><el-tag v-if="row.is_default" type="primary" size="small">默认</el-tag></template></el-table-column>
                 <el-table-column label="操作" width="240" fixed="right">
@@ -521,7 +520,7 @@
               <el-form-item label="用户名"><el-input v-model="connForm.username"></el-input></el-form-item>
               <el-form-item label="密码"><el-input v-model="connForm.password" type="password" show-password></el-input></el-form-item>
               <el-form-item label="默认库"><el-input v-model="connForm.database"></el-input></el-form-item>
-              <el-form-item label="分布式实例"><el-switch v-model="connForm.is_distributed"></el-switch></el-form-item>
+              <el-form-item label="实例类型" required><el-radio-group v-model="connForm.is_distributed"><el-radio :value="true">分布式实例</el-radio><el-radio :value="false">集中式实例</el-radio></el-radio-group><div style="font-size:12px;color:#94a3b8;margin-top:4px">分布式与集中式实例的审核规则不同，请根据实际情况选择</div></el-form-item>
               <el-alert v-if="connTestResult" :title="connTestResult.msg" :type="connTestResult.type" show-icon :closable="false" class="mb-12"></el-alert>
             </el-form>
             <template #footer>
