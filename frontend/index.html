@@ -84,42 +84,42 @@
     <div class="main-body">
       <aside class="sidebar" :class="{collapsed: sidebarCollapsed}">
         <el-menu :default-active="currentPage" :collapse="sidebarCollapsed" @select="onMenuSelect" background-color="transparent" text-color="#b9c4d4" active-text-color="#fff">
-          <el-menu-item index="dashboard"><el-icon><Odometer /></el-icon><span>治理概览</span></el-menu-item>
-          <el-sub-menu index="audit-group">
+          <el-menu-item v-if="visibleMenus.has('dashboard')" index="dashboard"><el-icon><Odometer /></el-icon><span>治理概览</span></el-menu-item>
+          <el-sub-menu v-if="visibleMenus.has('audit-sql')||visibleMenus.has('file-audit')||visibleMenus.has('rules')" index="audit-group">
             <template #title><el-icon><Document /></el-icon><span>SQL审核</span></template>
-            <el-menu-item index="audit-sql">即时审核</el-menu-item>
-            <el-menu-item index="file-audit">文件审核</el-menu-item>
-            <el-menu-item index="rules">审核规则库</el-menu-item>
+            <el-menu-item v-if="visibleMenus.has('audit-sql')" index="audit-sql">即时审核</el-menu-item>
+            <el-menu-item v-if="visibleMenus.has('file-audit')" index="file-audit">文件审核</el-menu-item>
+            <el-menu-item v-if="visibleMenus.has('rules')" index="rules">审核规则库</el-menu-item>
           </el-sub-menu>
-          <el-sub-menu index="slow-group">
+          <el-sub-menu v-if="visibleMenus.has('slow-tasks')||visibleMenus.has('slow-records')||visibleMenus.has('slow-schedule')||visibleMenus.has('explain')" index="slow-group">
             <template #title><el-icon><DataAnalysis /></el-icon><span>慢SQL治理</span></template>
-            <el-menu-item index="slow-tasks">扫描任务</el-menu-item>
-            <el-menu-item index="slow-records">慢SQL记录</el-menu-item>
-            <el-menu-item v-if="canViewSchedule" index="slow-schedule">扫描计划</el-menu-item>
-            <el-menu-item index="explain">EXPLAIN分析</el-menu-item>
+            <el-menu-item v-if="visibleMenus.has('slow-tasks')" index="slow-tasks">扫描任务</el-menu-item>
+            <el-menu-item v-if="visibleMenus.has('slow-records')" index="slow-records">慢SQL记录</el-menu-item>
+            <el-menu-item v-if="visibleMenus.has('slow-schedule')" index="slow-schedule">扫描计划</el-menu-item>
+            <el-menu-item v-if="visibleMenus.has('explain')" index="explain">EXPLAIN分析</el-menu-item>
           </el-sub-menu>
-          <el-sub-menu index="instance-group">
+          <el-sub-menu v-if="visibleMenus.has('instances')||visibleMenus.has('health-check')||visibleMenus.has('bigtable')" index="instance-group">
             <template #title><el-icon><Coin /></el-icon><span>实例与体检</span></template>
-            <el-menu-item index="instances">实例管理</el-menu-item>
-            <el-menu-item index="health-check">数据库体检</el-menu-item>
-            <el-menu-item v-if="canViewBigtable" index="bigtable">大表治理</el-menu-item>
+            <el-menu-item v-if="visibleMenus.has('instances')" index="instances">实例管理</el-menu-item>
+            <el-menu-item v-if="visibleMenus.has('health-check')" index="health-check">数据库体检</el-menu-item>
+            <el-menu-item v-if="visibleMenus.has('bigtable')" index="bigtable">大表治理</el-menu-item>
           </el-sub-menu>
-          <el-sub-menu v-if="canViewProjects" index="platform-group">
+          <el-sub-menu v-if="visibleMenus.has('projects')||visibleMenus.has('rulesets')||visibleMenus.has('gate')||visibleMenus.has('monitor')||visibleMenus.has('inspection')" index="platform-group">
             <template #title><el-icon><Setting /></el-icon><span>平台治理</span></template>
-            <el-menu-item index="projects">项目管理</el-menu-item>
-            <el-menu-item index="rulesets">规则集</el-menu-item>
-            <el-menu-item index="gate">质量门禁</el-menu-item>
-            <el-menu-item v-if="canViewMonitor" index="monitor">监控告警</el-menu-item>
-            <el-menu-item v-if="canViewMonitor" index="inspection">巡检管理</el-menu-item>
+            <el-menu-item v-if="visibleMenus.has('projects')" index="projects">项目管理</el-menu-item>
+            <el-menu-item v-if="visibleMenus.has('rulesets')" index="rulesets">规则集</el-menu-item>
+            <el-menu-item v-if="visibleMenus.has('gate')" index="gate">质量门禁</el-menu-item>
+            <el-menu-item v-if="visibleMenus.has('monitor')" index="monitor">监控告警</el-menu-item>
+            <el-menu-item v-if="visibleMenus.has('inspection')" index="inspection">巡检管理</el-menu-item>
           </el-sub-menu>
-          <el-sub-menu index="system-group">
+          <el-sub-menu v-if="visibleMenus.has('sys-users')||visibleMenus.has('sys-roles')||visibleMenus.has('sys-perms')||visibleMenus.has('sys-retention')||visibleMenus.has('sys-auditlog')||visibleMenus.has('sys-info')" index="system-group">
             <template #title><el-icon><User /></el-icon><span>系统管理</span></template>
-            <el-menu-item v-if="authState.role==='admin'" index="sys-users">用户管理</el-menu-item>
-            <el-menu-item v-if="authState.role==='admin'" index="sys-roles">角色管理</el-menu-item>
-            <el-menu-item v-if="authState.role==='admin'" index="sys-perms">权限矩阵</el-menu-item>
-            <el-menu-item v-if="canManagePlatform" index="sys-retention">数据保留</el-menu-item>
-            <el-menu-item v-if="canViewAuditLog" index="sys-auditlog">操作审计</el-menu-item>
-            <el-menu-item v-if="canViewSysInfo" index="sys-info">系统信息</el-menu-item>
+            <el-menu-item v-if="visibleMenus.has('sys-users')" index="sys-users">用户管理</el-menu-item>
+            <el-menu-item v-if="visibleMenus.has('sys-roles')" index="sys-roles">角色管理</el-menu-item>
+            <el-menu-item v-if="visibleMenus.has('sys-perms')" index="sys-perms">权限矩阵</el-menu-item>
+            <el-menu-item v-if="visibleMenus.has('sys-retention')" index="sys-retention">数据保留</el-menu-item>
+            <el-menu-item v-if="visibleMenus.has('sys-auditlog')" index="sys-auditlog">操作审计</el-menu-item>
+            <el-menu-item v-if="visibleMenus.has('sys-info')" index="sys-info">系统信息</el-menu-item>
           </el-sub-menu>
         </el-menu>
       </aside>

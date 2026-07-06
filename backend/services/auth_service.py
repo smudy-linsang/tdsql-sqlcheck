@@ -218,8 +218,37 @@ def is_public_path(path: str) -> bool:
     return False
 
 
+# API路径前缀 -> 菜单key映射（用于role_permissions二级校验）
+_PATH_TO_MENU = {
+    "/api/v1/dashboard": "dashboard",
+    "/api/v1/audit/sql": "audit-sql",
+    "/api/v1/audit/file": "file-audit",
+    "/api/v1/audit/upload": "file-audit",
+    "/api/v1/rules": "rules",
+    "/api/v1/slow-queries": "slow-tasks",
+    "/api/v1/tdsql/slow-queries": "slow-tasks",
+    "/api/v1/tdsql/scan-schedules": "slow-schedule",
+    "/api/v1/slow-queries/analyze-explain": "explain",
+    "/api/v1/tdsql/connections": "instances",
+    "/api/v1/tdsql/check": "health-check",
+    "/api/v1/bigtable": "bigtable",
+    "/api/v1/projects": "projects",
+    "/api/v1/rulesets": "rulesets",
+    "/api/v1/gate": "gate",
+    "/api/v1/monitor": "monitor",
+    "/api/v1/inspection": "inspection",
+    "/api/v1/auth/users": "sys-users",
+    "/api/v1/admin/retention": "sys-retention",
+    "/api/v1/admin/operation-logs": "sys-auditlog",
+    "/api/v1/admin/info": "sys-info",
+    "/api/v1/admin/config": "sys-info",
+    "/api/v1/admin/logo": "sys-info",
+    "/api/v1/auth/roles": "sys-roles",
+    "/api/v1/auth/role-permissions": "sys-perms",
+}
+
 def check_permission(role: str, method: str, path: str) -> bool:
-    """RBAC 权限判定"""
+    """RBAC 权限判定（含role_permissions二级校验）"""
     method = method.upper()
 
     # 用户管理仅 admin
@@ -233,20 +262,39 @@ def check_permission(role: str, method: str, path: str) -> bool:
     if method not in _READ_METHODS and any(path.startswith(p) for p in _SELF_SERVICE_PREFIXES):
         return True
 
+    # 第一级：原有角色权限检查
+    allowed = False
     if role == "dba":
-        return True  # 除admin-only外全部读写
-
-    if role == "auditor":
-        return method in _READ_METHODS
-
-    if role == "developer":
+        allowed = True
+    elif role == "auditor":
+        allowed = method in _READ_METHODS
+    elif role == "developer":
         if any(path.startswith(p) for p in _DEVELOPER_DENIED_PREFIXES):
             return False
         if method in _READ_METHODS:
-            return True
-        return any(path.startswith(p) for p in _DEVELOPER_WRITE_PREFIXES)
+            allowed = True
+        else:
+            allowed = any(path.startswith(p) for p in _DEVELOPER_WRITE_PREFIXES)
+    else:
+        # 自定义角色：默认不可写，读操作需检查role_permissions
+        allowed = method in _READ_METHODS
 
-    return False
+    if not allowed:
+        return False
+
+    # 第二级：role_permissions菜单可见性校验
+    # 对于自定义角色，检查是否有对应菜单权限
+    if role not in _BUILTIN_ROLES:
+        for prefix, menu_key in _PATH_TO_MENU.items():
+            if path.startswith(prefix):
+                try:
+                    visible = get_visible_menus(role)
+                    return menu_key in visible
+                except Exception:
+                    return False
+        return True  # 无映射的路径默认放行
+
+    return True
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -577,8 +625,9 @@ class AuthService:
     def create_user(self, username: str, password: str, role: str,
                     display_name: str = "", operator: str = "") -> tuple[Optional[dict], Optional[str]]:
         """创建用户，返回 (user, None) 或 (None, 错误信息)"""
-        if role not in ROLES:
-            return None, f"非法角色: {role}，可选: {', '.join(ROLES)}"
+        valid_roles = get_role_ids()
+        if role not in valid_roles:
+            return None, f"非法角色: {role}，可选: {', '.join(valid_roles)}"
         if not username or not username.replace("_", "").replace(".", "").isalnum():
             return None, "用户名只能包含字母、数字、下划线和点"
         err = validate_password_strength(password)
@@ -618,8 +667,10 @@ class AuthService:
                     display_name: Optional[str] = None, status: Optional[str] = None,
                     operator: str = "") -> Optional[str]:
         """更新用户属性，返回错误信息或None"""
-        if role is not None and role not in ROLES:
-            return f"非法角色: {role}"
+        if role is not None:
+            valid_roles = get_role_ids()
+            if role not in valid_roles:
+                return f"非法角色: {role}"
         if status is not None and status not in ("active", "disabled"):
             return f"非法状态: {status}"
         ensure_db()
