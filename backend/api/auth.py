@@ -137,8 +137,8 @@ def roles():
     """从DB动态获取角色列表"""
     db_roles = get_all_roles()
     if db_roles:
-        return {"roles": [{"role": r["role_id"], "label": r["role_name"], "is_builtin": r["is_builtin"], "description": r.get("description","")} for r in db_roles]}
-    return {"roles": [{"role": r, "label": ROLE_LABELS.get(r, r)} for r in ROLES]}
+        return {"roles": [{"role_id": r["role_id"], "role_name": r["role_name"], "role": r["role_id"], "label": r["role_name"], "is_builtin": r["is_builtin"], "description": r.get("description","")} for r in db_roles]}
+    return {"roles": [{"role": r, "label": ROLE_LABELS.get(r, r), "role_id": r, "role_name": ROLE_LABELS.get(r, r), "is_builtin": 1, "description": ""} for r in ROLES]}
 
 
 # ── V3.0: 角色CRUD + 权限矩阵（admin only） ─────────────────────

@@ -496,7 +496,8 @@
               </div>
               <el-table :data="savedConnections" v-loading="connLoading" stripe class="w-full">
                 <el-table-column prop="name" label="连接名" show-overflow-tooltip></el-table-column>
-                <el-table-column label="地址" width="180"><template #default="{row}">{{ row.host }}:{{ row.port }}{{ row.database?'/'+row.database:'' }}</template></el-table-column>
+                <el-table-column label="地址" width="200"><template #default="{row}">{{ row.host }}:{{ row.port }}{{ row.database?'/'+row.database:'' }}</template></el-table-column>
+                <el-table-column prop="username" label="用户名" width="100"></el-table-column>
                 <el-table-column label="类型" width="80"><template #default="{row}"><el-tag size="small">{{ row.is_distributed?'分布式':'集中式' }}</el-tag></template></el-table-column>
                 <el-table-column label="状态" width="80"><template #default="{row}"><span :style="{color:row.active?'#16a34a':'#94a3b8'}">●</span> {{ row.active?'已连接':'未连接' }}</template></el-table-column>
                 <el-table-column label="默认" width="60"><template #default="{row}"><el-tag v-if="row.is_default" type="primary" size="small">默认</el-tag></template></el-table-column>
@@ -762,7 +763,7 @@
               <el-table :data="usersList" v-loading="usersLoading" stripe class="w-full">
                 <el-table-column prop="username" label="用户名" width="120"></el-table-column>
                 <el-table-column prop="display_name" label="姓名" width="120"></el-table-column>
-                <el-table-column prop="role" label="角色" width="100"><template #default="{row}"><el-tag size="small">{{ roleLabel(row.role) }}</el-tag></template></el-table-column>
+                <el-table-column prop="role" label="角色" width="120"><template #default="{row}"><el-tag size="small">{{ roleLabelFn(row.role) }}</el-tag></template></el-table-column>
                 <el-table-column prop="status" label="状态" width="80"><template #default="{row}"><el-tag :type="row.status==='active'?'success':'danger'" size="small">{{ row.status==='active'?'正常':'禁用' }}</el-tag></template></el-table-column>
                 <el-table-column label="操作" width="240" fixed="right">
                   <template #default="{row}">
@@ -863,6 +864,7 @@
                     <el-button v-if="logoUrl" size="small" @click="resetLogo">恢复默认</el-button>
                   </div>
                 </div>
+                <div class="hint mt-12">建议尺寸: 28x28px ~ 64x64px，支持 PNG/JPG/SVG/ICO，不超过2MB</div>
               </div>
             </div>
           </div>
@@ -874,30 +876,32 @@
                 <el-button type="primary" size="small" @click="roleDialog.visible=true">+ 新建角色</el-button>
               </div>
               <el-table :data="rolesList" v-loading="rolesLoading" stripe class="w-full">
-                <el-table-column prop="role_id" label="角色ID" width="120"></el-table-column>
-                <el-table-column prop="role_name" label="名称" width="120"></el-table-column>
+                <el-table-column prop="role_id" label="角色ID" width="140"></el-table-column>
+                <el-table-column prop="role_name" label="名称" width="140"></el-table-column>
                 <el-table-column prop="is_builtin" label="内置" width="60"><template #default="{row}">{{ row.is_builtin?'是':'否' }}</template></el-table-column>
                 <el-table-column prop="description" label="描述" show-overflow-tooltip></el-table-column>
-                <el-table-column label="操作" width="80" fixed="right"><template #default="{row}"><el-button link type="danger" size="small" :disabled="!!row.is_builtin" @click="deleteRole(row)">删除</el-button></template></el-table-column>
+                <el-table-column label="操作" width="120" fixed="right"><template #default="{row}"><el-button link size="small" @click="openRoleEdit(row)">编辑</el-button><el-button link type="danger" size="small" :disabled="!!row.is_builtin" @click="deleteRole(row)">删除</el-button></template></el-table-column>
               </el-table>
             </div>
           </div>
-          <el-dialog v-model="roleDialog.visible" title="新建角色" width="440px">
+          <el-dialog v-model="roleDialog.visible" :title="roleDialog.isEdit?'编辑角色':'新建角色'" width="440px">
             <el-form label-position="top">
-              <el-form-item label="角色ID"><el-input v-model="roleDialog.form.role_id" placeholder="如：ops_admin（2-32字符）"></el-input></el-form-item>
+              <el-form-item label="角色ID"><el-input v-model="roleDialog.form.role_id" placeholder="如：ops_admin（2-32字符）" :disabled="roleDialog.isEdit"></el-input></el-form-item>
               <el-form-item label="角色名称"><el-input v-model="roleDialog.form.role_name"></el-input></el-form-item>
               <el-form-item label="描述"><el-input v-model="roleDialog.form.description" type="textarea"></el-input></el-form-item>
             </el-form>
-            <template #footer><el-button @click="roleDialog.visible=false">取消</el-button><el-button type="primary" :loading="roleDialog.loading" @click="createRole">创建</el-button></template>
+            <template #footer><el-button @click="roleDialog.visible=false">取消</el-button><el-button type="primary" :loading="roleDialog.loading" @click="saveRole">{{roleDialog.isEdit?'保存':'创建'}}</el-button></template>
           </el-dialog>
           <!-- ═══ 权限矩阵 ═══ -->
           <div v-if="currentPage==='sys-perms'">
             <div class="page-card">
               <div class="page-card-title">角色权限矩阵</div>
-              <el-table :data="permsMatrixData" v-loading="permsLoading" stripe border class="w-full">
+              <div style="overflow-x:auto;max-width:100%">
+              <el-table :data="permsMatrixData" v-loading="permsLoading" stripe border style="min-width:1200px">
                 <el-table-column prop="role_name" label="角色" width="120" fixed="left"></el-table-column>
                 <el-table-column v-for="mk in permsMenuList" :key="mk.key" :label="mk.label" :prop="mk.key" width="90" align="center"><template #default="{row}"><el-switch :model-value="row[mk.key]" @change="v=>onPermChange(row.role_id, mk.key, v)" size="small"></el-switch></template></el-table-column>
               </el-table>
+              </div>
             </div>
           </div>
 
