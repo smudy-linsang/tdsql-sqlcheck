@@ -14,14 +14,16 @@ _service = ProjectService()
 async def create_project(req: ProjectCreate):
     """创建项目"""
     project = _service.create_project(req)
-    return ApiResponse(data=project.model_dump())
+    data = project.model_dump()
+    data["id"] = data.get("project_id")  # project_id 即唯一标识
+    return ApiResponse(data=data)
 
 
 @router.get("", response_model=ApiResponse)
 async def list_projects():
     """列出所有项目"""
     projects = _service.list_projects()
-    return ApiResponse(data=[p.model_dump() for p in projects])
+    return ApiResponse(data=[{**p.model_dump(), "id": p.project_id} for p in projects])
 
 
 @router.get("/{project_id}", response_model=ApiResponse)
@@ -30,7 +32,9 @@ async def get_project(project_id: str):
     project = _service.get_project(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
-    return ApiResponse(data=project.model_dump())
+    data = project.model_dump()
+    data["id"] = data.get("project_id")
+    return ApiResponse(data=data)
 
 
 @router.delete("/{project_id}", response_model=ApiResponse)
