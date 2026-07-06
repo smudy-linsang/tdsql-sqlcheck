@@ -144,7 +144,7 @@ def roles():
 # ── V3.0: 角色CRUD + 权限矩阵（admin only） ─────────────────────
 
 class RoleCreateRequest(BaseModel):
-    role_id: str = Field(..., min_length=2, max_length=32, description="角色ID")
+    role_id: Optional[str] = Field(None, min_length=2, max_length=32, description="角色ID（可选，不传则自动生成）")
     role_name: str = Field(..., description="角色名称")
     description: str = Field("", description="描述")
 
@@ -172,7 +172,8 @@ def update_role_permissions(role_id: str, body: RolePermissionsRequest):
 
 @router.post("/roles", summary="创建角色")
 def create_role(body: RoleCreateRequest):
-    result = create_custom_role(body.role_id, body.role_name, body.description)
+    role_id = body.role_id or body.role_name.lower().replace(' ', '_').replace('-', '_')
+    result = create_custom_role(role_id, body.role_name, body.description)
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
     return {"message": "角色创建成功", "role": result}

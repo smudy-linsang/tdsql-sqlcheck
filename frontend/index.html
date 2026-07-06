@@ -885,9 +885,8 @@
           </div>
           <el-dialog v-model="roleDialog.visible" :title="roleDialog.isEdit?'编辑角色':'新建角色'" width="440px">
             <el-form label-position="top">
-              <el-form-item label="角色ID"><el-input v-model="roleDialog.form.role_id" placeholder="如：ops_admin（2-32字符）" :disabled="roleDialog.isEdit"></el-input></el-form-item>
-              <el-form-item label="角色名称"><el-input v-model="roleDialog.form.role_name"></el-input></el-form-item>
-              <el-form-item label="描述"><el-input v-model="roleDialog.form.description" type="textarea"></el-input></el-form-item>
+              <el-form-item label="角色名称"><el-input v-model="roleDialog.form.role_name" placeholder="如：运维管理员"></el-input></el-form-item>
+              <el-form-item label="描述"><el-input v-model="roleDialog.form.description" type="textarea" placeholder="角色描述（可选）"></el-input></el-form-item>
             </el-form>
             <template #footer><el-button @click="roleDialog.visible=false">取消</el-button><el-button type="primary" :loading="roleDialog.loading" @click="saveRole">{{roleDialog.isEdit?'保存':'创建'}}</el-button></template>
           </el-dialog>
