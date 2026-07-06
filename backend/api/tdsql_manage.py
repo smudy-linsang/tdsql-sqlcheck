@@ -27,11 +27,12 @@ class TDSQLConnectRequest(BaseModel):
     """TDSQL连接请求"""
     host: str = Field(..., description="TDSQL实例地址")
     port: int = Field(3306, description="端口")
-    user: str = Field(..., description="用户名")
+    username: str = Field(..., description="用户名")
     password: str = Field(..., description="密码")
     database: str = Field("", description="默认数据库")
     name: str = Field("", description="连接名称（可选，用于多连接管理）")
     is_default: bool = Field(False, description="是否设为默认连接")
+    is_distributed: bool = Field(True, description="是否分布式实例")
     description: str = Field("", description="连接描述")
 
 
@@ -84,7 +85,7 @@ async def connect_tdsql(request: TDSQLConnectRequest, http_request: Request):
         config = TDSQLConnectionConfig(
             host=request.host,
             port=request.port,
-            user=request.user,
+            user=request.username,
             password=request.password,
             database=request.database,
         )
@@ -95,7 +96,7 @@ async def connect_tdsql(request: TDSQLConnectRequest, http_request: Request):
             "host": request.host,
             "port": request.port,
             "database": request.database,
-            "user": request.user,
+            "user": request.username,
         }
     except ImportError:
         raise HTTPException(status_code=500, detail="pymysql未安装，请执行: pip install pymysql")
@@ -610,10 +611,11 @@ async def save_connection(request: TDSQLConnectRequest, http_request: Request):
         name=request.name,
         host=request.host,
         port=request.port,
-        username=request.user,
+        username=request.username,
         password=request.password,
         database=request.database,
         is_default=request.is_default,
+        is_distributed=request.is_distributed,
         description=request.description,
         operator=_operator(http_request),
     )
