@@ -3,6 +3,7 @@
 import sys, warnings
 warnings.filterwarnings("ignore")
 sys.path.insert(0, "/home/user/tdsql-sqlcheck")
+sys.path.insert(0, ".")
 from backend.engine.checker import RuleChecker
 
 c = RuleChecker()
@@ -126,7 +127,7 @@ for rid in [f"R{i:03d}" for i in range(78,120)]:
 
 print(f"用例总数: {len(CASES)*2-1 + len(FP) + 3 + 42*2}")
 if fails:
-    print(f"\n❌ 失败 {len(fails)} 项:")
+    print(f"\n[FAIL] {len(fails)} items failed:")
     for f in fails: print("  " + f)
 else:
-    print("\n✅ 全部通过")
+    print("\n[OK] All passed")
