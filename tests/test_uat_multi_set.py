@@ -53,10 +53,18 @@ class TestUATFrontendStructure:
 
     @pytest.fixture(scope="class")
     def html_content(self):
-        """读取前端HTML文件"""
-        html_path = Path(__file__).parent.parent / "frontend" / "index.html"
-        with open(html_path, "r", encoding="utf-8") as f:
-            return f.read()
+        """读取前端HTML + app.js文件（V3.0后JS拆分到app.js）"""
+        base = Path(__file__).parent.parent
+        html_path = base / "frontend" / "index.html"
+        js_path = base / "frontend" / "static" / "js" / "app.js"
+        content = ""
+        if html_path.exists():
+            with open(html_path, "r", encoding="utf-8") as f:
+                content += f.read()
+        if js_path.exists():
+            with open(js_path, "r", encoding="utf-8") as f:
+                content += "\n" + f.read()
+        return content
 
     def test_no_scan_all_sets_toggle(self, html_content):
         """UAT-1a: 前端不再包含scan_all_sets开关"""

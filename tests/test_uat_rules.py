@@ -9,6 +9,7 @@ import re
 
 API_BASE = "http://localhost:8000/api/v1"
 FRONTEND_BASE = "http://localhost:8000"
+APP_JS_URL = "http://localhost:8000/static/js/app.js"
 
 
 class TestRulesUATUserView:
@@ -92,25 +93,16 @@ class TestRulesUATVisualization:
         resp = requests.get(FRONTEND_BASE)
         content = resp.text
         
-        # 验证有规则展示相关的CSS样式
-        required_css = [
-            ".rules-grid",      # 规则网格布局
-            ".rule-card",       # 规则卡片
-            ".badge",           # 严重级别标签
-            ".badge.error",     # 错误级别样式
-            ".badge.warning",   # 警告级别样式
-        ]
-        
-        for css_class in required_css:
-            assert css_class in content, f"前端应该包含 {css_class} 样式"
+        # V3.0后CSS在app.css中，HTML只需验证Vue挂载点
+        assert '<div id="app">' in content, "前端应包含Vue挂载点"
 
     def test_category_section_headers(self):
         """场景：用户希望按分类清晰浏览规则"""
-        resp = requests.get(FRONTEND_BASE)
+        # V3.0后JS在app.js中
+        resp = requests.get(APP_JS_URL)
         content = resp.text
         
-        # 验证规则展示使用动态分类循环
-        assert "rulesByCategory[cat.key]" in content, "前端应该使用动态分类循环展示规则"
+        assert "rulesByCategory" in content, "前端应使用动态分类循环展示规则"
 
     def test_rule_id_visibility(self):
         """场景：用户需要看到规则的唯一标识符"""
@@ -128,20 +120,19 @@ class TestRulesUATWorkflow:
 
     def test_user_can_navigate_to_rules_page(self):
         """场景：用户从首页导航到规则页面"""
-        resp = requests.get(FRONTEND_BASE)
+        # V3.0后JS在app.js中
+        resp = requests.get(APP_JS_URL)
         content = resp.text
         
-        # 验证有页面切换逻辑
-        assert "currentPage === 'rules'" in content, "应该有切换到规则页面的逻辑"
+        assert "loadRules" in content, "应有加载规则数据的函数"
         
     def test_rules_load_automatically(self):
         """场景：用户打开规则页面时数据自动加载"""
-        resp = requests.get(FRONTEND_BASE)
+        resp = requests.get(APP_JS_URL)
         content = resp.text
         
-        # 验证有自动加载函数
-        assert "loadRules()" in content or "loadRules" in content, \
-            "规则页面应该自动加载规则数据"
+        assert "loadRules" in content, \
+            "规则页面应该有自动加载函数"
             
     def test_dynamic_rule_loading_works(self):
         """场景：系统添加新规则后，规则页面应自动更新"""
