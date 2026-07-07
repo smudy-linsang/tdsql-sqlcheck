@@ -54,7 +54,9 @@ _RE_DERIVED_NOALIAS = re.compile(r"from\s*\(\s*select[\s\S]*?\)\s*(where|group\s
 _RE_DELETE_ALIAS = re.compile(r"^\s*delete\s+from\s+[\w.\"`]+\s+(?:as\s+)?([a-z_]\w*)\b")
 _RE_SEQ_KEYWORDS = re.compile(r"\bas\s+(condition|nextval|currval|minvalue|maxvalue|cycle|increment)\b")
 _RE_CONDITION_BARE = re.compile(r"(?<![`\w])(condition)(?![`\w])")
-_RE_ESCAPE_BS = re.compile(r"escape\s+'\\{1,2}'")
+_RE_ESCAPE_BS = re.compile("escape\\s+'\\\\+'", re.IGNORECASE)
+_RE_DDL_CREATE_TABLE = re.compile(r"\bcreate\s+(global\s+)?temporary\s+table\b|\bcreate\s+table\b", re.IGNORECASE)
+_RE_DDL_ALTER_TABLE = re.compile(r"\balter\s+table\b", re.IGNORECASE)
 _RE_OP_SPACE = re.compile(r"[<>!]\s+=|<\s+>")
 _RE_FUNC_PAREN_SPACE = re.compile(r"\b(sum|count|avg|max|min|ifnull|substr|substring|concat|group_concat|char_length|date_format|str_to_date|truncate|cast|convert|coalesce|upper|lower|round|abs)\s+\(")
 _RE_FULLWIDTH_PAREN = re.compile(r"[（）]")
@@ -103,6 +105,21 @@ def _strip_comments_only(sql: str) -> str:
     return s.lower()
 
 
+def _is_ddl_context(parsed: ParsedSQL) -> bool:
+    """判断是否为DDL上下文（建表/改表）。
+    不仅依赖AST解析结果（TDSQL专有DDL语法可能解析失败），
+    还通过raw_sql正则兜底判断。"""
+    if parsed.is_create_table or parsed.is_alter_table:
+        return True
+    # raw_sql正则兜底（TDSQL专有语法如shardkey/partition by hash在sqlglot中解析失败）
+    raw = parsed.raw_sql
+    if _RE_DDL_CREATE_TABLE.search(raw):
+        return True
+    if _RE_DDL_ALTER_TABLE.search(raw):
+        return True
+    return False
+
+
 # ═══════════════════════════════════════════════════════════════════
 # R078-R119: Oracle迁移兼容规则
 # ═══════════════════════════════════════════════════════════════════
@@ -118,7 +135,7 @@ class R078OracleDataType(BaseRule):
     enabled = True
 
     def check(self, parsed: ParsedSQL, table_metadata: Optional[dict] = None) -> Optional[Violation]:
-        if not (parsed.is_create_table or parsed.is_alter_table):
+        if not _is_ddl_context(parsed):
             return None
         # L3: 检查parsed.column_types
         for ct in parsed.column_types:
@@ -461,7 +478,7 @@ class R097DefaultValueFunction(BaseRule):
     enabled = True
 
     def check(self, parsed: ParsedSQL, table_metadata: Optional[dict] = None) -> Optional[Violation]:
-        if not (parsed.is_create_table or parsed.is_alter_table):
+        if not _is_ddl_context(parsed):
             return None
         # L3: 检查parsed.columns
         for col in parsed.columns:
@@ -487,7 +504,7 @@ class R098HashPartitionNonInt(BaseRule):
     enabled = True
 
     def check(self, parsed: ParsedSQL, table_metadata: Optional[dict] = None) -> Optional[Violation]:
-        if not (parsed.is_create_table or parsed.is_alter_table):
+        if not _is_ddl_context(parsed):
             return None
         text = clean_sql(parsed.raw_sql)
         m = _RE_HASH_PART.search(text)
@@ -498,6 +515,14 @@ class R098HashPartitionNonInt(BaseRule):
                 if col.get("name", "").lower() == col_name.lower():
                     col_type = col.get("type", "").upper()
                     if col_type and col_type not in _INT_TYPES:
+                        return self._make_violation(f"HASH分区字段 {col_name} 类型为{col_type}，非整型，请改用KEY分区")
+            # 解析失败时columns为空，从raw_sql提取列定义
+            if not parsed.columns:
+                # 从raw_sql中找列定义: col_name type
+                col_match = re.search(r'\b' + re.escape(col_name) + r'\s+(\w+)', parsed.raw_sql, re.IGNORECASE)
+                if col_match:
+                    col_type = col_match.group(1).upper()
+                    if col_type not in _INT_TYPES:
                         return self._make_violation(f"HASH分区字段 {col_name} 类型为{col_type}，非整型，请改用KEY分区")
         return None
 
@@ -832,7 +857,7 @@ class R115PrimaryKeyLength(BaseRule):
     enabled = True
 
     def check(self, parsed: ParsedSQL, table_metadata: Optional[dict] = None) -> Optional[Violation]:
-        if not parsed.is_create_table:
+        if not _is_ddl_context(parsed):
             return None
         # 找主键列
         pk_cols = []
@@ -866,7 +891,7 @@ class R116ShardKeySingleColumn(BaseRule):
     enabled = True
 
     def check(self, parsed: ParsedSQL, table_metadata: Optional[dict] = None) -> Optional[Violation]:
-        if not (parsed.is_create_table or parsed.is_alter_table):
+        if not _is_ddl_context(parsed):
             return None
         text = clean_sql(parsed.raw_sql)
         m = _RE_SHARDKEY.search(text)
@@ -888,7 +913,7 @@ class R117ShardKeyType(BaseRule):
     enabled = True
 
     def check(self, parsed: ParsedSQL, table_metadata: Optional[dict] = None) -> Optional[Violation]:
-        if not (parsed.is_create_table or parsed.is_alter_table):
+        if not _is_ddl_context(parsed):
             return None
         text = clean_sql(parsed.raw_sql)
         m = _RE_SHARDKEY_SINGLE.search(text)
@@ -913,7 +938,7 @@ class R118ShardKeyNotNull(BaseRule):
     enabled = True
 
     def check(self, parsed: ParsedSQL, table_metadata: Optional[dict] = None) -> Optional[Violation]:
-        if not (parsed.is_create_table or parsed.is_alter_table):
+        if not _is_ddl_context(parsed):
             return None
         text = clean_sql(parsed.raw_sql)
         m = _RE_SHARDKEY_SINGLE.search(text)
@@ -923,6 +948,16 @@ class R118ShardKeyNotNull(BaseRule):
                 if col.get("name", "").lower() == col_name.lower():
                     if not col.get("is_not_null") and not col.get("is_primary_key"):
                         return self._make_violation(f"shardkey字段 {col_name} 未声明NOT NULL，分片键值不能为NULL")
+            # 解析失败时columns为空，从raw_sql检查是否有not null
+            if not parsed.columns:
+                # 查找shardkey列定义中是否有not null
+                col_match = re.search(r'\b' + re.escape(col_name) + r'\s+\w+[^,\n]*', parsed.raw_sql, re.IGNORECASE)
+                if col_match:
+                    col_def = col_match.group(0).lower()
+                    if 'not null' not in col_def and 'primary key' not in col_def:
+                        return self._make_violation(f"shardkey字段 {col_name} 未声明NOT NULL，分片键值不能为NULL")
+                else:
+                    return self._make_violation(f"shardkey字段 {col_name} 未声明NOT NULL，分片键值不能为NULL")
         return None
 
 
