@@ -1,7 +1,7 @@
 """
-TDSQL SQL审核工具 - 规则引擎 (V2.0)
+TDSQL SQL审核工具 - 规则引擎 (V2.1)
 
-共77条规则（R001-R077），按8个类别组织:
+共119条规则（R001-R119），按9个类别组织:
 - 命名规范 (NAMING): R001-R002, R033-R034, R049
 - DDL规范 (DDL): R003-R011, R023-R032, R035-R038
 - DML规范 (DML): R012-R015, R017, R040-R041, R043, R047
@@ -10,9 +10,10 @@ TDSQL SQL审核工具 - 规则引擎 (V2.0)
 - 索引规范 (INDEX): R018-R019, R061-R068
 - 事务规范 (TRANSACTION): R069-R072
 - 安全规范 (SECURITY): R039, R042, R045-R046, R073-R076
+- Oracle迁移兼容 (ORACLE_COMPAT): R078-R119
 
-V2.0: 支持规则集(rule_sets)按项目覆盖规则启停与严重级别，
-详见 services/ruleset_service.py。
+V2.0: 支持规则集(rule_sets)按项目覆盖规则启停与严重级别。
+V2.1: 新增42条Oracle迁移兼容规则(R078-R119)。
 """
 from backend.engine.rules.base import BaseRule
 from backend.engine.rules.naming import R001NamingLength, R002ReservedKeywords
@@ -59,6 +60,20 @@ from backend.engine.rules.security import (
     R073NoDdlWithoutBackup, R074NoGrantRevoke,
     R075NoTruncateWithoutCheck, R076NoSqlInjectionRisk,
 )
+from backend.engine.rules.oracle_compat import (
+    R078OracleDataType, R079RownumUsage, R080NvlFunction, R081DecodeFunction,
+    R082ToCharFunction, R083ToNumberFunction, R084PipeConcat, R085ToDateFunction,
+    R086TruncFunction, R087TrimTwoArgs, R088AddMonths, R089SubstrZeroStart,
+    R090BareSysdate, R091MergeInto, R092WithAsCte, R093LengthSemantics,
+    R094ListaggFunction, R095MinusOperator, R096FullJoin, R097DefaultValueFunction,
+    R098HashPartitionNonInt, R099DerivedTableAlias, R100DeleteTableAlias,
+    R101ReservedWordAlias, R102EscapeBackslash, R103OperatorSpace,
+    R104FunctionParenSpace, R105OracleOuterJoin, R106ConnectBy,
+    R107InsertSelectRestriction, R108SequenceBatchFetch, R109UpdateCaseWhenOrder,
+    R110UserEnv, R111WindowFunction, R112CursorUsage, R113DropPartitionRisk,
+    R114DeepPagination, R115PrimaryKeyLength, R116ShardKeySingleColumn,
+    R117ShardKeyType, R118ShardKeyNotNull, R119DateArithmetic,
+)
 
 # 所有规则类列表（用于初始化数据库配置）
 ALL_RULE_CLASSES = [
@@ -104,6 +119,19 @@ ALL_RULE_CLASSES = [
     # 安全规范
     R073NoDdlWithoutBackup, R074NoGrantRevoke,
     R075NoTruncateWithoutCheck, R076NoSqlInjectionRisk,
+    # Oracle迁移兼容
+    R078OracleDataType, R079RownumUsage, R080NvlFunction, R081DecodeFunction,
+    R082ToCharFunction, R083ToNumberFunction, R084PipeConcat, R085ToDateFunction,
+    R086TruncFunction, R087TrimTwoArgs, R088AddMonths, R089SubstrZeroStart,
+    R090BareSysdate, R091MergeInto, R092WithAsCte, R093LengthSemantics,
+    R094ListaggFunction, R095MinusOperator, R096FullJoin, R097DefaultValueFunction,
+    R098HashPartitionNonInt, R099DerivedTableAlias, R100DeleteTableAlias,
+    R101ReservedWordAlias, R102EscapeBackslash, R103OperatorSpace,
+    R104FunctionParenSpace, R105OracleOuterJoin, R106ConnectBy,
+    R107InsertSelectRestriction, R108SequenceBatchFetch, R109UpdateCaseWhenOrder,
+    R110UserEnv, R111WindowFunction, R112CursorUsage, R113DropPartitionRisk,
+    R114DeepPagination, R115PrimaryKeyLength, R116ShardKeySingleColumn,
+    R117ShardKeyType, R118ShardKeyNotNull, R119DateArithmetic,
 ]
 
 __all__ = [
@@ -151,4 +179,17 @@ __all__ = [
     # 安全规范
     "R073NoDdlWithoutBackup", "R074NoGrantRevoke",
     "R075NoTruncateWithoutCheck", "R076NoSqlInjectionRisk",
+    # Oracle迁移兼容
+    "R078OracleDataType", "R079RownumUsage", "R080NvlFunction", "R081DecodeFunction",
+    "R082ToCharFunction", "R083ToNumberFunction", "R084PipeConcat", "R085ToDateFunction",
+    "R086TruncFunction", "R087TrimTwoArgs", "R088AddMonths", "R089SubstrZeroStart",
+    "R090BareSysdate", "R091MergeInto", "R092WithAsCte", "R093LengthSemantics",
+    "R094ListaggFunction", "R095MinusOperator", "R096FullJoin", "R097DefaultValueFunction",
+    "R098HashPartitionNonInt", "R099DerivedTableAlias", "R100DeleteTableAlias",
+    "R101ReservedWordAlias", "R102EscapeBackslash", "R103OperatorSpace",
+    "R104FunctionParenSpace", "R105OracleOuterJoin", "R106ConnectBy",
+    "R107InsertSelectRestriction", "R108SequenceBatchFetch", "R109UpdateCaseWhenOrder",
+    "R110UserEnv", "R111WindowFunction", "R112CursorUsage", "R113DropPartitionRisk",
+    "R114DeepPagination", "R115PrimaryKeyLength", "R116ShardKeySingleColumn",
+    "R117ShardKeyType", "R118ShardKeyNotNull", "R119DateArithmetic",
 ]

@@ -41,6 +41,7 @@ class RuleCategory(str, Enum):
     INDEX = "index"
     TRANSACTION = "transaction"
     SECURITY = "security"
+    ORACLE_COMPAT = "oracle_compat"
 
 
 # ═══════════════════════════════════════════════════════════════════

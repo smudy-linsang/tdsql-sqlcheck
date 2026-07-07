@@ -197,7 +197,7 @@ class R053NoCrossShardJoin(BaseRule):
     description = "分布式表JOIN时必须在分片键上关联，避免跨SET广播JOIN"
     enabled = True
     spec_source = "TDSQL数据库开发规范 - 分布式规范"
-    fix_suggestion = "请确保JOIN条件包含分片键等值关联，如: JOIN t2 ON t1.shard_key = t2.shard_key"
+    fix_suggestion = "请确保JOIN条件包含分片键等值关联，如: JOIN t2 ON t1.shard_key = t2.shard_key。关联条件均为分片键且有固定值→完全下推；无固定值→join下推并尽量过滤；小配置表设为广播表使join下推；均不可下推时按日期拆分请求/用单分片中间表落数据后再join；子查询表尽量把过滤条件写入子查询内"
 
     def check(self, parsed: ParsedSQL, table_metadata: Optional[dict] = None) -> Optional[Violation]:
         if not parsed.has_explicit_join or len(parsed.tables) < 2:
@@ -230,10 +230,10 @@ class R054ShardKeyMustBePrimaryKey(BaseRule):
     rule_id = "R054"
     category = RuleCategory.DISTRIBUTED
     severity = Severity.WARNING
-    description = "分片键字段必须是主键的一部分（或主键本身）"
+    description = "分片键必须包含在主键及所有唯一索引中（唯一索引不含分片键将无法创建）"
     enabled = True
     spec_source = "TDSQL数据库开发规范 - 分布式规范"
-    fix_suggestion = "请将分片键字段加入主键，如: PRIMARY KEY (shard_key, id)"
+    fix_suggestion = "请将分片键字段加入主键，如: PRIMARY KEY (shard_key, id)；同时确保所有UNIQUE索引也包含分片键"
 
     def check(self, parsed: ParsedSQL, table_metadata: Optional[dict] = None) -> Optional[Violation]:
         if not parsed.is_create_table or not table_metadata:
@@ -267,6 +267,24 @@ class R054ShardKeyMustBePrimaryKey(BaseRule):
                     return self._make_violation(
                         f"分片键 '{shard_key}' 不在主键中，TDSQL要求分片键必须是主键的一部分",
                     )
+                # E2: 扩展检查唯一索引
+                for idx in parsed.indexes:
+                    if idx.get("type", "").upper() == "UNIQUE":
+                        idx_cols = {c.lower() for c in idx.get("columns", [])}
+                        if shard_key.lower() not in idx_cols:
+                            idx_name = idx.get("name", "UNIQUE索引")
+                            return self._make_violation(
+                                f"{idx_name}未包含分片键 '{shard_key}'，TDSQL要求唯一索引必须包含分片键",
+                            )
+                # 从index_definitions中检查唯一索引
+                for idx in parsed.index_definitions:
+                    if idx.get("type", "").upper() == "UNIQUE":
+                        idx_cols = {c.lower() for c in idx.get("columns", [])}
+                        if shard_key.lower() not in idx_cols:
+                            idx_name = idx.get("name", "UNIQUE索引")
+                            return self._make_violation(
+                                f"{idx_name}未包含分片键 '{shard_key}'，TDSQL要求唯一索引必须包含分片键",
+                            )
         return None
 
 
@@ -353,7 +371,7 @@ class R058BatchUpdateLimit(BaseRule):
     description = "分布式表批量UPDATE/DELETE建议加LIMIT限制单次影响行数(≤1000)"
     enabled = True
     spec_source = "TDSQL数据库开发规范 - 分布式规范"
-    fix_suggestion = "请添加 LIMIT 1000 限制单次操作行数"
+    fix_suggestion = "请添加 LIMIT 1000 限制单次操作行数。注意：update/delete…limit依赖proxy内嵌myisam临时表，主键varchar长度须<250(utf8mb4)/<333(utf8)，详见R115"
 
     def check(self, parsed: ParsedSQL, table_metadata: Optional[dict] = None) -> Optional[Violation]:
         if parsed.sql_type not in ("UPDATE", "DELETE"):

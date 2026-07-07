@@ -215,8 +215,11 @@ class SQLParser:
             if "!=" in where_part or "<>" in where_part or "is not null" in where_part or "is null" in where_part:
                 parsed.where_has_not_equal = True
 
-        # 检测 TEMPORARY
-        if re.match(r"\bcreate\s+temporary\s+table\b", sql_lower):
+        # 检测 TEMPORARY（含Oracle GTT: CREATE GLOBAL TEMPORARY TABLE）
+        if re.match(r"\bcreate\s+(global\s+)?temporary\s+table\b", sql_lower):
+            parsed.is_temporary_table = True
+        # Oracle GTT ON COMMIT DELETE|PRESERVE ROWS
+        if re.search(r"\bon\s+commit\s+(delete|preserve)\s+rows\b", sql_lower):
             parsed.is_temporary_table = True
 
         # 检测 CREATE TABLE ... SELECT
