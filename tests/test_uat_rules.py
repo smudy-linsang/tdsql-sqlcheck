@@ -12,6 +12,27 @@ FRONTEND_BASE = "http://localhost:8000"
 APP_JS_URL = "http://localhost:8000/static/js/app.js"
 
 
+def _get_auth_headers():
+    """登录admin获取token"""
+    try:
+        resp = requests.post(f"{API_BASE}/auth/login", json={"username": "admin", "password": "Abcd1234"}, timeout=5)
+        if resp.ok:
+            token = resp.json().get("token", "")
+            return {"Authorization": f"Bearer {token}"}
+    except Exception:
+        pass
+    return {}
+
+
+AUTH_HEADERS = None
+
+def _headers():
+    global AUTH_HEADERS
+    if AUTH_HEADERS is None:
+        AUTH_HEADERS = _get_auth_headers()
+    return AUTH_HEADERS
+
+
 class TestRulesUATUserView:
     """UAT - 用户查看规则视角"""
 
@@ -27,7 +48,7 @@ class TestRulesUATUserView:
         
     def test_rules_page_shows_all_categories(self):
         """场景：用户想查看所有规则分类"""
-        resp = requests.get(f"{API_BASE}/rules/categories")
+        resp = requests.get(f"{API_BASE}/rules/categories", headers=_headers())
         assert resp.status_code == 200
         
         data = resp.json()
@@ -50,7 +71,7 @@ class TestRulesUATUserView:
 
     def test_naming_rules_help_developers(self):
         """场景：开发人员想了解表名命名规范"""
-        resp = requests.get(f"{API_BASE}/rules")
+        resp = requests.get(f"{API_BASE}/rules", headers=_headers())
         data = resp.json()
         
         naming_rules = [r for r in data["rules"] if r["category"] == "naming"]
@@ -63,7 +84,7 @@ class TestRulesUATUserView:
 
     def test_ddl_rules_help_dbas(self):
         """场景：DBA想了解DDL操作规范"""
-        resp = requests.get(f"{API_BASE}/rules")
+        resp = requests.get(f"{API_BASE}/rules", headers=_headers())
         data = resp.json()
         
         ddl_rules = [r for r in data["rules"] if r["category"] == "ddl"]
@@ -80,7 +101,7 @@ class TestRulesUATVisualization:
 
     def test_rules_display_with_severity_indicators(self):
         """场景：用户查看规则时需要区分严重级别"""
-        resp = requests.get(f"{API_BASE}/rules")
+        resp = requests.get(f"{API_BASE}/rules", headers=_headers())
         data = resp.json()
         
         # 验证有ERROR和WARNING两种级别
@@ -106,7 +127,7 @@ class TestRulesUATVisualization:
 
     def test_rule_id_visibility(self):
         """场景：用户需要看到规则的唯一标识符"""
-        resp = requests.get(f"{API_BASE}/rules")
+        resp = requests.get(f"{API_BASE}/rules", headers=_headers())
         data = resp.json()
         
         for rule in data["rules"]:
@@ -154,7 +175,7 @@ class TestRulesUATContentQuality:
 
     def test_all_rules_have_meaningful_descriptions(self):
         """场景：每条规则都应该有清晰的中文描述"""
-        resp = requests.get(f"{API_BASE}/rules")
+        resp = requests.get(f"{API_BASE}/rules", headers=_headers())
         data = resp.json()
         
         for rule in data["rules"]:
@@ -168,7 +189,7 @@ class TestRulesUATContentQuality:
 
     def test_rule_descriptions_are_unique(self):
         """场景：每条规则的描述应该是唯一的（便于区分）"""
-        resp = requests.get(f"{API_BASE}/rules")
+        resp = requests.get(f"{API_BASE}/rules", headers=_headers())
         data = resp.json()
         
         descriptions = [r["description"] for r in data["rules"]]
@@ -178,7 +199,7 @@ class TestRulesUATContentQuality:
 
     def test_category_rule_count_balanced(self):
         """场景：规则分布应该合理均衡"""
-        resp = requests.get(f"{API_BASE}/rules/categories")
+        resp = requests.get(f"{API_BASE}/rules/categories", headers=_headers())
         data = resp.json()
         
         categories = data["categories"]
@@ -233,7 +254,7 @@ class TestRulesUATAccessibility:
         import time
         
         start = time.time()
-        resp = requests.get(f"{API_BASE}/rules")
+        resp = requests.get(f"{API_BASE}/rules", headers=_headers())
         elapsed = time.time() - start
         
         assert resp.status_code == 200, "API应该正常响应"
@@ -241,7 +262,7 @@ class TestRulesUATAccessibility:
 
     def test_api_returns_valid_json(self):
         """场景：API应返回有效的JSON格式"""
-        resp = requests.get(f"{API_BASE}/rules")
+        resp = requests.get(f"{API_BASE}/rules", headers=_headers())
         assert resp.status_code == 200
         
         # 验证Content-Type
@@ -250,7 +271,7 @@ class TestRulesUATAccessibility:
 
     def test_categories_endpoint_also_returns_json(self):
         """场景：分类接口也应返回有效的JSON"""
-        resp = requests.get(f"{API_BASE}/rules/categories")
+        resp = requests.get(f"{API_BASE}/rules/categories", headers=_headers())
         assert resp.status_code == 200
         
         data = resp.json()
@@ -263,7 +284,7 @@ class TestRulesUATDataIntegrity:
 
     def test_no_duplicate_rules(self):
         """场景：规则列表中不应有重复的规则"""
-        resp = requests.get(f"{API_BASE}/rules")
+        resp = requests.get(f"{API_BASE}/rules", headers=_headers())
         data = resp.json()
         
         rule_ids = [r["rule_id"] for r in data["rules"]]
@@ -274,7 +295,7 @@ class TestRulesUATDataIntegrity:
 
     def test_all_rules_have_required_fields(self):
         """场景：每条规则都应该有完整的元数据"""
-        resp = requests.get(f"{API_BASE}/rules")
+        resp = requests.get(f"{API_BASE}/rules", headers=_headers())
         data = resp.json()
         
         required_fields = ["rule_id", "category", "severity", "description", "enabled"]
@@ -286,7 +307,7 @@ class TestRulesUATDataIntegrity:
 
     def test_rule_enabled_status_is_boolean(self):
         """场景：规则的启用状态应该是布尔值"""
-        resp = requests.get(f"{API_BASE}/rules")
+        resp = requests.get(f"{API_BASE}/rules", headers=_headers())
         data = resp.json()
         
         for rule in data["rules"]:
