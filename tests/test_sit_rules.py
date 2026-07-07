@@ -9,12 +9,29 @@ import requests
 API_BASE = "http://localhost:8000/api/v1"
 
 
+def _get_auth_headers():
+    try:
+        resp = requests.post(f"{API_BASE}/auth/login", json={"username": "admin", "password": "Abcd1234"}, timeout=5)
+        if resp.ok:
+            return {"Authorization": f"Bearer {resp.json().get('token', '')}"}
+    except Exception:
+        pass
+    return {}
+
+_AUTH = None
+def _h():
+    global _AUTH
+    if _AUTH is None:
+        _AUTH = _get_auth_headers()
+    return _AUTH
+
+
 class TestRulesAPI:
     """规则管理 API 测试"""
 
     def test_get_all_rules(self):
         """测试获取所有规则"""
-        resp = requests.get(f"{API_BASE}/rules")
+        resp = requests.get(f"{API_BASE}/rules", headers=_h())
         assert resp.status_code == 200, f"Expected 200, got {resp.status_code}"
         data = resp.json()
         assert "total" in data, "Response missing 'total' field"
@@ -24,7 +41,7 @@ class TestRulesAPI:
 
     def test_rules_structure(self):
         """测试规则数据结构"""
-        resp = requests.get(f"{API_BASE}/rules")
+        resp = requests.get(f"{API_BASE}/rules", headers=_h())
         data = resp.json()
         rule = data["rules"][0]
         required_fields = ["rule_id", "category", "severity", "description", "enabled"]
@@ -33,7 +50,7 @@ class TestRulesAPI:
 
     def test_rules_by_category(self):
         """测试按类别获取规则"""
-        resp = requests.get(f"{API_BASE}/rules/categories")
+        resp = requests.get(f"{API_BASE}/rules/categories", headers=_h())
         assert resp.status_code == 200, f"Expected 200, got {resp.status_code}"
         data = resp.json()
         assert "categories" in data, "Response missing 'categories' field"
@@ -56,7 +73,7 @@ class TestRulesAPI:
 
     def test_rules_have_valid_categories(self):
         """测试规则类别有效性"""
-        resp = requests.get(f"{API_BASE}/rules")
+        resp = requests.get(f"{API_BASE}/rules", headers=_h())
         data = resp.json()
         valid_categories = {"naming", "ddl", "dml", "index", "distributed", "security", "performance", "transaction", "oracle_compat"}
         for rule in data["rules"]:
@@ -64,7 +81,7 @@ class TestRulesAPI:
 
     def test_rules_have_valid_severity(self):
         """测试规则严重级别有效性"""
-        resp = requests.get(f"{API_BASE}/rules")
+        resp = requests.get(f"{API_BASE}/rules", headers=_h())
         data = resp.json()
         valid_severities = {"ERROR", "WARNING", "INFO"}
         for rule in data["rules"]:
@@ -72,14 +89,14 @@ class TestRulesAPI:
 
     def test_rules_are_enabled(self):
         """测试规则默认启用"""
-        resp = requests.get(f"{API_BASE}/rules")
+        resp = requests.get(f"{API_BASE}/rules", headers=_h())
         data = resp.json()
         for rule in data["rules"]:
             assert rule["enabled"] is True, f"Rule {rule['rule_id']} should be enabled by default"
 
     def test_naming_rules_have_correct_ids(self):
         """测试命名规则ID"""
-        resp = requests.get(f"{API_BASE}/rules")
+        resp = requests.get(f"{API_BASE}/rules", headers=_h())
         data = resp.json()
         naming_rules = [r for r in data["rules"] if r["category"] == "naming"]
         naming_ids = {r["rule_id"] for r in naming_rules}
@@ -89,7 +106,7 @@ class TestRulesAPI:
 
     def test_ddl_rules_have_correct_ids(self):
         """测试DDL规则ID"""
-        resp = requests.get(f"{API_BASE}/rules")
+        resp = requests.get(f"{API_BASE}/rules", headers=_h())
         data = resp.json()
         ddl_rules = [r for r in data["rules"] if r["category"] == "ddl"]
         ddl_ids = {r["rule_id"] for r in ddl_rules}
@@ -98,7 +115,7 @@ class TestRulesAPI:
 
     def test_dml_rules_have_correct_ids(self):
         """测试DML规则ID"""
-        resp = requests.get(f"{API_BASE}/rules")
+        resp = requests.get(f"{API_BASE}/rules", headers=_h())
         data = resp.json()
         dml_rules = [r for r in data["rules"] if r["category"] == "dml"]
         dml_ids = {r["rule_id"] for r in dml_rules}
@@ -107,7 +124,7 @@ class TestRulesAPI:
 
     def test_distributed_rules_have_correct_ids(self):
         """测试分布式规则ID"""
-        resp = requests.get(f"{API_BASE}/rules")
+        resp = requests.get(f"{API_BASE}/rules", headers=_h())
         data = resp.json()
         dist_rules = [r for r in data["rules"] if r["category"] == "distributed"]
         dist_ids = {r["rule_id"] for r in dist_rules}
@@ -145,7 +162,7 @@ class TestEndToEnd:
     def test_rules_page_loads_from_api(self):
         """测试规则页面能从API加载数据"""
         # 1. 验证 API 可用
-        resp = requests.get(f"{API_BASE}/rules")
+        resp = requests.get(f"{API_BASE}/rules", headers=_h())
         assert resp.status_code == 200
         data = resp.json()
 
