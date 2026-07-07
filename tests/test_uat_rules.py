@@ -201,10 +201,11 @@ class TestRulesUATContentQuality:
         assert len(categories["security"]) == 8, "安全规范应有8条规则"
         assert len(categories["performance"]) == 5, "性能规范应有5条规则"
         assert len(categories["transaction"]) == 4, "事务规范应有4条规则"
+        assert len(categories.get("oracle_compat", [])) == 42, "Oracle迁移兼容应有42条规则"
         
         # 验证总数
         total = sum(len(rules) for rules in categories.values())
-        assert total == 77, f"规则总数应为77条，实际{total}条"
+        assert total == 119, f"规则总数应为119条，实际{total}条"
 
 
 class TestRulesUATIntegration:

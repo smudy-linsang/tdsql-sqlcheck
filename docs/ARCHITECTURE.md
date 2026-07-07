@@ -152,3 +152,4 @@ POST /tdsql/slow-queries/fetch {connection_id, source, time_window}
 |------|------|----------|
 | 1.0 | 2026-06 | 77条规则、慢SQL六维分析、大表治理、质量门禁、多SET扫描 |
 | 2.0 | 2026-07-03 | 银行级改造：认证与RBAC、多实例连接注册表、规则集多租户、数据脱敏与保留、可观测性、调度leader租约、前端内网化、密钥管理 |
+| 2.1 | 2026-07-07 | Oracle迁移TDSQL规范接入：新增42条Oracle迁移兼容规则(R078-R119)，规则总数77→119，新增oracle_compat分类 |

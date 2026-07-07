@@ -507,7 +507,7 @@ class TestEdgeCasesDashboard:
         assert resp.status_code == 200
         data = resp.json()
         assert data["slow_queries"]["total"] >= 1
-        assert data["rules"]["total"] == 77
+        assert data["rules"]["total"] == 119
 
     def test_audit_trend_different_days(self):
         """不同天数的趋势"""

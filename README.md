@@ -28,7 +28,7 @@
 - 所有查询类 API 支持 `connection_id` 参数路由到指定实例
 - 扫描限流：按连接 + 全局双重并发信号量，保护目标库
 
-### 📝 SQL审核（77条规则 / 8大分类）
+### 📝 SQL审核（119条规则 / 9大分类）
 
 基于《TDSQL数据库开发规范》构建：
 
@@ -211,7 +211,7 @@ tdsql-sqlcheck/
 │   │   ├── checker.py              # 规则检查器（V2.0支持规则集覆盖）
 │   │   ├── slow_analyzer.py        # 慢SQL分析
 │   │   ├── fingerprint.py          # SQL指纹/脱敏归一化
-│   │   └── rules/                  # 77条规则库（8分类）
+│   │   └── rules/                  # 119条规则库（9分类）
 │   └── services/                   # 服务层
 │       ├── auth_service.py         # V2.0 认证授权/用户管理/权限矩阵
 │       ├── connection_registry.py  # V2.0 多实例连接注册表

@@ -236,55 +236,74 @@ class R054ShardKeyMustBePrimaryKey(BaseRule):
     fix_suggestion = "请将分片键字段加入主键，如: PRIMARY KEY (shard_key, id)；同时确保所有UNIQUE索引也包含分片键"
 
     def check(self, parsed: ParsedSQL, table_metadata: Optional[dict] = None) -> Optional[Violation]:
-        if not parsed.is_create_table or not table_metadata:
+        # DDL上下文判断: AST解析 + raw_sql兜底(TDSQL shardkey=语法sqlglot不认)
+        is_ddl = parsed.is_create_table
+        if not is_ddl:
+            raw = parsed.raw_sql
+            if re.match(r"\s*create\s+(global\s+)?(temporary\s+)?table\b", raw, re.IGNORECASE):
+                is_ddl = True
+        if not is_ddl:
             return None
-        for table in parsed.tables:
-            meta = table_metadata.get(table, {})
-            shard_key = meta.get("shard_key", "")
-            if shard_key:
-                # 检查主键是否包含分片键（三个来源合并，与R077保持一致）
-                pk_cols = set()
-                # 来源1: 列级 PRIMARY KEY 标记
-                for col in parsed.columns:
-                    if col.get("is_primary_key"):
-                        pk_cols.add(col.get("name", "").lower())
-                # 来源2: 表级 PRIMARY KEY (col1, col2) 声明
-                for idx in parsed.indexes:
-                    if idx.get("type") == "PRIMARY":
-                        pk_cols.update(c.lower() for c in idx.get("columns", []))
-                # 来源3: 正则回退——从原始SQL提取表级主键列
-                if not pk_cols:
-                    pk_match = re.search(
-                        r"primary\s+key\s*(?:using\s+\w+\s*)?\(([^)]+)\)",
-                        parsed.raw_sql, re.IGNORECASE,
-                    )
-                    if pk_match:
-                        pk_cols = {
-                            c.strip('`"\' ').lower()
-                            for c in pk_match.group(1).split(",")
-                        }
-                if shard_key.lower() not in pk_cols:
+
+        # 获取分片键: 优先 table_metadata, 回退 raw_sql 正则
+        shard_key = ""
+        if table_metadata:
+            for table in parsed.tables:
+                meta = table_metadata.get(table, {})
+                sk = meta.get("shard_key", "")
+                if sk:
+                    shard_key = sk
+                    break
+        if not shard_key:
+            # raw_sql 回退提取 shardkey=xxx
+            sk_match = re.search(r"shardkey\s*=\s*['\"`]?(\w+)", parsed.raw_sql, re.IGNORECASE)
+            if sk_match:
+                shard_key = sk_match.group(1)
+        if not shard_key:
+            return None
+
+        # 检查主键是否包含分片键
+        pk_cols = set()
+        for col in parsed.columns:
+            if col.get("is_primary_key"):
+                pk_cols.add(col.get("name", "").lower())
+        for idx in parsed.indexes:
+            if idx.get("type") == "PRIMARY":
+                pk_cols.update(c.lower() for c in idx.get("columns", []))
+        if not pk_cols:
+            pk_match = re.search(
+                r"primary\s+key\s*(?:using\s+\w+\s*)?\(([^)]+)\)",
+                parsed.raw_sql, re.IGNORECASE,
+            )
+            if pk_match:
+                pk_cols = {
+                    c.strip('`"\' ').lower()
+                    for c in pk_match.group(1).split(",")
+                }
+        if pk_cols and shard_key.lower() not in pk_cols:
+            return self._make_violation(
+                f"分片键 '{shard_key}' 不在主键中，TDSQL要求分片键必须是主键的一部分",
+            )
+
+        # E2: 检查唯一索引是否包含分片键
+        # 来源1: parsed.indexes / index_definitions
+        for idx in parsed.indexes + parsed.index_definitions:
+            if idx.get("type", "").upper() == "UNIQUE":
+                idx_cols = {c.lower() for c in idx.get("columns", [])}
+                if shard_key.lower() not in idx_cols:
+                    idx_name = idx.get("name", "UNIQUE索引")
                     return self._make_violation(
-                        f"分片键 '{shard_key}' 不在主键中，TDSQL要求分片键必须是主键的一部分",
+                        f"{idx_name}未包含分片键 '{shard_key}'，TDSQL要求唯一索引必须包含分片键",
                     )
-                # E2: 扩展检查唯一索引
-                for idx in parsed.indexes:
-                    if idx.get("type", "").upper() == "UNIQUE":
-                        idx_cols = {c.lower() for c in idx.get("columns", [])}
-                        if shard_key.lower() not in idx_cols:
-                            idx_name = idx.get("name", "UNIQUE索引")
-                            return self._make_violation(
-                                f"{idx_name}未包含分片键 '{shard_key}'，TDSQL要求唯一索引必须包含分片键",
-                            )
-                # 从index_definitions中检查唯一索引
-                for idx in parsed.index_definitions:
-                    if idx.get("type", "").upper() == "UNIQUE":
-                        idx_cols = {c.lower() for c in idx.get("columns", [])}
-                        if shard_key.lower() not in idx_cols:
-                            idx_name = idx.get("name", "UNIQUE索引")
-                            return self._make_violation(
-                                f"{idx_name}未包含分片键 '{shard_key}'，TDSQL要求唯一索引必须包含分片键",
-                            )
+        # 来源2: raw_sql 正则回退(解析失败时 indexes 为空)
+        if not any(idx.get("type", "").upper() == "UNIQUE" for idx in parsed.indexes + parsed.index_definitions):
+            for m in re.finditer(r"unique\s+(?:key|index)\s+(\w+)?\s*\(([^)]+)\)", parsed.raw_sql, re.IGNORECASE):
+                idx_name = m.group(1) or "UNIQUE索引"
+                idx_cols = {c.strip('`"\' ').lower() for c in m.group(2).split(",")}
+                if shard_key.lower() not in idx_cols:
+                    return self._make_violation(
+                        f"{idx_name}未包含分片键 '{shard_key}'，TDSQL要求唯一索引必须包含分片键",
+                    )
         return None
 
 

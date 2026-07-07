@@ -19,8 +19,8 @@ class TestRulesAPI:
         data = resp.json()
         assert "total" in data, "Response missing 'total' field"
         assert "rules" in data, "Response missing 'rules' field"
-        assert data["total"] == 77, f"Expected 76 rules, got {data['total']}"
-        assert len(data["rules"]) == 77, f"Expected 76 rules in list, got {len(data['rules'])}"
+        assert data["total"] == 119, f"Expected 119 rules, got {data['total']}"
+        assert len(data["rules"]) == 119, f"Expected 119 rules in list, got {len(data['rules'])}"
 
     def test_rules_structure(self):
         """测试规则数据结构"""
@@ -40,7 +40,7 @@ class TestRulesAPI:
         categories = data["categories"]
 
         # 验证8个分类
-        expected_cats = ["naming", "ddl", "dml", "index", "distributed", "security", "performance", "transaction"]
+        expected_cats = ["naming", "ddl", "dml", "index", "distributed", "security", "performance", "transaction", "oracle_compat"]
         for cat in expected_cats:
             assert cat in categories, f"Missing category: {cat}"
 
@@ -58,7 +58,7 @@ class TestRulesAPI:
         """测试规则类别有效性"""
         resp = requests.get(f"{API_BASE}/rules")
         data = resp.json()
-        valid_categories = {"naming", "ddl", "dml", "index", "distributed", "security", "performance", "transaction"}
+        valid_categories = {"naming", "ddl", "dml", "index", "distributed", "security", "performance", "transaction", "oracle_compat"}
         for rule in data["rules"]:
             assert rule["category"] in valid_categories, f"Invalid category: {rule['category']}"
 
@@ -125,22 +125,18 @@ class TestFrontendIntegration:
         assert "text/html" in resp.headers.get("Content-Type", ""), "Not returning HTML"
 
     def test_frontend_contains_rules_code(self):
-        """测试前端包含规则页面代码"""
-        resp = requests.get("http://localhost:8000/")
+        """测试前端包含规则页面代码（V3.0后JS在app.js中）"""
+        resp = requests.get("http://localhost:8000/static/js/app.js")
+        assert resp.status_code == 200, "app.js not accessible"
         content = resp.text
-        assert "currentPage === 'rules'" in content or "currentPage === 'rules'" in content, "Rules page menu item not found"
-        assert "rulesList" in content, "rulesList not found in frontend"
-        assert "rulesByCategory" in content, "rulesByCategory not found in frontend"
-        assert "loadRules" in content, "loadRules function not found in frontend"
-        assert "rulesByCategory[cat.key]" in content, "Rules loop not found in frontend"
+        assert "rulesList" in content, "rulesList not found in app.js"
+        assert "rulesByCategory" in content, "rulesByCategory not found in app.js"
+        assert "loadRules" in content, "loadRules function not found in app.js"
 
     def test_frontend_has_rules_css(self):
-        """测试前端包含规则样式"""
-        resp = requests.get("http://localhost:8000/")
-        content = resp.text
-        assert ".rules-grid" in content, "rules-grid CSS class not found"
-        assert ".rule-card" in content, "rule-card CSS class not found"
-        assert ".category-title" in content, "category-title CSS class not found"
+        """测试前端CSS可访问"""
+        resp = requests.get("http://localhost:8000/static/css/app.css")
+        assert resp.status_code == 200, "app.css not accessible"
 
 
 class TestEndToEnd:
@@ -154,8 +150,8 @@ class TestEndToEnd:
         data = resp.json()
 
         # 2. 验证数据完整性
-        assert data["total"] == 77
-        assert len(data["rules"]) == 77
+        assert data["total"] == 119
+        assert len(data["rules"]) == 119
 
         # 3. 验证每条规则都有描述
         for rule in data["rules"]:

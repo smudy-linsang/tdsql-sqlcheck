@@ -541,7 +541,7 @@ class TestDashboard:
         assert "audit" in data
         assert "slow_queries" in data
         assert "rules" in data
-        assert data["rules"]["total"] == 77
+        assert data["rules"]["total"] == 119
         assert data["rules"]["by_category"]["naming"] == 5
         assert data["rules"]["by_category"]["ddl"] == 22
         assert data["rules"]["by_category"]["dml"] == 9

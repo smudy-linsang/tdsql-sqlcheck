@@ -344,7 +344,7 @@ class TestRuleEngineIntegrity:
     def test_total_rule_count(self):
         """验证规则总数为76"""
         rules_info = checker.get_rules_info()
-        assert len(rules_info) == 77
+        assert len(rules_info) == 119
 
     def test_all_rules_have_required_fields(self):
         """每条规则必须有rule_id/category/severity/description"""
@@ -357,7 +357,7 @@ class TestRuleEngineIntegrity:
     def test_rule_categories(self):
         """验证规则分类为7类"""
         cats = set(r["category"] for r in checker.get_rules_info())
-        expected = {"naming", "ddl", "dml", "distributed", "index", "transaction", "security"}
+        expected = {"naming", "ddl", "dml", "distributed", "index", "transaction", "security", "oracle_compat"}
         # 兼容performance类别
         if "performance" in cats:
             expected.add("performance")
@@ -368,8 +368,8 @@ class TestRuleEngineIntegrity:
         resp = client.get("/api/v1/rules")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["total"] == 77
-        assert len(data["rules"]) == 77
+        assert data["total"] == 119
+        assert len(data["rules"]) == 119
 
     def test_audit_sql_api_with_new_rules(self):
         """API: POST /api/v1/audit/sql 审核触发新规则"""

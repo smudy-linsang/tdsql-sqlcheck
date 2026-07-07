@@ -80,8 +80,10 @@ _DELETE_RESERVED = {"where", "order", "limit", "using", "partition", "for", "joi
 TDSQL_SEQUENCE_KEYWORDS = {"nextval", "currval", "minvalue", "maxvalue", "cycle", "increment"}
 
 # DDL自守卫辅助
-_INT_TYPES = {"INT", "INTEGER", "BIGINT", "SMALLINT", "MEDIUMINT", "TINYINT"}
-_SHARD_KEY_TYPES = {"INT", "INTEGER", "BIGINT", "SMALLINT", "CHAR", "VARCHAR"}
+_INT_TYPES = {"INT", "INTEGER", "BIGINT", "SMALLINT", "MEDIUMINT", "TINYINT",
+              "UINT", "UBIGINT", "USMALLINT", "UMEDIUMINT", "UTINYINT"}
+_SHARD_KEY_TYPES = {"INT", "INTEGER", "BIGINT", "SMALLINT", "CHAR", "VARCHAR",
+                    "UINT", "UBIGINT", "USMALLINT"}
 
 
 # ═══════════════════════════════════════════════════════════════════

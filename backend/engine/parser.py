@@ -413,6 +413,12 @@ class SQLParser:
                     if idx_info:
                         parsed.indexes.append(idx_info)
                         parsed.index_definitions.append(idx_info)
+                elif type(col_def).__name__ == "UniqueColumnConstraint":
+                    # sqlglot UniqueColumnConstraint: 表级 UNIQUE KEY/INDEX
+                    idx_info = self._parse_unique_constraint(col_def)
+                    if idx_info:
+                        parsed.indexes.append(idx_info)
+                        parsed.index_definitions.append(idx_info)
                 # 检查表级 COMMENT
                 elif type(col_def).__name__ in ("CommentColumnConstraint", "CommentColumnConstraint"):
                     parsed.has_table_comment = True
@@ -462,6 +468,40 @@ class SQLParser:
             idx_type = "FULLTEXT"
         if idx_cols:
             return {"name": idx_name, "columns": idx_cols, "type": idx_type}
+        return {}
+
+    def _parse_unique_constraint(self, col_def) -> dict:
+        """解析 UniqueColumnConstraint (表级 UNIQUE KEY/INDEX)"""
+        idx_name = ""
+        idx_cols = []
+        # UniqueColumnConstraint 的 this 可能是 IndexColumnConstraint 或直接的列列表
+        this_node = col_def.args.get("this")
+        if this_node:
+            if type(this_node).__name__ == "IndexColumnConstraint":
+                # UNIQUE KEY uk_name (col1, col2)
+                name_node = this_node.args.get("this")
+                if name_node:
+                    idx_name = name_node.sql(dialect=self.dialect) if hasattr(name_node, 'sql') else str(name_node)
+                for ordered_expr in this_node.expressions:
+                    col_node = ordered_expr.args.get("this") if hasattr(ordered_expr, 'args') else None
+                    if col_node:
+                        col_name = col_node.sql(dialect=self.dialect).strip('`"')
+                        if col_name:
+                            idx_cols.append(col_name)
+            else:
+                # 直接的列引用
+                name_str = this_node.sql(dialect=self.dialect) if hasattr(this_node, 'sql') else str(this_node)
+                idx_name = name_str
+        # 从 expressions 中提取列名
+        for expr in col_def.expressions:
+            if hasattr(expr, 'args'):
+                col_node = expr.args.get("this")
+                if col_node:
+                    col_name = col_node.sql(dialect=self.dialect).strip('`"')
+                    if col_name:
+                        idx_cols.append(col_name)
+        if idx_cols:
+            return {"name": idx_name or "UNIQUE", "columns": idx_cols, "type": "UNIQUE"}
         return {}
 
     def _extract_column_comment(self, col_def: exp.ColumnDef) -> str:

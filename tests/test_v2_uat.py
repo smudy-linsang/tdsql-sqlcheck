@@ -180,7 +180,7 @@ class TestUATDeveloperScenario:
         assert resp.status_code == 200
         rules = resp.json().get("rules", resp.json())
         count = len(rules) if isinstance(rules, list) else rules.get("total", 0)
-        assert count >= 70  # 77条规则
+        assert count >= 119  # 119条规则
 
     def test_c4_developer_cannot_modify_rulesets(self, uat, dev_h):
         client, _ = uat
