@@ -107,7 +107,7 @@ class TestUATDBAScenario:
         ids = []
         for env, host in (("开发", "10.1.0.1"), ("测试", "10.2.0.1"), ("生产", "10.3.0.1")):
             resp = client.post("/api/v1/tdsql/connections", headers=dba_h, json={
-                "host": host, "port": 15000, "user": "app",
+                "host": host, "port": 15000, "username": "app",
                 "password": "Env@Pw123", "database": f"db_{env}",
                 "name": f"{env}环境库"})
             assert resp.status_code == 200
@@ -275,7 +275,8 @@ class TestUATIntranetDeployment:
 
     def test_e4_api_base_is_relative(self):
         from pathlib import Path
-        html = (Path(__file__).parent.parent / "frontend" / "index.html").read_text(
+        # V3.0后API_BASE在app.js中定义
+        js = (Path(__file__).parent.parent / "frontend" / "static" / "js" / "app.js").read_text(
             encoding="utf-8")
-        assert "const API_BASE = ''" in html, "API_BASE应为同源相对路径"
-        assert "http://localhost:8000" not in html
+        assert "API_BASE = ''" in js or "const API_BASE = ''" in js, "API_BASE应为同源相对路径"
+        assert "http://localhost:8000" not in js

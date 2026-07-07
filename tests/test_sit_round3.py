@@ -624,7 +624,7 @@ class TestBusinessScenarios:
             remark VARCHAR(256) DEFAULT '' COMMENT '备注',
             create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
             update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-            UNIQUE INDEX uk_transaction_no (transaction_no),
+            UNIQUE INDEX uk_transaction_no (transaction_no, id),
             INDEX idx_account_id (account_id),
             INDEX idx_create_time (create_time)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='交易流水表' SHARDKEY=id

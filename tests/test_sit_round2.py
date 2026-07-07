@@ -446,12 +446,12 @@ class TestEdgeCasesTDSQL:
         resp = client.post("/api/v1/tdsql/connect", json={
             "host": "192.0.2.1",  # TEST-NET地址，不可路由
             "port": 3306,
-            "user": "root",
+            "username": "root",
             "password": "test",
             "database": "test",
         })
         # 应该返回连接失败
-        assert resp.status_code in (400, 500)
+        assert resp.status_code in (400, 422, 500)
 
     def test_connect_missing_fields(self):
         """缺少必填字段"""

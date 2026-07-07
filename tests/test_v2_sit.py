@@ -161,7 +161,7 @@ class TestSITConnectionFlow:
         # DBA保存连接配置
         resp = client.post("/api/v1/tdsql/connections", headers=tokens["sit_dba"],
                            json={"host": "192.168.1.100", "port": 15000,
-                                 "user": "scan_user", "password": "Scan@Pw123",
+                                 "username": "scan_user", "password": "Scan@Pw123",
                                  "database": "biz_db", "name": "SIT业务库"})
         assert resp.status_code == 200
         conn_id = resp.json()["id"]
