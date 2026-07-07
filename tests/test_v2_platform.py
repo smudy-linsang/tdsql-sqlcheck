@@ -350,7 +350,7 @@ class TestObservability:
         resp = client.get("/api/v1/admin/info")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["version"].startswith("2.")
+        assert data["version"].startswith("1.0")
         assert "scan_limits" in data
 
 

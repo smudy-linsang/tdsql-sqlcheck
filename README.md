@@ -1,36 +1,11 @@
-# TDSQL SQL审核平台 (V2.0)
+# TDSQL数据库SQL审核工具
 
-面向商业银行生产环境的 TDSQL SQL 质量管控与慢 SQL 分析平台。
-覆盖开发、测试、生产全生命周期，支持**纯内网部署**、**数百套数据库实例并存接入**、
-**用户与角色权限管理**。
+> **当前版本：v1.0.2**（首次生产上线版本）｜ 更新日期：2026-07-07
+> 面向商业银行生产环境的 TDSQL SQL 质量管控与慢 SQL 治理平台，纯内网部署、支持数百套 TDSQL 实例纳管。
 
-## V2.0 核心能力
+## 核心能力
 
-### 🔐 认证与权限（V2.0新增）
-
-- 登录认证：PBKDF2 口令哈希（240,000轮+随机盐）、HMAC 签名令牌、连续失败锁定
-- 四级角色 RBAC：
-
-| 角色 | 说明 | 权限 |
-|------|------|------|
-| admin | 系统管理员 | 全部操作 + 用户管理 |
-| dba | 数据库管理员 | 连接/规则集/门禁/扫描/治理读写 |
-| developer | 开发人员 | SQL审核/EXPLAIN分析 + 全局只读 |
-| auditor | 审计员 | 全局只读（合规审计岗） |
-
-- 操作审计：所有变更操作记录操作人、IP、时间（operation_logs），审核历史带用户身份
-- 口令策略：≥8位、大小写/数字/特殊字符至少三类、首次登录强制修改、失败5次锁定15分钟
-
-### 🗄️ 多实例连接管理（V2.0重构）
-
-- 连接注册表：`connection_id → 连接池`，数百实例并存，LRU淘汰+空闲回收
-- 连接配置持久化到系统 MySQL 元数据库，密码 **Fernet AES 加密**存储（密钥来自环境变量/密钥文件）
-- 所有查询类 API 支持 `connection_id` 参数路由到指定实例
-- 扫描限流：按连接 + 全局双重并发信号量，保护目标库
-
-### 📝 SQL审核（119条规则 / 9大分类）
-
-基于《TDSQL数据库开发规范》构建：
+### 📝 SQL 审核（119 条规则 / 9 大分类）
 
 | 类别 | 规则数 | 说明 |
 |------|--------|------|
@@ -42,239 +17,101 @@
 | 安全规范 | 8 | INTO OUTFILE、LOAD DATA、GRANT |
 | 性能规范 | 5 | 函数索引失效、IN列表、隐式转换 |
 | 事务规范 | 4 | 长事务、大事务、事务未提交 |
+| **Oracle迁移兼容** | **42** | 依据 TDSQL 原厂《TDSQL兼容业务系统适配改造方案 V1.5.1》全量落地：to_char/nvl/decode/rownum/merge into/with as/窗口函数/分片键军规等，每条附原厂改写建议 |
 
-**规则集多租户（V2.0新增）**：不同项目/团队/环境可绑定不同规则集，
-按规则集覆盖规则启停与严重级别（如开发环境将 SELECT* 降级为 INFO）。
+- 5 个审核入口：即时审核、SQL/MyBatis-XML 文件审核、文件上传、GitLab（Diff/仓库/Webhook）、元数据增强审核（取真实分片键/索引提升精度）
+- 审核报告 HTML/PDF 导出，历史可追溯
+- **规则集多租户**：不同项目/团队/环境绑定不同规则集，按项目覆盖规则启停与严重级别
+- **质量门禁**：ERROR/WARNING 阈值（strict/loose/自定义），门禁结果随审核返回
 
-### 🐌 慢SQL分析
+### 🐌 慢SQL治理闭环
+- 多实例扫描（Proxy digest 聚合 / processlist 轮询采样）→ 六维分析 → 状态流转（待处理/已优化/已忽略）→ EXPLAIN 执行计划分析
+- 定时扫描计划（按实例独立配置，调度器 leader 租约防多副本重复执行）
+- 多 SET 支持：SET 发现、跨 SET 对比；SQL 文本入库脱敏（字面量→`?`）
 
-基于《TDSQL-MySQL慢查询发现与优化方案》：
+### 🏛️ 实例与治理
+- 连接注册表：数百实例并存（LRU+空闲回收），口令 Fernet AES 加密存储，扫描双重并发限流保护目标库
+- 数据库体检（字符集一致性）、大表 L1/L2/L3 分级治理、巡检管理、业务监控告警与确认闭环
+- 数据保留策略按表配置保留天数，每日自动清理
 
-- 数据源：Proxy 层 `performance_schema` digest 聚合 + `processlist` 多次轮询采样
-  （`mysql.slow_log` 在TDSQL分布式实例中不可用，已废弃）
-- EXPLAIN 执行计划分析、SQL 文本静态分析、索引推荐、SQL 改写建议
-- 多 SET 支持：SET 发现、跨 SET 对比分析
-- **入库脱敏（V2.0新增）**：SQL 文本字面量替换为 `?`，客户敏感数据不落地
-- **按连接扫描计划（V2.0新增）**：每个实例独立配置每日扫描时间，调度器 leader 租约防多副本重复执行
+### 🔐 安全（银行级）
+- 登录认证：PBKDF2 口令哈希（240,000 轮+盐）+ HMAC 自包含令牌；连续失败 5 次锁定 15 分钟；首登强制改密
+- 四角色 RBAC + 权限矩阵：
 
-### 🧹 数据治理（V2.0新增）
+| 角色 | 说明 | 权限 |
+|------|------|------|
+| admin | 系统管理员 | 全部操作 + 用户管理 |
+| dba | 数据库管理员 | 实例/规则集/门禁/扫描/治理读写 |
+| developer | 开发人员 | SQL审核/EXPLAIN + 受限只读 |
+| auditor | 审计员 | 全局只读 + 操作审计（合规岗） |
 
-- 数据保留策略：慢SQL/审核历史/告警/操作日志按表配置保留天数，每日自动清理
-- 大表治理：L1/L2/L3 三级分类、分区水位、变更管控
+- 操作审计（操作人/IP/时间）、前端资产全本地化**零外网请求**
 
-### 📊 可观测性（V2.0新增）
-
-- `/metrics` Prometheus 指标：HTTP请求/耗时、审核量、违规分布、扫描任务、登录、RBAC拒绝、活跃连接数
-- X-Request-ID 请求链路标识 + 结构化访问日志
-
-### 🔗 GitLab集成 / 质量门禁 / 项目管理
-
-- MR Webhook 自动审核（V2.0：未配置 Secret 默认拒绝，杜绝裸奔）
-- 质量门禁：strict/normal/loose 三策略，ERROR 违规阻断发版
-- 项目绑定规则集与门禁策略
-
-## 技术栈
-
-| 层级 | 技术 |
-|------|------|
-| 后端 | Python 3.11+ / FastAPI |
-| SQL解析 | sqlglot |
-| 数据库连接 | pymysql |
-| 加密 | cryptography (Fernet AES) |
-| 前端 | Vue 3 / Element Plus / ECharts（**全部本地化，纯内网可用**） |
-| 存储 | MySQL 5.7+/8.0（V2.1 系统元数据库，支撑生产级并发与多副本；环境变量 SQLCHECK_DB_* 配置） |
+### 📊 可观测
+- `/health` 健康检查、`/metrics` Prometheus 指标（请求/审核量/违规分布/扫描/登录/RBAC拒绝/活跃连接）、X-Request-ID 链路标识
 
 ## 快速开始
 
-### 1. 安装依赖
+### 生产部署（麒麟 V10 SP3 + TDSQL 集中式元数据库）
+
+详见《[docs/部署手册-v1.0.2.md](docs/部署手册-v1.0.2.md)》。一键流程：
+
+```bash
+# 打包机
+./deploy/make_release.sh --arch x86_64        # 或 aarch64
+# 目标机
+tar -xzf tdsql-sqlcheck-v1.0.2-linux-x86_64.tar.gz && cd tdsql-sqlcheck-*
+cp deploy/env.template deploy/.env && vi deploy/.env   # 4 个必填项
+sudo ./deploy/install.sh                                # 预检→安装→启动→自动验证
+```
+
+### 开发环境
 
 ```bash
 pip install -r requirements.txt
+export SQLCHECK_DB_HOST=... SQLCHECK_DB_PORT=... SQLCHECK_DB_USER=... \
+       SQLCHECK_DB_PASSWORD=... SQLCHECK_DB_NAME=tdsql_sqlcheck_dev
+uvicorn backend.main:app --reload --port 8000
+pytest tests/ -q        # 880+ 用例
 ```
 
-### 2. 生产环境必要配置
-
-```bash
-# 系统元数据库（V2.1: MySQL，替代SQLite）
-export SQLCHECK_DB_HOST=127.0.0.1
-export SQLCHECK_DB_PORT=3306
-export SQLCHECK_DB_USER=sqlcheck
-export SQLCHECK_DB_PASSWORD='<元数据库口令>'
-export SQLCHECK_DB_NAME=tdsql_sqlcheck   # 不存在时自动创建
-# 认证令牌签名密钥（多副本必须统一；未配置则自动生成密钥文件）
-export AUTH_SECRET_KEY='<从KMS/配置中心注入的随机密钥>'
-# 连接密码加密密钥
-export TDSQL_ENCRYPTION_KEY='<Fernet密钥，openssl/KMS生成>'
-# 初始管理员口令（仅首次启动生效；未配置则随机生成并打印日志一次）
-export ADMIN_INITIAL_PASSWORD='<初始口令>'
-```
-
-### 3. 启动服务
-
-```bash
-python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000
-```
-
-### 4. 访问
-
-- **前端界面**: http://localhost:8000 （登录页，默认账户 admin）
-- **API文档**: http://localhost:8000/docs
-- **健康检查**: http://localhost:8000/health
-- **Prometheus指标**: http://localhost:8000/metrics
-
-## API接口示例
-
-### 登录与认证
-
-```bash
-# 登录获取令牌
-TOKEN=$(curl -s -X POST http://localhost:8000/api/v1/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username": "admin", "password": "<口令>"}' | jq -r .token)
-
-# 后续请求携带令牌
-curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/v1/auth/me
-```
-
-### SQL审核
-
-```bash
-curl -X POST http://localhost:8000/api/v1/audit/sql \
-  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-  -d '{"sql": "SELECT * FROM t_user ORDER BY RAND()", "project_id": "my_project"}'
-```
-
-### 多实例连接管理
-
-```bash
-# 保存连接配置（密码加密存储）
-curl -X POST http://localhost:8000/api/v1/tdsql/connections \
-  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-  -d '{"name": "生产核心库", "host": "10.0.0.1", "port": 15000,
-       "user": "audit_ro", "password": "xxx", "database": "core_db"}'
-
-# 按连接ID连接与查询
-curl -X POST -H "Authorization: Bearer $TOKEN" \
-  http://localhost:8000/api/v1/tdsql/connections/<conn_id>/connect
-curl -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:8000/api/v1/tdsql/tables?connection_id=<conn_id>"
-
-# 抓取慢SQL（带限流保护和入库脱敏）
-curl -X POST http://localhost:8000/api/v1/tdsql/slow-queries/fetch \
-  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-  -d '{"source": "digest", "connection_id": "<conn_id>", "limit": 50,
-       "time_window_start": "2026-07-01 00:00:00",
-       "time_window_end": "2026-07-02 00:00:00"}'
-
-# 为连接配置每日定时扫描计划
-curl -X POST http://localhost:8000/api/v1/tdsql/scan-schedules \
-  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-  -d '{"connection_id": "<conn_id>", "source": "digest",
-       "cron_hour": 2, "cron_minute": 30}'
-```
-
-### 规则集与数据治理
-
-```bash
-# 创建规则集（R012禁用示例）
-curl -X POST http://localhost:8000/api/v1/rulesets \
-  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-  -d '{"id": "dev_loose", "name": "开发环境规则集",
-       "items": [{"rule_id": "R012", "enabled": false}]}'
-
-# 数据保留策略
-curl -X PUT http://localhost:8000/api/v1/admin/retention \
-  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-  -d '{"table_name": "slow_queries", "retention_days": 180}'
-```
-
-## 项目结构
-
-```
-tdsql-sqlcheck/
-├── backend/
-│   ├── main.py                     # FastAPI入口（中间件/路由/静态资源）
-│   ├── config.py                   # 配置管理（V2.0动态安全配置）
-│   ├── middleware.py               # V2.0 认证/RBAC/请求ID/指标/审计中间件
-│   ├── cli.py                      # CLI工具（CI流水线集成）
-│   ├── api/                        # API路由层
-│   │   ├── auth.py                 # V2.0 认证与用户管理
-│   │   ├── rulesets.py             # V2.0 规则集管理
-│   │   ├── admin.py                # V2.0 系统管理（保留策略/操作日志）
-│   │   ├── sql_audit.py            # SQL审核
-│   │   ├── slow_query.py           # 慢SQL
-│   │   ├── tdsql_manage.py         # TDSQL多实例管理
-│   │   ├── gitlab_hook.py          # GitLab Webhook
-│   │   └── ...                     # dashboard/project/bigtable/gate/monitor/inspection
-│   ├── engine/                     # 核心引擎（无外部依赖，可独立测试）
-│   │   ├── parser.py               # sqlglot SQL解析
-│   │   ├── checker.py              # 规则检查器（V2.0支持规则集覆盖）
-│   │   ├── slow_analyzer.py        # 慢SQL分析
-│   │   ├── fingerprint.py          # SQL指纹/脱敏归一化
-│   │   └── rules/                  # 119条规则库（9分类）
-│   └── services/                   # 服务层
-│       ├── auth_service.py         # V2.0 认证授权/用户管理/权限矩阵
-│       ├── connection_registry.py  # V2.0 多实例连接注册表
-│       ├── scan_service.py         # V2.0 扫描服务（限流/脱敏）
-│       ├── ruleset_service.py      # V2.0 规则集服务
-│       ├── retention_service.py    # V2.0 数据保留服务
-│       ├── metrics_service.py      # V2.0 Prometheus指标
-│       ├── security_service.py     # 密码加密（V2.0密钥管理）
-│       ├── scheduler.py            # 调度器（V2.0 leader租约+扫描计划）
-│       └── ...                     # audit/slow_query/gate/bigtable/database等
-├── frontend/
-│   ├── index.html                  # Vue3 SPA（V2.0登录页+用户管理）
-│   └── static/vendor/              # V2.0 本地化前端资产（纯内网可用）
-├── tests/                          # 821个测试（含V2.0冒烟/SIT/UAT，766通过55环境跳过）
-├── docs/                           # 完整中文文档套件
-├── smoke_test.py                   # 独立冒烟测试脚本（83项）
-├── docker-compose.yml
-└── README.md
-```
-
-## 运行测试
-
-```bash
-# 全量测试（766 通过 / 55 跳过[需Docker MySQL] / 0 失败）
-python -m pytest tests/ -q
-
-# V2.0专项：认证RBAC / 平台能力 / SIT / UAT
-python -m pytest tests/test_v2_auth.py tests/test_v2_platform.py \
-                 tests/test_v2_sit.py tests/test_v2_uat.py -v
-
-# 独立冒烟脚本（83项检查）
-python smoke_test.py
-```
-
-## 安全配置清单（生产上线必读）
-
-| 环境变量 | 默认值 | 生产要求 |
-|----------|--------|----------|
-| `AUTH_ENABLED` | true | **必须保持 true** |
-| `AUTH_SECRET_KEY` | 自动生成密钥文件 | 从KMS注入，多副本统一 |
-| `TDSQL_ENCRYPTION_KEY` | 自动生成密钥文件 | 从KMS注入并备份 |
-| `ADMIN_INITIAL_PASSWORD` | 随机生成打印一次 | 首次部署设置并立即修改 |
-| `DATA_MASKING_ENABLED` | true | **必须保持 true**（敏感数据不落地） |
-| `GITLAB_WEBHOOK_SECRET` | 空(拒绝webhook) | 必须配置 |
-| `DOCS_PUBLIC` | true | 建议 false（API文档需认证） |
-| `CORS_ALLOW_ORIGINS` | 空(同源) | 按需最小化配置 |
-
-完整配置矩阵与部署架构见 [docs/部署手册.md](docs/部署手册.md)。
-
-## 文档
+## 文档体系（出口版本统一 v1.0.2）
 
 | 文档 | 说明 |
-|------|------|
-| [docs/V2.0银行级改造设计说明书.md](docs/V2.0银行级改造设计说明书.md) | V2.0改造背景/架构/差距闭环 |
-| [docs/安全与权限设计说明书-V2.0.md](docs/安全与权限设计说明书-V2.0.md) | 认证/RBAC/密钥/审计设计 |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 系统架构 |
-| [docs/部署手册.md](docs/部署手册.md) / [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | 部署与运维 |
-| [docs/功能使用手册.md](docs/功能使用手册.md) / [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | 功能使用 |
-| [CONTEXT.md](CONTEXT.md) | 领域术语表（统一语言） |
+|---|---|
+| [发布说明-v1.0.2](docs/发布说明-v1.0.2.md) | 版本定位、功能全景、已知限制 |
+| [部署手册-v1.0.2](docs/部署手册-v1.0.2.md) | 麒麟V10SP3 一键部署（**部署实施主文档**） |
+| [运维手册-v1.0.2](docs/运维手册-v1.0.2.md) | 启停/日志/监控/备份/故障/升级 |
+| [上线检查清单-v1.0.2](docs/上线检查清单-v1.0.2.md) | Go-Live 逐项检查 |
+| [用户使用手册](docs/USER_GUIDE.md)、[功能使用手册](docs/功能使用手册.md) | 角色与功能操作 |
+| [系统架构说明](docs/ARCHITECTURE.md) | 架构与模块 |
+| [接口设计](docs/系统接口设计说明书-v1.0.2.md)、[数据库设计](docs/系统数据库设计说明书-v1.0.2.md)、[概要设计](docs/系统概要设计说明书-v1.0.2.md)、[详细设计](docs/系统详细设计说明书-v1.0.2.md)、[安全与权限设计](docs/安全与权限设计说明书-v1.0.2.md) | 设计文档 |
+| [全系统SIT-UAT测试用例](docs/全系统SIT-UAT测试用例.md) | 160 用例测试集 |
+| docs/archive/ | 研发过程记录归档（历轮设计输入/验收/整改） |
 
-## 参考资料
+## 目录结构
 
-- 《TDSQL数据库开发规范》
-- 《TDSQL-MySQL慢查询发现与优化方案》
-- 《TDSQL大表定义与清理治理规范》
-- 《北京农商银行SQL审核平台建设与运维实践》
+```
+├── backend/                 # FastAPI 后端
+│   ├── api/                 # 14 个路由模块 (/api/v1/*)
+│   ├── engine/              # 审核引擎（sqlglot 解析器 + 119 条规则/9 分类）
+│   ├── services/            # 认证/连接注册/规则集/扫描/保留/指标/调度
+│   └── main.py              # 应用入口（/health、静态资源、启动自动建表）
+├── frontend/                # Vue3 + Element Plus 单页（纯内网资产）
+├── deploy/                  # 一键部署套件（打包/安装/预检/验证/回滚/中间件配置）
+├── tests/                   # 880+ 自动化用例（含 Oracle 兼容专项 103 项）
+└── docs/                    # v1.0.2 文档体系
+```
+
+## 技术栈与运行环境
+
+- 后端：Python 3.9+（推荐 3.11）· FastAPI · sqlglot · PyMySQL · APScheduler · ReportLab
+- 前端：Vue 3 · Element Plus · ECharts（全本地化）
+- 元数据库：TDSQL 集中式实例（MySQL 协议）
+- 部署：麒麟 V10 SP3 · systemd · 可选 Nginx（TLS）· 全离线安装
+
+## 版本历史
+
+| 版本 | 日期 | 说明 |
+|---|---|---|
+| **v1.0.2** | 2026-07-07 | 首次生产上线版本：119 条规则（含 Oracle迁移兼容 42 条）、慢SQL治理闭环、多实例纳管、四角色 RBAC、质量门禁、一键部署套件 |

@@ -1,6 +1,8 @@
 # TDSQL SQL 审核平台 · 全系统 SIT & UAT 测试用例
 
-> 版本：适用于 V2.0 后端 + V3.0 前端（截至 commit `348a72a`）
+> 文档版本：v1.0.2 ｜ 适用系统版本：v1.0.2 ｜ 更新日期：2026-07-07
+
+> 适用范围：v1.0.2 全系统（后端+前端）
 > 用途：交付测试智能体执行的**全系统**集成测试（SIT）与用户验收测试（UAT）用例集
 > 编写日期：2026-07-05
 
@@ -11,7 +13,7 @@
 ### 0.1 被测系统概览
 
 - **后端**：Python 3.11 / FastAPI，14 个路由模块，统一前缀 `/api/v1/*`。
-- **审核引擎**：77 条审核规则，8 大分类（命名 5 / DDL 22 / DML 9 / 索引 10 / 分布式 14 / 安全 8 / 性能 5 / 事务 4）。
+- **审核引擎**：119 条审核规则，9 大分类（命名 5 / DDL 22 / DML 9 / 索引 10 / 分布式 14 / 安全 8 / 性能 5 / 事务 4 / Oracle迁移兼容 42）。
 - **RBAC**：4 角色 —— `admin`（系统管理员）、`dba`（数据库管理员）、`developer`（开发）、`auditor`（审计员）。
 - **鉴权**：PBKDF2 口令 + HMAC 自包含 Token（Bearer）；连续登录失败 5 次锁定 15 分钟；首登强制改密。
 - **元数据库**：MySQL（经 SQLite 兼容层，环境变量 `SQLCHECK_DB_*`）。
@@ -104,8 +106,8 @@
 
 | 用例ID | 目的 | 步骤 | 预期结果 | 优先级 |
 |---|---|---|---|---|
-| SIT-AUDIT-01 | 规则总量 | `GET /rules` | `total=77`；`rules[]` 含 rule_id/category/severity/description | P0 |
-| SIT-AUDIT-02 | 分类统计 | `GET /rules/categories` | 8 分类，数量 5/22/9/10/14/8/5/4 | P1 |
+| SIT-AUDIT-01 | 规则总量 | `GET /rules` | `total=119`；`rules[]` 含 rule_id/category/severity/description | P0 |
+| SIT-AUDIT-02 | 分类统计 | `GET /rules/categories` | 9 分类，数量 5/22/9/10/14/8/5/4/42 | P1 |
 | SIT-AUDIT-03 | 合规 SQL 通过 | `POST /audit/sql {sql:"SELECT id FROM t WHERE id=1"}` | `passed=true`，violations 空或仅 INFO | P0 |
 | SIT-AUDIT-04 | DELETE 无 WHERE 命中 | `POST /audit/sql {sql:"DELETE FROM t_order"}` | `passed=false`，命中高危 DML 规则（ERROR） | P0 |
 | SIT-AUDIT-05 | SELECT * / ORDER BY RAND 命中 | 审核示例 SELECT | 命中相应性能/规范规则并给 suggestion | P1 |
@@ -286,7 +288,7 @@
 | UAT-DEV-01 | 即时审核 | 即时审核 → 粘贴 SQL → Ctrl+Enter | 返回违规清单，每条含规则号/级别/建议 | P0 |
 | UAT-DEV-02 | 门禁反馈 | 顶栏选项目 → 审核含 ERROR 的 SQL | 展示门禁"阻断"结果与原因 | P1 |
 | UAT-DEV-03 | 文件审核 | 文件审核 → 拖拽 .sql/.xml | 汇总 + 逐条折叠结果 | P1 |
-| UAT-DEV-04 | 浏览规则库 | 审核规则库 → 搜索/展开分类 | 77 条规则按 8 分类展示，可搜索 | P2 |
+| UAT-DEV-04 | 浏览规则库 | 审核规则库 → 搜索/展开分类 | 119 条规则按 9 分类展示，可搜索 | P2 |
 | UAT-DEV-05 | 权限边界 | 观察导航 + 尝试进入平台治理写操作 | 开发看不到"用户管理/监控告警/巡检/扫描计划"等；平台治理项为只读或隐藏（对照附录B） | P1 |
 | UAT-DEV-06 | 慢SQL 只读 | 进入慢SQL记录 | 可查看，但无状态流转等写操作（只读） | P2 |
 

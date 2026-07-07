@@ -1,0 +1,28 @@
+[Unit]
+Description=TDSQL SQL Audit Platform v1.0.2
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__USER__
+Group=__USER__
+WorkingDirectory=__INSTALL_DIR__/current
+EnvironmentFile=__INSTALL_DIR__/.env
+Environment=REPORT_OUTPUT_DIR=__INSTALL_DIR__/reports
+ExecStart=__INSTALL_DIR__/current/venv/bin/python -m uvicorn backend.main:app --host 0.0.0.0 --port __PORT__ --workers 2 --no-access-log
+Restart=always
+RestartSec=5
+# 安全加固
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=__INSTALL_DIR__
+LimitNOFILE=65536
+# 日志走 journald，运维手册含导出与轮转说明
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=tdsql-sqlcheck
+
+[Install]
+WantedBy=multi-user.target
