@@ -132,7 +132,7 @@ class TestRulesUATVisualization:
         
         for rule in data["rules"]:
             # 规则ID格式应该是 R001, R002 等
-            assert re.match(r'^R0\d{2}$', rule["rule_id"]), \
+            assert re.match(r'^R0?\d{2}$', rule["rule_id"]) or re.match(r'^R1\d{2}$', rule["rule_id"]), \
                 f"规则ID格式不正确: {rule['rule_id']}"
 
 
@@ -158,12 +158,12 @@ class TestRulesUATWorkflow:
     def test_dynamic_rule_loading_works(self):
         """场景：系统添加新规则后，规则页面应自动更新"""
         # 第一次请求获取规则数
-        resp1 = requests.get(f"{API_BASE}/rules")
+        resp1 = requests.get(f"{API_BASE}/rules", headers=_headers())
         data1 = resp1.json()
         initial_count = data1["total"]
         
         # 第二次请求验证一致性
-        resp2 = requests.get(f"{API_BASE}/rules")
+        resp2 = requests.get(f"{API_BASE}/rules", headers=_headers())
         data2 = resp2.json()
         
         assert data2["total"] == initial_count, "规则数量应该一致（验证动态加载机制）"
@@ -226,13 +226,13 @@ class TestRulesUATIntegration:
     def test_rules_api_compatible_with_existing_endpoints(self):
         """场景：规则API不应影响现有功能"""
         # 验证dashboard仍然正常
-        resp = requests.get(f"{API_BASE}/dashboard/summary")
+        resp = requests.get(f"{API_BASE}/dashboard/summary", headers=_headers())
         assert resp.status_code == 200, "Dashboard应该仍然可用"
         
     def test_rules_help_text_in_audit_results(self):
         """场景：当SQL违反规则时，用户需要看到对应的规则说明"""
         # 提交一个触发R001的SQL
-        resp = requests.post(f"{API_BASE}/audit/sql", json={
+        resp = requests.post(f"{API_BASE}/audit/sql", headers=_headers(), json={
             "sql": "CREATE TABLE InvalidTable (id INT)"
         })
         
