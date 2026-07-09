@@ -97,10 +97,11 @@
             <el-menu-item v-if="visibleMenus.has('slow-schedule')" index="slow-schedule">扫描计划</el-menu-item>
             <el-menu-item v-if="visibleMenus.has('explain')" index="explain">EXPLAIN分析</el-menu-item>
           </el-sub-menu>
-          <el-sub-menu v-if="visibleMenus.has('instances')||visibleMenus.has('health-check')||visibleMenus.has('bigtable')" index="instance-group">
+          <el-sub-menu v-if="visibleMenus.has('instances')||visibleMenus.has('health-check')||visibleMenus.has('schema-check')||visibleMenus.has('bigtable')" index="instance-group">
             <template #title><el-icon><Coin /></el-icon><span>实例与体检</span></template>
             <el-menu-item v-if="visibleMenus.has('instances')" index="instances">实例管理</el-menu-item>
             <el-menu-item v-if="visibleMenus.has('health-check')" index="health-check">数据库体检</el-menu-item>
+            <el-menu-item v-if="visibleMenus.has('schema-check')" index="schema-check">上线检查</el-menu-item>
             <el-menu-item v-if="visibleMenus.has('bigtable')" index="bigtable">大表治理</el-menu-item>
           </el-sub-menu>
           <el-sub-menu v-if="visibleMenus.has('projects')||visibleMenus.has('rulesets')||visibleMenus.has('gate')||visibleMenus.has('monitor')||visibleMenus.has('inspection')" index="platform-group">
@@ -572,6 +573,55 @@
                   <el-empty v-if="healthCheckType==='large-tables'&&!(healthResult.tables||[]).length" description="未发现大表"></el-empty>
                 </div>
               </div>
+            </div>
+          </div>
+
+          <!-- ═══ 上线检查 ═══ -->
+          <div v-if="currentPage==='schema-check'">
+            <div class="page-card">
+              <div class="card-head">
+                <div class="page-card-title mb0">数据库上线检查</div>
+                <div>
+                  <el-select v-model="schemaCheckConnId" placeholder="选择实例" filterable size="small" style="width:240px;margin-right:8px">
+                    <el-option v-for="c in savedConnections" :key="c.id" :label="c.name+' ('+c.host+':'+c.port+')'" :value="c.id"></el-option>
+                  </el-select>
+                  <el-button type="primary" size="small" :loading="schemaCheckLoading" :disabled="!schemaCheckConnId" @click="runSchemaCheck">执行12项检查</el-button>
+                </div>
+              </div>
+              <div style="color:#909399;font-size:13px;margin:8px 0">替代 tdsql_12.sh 脚本，对目标实例全部非系统库执行上线前检查：字符集/排序规则、表名规范、索引数量、主键、字段长度、注释完整性、字段数量、timestamp类型等</div>
+            </div>
+
+            <!-- 统计卡片 -->
+            <div v-if="schemaCheckSummary.total>0||schemaCheckLoading" class="kpi-row" style="margin:0 0 16px">
+              <div class="kpi"><div class="num">{{ schemaCheckSummary.total }}</div><div class="label">问题总数</div></div>
+              <div class="kpi red"><div class="num">{{ schemaCheckSummary.error }}</div><div class="label">ERROR</div></div>
+              <div class="kpi orange"><div class="num">{{ schemaCheckSummary.warning }}</div><div class="label">WARNING</div></div>
+              <div class="kpi blue"><div class="num">{{ schemaCheckSummary.info }}</div><div class="label">INFO</div></div>
+              <div class="kpi green"><div class="num">{{ schemaCheckSummary.checks_passed }}</div><div class="label">通过项</div></div>
+            </div>
+
+            <!-- 12项检查折叠面板 -->
+            <div v-if="schemaCheckResults.length" class="page-card">
+              <el-collapse>
+                <el-collapse-item v-for="check in schemaCheckResults" :key="check.id">
+                  <template #title>
+                    <div style="display:flex;align-items:center;gap:8px;width:100%">
+                      <el-tag :type="check.severity==='ERROR'?'danger':check.severity==='WARNING'?'warning':'info'" size="small">{{ check.severity }}</el-tag>
+                      <span style="font-weight:600">{{ check.id }} {{ check.name }}</span>
+                      <el-tag v-if="check.count>0" type="danger" size="small" round>{{ check.count }}</el-tag>
+                      <el-tag v-else type="success" size="small" round>通过</el-tag>
+                      <span v-if="check.error" style="color:#f56c6c;font-size:12px;margin-left:auto">执行失败: {{ check.error }}</span>
+                    </div>
+                  </template>
+                  <div v-if="check.suggestion" style="background:#f0f9eb;border-left:4px solid #67c23a;padding:8px 12px;margin-bottom:12px;font-size:13px;border-radius:4px">
+                    <b>修复建议：</b>{{ check.suggestion }}
+                  </div>
+                  <el-table v-if="check.rows&&check.rows.length" :data="check.rows" stripe size="small" max-height="400" class="w-full">
+                    <el-table-column v-for="col in check.columns" :key="col" :prop="col" :label="col" show-overflow-tooltip></el-table-column>
+                  </el-table>
+                  <el-empty v-else-if="!check.error" description="未发现问题" :image-size="40"></el-empty>
+                </el-collapse-item>
+              </el-collapse>
             </div>
           </div>
 

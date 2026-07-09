@@ -392,6 +392,12 @@ class InspectionResultInfo(BaseModel):
     suggestion: str = ""
 
 
+class SchemaCheckRequest(BaseModel):
+    """数据库上线前Schema检查请求"""
+    connection_id: str
+    database_filter: str = ""  # 可选，仅检查指定库
+
+
 # ═══════════════════════════════════════════════════════════════════
 # 统一响应模型
 # ═══════════════════════════════════════════════════════════════════
