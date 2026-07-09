@@ -1005,7 +1005,7 @@ def _init_default_data(conn):
     all_menus = [
         'dashboard', 'audit-sql', 'file-audit', 'rules',
         'slow-tasks', 'slow-records', 'slow-schedule', 'explain',
-        'instances', 'health-check', 'bigtable',
+        'instances', 'health-check', 'schema-check', 'bigtable',
         'projects', 'rulesets', 'gate', 'monitor', 'inspection',
         'sys-users', 'sys-retention', 'sys-auditlog', 'sys-info',
         'sys-roles', 'sys-perms',
@@ -1023,6 +1023,17 @@ def _init_default_data(conn):
                 INSERT IGNORE INTO role_permissions(role_id, menu_key, visible)
                 VALUES (%s, %s, %s)
             """, (rid, mk, visible))
+
+    # V3.1: 确保已有角色拥有新增菜单的权限（schema-check等）
+    new_menus = ['schema-check']
+    for nm in new_menus:
+        conn.cursor().execute("""
+            INSERT IGNORE INTO role_permissions(role_id, menu_key, visible)
+            SELECT role_id, %s, 1 FROM roles
+            WHERE role_id NOT IN (
+                SELECT role_id FROM role_permissions WHERE menu_key = %s
+            )
+        """, (nm, nm))
 
     # 更新版本号
     conn.cursor().execute("""
