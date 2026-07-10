@@ -52,7 +52,7 @@ body{font-family:var(--font-family);background:var(--bg-page);color:var(--text-p
 .topbar .brand .logo{width:28px;height:28px;background:var(--brand-500);border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;font-size:14px}
 .topbar .switchers{display:flex;gap:var(--sp-3);margin-left:auto;margin-right:auto}
 .topbar .switchers .el-select{width:220px}
-.topbar .right-area{display:flex;align-items:center;gap:var(--sp-4);color:var(--nav-text)}
+.topbar .right-area{display:flex;align-items:center;gap:var(--sp-4);color:var(--nav-text);margin-left:auto}
 .topbar .user-menu{cursor:pointer;display:flex;align-items:center;gap:var(--sp-2);color:#fff;font-size:13px}
 .topbar .user-menu .role-tag{font-size:11px;padding:1px 6px;border-radius:var(--radius-full);background:var(--brand-600)}
 .main-body{display:flex;flex:1;overflow:hidden}
