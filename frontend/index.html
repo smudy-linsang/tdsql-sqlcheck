@@ -46,19 +46,6 @@
         <div v-else class="logo">T</div>
         <span>TDSQL数据库SQL审核工具</span>
       </div>
-      <div class="switchers">
-        <el-select v-model="currentConnectionId" placeholder="选择实例" filterable size="small" @change="onConnectionSwitch" style="width:240px">
-          <el-option v-for="c in savedConnections" :key="c.id" :label="c.name + ' (' + c.host + ':' + c.port + ')'" :value="c.id">
-            <span class="flex-gap6">
-              <span :style="{color: c.active ? '#16a34a' : '#94a3b8'}">●</span>
-              <span>{{ c.name }} ({{ c.host }}:{{ c.port }}{{ c.database ? '/' + c.database : '' }})</span>
-            </span>
-          </el-option>
-        </el-select>
-        <el-select v-model="currentProjectId" placeholder="选择项目" clearable size="small" @change="onProjectSwitch" style="width:180px">
-          <el-option v-for="p in projects" :key="p.project_id" :label="p.project_name" :value="p.project_id"></el-option>
-        </el-select>
-      </div>
       <div class="right-area">
         <el-badge :value="activeAlerts" :hidden="activeAlerts===0" class="alert-badge">
           <el-icon size="20" class="clickable" @click="currentPage='monitor'"><Bell /></el-icon>
@@ -342,6 +329,16 @@
           <!-- 新建扫描抽屉 -->
           <el-drawer v-model="scanDrawer" title="新建扫描任务" size="480px">
             <el-form label-position="top">
+              <el-form-item label="目标实例" required>
+                <el-select v-model="scanTaskForm.connection_id" placeholder="选择扫描实例" filterable size="small" class="w-full">
+                  <el-option v-for="c in savedConnections" :key="c.id" :value="c.id">
+                    <span style="display:flex;align-items:center;gap:6px">
+                      <span :style="{color: c.active ? '#16a34a' : '#94a3b8'}">●</span>
+                      <span>{{ c.name }} ({{ c.host }}:{{ c.port }}{{ c.database ? '/' + c.database : '' }})</span>
+                    </span>
+                  </el-option>
+                </el-select>
+              </el-form-item>
               <el-form-item label="任务名称"><el-input v-model="scanTaskForm.task_name" placeholder="如：核心库晨间扫描"></el-input></el-form-item>
               <el-form-item label="数据源">
                 <el-radio-group v-model="scanTaskForm.source">
@@ -537,6 +534,11 @@
             <div class="page-card">
               <div class="page-card-title">数据库体检</div>
               <div class="filter-bar">
+                <el-select v-model="currentConnectionId" placeholder="选择实例" filterable size="small" class="w-200">
+                  <el-option v-for="c in savedConnections" :key="c.id" :value="c.id">
+                    <span style="display:flex;align-items:center;gap:6px"><span :style="{color: c.active ? '#16a34a' : '#94a3b8'}">●</span><span>{{ c.name }} ({{ c.host }}:{{ c.port }})</span></span>
+                  </el-option>
+                </el-select>
                 <el-radio-group v-model="healthCheckType"><el-radio value="charset">字符集一致性</el-radio><el-radio value="large-tables">大表检查</el-radio></el-radio-group>
                 <el-input v-model="healthDbName" placeholder="库名(可选)" clearable size="small" class="w-140"></el-input>
                 <el-button type="primary" size="small" :loading="healthLoading" @click="runHealthCheck">开始检查</el-button>
@@ -633,6 +635,11 @@
               <div class="card-head">
                 <div class="page-card-title mb0">大表治理</div>
                 <div>
+                  <el-select v-model="currentConnectionId" placeholder="选择实例" filterable size="small" class="w-200" style="margin-right:8px">
+                    <el-option v-for="c in savedConnections" :key="c.id" :value="c.id">
+                      <span style="display:flex;align-items:center;gap:6px"><span :style="{color: c.active ? '#16a34a' : '#94a3b8'}">●</span><span>{{ c.name }} ({{ c.host }}:{{ c.port }})</span></span>
+                    </el-option>
+                  </el-select>
                   <el-button size="small" @click="loadBigtable">刷新清单</el-button>
                   <el-button v-if="canManageInstances" type="primary" size="small" :loading="bigtableCollecting" @click="collectBigtable">采集大表清单</el-button>
                 </div>
@@ -707,9 +714,14 @@
             <div class="page-card">
               <div class="card-head">
                 <div class="page-card-title mb0">质量门禁</div>
-                <el-button v-if="currentProjectId&&canManagePlatform" type="primary" size="small" @click="openGateCustom">自定义门禁</el-button>
+                <div>
+                  <el-select v-model="currentProjectId" placeholder="选择项目" clearable filterable size="small" class="w-200" style="margin-right:8px">
+                    <el-option v-for="p in projects" :key="p.project_id" :label="p.project_name" :value="p.project_id"></el-option>
+                  </el-select>
+                  <el-button v-if="currentProjectId&&canManagePlatform" type="primary" size="small" @click="openGateCustom">自定义门禁</el-button>
+                </div>
               </div>
-              <el-empty v-if="!currentProjectId" description="请在顶栏选择项目"></el-empty>
+              <el-empty v-if="!currentProjectId" description="请选择项目以查看门禁配置"></el-empty>
               <div v-else v-loading="gateLoading">
                 <div class="mb-16">
                   <span class="mr-12">预设策略:</span>
