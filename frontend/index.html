@@ -331,7 +331,7 @@
             <el-form label-position="top">
               <el-form-item label="目标实例" required>
                 <el-select v-model="scanTaskForm.connection_id" placeholder="选择扫描实例" filterable size="small" class="w-full">
-                  <el-option v-for="c in savedConnections" :key="c.id" :value="c.id">
+                  <el-option v-for="c in savedConnections" :key="c.id" :value="c.id" :label="c.name + ' (' + c.host + ':' + c.port + (c.database ? '/' + c.database : '') + ')'">
                     <span style="display:flex;align-items:center;gap:6px">
                       <span :style="{color: c.active ? '#16a34a' : '#94a3b8'}">●</span>
                       <span>{{ c.name }} ({{ c.host }}:{{ c.port }}{{ c.database ? '/' + c.database : '' }})</span>
@@ -535,7 +535,7 @@
               <div class="page-card-title">数据库体检</div>
               <div class="filter-bar">
                 <el-select v-model="currentConnectionId" placeholder="选择实例" filterable size="small" class="w-200">
-                  <el-option v-for="c in savedConnections" :key="c.id" :value="c.id">
+                  <el-option v-for="c in savedConnections" :key="c.id" :value="c.id" :label="c.name + ' (' + c.host + ':' + c.port + ')'">
                     <span style="display:flex;align-items:center;gap:6px"><span :style="{color: c.active ? '#16a34a' : '#94a3b8'}">●</span><span>{{ c.name }} ({{ c.host }}:{{ c.port }})</span></span>
                   </el-option>
                 </el-select>
@@ -636,7 +636,7 @@
                 <div class="page-card-title mb0">大表治理</div>
                 <div>
                   <el-select v-model="currentConnectionId" placeholder="选择实例" filterable size="small" class="w-200" style="margin-right:8px">
-                    <el-option v-for="c in savedConnections" :key="c.id" :value="c.id">
+                    <el-option v-for="c in savedConnections" :key="c.id" :value="c.id" :label="c.name + ' (' + c.host + ':' + c.port + ')'">
                       <span style="display:flex;align-items:center;gap:6px"><span :style="{color: c.active ? '#16a34a' : '#94a3b8'}">●</span><span>{{ c.name }} ({{ c.host }}:{{ c.port }})</span></span>
                     </el-option>
                   </el-select>
