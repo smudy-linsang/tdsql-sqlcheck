@@ -11,7 +11,7 @@ ok()   { echo "  [PASS] $*"; PASS=$((PASS+1)); }
 warn() { echo "  [WARN] $*"; WARN=$((WARN+1)); }
 bad()  { echo "  [FAIL] $*"; FAILC=$((FAILC+1)); }
 
-echo "════ TDSQL SQL审核工具 v1.0.2 部署预检 ════"
+echo "════ TDSQL SQL审核工具 v1.0.3 部署预检 ════"
 
 # 1. 操作系统
 if grep -qiE "kylin" /etc/os-release 2>/dev/null; then

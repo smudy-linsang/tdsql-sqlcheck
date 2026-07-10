@@ -1,5 +1,5 @@
 [Unit]
-Description=TDSQL SQL Audit Platform v1.0.2
+Description=TDSQL SQL Audit Platform v1.0.3
 After=network-online.target
 Wants=network-online.target
 
