@@ -596,12 +596,15 @@
             </div>
 
             <!-- 统计卡片 -->
-            <div v-if="schemaCheckSummary.total>0||schemaCheckLoading" class="kpi-row" style="margin:0 0 16px">
-              <div class="kpi"><div class="num">{{ schemaCheckSummary.total }}</div><div class="label">问题总数</div></div>
-              <div class="kpi red"><div class="num">{{ schemaCheckSummary.error }}</div><div class="label">ERROR</div></div>
-              <div class="kpi orange"><div class="num">{{ schemaCheckSummary.warning }}</div><div class="label">WARNING</div></div>
-              <div class="kpi blue"><div class="num">{{ schemaCheckSummary.info }}</div><div class="label">INFO</div></div>
-              <div class="kpi green"><div class="num">{{ schemaCheckSummary.checks_passed }}</div><div class="label">通过项</div></div>
+            <div v-if="schemaCheckSummary.total>0||schemaCheckLoading||schemaCheckResults.length">
+              <el-row :gutter="12" class="mb-16">
+                <el-col :span="4"><div class="kpi-card" style="text-align:center"><div class="kpi-num" style="color:var(--text-primary)">{{ schemaCheckSummary.total }}</div><div class="kpi-label">问题总数</div></div></el-col>
+                <el-col :span="4"><div class="kpi-card" style="text-align:center"><div class="kpi-num" style="color:var(--danger-500)">{{ schemaCheckSummary.error }}</div><div class="kpi-label">ERROR</div></div></el-col>
+                <el-col :span="4"><div class="kpi-card" style="text-align:center"><div class="kpi-num" style="color:var(--warning-500)">{{ schemaCheckSummary.warning }}</div><div class="kpi-label">WARNING</div></div></el-col>
+                <el-col :span="4"><div class="kpi-card" style="text-align:center"><div class="kpi-num" style="color:var(--info-500,#909399)">{{ schemaCheckSummary.info }}</div><div class="kpi-label">INFO</div></div></el-col>
+                <el-col :span="4"><div class="kpi-card" style="text-align:center"><div class="kpi-num" style="color:var(--success-500)">{{ schemaCheckSummary.checks_passed }}</div><div class="kpi-label">通过项</div></div></el-col>
+                <el-col :span="4"><div class="kpi-card" style="text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center"><el-button type="primary" size="small" :disabled="!schemaCheckResults.length" @click="exportSchemaCheckReport"><el-icon><Download /></el-icon>导出报告</el-button><div class="kpi-label" style="margin-top:4px">HTML格式</div></div></el-col>
+              </el-row>
             </div>
 
             <!-- 12项检查折叠面板 -->
