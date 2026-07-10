@@ -349,7 +349,7 @@
               <el-form-item label="时间窗口">
                 <el-date-picker v-model="scanTimeWindow" type="datetimerange" range-separator="至" start-placeholder="开始" end-placeholder="结束" format="YYYY-MM-DD HH:mm" value-format="YYYY-MM-DD HH:mm:ss" class="w-full"></el-date-picker>
               </el-form-item>
-              <el-form-item label="耗时阈值(ms)"><el-input-number v-model="scanTaskForm.min_time" :min="0" :step="0.1"></el-input-number></el-form-item>
+              <el-form-item label="耗时阈值(秒)"><el-input-number v-model="scanTaskForm.min_time" :min="0" :step="0.1"></el-input-number></el-form-item>
               <el-form-item label="抓取条数"><el-input-number v-model="scanTaskForm.limit" :min="1" :max="1000"></el-input-number></el-form-item>
               <el-collapse v-if="scanTaskForm.source==='processlist'">
                 <el-collapse-item title="轮询参数" name="poll">
@@ -433,7 +433,7 @@
                 <el-table-column prop="task_name" label="计划名称" show-overflow-tooltip></el-table-column>
                 <el-table-column label="执行时刻" width="80"><template #default="{row}">{{ String(row.cron_hour||0).padStart(2,'0') }}:{{ String(row.cron_minute||0).padStart(2,'0') }}</template></el-table-column>
                 <el-table-column prop="limit_rows" label="条数" width="60"></el-table-column>
-                <el-table-column prop="min_time" label="阈值(ms)" width="80"></el-table-column>
+                <el-table-column prop="min_time" label="阈值(秒)" width="80"></el-table-column>
                 <el-table-column label="启用" width="60"><template #default="{row}"><el-switch :model-value="row.enabled" size="small" @change="toggleScheduleEnabled(row)"></el-switch></template></el-table-column>
                 <el-table-column label="操作" width="80" fixed="right"><template #default="{row}"><el-button link type="danger" size="small" @click="deleteScanSchedule(row)">删除</el-button></template></el-table-column>
               </el-table>
@@ -445,7 +445,7 @@
               <el-form-item label="计划名称"><el-input v-model="scheduleForm.task_name" placeholder="如：核心库每日扫描"></el-input></el-form-item>
               <el-form-item label="执行时间"><div class="time-row"><el-input-number v-model="scheduleForm.cron_hour" :min="0" :max="23" placeholder="时"></el-input-number><span>时</span><el-input-number v-model="scheduleForm.cron_minute" :min="0" :max="59" placeholder="分"></el-input-number><span>分</span></div></el-form-item>
               <el-form-item label="抓取条数"><el-input-number v-model="scheduleForm.limit_rows" :min="1" :max="1000"></el-input-number></el-form-item>
-              <el-form-item label="耗时阈值(ms)"><el-input-number v-model="scheduleForm.min_time" :min="0" :step="0.1"></el-input-number></el-form-item>
+              <el-form-item label="耗时阈值(秒)"><el-input-number v-model="scheduleForm.min_time" :min="0" :step="0.1"></el-input-number></el-form-item>
             </el-form>
             <template #footer><el-button @click="scheduleDrawer=false">取消</el-button><el-button type="primary" @click="createScanSchedule">创建</el-button></template>
           </el-drawer>
