@@ -74,13 +74,29 @@ class ProjectService:
             conn.close()
 
     def delete_project(self, project_id: str) -> bool:
-        """删除项目"""
+        """真正删除项目（物理删除）"""
         ensure_db()
         conn = _get_connection()
         try:
-            conn.execute("UPDATE projects SET status = 'inactive' WHERE project_id = ?", (project_id,))
+            conn.execute("DELETE FROM projects WHERE project_id = ?", (project_id,))
             conn.commit()
             log_operation("system", "delete_project", "project", project_id)
             return conn.total_changes > 0
+        finally:
+            conn.close()
+
+    def toggle_project_status(self, project_id: str) -> Optional[str]:
+        """切换项目状态（active ↔ inactive），返回新状态"""
+        ensure_db()
+        conn = _get_connection()
+        try:
+            row = conn.execute("SELECT status FROM projects WHERE project_id = ?", (project_id,)).fetchone()
+            if not row:
+                return None
+            new_status = 'inactive' if (row.get('status') or 'active') == 'active' else 'active'
+            conn.execute("UPDATE projects SET status = ? WHERE project_id = ?", (new_status, project_id))
+            conn.commit()
+            log_operation("system", "toggle_project_status", "project", project_id, f"status={new_status}")
+            return new_status
         finally:
             conn.close()

@@ -668,7 +668,7 @@
                 <el-table-column prop="rule_set_id" label="规则集" width="80"></el-table-column>
                 <el-table-column prop="gate_rule_id" label="门禁" width="80"></el-table-column>
                 <el-table-column prop="status" label="状态" width="60"><template #default="{row}"><el-tag :type="row.status==='active'?'success':'info'" size="small">{{ row.status==='active'?'活跃':'停用' }}</el-tag></template></el-table-column>
-                <el-table-column label="操作" width="80" fixed="right" v-if="canManagePlatform"><template #default="{row}"><el-button link type="danger" size="small" @click="deleteProject(row)">删除</el-button></template></el-table-column>
+                <el-table-column label="操作" width="160" fixed="right" v-if="canManagePlatform"><template #default="{row}"><el-button link size="small" @click="toggleProjectStatus(row)">{{ row.status==='active'?'停用':'启用' }}</el-button><el-button link type="danger" size="small" @click="deleteProject(row)">删除</el-button></template></el-table-column>
               </el-table>
             </div>
           </div>

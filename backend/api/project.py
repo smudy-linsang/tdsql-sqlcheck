@@ -39,7 +39,17 @@ async def get_project(project_id: str):
 
 @router.delete("/{project_id}", response_model=ApiResponse)
 async def delete_project(project_id: str):
-    """删除项目（标记为inactive）"""
+    """真正删除项目（物理删除）"""
     if not _service.delete_project(project_id):
         raise HTTPException(status_code=404, detail="项目不存在")
     return ApiResponse(message="项目已删除")
+
+
+@router.put("/{project_id}/toggle-status", response_model=ApiResponse)
+async def toggle_project_status(project_id: str):
+    """切换项目状态（启用 ↔ 停用）"""
+    new_status = _service.toggle_project_status(project_id)
+    if new_status is None:
+        raise HTTPException(status_code=404, detail="项目不存在")
+    label = "已启用" if new_status == "active" else "已停用"
+    return ApiResponse(message=f"项目{label}", data={"status": new_status})
