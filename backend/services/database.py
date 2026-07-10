@@ -1016,24 +1016,25 @@ def _init_default_data(conn):
             # developer 默认不可见监控/巡检/扫描计划/用户管理/数据保留/系统信息
             if rid == 'developer' and mk in ('monitor', 'inspection', 'slow-schedule', 'sys-users', 'sys-retention', 'sys-info', 'sys-roles', 'sys-perms'):
                 visible = 0
-            # auditor 默认不可见扫描计划/用户管理/数据保留/角色管理
-            if rid == 'auditor' and mk in ('slow-schedule', 'sys-users', 'sys-retention', 'sys-roles', 'sys-perms'):
+            # auditor 默认不可见扫描计划/用户管理/数据保留/角色管理/上线检查(只读角色不可执行POST)
+            if rid == 'auditor' and mk in ('slow-schedule', 'sys-users', 'sys-retention', 'sys-roles', 'sys-perms', 'schema-check'):
                 visible = 0
             conn.cursor().execute("""
                 INSERT IGNORE INTO role_permissions(role_id, menu_key, visible)
                 VALUES (%s, %s, %s)
             """, (rid, mk, visible))
 
-    # V3.1: 确保已有角色拥有新增菜单的权限（schema-check等）
-    new_menus = ['schema-check']
-    for nm in new_menus:
+    # V3.1: schema-check 授予 admin/dba/developer 可见，auditor(只读)不可见
+    for rid in ('admin', 'dba', 'developer'):
         conn.cursor().execute("""
             INSERT IGNORE INTO role_permissions(role_id, menu_key, visible)
-            SELECT role_id, %s, 1 FROM roles
-            WHERE role_id NOT IN (
-                SELECT role_id FROM role_permissions WHERE menu_key = %s
-            )
-        """, (nm, nm))
+            VALUES (%s, 'schema-check', 1)
+        """, (rid,))
+    # 存量库订正：auditor 若被旧迁移写入 visible=1，改回 0
+    conn.cursor().execute("""
+        UPDATE role_permissions SET visible=0
+        WHERE menu_key='schema-check' AND role_id='auditor'
+    """)
 
     # 更新版本号
     conn.cursor().execute("""

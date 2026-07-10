@@ -73,14 +73,14 @@ class TestUAT35_ProjectManagement:
         assert resp.json()["data"]["project_id"] == project_id
 
     def test_uat35_04_delete_project(self):
-        """UAT-35-04: 用户删除项目（标记为inactive）"""
+        """UAT-35-04: 用户删除项目（物理删除，不可恢复）"""
         create_resp = client.post("/api/v1/projects", json={"project_name": "uat_删除测试"})
         project_id = create_resp.json()["data"]["project_id"]
         del_resp = client.delete(f"/api/v1/projects/{project_id}")
         assert del_resp.status_code == 200
-        # 验证项目状态变为inactive
+        # 验证物理删除：再次 GET 应 404
         get_resp = client.get(f"/api/v1/projects/{project_id}")
-        assert get_resp.json()["data"]["status"] == "inactive"
+        assert get_resp.status_code == 404
 
     def test_uat35_05_get_nonexistent_project(self):
         """UAT-35-05: 用户查看不存在的项目返回404"""

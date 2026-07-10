@@ -185,6 +185,7 @@ _DEVELOPER_WRITE_PREFIXES = (
     "/api/v1/gitlab/audit/",                # diff/仓库审核
     "/api/v1/slow-queries/analyze-explain", # EXPLAIN分析
     "/api/v1/slow-queries/analyze-explain-by-sql", # EXPLAIN分析(SQL直连)
+    "/api/v1/inspection/schema-check",      # 上线检查(12项Schema检查+报告导出)
     "/api/v1/auth/logout",
     "/api/v1/auth/change-password",
 )

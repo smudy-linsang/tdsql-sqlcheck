@@ -8,9 +8,13 @@ TDSQL SQL审核工具 - 数据库上线前Schema检查引擎 (V1.0)
 注释完整性、字段数量、timestamp类型等。
 """
 import logging
+import re
 from typing import Optional
 
 logger = logging.getLogger("tdsql.schema_inspector")
+
+# 合法MySQL标识符白名单（库名/表名/列名），防止SQL注入
+_IDENT_RE = re.compile(r"^[A-Za-z0-9_$]{1,64}$")
 
 # 系统数据库排除列表
 SYSTEM_DBS = (
@@ -125,14 +129,16 @@ class SchemaInspector:
             "name": "无主键的表",
             "severity": "ERROR",
             "sql": (
-                "SELECT table_schema AS `数据库`, table_name AS `表名` "
-                "FROM information_schema.TABLES "
-                "WHERE table_type = 'BASE TABLE' "
-                "AND table_name NOT IN ("
-                "  SELECT table_name FROM information_schema.TABLE_CONSTRAINTS "
-                "  WHERE CONSTRAINT_TYPE = 'PRIMARY KEY'"
+                "SELECT t.table_schema AS `数据库`, t.table_name AS `表名` "
+                "FROM information_schema.TABLES t "
+                "WHERE t.table_type = 'BASE TABLE' "
+                "AND NOT EXISTS ("
+                "  SELECT 1 FROM information_schema.TABLE_CONSTRAINTS c "
+                "  WHERE c.CONSTRAINT_TYPE = 'PRIMARY KEY' "
+                "  AND c.TABLE_SCHEMA = t.table_schema "
+                "  AND c.TABLE_NAME = t.table_name"
                 ") "
-                "AND table_schema NOT IN ({sys})"
+                "AND t.table_schema NOT IN ({sys})"
             ),
             "suggestion": "TDSQL分布式架构要求所有表必须有主键，请添加主键列",
         },
@@ -240,14 +246,19 @@ class SchemaInspector:
         """执行单项检查"""
         sql = check["sql"].format(sys=SYSTEM_DBS)
 
-        # 可选：按数据库过滤
+        # 可选：按数据库过滤（仅接受合法库名，防止SQL注入）
         if database_filter:
-            # 在WHERE条件中追加数据库过滤
+            if not _IDENT_RE.match(database_filter):
+                return {
+                    "id": check["id"], "name": check["name"],
+                    "severity": check["severity"], "suggestion": check["suggestion"],
+                    "count": 0, "rows": [], "columns": [],
+                    "error": f"非法的库名过滤参数: {database_filter}",
+                }
             sql = sql.replace(
                 f"table_schema NOT IN ({SYSTEM_DBS})",
                 f"table_schema NOT IN ({SYSTEM_DBS}) AND table_schema = '{database_filter}'"
             )
-            # 处理TABLE_SCHEMA大写形式
             sql = sql.replace(
                 f"TABLE_SCHEMA NOT IN ({SYSTEM_DBS})",
                 f"TABLE_SCHEMA NOT IN ({SYSTEM_DBS}) AND TABLE_SCHEMA = '{database_filter}'"
@@ -279,7 +290,8 @@ class SchemaInspector:
 
     def get_summary(self, results: list[dict]) -> dict:
         """生成检查摘要统计"""
-        summary = {"total": 0, "error": 0, "warning": 0, "info": 0, "checks_passed": 0, "checks_failed": 0}
+        summary = {"total": 0, "error": 0, "warning": 0, "info": 0,
+                   "checks_passed": 0, "checks_failed": 0, "checks_error": 0}
         for r in results:
             summary["total"] += r["count"]
             if r["severity"] == "ERROR":
@@ -288,7 +300,9 @@ class SchemaInspector:
                 summary["warning"] += r["count"]
             else:
                 summary["info"] += r["count"]
-            if r["count"] > 0:
+            if r.get("error"):
+                summary["checks_error"] += 1
+            elif r["count"] > 0:
                 summary["checks_failed"] += 1
             else:
                 summary["checks_passed"] += 1

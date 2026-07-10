@@ -58,12 +58,13 @@ async def run_schema_check(request: SchemaCheckRequest, http_request: Request):
 
     替代原有的 tdsql_12.sh 脚本，实现Web界面一键检查。
     """
-    from backend.services.connection_registry import registry
+    from backend.services.connection_registry import registry, ConnectionNotFoundError
     from backend.engine.schema_inspector import SchemaInspector
 
     # 获取连接池
-    pool = registry.get(request.connection_id)
-    if not pool:
+    try:
+        pool = registry.get(request.connection_id)
+    except ConnectionNotFoundError:
         raise HTTPException(status_code=400, detail="未找到指定实例连接，请先在实例管理中连接实例")
 
     # 创建巡检任务
@@ -107,26 +108,28 @@ async def run_schema_check(request: SchemaCheckRequest, http_request: Request):
 @router.post("/schema-check/report")
 async def export_schema_check_report(request: SchemaCheckRequest):
     """执行上线检查并导出HTML报告"""
-    from backend.services.connection_registry import registry
+    from backend.services.connection_registry import registry, ConnectionNotFoundError
     from backend.engine.schema_inspector import SchemaInspector
     from fastapi.responses import HTMLResponse
     from datetime import datetime
+    from html import escape as _esc
 
-    pool = registry.get(request.connection_id)
-    if not pool:
+    try:
+        pool = registry.get(request.connection_id)
+    except ConnectionNotFoundError:
         raise HTTPException(status_code=400, detail="未找到指定实例连接")
 
     inspector = SchemaInspector()
     results = inspector.inspect(pool, request.database_filter)
     summary = inspector.get_summary(results)
 
-    # 获取实例名称
-    conn_name = f"{pool.config.host}:{pool.config.port}"
+    # 获取实例名称（HTML转义防止XSS）
+    conn_name = _esc(f"{pool.config.host}:{pool.config.port}")
     try:
         saved = registry.list_saved()
         for c in saved:
             if c.get("host") == pool.config.host and c.get("port") == pool.config.port:
-                conn_name = c.get("name", conn_name)
+                conn_name = _esc(c.get("name", conn_name))
                 break
     except Exception:
         pass
@@ -140,26 +143,26 @@ async def export_schema_check_report(request: SchemaCheckRequest):
         color = severity_colors.get(check["severity"], "#909399")
         status = "通过" if check["count"] == 0 else f'{check["count"]}个问题'
         status_color = "#67c23a" if check["count"] == 0 else color
-        error_note = f'<div style="color:#f56c6c;font-size:12px;margin-top:4px">执行失败: {check["error"]}</div>' if check.get("error") else ""
+        error_note = f'<div style="color:#f56c6c;font-size:12px;margin-top:4px">执行失败: {_esc(str(check["error"]))}</div>' if check.get("error") else ""
 
         table_html = ""
         if check.get("rows") and check["count"] > 0:
             cols = check.get("columns", [])
-            ths = "".join(f"<th>{c}</th>" for c in cols)
+            ths = "".join(f"<th>{_esc(str(c))}</th>" for c in cols)
             trs = ""
             for row in check["rows"][:200]:
-                tds = "".join(f"<td>{row.get(c, '')}</td>" for c in cols)
+                tds = "".join(f"<td>{_esc(str(row.get(c, '')))}</td>" for c in cols)
                 trs += f"<tr>{tds}</tr>"
             table_html = f'<table><thead><tr>{ths}</tr></thead><tbody>{trs}</tbody></table>'
 
         rows_html += f"""
         <div class="check-item">
           <div class="check-header">
-            <span class="severity-tag" style="background:{color}">{check['severity']}</span>
-            <span class="check-name">{check['id']} {check['name']}</span>
+            <span class="severity-tag" style="background:{color}">{_esc(check['severity'])}</span>
+            <span class="check-name">{_esc(check['id'])} {_esc(check['name'])}</span>
             <span class="check-count" style="color:{status_color}">{status}</span>
           </div>
-          <div class="suggestion">修复建议：{check['suggestion']}</div>
+          <div class="suggestion">修复建议：{_esc(check['suggestion'])}</div>
           {error_note}
           {table_html}
         </div>"""
@@ -207,7 +210,7 @@ footer{{text-align:center;color:#909399;font-size:12px;padding:20px 0;border-top
     <div class="card"><div class="num" style="color:#67c23a">{summary['checks_passed']}</div><div class="label">通过项</div></div>
   </div>
   {rows_html}
-  <footer>TDSQL数据库SQL审核工具 V1.0.2 &nbsp;|&nbsp; 报告生成时间：{now}</footer>
+  <footer>TDSQL数据库SQL审核工具 V1.0.3 &nbsp;|&nbsp; 报告生成时间：{now}</footer>
 </div>
 </body>
 </html>"""

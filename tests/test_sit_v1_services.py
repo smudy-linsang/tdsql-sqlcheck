@@ -67,14 +67,14 @@ class TestProjectService:
         assert resp.status_code == 404
 
     def test_delete_project(self):
-        """删除项目（标记inactive）"""
+        """删除项目（物理删除）"""
         resp = client.post("/api/v1/projects", json={"project_name": "删除测试"})
         pid = resp.json()["data"]["project_id"]
         resp = client.delete(f"/api/v1/projects/{pid}")
         assert resp.status_code == 200
-        # 验证已标记inactive
+        # 验证已物理删除：再次 GET 应 404
         resp = client.get(f"/api/v1/projects/{pid}")
-        assert resp.json()["data"]["status"] == "inactive"
+        assert resp.status_code == 404
 
 
 # ═══════════════════════════════════════════════════════════
