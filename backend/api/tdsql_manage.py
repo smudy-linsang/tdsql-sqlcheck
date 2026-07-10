@@ -626,6 +626,34 @@ async def save_connection(request: TDSQLConnectRequest, http_request: Request):
     }
 
 
+@router.put("/connections/{conn_id}", summary="更新连接配置")
+async def update_connection(conn_id: str, request: TDSQLConnectRequest, http_request: Request):
+    """
+    更新已存在的连接配置（所有字段均可修改，密码加密存储）。
+    """
+    saved = registry.get_saved(conn_id)
+    if not saved:
+        raise HTTPException(status_code=404, detail=f"连接配置不存在: {conn_id}")
+    registry.save_connection(
+        name=request.name,
+        host=request.host,
+        port=request.port,
+        username=request.username,
+        password=request.password,
+        database=request.database,
+        is_default=request.is_default,
+        is_distributed=request.is_distributed,
+        description=request.description,
+        conn_id=conn_id,
+        operator=_operator(http_request),
+    )
+    return {
+        "message": "连接配置已更新",
+        "id": conn_id,
+        "name": request.name or f"{request.host}:{request.port}",
+    }
+
+
 @router.delete("/connections/{conn_id}", summary="删除连接配置")
 async def delete_connection(conn_id: str, request: Request):
     """删除指定ID的连接配置（同时断开其活跃连接）"""
