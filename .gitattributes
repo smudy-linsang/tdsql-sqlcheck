@@ -1,0 +1,35 @@
+# 强制所有文本文件使用 LF 换行符（Unix 格式）
+# 防止 Windows 上 Git 自动将 LF 转换为 CRLF
+* text=auto eol=lf
+
+# Shell 脚本必须 LF
+*.sh text eol=lf
+*.ps1 text eol=lf
+
+# 前端文件必须 LF
+*.html text eol=lf
+*.js text eol=lf
+*.css text eol=lf
+
+# 配置文件
+*.conf text eol=lf
+*.template text eol=lf
+*.service text eol=lf
+*.md text eol=lf
+*.txt text eol=lf
+VERSION text eol=lf
+
+# Python
+*.py text eol=lf
+
+# 二进制文件不转换
+*.whl binary
+*.png binary
+*.jpg binary
+*.ico binary
+*.gz binary
+*.tar binary
+*.docx binary
+*.xlsx binary
+*.pptx binary
+*.pdf binary
