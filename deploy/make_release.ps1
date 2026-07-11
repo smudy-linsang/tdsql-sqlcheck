@@ -43,7 +43,8 @@ foreach ($f in $deploy_files) {
 $DOCS_DIR = Join-Path $PKG_DIR "docs"
 New-Item -ItemType Directory -Force -Path $DOCS_DIR | Out-Null
 $doc_files = @("部署手册-v1.0.2.md","运维手册-v1.0.2.md","上线检查清单-v1.0.2.md",
-               "发布说明-v1.0.2.md","V1.0.3变更清单与测试要点.md")
+               "发布说明-v1.0.2.md","V1.0.3变更清单与测试要点.md",
+               "V1.0.3.1增量更新部署说明.md")
 foreach ($f in $doc_files) {
     $src = Join-Path $ROOT "docs\$f"
     if (Test-Path $src) { Copy-Item $src (Join-Path $DOCS_DIR $f) }
