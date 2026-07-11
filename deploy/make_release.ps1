@@ -1,9 +1,9 @@
 # ============================================================================
-# TDSQL SQL审核工具 v1.0.3 发布包构建脚本 (Windows PowerShell版)
-# 产出: dist/tdsql-sqlcheck-v1.0.3-linux-x86_64.tar.gz + .sha256
+# TDSQL SQL审核工具 v1.0.3.1 发布包构建脚本 (Windows PowerShell版)
+# 产出: dist/tdsql-sqlcheck-v1.0.3.1-linux-x86_64.tar.gz + .sha256
 # ============================================================================
 $ErrorActionPreference = "Stop"
-$VERSION = "1.0.3"
+$VERSION = "1.0.3.1"
 $ARCH = "x86_64"
 $PYTAG = "311"
 $ROOT = $PSScriptRoot
