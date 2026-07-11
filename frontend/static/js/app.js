@@ -1,4 +1,4 @@
-﻿const API_BASE = '';
+const API_BASE = '';
 const { createApp, ref, reactive, onMounted, watch, nextTick, computed } = Vue;
 const AUTH_TOKEN_KEY = 'tdsql_token';
 function getToken(){return localStorage.getItem(AUTH_TOKEN_KEY)||''}
