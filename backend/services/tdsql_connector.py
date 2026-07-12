@@ -1024,24 +1024,38 @@ class TDSQLConnector:
         db = database or self.config.database
         threshold_bytes = int(threshold_gb * 1024 * 1024 * 1024)
 
-        return self._execute("""
-            SELECT TABLE_NAME,
-                   ROUND((DATA_LENGTH + INDEX_LENGTH)/1024/1024/1024, 2) AS size_gb,
-                   TABLE_ROWS,
-                   ROUND(DATA_LENGTH/1024/1024, 2) AS data_mb,
-                   ROUND(INDEX_LENGTH/1024/1024, 2) AS index_mb,
-                   CASE
-                     WHEN (DATA_LENGTH + INDEX_LENGTH) >= 50*1024*1024*1024
-                          OR TABLE_ROWS >= 200000000 THEN 'L3 特大表'
-                     WHEN (DATA_LENGTH + INDEX_LENGTH) >= 10*1024*1024*1024
-                          OR TABLE_ROWS >= 30000000 THEN 'L2 重点大表'
-                     WHEN (DATA_LENGTH + INDEX_LENGTH) >= 1*1024*1024*1024
-                          OR TABLE_ROWS >= 3000000 THEN 'L1 一般大表'
-                     ELSE '一般表'
-                   END AS level
-            FROM information_schema.TABLES
-            WHERE TABLE_SCHEMA = %s
-              AND TABLE_TYPE = 'BASE TABLE'
-              AND (DATA_LENGTH + INDEX_LENGTH) >= %s
-            ORDER BY (DATA_LENGTH + INDEX_LENGTH) DESC
+        # TDSQL分布式实例：优先使用 information_schema.PARTITIONS 统计分区表大小
+        # 因为某些分区表可能不在 information_schema.TABLES 中
+        result = self._execute("""
+            SELECT
+                COALESCE(p.TABLE_NAME, t.TABLE_NAME) AS TABLE_NAME,
+                ROUND(COALESCE(p.total_size, COALESCE(t.DATA_LENGTH, 0) + COALESCE(t.INDEX_LENGTH, 0)) / 1024 / 1024 / 1024, 2) AS size_gb,
+                COALESCE(t.TABLE_ROWS, 0) AS TABLE_ROWS,
+                ROUND(COALESCE(p.total_data, COALESCE(t.DATA_LENGTH, 0)) / 1024 / 1024, 2) AS data_mb,
+                ROUND(COALESCE(p.total_index, COALESCE(t.INDEX_LENGTH, 0)) / 1024 / 1024, 2) AS index_mb,
+                CASE
+                    WHEN COALESCE(p.total_size, COALESCE(t.DATA_LENGTH, 0) + COALESCE(t.INDEX_LENGTH, 0)) >= 50*1024*1024*1024
+                         OR COALESCE(t.TABLE_ROWS, 0) >= 200000000 THEN 'L3 特大表'
+                    WHEN COALESCE(p.total_size, COALESCE(t.DATA_LENGTH, 0) + COALESCE(t.INDEX_LENGTH, 0)) >= 10*1024*1024*1024
+                         OR COALESCE(t.TABLE_ROWS, 0) >= 30000000 THEN 'L2 重点大表'
+                    WHEN COALESCE(p.total_size, COALESCE(t.DATA_LENGTH, 0) + COALESCE(t.INDEX_LENGTH, 0)) >= 1*1024*1024*1024
+                         OR COALESCE(t.TABLE_ROWS, 0) >= 3000000 THEN 'L1 一般大表'
+                    ELSE '一般表'
+                END AS level
+            FROM (
+                SELECT TABLE_SCHEMA, TABLE_NAME,
+                       SUM(DATA_LENGTH) AS total_data,
+                       SUM(INDEX_LENGTH) AS total_index,
+                       SUM(DATA_LENGTH) + SUM(INDEX_LENGTH) AS total_size
+                FROM information_schema.PARTITIONS
+                WHERE TABLE_SCHEMA = %s
+                GROUP BY TABLE_SCHEMA, TABLE_NAME
+            ) p
+            LEFT JOIN information_schema.TABLES t
+                ON p.TABLE_SCHEMA = t.TABLE_SCHEMA AND p.TABLE_NAME = t.TABLE_NAME
+            WHERE COALESCE(p.total_size, COALESCE(t.DATA_LENGTH, 0) + COALESCE(t.INDEX_LENGTH, 0)) >= %s
+              AND (t.TABLE_TYPE IS NULL OR t.TABLE_TYPE = 'BASE TABLE')
+            ORDER BY COALESCE(p.total_size, COALESCE(t.DATA_LENGTH, 0) + COALESCE(t.INDEX_LENGTH, 0)) DESC
         """, (db, threshold_bytes))
+        
+        return result
