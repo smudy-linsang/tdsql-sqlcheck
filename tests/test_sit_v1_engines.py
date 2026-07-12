@@ -593,6 +593,24 @@ class TestBigTableEngine:
         assert sql2.count("%s") == len(params2) == 12
         assert params2[-2] == "tdsql_check"
 
+    def test_parse_shard_key_from_ddl(self):
+        """TDSQL分片键从 SHOW CREATE TABLE DDL 解析（含真实格式）。"""
+        from backend.services.tdsql_connector import parse_shard_key_from_ddl
+        real_ddl = (
+            "CREATE TABLE `big_audit_trail` (\n"
+            "  `id` bigint NOT NULL AUTO_INCREMENT,\n"
+            "  PRIMARY KEY (`id`),\n"
+            "  KEY `idx_event` (`event_time`)\n"
+            ") ENGINE=InnoDB AUTO_INCREMENT=25600001 DEFAULT CHARSET=utf8mb4 "
+            "COLLATE=utf8mb4_bin shardkey=id"
+        )
+        assert parse_shard_key_from_ddl(real_ddl) == "id"
+        assert parse_shard_key_from_ddl(") ENGINE=InnoDB shardkey=(a,b)") == "a,b"
+        # noshard/broadcast 表无 shardkey → 空（正确语义）
+        assert parse_shard_key_from_ddl(") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4") == ""
+        assert parse_shard_key_from_ddl("") == ""
+        assert parse_shard_key_from_ddl(None) == ""
+
     def test_governance_report(self):
         """治理报告生成"""
         engine = BigTableEngine()

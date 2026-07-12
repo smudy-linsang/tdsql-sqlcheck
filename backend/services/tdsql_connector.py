@@ -149,6 +149,21 @@ def build_large_tables_query(threshold_gb: float = 1.0, database: str = None) ->
     return sql, tuple(params)
 
 
+def parse_shard_key_from_ddl(create_sql: str) -> str:
+    """从 SHOW CREATE TABLE 的 DDL 中解析 TDSQL 分片键，无则返回空字符串。
+
+    TDSQL 分布式表的建表语句尾部形如 `... COLLATE=utf8mb4_bin shardkey=id`
+    或多列 `shardkey=(a,b)`。noshard/broadcast 表无此项，返回 ''（正确语义）。
+    与 _detect_shard_info 同口径正则。
+    """
+    if not create_sql or "SHARDKEY" not in create_sql.upper():
+        return ""
+    m = re.search(r"SHARDKEY\s*=?\s*\(?([^)]+)\)?", create_sql, re.IGNORECASE)
+    if m:
+        return m.group(1).strip().strip('`"\'')
+    return ""
+
+
 class TDSQLConnectionPool:
     """
     TDSQL 连接池。
@@ -736,14 +751,28 @@ class TDSQLConnectionPool:
 
     # ── 大表检查 ────────────────────────────────────────────
 
+    def get_shard_key(self, db: str, table: str) -> str:
+        """获取表的 TDSQL 分片键（SHOW CREATE TABLE 解析），无则返回空字符串。"""
+        try:
+            rows = self._execute(f"SHOW CREATE TABLE `{db}`.`{table}`")
+            if rows:
+                return parse_shard_key_from_ddl(rows[0].get("Create Table", "") or "")
+        except Exception:
+            pass
+        return ""
+
     def check_large_tables(self, database: str = None, threshold_gb: float = 1.0) -> list[dict]:
         """检查大表（双源取大 GREATEST(PARTITIONS聚合, TABLES值)，兼容 TDSQL 分区表壳值）
 
         覆盖三种情况：①单表>阈值 ②分区表单分区>阈值 ③分区表合并后>阈值。
         默认扫描全部业务库；database 非空时仅扫该库。详见 build_large_tables_query。
+        对每张大表补一次分片键（大表数量少，SHOW CREATE 开销可忽略）。
         """
         sql, params = build_large_tables_query(threshold_gb, database)
-        return self._execute(sql, params)
+        rows = self._execute(sql, params)
+        for r in rows:
+            r["shard_key"] = self.get_shard_key(r.get("schema_name", ""), r.get("table_name", ""))
+        return rows
 
 
 class TDSQLConnector:
@@ -1076,10 +1105,24 @@ class TDSQLConnector:
 
     # ── 大表检查 ────────────────────────────────────────────
 
+    def get_shard_key(self, db: str, table: str) -> str:
+        """获取表的 TDSQL 分片键（SHOW CREATE TABLE 解析），无则返回空字符串。"""
+        try:
+            rows = self._execute(f"SHOW CREATE TABLE `{db}`.`{table}`")
+            if rows:
+                return parse_shard_key_from_ddl(rows[0].get("Create Table", "") or "")
+        except Exception:
+            pass
+        return ""
+
     def check_large_tables(self, database: str = None, threshold_gb: float = 1.0) -> list[dict]:
         """检查大表（双源取大 GREATEST(PARTITIONS聚合, TABLES值)，兼容 TDSQL 分区表壳值）
 
         与 TDSQLConnectionPool.check_large_tables 同口径，详见 build_large_tables_query。
+        对每张大表补一次分片键。
         """
         sql, params = build_large_tables_query(threshold_gb, database)
-        return self._execute(sql, params)
+        rows = self._execute(sql, params)
+        for r in rows:
+            r["shard_key"] = self.get_shard_key(r.get("schema_name", ""), r.get("table_name", ""))
+        return rows
