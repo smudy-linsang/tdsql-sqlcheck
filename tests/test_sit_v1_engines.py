@@ -558,6 +558,41 @@ class TestBigTableEngine:
         assert "L1" in levels
         assert "L2" in levels
 
+    def test_scan_big_tables_prefers_provided_level(self):
+        """采集端已按1GB口径算好级别时优先采用，覆盖1~50GB大表(TDSQL需求>1GB)。
+
+        无 level 时仍回退银行分类器(>=50GB)——保证既有语义不变。
+        """
+        engine = BigTableEngine()
+        tables = [
+            # 10GB分区表：银行分类器会因<50GB丢弃，但采集端给了level → 必须保留
+            {"schema": "db1", "table": "t_part", "size_gb": 10.37, "rows": 100,
+             "level": "L2 重点大表", "is_partitioned": True, "partition_count": 8},
+            # 2GB非分区表：同理保留
+            {"schema": "db1", "table": "t_plain", "size_gb": 2.0, "rows": 100,
+             "level": "L1 一般大表", "is_partitioned": False},
+        ]
+        big_tables = engine.scan_big_tables(tables)
+        assert len(big_tables) == 2, "带level的1~50GB大表不应被银行分类器丢弃"
+        by_table = {bt.table: bt for bt in big_tables}
+        assert by_table["t_part"].is_partitioned is True
+        assert by_table["t_part"].partition_count == 8
+        assert by_table["t_part"].level == "L2 重点大表"
+        assert by_table["t_plain"].is_partitioned is False
+
+    def test_build_large_tables_query_structure(self):
+        """采集SQL(双源取大)结构与参数个数校验，防止 %s 与参数错位。"""
+        from backend.services.tdsql_connector import build_large_tables_query
+        sql, params = build_large_tables_query(1.0)
+        assert "information_schema.PARTITIONS" in sql
+        assert "GREATEST" in sql
+        # %s 个数 == 参数个数：阈值(1) + 系统库(9) + 阈值(1) = 11
+        assert sql.count("%s") == len(params) == 11
+        # 带库过滤时多一个参数
+        sql2, params2 = build_large_tables_query(1.0, "tdsql_check")
+        assert sql2.count("%s") == len(params2) == 12
+        assert params2[-2] == "tdsql_check"
+
     def test_governance_report(self):
         """治理报告生成"""
         engine = BigTableEngine()

@@ -205,9 +205,16 @@ class BigTableEngine:
         for info in tables_info:
             size_gb = float(info.get("size_gb", 0) or 0)
             rows = int(info.get("rows", 0) or 0)
-            level, level_label = self.classifier.classify(size_gb, rows)
-            if not level:
-                continue
+            # 优先采用采集端已按采集阈值(默认1GB)算好的级别，覆盖 1~50GB 的大表
+            # （TDSQL大表治理需求为 >1GB）；仅当调用方未提供 level 时，回退银行
+            # 严格口径分类器(L1>=50GB 起)——保持既有分类器语义与用例不变。
+            provided_level = str(info.get("level") or "").strip()
+            if provided_level:
+                level, level_label = provided_level, provided_level
+            else:
+                level, level_label = self.classifier.classify(size_gb, rows)
+                if not level:
+                    continue
 
             big_table = BigTableInfo(
                 schema=info.get("schema", ""),

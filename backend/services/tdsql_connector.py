@@ -74,6 +74,81 @@ class IndexInfo:
     cardinality: int = 0
 
 
+# 大表检查：系统库排除清单（与 schema_inspector 口径一致）
+_BIGTABLE_SYS_DBS = (
+    "__tencentdb__", "information_schema", "mysql", "performance_schema",
+    "query_rewrite", "sys", "sysdb", "test", "xa",
+)
+
+
+def build_large_tables_query(threshold_gb: float = 1.0, database: str = None) -> tuple:
+    """构造大表检查 SQL 与参数（双源取大，兼容 TDSQL 分区表壳值）。
+
+    数据源=information_schema.PARTITIONS（覆盖全部表：分区表逐分区一行，非分区表
+    以 PARTITION_NAME=NULL 单行出现），按 (库,表) 聚合得合并大小(SUM part_bytes)与
+    最大单分区(MAX max_part_bytes)；再与 information_schema.TABLES 的整表大小取
+    GREATEST——本次缺陷根因是"某源对分区表返回 512KB 壳值"，双源取大可使任一源返回
+    壳值时仍以另一源真实值为准，覆盖三种情况：①单表>阈值 ②分区表单分区>阈值
+    ③分区表合并后>阈值。默认扫全部业务库；database 非空时仅扫该库（参数化传入，防注入）。
+
+    Returns:
+        (sql, params) 供 pool._execute(sql, params) 使用
+    """
+    threshold_bytes = int(threshold_gb * 1024 * 1024 * 1024)
+    placeholders = ",".join(["%s"] * len(_BIGTABLE_SYS_DBS))
+    db_filter = " AND TABLE_SCHEMA = %s" if database else ""
+
+    sql = f"""
+        SELECT
+            agg.schema_name, agg.table_name, agg.is_partitioned, agg.partition_count,
+            agg.rows_count,
+            ROUND(GREATEST(agg.part_bytes, COALESCE(t.tab_bytes,0))/1024/1024/1024, 2) AS size_gb,
+            ROUND(agg.max_part_bytes/1024/1024/1024, 2) AS max_partition_gb,
+            ROUND(agg.part_data/1024/1024, 2)  AS data_mb,
+            ROUND(agg.part_index/1024/1024, 2) AS index_mb,
+            CASE
+              WHEN GREATEST(agg.part_bytes, COALESCE(t.tab_bytes,0)) >= 50*1024*1024*1024
+                   OR agg.rows_count >= 200000000 THEN 'L3 特大表'
+              WHEN GREATEST(agg.part_bytes, COALESCE(t.tab_bytes,0)) >= 10*1024*1024*1024
+                   OR agg.rows_count >= 30000000  THEN 'L2 重点大表'
+              ELSE 'L1 一般大表'
+            END AS level,
+            CASE
+              WHEN agg.is_partitioned = 0 THEN '单表超标'
+              WHEN agg.max_part_bytes >= %s THEN '单分区超标'
+              ELSE '合并超标'
+            END AS trigger_type
+        FROM (
+            SELECT
+                TABLE_SCHEMA AS schema_name, TABLE_NAME AS table_name,
+                CASE WHEN SUM(PARTITION_NAME IS NOT NULL) > 0 THEN 1 ELSE 0 END AS is_partitioned,
+                SUM(PARTITION_NAME IS NOT NULL)                       AS partition_count,
+                SUM(COALESCE(TABLE_ROWS,0))                           AS rows_count,
+                SUM(COALESCE(DATA_LENGTH,0)+COALESCE(INDEX_LENGTH,0)) AS part_bytes,
+                MAX(COALESCE(DATA_LENGTH,0)+COALESCE(INDEX_LENGTH,0)) AS max_part_bytes,
+                SUM(COALESCE(DATA_LENGTH,0))                          AS part_data,
+                SUM(COALESCE(INDEX_LENGTH,0))                         AS part_index
+            FROM information_schema.PARTITIONS
+            WHERE TABLE_SCHEMA NOT IN ({placeholders})
+              AND TABLE_NAME NOT LIKE '%%_tdsql_subp_auto_%%'{db_filter}
+            GROUP BY TABLE_SCHEMA, TABLE_NAME
+        ) agg
+        LEFT JOIN (
+            SELECT TABLE_SCHEMA, TABLE_NAME,
+                   COALESCE(DATA_LENGTH,0)+COALESCE(INDEX_LENGTH,0) AS tab_bytes
+            FROM information_schema.TABLES WHERE TABLE_TYPE='BASE TABLE'
+        ) t ON t.TABLE_SCHEMA=agg.schema_name AND t.TABLE_NAME=agg.table_name
+        WHERE GREATEST(agg.part_bytes, COALESCE(t.tab_bytes,0)) >= %s
+        ORDER BY size_gb DESC
+    """
+    # 参数顺序（SQL 中 %s 自上而下）：trigger_type 阈值 → 系统库(9) → 可选 database → 外层 WHERE 阈值
+    params = [threshold_bytes, *_BIGTABLE_SYS_DBS]
+    if database:
+        params.append(database)
+    params.append(threshold_bytes)
+    return sql, tuple(params)
+
+
 class TDSQLConnectionPool:
     """
     TDSQL 连接池。
@@ -662,31 +737,13 @@ class TDSQLConnectionPool:
     # ── 大表检查 ────────────────────────────────────────────
 
     def check_large_tables(self, database: str = None, threshold_gb: float = 1.0) -> list[dict]:
-        """检查大表"""
-        db = database or self.config.database
-        threshold_bytes = int(threshold_gb * 1024 * 1024 * 1024)
+        """检查大表（双源取大 GREATEST(PARTITIONS聚合, TABLES值)，兼容 TDSQL 分区表壳值）
 
-        return self._execute("""
-            SELECT TABLE_NAME,
-                   ROUND((DATA_LENGTH + INDEX_LENGTH)/1024/1024/1024, 2) AS size_gb,
-                   TABLE_ROWS,
-                   ROUND(DATA_LENGTH/1024/1024, 2) AS data_mb,
-                   ROUND(INDEX_LENGTH/1024/1024, 2) AS index_mb,
-                   CASE
-                     WHEN (DATA_LENGTH + INDEX_LENGTH) >= 50*1024*1024*1024
-                          OR TABLE_ROWS >= 200000000 THEN 'L3 特大表'
-                     WHEN (DATA_LENGTH + INDEX_LENGTH) >= 10*1024*1024*1024
-                          OR TABLE_ROWS >= 30000000 THEN 'L2 重点大表'
-                     WHEN (DATA_LENGTH + INDEX_LENGTH) >= 1*1024*1024*1024
-                          OR TABLE_ROWS >= 3000000 THEN 'L1 一般大表'
-                     ELSE '一般表'
-                   END AS level
-            FROM information_schema.TABLES
-            WHERE TABLE_SCHEMA = %s
-              AND TABLE_TYPE = 'BASE TABLE'
-              AND (DATA_LENGTH + INDEX_LENGTH) >= %s
-            ORDER BY (DATA_LENGTH + INDEX_LENGTH) DESC
-        """, (db, threshold_bytes))
+        覆盖三种情况：①单表>阈值 ②分区表单分区>阈值 ③分区表合并后>阈值。
+        默认扫描全部业务库；database 非空时仅扫该库。详见 build_large_tables_query。
+        """
+        sql, params = build_large_tables_query(threshold_gb, database)
+        return self._execute(sql, params)
 
 
 class TDSQLConnector:
@@ -1020,42 +1077,9 @@ class TDSQLConnector:
     # ── 大表检查 ────────────────────────────────────────────
 
     def check_large_tables(self, database: str = None, threshold_gb: float = 1.0) -> list[dict]:
-        """检查大表（参考大表治理规范）"""
-        db = database or self.config.database
-        threshold_bytes = int(threshold_gb * 1024 * 1024 * 1024)
+        """检查大表（双源取大 GREATEST(PARTITIONS聚合, TABLES值)，兼容 TDSQL 分区表壳值）
 
-        # TDSQL分布式实例：优先使用 information_schema.PARTITIONS 统计分区表大小
-        # 因为某些分区表可能不在 information_schema.TABLES 中
-        result = self._execute("""
-            SELECT
-                COALESCE(p.TABLE_NAME, t.TABLE_NAME) AS TABLE_NAME,
-                ROUND(COALESCE(p.total_size, COALESCE(t.DATA_LENGTH, 0) + COALESCE(t.INDEX_LENGTH, 0)) / 1024 / 1024 / 1024, 2) AS size_gb,
-                COALESCE(t.TABLE_ROWS, 0) AS TABLE_ROWS,
-                ROUND(COALESCE(p.total_data, COALESCE(t.DATA_LENGTH, 0)) / 1024 / 1024, 2) AS data_mb,
-                ROUND(COALESCE(p.total_index, COALESCE(t.INDEX_LENGTH, 0)) / 1024 / 1024, 2) AS index_mb,
-                CASE
-                    WHEN COALESCE(p.total_size, COALESCE(t.DATA_LENGTH, 0) + COALESCE(t.INDEX_LENGTH, 0)) >= 50*1024*1024*1024
-                         OR COALESCE(t.TABLE_ROWS, 0) >= 200000000 THEN 'L3 特大表'
-                    WHEN COALESCE(p.total_size, COALESCE(t.DATA_LENGTH, 0) + COALESCE(t.INDEX_LENGTH, 0)) >= 10*1024*1024*1024
-                         OR COALESCE(t.TABLE_ROWS, 0) >= 30000000 THEN 'L2 重点大表'
-                    WHEN COALESCE(p.total_size, COALESCE(t.DATA_LENGTH, 0) + COALESCE(t.INDEX_LENGTH, 0)) >= 1*1024*1024*1024
-                         OR COALESCE(t.TABLE_ROWS, 0) >= 3000000 THEN 'L1 一般大表'
-                    ELSE '一般表'
-                END AS level
-            FROM (
-                SELECT TABLE_SCHEMA, TABLE_NAME,
-                       SUM(DATA_LENGTH) AS total_data,
-                       SUM(INDEX_LENGTH) AS total_index,
-                       SUM(DATA_LENGTH) + SUM(INDEX_LENGTH) AS total_size
-                FROM information_schema.PARTITIONS
-                WHERE TABLE_SCHEMA = %s
-                GROUP BY TABLE_SCHEMA, TABLE_NAME
-            ) p
-            LEFT JOIN information_schema.TABLES t
-                ON p.TABLE_SCHEMA = t.TABLE_SCHEMA AND p.TABLE_NAME = t.TABLE_NAME
-            WHERE COALESCE(p.total_size, COALESCE(t.DATA_LENGTH, 0) + COALESCE(t.INDEX_LENGTH, 0)) >= %s
-              AND (t.TABLE_TYPE IS NULL OR t.TABLE_TYPE = 'BASE TABLE')
-            ORDER BY COALESCE(p.total_size, COALESCE(t.DATA_LENGTH, 0) + COALESCE(t.INDEX_LENGTH, 0)) DESC
-        """, (db, threshold_bytes))
-        
-        return result
+        与 TDSQLConnectionPool.check_large_tables 同口径，详见 build_large_tables_query。
+        """
+        sql, params = build_large_tables_query(threshold_gb, database)
+        return self._execute(sql, params)

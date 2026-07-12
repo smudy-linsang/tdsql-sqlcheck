@@ -391,7 +391,7 @@ async def check_large_tables(
     try:
         tables = conn.check_large_tables(database, threshold_gb)
         return {
-            "database": database or conn.config.database,
+            "database": database or "(全部业务库)",
             "threshold_gb": threshold_gb,
             "total": len(tables),
             "tables": [dict(t) for t in tables],
