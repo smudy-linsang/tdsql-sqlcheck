@@ -539,7 +539,7 @@
                     <span style="display:flex;align-items:center;gap:6px"><span :style="{color: c.active ? '#16a34a' : '#94a3b8'}">●</span><span>{{ c.name }} ({{ c.host }}:{{ c.port }})</span></span>
                   </el-option>
                 </el-select>
-                <el-radio-group v-model="healthCheckType"><el-radio value="charset">字符集一致性</el-radio><el-radio value="large-tables">大表检查</el-radio></el-radio-group>
+                <el-radio-group v-model="healthCheckType"><el-radio value="charset">字符集一致性</el-radio></el-radio-group>
                 <el-input v-model="healthDbName" placeholder="库名(可选)" clearable size="small" class="w-140"></el-input>
                 <el-button type="primary" size="small" :loading="healthLoading" @click="runHealthCheck">开始检查</el-button>
               </div>
