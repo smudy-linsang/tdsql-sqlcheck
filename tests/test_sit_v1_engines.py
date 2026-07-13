@@ -611,6 +611,31 @@ class TestBigTableEngine:
         assert parse_shard_key_from_ddl("") == ""
         assert parse_shard_key_from_ddl(None) == ""
 
+    def test_analyze_partitions_flags(self):
+        """分区下钻派生分析：兜底分区过大 / 数据倾斜 / 空分区 / 空表。"""
+        from backend.services.tdsql_connector import _analyze_partitions
+        # 兜底 MAXVALUE 分区过大（占比 80% > 30%）
+        mv = _analyze_partitions([
+            {"name": "p1", "size_gb": 1.0, "pct": 10.0, "is_maxvalue": False, "rows": 100},
+            {"name": "p2", "size_gb": 1.0, "pct": 10.0, "is_maxvalue": False, "rows": 100},
+            {"name": "pmax", "size_gb": 8.0, "pct": 80.0, "is_maxvalue": True, "rows": 900},
+        ])
+        assert "maxvalue_oversized" in [f["code"] for f in mv["flags"]]
+        assert mv["max_partition"]["name"] == "pmax"
+        # 数据倾斜（4 小 + 1 大：max 8 / 平均 1.76 = 4.5x ≥ 3）
+        skew = _analyze_partitions(
+            [{"name": f"p{i}", "size_gb": 0.2, "pct": 2.3, "is_maxvalue": False, "rows": 10} for i in range(4)]
+            + [{"name": "hot", "size_gb": 8.0, "pct": 90.9, "is_maxvalue": False, "rows": 999}])
+        assert "data_skew" in [f["code"] for f in skew["flags"]]
+        assert skew["skew_ratio"] >= 3
+        # 空表边界
+        empty = _analyze_partitions([])
+        assert empty["flags"] == [] and empty["partition_count"] == 0
+        # 空分区标记（≥3 个空分区）
+        many_empty = [{"name": f"e{i}", "size_gb": 0.0, "pct": 0.0, "is_maxvalue": False, "rows": 0} for i in range(3)]
+        many_empty.append({"name": "big", "size_gb": 2.0, "pct": 100.0, "is_maxvalue": False, "rows": 999})
+        assert "empty_partitions" in [f["code"] for f in _analyze_partitions(many_empty)["flags"]]
+
     def test_governance_report(self):
         """治理报告生成"""
         engine = BigTableEngine()
