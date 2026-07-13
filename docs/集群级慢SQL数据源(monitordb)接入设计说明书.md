@@ -1,9 +1,27 @@
 # 集群级慢SQL数据源（monitordb / 15001）接入设计说明书
 
-> 版本：v1.0（设计稿，仅设计不实施）
+> 版本：v1.1（设计稿，仅设计不实施）
 > 关联需求：TDSQL 原厂性能诊断能力升级 —— 引入集群级慢SQL权威数据源
 > 文档性质：**照图施工级详细设计**，任一编码智能体据此即可完成开发
 > 适用代号：本文档对应整体升级的「慢SQL数据源」章节，是整体《概要设计文档 + 详细设计说明书》的组成部分之一。
+> v1.1 变更：依据用户提供的 monitordb DDL 截图 + 原厂 `slow_query_export` 源码，将 §2 schema、§6 单位/时间列全部从"待现场确认"升级为**已确认权威事实**（见下方 §0.1 校准结论），并将取数 SQL 对齐原厂 `slow_sql_analysis.sh` 的成熟口径。
+
+---
+
+## 0.1 现场校准结论（★已确认，覆盖本文后续所有"待确认"表述）
+
+以下三项此前标注"需现场 DESCRIBE 确认"的事实，现已由 **monitordb 表 DDL 截图 + 原厂 `slow_query_export/slow_sql_analysis.sh` 源码** 双重确认，编码时直接采用，无需再猜：
+
+| 事项 | 权威结论 | 依据 |
+|---|---|---|
+| 表引擎/字符集 | `proxy_classes_analysis`：InnoDB / utf8mb4；`proxy_global_analysis`：InnoDB / utf8 | DDL 截图 |
+| 耗时单位 | `query_time_*` / `lock_time_*` 均为 **`float` 秒**（示例 `example_query_time=2.26/7.65/9.21` 即约2~9秒）→ **单位系数 = 1，无需任何换算** | DDL 截图 + 样本数据 |
+| 时间列语义 | `timestramp`（原厂拼写）= `timestamp DEFAULT CURRENT_TIMESTAMP`，是**监控采集器写入该聚合行的时刻**；`ts_min`/`ts_max` = `datetime`，是该 SQL 类的**首次/最后执行时刻** | DDL 截图（备注列） |
+| **时间窗过滤该用哪列** | 原厂按 **`timestramp`**（采集时刻）过滤"某天的慢SQL"，命中索引 `index_time`。我方沿用此口径。`ts_min`/`ts_max` 仅用于展示"首次/最后执行时间" | 原厂 `slow_sql_analysis.sh` L332-333 |
+| 指纹主键 | `checksum`（`bigint unsigned`）= SQL 指纹校验值；`fingerprint`（`text`）= 参数化 SQL 模板 | DDL 截图 |
+| 加权平均口径 | 原厂用 **`SUM(query_time_avg * query_count) / SUM(query_count)`** 重算平均（不是 `SUM(query_time_sum)`）。二者理论等价，**照图施工统一采用原厂 `avg*count` 写法** | 原厂 `slow_sql_analysis.sh` L316 |
+
+> 因此 §6.2/§6.3 的"探测分支"在本环境**已坍缩为确定值**：时间列走 datetime/timestamp 字符串比较、单位系数恒为 1。§6.1 防御式列裁剪仍建议保留（防跨 TDSQL 版本列差异），但本集群已知列齐全。
 
 ---
 
@@ -351,6 +369,46 @@ scan_service 现有落库逻辑（`backend/services/scan_service.py`）读的是
 | `MAX(ts_max)` | `LAST_SEEN` | `last_seen` | |
 
 > scan_service 现有代码 `avg_ms = float(raw.get("avg_seconds",0) or 0)*1000` 等换算**原样适用**，因为我们把 monitordb 值也统一成"秒"口径的 `*_seconds` 键。**这是本设计能做到下游零改动的关键。**
+
+### 5.5 原厂成熟的噪音/系统账号过滤（★必须内置，来自 `slow_sql_analysis.sh`）
+
+原厂脚本在 WHERE 中内置了一整套"排除无意义SQL和系统账号"的过滤，直接决定报告质量。**编码时必须原样搬进 `get_cluster_slow_queries` 的 WHERE**（可做成可配置常量 `MONITOR_SLOW_EXCLUDE_USERS` / `MONITOR_SLOW_NOISE_PATTERNS`，给默认值）：
+
+```sql
+-- 系统/ETL 账号排除（原厂默认，可在配置里增删）
+AND user NOT IN ('dbman', 'incquery', 'hxyunwei', 'edwusr', 'tdsql_check')
+-- 噪音语句排除（大小写各一条；本项目可用 UPPER(fingerprint) NOT LIKE 合并）
+AND fingerprint NOT LIKE '%commit%'        AND fingerprint NOT LIKE 'select ?%'
+AND fingerprint NOT LIKE 'select n%'       AND fingerprint NOT LIKE '%set autocommit%'
+AND fingerprint NOT LIKE '%set session%'   AND fingerprint NOT LIKE '%show variables%'
+AND fingerprint NOT LIKE 'select sleep%'
+AND fingerprint NOT LIKE 'create %'  AND fingerprint NOT LIKE 'drop %'
+AND fingerprint NOT LIKE 'alter %'   AND fingerprint NOT LIKE 'truncate %'
+AND fingerprint NOT LIKE 'grant %'   AND fingerprint NOT LIKE 'revoke %'
+AND fingerprint NOT LIKE 'flush %'   AND fingerprint NOT LIKE 'kill %'
+AND fingerprint NOT LIKE 'analyze table%' AND fingerprint NOT LIKE 'explain %'
+-- 客户端工具噪音排除（透传注释里带工具指纹）
+AND example_sql NOT LIKE '%tdsql-mysql-connector-java%'
+AND example_sql NOT LIKE '%dbeaver%'
+```
+
+**指纹归一化（去重关键）**：原厂对 `fingerprint` 做 `TRIM + 连续空格合并 + 去末尾分号 + 括号周围空格归一` 后再 `GROUP BY`，否则 `"( select"` 与 `"(select"` 会被当成两条。SQL 层可用嵌套 `REPLACE` 兼容 MySQL 5.7；本项目 pymysql 取回后**也可在 Python 侧再归一化一次**（见 §5.3 二次聚合）。归一化函数逻辑：
+
+```
+去首尾空白 → 去末尾 ';' → 连续空白合并为单空格 → '( '→'(' 、' )'→')'
+```
+
+### 5.6 数据作用域（★集群级 vs 实例级，务必理解）
+
+monitordb 是**整个 TDSQL 集群共享的一个库**（一个集群一份，里面含该集群下**所有业务实例/所有 SET** 的慢SQL）。而我们系统里的一个"连接"通常对应**一个业务实例**。因此取数时要支持三种作用域，`get_cluster_slow_queries` 增可选入参：
+
+| 作用域 | WHERE 增量 | 何时用 |
+|---|---|---|
+| 全集群（用户"整个集群慢SQL"的本意，**默认**） | 无额外过滤 | 集群级慢SQL总览 |
+| 按库 | `AND db = :database` | 只看某业务库 |
+| 按实例/SET | `AND set_port IN (:ports)` 或 `AND set_name IN (:sets)` | 精确到某实例的 SET（原厂 `slow_sql_analysis.sh` 即用 `set_port=<port>` 逐实例取） |
+
+> 原厂按 `set_port` 逐实例出报告；我方因需求是"整个集群"，**默认不加 set 过滤**取全集群，把 `set_name`/`set_ip` 作为维度列展示；同时保留 `database` / `set_ports` 可选过滤参数以便下钻。实例↔SET 的映射关系可从 monitordb `m_data_cur`（f_key='instance_name'）或原厂 ZK 清单获得（见整体《详细设计说明书》巡检章节）。
 
 ---
 
