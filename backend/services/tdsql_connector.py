@@ -39,6 +39,9 @@ class TDSQLConnectionConfig:
     charset: str = "utf8mb4"
     connect_timeout: int = 5
     read_timeout: int = 10
+    # 分布式实例的 SET 列表（逗号分隔，如 set_1772437478_1,set_1772437504_3）。
+    # 慢SQL digest 扫描逐 SET 查询后按 DIGEST 合并；为空则退回直查 Proxy（单 SET/集中式）。
+    set_list: str = ""
 
 
 @dataclass
@@ -620,22 +623,36 @@ class TDSQLConnectionPool:
         return result
 
     def get_slow_queries_from_digest(self, limit: int = 50, min_time: float = 0.1, time_start: str = None, time_end: str = None, set_id: str = None, database: str = None) -> list[dict]:
-        """从 Proxy层 performance_schema 获取TopN慢SQL摘要
+        """从 performance_schema 获取TopN慢SQL摘要（分布式实例逐 SET 合并）。
 
-        TDSQL分布式实例中，Proxy层的performance_schema自动聚合所有SET的SQL执行数据，
-        因此直接通过Proxy查询即可获取完整的慢SQL统计（无需SET路由）。
+        重要：TDSQL Proxy 对 performance_schema 的查询会**随机路由到某一个 SET**，
+        并不会自动聚合所有 SET 的数据。因此对分布式实例，需按 config.set_list 配置的
+        SET 列表逐个用 /*sets:xxx*/ hint 查询，再在应用层按 DIGEST 合并（正确口径：
+        次数/耗时求和，平均=总耗时÷总次数重算，最大取MAX，首末次取MIN/MAX）。
+        set_list 为空则退回直查 Proxy（集中式实例，或未配置 SET 列表）。
 
-        时间单位说明: performance_schema中TIMER_WAIT单位为皮秒(picosecond=10^-12秒)，
-        转换公式: picoseconds / 1e12 = seconds，即 /1e9/1000 = /1e12。
+        时间单位: performance_schema 中 TIMER_WAIT 单位为皮秒(10^-12秒)，/1e12 = 秒。
 
         Args:
             limit: 返回条数
-            min_time: 最小平均耗时阈值（秒），低于此值的SQL不返回
-            time_start: 时间窗口开始 (YYYY-MM-DD HH:MM:SS)
-            time_end: 时间窗口结束 (YYYY-MM-DD HH:MM:SS)
+            min_time: 最小平均耗时阈值（秒），合并后按重算平均值过滤
+            time_start/time_end: 时间窗口 (YYYY-MM-DD HH:MM:SS)
             set_id: 已废弃，保留参数兼容性但不使用
-            database: 可选，仅返回指定数据库的SQL（不指定则返回所有库）
+            database: 可选，仅返回指定数据库的SQL
         """
+        sets = [s.strip() for s in (getattr(self.config, "set_list", "") or "").split(",") if s.strip()]
+        if not sets:
+            # 集中式实例 / 未配置 SET 列表：退回直查 Proxy（原行为）
+            return self._query_digest_direct(limit, min_time, time_start, time_end, database)
+        # 分布式实例：逐 SET 查询原始列 → 应用层按 DIGEST 合并
+        per_set = []
+        for s in sets:
+            hint = self._build_set_hint(s)
+            per_set.append((s, self._query_digest_raw(hint, time_start, time_end, database)))
+        return self._merge_digest_across_sets(per_set, min_time, limit)
+
+    def _query_digest_direct(self, limit, min_time, time_start, time_end, database) -> list[dict]:
+        """直查 Proxy（不做 SET 路由）—— 集中式实例或未配置 SET 列表时使用。"""
         sql = """
             SELECT SCHEMA_NAME, DIGEST, DIGEST_TEXT,
                    COUNT_STAR AS exec_count,
@@ -653,11 +670,9 @@ class TDSQLConnectionPool:
               AND DIGEST_TEXT IS NOT NULL
         """
         params = []
-        # 可选：按数据库过滤
         if database:
             sql += " AND SCHEMA_NAME = %s"
             params.append(database)
-        # 按平均耗时过滤（picoseconds / 1e12 = seconds）
         if min_time and min_time > 0:
             sql += " AND AVG_TIMER_WAIT/1e12 >= %s"
             params.append(min_time)
@@ -670,6 +685,98 @@ class TDSQLConnectionPool:
         sql += " ORDER BY SUM_TIMER_WAIT DESC LIMIT %s"
         params.append(limit)
         return self._execute(sql, tuple(params))
+
+    def _query_digest_raw(self, hint: str, time_start, time_end, database) -> list[dict]:
+        """逐 SET 查询原始计数列（不做 min_time 过滤/聚合），供应用层合并。"""
+        sql = (hint or "") + """
+            SELECT SCHEMA_NAME, DIGEST, DIGEST_TEXT,
+                   COUNT_STAR, SUM_TIMER_WAIT, MAX_TIMER_WAIT,
+                   SUM_ROWS_EXAMINED, SUM_ROWS_SENT, SUM_NO_INDEX_USED,
+                   SUM_LOCK_TIME, FIRST_SEEN, LAST_SEEN
+            FROM performance_schema.events_statements_summary_by_digest
+            WHERE SCHEMA_NAME NOT IN ('mysql', 'information_schema', 'performance_schema', 'sys')
+              AND SCHEMA_NAME IS NOT NULL
+              AND DIGEST_TEXT IS NOT NULL
+        """
+        params = []
+        if database:
+            sql += " AND SCHEMA_NAME = %s"
+            params.append(database)
+        if time_start:
+            sql += " AND LAST_SEEN >= %s"
+            params.append(time_start)
+        if time_end:
+            sql += " AND FIRST_SEEN <= %s"
+            params.append(time_end)
+        return self._execute(sql, tuple(params))
+
+    @staticmethod
+    def _merge_digest_across_sets(per_set: list, min_time: float, limit: int) -> list[dict]:
+        """按 DIGEST 跨 SET 合并原始计数（纯函数，便于单测）。
+
+        per_set: [(set_id, [raw_row_dict]), ...]，raw_row 含 performance_schema 原始列。
+        合并口径：次数/耗时/行数求和，平均=Σ总耗时÷Σ次数（重算，不能平均各SET的平均），
+        最大取 MAX(MAX_TIMER_WAIT)，首/末次取 MIN(FIRST_SEEN)/MAX(LAST_SEEN)。
+        合并后按重算平均值过滤 min_time，按总耗时降序取 TopN。
+        """
+        def _i(v):
+            try:
+                return int(v or 0)
+            except (TypeError, ValueError):
+                return 0
+
+        merged = {}
+        for sid, rows in per_set:
+            for r in (rows or []):
+                key = (r.get("SCHEMA_NAME"), r.get("DIGEST"))
+                m = merged.get(key)
+                if m is None:
+                    m = {
+                        "SCHEMA_NAME": r.get("SCHEMA_NAME"), "DIGEST": r.get("DIGEST"),
+                        "DIGEST_TEXT": r.get("DIGEST_TEXT"),
+                        "_count": 0, "_sum_timer": 0, "_max_timer": 0,
+                        "_rows_examined": 0, "_rows_sent": 0, "_no_index": 0, "_lock": 0,
+                        "FIRST_SEEN": r.get("FIRST_SEEN"), "LAST_SEEN": r.get("LAST_SEEN"),
+                        "_sets": {},
+                    }
+                    merged[key] = m
+                cnt = _i(r.get("COUNT_STAR"))
+                m["_count"] += cnt
+                m["_sum_timer"] += _i(r.get("SUM_TIMER_WAIT"))
+                m["_max_timer"] = max(m["_max_timer"], _i(r.get("MAX_TIMER_WAIT")))
+                m["_rows_examined"] += _i(r.get("SUM_ROWS_EXAMINED"))
+                m["_rows_sent"] += _i(r.get("SUM_ROWS_SENT"))
+                m["_no_index"] += _i(r.get("SUM_NO_INDEX_USED"))
+                m["_lock"] += _i(r.get("SUM_LOCK_TIME"))
+                if r.get("FIRST_SEEN") and (not m["FIRST_SEEN"] or str(r["FIRST_SEEN"]) < str(m["FIRST_SEEN"])):
+                    m["FIRST_SEEN"] = r["FIRST_SEEN"]
+                if r.get("LAST_SEEN") and (not m["LAST_SEEN"] or str(r["LAST_SEEN"]) > str(m["LAST_SEEN"])):
+                    m["LAST_SEEN"] = r["LAST_SEEN"]
+                if cnt:
+                    m["_sets"][sid] = m["_sets"].get(sid, 0) + cnt
+
+        out = []
+        for m in merged.values():
+            cnt = m["_count"]
+            avg_seconds = (m["_sum_timer"] / cnt / 1e12) if cnt else 0.0
+            if min_time and min_time > 0 and avg_seconds < min_time:
+                continue
+            out.append({
+                "SCHEMA_NAME": m["SCHEMA_NAME"], "DIGEST": m["DIGEST"],
+                "DIGEST_TEXT": m["DIGEST_TEXT"],
+                "exec_count": cnt,
+                "total_seconds": round(m["_sum_timer"] / 1e12, 4),
+                "avg_seconds": round(avg_seconds, 4),
+                "max_seconds": round(m["_max_timer"] / 1e12, 4),
+                "rows_examined": m["_rows_examined"],
+                "rows_sent": m["_rows_sent"],
+                "no_index_count": m["_no_index"],
+                "lock_time_seconds": round(m["_lock"] / 1e12, 6),
+                "FIRST_SEEN": m["FIRST_SEEN"], "LAST_SEEN": m["LAST_SEEN"],
+                "set_ids": ",".join(f"{k}({v})" for k, v in sorted(m["_sets"].items())),
+            })
+        out.sort(key=lambda x: x["total_seconds"], reverse=True)
+        return out[:limit]
 
     # NOTE: get_slow_queries_from_slow_log() 已移除。
     # TDSQL分布式实例中，SET实例的mysql.slow_log表不记录数据，

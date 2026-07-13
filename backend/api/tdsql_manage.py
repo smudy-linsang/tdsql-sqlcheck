@@ -34,6 +34,7 @@ class TDSQLConnectRequest(BaseModel):
     is_default: bool = Field(False, description="是否设为默认连接")
     is_distributed: bool = Field(True, description="是否分布式实例")
     description: str = Field("", description="连接描述")
+    set_list: str = Field("", description="分布式实例SET列表(逗号分隔,从赤兔获取);慢SQL扫描逐SET合并用")
 
 
 class SlowQueryFetchRequest(BaseModel):
@@ -635,6 +636,7 @@ async def save_connection(request: TDSQLConnectRequest, http_request: Request):
         is_default=request.is_default,
         is_distributed=request.is_distributed,
         description=request.description,
+        set_list=request.set_list,
         operator=_operator(http_request),
     )
     return {
@@ -662,6 +664,7 @@ async def update_connection(conn_id: str, request: TDSQLConnectRequest, http_req
         is_default=request.is_default,
         is_distributed=request.is_distributed,
         description=request.description,
+        set_list=request.set_list,
         conn_id=conn_id,
         operator=_operator(http_request),
     )

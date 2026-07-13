@@ -382,6 +382,10 @@ def _migrate_old_tables(conn):
         _add_column_if_not_exists(conn, "slow_queries", "client_user", "VARCHAR(128) DEFAULT ''")
         _add_column_if_not_exists(conn, "slow_queries", "client_host", "VARCHAR(128) DEFAULT ''")
 
+    if "tdsql_connections" in table_names:
+        # 分布式实例 SET 列表（慢SQL digest 逐SET合并用）
+        _add_column_if_not_exists(conn, "tdsql_connections", "set_list", "VARCHAR(512) DEFAULT ''")
+
     if "audit_history" in table_names:
         _add_column_if_not_exists(conn, "audit_history", "project_id", "VARCHAR(64) DEFAULT ''")
         _add_column_if_not_exists(conn, "audit_history", "connection_id", "VARCHAR(64) DEFAULT ''")
@@ -580,6 +584,7 @@ def _create_all_tables(conn):
             is_default          INT DEFAULT 0,
             is_distributed      INT DEFAULT 1,
             description         TEXT,
+            set_list            VARCHAR(512) DEFAULT '',
             status              VARCHAR(32) DEFAULT 'disconnected',
             last_connected_at   VARCHAR(32),
             created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,

@@ -131,6 +131,7 @@ class ConnectionRegistry:
             host=saved["host"], port=saved["port"], user=saved["username"],
             password=decrypt_password(saved["password_encrypted"]),
             database=saved["database"] or "", charset=saved["charset"] or "utf8mb4",
+            set_list=saved.get("set_list", "") or "",
         )
         pool = self.register(saved["id"], cfg)
         self._mark_connected(saved["id"])
@@ -245,7 +246,7 @@ class ConnectionRegistry:
                         password: str, database: str = "", charset: str = "utf8mb4",
                         is_default: bool = False, is_distributed: bool = True,
                         description: str = "", conn_id: str = "",
-                        operator: str = "") -> str:
+                        operator: str = "", set_list: str = "") -> str:
         """保存连接配置（密码加密存储），返回连接ID"""
         ensure_db()
         conn = _get_connection()
@@ -261,8 +262,8 @@ class ConnectionRegistry:
             conn.execute("""
                 INSERT INTO tdsql_connections
                     (id, name, host, port, username, password_encrypted, `database`,
-                     charset, is_default, is_distributed, description, status, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'disconnected', NOW())
+                     charset, is_default, is_distributed, description, set_list, status, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'disconnected', NOW())
                 ON DUPLICATE KEY UPDATE
                     name=VALUES(name), host=VALUES(host), port=VALUES(port),
                     username=VALUES(username),
@@ -270,10 +271,12 @@ class ConnectionRegistry:
                     `database`=VALUES(`database`), charset=VALUES(charset),
                     is_default=VALUES(is_default),
                     is_distributed=VALUES(is_distributed),
-                    description=VALUES(description), updated_at=NOW()
+                    description=VALUES(description), set_list=VALUES(set_list),
+                    updated_at=NOW()
             """, (conn_id, name or f"{host}:{port}", host, port, username,
                   encrypt_password(password), database, charset,
-                  1 if is_default else 0, 1 if is_distributed else 0, description))
+                  1 if is_default else 0, 1 if is_distributed else 0, description,
+                  set_list or ""))
             conn.commit()
             from backend.services.database import log_operation
             log_operation(operator, "save_connection", "tdsql_connection", conn_id,

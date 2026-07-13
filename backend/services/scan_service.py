@@ -158,7 +158,7 @@ def _do_scan(pool, connection_id: str, source: str, limit: int, min_time: float,
             fingerprint=raw.get("DIGEST_TEXT", sql_text),
             sql_text=sql_text,
             db_name=db_val,
-            set_id="",  # Proxy层聚合，不区分SET
+            set_id=(raw.get("set_ids", "") or "")[:250],  # 分布式逐SET合并时记录命中的SET及次数
             client_user=client_user,
             client_host=client_host,
             exec_count=raw.get("exec_count") or raw.get("COUNT_STAR", 0) or 0,
