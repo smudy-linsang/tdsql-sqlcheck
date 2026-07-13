@@ -400,6 +400,24 @@ async def check_large_tables(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/table-partitions", summary="分区表逐分区明细（大表下钻）")
+async def get_table_partitions(
+    connection_id: Optional[str] = None,
+    schema: Optional[str] = None,
+    table: Optional[str] = None,
+):
+    """获取某张分区表的逐分区明细 + 派生分析（数据倾斜/兜底分区过大/分区水位/空分区）。"""
+    if not connection_id:
+        raise HTTPException(status_code=400, detail="请先选择实例（connection_id必填）")
+    if not schema or not table:
+        raise HTTPException(status_code=400, detail="schema 与 table 必填")
+    conn = _get_pool(connection_id)
+    try:
+        return conn.get_table_partitions(schema, table)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/slow-query-config", summary="获取慢查询配置")
 async def get_slow_query_config(connection_id: Optional[str] = None):
     """获取TDSQL实例的慢查询相关配置"""

@@ -164,6 +164,62 @@ def parse_shard_key_from_ddl(create_sql: str) -> str:
     return ""
 
 
+# 分区数量水位阈值（与 bigtable_engine.PartitionMonitor 口径一致）
+_PARTITION_MAX = 100
+_PARTITION_WARN_PCT = 70
+_PARTITION_CRIT_PCT = 85
+
+
+def _analyze_partitions(partitions: list) -> dict:
+    """基于逐分区明细计算派生分析（供下钻展示：数据倾斜/兜底分区过大/分区水位/空分区）。"""
+    n = len(partitions)
+    flags = []
+    if n == 0:
+        return {"max_partition": None, "avg_gb": 0.0, "skew_ratio": 0.0,
+                "partition_count": 0, "flags": flags}
+
+    sizes = [p["size_gb"] for p in partitions]
+    max_p = max(partitions, key=lambda p: p["size_gb"])
+    avg_gb = round(sum(sizes) / n, 3)
+    skew = round(max_p["size_gb"] / avg_gb, 2) if avg_gb > 0 else 0.0
+
+    # 1) 兜底 MAXVALUE 分区过大：未及时补建未来分区
+    mv = next((p for p in partitions if p["is_maxvalue"]), None)
+    if mv and mv["pct"] > 30:
+        flags.append({
+            "code": "maxvalue_oversized", "level": "warning",
+            "msg": f"兜底分区 {mv['name']}(MAXVALUE) 占比 {mv['pct']}%，"
+                   f"可能未及时补建未来分区，建议补建分区",
+        })
+
+    # 2) 数据倾斜：最大分区/平均 ≥ 3 倍
+    if avg_gb > 0 and skew >= 3:
+        flags.append({
+            "code": "data_skew", "level": "warning",
+            "msg": f"最大分区 {max_p['name']} 是平均的 {skew} 倍，存在数据倾斜",
+        })
+
+    # 3) 分区数量水位（复用 PartitionMonitor 阈值 100/70%/85%）
+    pct_cnt = round(n / _PARTITION_MAX * 100, 1)
+    if pct_cnt >= _PARTITION_CRIT_PCT:
+        flags.append({"code": "too_many_partitions", "level": "danger",
+                      "msg": f"分区数 {n} 已达上限 {_PARTITION_MAX} 的 {pct_cnt}%"})
+    elif pct_cnt >= _PARTITION_WARN_PCT:
+        flags.append({"code": "too_many_partitions", "level": "warning",
+                      "msg": f"分区数 {n} 达上限 {_PARTITION_MAX} 的 {pct_cnt}%"})
+
+    # 4) 空分区偏多
+    empty = [p["name"] for p in partitions if p["rows"] == 0 and p["size_gb"] < 0.001]
+    if len(empty) >= 3:
+        flags.append({"code": "empty_partitions", "level": "info",
+                      "msg": f"存在 {len(empty)} 个空分区"})
+
+    return {
+        "max_partition": {"name": max_p["name"], "size_gb": max_p["size_gb"]},
+        "avg_gb": avg_gb, "skew_ratio": skew, "partition_count": n, "flags": flags,
+    }
+
+
 class TDSQLConnectionPool:
     """
     TDSQL 连接池。
@@ -773,6 +829,61 @@ class TDSQLConnectionPool:
         for r in rows:
             r["shard_key"] = self.get_shard_key(r.get("schema_name", ""), r.get("table_name", ""))
         return rows
+
+    def get_table_partitions(self, db: str, table: str) -> dict:
+        """获取分区表逐分区明细 + 派生分析（供大表治理下钻）。
+
+        数据源 information_schema.PARTITIONS（TDSQL proxy 已验证返回真实分区大小）。
+        非分区表返回 is_partitioned=False、partitions=[]。
+        """
+        rows = self._execute("""
+            SELECT PARTITION_NAME, PARTITION_ORDINAL_POSITION AS ordinal,
+                   PARTITION_METHOD, PARTITION_EXPRESSION, PARTITION_DESCRIPTION,
+                   COALESCE(TABLE_ROWS,0) AS rows_count,
+                   COALESCE(DATA_LENGTH,0) AS data_bytes,
+                   COALESCE(INDEX_LENGTH,0) AS index_bytes,
+                   COALESCE(DATA_LENGTH,0)+COALESCE(INDEX_LENGTH,0) AS bytes,
+                   CREATE_TIME, UPDATE_TIME
+            FROM information_schema.PARTITIONS
+            WHERE TABLE_SCHEMA=%s AND TABLE_NAME=%s
+              AND PARTITION_NAME IS NOT NULL
+            ORDER BY PARTITION_ORDINAL_POSITION
+        """, (db, table))
+
+        if not rows:
+            return {"schema": db, "table": table, "is_partitioned": False,
+                    "partition_method": "", "partition_expression": "",
+                    "partition_count": 0, "total_gb": 0.0,
+                    "partitions": [], "analysis": {"flags": []}}
+
+        total_bytes = sum(int(r["bytes"] or 0) for r in rows) or 1
+        partitions = []
+        for r in rows:
+            b = int(r["bytes"] or 0)
+            desc = (str(r.get("PARTITION_DESCRIPTION") or "")).strip()
+            partitions.append({
+                "name": r["PARTITION_NAME"],
+                "ordinal": r["ordinal"],
+                "boundary": desc or "-",
+                "is_maxvalue": desc.upper() == "MAXVALUE",
+                "rows": int(r["rows_count"] or 0),
+                "size_gb": round(b / 1024 / 1024 / 1024, 3),
+                "data_mb": round(int(r["data_bytes"] or 0) / 1024 / 1024, 2),
+                "index_mb": round(int(r["index_bytes"] or 0) / 1024 / 1024, 2),
+                "pct": round(b / total_bytes * 100, 1),
+                "create_time": str(r.get("CREATE_TIME") or ""),
+                "update_time": str(r.get("UPDATE_TIME") or ""),
+            })
+
+        return {
+            "schema": db, "table": table, "is_partitioned": True,
+            "partition_method": str(rows[0].get("PARTITION_METHOD") or ""),
+            "partition_expression": str(rows[0].get("PARTITION_EXPRESSION") or ""),
+            "partition_count": len(partitions),
+            "total_gb": round(total_bytes / 1024 / 1024 / 1024, 2),
+            "partitions": partitions,
+            "analysis": _analyze_partitions(partitions),
+        }
 
 
 class TDSQLConnector:
