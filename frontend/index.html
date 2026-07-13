@@ -676,7 +676,7 @@
                           <el-table-column prop="name" label="分区名" width="130">
                             <template #default="{row:p}"><span :style="{fontWeight:p.is_maxvalue?'600':'400'}">{{ p.name }}</span><el-tag v-if="p.is_maxvalue" size="small" type="warning" style="margin-left:4px">兜底</el-tag></template>
                           </el-table-column>
-                          <el-table-column prop="boundary" label="边界(LESS THAN)" width="180" show-overflow-tooltip></el-table-column>
+                          <el-table-column prop="boundary" :label="partitionBoundaryLabel(partitionDetail[bigtableRowKey(row)].partition_method)" width="180" show-overflow-tooltip></el-table-column>
                           <el-table-column prop="size_gb" label="大小(GB)" width="100" sortable></el-table-column>
                           <el-table-column label="占比" min-width="160">
                             <template #default="{row:p}">
