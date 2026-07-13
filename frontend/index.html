@@ -647,9 +647,61 @@
                   <el-button v-if="canManageInstances" type="primary" size="small" :loading="bigtableCollecting" @click="collectBigtable">采集大表清单</el-button>
                 </div>
               </div>
-              <el-table :data="bigtableData||[]" v-loading="bigtableLoading" stripe class="w-full">
+              <div style="color:#909399;font-size:12px;margin-bottom:8px">提示：分区表可点击「表名」就地展开查看每个分区的大小与合理性分析</div>
+              <el-table ref="bigtableRef" :data="bigtableData||[]" v-loading="bigtableLoading" stripe class="w-full" :row-key="bigtableRowKey" :row-class-name="bigtableRowClass" @expand-change="onBigtableExpand">
+                <el-table-column type="expand">
+                  <template #default="{row}">
+                    <div v-if="!row.is_partitioned" style="padding:8px 16px;color:#909399">非分区表，无分区明细</div>
+                    <div v-else style="padding:12px 16px" v-loading="partitionLoading[bigtableRowKey(row)]">
+                      <template v-if="partitionDetail[bigtableRowKey(row)]">
+                        <div style="margin-bottom:10px;font-size:13px;color:#606266">
+                          <b>分区概览：</b>
+                          {{ partitionDetail[bigtableRowKey(row)].partition_method }}
+                          ( {{ partitionDetail[bigtableRowKey(row)].partition_expression }} )
+                          · {{ partitionDetail[bigtableRowKey(row)].partition_count }} 个分区
+                          · 合计 {{ partitionDetail[bigtableRowKey(row)].total_gb }} GB
+                          <span v-if="partitionDetail[bigtableRowKey(row)].analysis.max_partition">
+                            · 最大 {{ partitionDetail[bigtableRowKey(row)].analysis.max_partition.name }}
+                            {{ partitionDetail[bigtableRowKey(row)].analysis.max_partition.size_gb }}GB
+                          </span>
+                          <span v-if="partitionDetail[bigtableRowKey(row)].analysis.skew_ratio">
+                            · 倾斜 {{ partitionDetail[bigtableRowKey(row)].analysis.skew_ratio }}x
+                          </span>
+                        </div>
+                        <el-alert v-for="f in partitionDetail[bigtableRowKey(row)].analysis.flags" :key="f.code"
+                          :title="f.msg" :type="f.level==='danger'?'error':f.level" show-icon :closable="false"
+                          style="margin-bottom:6px"></el-alert>
+                        <el-table :data="partitionDetail[bigtableRowKey(row)].partitions" size="small" stripe class="w-full" style="margin-top:6px">
+                          <el-table-column prop="ordinal" label="#" width="50"></el-table-column>
+                          <el-table-column prop="name" label="分区名" width="130">
+                            <template #default="{row:p}"><span :style="{fontWeight:p.is_maxvalue?'600':'400'}">{{ p.name }}</span><el-tag v-if="p.is_maxvalue" size="small" type="warning" style="margin-left:4px">兜底</el-tag></template>
+                          </el-table-column>
+                          <el-table-column prop="boundary" label="边界(LESS THAN)" width="180" show-overflow-tooltip></el-table-column>
+                          <el-table-column prop="size_gb" label="大小(GB)" width="100" sortable></el-table-column>
+                          <el-table-column label="占比" min-width="160">
+                            <template #default="{row:p}">
+                              <div style="display:flex;align-items:center;gap:8px">
+                                <div style="flex:1;height:10px;background:#f0f2f5;border-radius:5px;overflow:hidden">
+                                  <div :style="{width:p.pct+'%',height:'100%',background:p.is_maxvalue?'#e6a23c':'#409eff'}"></div>
+                                </div>
+                                <span style="width:44px;text-align:right;color:#909399;font-size:12px">{{ p.pct }}%</span>
+                              </div>
+                            </template>
+                          </el-table-column>
+                          <el-table-column prop="rows" label="行数" width="110" sortable></el-table-column>
+                          <el-table-column prop="update_time" label="更新时间" width="160" show-overflow-tooltip></el-table-column>
+                        </el-table>
+                      </template>
+                    </div>
+                  </template>
+                </el-table-column>
                 <el-table-column prop="schema_name" label="库" width="120" show-overflow-tooltip></el-table-column>
-                <el-table-column prop="table_name" label="表名" show-overflow-tooltip></el-table-column>
+                <el-table-column prop="table_name" label="表名" show-overflow-tooltip>
+                  <template #default="{row}">
+                    <el-link v-if="row.is_partitioned" type="primary" :underline="false" @click="togglePartitions(row)">{{ row.table_name }}</el-link>
+                    <span v-else>{{ row.table_name }}</span>
+                  </template>
+                </el-table-column>
                 <el-table-column prop="size_gb" label="大小(GB)" width="90" sortable></el-table-column>
                 <el-table-column prop="rows_count" label="行数" width="100" sortable></el-table-column>
                 <el-table-column prop="level" label="级别" width="110"><template #default="{row}"><el-tag :type="row.level&&String(row.level).startsWith('L3')?'danger':row.level&&String(row.level).startsWith('L2')?'warning':'info'" size="small">{{ row.level }}</el-tag></template></el-table-column>

@@ -145,3 +145,5 @@ body{font-family:var(--font-family);background:var(--bg-page);color:var(--text-p
 .dot-active{color:var(--success-500)} .dot-idle{color:var(--text-secondary)}
 /* 登录错误提示间距 */
 .login-alert{margin-bottom:var(--sp-4)}
+/* 大表分区下钻：非分区行隐藏展开箭头 */
+.el-table .bt-no-expand .el-table__expand-icon{visibility:hidden;pointer-events:none}
