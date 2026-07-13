@@ -135,9 +135,9 @@ async def get_summary():
             "SELECT COUNT(*) as cnt FROM slow_queries WHERE status = 'optimized'"
         ).fetchone()["cnt"] or 0
 
-        # 高风险慢SQL数（CRITICAL级别）
+        # 高风险慢SQL数（ERROR级别；慢SQL严重度体系为 ERROR/WARNING/INFO，无 CRITICAL）
         slow_critical = conn.execute(
-            "SELECT COUNT(*) as cnt FROM slow_queries WHERE severity = 'CRITICAL' AND status = 'pending'"
+            "SELECT COUNT(*) as cnt FROM slow_queries WHERE severity IN ('ERROR','CRITICAL') AND status = 'pending'"
         ).fetchone()["cnt"] or 0
 
         # Top3 高耗时慢SQL（含优化状态）

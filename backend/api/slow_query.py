@@ -374,7 +374,7 @@ body {{ font-family:"Microsoft YaHei","Segoe UI",Arial,sans-serif; background:#f
 .sql-item .sh {{ display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }}
 .sql-text {{ font-family:Consolas,Courier New,monospace; font-size:13px; background:#f5f7fa; padding:8px 12px; border-radius:4px; margin:8px 0; white-space:pre-wrap; word-break:break-all; }}
 .badge {{ display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600; }}
-.badge.CRITICAL {{ background:#fde8e8; color:#f56c6c; }} .badge.WARNING {{ background:#fdf6e8; color:#e6a23c; }} .badge.INFO {{ background:#e8f4fd; color:#409eff; }}
+.badge.ERROR {{ background:#fde8e8; color:#f56c6c; }} .badge.CRITICAL {{ background:#fde8e8; color:#f56c6c; }} .badge.WARNING {{ background:#fdf6e8; color:#e6a23c; }} .badge.INFO {{ background:#e8f4fd; color:#409eff; }}
 .stats-row {{ display:flex; gap:16px; flex-wrap:wrap; margin:4px 0; }}
 .stats-row span {{ font-size:13px; color:#606266; }}
 .viol {{ margin:6px 0; padding:8px 12px; border-left:3px solid #f56c6c; background:#fef0f0; border-radius:0 4px 4px 0; font-size:13px; }}
@@ -394,7 +394,7 @@ body {{ font-family:"Microsoft YaHei","Segoe UI",Arial,sans-serif; background:#f
 </div>
 <div class="summary">
 <div class="sc total"><div class="num">{len(slow_queries)}</div><div class="lbl">慢SQL总数</div></div>
-<div class="sc crit"><div class="num" style="color:#f56c6c">{sev_stats.get('CRITICAL', 0)}</div><div class="lbl">CRITICAL</div></div>
+<div class="sc crit"><div class="num" style="color:#f56c6c">{sev_stats.get('ERROR', 0) + sev_stats.get('CRITICAL', 0)}</div><div class="lbl">ERROR</div></div>
 <div class="sc warn"><div class="num" style="color:#e6a23c">{sev_stats.get('WARNING', 0)}</div><div class="lbl">WARNING</div></div>
 <div class="sc info"><div class="num" style="color:#409eff">{sev_stats.get('INFO', 0)}</div><div class="lbl">INFO</div></div>
 </div>
