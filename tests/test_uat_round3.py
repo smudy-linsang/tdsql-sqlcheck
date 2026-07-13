@@ -464,7 +464,7 @@ class TestUAT19_TDSQLDeep:
     def test_uat19_04_connect_invalid_host(self):
         """连接无效主机应返回错误"""
         resp = client.post("/api/v1/tdsql/connect", json={
-            "host": "192.0.2.1", "port": 3306, "user": "root", "password": "test", "database": "test"
+            "host": "192.0.2.1", "port": 3306, "username": "root", "password": "test", "database": "test"
         })
         if resp.status_code not in (400, 500):
             record_issue("P2", "TDSQL", "无效主机应返回错误", "400/500", f"{resp.status_code}")

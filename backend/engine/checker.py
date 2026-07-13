@@ -235,20 +235,35 @@ class RuleChecker:
 
     def _clean_mybatis_sql(self, sql: str) -> str:
         """清理 MyBatis 动态 SQL 标签"""
-        # 移除 XML 动态标签
-        sql = re.sub(r"<if\b[^>]*>.*?</if>", "", sql, flags=re.DOTALL)
-        sql = re.sub(r"<where\b[^>]*>.*?</where>", " WHERE ", sql, flags=re.DOTALL)
-        sql = re.sub(r"<set\b[^>]*>.*?</set>", " SET ", sql, flags=re.DOTALL)
-        sql = re.sub(r"<foreach\b[^>]*>.*?</foreach>", "?", sql, flags=re.DOTALL)
-        sql = re.sub(r"<choose>.*?</choose>", "?", sql, flags=re.DOTALL)
-        sql = re.sub(r"<when\b[^>]*>.*?</when>", "", sql, flags=re.DOTALL)
-        sql = re.sub(r"<otherwise>.*?</otherwise>", "", sql, flags=re.DOTALL)
-        sql = re.sub(r"<trim\b[^>]*>.*?</trim>", "", sql, flags=re.DOTALL)
+        # 1. 替换包裹标签为相应的 SQL 关键字或空格，保留其内部内容
+        sql = re.sub(r"<where\b[^>]*>", " WHERE ", sql, flags=re.DOTALL | re.IGNORECASE)
+        sql = re.sub(r"</where>", " ", sql, flags=re.IGNORECASE)
+        
+        sql = re.sub(r"<set\b[^>]*>", " SET ", sql, flags=re.DOTALL | re.IGNORECASE)
+        sql = re.sub(r"</set>", " ", sql, flags=re.IGNORECASE)
+        
+        # 2. 剥离其他常用动态标签，仅保留其内部 SQL 内容
+        strip_tags = ["if", "foreach", "choose", "when", "otherwise", "trim"]
+        for tag in strip_tags:
+            sql = re.sub(rf"<{tag}\b[^>]*>", " ", sql, flags=re.DOTALL | re.IGNORECASE)
+            sql = re.sub(rf"</{tag}>", " ", sql, flags=re.IGNORECASE)
+            
+        # 3. 变量占位符替换
         # #{...} → ?
         sql = re.sub(r"#\{[^}]*\}", "?", sql)
         # ${...} → ? (也替换，但有SQL注入风险，审核时可额外警告)
         sql = re.sub(r"\$\{[^}]*\}", "?", sql)
+        
+        # 4. 语法修复（如去除多余的 AND/OR, 逗号等）
+        # 针对 <where> 剥离后可能产生的 WHERE AND 或 WHERE OR
+        sql = re.sub(r"\bWHERE\s+(?:AND|OR)\b", "WHERE ", sql, flags=re.IGNORECASE)
+        # 针对 <set> 剥离后可能产生的 SET , 
+        sql = re.sub(r"\bSET\s*,", "SET ", sql, flags=re.IGNORECASE)
+        # 去除连续的空白字符
+        sql = re.sub(r"\s+", " ", sql)
+        
         return sql.strip()
+
 
     def _split_sql_file(self, content: str) -> list[tuple[str, int]]:
         """

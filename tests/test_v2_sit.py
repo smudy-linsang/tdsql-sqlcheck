@@ -215,7 +215,7 @@ class TestSITMiddlewareChain:
     def test_rbac_denied_recorded_in_metrics(self, sit):
         client, tokens = sit
         client.post("/api/v1/tdsql/connections", headers=tokens["sit_aud"],
-                    json={"host": "x", "port": 1, "user": "u", "password": "p"})
+                    json={"host": "x", "port": 1, "username": "u", "password": "p"})
         resp = client.get("/metrics")
         assert "tdsql_rbac_denied_total" in resp.text
 

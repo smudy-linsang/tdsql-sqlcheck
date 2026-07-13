@@ -221,7 +221,7 @@ class TestAuthAPI:
         headers = _auth_headers(auth_client, "dev1")
         resp = auth_client.post("/api/v1/tdsql/connections", headers=headers,
                                 json={"host": "1.2.3.4", "port": 3306,
-                                      "user": "x", "password": "y"})
+                                      "username": "x", "password": "y"})
         assert resp.status_code == 403
 
     def test_auditor_read_only(self, auth_client):

@@ -115,6 +115,92 @@ class _MySQLCompatCursor:
         return self._cursor.close()
 
 
+def split_sql_statements(sql_script: str) -> list[str]:
+    """将 SQL 脚本按分号拆分为多条 SQL 语句，能够正确处理字符串字面量、行注释和块注释中的分号"""
+    statements = []
+    current_statement = []
+    
+    in_single_quote = False
+    in_double_quote = False
+    in_backtick = False
+    in_line_comment = False
+    in_block_comment = False
+    
+    chars = list(sql_script)
+    i = 0
+    n = len(chars)
+    
+    while i < n:
+        c = chars[i]
+        
+        # 处理转义字符
+        if c == '\\' and (in_single_quote or in_double_quote):
+            current_statement.append(c)
+            if i + 1 < n:
+                current_statement.append(chars[i+1])
+                i += 2
+            else:
+                i += 1
+            continue
+            
+        # 处理单行注释内容
+        if in_line_comment:
+            if c == '\n':
+                in_line_comment = False
+                current_statement.append(c)
+            i += 1
+            continue
+            
+        # 处理块注释内容
+        if in_block_comment:
+            if c == '*' and i + 1 < n and chars[i+1] == '/':
+                in_block_comment = False
+                i += 2
+            else:
+                i += 1
+            continue
+            
+        # 检测注释起始
+        if not in_single_quote and not in_double_quote and not in_backtick:
+            if c == '-' and i + 1 < n and chars[i+1] == '-':
+                in_line_comment = True
+                i += 2
+                continue
+            if c == '#':
+                in_line_comment = True
+                i += 1
+                continue
+            if c == '/' and i + 1 < n and chars[i+1] == '*':
+                in_block_comment = True
+                i += 2
+                continue
+                
+        # 处理引号闭合
+        if c == "'" and not in_double_quote and not in_backtick:
+            in_single_quote = not in_single_quote
+        elif c == '"' and not in_single_quote and not in_backtick:
+            in_double_quote = not in_double_quote
+        elif c == '`' and not in_single_quote and not in_double_quote:
+            in_backtick = not in_backtick
+            
+        # 遇到未闭合分号，视为语句结束
+        if c == ';' and not in_single_quote and not in_double_quote and not in_backtick:
+            stmt = "".join(current_statement).strip()
+            if stmt:
+                statements.append(stmt)
+            current_statement = []
+        else:
+            current_statement.append(c)
+            
+        i += 1
+        
+    stmt = "".join(current_statement).strip()
+    if stmt:
+        statements.append(stmt)
+        
+    return statements
+
+
 class _MySQLCompatConnection:
     """兼容SQLite风格的MySQL连接包装器
 
@@ -141,27 +227,13 @@ class _MySQLCompatConnection:
     
     def executescript(self, sql_script):
         """执行多条SQL（兼容sqlite3风格，按分号分割）"""
-        lines = []
-        for line in sql_script.split('\n'):
-            stripped = line.strip()
-            if stripped.startswith('--'):
-                continue
-            lines.append(line)
-        sql_clean = '\n'.join(lines)
-        statements = []
-        current = []
-        for line in sql_clean.split('\n'):
-            current.append(line)
-            if line.strip().endswith(';'):
-                stmt = '\n'.join(current).strip().rstrip(';')
-                if stmt.strip():
-                    statements.append(stmt)
-                current = []
+        statements = split_sql_statements(sql_script)
         for stmt in statements:
             try:
                 self._conn.cursor().execute(stmt)
             except Exception as e:
                 logger.debug(f"executescript跳过: {str(e)[:80]}")
+
     
     def commit(self):
         return self._conn.commit()

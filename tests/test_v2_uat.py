@@ -224,7 +224,7 @@ class TestUATAuditorScenario:
         cases = [
             ("POST", "/api/v1/audit/sql", {"sql": "SELECT 1"}),
             ("POST", "/api/v1/tdsql/connect",
-             {"host": "x", "port": 1, "user": "u", "password": "p"}),
+             {"host": "x", "port": 1, "username": "u", "password": "p"}),
             ("POST", "/api/v1/rulesets", {"id": "x", "name": "x"}),
             ("POST", "/api/v1/admin/retention/run", None),
         ]

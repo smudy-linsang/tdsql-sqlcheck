@@ -15,7 +15,7 @@ from fastapi.testclient import TestClient
 TDSQL_TEST_CONFIG = {
     "host": "127.0.0.1",
     "port": 13306,
-    "user": "root",
+    "username": "root",
     "password": "tdsql_test_2024",
     "database": "tdsql_test",
 }
@@ -26,7 +26,7 @@ try:
     _conn = pymysql.connect(
         host=TDSQL_TEST_CONFIG["host"],
         port=TDSQL_TEST_CONFIG["port"],
-        user=TDSQL_TEST_CONFIG["user"],
+        user=TDSQL_TEST_CONFIG["username"],
         password=TDSQL_TEST_CONFIG["password"],
         database=TDSQL_TEST_CONFIG["database"],
         connect_timeout=3,
@@ -44,6 +44,15 @@ def client():
     """FastAPI测试客户端"""
     from backend.main import app
     return TestClient(app)
+
+
+def get_connector_config():
+    from backend.services.tdsql_connector import TDSQLConnectionConfig
+    cfg = dict(TDSQL_TEST_CONFIG)
+    if "username" in cfg:
+        cfg["user"] = cfg.pop("username")
+    return TDSQLConnectionConfig(**cfg)
+
 
 
 @pytest.fixture(scope="module")
@@ -374,8 +383,8 @@ class TestUAT47_SlowQueryFetch:
     def test_uat47_06_digest_has_sql_text(self, connected_client):
         """测试digest数据包含SQL文本"""
         # 先执行一些查询来生成digest数据
-        from backend.services.tdsql_connector import TDSQLConnectionPool, TDSQLConnectionConfig
-        config = TDSQLConnectionConfig(**TDSQL_TEST_CONFIG)
+        from backend.services.tdsql_connector import TDSQLConnectionPool
+        config = get_connector_config()
         pool = TDSQLConnectionPool(config)
         with pool.get_connection() as conn:
             cursor = conn.cursor()
@@ -521,8 +530,8 @@ class TestUAT50_ExplainAnalysis:
     @pytest.mark.skipif(not MYSQL_AVAILABLE, reason=SKIP_REASON)
     def test_uat50_01_explain_simple_query(self, connected_client):
         """测试简单查询的EXPLAIN"""
-        from backend.services.tdsql_connector import TDSQLConnectionPool, TDSQLConnectionConfig
-        config = TDSQLConnectionConfig(**TDSQL_TEST_CONFIG)
+        from backend.services.tdsql_connector import TDSQLConnectionPool
+        config = get_connector_config()
         pool = TDSQLConnectionPool(config)
         with pool.get_connection() as conn:
             cursor = conn.cursor()
@@ -534,8 +543,8 @@ class TestUAT50_ExplainAnalysis:
     @pytest.mark.skipif(not MYSQL_AVAILABLE, reason=SKIP_REASON)
     def test_uat50_02_explain_join_query(self, connected_client):
         """测试JOIN查询的EXPLAIN"""
-        from backend.services.tdsql_connector import TDSQLConnectionPool, TDSQLConnectionConfig
-        config = TDSQLConnectionConfig(**TDSQL_TEST_CONFIG)
+        from backend.services.tdsql_connector import TDSQLConnectionPool
+        config = get_connector_config()
         pool = TDSQLConnectionPool(config)
         with pool.get_connection() as conn:
             cursor = conn.cursor()
@@ -551,8 +560,8 @@ class TestUAT50_ExplainAnalysis:
     @pytest.mark.skipif(not MYSQL_AVAILABLE, reason=SKIP_REASON)
     def test_uat50_03_explain_no_index_query(self, connected_client):
         """测试无索引查询的EXPLAIN"""
-        from backend.services.tdsql_connector import TDSQLConnectionPool, TDSQLConnectionConfig
-        config = TDSQLConnectionConfig(**TDSQL_TEST_CONFIG)
+        from backend.services.tdsql_connector import TDSQLConnectionPool
+        config = get_connector_config()
         pool = TDSQLConnectionPool(config)
         with pool.get_connection() as conn:
             cursor = conn.cursor()
@@ -781,8 +790,8 @@ class TestUAT53_EndToEndWorkflows:
         client.post("/api/v1/tdsql/connect", json=TDSQL_TEST_CONFIG)
 
         # 2. 执行一些查询（生成慢SQL数据）
-        from backend.services.tdsql_connector import TDSQLConnectionPool, TDSQLConnectionConfig
-        config = TDSQLConnectionConfig(**TDSQL_TEST_CONFIG)
+        from backend.services.tdsql_connector import TDSQLConnectionPool
+        config = get_connector_config()
         pool = TDSQLConnectionPool(config)
         with pool.get_connection() as conn:
             cursor = conn.cursor()

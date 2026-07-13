@@ -222,6 +222,30 @@ def _post_mr_comment(project_id: int, mr_iid: int, comment_body: str) -> dict:
         return {"posted": False, "reason": f"评论回写失败: {str(e)}"}
 
 
+def _fetch_mr_changes(project_id: int, mr_iid: int) -> list:
+    """从 GitLab API 获取 Merge Request 的变更文件列表"""
+    if not GITLAB_API_TOKEN:
+        return []
+    api_url = f"{GITLAB_API_URL.rstrip('/')}/api/v4"
+    headers = {
+        "PRIVATE-TOKEN": GITLAB_API_TOKEN,
+    }
+    try:
+        with httpx.Client(timeout=30.0) as client:
+            response = client.get(
+                f"{api_url}/projects/{project_id}/merge_requests/{mr_iid}/changes",
+                headers=headers,
+            )
+        if response.status_code == 200:
+            return response.json().get("changes", [])
+        else:
+            logger.warning("Failed to fetch MR changes: status_code=%d", response.status_code)
+    except Exception as e:
+        logger.warning("Failed to fetch MR changes from GitLab: %s", e)
+    return []
+
+
+
 # ============ API路由 ============
 
 @router.post("/webhook/merge-request", summary="GitLab Merge Request Webhook")
@@ -267,8 +291,13 @@ async def handle_merge_request_webhook(
     # 从changes中提取变更的SQL文件（支持多文件变更）
     sql_items = []
 
-    # GitLab MR Webhook 的 changes 字段是一个列表
-    changes_list = payload.get("changes", [])
+    # 如果有 API Token，主动在线拉取 MR 的变更详情；否则回退到 payload.get("changes")（V1.0兼容）
+    changes_list = []
+    if GITLAB_API_TOKEN:
+        changes_list = _fetch_mr_changes(project_id, mr_id)
+    if not changes_list:
+        changes_list = payload.get("changes", [])
+
     if isinstance(changes_list, list):
         for change in changes_list:
             diff_content = change.get("diff", "")

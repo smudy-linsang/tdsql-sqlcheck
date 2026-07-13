@@ -367,8 +367,6 @@ async def check_charset(database: Optional[str] = None,
     """
     检查库内字符集和排序规则一致性。
     """
-    if not connection_id:
-        raise HTTPException(status_code=400, detail="请先选择实例（connection_id必填）")
     conn = _get_pool(connection_id)
     try:
         result = conn.check_charset_consistency(database)
@@ -386,16 +384,21 @@ async def check_large_tables(
     """
     检查大表（参考大表治理规范）。
     """
-    if not connection_id:
-        raise HTTPException(status_code=400, detail="请先选择实例（connection_id必填）")
     conn = _get_pool(connection_id)
     try:
         tables = conn.check_large_tables(database, threshold_gb)
         return {
-            "database": database or "(全部业务库)",
+            "database": database or conn.config.database or "(全部业务库)",
             "threshold_gb": threshold_gb,
             "total": len(tables),
-            "tables": [dict(t) for t in tables],
+            "tables": [
+                {
+                    **t,
+                    "TABLE_NAME": t.get("table_name", ""),
+                    "TABLE_ROWS": t.get("rows_count", 0),
+                }
+                for t in tables
+            ],
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -408,8 +411,6 @@ async def get_table_partitions(
     table: Optional[str] = None,
 ):
     """获取某张分区表的逐分区明细 + 派生分析（数据倾斜/兜底分区过大/分区水位/空分区）。"""
-    if not connection_id:
-        raise HTTPException(status_code=400, detail="请先选择实例（connection_id必填）")
     if not schema or not table:
         raise HTTPException(status_code=400, detail="schema 与 table 必填")
     conn = _get_pool(connection_id)
