@@ -31,6 +31,15 @@ G1 已在连接器新增：`_monitor_conn_params()` / `_monitor_execute(sql, par
 - 时间窗过滤走 `timestramp`（采集时刻，timestamp 类型）；`ts_min/ts_max`（datetime）用于展示首末执行。
 - `m_data_cur` 是 KV 指标表：`f_mid`(监控对象ID) / `f_key`(指标名) / `f_val`(值) / `f_type`(类型) / `f_pmid`(父对象)。实例过滤用 `f_mid LIKE '/tdsqlzk/<instance_id>%' OR f_pmid LIKE ...`。
 
+### 0.4 评审整改补充条款（★强制，来自设计评审）
+> 以下 5 条来自独立评审，均为编码时**必须落实**的健壮性/兼容性约束，优先级高于各 G 章的示例代码。
+
+1. **系统库/视图权限优雅降级（对应 G2.2，高）**：只读账号在银行等受控环境**大概率无 `mysql.*` / `sys.*` 读权限**（报 `Error 1142/1044`）。凡查 `mysql.innodb_table_stats`、`sys.schema_redundant_indexes` 处**必须 `try/except`**：权限不足时该项填 `"N/A(权限不足)"`，**绝不中断整条慢SQL的增强/扫描主流程**；统计信息时间**回退**到只读账号必可读的 `information_schema.TABLES.UPDATE_TIME`（NULL 再退 `CREATE_TIME`）。冗余索引不可读时填 `"N/A(sys库不可用)"`。
+2. **锁等待表多版本适配（对应 G7.2/S4，中）**：TDSQL 内核有 5.7 / 8.0 之分——5.7 用 `information_schema.innodb_lock_waits`(+`innodb_locks`)，8.0 已废弃改用 `performance_schema.data_lock_waits`(+`data_locks`)。硬编码单版本会"表不存在"报错。**做法**：先 `SELECT VERSION()` 判大版本分支；或"优先查 8.0 `data_lock_waits`，捕获表不存在异常再降级查 5.7 `innodb_lock_waits`"。
+3. **`convert_to_select` 的安全边界与可选增强（对应 G2.2，低）**：正则转写复杂 `UPDATE...JOIN`/子查询可能生成非法 SELECT。**但安全不依赖正则正确性**——最终 `startswith('EXPLAIN SELECT')` 门禁 + 转写/EXPLAIN 失败即跳过该行填 `N/A`，**最坏只是少一条诊断，绝不误执行写操作**。因此正则方案（与原厂一致、零新依赖）作为基线保留。**可选增强**：若复杂 DML 覆盖率重要且内网可接受新依赖，再引入 `sqlglot` 做 AST 级重写（`parse_one(...,read="mysql")` 判 `exp.Update`/`exp.Delete` 重写），失败则 `return None`。**不强制引入 sqlglot**（内网离线部署有依赖成本，需评估）。
+4. **区分度防除零（对应 G5.3，低）**：`selectivity = (cardinality/table_rows) if table_rows>0 else 0.0`。新表/统计未收集时 `TABLE_ROWS=0` 会抛 `ZeroDivisionError`，所有"比率型"计算（区分度/碎片率/扫描效率/自增使用率）一律用 `NULLIF`/显式判零防护。
+5. **`/*sets:allsets*/` 兼容 + 多行聚合（对应 G2.2/G7，中）**：**已知事实**——本项目环境实测部分 TDSQL Proxy **不完全支持 `/*sets:allsets*/`**（曾出现只路由到部分 SET）。故凡依赖该 hint 的查询（如 `innodb_table_stats`）：① 不可假设一定生效；返回**多行**（每 SET 一行）时按 `MIN(last_update)` 取最老、`SUM(n_rows)` 求和；② hint 不支持/取不全时**降级**（逐 SET 或接受单 SET 近似）并在结果标注口径，不静默当成全量。
+
 ---
 
 ## G2. 慢SQL 十列增强诊断（源自 `slow_sql_enrich.py`）
@@ -229,7 +238,7 @@ UNUSED_UPTIME_MIN_DAYS=7    # 未用索引需uptime≥7天才可信
 ```
 八类检查：
 1. **重复/前缀冗余索引**：列序完全相同=重复；A 的列是 B 列前缀=前缀冗余。
-2. **低区分度**：`selectivity=Cardinality/TABLE_ROWS`，<0.1 报（分级 0.9/0.5/0.1/0.01），排除 PRIMARY。
+2. **低区分度**：`selectivity = (Cardinality/TABLE_ROWS) if TABLE_ROWS>0 else 0.0`（★防除零，见 §0.4-4），<0.1 报（分级 0.9/0.5/0.1/0.01），排除 PRIMARY。
 3. **未使用索引**：`count_read=0` 且非 PRIMARY；UNIQUE 标"约束索引"降险；uptime<7天标存疑。
 4. **低利用率**：该索引 count_read 占该表总 count_read <5%。
 5. **索引空间**：按表统计 INDEX_LENGTH 占比。
@@ -303,7 +312,7 @@ UNUSED_UPTIME_MIN_DAYS=7    # 未用索引需uptime≥7天才可信
 | S1 实例健康 | `SHOW GLOBAL STATUS`(Threads_connected/running、Questions、Uptime)、`SHOW VARIABLES`(max_connections)、连接使用率 |
 | S2 连接/会话 | `information_schema.processlist` 按 state/command/time 聚合，活跃会话 TopN |
 | S3 大事务/未提交 | `information_schema.innodb_trx`（trx_started、trx_rows_modified、运行时长）、长事务 TopN（复用现有 `long_transaction`） |
-| S4 锁等待 | `information_schema.innodb_lock_waits`/`data_lock_waits`、`sys.innodb_lock_waits`、MDL（`performance_schema.metadata_locks`） |
+| S4 锁等待 | ★先判版本(见 §0.4-2)：**8.0** 用 `performance_schema.data_lock_waits`(+`data_locks`)、**5.7** 用 `information_schema.innodb_lock_waits`(+`innodb_locks`)；MDL 走 `performance_schema.metadata_locks`。优先查 8.0 失败再降级 5.7 |
 | S5 异常/慢SQL | `processlist` 中 time>阈值且非 Sleep；结合 monitordb 慢SQL |
 | S6 InnoDB/死锁 | `SHOW ENGINE INNODB STATUS`（解析 LATEST DETECTED DEADLOCK，复用现有 `deadlock_analyzer`） |
 
