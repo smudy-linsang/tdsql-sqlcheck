@@ -636,6 +636,42 @@ class TestBigTableEngine:
         many_empty.append({"name": "big", "size_gb": 2.0, "pct": 100.0, "is_maxvalue": False, "rows": 999})
         assert "empty_partitions" in [f["code"] for f in _analyze_partitions(many_empty)["flags"]]
 
+    def test_merge_digest_across_sets(self):
+        """慢SQL digest 跨 SET 合并：求和/平均重算/MAX/首末次/set分布/min_time过滤。"""
+        from backend.services.tdsql_connector import TDSQLConnectionPool
+        per_set = [
+            ("set_A", [
+                {"SCHEMA_NAME": "db", "DIGEST": "d1", "DIGEST_TEXT": "UPDATE t",
+                 "COUNT_STAR": 100, "SUM_TIMER_WAIT": 300_000_000_000, "MAX_TIMER_WAIT": 5_000_000_000,
+                 "SUM_ROWS_EXAMINED": 1000, "SUM_ROWS_SENT": 100, "SUM_NO_INDEX_USED": 0, "SUM_LOCK_TIME": 0,
+                 "FIRST_SEEN": "2026-07-10 01:00:00", "LAST_SEEN": "2026-07-12 09:00:00"},
+                {"SCHEMA_NAME": "db", "DIGEST": "d2", "DIGEST_TEXT": "SELECT a",
+                 "COUNT_STAR": 10, "SUM_TIMER_WAIT": 1_000_000_000, "MAX_TIMER_WAIT": 200_000_000,
+                 "SUM_ROWS_EXAMINED": 10, "SUM_ROWS_SENT": 10, "SUM_NO_INDEX_USED": 0, "SUM_LOCK_TIME": 0,
+                 "FIRST_SEEN": "2026-07-11 00:00:00", "LAST_SEEN": "2026-07-11 00:00:00"},
+            ]),
+            ("set_B", [
+                {"SCHEMA_NAME": "db", "DIGEST": "d1", "DIGEST_TEXT": "UPDATE t",
+                 "COUNT_STAR": 50, "SUM_TIMER_WAIT": 200_000_000_000, "MAX_TIMER_WAIT": 8_000_000_000,
+                 "SUM_ROWS_EXAMINED": 500, "SUM_ROWS_SENT": 50, "SUM_NO_INDEX_USED": 0, "SUM_LOCK_TIME": 0,
+                 "FIRST_SEEN": "2026-07-09 00:00:00", "LAST_SEEN": "2026-07-12 10:00:00"},
+            ]),
+        ]
+        out = TDSQLConnectionPool._merge_digest_across_sets(per_set, min_time=0.001, limit=50)
+        d1 = [r for r in out if r["DIGEST"] == "d1"][0]
+        assert d1["exec_count"] == 150                       # 100+50 求和
+        assert abs(d1["total_seconds"] - 0.5) < 1e-6         # (3e11+2e11)/1e12
+        assert abs(d1["avg_seconds"] - round(5e11 / 150 / 1e12, 4)) < 1e-6  # 平均重算
+        assert abs(d1["max_seconds"] - 0.008) < 1e-6         # MAX(5e9,8e9)/1e12
+        assert d1["FIRST_SEEN"] == "2026-07-09 00:00:00"     # 跨set取MIN
+        assert d1["LAST_SEEN"] == "2026-07-12 10:00:00"      # 跨set取MAX
+        assert d1["set_ids"] == "set_A(100),set_B(50)"       # set分布
+        assert d1["rows_examined"] == 1500
+        # d2 avg=1e9/10/1e12=0.0001s < 0.001 → 被 min_time 过滤
+        assert all(r["DIGEST"] != "d2" for r in out)
+        # 空输入
+        assert TDSQLConnectionPool._merge_digest_across_sets([], 0, 50) == []
+
     def test_governance_report(self):
         """治理报告生成"""
         engine = BigTableEngine()
