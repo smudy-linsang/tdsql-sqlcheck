@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ============================================================================
 # 发布包构建脚本（在有外网/内网 pip 源的打包机上执行，非目标服务器）
-# 产出: dist/tdsql-sqlcheck-v1.0.3-linux-<arch>.tar.gz + .sha256
+# 产出: dist/tdsql-sqlcheck-v1.0.3.4-linux-<arch>.tar.gz + .sha256
 #
 # 用法:
 #   ./deploy/make_release.sh --arch x86_64            # 为 x86_64 麒麟打包
@@ -10,7 +10,7 @@
 #   加 --with-python 会额外内置便携 CPython（目标机无 python3.9+ 时使用）
 # ============================================================================
 set -euo pipefail
-VERSION="1.0.3"
+VERSION="1.0.3.4"
 ARCH="x86_64"; PYTAG="311"; WITH_PYTHON="no"
 while [[ $# -gt 0 ]]; do case "$1" in
   --arch) ARCH="$2"; shift 2;;

@@ -19,4 +19,4 @@ sleep 5
 curl -s -m 5 "http://127.0.0.1:$(grep -oE 'port [0-9]+' /etc/systemd/system/tdsql-sqlcheck.service | awk '{print $2}')/health" || true
 echo ""
 echo "[ROLLBACK] 完成。请执行 verify_deploy.sh 确认服务状态。"
-echo "说明: 本系统元数据库表结构为增量兼容设计(ensure_db 只增不删)，v1.0.3 未引入破坏性变更，回滚无需降级数据库。"
+echo "说明: 本系统元数据库表结构为增量兼容设计(ensure_db 只增不删)，v1.0.3.4 未引入破坏性变更，回滚无需降级数据库。"
