@@ -378,9 +378,22 @@ def _migrate_old_tables(conn):
         _add_column_if_not_exists(conn, "slow_queries", "assigned_to", "VARCHAR(64) DEFAULT ''")
         _add_column_if_not_exists(conn, "slow_queries", "updated_at", "DATETIME DEFAULT CURRENT_TIMESTAMP")
         _add_column_if_not_exists(conn, "slow_queries", "scan_task_id", "INT DEFAULT NULL")
-        _add_column_if_not_exists(conn, "slow_queries", "set_id", "VARCHAR(32) DEFAULT ''")
+        _add_column_if_not_exists(conn, "slow_queries", "set_id", "VARCHAR(512) DEFAULT ''")
         _add_column_if_not_exists(conn, "slow_queries", "client_user", "VARCHAR(128) DEFAULT ''")
         _add_column_if_not_exists(conn, "slow_queries", "client_host", "VARCHAR(128) DEFAULT ''")
+        # 存量库：set_id 原为 VARCHAR(32)，多SET合并的分布(如 set_a(40),set_b(11))装不下，
+        # 加宽到 VARCHAR(512)。仅当当前长度不足时执行 ALTER（避免每次启动重建表）。
+        try:
+            row = conn.execute("""
+                SELECT CHARACTER_MAXIMUM_LENGTH AS len FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'slow_queries'
+                  AND COLUMN_NAME = 'set_id'
+            """).fetchone()
+            cur_len = row["len"] if row and row["len"] is not None else None
+            if cur_len is not None and int(cur_len) < 512:
+                conn.execute("ALTER TABLE slow_queries MODIFY COLUMN set_id VARCHAR(512) DEFAULT ''")
+        except Exception as e:
+            logger.warning(f"widen slow_queries.set_id failed: {e}")
 
     if "tdsql_connections" in table_names:
         # 分布式实例 SET 列表（慢SQL digest 逐SET合并用）
@@ -430,7 +443,7 @@ def _create_all_tables(conn):
             sql_text            TEXT NOT NULL,
             normalized_sql      TEXT,
             db_name             VARCHAR(128) DEFAULT '',
-            set_id              VARCHAR(32) DEFAULT '',
+            set_id              VARCHAR(512) DEFAULT '',
             connection_id       VARCHAR(64) DEFAULT '',
             project_id          VARCHAR(64) DEFAULT '',
             client_user         VARCHAR(128) DEFAULT '',
