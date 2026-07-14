@@ -1166,6 +1166,24 @@ def _create_all_tables(conn):
             created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
             INDEX idx_er_conn (connection_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""",
+
+        # G4. 每日巡检 —— 每日指标快照
+        """CREATE TABLE IF NOT EXISTS daily_inspection (
+            id                  INT PRIMARY KEY AUTO_INCREMENT,
+            inspect_date        VARCHAR(16) NOT NULL,
+            connection_id       VARCHAR(64) DEFAULT '',
+            node                VARCHAR(128) DEFAULT '',
+            cpu_peak            DOUBLE DEFAULT 0,
+            cpu_avg             DOUBLE DEFAULT 0,
+            mem_peak            DOUBLE DEFAULT 0,
+            conn_peak           DOUBLE DEFAULT 0,
+            slow_query          DOUBLE DEFAULT 0,
+            delay_peak          DOUBLE DEFAULT 0,
+            disk_peak           DOUBLE DEFAULT 0,
+            created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_daily (inspect_date, connection_id, node),
+            INDEX idx_daily_conn (connection_id, inspect_date)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""",
     ]
 
     for ddl in table_ddls:
