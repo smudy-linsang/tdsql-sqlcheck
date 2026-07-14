@@ -1,0 +1,3 @@
+<config>
+  <sshpass user="tdsql" password_encrypt="n33URxp8TPl8K0QS3lo=" port="8966" oc_dir="/data/oc_agent/bin" />
+</config>

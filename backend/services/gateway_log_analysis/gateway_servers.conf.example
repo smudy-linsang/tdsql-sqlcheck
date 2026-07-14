@@ -1,0 +1,36 @@
+# TDSQL Gateway 服务器配置文件
+#
+# 供 gateway_collect.sh 使用，定义需要采集日志分析数据的 Gateway 服务器列表。
+#
+# 格式（逗号分隔，每行一台服务器）:
+#   别名,IP,SSH端口,用户名,认证方式,端口号表达式[,日志路径模板]
+#
+# 字段说明:
+#   别名            服务器标识名（用于输出文件命名和日志）
+#   IP              服务器 IP 地址
+#   SSH端口         SSH 端口号（通常为 22）
+#   用户名          SSH 登录用户名
+#   认证方式        两种格式：
+#                     key:/path/to/id_rsa   使用密钥文件（推荐）
+#                     pass:yourpassword     使用密码（需安装 sshpass）
+#   端口号表达式    与 analyze_gateway_log.py -p 格式一致，支持：
+#                     单个端口:   15001
+#                     逗号分隔:   15001;15003;15005  （注意: 配置文件内用分号分隔端口）
+#                     连续范围:   15001:15010  或  15001~15010
+#                     混合格式:   15001:15010;15012;15015~15020
+#   日志路径模板    （可选）覆盖默认路径模板，必须包含 {port}
+#                   默认: /data/tdsql_run/{port}/gateway/log
+#
+# 以 # 开头的行为注释，空行会被忽略。
+#
+# === 示例配置 ===
+#
+# 使用密钥认证（推荐）
+# gw-node1,10.0.1.10,22,root,key:/root/.ssh/id_rsa,15001:15020
+# gw-node2,10.0.1.11,22,root,key:/root/.ssh/id_rsa,15001:15010;15012
+#
+# 使用密码认证（需安装 sshpass）
+# gw-node3,10.0.1.12,22,root,pass:MyPassword123,15001:15003
+#
+# 自定义日志路径模板
+# gw-node4,10.0.1.13,22,root,key:/root/.ssh/id_rsa,15001:15010,/data1/tdengine/{port}/gateway/log

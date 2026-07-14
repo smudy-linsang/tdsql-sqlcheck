@@ -73,7 +73,7 @@ const app=createApp({
     const explainResult=ref(null);
     const tdsqlStatus=ref({connected:false});
     const connDrawer=ref(false);
-    const connForm=reactive({id:'',name:'',host:'',port:3306,username:'',password:'',database:'',is_distributed:true,description:'',set_list:''});
+    const connForm=reactive({id:'',name:'',host:'',port:3306,username:'',password:'',database:'',is_distributed:true,description:'',set_list:'',monitor_host:'',monitor_port:15001,monitor_user:'',monitor_password:'',monitor_db:'tdsqlpcloud_monitor'});
     const connEditMode=ref(false);
     const connTestResult=ref(null);
     const connTesting=ref(false);
@@ -101,6 +101,21 @@ const app=createApp({
     const deepTab=ref('cluster');
     const deepLoading=ref('');
     const deepResult=reactive({cluster:null,index:null,diff:null,emergency:null,sqlstats:null});
+    // G10-G13 新增状态
+    const zkDialogVisible=ref(false);
+    const zkForm=reactive({zk_server:'127.0.0.1:2118',zk_auth_user:'tdsqlsys_zk',zk_auth_password:'',zk_root:'/tdsqlzk',zkcli_path:'/data/application/zookeeper/bin/zkCli.sh',proxy_mode:'random',default_database:'ALL',force_mock:false});
+    const zkScanning=ref(false);
+    const zkDiscovered=ref([]);
+    const zkSelected=ref([]);
+    const zkRegistering=ref(false);
+    const gatewayLoading=ref(false);
+    const gatewayReports=ref([]);
+    const gatewayHtml=ref('');
+    const gatewayDetailVisible=ref(false);
+    const pptLoading=ref(false);
+    const pptDashboard=ref(null);
+    const toolkitLoading=ref(false);
+    const toolkitScripts=ref([]);
     const schemaCheckLoading=ref(false);
     const bigtableLoading=ref(false);
     const bigtableData=ref(null);
@@ -215,8 +230,8 @@ const app=createApp({
     const loadSavedConnections=async()=>{connLoading.value=true;try{const resp=await apiFetch(`${API_BASE}/api/v1/tdsql/connections`);if(resp.ok){const d=await resp.json();savedConnections.value=d.connections||[];if(d.default&&!currentConnectionId.value)currentConnectionId.value=d.default}}catch(e){}finally{connLoading.value=false}};
     const testConn=async()=>{connTesting.value=true;connTestResult.value=null;try{const resp=await apiFetch(`${API_BASE}/api/v1/tdsql/test-connection?host=${encodeURIComponent(connForm.host)}&port=${connForm.port}&user=${encodeURIComponent(connForm.username)}&password=${encodeURIComponent(connForm.password)}&database=${encodeURIComponent(connForm.database)}`);const d=await resp.json();connTestResult.value=d.status==='connected'?{type:'success',msg:`连接成功！${d.server_version}，延迟${d.latency_ms}ms`}:{type:'error',msg:'连接失败: '+(d.message||'')}}catch(e){connTestResult.value={type:'error',msg:e.message}}finally{connTesting.value=false}};
     const saveConn=async()=>{if(!connForm.name){ElementPlus.ElMessage.warning('请输入连接名称');return}if(connForm.is_distributed===null||connForm.is_distributed===undefined){ElementPlus.ElMessage.warning('请选择实例类型');return}try{const body={...connForm};if(!body.id)delete body.id;if(connEditMode.value&&connForm.id){const resp=await apiFetch(`${API_BASE}/api/v1/tdsql/connections/${connForm.id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(resp.ok){ElementPlus.ElMessage.success('连接已更新');connDrawer.value=false;connEditMode.value=false;resetConnForm();loadSavedConnections()}else{const d=await resp.json();ElementPlus.ElMessage.error(d.detail||'更新失败')}}else{const resp=await apiFetch(`${API_BASE}/api/v1/tdsql/connections`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(resp.ok){ElementPlus.ElMessage.success('连接已保存');connDrawer.value=false;connEditMode.value=false;resetConnForm();loadSavedConnections()}else{const d=await resp.json();ElementPlus.ElMessage.error(d.detail||'保存失败')}}}catch(e){ElementPlus.ElMessage.error('保存失败: '+e.message)}};
-    const resetConnForm=()=>{connForm.id='';connForm.name='';connForm.host='';connForm.port=3306;connForm.username='';connForm.password='';connForm.database='';connForm.is_distributed=true;connForm.description='';connForm.set_list=''};
-    const openEditConn=(row)=>{connEditMode.value=true;connForm.id=row.id;connForm.name=row.name;connForm.host=row.host;connForm.port=row.port;connForm.username=row.username;connForm.password='';connForm.database=row.database||'';connForm.is_distributed=row.is_distributed!==0&&row.is_distributed!==false;connForm.description=row.description||'';connForm.set_list=row.set_list||'';connTestResult.value=null;connDrawer.value=true};
+    const resetConnForm=()=>{connForm.id='';connForm.name='';connForm.host='';connForm.port=3306;connForm.username='';connForm.password='';connForm.database='';connForm.is_distributed=true;connForm.description='';connForm.set_list='';connForm.monitor_host='';connForm.monitor_port=15001;connForm.monitor_user='';connForm.monitor_password='';connForm.monitor_db='tdsqlpcloud_monitor'};
+    const openEditConn=(row)=>{connEditMode.value=true;connForm.id=row.id;connForm.name=row.name;connForm.host=row.host;connForm.port=row.port;connForm.username=row.username;connForm.password='';connForm.database=row.database||'';connForm.is_distributed=row.is_distributed!==0&&row.is_distributed!==false;connForm.description=row.description||'';connForm.set_list=row.set_list||'';connForm.monitor_host=row.monitor_host||'';connForm.monitor_port=row.monitor_port||15001;connForm.monitor_user=row.monitor_user||'';connForm.monitor_password='';connForm.monitor_db=row.monitor_db||'tdsqlpcloud_monitor';connTestResult.value=null;connDrawer.value=true};
     const openNewConn=()=>{connEditMode.value=false;resetConnForm();connTestResult.value=null;connDrawer.value=true};
     const deleteConn=async(row)=>{try{await ElementPlus.ElMessageBox.confirm(`确认删除连接「${row.name}」？`,'删除确认',{type:'warning'})}catch(e){return}try{await apiFetch(`${API_BASE}/api/v1/tdsql/connections/${row.id}`,{method:'DELETE'});ElementPlus.ElMessage.success('已删除');loadSavedConnections()}catch(e){ElementPlus.ElMessage.error('删除失败')}};
     const setDefaultConn=async(row)=>{try{await apiFetch(`${API_BASE}/api/v1/tdsql/connections/${row.id}/set-default`,{method:'POST'});ElementPlus.ElMessage.success('已设为默认');loadSavedConnections()}catch(e){ElementPlus.ElMessage.error('设置失败')}};
@@ -287,6 +302,148 @@ const app=createApp({
     const runSqlStats=async()=>{
       const r=await _deepPost('sqlstats','/api/v1/sql-stats/analyze',{connection_id:deepConnId.value,top_n:20,database:deepDb.value});
       if(r){deepResult.sqlstats=r;ElementPlus.ElMessage.success('SQL分析完成')}
+    };
+    // G10: ZK Discovery
+    const openZkDiscovery=()=>{
+      zkDialogVisible.value=true;
+      zkDiscovered.value=[];
+      zkSelected.value=[];
+    };
+    const runZkDiscovery=async()=>{
+      zkScanning.value=true;
+      try{
+        const resp=await apiFetch(`${API_BASE}/api/v1/tdsql/discover`,{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify(zkForm)
+        });
+        if(resp.ok){
+          zkDiscovered.value=await resp.json();
+          ElementPlus.ElMessage.success(`发现 ${zkDiscovered.value.length} 个实例`);
+        }else{
+          const d=await resp.json();
+          ElementPlus.ElMessage.error(d.detail||'扫描失败');
+        }
+      }catch(e){
+        ElementPlus.ElMessage.error('发现请求失败: '+e.message);
+      }finally{
+        zkScanning.value=false;
+      }
+    };
+    const handleZkSelection=(val)=>{
+      zkSelected.value=val;
+    };
+    const registerZkInstances=async()=>{
+      if(!zkSelected.value.length)return;
+      zkRegistering.value=true;
+      let ok=0;
+      for(const inst of zkSelected.value){
+        try{
+          const resp=await apiFetch(`${API_BASE}/api/v1/tdsql/discover/register`,{
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({
+              connection_id: inst.service_name,
+              service_name: inst.service_name,
+              host: inst.host,
+              port: inst.port,
+              user: inst.user,
+              password: inst.password,
+              database: inst.database
+            })
+          });
+          if(resp.ok) ok++;
+        }catch(e){}
+      }
+      zkRegistering.value=false;
+      ElementPlus.ElMessage.success(`成功导入 ${ok} 个实例`);
+      zkDialogVisible.value=false;
+      loadSavedConnections();
+    };
+
+    // G11: Gateway Log Analysis
+    const loadGatewayReports=async()=>{
+      gatewayLoading.value=true;
+      try{
+        const url = deepConnId.value ? `${API_BASE}/api/v1/gateway-log/reports?connection_id=${deepConnId.value}` : `${API_BASE}/api/v1/gateway-log/reports`;
+        const resp=await apiFetch(url);
+        if(resp.ok) gatewayReports.value=await resp.json();
+      }catch(e){}
+      finally{gatewayLoading.value=false}
+    };
+    const viewGatewayReport=async(row)=>{
+      try{
+        const resp=await apiFetch(`${API_BASE}/api/v1/gateway-log/reports/${row.id}`);
+        if(resp.ok){
+          const data = await resp.json();
+          gatewayHtml.value = data.report_html || '';
+          gatewayDetailVisible.value = true;
+        }
+      }catch(e){ElementPlus.ElMessage.error('加载报告详情失败')}
+    };
+    const onGatewayUpload=async(file)=>{
+      if(!file||!file.raw)return;
+      if(!deepConnId.value){
+        ElementPlus.ElMessage.warning('请先选择左上角的实例');
+        return;
+      }
+      gatewayLoading.value=true;
+      const fd=new FormData();
+      fd.append('connection_id',deepConnId.value);
+      fd.append('log_type','interf');
+      fd.append('file',file.raw);
+      try{
+        const resp=await apiFetch(`${API_BASE}/api/v1/gateway-log/upload`,{
+          method:'POST',
+          body:fd
+        });
+        const d=await resp.json();
+        if(resp.ok){
+          ElementPlus.ElMessage.success('日志分析完成');
+          loadGatewayReports();
+        }else{
+          ElementPlus.ElMessage.error(d.detail||'分析失败');
+        }
+      }catch(e){ElementPlus.ElMessage.error('上传分析失败: '+e.message)}
+      finally{gatewayLoading.value=false}
+    };
+
+    // G12: PPT Report & Dashboard
+    const loadPptDashboard=async()=>{
+      if(!deepConnId.value)return;
+      pptLoading.value=true;
+      try{
+        const resp=await apiFetch(`${API_BASE}/api/v1/ppt-report/dashboard?connection_id=${deepConnId.value}`);
+        if(resp.ok) pptDashboard.value=await resp.json();
+      }catch(e){}
+      finally{pptLoading.value=false}
+    };
+    const generatePptReport=async()=>{
+      if(!deepConnId.value){
+        ElementPlus.ElMessage.warning('请先选择实例');
+        return;
+      }
+      pptLoading.value=true;
+      try{
+        const t=getToken();
+        window.open(`${API_BASE}/api/v1/ppt-report/generate?connection_id=${deepConnId.value}&access_token=${t}`,'_blank');
+        ElementPlus.ElMessage.success('已开始 PDF 报告生成与下载');
+      }catch(e){ElementPlus.ElMessage.error('导出 PDF 失败')}
+      finally{pptLoading.value=false}
+    };
+
+    // G13: Ops Toolkit
+    const loadToolkitScripts=async()=>{
+      toolkitLoading.value=true;
+      try{
+        const resp=await apiFetch(`${API_BASE}/api/v1/toolkit/scripts`);
+        if(resp.ok) toolkitScripts.value=await resp.json();
+      }catch(e){}
+      finally{toolkitLoading.value=false}
+    };
+    const downloadToolkitScript=(scriptPath)=>{
+      const t=getToken();
+      window.open(`${API_BASE}/api/v1/toolkit/download?file_path=${encodeURIComponent(scriptPath)}&access_token=${t}`,'_blank');
     };
     const exportSchemaCheckReport=async()=>{
       if(!schemaCheckConnId.value){ElementPlus.ElMessage.warning('请先选择实例');return}
@@ -374,9 +531,11 @@ const app=createApp({
     const loadVisibleMenus=async()=>{try{const resp=await apiFetch(`${API_BASE}/api/v1/auth/visible-menus`);if(resp.ok){const d=await resp.json();visibleMenus.value=new Set(d.menus||[])}}catch(e){}};
     const loadAll=()=>{loadDashboard();loadSavedConnections();loadRules();loadScanTasks();loadSlowList();loadProjects();loadActiveAlerts();loadLogo();loadVisibleMenus()};
     onMounted(async()=>{onUnauthorized=()=>{authState.token='';authState.user=null};const ok=await checkSession();if(ok)loadAll()});
-    watch(currentPage,(v)=>{if(v==='dashboard')nextTick(renderTrendChart);if(v==='rules'&&rulesList.value.length===0)loadRules();if(v==='file-audit'&&fileAuditTab.value==='reports')loadFileReports();if(v==='slow-tasks')loadScanTasks();if(v==='slow-records')loadSlowList();if(v==='sys-users')loadUsers();if(v==='slow-schedule')loadScanSchedules();if(v==='bigtable')loadBigtable();if(v==='projects')loadProjectsList();if(v==='rulesets')loadRulesets();if(v==='gate'){loadGateStrategies();loadGateRules()};if(v==='monitor'){loadMonitorAlerts();loadMonitorRules()};if(v==='inspection')loadInspectionTasks();if(v==='sys-auditlog')loadAuditLogs();if(v==='sys-retention')loadRetention();if(v==='sys-info')loadSysInfo();if(v==='sys-roles')loadRoles();if(v==='sys-perms')loadPerms()});
+    watch(currentPage,(v)=>{if(v==='dashboard')nextTick(renderTrendChart);if(v==='rules'&&rulesList.value.length===0)loadRules();if(v==='file-audit'&&fileAuditTab.value==='reports')loadFileReports();if(v==='slow-tasks')loadScanTasks();if(v==='slow-records')loadSlowList();if(v==='sys-users')loadUsers();if(v==='slow-schedule')loadScanSchedules();if(v==='bigtable')loadBigtable();if(v==='projects')loadProjectsList();if(v==='rulesets')loadRulesets();if(v==='gate'){loadGateStrategies();loadGateRules()};if(v==='monitor'){loadMonitorAlerts();loadMonitorRules()};if(v==='inspection')loadInspectionTasks();if(v==='sys-auditlog')loadAuditLogs();if(v==='sys-retention')loadRetention();if(v==='sys-info')loadSysInfo();if(v==='sys-roles')loadRoles();if(v==='sys-perms')loadPerms();if(v==='deep-diag'){if(deepTab.value==='gateway_log')loadGatewayReports();if(deepTab.value==='ppt_report')loadPptDashboard();if(deepTab.value==='toolkit')loadToolkitScripts()}});
     watch(fileAuditTab,(v)=>{if(v==='reports')loadFileReports()});
-    return{currentPage,sidebarCollapsed,authState,loginForm,loginLoading,loginError,pwdDialog,savedConnections,currentConnectionId,projects,currentProjectId,activeAlerts,metadataEnhanced,statsLoading,stats,ruleHits,trendChartRef,kpiCards,sqlInput,auditing,auditResult,auditProjectId,fileAuditTab,fileAuditResult,fileReports,fileReportsLoading,fileReportsTotal,fileReportsPage,rulesList,rulesByCategory,ruleSearch,expandedCategories,filteredCategories,slowList,slowListLoading,slowFilters,slowPage,scanTasks,scanTaskTotal,scanTaskCurrentPage,scanTaskLoading,selectedTaskIds,batchDeleting,clearingOrphan,scanDrawer,scanTimeWindow,scanTaskForm,slowDetailDrawer,slowDetail,explainMode,explainSqlInput,explainInput,explainConnId,analyzingExplain,explainResult,tdsqlStatus,connDrawer,connForm,connEditMode,connTestResult,connTesting,connLoading,usersList,usersLoading,userDialog,resetDialog,scanSchedules,scanScheduleLoading,scheduleDrawer,scheduleForm,healthLoading,healthResult,healthCheckType,healthDbName,schemaCheckConnId,schemaCheckResults,schemaCheckSummary,schemaCheckLoading,bigtableLoading,bigtableData,bigtableRef,partitionDetail,partitionLoading,projectsList,projectsLoading,projectDialog,rulesets,rulesetsLoading,gateRules,gateStrategies,gateLoading,monitorAlerts,monitorRules,monitorLoading,monitorTab,inspectionTasks,inspectionLoading,auditLogs,auditLogsLoading,auditLogsTotal,auditLogsPage,retentionPolicies,retentionLoading,sysInfo,sysInfoLoading,roleLabel,canManagePlatform,canManageInstances,canViewAuditLog,canViewSysInfo,canViewProjects,canViewMonitor,canViewSchedule,canViewBigtable,breadcrumbItems,formatTime,sevTagType,statusLabel,sourceLabel,categoryOrder,doLogin,doLogout,changePassword,onUserCommand,onMenuSelect,onConnectionSwitch,onProjectSwitch,auditSql,loadExample,onFileChange,loadFileReports,downloadFileReport,loadRules,loadSlowList,resetSlowFilter,openSlowDetail,setSlowStatus,exportSlowReport,downloadScanReport,goSlowDetail,goExplainFromSlow,loadScanTasks,onTaskSelectChange,deleteScanTask,batchDeleteScanTasks,startScanTask,viewTaskSlowQueries,clearOrphanRecords,analyzeExplainBySql,analyzeExplain,loadSavedConnections,testConn,saveConn,openEditConn,openNewConn,deleteConn,setDefaultConn,connectInstance,loadUsers,createUser,openResetPwd,resetUserPwd,unlockUser,toggleUserStatus,deleteUser,loadAll,renderTrendChart,loadProjects,loadActiveAlerts,loadScanSchedules,createScanSchedule,deleteScanSchedule,toggleScheduleEnabled,runHealthCheck,runSchemaCheck,exportSchemaCheckReport,loadBigtable,bigtableRowKey,partitionBoundaryLabel,bigtableRowClass,togglePartitions,onBigtableExpand,loadTablePartitions,loadProjectsList,createProject,deleteProject,toggleProjectStatus,loadRulesets,loadGateRules,loadGateStrategies,applyGateStrategy,loadMonitorAlerts,acknowledgeAlert,loadMonitorRules,loadInspectionTasks,loadAuditLogs,loadRetention,runRetentionCleanup,loadSysInfo,bigtableCollecting,collectBigtable,rulesetDialog,createRuleset,deleteRuleset,gateCustom,openGateCustom,saveGateCustom,monitorRuleDialog,createMonitorRule,inspectionDialog,createInspection,inspectionResultDrawer,inspectionResults,viewInspectionResult,retentionDialog,openRetentionEdit,saveRetention,retentionEditMode,logoUrl,loadLogo,onLogoUpload,resetLogo,toggleSysConfig,auditFilter,resetAuditFilter,tableNameLabel,metricLabel,rolesList,rolesLoading,roleDialog,deleteRole,openRoleEdit,saveRole,roleLabelFn,permsMatrixData,permsMenuList,permsLoading,loadPerms,onPermChange,deepConnId,deepRightConnId,deepDb,deepTab,deepLoading,deepResult,runClusterInspect,runIndexAudit,runSchemaDiff,runEmergency,runSqlStats,visibleMenus};
+    watch(deepTab,(v)=>{if(v==='gateway_log')loadGatewayReports();if(v==='ppt_report')loadPptDashboard();if(v==='toolkit')loadToolkitScripts()});
+    watch(deepConnId,(v)=>{if(v){if(deepTab.value==='gateway_log')loadGatewayReports();if(deepTab.value==='ppt_report')loadPptDashboard()}});
+    return{currentPage,sidebarCollapsed,authState,loginForm,loginLoading,loginError,pwdDialog,savedConnections,currentConnectionId,projects,currentProjectId,activeAlerts,metadataEnhanced,statsLoading,stats,ruleHits,trendChartRef,kpiCards,sqlInput,auditing,auditResult,auditProjectId,fileAuditTab,fileAuditResult,fileReports,fileReportsLoading,fileReportsTotal,fileReportsPage,rulesList,rulesByCategory,ruleSearch,expandedCategories,filteredCategories,slowList,slowListLoading,slowFilters,slowPage,scanTasks,scanTaskTotal,scanTaskCurrentPage,scanTaskLoading,selectedTaskIds,batchDeleting,clearingOrphan,scanDrawer,scanTimeWindow,scanTaskForm,slowDetailDrawer,slowDetail,explainMode,explainSqlInput,explainInput,explainConnId,analyzingExplain,explainResult,tdsqlStatus,connDrawer,connForm,connEditMode,connTestResult,connTesting,connLoading,usersList,usersLoading,userDialog,resetDialog,scanSchedules,scanScheduleLoading,scheduleDrawer,scheduleForm,healthLoading,healthResult,healthCheckType,healthDbName,schemaCheckConnId,schemaCheckResults,schemaCheckSummary,schemaCheckLoading,bigtableLoading,bigtableData,bigtableRef,partitionDetail,partitionLoading,projectsList,projectsLoading,projectDialog,rulesets,rulesetsLoading,gateRules,gateStrategies,gateLoading,monitorAlerts,monitorRules,monitorLoading,monitorTab,inspectionTasks,inspectionLoading,auditLogs,auditLogsLoading,auditLogsTotal,auditLogsPage,retentionPolicies,retentionLoading,sysInfo,sysInfoLoading,roleLabel,canManagePlatform,canManageInstances,canViewAuditLog,canViewSysInfo,canViewProjects,canViewMonitor,canViewSchedule,canViewBigtable,breadcrumbItems,formatTime,sevTagType,statusLabel,sourceLabel,categoryOrder,doLogin,doLogout,changePassword,onUserCommand,onMenuSelect,onConnectionSwitch,onProjectSwitch,auditSql,loadExample,onFileChange,loadFileReports,downloadFileReport,loadRules,loadSlowList,resetSlowFilter,openSlowDetail,setSlowStatus,exportSlowReport,downloadScanReport,goSlowDetail,goExplainFromSlow,loadScanTasks,onTaskSelectChange,deleteScanTask,batchDeleteScanTasks,startScanTask,viewTaskSlowQueries,clearOrphanRecords,analyzeExplainBySql,analyzeExplain,loadSavedConnections,testConn,saveConn,openEditConn,openNewConn,deleteConn,setDefaultConn,connectInstance,loadUsers,createUser,openResetPwd,resetUserPwd,unlockUser,toggleUserStatus,deleteUser,loadAll,renderTrendChart,loadProjects,loadActiveAlerts,loadScanSchedules,createScanSchedule,deleteScanSchedule,toggleScheduleEnabled,runHealthCheck,runSchemaCheck,exportSchemaCheckReport,loadBigtable,bigtableRowKey,partitionBoundaryLabel,bigtableRowClass,togglePartitions,onBigtableExpand,loadTablePartitions,loadProjectsList,createProject,deleteProject,toggleProjectStatus,loadRulesets,loadGateRules,loadGateStrategies,applyGateStrategy,loadMonitorAlerts,acknowledgeAlert,loadMonitorRules,loadInspectionTasks,loadAuditLogs,loadRetention,runRetentionCleanup,loadSysInfo,bigtableCollecting,collectBigtable,rulesetDialog,createRuleset,deleteRuleset,gateCustom,openGateCustom,saveGateCustom,monitorRuleDialog,createMonitorRule,inspectionDialog,createInspection,inspectionResultDrawer,inspectionResults,viewInspectionResult,retentionDialog,openRetentionEdit,saveRetention,retentionEditMode,logoUrl,loadLogo,onLogoUpload,resetLogo,toggleSysConfig,auditFilter,resetAuditFilter,tableNameLabel,metricLabel,rolesList,rolesLoading,roleDialog,deleteRole,openRoleEdit,saveRole,roleLabelFn,permsMatrixData,permsMenuList,permsLoading,loadPerms,onPermChange,deepConnId,deepRightConnId,deepDb,deepTab,deepLoading,deepResult,runClusterInspect,runIndexAudit,runSchemaDiff,runEmergency,runSqlStats,visibleMenus,zkDialogVisible,zkForm,zkScanning,zkDiscovered,zkSelected,zkRegistering,openZkDiscovery,runZkDiscovery,handleZkSelection,registerZkInstances,gatewayLoading,gatewayReports,gatewayHtml,gatewayDetailVisible,loadGatewayReports,viewGatewayReport,onGatewayUpload,pptLoading,pptDashboard,loadPptDashboard,generatePptReport,toolkitLoading,toolkitScripts,loadToolkitScripts,downloadToolkitScript};
   }
 });
 app.use(ElementPlus,{locale:ElementPlusLocaleZhCn});

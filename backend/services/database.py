@@ -1198,6 +1198,21 @@ def _create_all_tables(conn):
             UNIQUE KEY uq_bth (snap_date, connection_id, db_name, table_name),
             INDEX idx_bth (connection_id, db_name, table_name, snap_date)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""",
+
+        # G11. 网关日志分析报告
+        """CREATE TABLE IF NOT EXISTS gateway_log_reports (
+            id                  INT PRIMARY KEY AUTO_INCREMENT,
+            connection_id       VARCHAR(64) DEFAULT '',
+            log_file_name       VARCHAR(256),
+            log_type            VARCHAR(64) DEFAULT 'interf',
+            total_queries       INT DEFAULT 0,
+            slow_queries        INT DEFAULT 0,
+            max_time_ms         DOUBLE DEFAULT 0,
+            avg_time_ms         DOUBLE DEFAULT 0,
+            report_html         LONGTEXT,
+            created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_glr_conn (connection_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""",
     ]
 
     for ddl in table_ddls:

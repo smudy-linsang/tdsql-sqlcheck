@@ -1,0 +1,5 @@
+[tdsql_allmacforcheck]
+tdsql_mac1 ansible_ssh_host=21.214.74.168
+tdsql_mac2 ansible_ssh_host=21.214.75.170
+tdsql_mac3 ansible_ssh_host=21.214.75.5
+tdsql_mac4 ansible_ssh_host=21.214.75.46

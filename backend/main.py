@@ -45,6 +45,12 @@ from backend.api.rulesets import router as rulesets_router
 from backend.api.admin import router as admin_router
 from backend.middleware import AuthMiddleware, RequestContextMiddleware
 
+# G10-G13 新增路由
+from backend.api.zk_discovery import router as zk_discovery_router
+from backend.api.gateway_log import router as gateway_log_router
+from backend.api.ppt_report import router as ppt_report_router
+from backend.api.toolkit import router as toolkit_router
+
 # 配置日志
 logging.basicConfig(
     level=logging.INFO,
@@ -143,6 +149,10 @@ app.include_router(emergency_router)        # G7 应急诊断
 app.include_router(daily_inspect_router)    # G4 每日巡检与趋势
 app.include_router(sql_stats_router)        # G8 SQL调用量分析 + G9 大表趋势
 app.include_router(admin_router)            # V2.0 系统管理
+app.include_router(zk_discovery_router)     # G10 ZK 发现
+app.include_router(gateway_log_router)      # G11 网关日志
+app.include_router(ppt_report_router)       # G12 PPT 生成与大屏
+app.include_router(toolkit_router)          # G13 运维工具箱
 
 # 前端静态资源（V2.0: 本地化vendor资产，纯内网可用）
 STATIC_DIR = FRONTEND_DIR / "static"

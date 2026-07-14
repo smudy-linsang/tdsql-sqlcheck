@@ -188,6 +188,8 @@ _DEVELOPER_WRITE_PREFIXES = (
     "/api/v1/inspection/schema-check",      # 上线检查(12项Schema检查+报告导出)
     "/api/v1/auth/logout",
     "/api/v1/auth/change-password",
+    "/api/v1/gateway-log/",                 # 网关日志上传分析
+    "/api/v1/ppt-report/",                  # PPT汇报导出
 )
 
 # 所有角色都允许的写操作（自助账户操作）
@@ -231,6 +233,7 @@ _PATH_TO_MENU = {
     "/api/v1/tdsql/scan-schedules": "slow-schedule",
     "/api/v1/slow-queries/analyze-explain": "explain",
     "/api/v1/tdsql/connections": "instances",
+    "/api/v1/tdsql/discover": "instances",
     "/api/v1/tdsql/check": "health-check",
     "/api/v1/bigtable": "bigtable",
     "/api/v1/projects": "projects",
@@ -246,6 +249,9 @@ _PATH_TO_MENU = {
     "/api/v1/admin/logo": "sys-info",
     "/api/v1/auth/roles": "sys-roles",
     "/api/v1/auth/role-permissions": "sys-perms",
+    "/api/v1/gateway-log": "deep-diag",
+    "/api/v1/ppt-report": "deep-diag",
+    "/api/v1/toolkit": "deep-diag",
 }
 
 def check_permission(role: str, method: str, path: str) -> bool:

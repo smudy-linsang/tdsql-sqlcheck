@@ -1,0 +1,93 @@
+gateway_log_analysis 模块变更记录
+========================================
+
+## interf_batch_analyze.sh v1.1 (2026-04-27)
+- feat: 新增 `--instances SPEC [SPEC..]` 参数，支持只分析指定实例（默认行为不变仍为全部）
+- feat: SPEC 支持 5 种写法：`#N`/`N`（proxies_N 序号）、`IP:PORT`、`业务名:PORT`、`业务名`（该业务下全部端口）、`IP`（该 IP 下全部端口），多个 SPEC 之间空格分隔取并集
+- feat: 未命中任何 SPEC 时自动打印当前配置文件中所有可用实例清单（含 `#序号`、业务名、`IP:端口`）后退出，便于定位
+- feat: 脚本 usage 与顶部使用示例同步更新，README 补充 `--instances` 完整用法
+- docs: README 版本号同步到 v1.1
+
+## interf_deep_analysis.py v1.6 (2026-04-08)
+- feat: sql_explain_schema.csv 新增 6 列诊断信息：EXPLAIN问题标记、索引详情、冗余索引、统计信息更新时间、统计信息是否过期、扫描效率
+- feat: 新增 get_index_details() 获取索引详情（索引名、列、类型、基数）
+- feat: 新增 get_redundant_indexes() 检测冗余索引（前缀重复索引自动识别）
+- feat: 新增 get_stats_update_info() 获取统计信息更新时间及是否过期判断
+- feat: 新增 extract_explain_issues() 从 EXPLAIN 结果提取问题标记（全表扫描/文件排序/临时表等）
+- feat: 新增 calc_scan_efficiency_from_explain() 计算扫描效率（扫描行数 vs 返回行数）
+- refactor: CSV 表头从 15 列扩展到 21 列，与 slow_query_export 模块输出对齐
+
+## interf_deep_analysis.py v1.5 (2026-04-08)
+- fix: 修复 EXPLAIN 安全逻辑：UPDATE/DELETE 不再直接 EXPLAIN，改为转写等价 SELECT 后再 EXPLAIN
+- feat: 新增 _convert_to_select() 将 UPDATE SET ... WHERE 和 DELETE FROM ... WHERE 转写为 SELECT * FROM ... WHERE
+- feat: 新增 _safe_sql_for_explain() 统一安全入口，只允许执行 EXPLAIN SELECT
+- fix: INSERT/REPLACE/DDL/SET/SHOW 等非查询语句一律跳过 EXPLAIN
+- fix: 拒绝含分号的 SQL（防多语句注入）
+- fix: 最终安全校验确保拼接结果严格以 "EXPLAIN SELECT" 开头
+
+## interf_deep_analysis.py v1.4 (2026-04-07)
+- feat: 新增 SQL 完整性检测（_is_sql_truncated），自动识别 Proxy 截断的 SQL
+- feat: sql_explain_schema.csv 和 sql_pattern_summary.csv 新增「SQL完整性」列（完整/SQL被截断）
+- perf: 被截断的 SQL 自动跳过 EXPLAIN 执行和表信息获取，避免无效数据库查询
+
+## interf_deep_analysis.py v1.3 (2026-04-07)
+- fix: 重写 extract_tables_from_sql，正确处理子查询 SELECT count() FROM (subquery) total、UNION ALL、逗号 JOIN、表别名场景
+- fix: 子查询中 SELECT 列表的列名不再被误识别为表名（消除 95+ 条 Table doesn't exist 误报）
+- fix: 表别名（如 ca/ct/addr）不再被当作表名，增强 _filter_table_names 过滤短别名
+- fix: normalize_sql 数字替换正则改进，不替换字段名中的数字（spare_fld_01_32 不再变成 spare_fld_0?_3?）
+- fix: 归一化 SQL 截取长度从 500→800 字符，输出上限从 300→500 字符，减少截断
+- refactor: extract_tables_from_sql 拆分为多个子函数，支持递归处理嵌套子查询
+
+## interf_deep_analysis.py v1.2 (2026-04-02)
+- fix: 修复 --time-range 单位数小时（如 8:00）导致文件级预筛选误判跳过有效文件
+- fix: 修复 get_explain 中 URL 编码引号导致 EXPLAIN 报语法错误（near ''20260402'）
+- fix: 增加 EXPLAIN 安全校验：拒绝含分号的 SQL、二次校验拼接结果必须以 EXPLAIN 开头
+- feat: sql_explain_schema.csv 和 sql_pattern_summary.csv 新增「原始SQL」列（URL 解码后的完整 SQL）
+- fix: 取消 sample_sql 500 字符截断，保留 interf 日志中的完整 SQL
+
+## interf_deep_analysis.py v1.1 (2026-04-01)
+- perf: --time-range 文件级预筛选，读取首尾时间戳判断交集，无交集文件直接跳过（避免全量扫描几十 GB 日志）
+- perf: --time-range 逐行提前终止，当行时间超过目标结束时间且已进入过目标范围时 break 停止读取
+
+## interf_batch_analyze.sh v1.0 (2026-04-01)
+- feat: 新增 interf 日志批量调度脚本，从 ZK 节点通过 SSH 批量分析多台 Proxy 节点
+- feat: 读取 [gateway_proxies] 配置，按 Proxy IP 分组，同一 IP 的端口在该节点上逐个分析
+- feat: 自动完成 SCP 上传脚本/配置 → SSH 远程分析 → SCP 回收结果 → 清理敏感配置全流程
+- feat: 支持 --dates、--time-range、--timeout、--dry-run、--keep-remote 等参数
+- feat: 使用 [ssh] 段密码通过 sshpass 免交互认证，也支持密钥认证自动降级
+
+## interf_report_generator.py v1.0 (2026-04-01)
+- feat: 新增 interf 性能风险报告生成器（本地运行，不需要数据库）
+- feat: 读取 CSV 文件自动分析全表扫描 SQL、高频 SQL Top 30、低效索引 SQL
+- feat: 同时展示每个实例的耗时区间 × SQL 类型统计表
+- feat: 支持 --mode merge（汇总到一个 HTML）和 --mode split（每个实例单独 HTML）
+
+## interf_deep_analysis.py v1.0 (2026-04-01)
+- feat: 新增 interf 日志深度分析脚本
+- feat: SQL 耗时细分统计（14 个耗时区间 × SQL 类型交叉统计），输出 HTML + CSV
+- feat: SQL 去重聚合（归一化去重、执行次数、平均/最大/最小耗时、库名、autocommit），输出 CSV
+- feat: 数据库联动（EXPLAIN 执行计划、SHOW CREATE TABLE、information_schema 数据量），输出 CSV
+- feat: 支持从 tdsql_env.conf 的 [gateway_proxies] 读取配置
+- feat: 输出文件命名含业务名称、ProxyIP、端口、日期，便于辨识
+- fix: 修复 TDSQL 透传注释（/*sets:allsets*/）导致 SQL 类型误判为 OTHER
+
+## v3.4 (2026-04-01)
+- feat: 增加指定日志类型分析功能，支持 --log-types 参数指定分析类型
+- feat: 增加指定具体文件分析功能，支持 --files 参数指定文件路径
+- feat: 支持只分析 interf 开头的日志文件
+- refactor: 优化日志分析器初始化逻辑，支持灵活的文件来源
+
+## v3.3 (2026-04-01)
+- feat: 高频 SQL 模式 Top 30 增加数据库名称显示，从日志 &db= 参数提取
+- refactor: 优化 SQL 模式统计逻辑，记录 (pattern, db) 组合
+- feat: 输出格式调整为四列显示 (#, 次数, 数据库, SQL模式)
+
+## v3.2 (2026-02-26)
+- fix: 修复时间戳解析边界条件
+- feat: 增加火焰图交互功能
+- refactor: 代码结构优化
+
+## v3.1 (2026-02-25)  
+- feat: 初始版本发布
+- feat: 支持 HTML/Markdown/纯文本三种输出格式
+- feat: 包含 15 项分析维度

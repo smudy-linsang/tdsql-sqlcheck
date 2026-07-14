@@ -1,0 +1,39 @@
+sshpass_pack 模块变更记录
+========================================
+
+## v1.4.0 (2026-07-06)
+- feat: 支持从 tdsql_env.conf 的 [sshpass_pack] 段读取 token / user / port / oc_dir / scheduler_xml / flag / timeout，专为"一台管理节点管理多个集群"场景设计（各集群工程 conf 各自维护 token）
+- feat: 新增 -c / --env-conf 参数，支持显式指定 tdsql_env.conf 路径（默认查找项目根 > 脚本同目录）
+- feat: token 读取优先级扩展为 CLI > env(SSHPASS_PACK_TOKEN) > tdsql_env.conf[sshpass_pack] > scheduler.xml，token 缺失时错误信息给出获取 password_encrypt 的具体命令
+- docs: README 新增「多集群管理场景」和「如何获取 token」章节，参数表补 -c、并明确各字段的完整优先级链
+- docs: tdsql_env.conf.example 新增 [sshpass_pack] 段模板与详尽备注（含 token 获取的方法A/B/C）
+
+## v1.3.1 (2026-03-25)
+- fix: iostat 磁盘 IO 指标从 await(列$10) 修正为 r_await(列$11) + w_await(列$12) + %util(列$14)，读写分离更精准
+- docs: 新增 iostatlog 列对照表，方便自行扩展字段
+- docs: 新增 r_await/w_await TOP 10 时刻命令
+- docs: 综合概览命令同步更新为 r_await/w_await/%util 三指标
+
+## v1.3.0 (2026-03-25)
+- docs: README 新增「机器负载监控分析命令手册」，覆盖 CPU/内存/IO Wait/Load Average/iostat 磁盘 IO/vmstat 等常用峰值分析命令
+- docs: 新增自动检测 data/data1 所在磁盘并提取 await/util 峰值的 iostat 命令
+- docs: 新增命令速查表、综合概览一条命令输出所有指标、各指标 TOP 10 时刻等实用命令
+
+## v1.2.1 (2026-03-12)
+- fix: 修复底层 sshpass_pack.sh 消费 stdin 导致多台主机时只执行第一台的 bug（子进程 stdin 重定向到 /dev/null）
+
+## v1.2.0 (2026-03-12)
+- feat: 支持从 scheduler.xml 自动读取 password_encrypt，默认可直接执行而无需手工传 token
+- feat: 支持自动解析 scheduler.xml 中的 port 和 oc_dir，并新增 --scheduler-xml 参数覆盖默认路径
+- refactor: dry-run 输出隐藏 token，避免敏感信息直接回显
+- docs: README 补充 scheduler.xml 自动读取逻辑和直接执行示例
+
+## v1.1.0 (2026-03-12)
+- refactor: 移除对 sshpass_pack.conf 的依赖，改为直接通过命令行参数或环境变量传 token
+- feat: 新增底层路径、远程用户、端口、目录、超时等参数的命令行覆盖能力
+- docs: README 调整为零配置文件使用方式
+
+## v1.0.0 (2026-03-12)
+- feat: 新增基于 scheduler sshpass_pack.sh 的批量远程执行脚本，支持按 tdsql_hosts 分组顺序逐台执行命令
+- feat: 新增本地配置模板 sshpass_pack.conf.example，避免将 token 写死在脚本中
+- docs: 新增模块 README，补充配置方法、使用示例和输出说明

@@ -345,6 +345,7 @@
                 <el-radio-group v-model="scanTaskForm.source">
                   <el-radio value="digest">性能摘要(digest,推荐)</el-radio>
                   <el-radio value="processlist">实时进程(processlist)</el-radio>
+                  <el-radio value="monitordb">全网慢SQL(monitordb)</el-radio>
                 </el-radio-group>
               </el-form-item>
               <el-form-item label="时间窗口">
@@ -490,7 +491,10 @@
             <div class="page-card">
               <div class="card-head">
                 <div class="page-card-title mb0">实例管理</div>
-                <el-button type="primary" size="small" @click="openNewConn">+ 新建连接</el-button>
+                <div style="display:flex; gap:8px">
+                  <el-button type="success" size="small" @click="openZkDiscovery">从 ZK 自动发现</el-button>
+                  <el-button type="primary" size="small" @click="openNewConn">+ 新建连接</el-button>
+                </div>
               </div>
               <el-table :data="savedConnections" v-loading="connLoading" stripe class="w-full">
                 <el-table-column prop="name" label="连接名" show-overflow-tooltip></el-table-column>
@@ -521,6 +525,16 @@
               <el-form-item label="密码"><el-input v-model="connForm.password" type="password" show-password></el-input></el-form-item>
               <el-form-item label="默认库"><el-input v-model="connForm.database"></el-input></el-form-item>
               <el-form-item label="描述"><el-input v-model="connForm.description" type="textarea" :rows="2" placeholder="可选，描述信息"></el-input></el-form-item>
+              <el-collapse style="margin-bottom:18px">
+                <el-collapse-item title="MonitorDB 监控库配置 (可选)" name="monitor">
+                  <div style="font-size:12px;color:#94a3b8;margin-bottom:8px">用于自动发现、全网慢SQL采集与大屏运维汇报。留空则使用业务主连接地址和账号，仅端口默认为 15001。</div>
+                  <el-form-item label="监控主机地址"><el-input v-model="connForm.monitor_host" placeholder="留空同主机地址"></el-input></el-form-item>
+                  <el-form-item label="监控端口"><el-input-number v-model="connForm.monitor_port" :min="1"></el-input-number></el-form-item>
+                  <el-form-item label="监控用户名"><el-input v-model="connForm.monitor_user" placeholder="留空同业务用户名"></el-input></el-form-item>
+                  <el-form-item label="监控密码"><el-input v-model="connForm.monitor_password" type="password" show-password placeholder="留空同业务密码"></el-input></el-form-item>
+                  <el-form-item label="监控默认库"><el-input v-model="connForm.monitor_db" placeholder="默认 tdsqlpcloud_monitor"></el-input></el-form-item>
+                </el-collapse-item>
+              </el-collapse>
               <el-form-item label="实例类型" required><el-radio-group v-model="connForm.is_distributed"><el-radio :value="true">分布式实例</el-radio><el-radio :value="false">集中式实例</el-radio></el-radio-group><div style="font-size:12px;color:#94a3b8;margin-top:4px">分布式与集中式实例的审核规则不同，请根据实际情况选择</div></el-form-item>
               <el-form-item v-if="connForm.is_distributed" label="SET列表"><el-input v-model="connForm.set_list" type="textarea" :rows="2" placeholder="分布式实例慢SQL扫描用，从赤兔获取，逗号分隔，如 set_1772437478_1,set_1772437504_3"></el-input><div style="font-size:12px;color:#94a3b8;margin-top:4px">TDSQL Proxy 查 performance_schema 会随机路由到单个 SET；填写全部 SET 后，慢SQL扫描会逐 SET 查询并合并。留空则只反映随机一个 SET。</div></el-form-item>
               <el-alert v-if="connTestResult" :title="connTestResult.msg" :type="connTestResult.type" show-icon :closable="false" class="mb-12"></el-alert>
@@ -797,6 +811,88 @@
                     <el-table-column prop="fingerprint" label="慢SQL(TOP慢)"></el-table-column>
                   </el-table>
                 </div>
+              </el-tab-pane>
+              <!-- 网关日志分析 G11 -->
+              <el-tab-pane label="网关日志分析" name="gateway_log">
+                <div class="mb12" style="margin-bottom:12px">
+                  <el-upload
+                    action=""
+                    :auto-upload="false"
+                    :show-file-list="false"
+                    :on-change="onGatewayUpload"
+                    drag>
+                    <div class="el-upload__text">将网关日志文件 (如 interf) 拖到此处，或 <em>点击上传</em></div>
+                  </el-upload>
+                </div>
+                
+                <el-table :data="gatewayReports" border size="small" v-loading="gatewayLoading" style="margin-top:12px">
+                  <el-table-column prop="log_file_name" label="日志文件名"></el-table-column>
+                  <el-table-column prop="total_queries" label="总请求量" width="100"></el-table-column>
+                  <el-table-column prop="slow_queries" label="慢请求数" width="100"></el-table-column>
+                  <el-table-column prop="avg_time_ms" label="平均时耗(ms)" width="120"></el-table-column>
+                  <el-table-column prop="max_time_ms" label="最大时耗(ms)" width="120"></el-table-column>
+                  <el-table-column prop="created_at" label="分析时间" width="160"></el-table-column>
+                  <el-table-column label="操作" width="100" fixed="right">
+                    <template #default="{row}">
+                      <el-button link type="primary" size="small" @click="viewGatewayReport(row)">查看报告</el-button>
+                    </template>
+                  </el-table-column>
+                </el-table>
+              </el-tab-pane>
+              <!-- PDF报告与大屏 G12 -->
+              <el-tab-pane label="PDF报告与大屏" name="ppt_report">
+                <div class="mb12" style="display:flex; justify-content: space-between; align-items: center; margin-bottom:12px">
+                  <span style="font-size: 14px; font-weight: bold">实例运维报告与总览大屏</span>
+                  <el-button type="success" size="small" :loading="pptLoading" :disabled="!deepConnId" @click="generatePptReport">导出汇报 PDF</el-button>
+                </div>
+
+                <div v-if="pptDashboard" style="margin-top: 16px" v-loading="pptLoading">
+                  <el-row :gutter="20">
+                    <el-col :span="6">
+                      <div class="page-card" style="text-align: center; background: #f0fdf4; padding: 15px; border-radius: 8px">
+                        <div style="font-size: 12px; color: #16a34a">健康得分</div>
+                        <div style="font-size: 36px; font-weight: bold; color: #16a34a">{{ pptDashboard.score }}</div>
+                      </div>
+                    </el-col>
+                    <el-col :span="6">
+                      <div class="page-card" style="text-align: center; background: #fef2f2; padding: 15px; border-radius: 8px">
+                        <div style="font-size: 12px; color: #dc2626">活动告警数</div>
+                        <div style="font-size: 36px; font-weight: bold; color: #dc2626">{{ pptDashboard.total_alerts }}</div>
+                      </div>
+                    </el-col>
+                    <el-col :span="6">
+                      <div class="page-card" style="text-align: center; background: #f8fafc; padding: 15px; border-radius: 8px">
+                        <div style="font-size: 12px; color: #94a3b8">巡检实例数</div>
+                        <div style="font-size: 36px; font-weight: bold; color: #0284c7">{{ pptDashboard.inspection?.summary?.instance_count || 0 }}</div>
+                      </div>
+                    </el-col>
+                    <el-col :span="6">
+                      <div class="page-card" style="text-align: center; background: #f8fafc; padding: 15px; border-radius: 8px">
+                        <div style="font-size: 12px; color: #94a3b8">重复索引组</div>
+                        <div style="font-size: 36px; font-weight: bold; color: #d97706">{{ pptDashboard.index?.summary?.duplicate_count || 0 }}</div>
+                      </div>
+                    </el-col>
+                  </el-row>
+                </div>
+                <div v-else style="text-align:center; color:#909399; margin: 30px 0" v-loading="pptLoading">
+                  请选择实例并加载大屏指标数据。
+                </div>
+              </el-tab-pane>
+              <!-- 运维工具箱 G13 -->
+              <el-tab-pane label="运维工具箱" name="toolkit">
+                <el-table :data="toolkitScripts" border size="small" v-loading="toolkitLoading">
+                  <el-table-column prop="category" label="分类" width="120"></el-table-column>
+                  <el-table-column prop="name" label="工具包名称" width="220"></el-table-column>
+                  <el-table-column prop="description" label="详细描述"></el-table-column>
+                  <el-table-column prop="command" label="执行命令参考" width="300"><template #default="{row}"><code>{{row.command}}</code></template></el-table-column>
+                  <el-table-column label="操作" width="150" fixed="right">
+                    <template #default="{row}">
+                      <div style="display:flex; flex-direction:column; gap:4px">
+                        <el-button link type="primary" size="small" v-for="file in row.files" :key="file.name" @click="downloadToolkitScript(file.path)">下载 {{file.name}}</el-button>
+                      </div>
+                    </template>
+                  </el-table-column>
+                </el-table>
               </el-tab-pane>
             </el-tabs>
           </div>
@@ -1126,6 +1222,39 @@
     </el-form>
     <template #footer><el-button @click="pwdDialog.visible=false">取消</el-button><el-button type="primary" @click="changePassword">确认</el-button></template>
   </el-dialog>
+
+  <!-- G10 ZK 自动发现对话框 -->
+  <el-dialog v-model="zkDialogVisible" title="从 ZooKeeper 自动发现实例" width="800px">
+    <el-form :inline="true" size="small">
+      <el-form-item label="ZK地址"><el-input v-model="zkForm.zk_server" style="width:160px"></el-input></el-form-item>
+      <el-form-item label="ZK用户"><el-input v-model="zkForm.zk_auth_user" style="width:110px"></el-input></el-form-item>
+      <el-form-item label="ZK密码"><el-input v-model="zkForm.zk_auth_password" type="password" style="width:110px" show-password></el-input></el-form-item>
+      <el-form-item label="ZK根路径"><el-input v-model="zkForm.zk_root" style="width:110px"></el-input></el-form-item>
+      <el-form-item>
+        <el-button type="primary" :loading="zkScanning" @click="runZkDiscovery">开始扫描</el-button>
+      </el-form-item>
+    </el-form>
+    
+    <el-table :data="zkDiscovered" size="small" border v-loading="zkScanning" style="margin-top:12px" @selection-change="handleZkSelection">
+      <el-table-column type="selection" width="55"></el-column>
+      <el-table-column prop="service_name" label="实例名称"></el-table-column>
+      <el-table-column label="连接地址"><template #default="{row}">{{row.host}}:{{row.port}}</template></el-table-column>
+      <el-table-column prop="user" label="用户名" width="120"></el-table-column>
+      <el-table-column prop="status_text" label="状态" width="100"><template #default="{row}"><el-tag size="small" :type="row.status_code==='0'?'success':'danger'">{{row.status_text}}</el-tag></template></el-table-column>
+    </el-table>
+    
+    <template #footer>
+      <span class="dialog-footer">
+        <el-button size="small" @click="zkDialogVisible = false">取消</el-button>
+        <el-button size="small" type="primary" :disabled="zkSelected.length===0" :loading="zkRegistering" @click="registerZkInstances">导入已选</el-button>
+      </span>
+    </template>
+  </el-dialog>
+
+  <!-- G11 网关日志报告详情抽屉 -->
+  <el-drawer v-model="gatewayDetailVisible" title="网关日志分析报告" size="80%">
+    <div v-html="gatewayHtml" style="padding: 10px; overflow: auto; height: 100%"></div>
+  </el-drawer>
 </div>
 <script src="/static/js/app.js"></script>
 </body>
