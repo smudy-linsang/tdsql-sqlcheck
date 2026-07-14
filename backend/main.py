@@ -38,6 +38,7 @@ from backend.api.index_audit import router as index_audit_router
 from backend.api.schema_diff import router as schema_diff_router
 from backend.api.emergency import router as emergency_router
 from backend.api.daily_inspect import router as daily_inspect_router
+from backend.api.sql_stats import router as sql_stats_router
 # V2.0 新增路由
 from backend.api.auth import router as auth_router
 from backend.api.rulesets import router as rulesets_router
@@ -140,6 +141,7 @@ app.include_router(index_audit_router)      # G5 索引健康审计
 app.include_router(schema_diff_router)      # G6 表结构比对
 app.include_router(emergency_router)        # G7 应急诊断
 app.include_router(daily_inspect_router)    # G4 每日巡检与趋势
+app.include_router(sql_stats_router)        # G8 SQL调用量分析 + G9 大表趋势
 app.include_router(admin_router)            # V2.0 系统管理
 
 # 前端静态资源（V2.0: 本地化vendor资产，纯内网可用）

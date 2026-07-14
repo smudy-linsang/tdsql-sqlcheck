@@ -1184,6 +1184,20 @@ def _create_all_tables(conn):
             UNIQUE KEY uq_daily (inspect_date, connection_id, node),
             INDEX idx_daily_conn (connection_id, inspect_date)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""",
+
+        # G9. 大表增长趋势 —— 每日大小快照
+        """CREATE TABLE IF NOT EXISTS bigtable_history (
+            id                  INT PRIMARY KEY AUTO_INCREMENT,
+            snap_date           VARCHAR(16) NOT NULL,
+            connection_id       VARCHAR(64) DEFAULT '',
+            db_name             VARCHAR(128) DEFAULT '',
+            table_name          VARCHAR(128) DEFAULT '',
+            table_rows          BIGINT DEFAULT 0,
+            size_gb             DOUBLE DEFAULT 0,
+            created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_bth (snap_date, connection_id, db_name, table_name),
+            INDEX idx_bth (connection_id, db_name, table_name, snap_date)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""",
     ]
 
     for ddl in table_ddls:
