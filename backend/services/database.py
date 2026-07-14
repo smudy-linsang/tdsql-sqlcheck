@@ -1155,6 +1155,17 @@ def _create_all_tables(conn):
             created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
             INDEX idx_sdi (diff_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""",
+
+        # G7. 应急诊断 —— 报告
+        """CREATE TABLE IF NOT EXISTS emergency_report (
+            id                  INT PRIMARY KEY AUTO_INCREMENT,
+            connection_id       VARCHAR(64) DEFAULT '',
+            actions             VARCHAR(256) DEFAULT '',
+            report_json         MEDIUMTEXT,
+            created_by          VARCHAR(64) DEFAULT '',
+            created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_er_conn (connection_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""",
     ]
 
     for ddl in table_ddls:
