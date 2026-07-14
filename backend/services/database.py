@@ -1094,6 +1094,38 @@ def _create_all_tables(conn):
             created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
             INDEX idx_cii (inspection_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""",
+
+        # G5. 索引健康审计 —— 任务
+        """CREATE TABLE IF NOT EXISTS index_audit (
+            id                  INT PRIMARY KEY AUTO_INCREMENT,
+            connection_id       VARCHAR(64) DEFAULT '',
+            database_filter     VARCHAR(128) DEFAULT '',
+            total_tables        INT DEFAULT 0,
+            total_indexes       INT DEFAULT 0,
+            total_findings      INT DEFAULT 0,
+            error_count         INT DEFAULT 0,
+            warning_count       INT DEFAULT 0,
+            info_count          INT DEFAULT 0,
+            created_by          VARCHAR(64) DEFAULT '',
+            created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_ia_conn (connection_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""",
+
+        # G5. 索引健康审计 —— 明细
+        """CREATE TABLE IF NOT EXISTS index_audit_finding (
+            id                  INT PRIMARY KEY AUTO_INCREMENT,
+            audit_id            INT NOT NULL,
+            db_name             VARCHAR(128) DEFAULT '',
+            table_name          VARCHAR(128) DEFAULT '',
+            index_name          VARCHAR(128) DEFAULT '',
+            finding_type        VARCHAR(64) DEFAULT '',
+            severity            VARCHAR(32) DEFAULT 'INFO',
+            detail              TEXT,
+            suggestion          TEXT,
+            metric              VARCHAR(64) DEFAULT '',
+            created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_iaf (audit_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""",
     ]
 
     for ddl in table_ddls:
