@@ -127,11 +127,17 @@ class ConnectionRegistry:
         saved = self.get_saved(conn_id) if conn_id else self.get_default_saved()
         if not saved:
             raise ConnectionNotFoundError(conn_id or "(default)")
+        mon_pwd_enc = saved.get("monitor_password_encrypted", "") or ""
         cfg = TDSQLConnectionConfig(
             host=saved["host"], port=saved["port"], user=saved["username"],
             password=decrypt_password(saved["password_encrypted"]),
             database=saved["database"] or "", charset=saved["charset"] or "utf8mb4",
             set_list=saved.get("set_list", "") or "",
+            monitor_host=saved.get("monitor_host", "") or "",
+            monitor_port=int(saved.get("monitor_port") or 15001),
+            monitor_user=saved.get("monitor_user", "") or "",
+            monitor_password=decrypt_password(mon_pwd_enc) if mon_pwd_enc else "",
+            monitor_db=saved.get("monitor_db", "") or "tdsqlpcloud_monitor",
         )
         pool = self.register(saved["id"], cfg)
         self._mark_connected(saved["id"])
@@ -246,7 +252,10 @@ class ConnectionRegistry:
                         password: str, database: str = "", charset: str = "utf8mb4",
                         is_default: bool = False, is_distributed: bool = True,
                         description: str = "", conn_id: str = "",
-                        operator: str = "", set_list: str = "") -> str:
+                        operator: str = "", set_list: str = "",
+                        monitor_host: str = "", monitor_port: int = 15001,
+                        monitor_user: str = "", monitor_password: str = "",
+                        monitor_db: str = "tdsqlpcloud_monitor") -> str:
         """保存连接配置（密码加密存储），返回连接ID"""
         ensure_db()
         conn = _get_connection()
@@ -259,11 +268,15 @@ class ConnectionRegistry:
                 conn_id = row["id"] if row else uuid.uuid4().hex[:8]
             if is_default:
                 conn.execute("UPDATE tdsql_connections SET is_default = 0")
+            # monitor_password 与主密码同款加密；留空则存空串（取数时回退主密码）
+            mon_pwd_enc = encrypt_password(monitor_password) if monitor_password else ""
             conn.execute("""
                 INSERT INTO tdsql_connections
                     (id, name, host, port, username, password_encrypted, `database`,
-                     charset, is_default, is_distributed, description, set_list, status, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'disconnected', NOW())
+                     charset, is_default, is_distributed, description, set_list,
+                     monitor_host, monitor_port, monitor_user, monitor_password_encrypted, monitor_db,
+                     status, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'disconnected', NOW())
                 ON DUPLICATE KEY UPDATE
                     name=VALUES(name), host=VALUES(host), port=VALUES(port),
                     username=VALUES(username),
@@ -272,11 +285,17 @@ class ConnectionRegistry:
                     is_default=VALUES(is_default),
                     is_distributed=VALUES(is_distributed),
                     description=VALUES(description), set_list=VALUES(set_list),
+                    monitor_host=VALUES(monitor_host), monitor_port=VALUES(monitor_port),
+                    monitor_user=VALUES(monitor_user),
+                    monitor_password_encrypted=VALUES(monitor_password_encrypted),
+                    monitor_db=VALUES(monitor_db),
                     updated_at=NOW()
             """, (conn_id, name or f"{host}:{port}", host, port, username,
                   encrypt_password(password), database, charset,
                   1 if is_default else 0, 1 if is_distributed else 0, description,
-                  set_list or ""))
+                  set_list or "",
+                  monitor_host or "", int(monitor_port or 15001), monitor_user or "",
+                  mon_pwd_enc, monitor_db or "tdsqlpcloud_monitor"))
             conn.commit()
             from backend.services.database import log_operation
             log_operation(operator, "save_connection", "tdsql_connection", conn_id,

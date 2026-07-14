@@ -67,17 +67,18 @@ class SlowQueryService:
                     fingerprint, sql_text, db_name, set_id, client_user, client_host,
                     connection_id,
                     exec_count, total_time_ms, avg_time_ms, max_time_ms,
-                    rows_examined, rows_sent, lock_time_ms,
+                    rows_examined, rows_sent, rows_affected, lock_time_ms,
                     first_seen, last_seen, problem_type, severity,
                     root_cause, suggestion, optimized_sql,
                     analysis_json, scan_task_id, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 stored_fingerprint, stored_sql, record.db_name,
                 record.set_id, record.client_user, record.client_host,
                 connection_id,
                 record.exec_count, record.total_time_ms, record.avg_time_ms,
                 record.max_time_ms, record.rows_examined, record.rows_sent,
+                int(getattr(record, "rows_affected", 0) or 0),
                 record.lock_time_ms, first_seen, last_seen,
                 report.problem_type, report.severity,
                 report.analyses[0].root_cause if report.analyses else "",

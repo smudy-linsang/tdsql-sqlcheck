@@ -46,6 +46,7 @@ class SlowQueryRecord:
     max_time_ms: float = 0.0
     rows_examined: int = 0
     rows_sent: int = 0
+    rows_affected: int = 0     # DML影响行数（monitordb 源独有，digest 源为0）
     lock_time_ms: float = 0.0
     first_seen: str = ""       # SQL首次执行时间
     last_seen: str = ""        # SQL最后执行时间

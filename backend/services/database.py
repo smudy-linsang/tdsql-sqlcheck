@@ -470,6 +470,16 @@ def _migrate_old_tables(conn):
     if "tdsql_connections" in table_names:
         # 分布式实例 SET 列表（慢SQL digest 逐SET合并用）
         _add_column_if_not_exists(conn, "tdsql_connections", "set_list", "VARCHAR(512) DEFAULT ''")
+        # monitordb（集群级慢SQL/监控数据源，端口 15001）连接信息
+        _add_column_if_not_exists(conn, "tdsql_connections", "monitor_host", "VARCHAR(128) DEFAULT ''")
+        _add_column_if_not_exists(conn, "tdsql_connections", "monitor_port", "INT DEFAULT 15001")
+        _add_column_if_not_exists(conn, "tdsql_connections", "monitor_user", "VARCHAR(128) DEFAULT ''")
+        _add_column_if_not_exists(conn, "tdsql_connections", "monitor_password_encrypted", "TEXT")
+        _add_column_if_not_exists(conn, "tdsql_connections", "monitor_db", "VARCHAR(128) DEFAULT 'tdsqlpcloud_monitor'")
+
+    if "slow_queries" in table_names:
+        # monitordb 独有：DML 影响行数（digest 源为0）
+        _add_column_if_not_exists(conn, "slow_queries", "rows_affected", "BIGINT DEFAULT 0")
 
     if "audit_history" in table_names:
         _add_column_if_not_exists(conn, "audit_history", "project_id", "VARCHAR(64) DEFAULT ''")
@@ -526,6 +536,7 @@ def _create_all_tables(conn):
             max_time_ms         DOUBLE DEFAULT 0,
             rows_examined       INT DEFAULT 0,
             rows_sent           INT DEFAULT 0,
+            rows_affected       BIGINT DEFAULT 0,
             lock_time_ms        DOUBLE DEFAULT 0,
             first_seen          VARCHAR(32),
             last_seen           VARCHAR(32),
@@ -670,6 +681,11 @@ def _create_all_tables(conn):
             is_distributed      INT DEFAULT 1,
             description         TEXT,
             set_list            VARCHAR(512) DEFAULT '',
+            monitor_host        VARCHAR(128) DEFAULT '',
+            monitor_port        INT DEFAULT 15001,
+            monitor_user        VARCHAR(128) DEFAULT '',
+            monitor_password_encrypted TEXT,
+            monitor_db          VARCHAR(128) DEFAULT 'tdsqlpcloud_monitor',
             status              VARCHAR(32) DEFAULT 'disconnected',
             last_connected_at   VARCHAR(32),
             created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,

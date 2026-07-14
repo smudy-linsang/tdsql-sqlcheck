@@ -35,11 +35,17 @@ class TDSQLConnectRequest(BaseModel):
     is_distributed: bool = Field(True, description="是否分布式实例")
     description: str = Field("", description="连接描述")
     set_list: str = Field("", description="分布式实例SET列表(逗号分隔,从赤兔获取);慢SQL扫描逐SET合并用")
+    # monitordb（集群级慢SQL/监控数据源，端口 15001）。留空则复用主连接同名字段
+    monitor_host: str = Field("", description="monitordb地址(留空复用主连接host)")
+    monitor_port: int = Field(15001, description="monitordb端口(默认15001)")
+    monitor_user: str = Field("", description="monitordb用户(留空复用主连接)")
+    monitor_password: str = Field("", description="monitordb密码(留空复用主连接)")
+    monitor_db: str = Field("tdsqlpcloud_monitor", description="监控库名")
 
 
 class SlowQueryFetchRequest(BaseModel):
     """慢SQL抓取请求"""
-    source: str = Field("digest", description="数据源: digest(性能摘要,推荐)/processlist(实时进程轮询)")
+    source: str = Field("digest", description="数据源: monitordb(集群级慢SQL,推荐)/digest(性能摘要)/processlist(实时进程轮询)")
     connection_id: str = Field("", description="目标连接ID（空则使用当前/默认连接）")
     limit: int = Field(50, description="抓取条数上限")
     min_time: float = Field(0.1, description="最小耗时阈值(秒)，digest模式按平均耗时过滤，processlist按当前执行时间过滤")
@@ -517,7 +523,7 @@ async def trigger_slow_query_fetch():
 class ScanScheduleRequest(BaseModel):
     """扫描计划请求"""
     connection_id: str = Field(..., description="目标连接ID（已保存的连接配置）")
-    source: str = Field("digest", description="数据源: digest/processlist")
+    source: str = Field("digest", description="数据源: monitordb/digest/processlist")
     cron_hour: int = Field(2, ge=0, le=23, description="执行小时(0-23)")
     cron_minute: int = Field(0, ge=0, le=59, description="执行分钟(0-59)")
     limit_rows: int = Field(100, description="单次抓取条数上限")
@@ -542,8 +548,8 @@ async def list_scan_schedules():
 @router.post("/scan-schedules", summary="创建扫描计划")
 async def create_scan_schedule(body: ScanScheduleRequest, request: Request):
     """为指定连接创建每日定时扫描计划（由调度器leader执行）"""
-    if body.source not in ("digest", "processlist"):
-        raise HTTPException(status_code=400, detail="source 仅支持 digest/processlist")
+    if body.source not in ("digest", "processlist", "monitordb"):
+        raise HTTPException(status_code=400, detail="source 仅支持 monitordb/digest/processlist")
     if not registry.get_saved(body.connection_id):
         raise HTTPException(status_code=404, detail=f"连接配置不存在: {body.connection_id}")
     from backend.services.database import _get_connection, ensure_db
@@ -638,6 +644,11 @@ async def save_connection(request: TDSQLConnectRequest, http_request: Request):
         is_distributed=request.is_distributed,
         description=request.description,
         set_list=request.set_list,
+        monitor_host=request.monitor_host,
+        monitor_port=request.monitor_port,
+        monitor_user=request.monitor_user,
+        monitor_password=request.monitor_password,
+        monitor_db=request.monitor_db,
         operator=_operator(http_request),
     )
     return {
@@ -666,6 +677,11 @@ async def update_connection(conn_id: str, request: TDSQLConnectRequest, http_req
         is_distributed=request.is_distributed,
         description=request.description,
         set_list=request.set_list,
+        monitor_host=request.monitor_host,
+        monitor_port=request.monitor_port,
+        monitor_user=request.monitor_user,
+        monitor_password=request.monitor_password,
+        monitor_db=request.monitor_db,
         conn_id=conn_id,
         operator=_operator(http_request),
     )
@@ -673,6 +689,21 @@ async def update_connection(conn_id: str, request: TDSQLConnectRequest, http_req
         "message": "连接配置已更新",
         "id": conn_id,
         "name": request.name or f"{request.host}:{request.port}",
+    }
+
+
+@router.post("/connections/{conn_id}/monitor-probe", summary="测试 monitordb 连通性")
+async def monitor_probe(conn_id: str):
+    """探测该连接的 monitordb（15001/tdsqlpcloud_monitor）是否可用。
+    仅返回连通性与列数，不回列名明细（避免信息泄露）。"""
+    conn = _get_pool(conn_id)
+    probe = conn.monitor_probe()
+    return {
+        "ok": probe["ok"],
+        "column_count": len(probe["columns"]),
+        "error": probe["error"],
+        "monitor_port": conn.config.monitor_port,
+        "monitor_db": conn.config.monitor_db,
     }
 
 

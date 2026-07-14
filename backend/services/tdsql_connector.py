@@ -42,6 +42,13 @@ class TDSQLConnectionConfig:
     # 分布式实例的 SET 列表（逗号分隔，如 set_1772437478_1,set_1772437504_3）。
     # 慢SQL digest 扫描逐 SET 查询后按 DIGEST 合并；为空则退回直查 Proxy（单 SET/集中式）。
     set_list: str = ""
+    # monitordb（集群级慢SQL/监控数据源，端口通常 15001，库 tdsqlpcloud_monitor）。
+    # monitor_host/user/password 留空则复用业务连接同名字段，仅把端口换成 monitor_port。
+    monitor_host: str = ""
+    monitor_port: int = 15001
+    monitor_user: str = ""
+    monitor_password: str = ""
+    monitor_db: str = "tdsqlpcloud_monitor"
 
 
 @dataclass
@@ -777,6 +784,184 @@ class TDSQLConnectionPool:
             })
         out.sort(key=lambda x: x["total_seconds"], reverse=True)
         return out[:limit]
+
+    # ── monitordb（集群级慢SQL数据源，15001 / tdsqlpcloud_monitor）─────────────
+    # 详见 docs/集群级慢SQL数据源(monitordb)接入设计说明书.md
+
+    # 系统/ETL 账号（原厂默认，可配置）——这些账号的SQL不计入业务慢SQL
+    MONITOR_EXCLUDE_USERS = ["dbman", "incquery", "hxyunwei", "edwusr", "tdsql_check"]
+    # 噪音语句指纹（小写，用 LOWER(fingerprint) NOT LIKE 过滤）
+    MONITOR_NOISE_FP = [
+        "%commit%", "select ?%", "select n%", "%set autocommit%", "%set session%",
+        "%show variables%", "select sleep%", "create %", "drop %", "alter %",
+        "truncate %", "grant %", "revoke %", "flush %", "kill %",
+        "analyze table%", "explain %",
+    ]
+    # 客户端工具噪音（小写，用 LOWER(example_sql) NOT LIKE 过滤）
+    MONITOR_NOISE_SQL = ["%tdsql-mysql-connector-java%", "%dbeaver%"]
+
+    def _monitor_conn_params(self) -> dict:
+        """解析 monitordb 连接参数：monitor_* 为空则回退业务连接同名字段，仅换端口。"""
+        c = self.config
+        return {
+            "host": c.monitor_host or c.host,
+            "port": int(c.monitor_port or 15001),
+            "user": c.monitor_user or c.user,
+            "password": c.monitor_password or c.password,
+            "database": c.monitor_db or "tdsqlpcloud_monitor",
+            "charset": c.charset or "utf8mb4",
+            "connect_timeout": c.connect_timeout,
+            "read_timeout": c.read_timeout,
+            "cursorclass": pymysql.cursors.DictCursor,
+        }
+
+    def _monitor_execute(self, sql: str, params: tuple = None) -> list[dict]:
+        """对 monitordb（15001）执行只读查询，短连接即用即关，不进主连接池。"""
+        conn = pymysql.connect(**self._monitor_conn_params())
+        try:
+            with conn.cursor() as cur:
+                cur.execute(sql, params or ())
+                return list(cur.fetchall())
+        finally:
+            conn.close()
+
+    def monitor_probe(self) -> dict:
+        """探测 monitordb 是否可用 + 返回 proxy_classes_analysis 的真实列集合。
+        用于前端"测试monitordb"按钮，以及取数前的防御式列裁剪。
+        返回 {"ok": bool, "columns": set[str], "error": str}"""
+        db = self.config.monitor_db or "tdsqlpcloud_monitor"
+        try:
+            rows = self._monitor_execute(
+                "SELECT COLUMN_NAME FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA=%s AND TABLE_NAME='proxy_classes_analysis'",
+                (db,))
+            cols = {r["COLUMN_NAME"] for r in rows}
+            return {"ok": bool(cols), "columns": cols,
+                    "error": "" if cols else f"{db}.proxy_classes_analysis 不存在或无列"}
+        except Exception as e:
+            return {"ok": False, "columns": set(), "error": str(e)}
+
+    def get_cluster_slow_queries(self, limit: int = 50, min_time: float = 0.1,
+                                 time_start: str = None, time_end: str = None,
+                                 database: str = None, user: str = None,
+                                 set_ports: str = None) -> list[dict]:
+        """从 monitordb（tdsqlpcloud_monitor.proxy_classes_analysis）取全集群 TopN 慢SQL。
+
+        产出键名与 _query_digest_direct 对齐（scan_service 下游零改动），额外带
+        client_user/client_host/rows_affected/query_time_median/example_sql。
+
+        - 单位=秒（monitordb query_time_* 即秒，系数1）。
+        - 时间窗过滤走 timestramp（采集时刻，命中 index_time），不用 ts_min/ts_max。
+        - GROUP BY db,checksum 即权威去重（checksum 由监控采集器算好）。
+        - 加权平均口径同原厂：SUM(query_time_avg*query_count)/SUM(query_count)。
+        - 缺列防御：可选列不存在时降级为常量，跨 TDSQL 版本不报错。
+        """
+        probe = self.monitor_probe()
+        if not probe["ok"]:
+            raise RuntimeError(f"monitordb不可用: {probe['error']}")
+        cols = probe["columns"]
+
+        def col(name, expr, fallback):
+            """列存在则用 expr，否则用 fallback 常量（防御式列裁剪）。"""
+            return expr if name in cols else fallback
+
+        # 聚合表达式（缺列降级）
+        e_count = col("query_count", "SUM(query_count)", "0")
+        e_total = col("query_time_sum", "ROUND(SUM(query_time_sum),4)", "0")
+        e_avg = ("ROUND(SUM(query_time_avg*query_count)/NULLIF(SUM(query_count),0),4)"
+                 if "query_time_avg" in cols and "query_count" in cols else "0")
+        e_max = col("query_time_max", "ROUND(MAX(query_time_max),4)", "0")
+        e_median = col("query_time_median", "ROUND(AVG(query_time_median),4)", "0")
+        e_lock = col("lock_time_sum", "ROUND(SUM(lock_time_sum),6)", "0")
+        e_rexam = col("rows_examined_sum", "SUM(rows_examined_sum)", "0")
+        e_rsent = col("rows_sent_sum", "SUM(rows_sent_sum)", "0")
+        e_raff = col("rows_affected_sum", "SUM(rows_affected_sum)", "0")
+        e_raffmax = col("rows_affected_max", "MAX(rows_affected_max)", "0")
+        e_ftext = col("fingerprint", "MAX(fingerprint)", "''")
+        e_example = col("example_sql", "MAX(example_sql)", "''")
+        e_user = col("user", "GROUP_CONCAT(DISTINCT user ORDER BY user SEPARATOR ',')", "''")
+        e_host = col("host", "GROUP_CONCAT(DISTINCT host SEPARATOR ',')", "''")
+        e_set = col("set_name", "GROUP_CONCAT(DISTINCT set_name SEPARATOR ',')", "''")
+        e_first = col("ts_min", "MIN(ts_min)", "NULL")
+        e_last = col("ts_max", "MAX(ts_max)", "NULL")
+        db_col = "db" if "db" in cols else "SCHEMA_NAME"
+        key_col = "checksum" if "checksum" in cols else "fingerprint"
+
+        sql = f"""
+            SELECT {db_col} AS SCHEMA_NAME, {key_col} AS DIGEST,
+                   {e_ftext} AS DIGEST_TEXT, {e_example} AS example_sql,
+                   {e_user} AS client_user, {e_host} AS client_host,
+                   {e_set} AS set_ids,
+                   {e_count} AS exec_count, {e_total} AS total_seconds,
+                   {e_avg} AS avg_seconds, {e_max} AS max_seconds,
+                   {e_median} AS median_seconds, {e_lock} AS lock_time_seconds,
+                   {e_rexam} AS rows_examined, {e_rsent} AS rows_sent,
+                   {e_raff} AS rows_affected, {e_raffmax} AS rows_affected_max,
+                   {e_first} AS FIRST_SEEN, {e_last} AS LAST_SEEN
+            FROM {self.config.monitor_db or 'tdsqlpcloud_monitor'}.proxy_classes_analysis
+            WHERE {db_col} NOT IN ('mysql','information_schema','performance_schema','sys','tdsqlpcloud_monitor')
+              AND {db_col} IS NOT NULL
+        """
+        params = []
+        if "timestramp" in cols:
+            if time_start:
+                sql += " AND timestramp >= %s"
+                params.append(time_start)
+            if time_end:
+                sql += " AND timestramp < %s"
+                params.append(time_end)
+        if database:
+            sql += f" AND {db_col} = %s"
+            params.append(database)
+        if user and "user" in cols:
+            sql += " AND user = %s"
+            params.append(user)
+        if set_ports and "set_port" in cols:
+            ports = [p.strip() for p in str(set_ports).split(",") if p.strip().isdigit()]
+            if ports:
+                sql += " AND set_port IN (" + ",".join(["%s"] * len(ports)) + ")"
+                params.extend(ports)
+        # 系统账号排除
+        if "user" in cols and self.MONITOR_EXCLUDE_USERS:
+            sql += " AND user NOT IN (" + ",".join(["%s"] * len(self.MONITOR_EXCLUDE_USERS)) + ")"
+            params.extend(self.MONITOR_EXCLUDE_USERS)
+        # 噪音指纹排除
+        if "fingerprint" in cols:
+            for pat in self.MONITOR_NOISE_FP:
+                sql += " AND LOWER(fingerprint) NOT LIKE %s"
+                params.append(pat)
+        if "example_sql" in cols:
+            for pat in self.MONITOR_NOISE_SQL:
+                sql += " AND LOWER(example_sql) NOT LIKE %s"
+                params.append(pat)
+        sql += f" GROUP BY {db_col}, {key_col}"
+        # min_time 过滤（重算平均后）
+        if min_time and min_time > 0 and "query_time_avg" in cols:
+            sql += " HAVING avg_seconds >= %s"
+            params.append(min_time)
+        sql += " ORDER BY total_seconds DESC LIMIT %s"
+        params.append(int(limit))
+
+        rows = self._monitor_execute(sql, tuple(params))
+        # 归一化 fingerprint 文本仅用于展示（去空格/去末尾分号/括号归一），不改变去重
+        for r in rows:
+            ft = r.get("DIGEST_TEXT")
+            if ft:
+                r["DIGEST_TEXT"] = self._normalize_fingerprint(ft)
+            r["no_index_count"] = 0  # monitordb 无此维度，占位保持键一致
+        return rows
+
+    @staticmethod
+    def _normalize_fingerprint(s: str) -> str:
+        """指纹展示归一化：去首尾空白 → 去末尾分号 → 连续空白合并 → 括号周围空格归一。"""
+        if not isinstance(s, str):
+            return s
+        s = s.strip()
+        s = re.sub(r";\s*$", "", s)
+        s = re.sub(r"\s+", " ", s)
+        s = re.sub(r"\(\s+", "(", s)
+        s = re.sub(r"\s+\)", ")", s)
+        return s.strip()
 
     # NOTE: get_slow_queries_from_slow_log() 已移除。
     # TDSQL分布式实例中，SET实例的mysql.slow_log表不记录数据，

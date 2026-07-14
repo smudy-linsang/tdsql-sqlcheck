@@ -16,7 +16,7 @@ from backend.services.connection_registry import registry
 
 logger = logging.getLogger("tdsql.scan")
 
-VALID_SOURCES = {"digest", "processlist"}
+VALID_SOURCES = {"digest", "processlist", "monitordb"}
 
 
 def run_scan(connection_id: Optional[str] = None, source: str = "digest",
@@ -56,8 +56,8 @@ def run_scan(connection_id: Optional[str] = None, source: str = "digest",
 
     if source not in VALID_SOURCES:
         raise ValueError(
-            f"不支持的数据源: {source}。TDSQL分布式实例仅支持: "
-            f"digest(性能摘要分析,推荐)、processlist(实时进程快照)。"
+            f"不支持的数据源: {source}。TDSQL分布式实例支持: "
+            f"monitordb(集群级慢SQL,推荐)、digest(性能摘要分析)、processlist(实时进程快照)。"
             f"注意: mysql.slow_log在TDSQL分布式架构下不可用（数据由Proxy层管理）")
 
     if source == "digest" and (not time_window_start or not time_window_end):
@@ -86,7 +86,8 @@ def _do_scan(pool, connection_id: str, source: str, limit: int, min_time: float,
     conn_name = f"{pool.config.host}:{pool.config.port}"
 
     # 创建扫描任务（任务名自动包含时间段）
-    source_labels = {"digest": "性能摘要分析", "processlist": "实时进程快照"}
+    source_labels = {"digest": "性能摘要分析", "processlist": "实时进程快照",
+                     "monitordb": "集群级慢SQL(monitordb)"}
     time_range_str = ""
     if time_window_start and time_window_end:
         start_short = time_window_start[5:16]
@@ -104,7 +105,14 @@ def _do_scan(pool, connection_id: str, source: str, limit: int, min_time: float,
     results = []
     errors = []
     try:
-        if source == "digest":
+        if source == "monitordb":
+            # 集群级慢SQL：读 tdsqlpcloud_monitor.proxy_classes_analysis，
+            # 时间窗过滤走 timestramp（命中索引），一次取全集群、免 set_list。
+            raw_queries = pool.get_cluster_slow_queries(
+                limit=limit, min_time=min_time,
+                time_start=time_window_start or None,
+                time_end=time_window_end or None)
+        elif source == "digest":
             # 注意: TDSQL Proxy的performance_schema不支持FIRST_SEEN/LAST_SEEN时间过滤，
             # 时间窗口仅作为扫描任务元数据记录，不传入SQL查询。
             raw_queries = pool.get_slow_queries_from_digest(
@@ -143,9 +151,9 @@ def _do_scan(pool, connection_id: str, source: str, limit: int, min_time: float,
 
         lock_time_ms = float(raw.get("lock_time_seconds", 0) or 0) * 1000
 
-        # 执行者信息（processlist模式有具体用户/IP，digest模式为聚合数据）
-        client_user = raw.get("user", "")
-        client_host = raw.get("host", "")
+        # 执行者信息（monitordb/processlist有具体用户/IP，digest模式为聚合无此维度）
+        client_user = raw.get("client_user") or raw.get("user", "") or ""
+        client_host = raw.get("client_host") or raw.get("host", "") or ""
         if isinstance(client_user, bytes):
             client_user = client_user.decode("utf-8", errors="replace")
         if isinstance(client_host, bytes):
@@ -168,6 +176,7 @@ def _do_scan(pool, connection_id: str, source: str, limit: int, min_time: float,
             lock_time_ms=lock_time_ms,
             rows_examined=raw.get("rows_examined") or raw.get("SUM_ROWS_EXAMINED", 0) or 0,
             rows_sent=raw.get("rows_sent") or raw.get("SUM_ROWS_SENT", 0) or 0,
+            rows_affected=int(raw.get("rows_affected", 0) or 0),
             first_seen=first_seen_val,
             last_seen=last_seen_val,
         )
