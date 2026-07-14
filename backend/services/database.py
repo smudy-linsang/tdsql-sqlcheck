@@ -1062,6 +1062,38 @@ def _create_all_tables(conn):
             PRIMARY KEY (role_id, menu_key),
             INDEX idx_rp_role (role_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""",
+
+        # G3. 集群深度巡检 —— 任务
+        """CREATE TABLE IF NOT EXISTS cluster_inspection (
+            id                  INT PRIMARY KEY AUTO_INCREMENT,
+            connection_id       VARCHAR(64) DEFAULT '',
+            cluster_name        VARCHAR(128) DEFAULT '',
+            inspect_date        VARCHAR(32) DEFAULT '',
+            total_issues        INT DEFAULT 0,
+            error_count         INT DEFAULT 0,
+            warning_count       INT DEFAULT 0,
+            info_count          INT DEFAULT 0,
+            node_count          INT DEFAULT 0,
+            summary_json        MEDIUMTEXT,
+            created_by          VARCHAR(64) DEFAULT '',
+            created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_ci_conn (connection_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""",
+
+        # G3. 集群深度巡检 —— 明细
+        """CREATE TABLE IF NOT EXISTS cluster_inspection_issue (
+            id                  INT PRIMARY KEY AUTO_INCREMENT,
+            inspection_id       INT NOT NULL,
+            category            VARCHAR(32) DEFAULT '',
+            severity            VARCHAR(32) DEFAULT 'INFO',
+            node                VARCHAR(128) DEFAULT '',
+            title               VARCHAR(256) DEFAULT '',
+            detail              TEXT,
+            metric_value        VARCHAR(64) DEFAULT '',
+            threshold           VARCHAR(64) DEFAULT '',
+            created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_cii (inspection_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""",
     ]
 
     for ddl in table_ddls:

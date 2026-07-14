@@ -33,6 +33,7 @@ from backend.api.bigtable import router as bigtable_router
 from backend.api.quality_gate import router as gate_router
 from backend.api.monitor import router as monitor_router
 from backend.api.inspection import router as inspection_router
+from backend.api.cluster_inspect import router as cluster_inspect_router
 # V2.0 新增路由
 from backend.api.auth import router as auth_router
 from backend.api.rulesets import router as rulesets_router
@@ -130,6 +131,7 @@ app.include_router(bigtable_router)         # 大表治理
 app.include_router(gate_router)             # 质量门禁
 app.include_router(monitor_router)          # 监控告警
 app.include_router(inspection_router)       # 巡检管理
+app.include_router(cluster_inspect_router)  # G3 集群深度巡检
 app.include_router(admin_router)            # V2.0 系统管理
 
 # 前端静态资源（V2.0: 本地化vendor资产，纯内网可用）
