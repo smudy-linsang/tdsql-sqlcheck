@@ -480,6 +480,17 @@ def _migrate_old_tables(conn):
     if "slow_queries" in table_names:
         # monitordb 独有：DML 影响行数（digest 源为0）
         _add_column_if_not_exists(conn, "slow_queries", "rows_affected", "BIGINT DEFAULT 0")
+        # G2 十列增强诊断
+        _add_column_if_not_exists(conn, "slow_queries", "explain_plan", "TEXT")
+        _add_column_if_not_exists(conn, "slow_queries", "explain_issues", "VARCHAR(1000) DEFAULT ''")
+        _add_column_if_not_exists(conn, "slow_queries", "involved_tables", "VARCHAR(512) DEFAULT ''")
+        _add_column_if_not_exists(conn, "slow_queries", "table_stats", "TEXT")
+        _add_column_if_not_exists(conn, "slow_queries", "table_schema_ddl", "TEXT")
+        _add_column_if_not_exists(conn, "slow_queries", "index_details", "TEXT")
+        _add_column_if_not_exists(conn, "slow_queries", "redundant_indexes", "VARCHAR(1000) DEFAULT ''")
+        _add_column_if_not_exists(conn, "slow_queries", "stats_update_info", "TEXT")
+        _add_column_if_not_exists(conn, "slow_queries", "stats_expired", "VARCHAR(1000) DEFAULT ''")
+        _add_column_if_not_exists(conn, "slow_queries", "scan_efficiency", "VARCHAR(64) DEFAULT ''")
 
     if "audit_history" in table_names:
         _add_column_if_not_exists(conn, "audit_history", "project_id", "VARCHAR(64) DEFAULT ''")
@@ -548,6 +559,16 @@ def _create_all_tables(conn):
             distributed_analysis TEXT,
             index_suggestions   TEXT,
             rewrite_suggestions TEXT,
+            explain_plan        TEXT,
+            explain_issues      VARCHAR(1000) DEFAULT '',
+            involved_tables     VARCHAR(512) DEFAULT '',
+            table_stats         TEXT,
+            table_schema_ddl    TEXT,
+            index_details       TEXT,
+            redundant_indexes   VARCHAR(1000) DEFAULT '',
+            stats_update_info   TEXT,
+            stats_expired       VARCHAR(1000) DEFAULT '',
+            scan_efficiency     VARCHAR(64) DEFAULT '',
             status              VARCHAR(32) DEFAULT 'pending',
             assigned_to         VARCHAR(64) DEFAULT '',
             scan_task_id        INT DEFAULT NULL,

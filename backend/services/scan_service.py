@@ -24,7 +24,7 @@ def run_scan(connection_id: Optional[str] = None, source: str = "digest",
              task_name: str = "", time_window_start: str = "",
              time_window_end: str = "", poll_duration: float = 10.0,
              poll_interval: float = 1.0, operator: str = "",
-             pool=None) -> dict:
+             pool=None, enrich: bool = True) -> dict:
     """
     执行一次慢SQL扫描并入库分析。
 
@@ -71,12 +71,13 @@ def run_scan(connection_id: Optional[str] = None, source: str = "digest",
     with registry.scan_slot(conn_key):
         return _do_scan(pool, connection_id or "", source, limit, min_time,
                         task_name, time_window_start, time_window_end,
-                        poll_duration, poll_interval, operator)
+                        poll_duration, poll_interval, operator, enrich)
 
 
 def _do_scan(pool, connection_id: str, source: str, limit: int, min_time: float,
              task_name: str, time_window_start: str, time_window_end: str,
-             poll_duration: float, poll_interval: float, operator: str) -> dict:
+             poll_duration: float, poll_interval: float, operator: str,
+             enrich: bool = True) -> dict:
     from backend.engine.slow_analyzer import SlowQueryRecord
     from backend.services import metrics_service
     from backend.services.slow_query_service import SlowQueryService
@@ -125,6 +126,15 @@ def _do_scan(pool, connection_id: str, source: str, limit: int, min_time: float,
     except Exception as e:
         errors.append({"source": source, "error": str(e)})
         raw_queries = []
+
+    # G2 十列增强诊断（连业务库补 EXPLAIN/表结构/索引/统计信息过期/扫描效率）。
+    # 仅统计口径的 monitordb/digest 源做增强；失败不阻断主流程（各行降级为N/A）。
+    if enrich and raw_queries and source in ("monitordb", "digest"):
+        try:
+            from backend.services import slow_enrich_service
+            slow_enrich_service.enrich_rows(pool, raw_queries, db_name)
+        except Exception as e:
+            errors.append({"source": "enrich", "error": str(e)})
 
     for raw in raw_queries:
         sql_text = raw.get("DIGEST_TEXT") or raw.get("info") or raw.get("sql_text", "")
@@ -179,6 +189,17 @@ def _do_scan(pool, connection_id: str, source: str, limit: int, min_time: float,
             rows_affected=int(raw.get("rows_affected", 0) or 0),
             first_seen=first_seen_val,
             last_seen=last_seen_val,
+            # G2 增强字段（enrich_rows 已回填到 raw；未增强则为空）
+            explain_plan=raw.get("explain_plan", "") or "",
+            explain_issues=raw.get("explain_issues", "") or "",
+            involved_tables=raw.get("involved_tables", "") or "",
+            table_stats=raw.get("table_stats", "") or "",
+            table_schema_ddl=raw.get("table_schema_ddl", "") or "",
+            index_details=raw.get("index_details", "") or "",
+            redundant_indexes=raw.get("redundant_indexes", "") or "",
+            stats_update_info=raw.get("stats_update_info", "") or "",
+            stats_expired=raw.get("stats_expired", "") or "",
+            scan_efficiency=raw.get("scan_efficiency", "") or "",
         )
 
         result = service.add_slow_query(

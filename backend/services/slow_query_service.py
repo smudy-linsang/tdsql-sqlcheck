@@ -70,8 +70,11 @@ class SlowQueryService:
                     rows_examined, rows_sent, rows_affected, lock_time_ms,
                     first_seen, last_seen, problem_type, severity,
                     root_cause, suggestion, optimized_sql,
+                    explain_plan, explain_issues, involved_tables, table_stats,
+                    table_schema_ddl, index_details, redundant_indexes,
+                    stats_update_info, stats_expired, scan_efficiency,
                     analysis_json, scan_task_id, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 stored_fingerprint, stored_sql, record.db_name,
                 record.set_id, record.client_user, record.client_host,
@@ -84,6 +87,11 @@ class SlowQueryService:
                 report.analyses[0].root_cause if report.analyses else "",
                 report.analyses[0].suggestion if report.analyses else "",
                 report.analyses[0].optimized_sql if report.analyses else "",
+                getattr(record, "explain_plan", ""), getattr(record, "explain_issues", ""),
+                getattr(record, "involved_tables", ""), getattr(record, "table_stats", ""),
+                getattr(record, "table_schema_ddl", ""), getattr(record, "index_details", ""),
+                getattr(record, "redundant_indexes", ""), getattr(record, "stats_update_info", ""),
+                getattr(record, "stats_expired", ""), getattr(record, "scan_efficiency", ""),
                 json.dumps([{
                     "problem_type": a.problem_type,
                     "severity": a.severity,

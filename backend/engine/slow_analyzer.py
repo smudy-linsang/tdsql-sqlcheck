@@ -50,6 +50,17 @@ class SlowQueryRecord:
     lock_time_ms: float = 0.0
     first_seen: str = ""       # SQL首次执行时间
     last_seen: str = ""        # SQL最后执行时间
+    # G2 十列增强诊断（enrich 后回填；未增强时为空）
+    explain_plan: str = ""
+    explain_issues: str = ""
+    involved_tables: str = ""
+    table_stats: str = ""
+    table_schema_ddl: str = ""
+    index_details: str = ""
+    redundant_indexes: str = ""
+    stats_update_info: str = ""
+    stats_expired: str = ""
+    scan_efficiency: str = ""
 
 
 @dataclass
