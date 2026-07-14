@@ -1126,6 +1126,35 @@ def _create_all_tables(conn):
             created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
             INDEX idx_iaf (audit_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""",
+
+        # G6. 表结构比对 —— 任务
+        """CREATE TABLE IF NOT EXISTS schema_diff (
+            id                  INT PRIMARY KEY AUTO_INCREMENT,
+            left_conn           VARCHAR(64) DEFAULT '',
+            right_conn          VARCHAR(64) DEFAULT '',
+            databases_filter    VARCHAR(256) DEFAULT '',
+            total_items         INT DEFAULT 0,
+            error_count         INT DEFAULT 0,
+            warning_count       INT DEFAULT 0,
+            info_count          INT DEFAULT 0,
+            created_by          VARCHAR(64) DEFAULT '',
+            created_at          DATETIME DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""",
+
+        # G6. 表结构比对 —— 明细
+        """CREATE TABLE IF NOT EXISTS schema_diff_item (
+            id                  INT PRIMARY KEY AUTO_INCREMENT,
+            diff_id             INT NOT NULL,
+            db_name             VARCHAR(128) DEFAULT '',
+            table_name          VARCHAR(128) DEFAULT '',
+            object_name         VARCHAR(128) DEFAULT '',
+            diff_type           VARCHAR(64) DEFAULT '',
+            severity            VARCHAR(32) DEFAULT 'INFO',
+            left_value          TEXT,
+            right_value         TEXT,
+            created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_sdi (diff_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""",
     ]
 
     for ddl in table_ddls:
