@@ -306,7 +306,7 @@ def check_permission(role: str, method: str, path: str) -> bool:
 ALL_MENU_KEYS = [
     'dashboard', 'audit-sql', 'file-audit', 'rules',
     'slow-tasks', 'slow-records', 'slow-schedule', 'explain',
-    'instances', 'health-check', 'schema-check', 'bigtable',
+    'instances', 'health-check', 'schema-check', 'bigtable', 'deep-diag',
     'projects', 'rulesets', 'gate', 'monitor', 'inspection',
     'sys-users', 'sys-retention', 'sys-auditlog', 'sys-info',
     'sys-roles', 'sys-perms',
@@ -317,7 +317,7 @@ MENU_LABELS = {
     'dashboard': '治理概览', 'audit-sql': '即时审核', 'file-audit': '文件审核',
     'rules': '审核规则库', 'slow-tasks': '扫描任务', 'slow-records': '慢SQL记录',
     'slow-schedule': '扫描计划', 'explain': 'EXPLAIN分析', 'instances': '实例管理',
-    'health-check': '数据库体检', 'schema-check': '上线检查', 'bigtable': '大表治理', 'projects': '项目管理',
+    'health-check': '数据库体检', 'schema-check': '上线检查', 'bigtable': '大表治理', 'deep-diag': '深度诊断', 'projects': '项目管理',
     'rulesets': '规则集', 'gate': '质量门禁', 'monitor': '监控告警',
     'inspection': '巡检管理', 'sys-users': '用户管理', 'sys-retention': '数据保留',
     'sys-auditlog': '操作审计', 'sys-info': '系统信息',

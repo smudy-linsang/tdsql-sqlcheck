@@ -1268,7 +1268,7 @@ def _init_default_data(conn):
     all_menus = [
         'dashboard', 'audit-sql', 'file-audit', 'rules',
         'slow-tasks', 'slow-records', 'slow-schedule', 'explain',
-        'instances', 'health-check', 'schema-check', 'bigtable',
+        'instances', 'health-check', 'schema-check', 'bigtable', 'deep-diag',
         'projects', 'rulesets', 'gate', 'monitor', 'inspection',
         'sys-users', 'sys-retention', 'sys-auditlog', 'sys-info',
         'sys-roles', 'sys-perms',

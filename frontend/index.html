@@ -91,6 +91,7 @@
             <el-menu-item v-if="visibleMenus.has('schema-check')" index="schema-check">上线检查</el-menu-item>
             <el-menu-item v-if="visibleMenus.has('bigtable')" index="bigtable">大表治理</el-menu-item>
           </el-sub-menu>
+          <el-menu-item v-if="visibleMenus.has('deep-diag')" index="deep-diag"><el-icon><DataAnalysis /></el-icon><span>深度诊断</span></el-menu-item>
           <el-sub-menu v-if="visibleMenus.has('projects')||visibleMenus.has('rulesets')||visibleMenus.has('gate')||visibleMenus.has('monitor')||visibleMenus.has('inspection')" index="platform-group">
             <template #title><el-icon><Setting /></el-icon><span>平台治理</span></template>
             <el-menu-item v-if="visibleMenus.has('projects')" index="projects">项目管理</el-menu-item>
@@ -710,6 +711,94 @@
                 <el-table-column prop="shard_key" label="分片键" width="100" show-overflow-tooltip></el-table-column>
               </el-table>
             </div>
+          </div>
+
+          <!-- ═══ 深度诊断（G3/G5/G6/G7/G8/G4）═══ -->
+          <div v-if="currentPage==='deep-diag'">
+            <div class="page-card">
+              <div class="card-head">
+                <div class="page-card-title mb0">深度诊断</div>
+                <el-select v-model="deepConnId" placeholder="选择实例" filterable size="small" style="width:260px">
+                  <el-option v-for="c in savedConnections" :key="c.id" :label="c.name+' ('+c.host+':'+c.port+')'" :value="c.id"></el-option>
+                </el-select>
+              </div>
+              <div style="color:#909399;font-size:13px;margin:8px 0">吸收 TDSQL 原厂工具能力：集群巡检 / 索引体检 / 结构比对 / 应急诊断 / SQL分析。巡检类依赖 monitordb(15001)；只读操作。</div>
+            </div>
+            <el-tabs v-model="deepTab" type="border-card">
+              <!-- 集群巡检 G3 -->
+              <el-tab-pane label="集群巡检" name="cluster">
+                <el-button type="primary" size="small" :loading="deepLoading==='cluster'" :disabled="!deepConnId" @click="runClusterInspect">发起集群深度巡检</el-button>
+                <span v-if="deepResult.cluster" style="margin-left:12px;font-size:13px">节点 {{ deepResult.cluster.node_count }} · <b style="color:var(--danger-500)">ERROR {{ deepResult.cluster.error_count }}</b> · <b style="color:var(--warning-500)">WARNING {{ deepResult.cluster.warning_count }}</b> · INFO {{ deepResult.cluster.info_count }}</span>
+                <el-table v-if="deepResult.cluster" :data="deepResult.cluster.issues" size="small" border style="margin-top:12px" max-height="480">
+                  <el-table-column prop="severity" label="等级" width="90"><template #default="s"><el-tag :type="s.row.severity==='ERROR'?'danger':s.row.severity==='WARNING'?'warning':'info'" size="small">{{ s.row.severity }}</el-tag></template></el-table-column>
+                  <el-table-column prop="category" label="类别" width="110"></el-table-column>
+                  <el-table-column prop="node" label="节点" width="150"></el-table-column>
+                  <el-table-column prop="title" label="问题" width="180"></el-table-column>
+                  <el-table-column prop="detail" label="详情"></el-table-column>
+                </el-table>
+              </el-tab-pane>
+              <!-- 索引体检 G5 -->
+              <el-tab-pane label="索引体检" name="index">
+                <el-input v-model="deepDb" placeholder="库名(空=全部业务库)" size="small" style="width:200px;margin-right:8px"></el-input>
+                <el-button type="primary" size="small" :loading="deepLoading==='index'" :disabled="!deepConnId" @click="runIndexAudit">发起索引体检</el-button>
+                <span v-if="deepResult.index" style="margin-left:12px;font-size:13px">表 {{ deepResult.index.total_tables }} / 索引 {{ deepResult.index.total_indexes }} · <b style="color:var(--danger-500)">ERROR {{ deepResult.index.error_count }}</b> · <b style="color:var(--warning-500)">WARNING {{ deepResult.index.warning_count }}</b></span>
+                <el-table v-if="deepResult.index" :data="deepResult.index.findings" size="small" border style="margin-top:12px" max-height="480">
+                  <el-table-column prop="severity" label="等级" width="90"><template #default="s"><el-tag :type="s.row.severity==='ERROR'?'danger':s.row.severity==='WARNING'?'warning':'info'" size="small">{{ s.row.severity }}</el-tag></template></el-table-column>
+                  <el-table-column prop="finding_type" label="类型" width="130"></el-table-column>
+                  <el-table-column prop="db_name" label="库" width="110"></el-table-column>
+                  <el-table-column prop="table_name" label="表" width="130"></el-table-column>
+                  <el-table-column prop="detail" label="详情"></el-table-column>
+                  <el-table-column prop="suggestion" label="建议" width="220"></el-table-column>
+                </el-table>
+              </el-tab-pane>
+              <!-- 结构比对 G6 -->
+              <el-tab-pane label="结构比对" name="diff">
+                <el-select v-model="deepRightConnId" placeholder="对比实例" filterable size="small" style="width:220px;margin-right:8px">
+                  <el-option v-for="c in savedConnections" :key="c.id" :label="c.name+' ('+c.host+':'+c.port+')'" :value="c.id"></el-option>
+                </el-select>
+                <el-input v-model="deepDb" placeholder="库名(逗号分隔,空=全部)" size="small" style="width:220px;margin-right:8px"></el-input>
+                <el-button type="primary" size="small" :loading="deepLoading==='diff'" :disabled="!deepConnId||!deepRightConnId" @click="runSchemaDiff">比对(基准→对比)</el-button>
+                <span v-if="deepResult.diff" style="margin-left:12px;font-size:13px">差异 {{ deepResult.diff.total_items }} · <b style="color:var(--danger-500)">ERROR {{ deepResult.diff.error_count }}</b> · <b style="color:var(--warning-500)">WARNING {{ deepResult.diff.warning_count }}</b></span>
+                <el-table v-if="deepResult.diff" :data="deepResult.diff.items" size="small" border style="margin-top:12px" max-height="480">
+                  <el-table-column prop="severity" label="等级" width="90"><template #default="s"><el-tag :type="s.row.severity==='ERROR'?'danger':s.row.severity==='WARNING'?'warning':'info'" size="small">{{ s.row.severity }}</el-tag></template></el-table-column>
+                  <el-table-column prop="diff_type" label="差异类型" width="150"></el-table-column>
+                  <el-table-column prop="db_name" label="库" width="110"></el-table-column>
+                  <el-table-column prop="table_name" label="表" width="130"></el-table-column>
+                  <el-table-column prop="object_name" label="对象" width="130"></el-table-column>
+                  <el-table-column prop="left_value" label="基准"></el-table-column>
+                  <el-table-column prop="right_value" label="对比"></el-table-column>
+                </el-table>
+              </el-tab-pane>
+              <!-- 应急诊断 G7 -->
+              <el-tab-pane label="应急诊断" name="emergency">
+                <el-button type="primary" size="small" :loading="deepLoading==='emergency'" :disabled="!deepConnId" @click="runEmergency">一键应急体检(只读)</el-button>
+                <div v-if="deepResult.emergency" style="margin-top:12px">
+                  <el-collapse>
+                    <el-collapse-item v-for="(sec,name) in deepResult.emergency.sections" :key="name" :name="name">
+                      <template #title>
+                        <el-tag :type="sec.severity==='ERROR'?'danger':sec.severity==='WARNING'?'warning':sec.ok?'success':'info'" size="small" style="margin-right:8px">{{ name }}</el-tag>
+                        <span style="font-size:13px">{{ sec.summary || sec.error || '' }}</span>
+                      </template>
+                      <pre style="font-size:12px;white-space:pre-wrap;max-height:300px;overflow:auto">{{ JSON.stringify(sec, null, 2) }}</pre>
+                    </el-collapse-item>
+                  </el-collapse>
+                </div>
+              </el-tab-pane>
+              <!-- SQL分析 G8 -->
+              <el-tab-pane label="SQL分析" name="sqlstats">
+                <el-button type="primary" size="small" :loading="deepLoading==='sqlstats'" :disabled="!deepConnId" @click="runSqlStats">SQL调用量多维分析</el-button>
+                <div v-if="deepResult.sqlstats" style="margin-top:12px">
+                  <div style="font-size:13px;margin-bottom:8px">SQL类别 {{ deepResult.sqlstats.sql_class_count }} · 总执行 {{ deepResult.sqlstats.total_exec }}</div>
+                  <el-table :data="deepResult.sqlstats.top_slow" size="small" border max-height="360">
+                    <el-table-column prop="sql_type" label="类型" width="90"></el-table-column>
+                    <el-table-column prop="db_name" label="库" width="110"></el-table-column>
+                    <el-table-column prop="avg_seconds" label="平均耗时(s)" width="120"></el-table-column>
+                    <el-table-column prop="exec_count" label="次数" width="100"></el-table-column>
+                    <el-table-column prop="fingerprint" label="慢SQL(TOP慢)"></el-table-column>
+                  </el-table>
+                </div>
+              </el-tab-pane>
+            </el-tabs>
           </div>
 
           <!-- ═══ 平台治理-项目 ═══ -->

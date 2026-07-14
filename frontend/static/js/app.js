@@ -94,6 +94,13 @@ const app=createApp({
     const schemaCheckConnId=ref('');
     const schemaCheckResults=ref([]);
     const schemaCheckSummary=ref({total:0,error:0,warning:0,info:0,checks_passed:0,checks_failed:0});
+    // 深度诊断（G3/G5/G6/G7/G8）
+    const deepConnId=ref('');
+    const deepRightConnId=ref('');
+    const deepDb=ref('');
+    const deepTab=ref('cluster');
+    const deepLoading=ref('');
+    const deepResult=reactive({cluster:null,index:null,diff:null,emergency:null,sqlstats:null});
     const schemaCheckLoading=ref(false);
     const bigtableLoading=ref(false);
     const bigtableData=ref(null);
@@ -140,7 +147,7 @@ const app=createApp({
     const permsMatrixData=ref([]);
     const permsMenuList=ref([]);
     const permsLoading=ref(false);
-    const visibleMenus=ref(new Set(['dashboard','audit-sql','file-audit','rules','slow-tasks','slow-records','explain','instances','health-check','bigtable','projects','rulesets','gate','monitor','inspection','sys-users','sys-retention','sys-auditlog','sys-info','sys-roles','sys-perms']));
+    const visibleMenus=ref(new Set(['dashboard','audit-sql','file-audit','rules','slow-tasks','slow-records','explain','instances','health-check','bigtable','deep-diag','projects','rulesets','gate','monitor','inspection','sys-users','sys-retention','sys-auditlog','sys-info','sys-roles','sys-perms']));
     // V3.0: 表名中文映射
     const tableNameLabel=(t)=>({slow_queries:'慢SQL记录',audit_history:'审核历史',scan_tasks:'扫描任务',alerts:'告警记录',operation_logs:'操作日志',gate_audit_logs:'门禁审计日志',fingerprint_stats:'SQL指纹统计'}[t]||t);
     // V3.0: 监控指标中文映射
@@ -247,6 +254,40 @@ const app=createApp({
         }else{const d=await resp.json();ElementPlus.ElMessage.error(d.detail||'检查失败')}
       }catch(e){ElementPlus.ElMessage.error('检查失败: '+e.message)}finally{schemaCheckLoading.value=false}
     };
+    // ── 深度诊断：通用 POST 助手 ──
+    const _deepPost=async(key,url,payload)=>{
+      if(!deepConnId.value){ElementPlus.ElMessage.warning('请先选择实例');return null}
+      deepLoading.value=key;
+      try{
+        const resp=await apiFetch(`${API_BASE}${url}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+        const d=await resp.json();
+        if(resp.ok){return d.data||d}
+        ElementPlus.ElMessage.error(d.detail||'执行失败');return null;
+      }catch(e){ElementPlus.ElMessage.error('执行失败: '+e.message);return null}
+      finally{deepLoading.value=''}
+    };
+    const runClusterInspect=async()=>{
+      const r=await _deepPost('cluster','/api/v1/cluster-inspect/run',{connection_id:deepConnId.value});
+      if(r){deepResult.cluster=r;ElementPlus.ElMessage.success(`巡检完成：${r.total_issues} 项问题`)}
+    };
+    const runIndexAudit=async()=>{
+      const r=await _deepPost('index','/api/v1/index-audit/run',{connection_id:deepConnId.value,database:deepDb.value});
+      if(r){deepResult.index=r;ElementPlus.ElMessage.success(`索引体检完成：${r.total_findings} 项`)}
+    };
+    const runSchemaDiff=async()=>{
+      if(!deepRightConnId.value){ElementPlus.ElMessage.warning('请选择对比实例');return}
+      const dbs=deepDb.value?deepDb.value.split(',').map(s=>s.trim()).filter(Boolean):null;
+      const r=await _deepPost('diff','/api/v1/schema-diff/run',{left_conn:deepConnId.value,right_conn:deepRightConnId.value,databases:dbs});
+      if(r){deepResult.diff=r;ElementPlus.ElMessage.success(`比对完成：${r.total_items} 处差异`)}
+    };
+    const runEmergency=async()=>{
+      const r=await _deepPost('emergency','/api/v1/emergency/run',{connection_id:deepConnId.value,actions:['all']});
+      if(r){deepResult.emergency=r;ElementPlus.ElMessage.success('应急诊断完成')}
+    };
+    const runSqlStats=async()=>{
+      const r=await _deepPost('sqlstats','/api/v1/sql-stats/analyze',{connection_id:deepConnId.value,top_n:20,database:deepDb.value});
+      if(r){deepResult.sqlstats=r;ElementPlus.ElMessage.success('SQL分析完成')}
+    };
     const exportSchemaCheckReport=async()=>{
       if(!schemaCheckConnId.value){ElementPlus.ElMessage.warning('请先选择实例');return}
       schemaCheckLoading.value=true;
@@ -335,7 +376,7 @@ const app=createApp({
     onMounted(async()=>{onUnauthorized=()=>{authState.token='';authState.user=null};const ok=await checkSession();if(ok)loadAll()});
     watch(currentPage,(v)=>{if(v==='dashboard')nextTick(renderTrendChart);if(v==='rules'&&rulesList.value.length===0)loadRules();if(v==='file-audit'&&fileAuditTab.value==='reports')loadFileReports();if(v==='slow-tasks')loadScanTasks();if(v==='slow-records')loadSlowList();if(v==='sys-users')loadUsers();if(v==='slow-schedule')loadScanSchedules();if(v==='bigtable')loadBigtable();if(v==='projects')loadProjectsList();if(v==='rulesets')loadRulesets();if(v==='gate'){loadGateStrategies();loadGateRules()};if(v==='monitor'){loadMonitorAlerts();loadMonitorRules()};if(v==='inspection')loadInspectionTasks();if(v==='sys-auditlog')loadAuditLogs();if(v==='sys-retention')loadRetention();if(v==='sys-info')loadSysInfo();if(v==='sys-roles')loadRoles();if(v==='sys-perms')loadPerms()});
     watch(fileAuditTab,(v)=>{if(v==='reports')loadFileReports()});
-    return{currentPage,sidebarCollapsed,authState,loginForm,loginLoading,loginError,pwdDialog,savedConnections,currentConnectionId,projects,currentProjectId,activeAlerts,metadataEnhanced,statsLoading,stats,ruleHits,trendChartRef,kpiCards,sqlInput,auditing,auditResult,auditProjectId,fileAuditTab,fileAuditResult,fileReports,fileReportsLoading,fileReportsTotal,fileReportsPage,rulesList,rulesByCategory,ruleSearch,expandedCategories,filteredCategories,slowList,slowListLoading,slowFilters,slowPage,scanTasks,scanTaskTotal,scanTaskCurrentPage,scanTaskLoading,selectedTaskIds,batchDeleting,clearingOrphan,scanDrawer,scanTimeWindow,scanTaskForm,slowDetailDrawer,slowDetail,explainMode,explainSqlInput,explainInput,explainConnId,analyzingExplain,explainResult,tdsqlStatus,connDrawer,connForm,connEditMode,connTestResult,connTesting,connLoading,usersList,usersLoading,userDialog,resetDialog,scanSchedules,scanScheduleLoading,scheduleDrawer,scheduleForm,healthLoading,healthResult,healthCheckType,healthDbName,schemaCheckConnId,schemaCheckResults,schemaCheckSummary,schemaCheckLoading,bigtableLoading,bigtableData,bigtableRef,partitionDetail,partitionLoading,projectsList,projectsLoading,projectDialog,rulesets,rulesetsLoading,gateRules,gateStrategies,gateLoading,monitorAlerts,monitorRules,monitorLoading,monitorTab,inspectionTasks,inspectionLoading,auditLogs,auditLogsLoading,auditLogsTotal,auditLogsPage,retentionPolicies,retentionLoading,sysInfo,sysInfoLoading,roleLabel,canManagePlatform,canManageInstances,canViewAuditLog,canViewSysInfo,canViewProjects,canViewMonitor,canViewSchedule,canViewBigtable,breadcrumbItems,formatTime,sevTagType,statusLabel,sourceLabel,categoryOrder,doLogin,doLogout,changePassword,onUserCommand,onMenuSelect,onConnectionSwitch,onProjectSwitch,auditSql,loadExample,onFileChange,loadFileReports,downloadFileReport,loadRules,loadSlowList,resetSlowFilter,openSlowDetail,setSlowStatus,exportSlowReport,downloadScanReport,goSlowDetail,goExplainFromSlow,loadScanTasks,onTaskSelectChange,deleteScanTask,batchDeleteScanTasks,startScanTask,viewTaskSlowQueries,clearOrphanRecords,analyzeExplainBySql,analyzeExplain,loadSavedConnections,testConn,saveConn,openEditConn,openNewConn,deleteConn,setDefaultConn,connectInstance,loadUsers,createUser,openResetPwd,resetUserPwd,unlockUser,toggleUserStatus,deleteUser,loadAll,renderTrendChart,loadProjects,loadActiveAlerts,loadScanSchedules,createScanSchedule,deleteScanSchedule,toggleScheduleEnabled,runHealthCheck,runSchemaCheck,exportSchemaCheckReport,loadBigtable,bigtableRowKey,partitionBoundaryLabel,bigtableRowClass,togglePartitions,onBigtableExpand,loadTablePartitions,loadProjectsList,createProject,deleteProject,toggleProjectStatus,loadRulesets,loadGateRules,loadGateStrategies,applyGateStrategy,loadMonitorAlerts,acknowledgeAlert,loadMonitorRules,loadInspectionTasks,loadAuditLogs,loadRetention,runRetentionCleanup,loadSysInfo,bigtableCollecting,collectBigtable,rulesetDialog,createRuleset,deleteRuleset,gateCustom,openGateCustom,saveGateCustom,monitorRuleDialog,createMonitorRule,inspectionDialog,createInspection,inspectionResultDrawer,inspectionResults,viewInspectionResult,retentionDialog,openRetentionEdit,saveRetention,retentionEditMode,logoUrl,loadLogo,onLogoUpload,resetLogo,toggleSysConfig,auditFilter,resetAuditFilter,tableNameLabel,metricLabel,rolesList,rolesLoading,roleDialog,deleteRole,openRoleEdit,saveRole,roleLabelFn,permsMatrixData,permsMenuList,permsLoading,loadPerms,onPermChange,visibleMenus};
+    return{currentPage,sidebarCollapsed,authState,loginForm,loginLoading,loginError,pwdDialog,savedConnections,currentConnectionId,projects,currentProjectId,activeAlerts,metadataEnhanced,statsLoading,stats,ruleHits,trendChartRef,kpiCards,sqlInput,auditing,auditResult,auditProjectId,fileAuditTab,fileAuditResult,fileReports,fileReportsLoading,fileReportsTotal,fileReportsPage,rulesList,rulesByCategory,ruleSearch,expandedCategories,filteredCategories,slowList,slowListLoading,slowFilters,slowPage,scanTasks,scanTaskTotal,scanTaskCurrentPage,scanTaskLoading,selectedTaskIds,batchDeleting,clearingOrphan,scanDrawer,scanTimeWindow,scanTaskForm,slowDetailDrawer,slowDetail,explainMode,explainSqlInput,explainInput,explainConnId,analyzingExplain,explainResult,tdsqlStatus,connDrawer,connForm,connEditMode,connTestResult,connTesting,connLoading,usersList,usersLoading,userDialog,resetDialog,scanSchedules,scanScheduleLoading,scheduleDrawer,scheduleForm,healthLoading,healthResult,healthCheckType,healthDbName,schemaCheckConnId,schemaCheckResults,schemaCheckSummary,schemaCheckLoading,bigtableLoading,bigtableData,bigtableRef,partitionDetail,partitionLoading,projectsList,projectsLoading,projectDialog,rulesets,rulesetsLoading,gateRules,gateStrategies,gateLoading,monitorAlerts,monitorRules,monitorLoading,monitorTab,inspectionTasks,inspectionLoading,auditLogs,auditLogsLoading,auditLogsTotal,auditLogsPage,retentionPolicies,retentionLoading,sysInfo,sysInfoLoading,roleLabel,canManagePlatform,canManageInstances,canViewAuditLog,canViewSysInfo,canViewProjects,canViewMonitor,canViewSchedule,canViewBigtable,breadcrumbItems,formatTime,sevTagType,statusLabel,sourceLabel,categoryOrder,doLogin,doLogout,changePassword,onUserCommand,onMenuSelect,onConnectionSwitch,onProjectSwitch,auditSql,loadExample,onFileChange,loadFileReports,downloadFileReport,loadRules,loadSlowList,resetSlowFilter,openSlowDetail,setSlowStatus,exportSlowReport,downloadScanReport,goSlowDetail,goExplainFromSlow,loadScanTasks,onTaskSelectChange,deleteScanTask,batchDeleteScanTasks,startScanTask,viewTaskSlowQueries,clearOrphanRecords,analyzeExplainBySql,analyzeExplain,loadSavedConnections,testConn,saveConn,openEditConn,openNewConn,deleteConn,setDefaultConn,connectInstance,loadUsers,createUser,openResetPwd,resetUserPwd,unlockUser,toggleUserStatus,deleteUser,loadAll,renderTrendChart,loadProjects,loadActiveAlerts,loadScanSchedules,createScanSchedule,deleteScanSchedule,toggleScheduleEnabled,runHealthCheck,runSchemaCheck,exportSchemaCheckReport,loadBigtable,bigtableRowKey,partitionBoundaryLabel,bigtableRowClass,togglePartitions,onBigtableExpand,loadTablePartitions,loadProjectsList,createProject,deleteProject,toggleProjectStatus,loadRulesets,loadGateRules,loadGateStrategies,applyGateStrategy,loadMonitorAlerts,acknowledgeAlert,loadMonitorRules,loadInspectionTasks,loadAuditLogs,loadRetention,runRetentionCleanup,loadSysInfo,bigtableCollecting,collectBigtable,rulesetDialog,createRuleset,deleteRuleset,gateCustom,openGateCustom,saveGateCustom,monitorRuleDialog,createMonitorRule,inspectionDialog,createInspection,inspectionResultDrawer,inspectionResults,viewInspectionResult,retentionDialog,openRetentionEdit,saveRetention,retentionEditMode,logoUrl,loadLogo,onLogoUpload,resetLogo,toggleSysConfig,auditFilter,resetAuditFilter,tableNameLabel,metricLabel,rolesList,rolesLoading,roleDialog,deleteRole,openRoleEdit,saveRole,roleLabelFn,permsMatrixData,permsMenuList,permsLoading,loadPerms,onPermChange,deepConnId,deepRightConnId,deepDb,deepTab,deepLoading,deepResult,runClusterInspect,runIndexAudit,runSchemaDiff,runEmergency,runSqlStats,visibleMenus};
   }
 });
 app.use(ElementPlus,{locale:ElementPlusLocaleZhCn});
