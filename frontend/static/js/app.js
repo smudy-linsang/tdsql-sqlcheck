@@ -594,7 +594,8 @@ const app=createApp({
       if (!deepConnId.value || !dailyInspectDates.value || dailyInspectDates.value.length < 2) return;
       const d1 = dailyInspectDates.value[0];
       const d2 = dailyInspectDates.value[1];
-      window.open(`${API_BASE}/api/v1/daily-inspect/compare/html?connection_id=${deepConnId.value}&date1=${d1}&date2=${d2}&threshold_multiplier=${dailyInspectThreshold.value}`, '_blank');
+      const t = getToken();
+      window.open(`${API_BASE}/api/v1/daily-inspect/compare/html?connection_id=${deepConnId.value}&date1=${d1}&date2=${d2}&threshold_multiplier=${dailyInspectThreshold.value}&access_token=${t}`, '_blank');
     };
 
     // G13: Ops Toolkit
