@@ -826,20 +826,21 @@ class TDSQLConnectionPool:
             conn.close()
 
     def monitor_probe(self) -> dict:
-        """探测 monitordb 是否可用 + 返回 proxy_classes_analysis 的真实列集合。
+        """探测 monitordb 是否可用 + 返回 proxy_classes_analysis 的真实列集合与类型。
         用于前端"测试monitordb"按钮，以及取数前的防御式列裁剪。
-        返回 {"ok": bool, "columns": set[str], "error": str}"""
+        返回 {"ok": bool, "columns": set[str], "col_types": dict[str, str], "error": str}"""
         db = self.config.monitor_db or "tdsqlpcloud_monitor"
         try:
             rows = self._monitor_execute(
-                "SELECT COLUMN_NAME FROM information_schema.COLUMNS "
+                "SELECT COLUMN_NAME, DATA_TYPE FROM information_schema.COLUMNS "
                 "WHERE TABLE_SCHEMA=%s AND TABLE_NAME='proxy_classes_analysis'",
                 (db,))
             cols = {r["COLUMN_NAME"] for r in rows}
-            return {"ok": bool(cols), "columns": cols,
+            col_types = {r["COLUMN_NAME"]: (r.get("DATA_TYPE") or "").lower() for r in rows}
+            return {"ok": bool(cols), "columns": cols, "col_types": col_types,
                     "error": "" if cols else f"{db}.proxy_classes_analysis 不存在或无列"}
         except Exception as e:
-            return {"ok": False, "columns": set(), "error": str(e)}
+            return {"ok": False, "columns": set(), "col_types": {}, "error": str(e)}
 
     def get_cluster_slow_queries(self, limit: int = 50, min_time: float = 0.1,
                                  time_start: str = None, time_end: str = None,
@@ -860,6 +861,7 @@ class TDSQLConnectionPool:
         if not probe["ok"]:
             raise RuntimeError(f"monitordb不可用: {probe['error']}")
         cols = probe["columns"]
+        col_types = probe.get("col_types", {})
 
         def col(name, expr, fallback):
             """列存在则用 expr，否则用 fallback 常量（防御式列裁剪）。"""
@@ -904,12 +906,55 @@ class TDSQLConnectionPool:
         """
         params = []
         if "timestramp" in cols:
-            if time_start:
-                sql += " AND timestramp >= %s"
-                params.append(time_start)
-            if time_end:
-                sql += " AND timestramp < %s"
-                params.append(time_end)
+            ts_type = col_types.get("timestramp", "")
+            is_numeric_ts = any(t in ts_type for t in ("int", "bigint", "double", "decimal", "float"))
+            
+            if is_numeric_ts:
+                # 探测数值时间戳是秒还是毫秒
+                is_ms = False
+                try:
+                    db = self.config.monitor_db or "tdsqlpcloud_monitor"
+                    sample = self._monitor_execute(
+                        f"SELECT timestramp FROM {db}.proxy_classes_analysis "
+                        f"WHERE timestramp IS NOT NULL LIMIT 1"
+                    )
+                    if sample and sample[0]["timestramp"]:
+                        val = float(sample[0]["timestramp"])
+                        if val > 5000000000:  # 大于2128年的秒数，大概率为毫秒级别时间戳
+                            is_ms = True
+                except Exception as ex:
+                    logger.debug(f"探测timestramp数值单位失败: {ex}")
+                
+                from datetime import datetime
+                if time_start:
+                    try:
+                        dt = datetime.strptime(time_start, "%Y-%m-%d %H:%M:%S")
+                        ts = int(dt.timestamp())
+                        if is_ms:
+                            ts *= 1000
+                        sql += " AND timestramp >= %s"
+                        params.append(ts)
+                    except Exception:
+                        sql += " AND timestramp >= %s"
+                        params.append(time_start)
+                if time_end:
+                    try:
+                        dt = datetime.strptime(time_end, "%Y-%m-%d %H:%M:%S")
+                        ts = int(dt.timestamp())
+                        if is_ms:
+                            ts *= 1000
+                        sql += " AND timestramp < %s"
+                        params.append(ts)
+                    except Exception:
+                        sql += " AND timestramp < %s"
+                        params.append(time_end)
+            else:
+                if time_start:
+                    sql += " AND timestramp >= %s"
+                    params.append(time_start)
+                if time_end:
+                    sql += " AND timestramp < %s"
+                    params.append(time_end)
         if database:
             sql += f" AND {db_col} = %s"
             params.append(database)

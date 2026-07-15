@@ -414,15 +414,15 @@ class SlowQueryService:
         finally:
             conn.close()
 
-    def complete_scan_task(self, task_id: int, total_fetched: int, total_analyzed: int):
+    def complete_scan_task(self, task_id: int, total_fetched: int, total_analyzed: int, status: str = "completed"):
         """完成扫描任务"""
         conn = _get_connection()
         try:
             conn.execute(
                 """UPDATE scan_tasks
-                   SET total_fetched = ?, total_analyzed = ?, status = 'completed'
+                   SET total_fetched = ?, total_analyzed = ?, status = ?
                    WHERE id = ?""",
-                (total_fetched, total_analyzed, task_id),
+                (total_fetched, total_analyzed, status, task_id),
             )
             conn.commit()
         finally:

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TDSQL数据库SQL审核工具 V1.0.4.0</title>
+  <title>TDSQL数据库SQL审核工具 V1.0.4.1</title>
   <script src="/static/vendor/vue.global.prod.js"></script>
   <link rel="stylesheet" href="/static/vendor/element-plus.css">
   <script src="/static/vendor/element-plus.full.min.js"></script>
@@ -18,7 +18,7 @@
   <div v-if="!authState.token" class="login-page">
     <div class="login-brand">
       <h1>TDSQL数据库SQL审核工具</h1>
-      <div class="version">V1.0.4.0 · Design by Linsang</div>
+      <div class="version">V1.0.4.1 · Design by Linsang</div>
     </div>
     <div class="login-form">
       <el-card>
@@ -312,7 +312,7 @@
                 <el-table-column type="selection" width="40"></el-table-column>
                 <el-table-column prop="task_name" label="任务名" show-overflow-tooltip></el-table-column>
                 <el-table-column prop="source" label="数据源" width="80"><template #default="{row}">{{ sourceLabel(row.source) }}</template></el-table-column>
-                <el-table-column prop="fetched_count" label="抓取数" width="70"></el-table-column>
+                <el-table-column prop="total_fetched" label="抓取数" width="70"></el-table-column>
                 <el-table-column prop="created_by" label="创建人" width="80"></el-table-column>
                 <el-table-column label="时间" width="140"><template #default="{row}">{{ formatTime(row.created_at) }}</template></el-table-column>
                 <el-table-column label="操作" width="240" fixed="right">

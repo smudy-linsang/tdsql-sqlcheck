@@ -206,10 +206,11 @@ def _do_scan(pool, connection_id: str, source: str, limit: int, min_time: float,
             record, scan_task_id=task_id, connection_id=connection_id)
         results.append(result)
 
+    status_val = "failed" if errors else "completed"
     service.complete_scan_task(
-        task_id, total_fetched=len(results), total_analyzed=len(results))
+        task_id, total_fetched=len(results), total_analyzed=len(results), status=status_val)
     metrics_service.inc("tdsql_scan_tasks_total",
-                        {"status": "failed" if errors else "completed"})
+                        {"status": status_val})
     if operator:
         logger.info("扫描完成: operator=%s conn=%s source=%s fetched=%d",
                     operator, connection_id or "default", source, len(results))

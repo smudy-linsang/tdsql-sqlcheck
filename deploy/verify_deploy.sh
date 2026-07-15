@@ -11,13 +11,13 @@ ok()  { echo "  [PASS] $*"; PASS=$((PASS+1)); }
 bad() { echo "  [FAIL] $*"; FAILC=$((FAILC+1)); }
 J() { python3 -c "import sys,json;d=json.load(sys.stdin);print($1)" 2>/dev/null; }
 
-echo "════ 部署验证 v1.0.4.0 @ ${BASE} ════"
+echo "════ 部署验证 v1.0.4.1 @ ${BASE} ════"
 
 # 1. 健康检查与版本
 HV=$(curl -s -m ${TIMEOUT} "${BASE}/health")
 [[ "$(echo "$HV" | J 'd["status"]')" == "ok" ]] && ok "健康检查 /health" || bad "/health 异常: ${HV:-无响应}"
 VER=$(echo "$HV" | J 'd["version"]')
-[[ "$VER" == "1.0.4.0" ]] && ok "版本号 ${VER}" || bad "版本号异常: ${VER}(期望1.0.4.0)"
+[[ "$VER" == "1.0.4.1" ]] && ok "版本号 ${VER}" || bad "版本号异常: ${VER}(期望1.0.4.1)"
 
 # 2. 前端资产
 FRONT=$(curl -s -m ${TIMEOUT} "${BASE}/")

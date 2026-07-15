@@ -159,7 +159,10 @@ async def connect_from_config(config_path: Optional[str] = None):
 @router.get("/test-connection", summary="测试TDSQL连接")
 async def test_connection(host: Optional[str] = None, port: int = 3306,
                           user: Optional[str] = None, password: Optional[str] = None,
-                          database: Optional[str] = None):
+                          database: Optional[str] = None,
+                          monitor_host: Optional[str] = None, monitor_port: int = 15001,
+                          monitor_user: Optional[str] = None, monitor_password: Optional[str] = None,
+                          monitor_db: str = "tdsqlpcloud_monitor"):
     """
     测试TDSQL连接可用性（不注册连接）。
 
@@ -174,6 +177,9 @@ async def test_connection(host: Optional[str] = None, port: int = 3306,
             config = TDSQLConnectionConfig(
                 host=host, port=port, user=user,
                 password=password or "", database=database or "",
+                monitor_host=monitor_host or "", monitor_port=monitor_port,
+                monitor_user=monitor_user or "", monitor_password=monitor_password or "",
+                monitor_db=monitor_db or "tdsqlpcloud_monitor"
             )
         else:
             config_data = TDSQL_CONFIG if TDSQL_CONFIG.get("host") else load_tdsql_config_from_file()
@@ -188,37 +194,78 @@ async def test_connection(host: Optional[str] = None, port: int = 3306,
                 user=config_data["user"],
                 password=config_data.get("password", ""),
                 database=config_data.get("database", ""),
+                monitor_host=config_data.get("monitor_host", ""),
+                monitor_port=config_data.get("monitor_port", 15001),
+                monitor_user=config_data.get("monitor_user", ""),
+                monitor_password=config_data.get("monitor_password", ""),
+                monitor_db=config_data.get("monitor_db", "tdsqlpcloud_monitor"),
             )
 
         pool = TDSQLConnectionPool(config)
         start_time = time.time()
-        with pool.get_connection() as conn:
-            latency_ms = round((time.time() - start_time) * 1000, 2)
-            # 获取服务器版本
-            with conn.cursor() as cursor:
-                cursor.execute("SELECT VERSION() as version")
-                version_info = cursor.fetchall()
-            server_version = version_info[0].get("version", "unknown") if version_info else "unknown"
-            # 获取慢查询配置
-            try:
+        
+        business_ok = False
+        business_err = ""
+        server_version = "unknown"
+        slow_config = {}
+        latency_ms = 0
+        
+        try:
+            with pool.get_connection() as conn:
+                latency_ms = round((time.time() - start_time) * 1000, 2)
+                # 获取服务器版本
                 with conn.cursor() as cursor:
-                    cursor.execute("SHOW VARIABLES LIKE 'slow_query%'")
-                    slow_rows = cursor.fetchall()
-                    slow_config = {row.get("Variable_name", ""): row.get("Value", "") for row in slow_rows}
-            except Exception:
-                slow_config = {}
+                    cursor.execute("SELECT VERSION() as version")
+                    version_info = cursor.fetchall()
+                server_version = version_info[0].get("version", "unknown") if version_info else "unknown"
+                # 获取慢查询配置
+                try:
+                    with conn.cursor() as cursor:
+                        cursor.execute("SHOW VARIABLES LIKE 'slow_query%'")
+                        slow_rows = cursor.fetchall()
+                        slow_config = {row.get("Variable_name", ""): row.get("Value", "") for row in slow_rows}
+                except Exception:
+                    pass
+            business_ok = True
+        except Exception as e:
+            business_err = str(e)
+
+        # 测试 monitor 连接
+        monitor_ok = False
+        monitor_err = ""
+        monitor_column_count = 0
+        try:
+            probe_res = pool.monitor_probe()
+            monitor_ok = probe_res["ok"]
+            monitor_err = probe_res["error"]
+            monitor_column_count = len(probe_res["columns"])
+        except Exception as e:
+            monitor_err = str(e)
+            
         pool.close_all()
 
-        return {
-            "status": "connected",
-            "host": config.host,
-            "port": config.port,
-            "database": config.database,
-            "server_version": server_version,
-            "latency_ms": latency_ms,
-            "slow_query_config": slow_config,
-            "pymysql_available": True,
-        }
+        if business_ok:
+            return {
+                "status": "connected",
+                "host": config.host,
+                "port": config.port,
+                "database": config.database,
+                "server_version": server_version,
+                "latency_ms": latency_ms,
+                "slow_query_config": slow_config,
+                "pymysql_available": True,
+                "monitor_status": "connected" if monitor_ok else "failed",
+                "monitor_error": monitor_err,
+                "monitor_column_count": monitor_column_count,
+            }
+        else:
+            return {
+                "status": "error",
+                "message": f"连接测试失败: {business_err}",
+                "pymysql_available": True,
+                "monitor_status": "connected" if monitor_ok else "failed",
+                "monitor_error": monitor_err,
+            }
     except ImportError:
         return {
             "status": "error",
