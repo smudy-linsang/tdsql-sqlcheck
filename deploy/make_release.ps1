@@ -3,14 +3,14 @@
 # 产出: dist/tdsql-sqlcheck-v1.0.3.4-linux-x86_64.tar.gz + .sha256
 # ============================================================================
 $ErrorActionPreference = "Stop"
-$VERSION = "1.0.3.4"
+$VERSION = "1.0.4.0"
 $ARCH = "x86_64"
 $PYTAG = "311"
 $ROOT = $PSScriptRoot
 if (-not $ROOT) { $ROOT = Split-Path -Parent $MyInvocation.MyCommand.Path }
 if (-not $ROOT) { $ROOT = (Get-Location).Path }
-# 如果脚本在deploy/目录下, 上溯一级
-if ((Split-Path -Leaf $ROOT) -eq "deploy") { $ROOT = Split-Path -Parent $ROOT }
+if ($ROOT -like '*\deploy') { $ROOT = Split-Path -Parent $ROOT }
+if ($ROOT -like '*\deploy\') { $ROOT = Split-Path -Parent $ROOT }
 
 $STAGE = Join-Path $ROOT "dist\stage-$ARCH"
 $PKG = "tdsql-sqlcheck-v$VERSION-linux-$ARCH"
@@ -44,7 +44,7 @@ $DOCS_DIR = Join-Path $PKG_DIR "docs"
 New-Item -ItemType Directory -Force -Path $DOCS_DIR | Out-Null
 $doc_files = @("部署手册-v1.0.2.md","运维手册-v1.0.2.md","上线检查清单-v1.0.2.md",
                "发布说明-v1.0.2.md","V1.0.3变更清单与测试要点.md",
-               "V1.0.3.1增量更新部署说明.md")
+               "V1.0.3.1增量更新部署说明.md", "v1.0.4.0_upgrade_manual.md")
 foreach ($f in $doc_files) {
     $src = Join-Path $ROOT "docs\$f"
     if (Test-Path $src) { Copy-Item $src (Join-Path $DOCS_DIR $f) }
