@@ -492,6 +492,7 @@ const app=createApp({
         for (const d of dates) {
           await apiFetch(`${API_BASE}/api/v1/daily-inspect/run`, {
             method: "POST",
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ connection_id: deepConnId.value, inspect_date: d })
           });
         }
