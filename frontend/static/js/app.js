@@ -118,6 +118,19 @@ const app=createApp({
     const toolkitScripts=ref([]);
     const schemaCheckLoading=ref(false);
     const bigtableLoading=ref(false);
+    // G4: 每日巡检与对比报告新增状态
+    const dailyInspectDates=ref([]);
+    const dailyInspectThreshold=ref(1.0);
+    const dailyCompareResult=ref(null);
+    const dailyInstSearch=ref('');
+    const dailyInstSigOnly=ref(false);
+    const dailySrvSearch=ref('');
+    const dailySrvSigOnly=ref(false);
+    const dailyInspectChartData=ref(null);
+    const dailyInspectChartMetric=ref('cpu_peak');
+    const dailyInspectChartNode=ref('');
+    const dailyInspectChartNodes=ref([]);
+    const dailyTrendChartRef=ref(null);
     const bigtableData=ref(null);
     const bigtableCollecting=ref(false);
     const bigtableRef=ref(null);
@@ -187,6 +200,30 @@ const app=createApp({
     const sourceLabel=(s)=>({digest:'性能摘要',processlist:'进程快照',manual:'手动录入'}[s]||s);
     const categoryOrder=[{key:'naming',label:'命名规范'},{key:'ddl',label:'DDL规范'},{key:'dml',label:'DML规范'},{key:'index',label:'索引规范'},{key:'distributed',label:'分布式规范'},{key:'security',label:'安全规范'},{key:'performance',label:'性能规范'},{key:'transaction',label:'事务规范'},{key:'oracle_compat',label:'Oracle迁移兼容'}];
     const filteredCategories=computed(()=>{if(!ruleSearch.value)return categoryOrder;const q=ruleSearch.value.toLowerCase();return categoryOrder.filter(c=>{const rs=rulesByCategory.value[c.key]||[];return rs.some(r=>r.rule_id.toLowerCase().includes(q)||r.description.toLowerCase().includes(q))})});
+    const filteredDailyInstDiffs = computed(() => {
+      if (!dailyCompareResult.value) return [];
+      const list = dailyCompareResult.value.instance_diffs || [];
+      const q = dailyInstSearch.value.trim().toLowerCase();
+      const sig = dailyInstSigOnly.value;
+      return list.filter(item => {
+        const matchQ = !q || item.node.toLowerCase().includes(q) || item.metric_label.toLowerCase().includes(q);
+        const matchSig = !sig || !!item.significant;
+        return matchQ && matchSig;
+      });
+    });
+
+    const filteredDailySrvDiffs = computed(() => {
+      if (!dailyCompareResult.value) return [];
+      const list = dailyCompareResult.value.server_diffs || [];
+      const q = dailySrvSearch.value.trim().toLowerCase();
+      const sig = dailySrvSigOnly.value;
+      return list.filter(item => {
+        const matchQ = !q || item.ip.toLowerCase().includes(q) || item.hostname.toLowerCase().includes(q) || item.metric_label.toLowerCase().includes(q);
+        const matchSig = !sig || !!item.significant;
+        return matchQ && matchSig;
+      });
+    });
+
     const applyUser=(u)=>{authState.user=u;authState.role=u.role};
     const doLogin=async()=>{if(!loginForm.username||!loginForm.password){loginError.value='请输入用户名和口令';return}loginLoading.value=true;loginError.value='';try{const resp=await fetch(`${API_BASE}/api/v1/auth/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:loginForm.username,password:loginForm.password})});const data=await resp.json();if(!resp.ok){loginError.value=data.detail||'登录失败';return}setToken(data.token);authState.token=data.token;applyUser(data.user);loginForm.password='';if(data.user.must_change_password){ElementPlus.ElMessage.warning('首次登录请修改口令');pwdDialog.visible=true}loadAll()}catch(e){loginError.value='登录请求失败: '+e.message}finally{loginLoading.value=false}};
     const doLogout=async()=>{try{await apiFetch(`${API_BASE}/api/v1/auth/logout`,{method:'POST'})}catch(e){}clearToken();authState.token='';authState.user=null;loginForm.username='';loginForm.password=''};
@@ -432,6 +469,134 @@ const app=createApp({
       finally{pptLoading.value=false}
     };
 
+    // G4: 每日巡检与比对报告方法
+    const getDatesInRange = (startDate, endDate) => {
+      const dates = [];
+      let curr = new Date(startDate);
+      const end = new Date(endDate);
+      while (curr <= end) {
+        dates.push(curr.toISOString().split('T')[0]);
+        curr.setDate(curr.getDate() + 1);
+      }
+      return dates;
+    };
+
+    const runDailyInspect = async () => {
+      if (!deepConnId.value) return ElementPlus.ElMessage.warning("请选择实例");
+      if (!dailyInspectDates.value || dailyInspectDates.value.length < 2) {
+        return ElementPlus.ElMessage.warning("请选择日期范围");
+      }
+      deepLoading.value = "daily_run";
+      try {
+        const dates = getDatesInRange(dailyInspectDates.value[0], dailyInspectDates.value[1]);
+        for (const d of dates) {
+          await apiFetch(`${API_BASE}/api/v1/daily-inspect/run`, {
+            method: "POST",
+            body: JSON.stringify({ connection_id: deepConnId.value, inspect_date: d })
+          });
+        }
+        ElementPlus.ElMessage.success("手动巡检数据采集已完成");
+      } catch (e) {
+        ElementPlus.ElMessage.error("数据采集失败: " + e.message);
+      } finally {
+        deepLoading.value = "";
+      }
+    };
+
+    const compareDailyInspect = async () => {
+      if (!deepConnId.value) return ElementPlus.ElMessage.warning("请选择实例");
+      if (!dailyInspectDates.value || dailyInspectDates.value.length < 2) {
+        return ElementPlus.ElMessage.warning("请选择比对日期范围");
+      }
+      deepLoading.value = "daily_compare";
+      try {
+        const d1 = dailyInspectDates.value[0];
+        const d2 = dailyInspectDates.value[1];
+        
+        const resp = await apiFetch(`${API_BASE}/api/v1/daily-inspect/compare?connection_id=${deepConnId.value}&date1=${d1}&date2=${d2}&threshold_multiplier=${dailyInspectThreshold.value}`);
+        if (resp.ok) {
+          dailyCompareResult.value = await resp.json();
+        }
+        
+        const trendResp = await apiFetch(`${API_BASE}/api/v1/daily-inspect/trend?connection_id=${deepConnId.value}&date_from=${d1}&date_to=${d2}`);
+        if (trendResp.ok) {
+          dailyInspectChartData.value = await trendResp.json();
+          
+          const nodes = new Set();
+          const s = dailyInspectChartData.value.series;
+          Object.keys(s).forEach(k => {
+            s[k].forEach(item => nodes.add(item.node));
+          });
+          dailyInspectChartNodes.value = Array.from(nodes);
+          if (dailyInspectChartNodes.value.length > 0 && !dailyInspectChartNode.value) {
+            dailyInspectChartNode.value = dailyInspectChartNodes.value[0];
+          }
+          
+          setTimeout(renderDailyTrendChart, 100);
+        }
+        
+        ElementPlus.ElMessage.success("差异比对完成");
+      } catch (e) {
+        ElementPlus.ElMessage.error("比对失败: " + e.message);
+      } finally {
+        deepLoading.value = "";
+      }
+    };
+
+    let dailyTrendChartInstance = null;
+    const renderDailyTrendChart = () => {
+      const el = dailyTrendChartRef.value;
+      if (!el || !dailyInspectChartData.value) return;
+      
+      if (!dailyTrendChartInstance) {
+        dailyTrendChartInstance = echarts.init(el);
+      }
+      
+      const metric = dailyInspectChartMetric.value;
+      const node = dailyInspectChartNode.value;
+      const seriesData = dailyInspectChartData.value.series[metric] || [];
+      
+      const filtered = seriesData.filter(item => item.node === node);
+      filtered.sort((a, b) => a.date.localeCompare(b.date));
+      
+      const dates = filtered.map(item => item.date);
+      const values = filtered.map(item => item.value);
+      
+      dailyTrendChartInstance.setOption({
+        tooltip: { trigger: 'axis' },
+        grid: { left: '3%', right: '4%', bottom: '10%', top: '10%', containLabel: true },
+        xAxis: {
+          type: 'category',
+          data: dates,
+          axisLabel: { color: '#94a3b8' }
+        },
+        yAxis: {
+          type: 'value',
+          axisLabel: { color: '#94a3b8' },
+          splitLine: { lineStyle: { color: '#334155' } }
+        },
+        series: [{
+          data: values,
+          type: 'line',
+          smooth: true,
+          itemStyle: { color: '#3b82f6' },
+          areaStyle: {
+            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+              { offset: 0, color: 'rgba(59, 130, 246, 0.3)' },
+              { offset: 1, color: 'rgba(59, 130, 246, 0.0)' }
+            ])
+          }
+        }]
+      });
+    };
+
+    const exportDailyHtmlReport = () => {
+      if (!deepConnId.value || !dailyInspectDates.value || dailyInspectDates.value.length < 2) return;
+      const d1 = dailyInspectDates.value[0];
+      const d2 = dailyInspectDates.value[1];
+      window.open(`${API_BASE}/api/v1/daily-inspect/compare/html?connection_id=${deepConnId.value}&date1=${d1}&date2=${d2}&threshold_multiplier=${dailyInspectThreshold.value}`, '_blank');
+    };
+
     // G13: Ops Toolkit
     const loadToolkitScripts=async()=>{
       toolkitLoading.value=true;
@@ -535,7 +700,8 @@ const app=createApp({
     watch(fileAuditTab,(v)=>{if(v==='reports')loadFileReports()});
     watch(deepTab,(v)=>{if(v==='gateway_log')loadGatewayReports();if(v==='ppt_report')loadPptDashboard();if(v==='toolkit')loadToolkitScripts()});
     watch(deepConnId,(v)=>{if(v){if(deepTab.value==='gateway_log')loadGatewayReports();if(deepTab.value==='ppt_report')loadPptDashboard()}});
-    return{currentPage,sidebarCollapsed,authState,loginForm,loginLoading,loginError,pwdDialog,savedConnections,currentConnectionId,projects,currentProjectId,activeAlerts,metadataEnhanced,statsLoading,stats,ruleHits,trendChartRef,kpiCards,sqlInput,auditing,auditResult,auditProjectId,fileAuditTab,fileAuditResult,fileReports,fileReportsLoading,fileReportsTotal,fileReportsPage,rulesList,rulesByCategory,ruleSearch,expandedCategories,filteredCategories,slowList,slowListLoading,slowFilters,slowPage,scanTasks,scanTaskTotal,scanTaskCurrentPage,scanTaskLoading,selectedTaskIds,batchDeleting,clearingOrphan,scanDrawer,scanTimeWindow,scanTaskForm,slowDetailDrawer,slowDetail,explainMode,explainSqlInput,explainInput,explainConnId,analyzingExplain,explainResult,tdsqlStatus,connDrawer,connForm,connEditMode,connTestResult,connTesting,connLoading,usersList,usersLoading,userDialog,resetDialog,scanSchedules,scanScheduleLoading,scheduleDrawer,scheduleForm,healthLoading,healthResult,healthCheckType,healthDbName,schemaCheckConnId,schemaCheckResults,schemaCheckSummary,schemaCheckLoading,bigtableLoading,bigtableData,bigtableRef,partitionDetail,partitionLoading,projectsList,projectsLoading,projectDialog,rulesets,rulesetsLoading,gateRules,gateStrategies,gateLoading,monitorAlerts,monitorRules,monitorLoading,monitorTab,inspectionTasks,inspectionLoading,auditLogs,auditLogsLoading,auditLogsTotal,auditLogsPage,retentionPolicies,retentionLoading,sysInfo,sysInfoLoading,roleLabel,canManagePlatform,canManageInstances,canViewAuditLog,canViewSysInfo,canViewProjects,canViewMonitor,canViewSchedule,canViewBigtable,breadcrumbItems,formatTime,sevTagType,statusLabel,sourceLabel,categoryOrder,doLogin,doLogout,changePassword,onUserCommand,onMenuSelect,onConnectionSwitch,onProjectSwitch,auditSql,loadExample,onFileChange,loadFileReports,downloadFileReport,loadRules,loadSlowList,resetSlowFilter,openSlowDetail,setSlowStatus,exportSlowReport,downloadScanReport,goSlowDetail,goExplainFromSlow,loadScanTasks,onTaskSelectChange,deleteScanTask,batchDeleteScanTasks,startScanTask,viewTaskSlowQueries,clearOrphanRecords,analyzeExplainBySql,analyzeExplain,loadSavedConnections,testConn,saveConn,openEditConn,openNewConn,deleteConn,setDefaultConn,connectInstance,loadUsers,createUser,openResetPwd,resetUserPwd,unlockUser,toggleUserStatus,deleteUser,loadAll,renderTrendChart,loadProjects,loadActiveAlerts,loadScanSchedules,createScanSchedule,deleteScanSchedule,toggleScheduleEnabled,runHealthCheck,runSchemaCheck,exportSchemaCheckReport,loadBigtable,bigtableRowKey,partitionBoundaryLabel,bigtableRowClass,togglePartitions,onBigtableExpand,loadTablePartitions,loadProjectsList,createProject,deleteProject,toggleProjectStatus,loadRulesets,loadGateRules,loadGateStrategies,applyGateStrategy,loadMonitorAlerts,acknowledgeAlert,loadMonitorRules,loadInspectionTasks,loadAuditLogs,loadRetention,runRetentionCleanup,loadSysInfo,bigtableCollecting,collectBigtable,rulesetDialog,createRuleset,deleteRuleset,gateCustom,openGateCustom,saveGateCustom,monitorRuleDialog,createMonitorRule,inspectionDialog,createInspection,inspectionResultDrawer,inspectionResults,viewInspectionResult,retentionDialog,openRetentionEdit,saveRetention,retentionEditMode,logoUrl,loadLogo,onLogoUpload,resetLogo,toggleSysConfig,auditFilter,resetAuditFilter,tableNameLabel,metricLabel,rolesList,rolesLoading,roleDialog,deleteRole,openRoleEdit,saveRole,roleLabelFn,permsMatrixData,permsMenuList,permsLoading,loadPerms,onPermChange,deepConnId,deepRightConnId,deepDb,deepTab,deepLoading,deepResult,runClusterInspect,runIndexAudit,runSchemaDiff,runEmergency,runSqlStats,visibleMenus,zkDialogVisible,zkForm,zkScanning,zkDiscovered,zkSelected,zkRegistering,openZkDiscovery,runZkDiscovery,handleZkSelection,registerZkInstances,gatewayLoading,gatewayReports,gatewayHtml,gatewayDetailVisible,loadGatewayReports,viewGatewayReport,onGatewayUpload,pptLoading,pptDashboard,loadPptDashboard,generatePptReport,toolkitLoading,toolkitScripts,loadToolkitScripts,downloadToolkitScript};
+    return{currentPage,sidebarCollapsed,authState,loginForm,loginLoading,loginError,pwdDialog,savedConnections,currentConnectionId,projects,currentProjectId,activeAlerts,metadataEnhanced,statsLoading,stats,ruleHits,trendChartRef,kpiCards,sqlInput,auditing,auditResult,auditProjectId,fileAuditTab,fileAuditResult,fileReports,fileReportsLoading,fileReportsTotal,fileReportsPage,rulesList,rulesByCategory,ruleSearch,expandedCategories,filteredCategories,slowList,slowListLoading,slowFilters,slowPage,scanTasks,scanTaskTotal,scanTaskCurrentPage,scanTaskLoading,selectedTaskIds,batchDeleting,clearingOrphan,scanDrawer,scanTimeWindow,scanTaskForm,slowDetailDrawer,slowDetail,explainMode,explainSqlInput,explainInput,explainConnId,analyzingExplain,explainResult,tdsqlStatus,connDrawer,connForm,connEditMode,connTestResult,connTesting,connLoading,usersList,usersLoading,userDialog,resetDialog,scanSchedules,scanScheduleLoading,scheduleDrawer,scheduleForm,healthLoading,healthResult,healthCheckType,healthDbName,schemaCheckConnId,schemaCheckResults,schemaCheckSummary,schemaCheckLoading,bigtableLoading,bigtableData,bigtableRef,partitionDetail,partitionLoading,projectsList,projectsLoading,projectDialog,rulesets,rulesetsLoading,gateRules,gateStrategies,gateLoading,monitorAlerts,monitorRules,monitorLoading,monitorTab,inspectionTasks,inspectionLoading,auditLogs,auditLogsLoading,auditLogsTotal,auditLogsPage,retentionPolicies,retentionLoading,sysInfo,sysInfoLoading,roleLabel,canManagePlatform,canManageInstances,canViewAuditLog,canViewSysInfo,canViewProjects,canViewMonitor,canViewSchedule,canViewBigtable,breadcrumbItems,formatTime,sevTagType,statusLabel,sourceLabel,categoryOrder,doLogin,doLogout,changePassword,onUserCommand,onMenuSelect,onConnectionSwitch,onProjectSwitch,auditSql,loadExample,onFileChange,loadFileReports,downloadFileReport,loadRules,loadSlowList,resetSlowFilter,openSlowDetail,setSlowStatus,exportSlowReport,downloadScanReport,goSlowDetail,goExplainFromSlow,loadScanTasks,onTaskSelectChange,deleteScanTask,batchDeleteScanTasks,startScanTask,viewTaskSlowQueries,clearOrphanRecords,analyzeExplainBySql,analyzeExplain,loadSavedConnections,testConn,saveConn,openEditConn,openNewConn,deleteConn,setDefaultConn,connectInstance,loadUsers,createUser,openResetPwd,resetUserPwd,unlockUser,toggleUserStatus,deleteUser,loadAll,renderTrendChart,loadProjects,loadActiveAlerts,loadScanSchedules,createScanSchedule,deleteScanSchedule,toggleScheduleEnabled,runHealthCheck,runSchemaCheck,exportSchemaCheckReport,loadBigtable,bigtableRowKey,partitionBoundaryLabel,bigtableRowClass,togglePartitions,onBigtableExpand,loadTablePartitions,loadProjectsList,createProject,deleteProject,toggleProjectStatus,loadRulesets,loadGateRules,loadGateStrategies,applyGateStrategy,loadMonitorAlerts,acknowledgeAlert,loadMonitorRules,loadInspectionTasks,loadAuditLogs,loadRetention,runRetentionCleanup,loadSysInfo,bigtableCollecting,collectBigtable,rulesetDialog,createRuleset,deleteRuleset,gateCustom,openGateCustom,saveGateCustom,monitorRuleDialog,createMonitorRule,inspectionDialog,createInspection,inspectionResultDrawer,inspectionResults,viewInspectionResult,retentionDialog,openRetentionEdit,saveRetention,retentionEditMode,logoUrl,loadLogo,onLogoUpload,resetLogo,toggleSysConfig,auditFilter,resetAuditFilter,tableNameLabel,metricLabel,rolesList,rolesLoading,roleDialog,deleteRole,openRoleEdit,saveRole,roleLabelFn,permsMatrixData,permsMenuList,permsLoading,loadPerms,onPermChange,deepConnId,deepRightConnId,deepDb,deepTab,deepLoading,deepResult,runClusterInspect,runIndexAudit,runSchemaDiff,runEmergency,runSqlStats,visibleMenus,zkDialogVisible,zkForm,zkScanning,zkDiscovered,zkSelected,zkRegistering,openZkDiscovery,runZkDiscovery,handleZkSelection,registerZkInstances,gatewayLoading,gatewayReports,gatewayHtml,gatewayDetailVisible,loadGatewayReports,viewGatewayReport,onGatewayUpload,pptLoading,pptDashboard,loadPptDashboard,generatePptReport,toolkitLoading,toolkitScripts,loadToolkitScripts,downloadToolkitScript,
+    dailyInspectDates,dailyInspectThreshold,dailyCompareResult,dailyInstSearch,dailyInstSigOnly,dailySrvSearch,dailySrvSigOnly,dailyInspectChartData,dailyInspectChartMetric,dailyInspectChartNode,dailyInspectChartNodes,dailyTrendChartRef,filteredDailyInstDiffs,filteredDailySrvDiffs,runDailyInspect,compareDailyInspect,renderDailyTrendChart,exportDailyHtmlReport};
   }
 });
 app.use(ElementPlus,{locale:ElementPlusLocaleZhCn});

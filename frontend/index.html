@@ -751,6 +751,130 @@
                   <el-table-column prop="detail" label="详情"></el-table-column>
                 </el-table>
               </el-tab-pane>
+
+              <!-- 日常巡检与对比报告 G4 -->
+              <el-tab-pane label="日常巡检与对比报告" name="daily_inspect">
+                <div style="display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin-bottom:12px">
+                  <el-date-picker
+                    v-model="dailyInspectDates"
+                    type="daterange"
+                    range-separator="至"
+                    start-placeholder="开始日期"
+                    end-placeholder="结束日期"
+                    value-format="YYYY-MM-DD"
+                    size="small"
+                    style="width: 280px">
+                  </el-date-picker>
+                  
+                  <span style="font-size:13px; color:#94a3b8">波动阈值倍数:</span>
+                  <el-input-number v-model="dailyInspectThreshold" :precision="1" :step="0.5" :min="0.5" :max="5.0" size="small" style="width:110px"></el-input-number>
+
+                  <el-button type="warning" size="small" :loading="deepLoading==='daily_run'" :disabled="!deepConnId" @click="runDailyInspect">手动采集巡检数据</el-button>
+                  <el-button type="primary" size="small" :loading="deepLoading==='daily_compare'" :disabled="!deepConnId || !dailyInspectDates || dailyInspectDates.length < 2" @click="compareDailyInspect">开始差异比对</el-button>
+                  <el-button type="success" size="small" :disabled="!deepConnId || !dailyInspectDates || dailyInspectDates.length < 2" @click="exportDailyHtmlReport">导出 HTML 对比大屏</el-button>
+                </div>
+
+                <!-- 趋势折线图容器 -->
+                <div v-show="dailyInspectChartData" style="background:#1e293b; border-radius:8px; padding:16px; margin-bottom:12px">
+                  <div style="font-size:14px; font-weight:bold; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center">
+                    <span>指标多日历史趋势</span>
+                    <div>
+                      <el-select v-model="dailyInspectChartMetric" size="small" style="width:160px; margin-right:8px" @change="renderDailyTrendChart">
+                        <el-option label="CPU 峰值" value="cpu_peak"></el-option>
+                        <el-option label="CPU 均值" value="cpu_avg"></el-option>
+                        <el-option label="内存使用率" value="mem_peak"></el-option>
+                        <el-option label="连接数" value="conn_peak"></el-option>
+                        <el-option label="数据盘使用率" value="disk_peak"></el-option>
+                        <el-option label="慢查询数量" value="slow_query"></el-option>
+                      </el-select>
+                      <el-select v-model="dailyInspectChartNode" size="small" style="width:160px" @change="renderDailyTrendChart">
+                        <el-option v-for="node in dailyInspectChartNodes" :key="node" :label="node" :value="node"></el-option>
+                      </el-select>
+                    </div>
+                  </div>
+                  <div ref="dailyTrendChartRef" style="height:280px; width:100%"></div>
+                </div>
+
+                <!-- 比对差异表格 -->
+                <div v-if="dailyCompareResult" style="margin-top:12px">
+                  <el-tabs type="card" size="small">
+                    <el-tab-pane label="实例级指标比对">
+                      <div class="search-box" style="margin-bottom:8px; display:flex; justify-content:space-between; align-items:center">
+                        <el-input v-model="dailyInstSearch" placeholder="搜索节点或指标" size="small" style="width:220px"></el-input>
+                        <el-checkbox v-model="dailyInstSigOnly" size="small">仅显示波动异常项 (⚠️)</el-checkbox>
+                      </div>
+                      <el-table :data="filteredDailyInstDiffs" border size="small" max-height="300">
+                        <el-table-column prop="node" label="节点/分片" width="130"></el-table-column>
+                        <el-table-column prop="metric_label" label="巡检指标项" width="160"></el-table-column>
+                        <el-table-column prop="old_val" label="前期值" width="100">
+                          <template #default="{row}">{{row.old_val}}{{row.unit}}</template>
+                        </el-table-column>
+                        <el-table-column prop="new_val" label="后期值" width="100">
+                          <template #default="{row}">{{row.new_val}}{{row.unit}}</template>
+                        </el-table-column>
+                        <el-table-column prop="diff" label="变动量" width="100">
+                          <template #default="{row}">
+                            <span :style="{color: row.diff > 0 ? 'var(--danger-500)' : 'var(--success-500)'}">
+                              {{row.diff > 0 ? '+' : ''}}{{row.diff}}
+                            </span>
+                          </template>
+                        </el-table-column>
+                        <el-table-column prop="pct_change" label="变动率" width="100">
+                          <template #default="{row}">
+                            <span :style="{color: row.pct_change > 0 ? 'var(--danger-500)' : 'var(--success-500)'}">
+                              {{row.pct_change > 0 ? '+' : ''}}{{row.pct_change}}%
+                            </span>
+                          </template>
+                        </el-table-column>
+                        <el-table-column prop="significant" label="波动标记">
+                          <template #default="{row}">
+                            <el-tag v-if="row.significant" type="danger" size="small">{{row.significant}}</el-tag>
+                            <span v-else style="color:#909399">平稳</span>
+                          </template>
+                        </el-table-column>
+                      </el-table>
+                    </el-tab-pane>
+
+                    <el-tab-pane label="服务器级别比对">
+                      <div class="search-box" style="margin-bottom:8px; display:flex; justify-content:space-between; align-items:center">
+                        <el-input v-model="dailySrvSearch" placeholder="搜索服务器 IP/指标" size="small" style="width:220px"></el-input>
+                        <el-checkbox v-model="dailySrvSigOnly" size="small">仅显示波动异常项 (⚠️)</el-checkbox>
+                      </div>
+                      <el-table :data="filteredDailySrvDiffs" border size="small" max-height="300">
+                        <el-table-column prop="ip" label="服务器 IP" width="120"></el-table-column>
+                        <el-table-column prop="hostname" label="主机名称" width="120"></el-table-column>
+                        <el-table-column prop="metric_label" label="物理指标项" width="160"></el-table-column>
+                        <el-table-column prop="old_val" label="前期值" width="100">
+                          <template #default="{row}">{{row.old_val}}{{row.unit}}</template>
+                        </el-table-column>
+                        <el-table-column prop="new_val" label="后期值" width="100">
+                          <template #default="{row}">{{row.new_val}}{{row.unit}}</template>
+                        </el-table-column>
+                        <el-table-column prop="diff" label="变动量" width="100">
+                          <template #default="{row}">
+                            <span :style="{color: row.diff > 0 ? 'var(--danger-500)' : 'var(--success-500)'}">
+                              {{row.diff > 0 ? '+' : ''}}{{row.diff}}
+                            </span>
+                          </template>
+                        </el-table-column>
+                        <el-table-column prop="pct_change" label="变动率" width="100">
+                          <template #default="{row}">
+                            <span :style="{color: row.pct_change > 0 ? 'var(--danger-500)' : 'var(--success-500)'}">
+                              {{row.pct_change > 0 ? '+' : ''}}{{row.pct_change}}%
+                            </span>
+                          </template>
+                        </el-table-column>
+                        <el-table-column prop="significant" label="波动标记">
+                          <template #default="{row}">
+                            <el-tag v-if="row.significant" type="danger" size="small">{{row.significant}}</el-tag>
+                            <span v-else style="color:#909399">健康</span>
+                          </template>
+                        </el-table-column>
+                      </el-table>
+                    </el-tab-pane>
+                  </el-tabs>
+                </div>
+              </el-tab-pane>
               <!-- 索引体检 G5 -->
               <el-tab-pane label="索引体检" name="index">
                 <el-input v-model="deepDb" placeholder="库名(空=全部业务库)" size="small" style="width:200px;margin-right:8px"></el-input>

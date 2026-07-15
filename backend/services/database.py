@@ -492,6 +492,26 @@ def _migrate_old_tables(conn):
         _add_column_if_not_exists(conn, "slow_queries", "stats_expired", "VARCHAR(1000) DEFAULT ''")
         _add_column_if_not_exists(conn, "slow_queries", "scan_efficiency", "VARCHAR(64) DEFAULT ''")
 
+    if "daily_inspection" in table_names:
+        _add_column_if_not_exists(conn, "daily_inspection", "cpu_cores", "INT DEFAULT 0")
+        _add_column_if_not_exists(conn, "daily_inspection", "mem_gb", "DOUBLE DEFAULT 0")
+        _add_column_if_not_exists(conn, "daily_inspection", "data_disk_gb", "DOUBLE DEFAULT 0")
+        _add_column_if_not_exists(conn, "daily_inspection", "log_disk_gb", "DOUBLE DEFAULT 0")
+        _add_column_if_not_exists(conn, "daily_inspection", "cpu_avg_daily", "DOUBLE DEFAULT 0")
+        _add_column_if_not_exists(conn, "daily_inspection", "mem_avg_daily", "DOUBLE DEFAULT 0")
+        _add_column_if_not_exists(conn, "daily_inspection", "proxy_req_total", "BIGINT DEFAULT 0")
+        _add_column_if_not_exists(conn, "daily_inspection", "proxy_t_l", "DOUBLE DEFAULT 0")
+        _add_column_if_not_exists(conn, "daily_inspection", "proxy_t_m", "DOUBLE DEFAULT 0")
+        _add_column_if_not_exists(conn, "daily_inspection", "proxy_t_p", "DOUBLE DEFAULT 0")
+        _add_column_if_not_exists(conn, "daily_inspection", "proxy_t_n", "DOUBLE DEFAULT 0")
+        _add_column_if_not_exists(conn, "daily_inspection", "proxy_req_l", "BIGINT DEFAULT 0")
+        _add_column_if_not_exists(conn, "daily_inspection", "proxy_req_m", "BIGINT DEFAULT 0")
+        _add_column_if_not_exists(conn, "daily_inspection", "proxy_req_p", "BIGINT DEFAULT 0")
+        _add_column_if_not_exists(conn, "daily_inspection", "proxy_req_n", "BIGINT DEFAULT 0")
+        _add_column_if_not_exists(conn, "daily_inspection", "proxy_active_conn_peak", "INT DEFAULT 0")
+        _add_column_if_not_exists(conn, "daily_inspection", "proxy_conn_peak", "INT DEFAULT 0")
+        _add_column_if_not_exists(conn, "daily_inspection", "proxy_err_sql_sum", "BIGINT DEFAULT 0")
+
     if "audit_history" in table_names:
         _add_column_if_not_exists(conn, "audit_history", "project_id", "VARCHAR(64) DEFAULT ''")
         _add_column_if_not_exists(conn, "audit_history", "connection_id", "VARCHAR(64) DEFAULT ''")
@@ -1180,9 +1200,50 @@ def _create_all_tables(conn):
             slow_query          DOUBLE DEFAULT 0,
             delay_peak          DOUBLE DEFAULT 0,
             disk_peak           DOUBLE DEFAULT 0,
+            cpu_cores           INT DEFAULT 0,
+            mem_gb              DOUBLE DEFAULT 0,
+            data_disk_gb        DOUBLE DEFAULT 0,
+            log_disk_gb         DOUBLE DEFAULT 0,
+            cpu_avg_daily       DOUBLE DEFAULT 0,
+            mem_avg_daily       DOUBLE DEFAULT 0,
+            proxy_req_total     BIGINT DEFAULT 0,
+            proxy_t_l           DOUBLE DEFAULT 0,
+            proxy_t_m           DOUBLE DEFAULT 0,
+            proxy_t_p           DOUBLE DEFAULT 0,
+            proxy_t_n           DOUBLE DEFAULT 0,
+            proxy_req_l         BIGINT DEFAULT 0,
+            proxy_req_m         BIGINT DEFAULT 0,
+            proxy_req_p         BIGINT DEFAULT 0,
+            proxy_req_n         BIGINT DEFAULT 0,
+            proxy_active_conn_peak INT DEFAULT 0,
+            proxy_conn_peak     INT DEFAULT 0,
+            proxy_err_sql_sum   BIGINT DEFAULT 0,
             created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
             UNIQUE KEY uq_daily (inspect_date, connection_id, node),
             INDEX idx_daily_conn (connection_id, inspect_date)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""",
+
+        # G4. 服务器巡检 —— 每日主机指标快照
+        """CREATE TABLE IF NOT EXISTS server_daily_inspection (
+            id                  INT PRIMARY KEY AUTO_INCREMENT,
+            inspect_date        VARCHAR(16) NOT NULL,
+            connection_id       VARCHAR(64) DEFAULT '',
+            ip                  VARCHAR(128) DEFAULT '',
+            hostname            VARCHAR(128) DEFAULT '',
+            cpu_peak            DOUBLE DEFAULT 0,
+            cpu_avg             DOUBLE DEFAULT 0,
+            mem_used_str        VARCHAR(128) DEFAULT '',
+            mem_pct             DOUBLE DEFAULT 0,
+            disk_root_pct       DOUBLE DEFAULT 0,
+            disk_data_str       VARCHAR(512) DEFAULT '',
+            disk_backup_pct     VARCHAR(32) DEFAULT '',
+            read_await_max      DOUBLE DEFAULT 0,
+            read_await_dev      VARCHAR(128) DEFAULT '',
+            write_await_max     DOUBLE DEFAULT 0,
+            write_await_dev     VARCHAR(128) DEFAULT '',
+            created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_srv_daily (inspect_date, connection_id, ip),
+            INDEX idx_srv_daily_conn (connection_id, inspect_date)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""",
 
         # G9. 大表增长趋势 —— 每日大小快照
