@@ -260,16 +260,38 @@ class ConnectionRegistry:
         ensure_db()
         conn = _get_connection()
         try:
-            if not conn_id:
-                # 同 host:port:database 视为同一连接，更新
+            existing = None
+            if conn_id:
+                existing = conn.execute(
+                    "SELECT password_encrypted, monitor_password_encrypted FROM tdsql_connections WHERE id = ?",
+                    (conn_id,)).fetchone()
+            else:
+                # 同 host:port:database 视为同一连接，获取已有连接以更新
                 row = conn.execute(
-                    "SELECT id FROM tdsql_connections WHERE host=? AND port=? AND `database`=?",
+                    "SELECT id, password_encrypted, monitor_password_encrypted FROM tdsql_connections WHERE host=? AND port=? AND `database`=?",
                     (host, port, database)).fetchone()
-                conn_id = row["id"] if row else uuid.uuid4().hex[:8]
+                if row:
+                    conn_id = row["id"]
+                    existing = row
+
+            if not conn_id:
+                conn_id = uuid.uuid4().hex[:8]
+
+            # 密码特殊处理：如果传入密码为空且存在旧密码，则复用旧密码；否则重新加密
+            if not password and existing and existing.get("password_encrypted"):
+                pwd_enc = existing["password_encrypted"]
+            else:
+                pwd_enc = encrypt_password(password or "")
+
+            # 监控库密码特殊处理：如果传入监控库密码为空且存在旧监控库密码，则复用；否则重新加密/空串
+            if not monitor_password and existing and existing.get("monitor_password_encrypted"):
+                mon_pwd_enc = existing["monitor_password_encrypted"]
+            else:
+                mon_pwd_enc = encrypt_password(monitor_password or "") if monitor_password else ""
+
             if is_default:
                 conn.execute("UPDATE tdsql_connections SET is_default = 0")
-            # monitor_password 与主密码同款加密；留空则存空串（取数时回退主密码）
-            mon_pwd_enc = encrypt_password(monitor_password) if monitor_password else ""
+
             conn.execute("""
                 INSERT INTO tdsql_connections
                     (id, name, host, port, username, password_encrypted, `database`,
@@ -291,7 +313,7 @@ class ConnectionRegistry:
                     monitor_db=VALUES(monitor_db),
                     updated_at=NOW()
             """, (conn_id, name or f"{host}:{port}", host, port, username,
-                  encrypt_password(password), database, charset,
+                  pwd_enc, database, charset,
                   1 if is_default else 0, 1 if is_distributed else 0, description,
                   set_list or "",
                   monitor_host or "", int(monitor_port or 15001), monitor_user or "",
