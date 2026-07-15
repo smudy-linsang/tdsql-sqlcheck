@@ -451,8 +451,8 @@ def _migrate_old_tables(conn):
         _add_column_if_not_exists(conn, "slow_queries", "updated_at", "DATETIME DEFAULT CURRENT_TIMESTAMP")
         _add_column_if_not_exists(conn, "slow_queries", "scan_task_id", "INT DEFAULT NULL")
         _add_column_if_not_exists(conn, "slow_queries", "set_id", "VARCHAR(512) DEFAULT ''")
-        _add_column_if_not_exists(conn, "slow_queries", "client_user", "VARCHAR(128) DEFAULT ''")
-        _add_column_if_not_exists(conn, "slow_queries", "client_host", "VARCHAR(128) DEFAULT ''")
+        _add_column_if_not_exists(conn, "slow_queries", "client_user", "TEXT")
+        _add_column_if_not_exists(conn, "slow_queries", "client_host", "TEXT")
         # 存量库：set_id 原为 VARCHAR(32)，多SET合并的分布(如 set_a(40),set_b(11))装不下，
         # 加宽到 VARCHAR(512)。仅当当前长度不足时执行 ALTER（避免每次启动重建表）。
         try:
@@ -466,6 +466,20 @@ def _migrate_old_tables(conn):
                 conn.execute("ALTER TABLE slow_queries MODIFY COLUMN set_id VARCHAR(512) DEFAULT ''")
         except Exception as e:
             logger.warning(f"widen slow_queries.set_id failed: {e}")
+
+        # 存量库：扩展 client_user 和 client_host 字段宽度以容纳 monitordb 大量聚合用户名/主机名
+        try:
+            for col_name in ("client_user", "client_host"):
+                row = conn.execute(f"""
+                    SELECT DATA_TYPE AS dtype FROM information_schema.COLUMNS
+                    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'slow_queries'
+                      AND COLUMN_NAME = '{col_name}'
+                """).fetchone()
+                dtype = row["dtype"] if row and row["dtype"] is not None else None
+                if dtype is not None and dtype.lower() != 'text':
+                    conn.execute(f"ALTER TABLE slow_queries MODIFY COLUMN {col_name} TEXT")
+        except Exception as e:
+            logger.warning(f"widen slow_queries client_user/client_host failed: {e}")
 
     if "tdsql_connections" in table_names:
         # 分布式实例 SET 列表（慢SQL digest 逐SET合并用）
@@ -559,8 +573,8 @@ def _create_all_tables(conn):
             set_id              VARCHAR(512) DEFAULT '',
             connection_id       VARCHAR(64) DEFAULT '',
             project_id          VARCHAR(64) DEFAULT '',
-            client_user         VARCHAR(128) DEFAULT '',
-            client_host         VARCHAR(128) DEFAULT '',
+            client_user         TEXT,
+            client_host         TEXT,
             exec_count          INT DEFAULT 0,
             total_time_ms       DOUBLE DEFAULT 0,
             avg_time_ms         DOUBLE DEFAULT 0,

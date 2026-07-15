@@ -169,6 +169,10 @@ def _do_scan(pool, connection_id: str, source: str, limit: int, min_time: float,
         if isinstance(client_host, bytes):
             client_host = client_host.decode("utf-8", errors="replace")
 
+        # 防御性截断，防止极端情况下超出数据库列容量限制
+        client_user = str(client_user)[:4000]
+        client_host = str(client_host)[:4000]
+
         first_seen_val = str(raw["FIRST_SEEN"]) if raw.get("FIRST_SEEN") else ""
         last_seen_val = str(raw["LAST_SEEN"]) if raw.get("LAST_SEEN") else ""
 
