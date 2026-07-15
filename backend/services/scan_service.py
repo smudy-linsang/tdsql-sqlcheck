@@ -112,7 +112,8 @@ def _do_scan(pool, connection_id: str, source: str, limit: int, min_time: float,
             raw_queries = pool.get_cluster_slow_queries(
                 limit=limit, min_time=min_time,
                 time_start=time_window_start or None,
-                time_end=time_window_end or None)
+                time_end=time_window_end or None,
+                database=db_name or None)
         elif source == "digest":
             # 注意: TDSQL Proxy的performance_schema不支持FIRST_SEEN/LAST_SEEN时间过滤，
             # 时间窗口仅作为扫描任务元数据记录，不传入SQL查询。
