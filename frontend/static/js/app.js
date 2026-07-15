@@ -495,7 +495,9 @@ const app=createApp({
             body: JSON.stringify({ connection_id: deepConnId.value, inspect_date: d })
           });
         }
-        ElementPlus.ElMessage.success("手动巡检数据采集已完成");
+        ElementPlus.ElMessage.success("手动巡检数据采集已完成，正在生成比对分析大屏...");
+        // 自动触发比对，渲染图表和列表数据给用户
+        await compareDailyInspect();
       } catch (e) {
         ElementPlus.ElMessage.error("数据采集失败: " + e.message);
       } finally {
