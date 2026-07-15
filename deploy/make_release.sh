@@ -10,7 +10,7 @@
 #   加 --with-python 会额外内置便携 CPython（目标机无 python3.9+ 时使用）
 # ============================================================================
 set -euo pipefail
-VERSION="1.0.4.1"
+VERSION="1.0.4.2"
 ARCH="x86_64"; PYTAG="311"; WITH_PYTHON="no"
 while [[ $# -gt 0 ]]; do case "$1" in
   --arch) ARCH="$2"; shift 2;;
@@ -33,7 +33,7 @@ cp -a "${ROOT}/deploy/"*.sh "${ROOT}/deploy/"*.service "${ROOT}/deploy/env.templ
 mkdir -p "${STAGE}/${PKG}/docs"
 cp -a "${ROOT}/docs/部署手册-v1.0.2.md" "${ROOT}/docs/运维手册-v1.0.2.md" \
       "${ROOT}/docs/上线检查清单-v1.0.2.md" "${ROOT}/docs/发布说明-v1.0.2.md" \
-      "${ROOT}/docs/v1.0.4.1_upgrade_manual.md" "${STAGE}/${PKG}/docs/" 2>/dev/null || true
+      "${ROOT}/docs/v1.0.4.2_upgrade_manual.md" "${STAGE}/${PKG}/docs/" 2>/dev/null || true
 echo "${VERSION}" > "${STAGE}/${PKG}/VERSION"
 find "${STAGE}/${PKG}" -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
 

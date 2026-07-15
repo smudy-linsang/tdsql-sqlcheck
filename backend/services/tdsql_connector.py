@@ -810,8 +810,8 @@ class TDSQLConnectionPool:
             "password": c.monitor_password or c.password,
             "database": c.monitor_db or "tdsqlpcloud_monitor",
             "charset": c.charset or "utf8mb4",
-            "connect_timeout": c.connect_timeout,
-            "read_timeout": c.read_timeout,
+            "connect_timeout": max(300, c.connect_timeout or 5), # 调大连接超时至至少5分钟(300秒)
+            "read_timeout": max(900, c.read_timeout or 10),      # 独立调大读取超时至至少15分钟(900秒)
             "cursorclass": pymysql.cursors.DictCursor,
         }
 
