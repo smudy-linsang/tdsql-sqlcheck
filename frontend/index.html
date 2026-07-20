@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TDSQL数据库SQL审核工具 V1.0.4.5</title>
+  <title>TDSQL数据库SQL审核工具 V1.0.4.6</title>
   <script src="/static/vendor/vue.global.prod.js"></script>
   <link rel="stylesheet" href="/static/vendor/element-plus.css">
   <script src="/static/vendor/element-plus.full.min.js"></script>
@@ -18,7 +18,7 @@
   <div v-if="!authState.token" class="login-page">
     <div class="login-brand">
       <h1>TDSQL数据库SQL审核工具</h1>
-      <div class="version">V1.0.4.5 · Design by Linsang</div>
+      <div class="version">V1.0.4.6 · Design by Linsang</div>
     </div>
     <div class="login-form">
       <el-card>
@@ -369,7 +369,7 @@
               <div class="filter-bar">
                 <el-input v-model="slowFilters.db_name" placeholder="库名" clearable size="small" class="w-120"></el-input>
                 <el-input v-model="slowFilters.set_id" placeholder="SET" clearable size="small" class="w-100"></el-input>
-                <el-select v-model="slowFilters.severity" placeholder="级别" clearable size="small" class="w-100"><el-option label="CRITICAL" value="CRITICAL"></el-option><el-option label="WARNING" value="WARNING"></el-option><el-option label="INFO" value="INFO"></el-option></el-select>
+                <el-select v-model="slowFilters.severity" placeholder="级别" clearable size="small" class="w-100"><el-option label="ERROR" value="ERROR"></el-option><el-option label="WARNING" value="WARNING"></el-option><el-option label="INFO" value="INFO"></el-option></el-select>
                 <el-select v-model="slowFilters.status" placeholder="状态" clearable size="small" class="w-100"><el-option label="待处理" value="pending"></el-option><el-option label="已优化" value="optimized"></el-option><el-option label="已忽略" value="ignored"></el-option></el-select>
                 <el-select v-model="slowFilters.scan_task_id" placeholder="扫描任务" clearable filterable size="small" class="w-200"><el-option v-for="t in scanTasks" :key="t.id" :label="t.task_name" :value="t.id"></el-option></el-select>
                 <el-input v-model="slowFilters.created_by" placeholder="操作人" clearable size="small" class="w-120"></el-input>
