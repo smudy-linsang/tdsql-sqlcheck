@@ -298,8 +298,11 @@ def check_permission(role: str, method: str, path: str) -> bool:
     # 第二级：role_permissions菜单可见性校验
     # 对于所有非 admin 角色，检查是否有对应菜单权限
     if role != "admin":
-        for prefix, menu_key in _PATH_TO_MENU.items():
-            if path.startswith(prefix):
+        # 按前缀长度降序排序，结合边界匹配（精确或以/开头），防止部分单词前缀冲突（如gate与gateway-log）及嵌套子路径屏蔽
+        sorted_prefixes = sorted(_PATH_TO_MENU.keys(), key=len, reverse=True)
+        for prefix in sorted_prefixes:
+            if path == prefix or path.startswith(prefix + "/"):
+                menu_key = _PATH_TO_MENU[prefix]
                 try:
                     visible = get_visible_menus(role)
                     return menu_key in visible
