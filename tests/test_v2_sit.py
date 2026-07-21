@@ -178,7 +178,7 @@ class TestSITConnectionFlow:
         assert resp.status_code == 200
         sched_id = resp.json()["id"]
 
-        resp = client.get("/api/v1/tdsql/scan-schedules", headers=tokens["sit_aud"])
+        resp = client.get("/api/v1/tdsql/scan-schedules", headers=tokens["sit_dba"])
         scheds = [s for s in resp.json()["schedules"] if s["id"] == sched_id]
         assert scheds and scheds[0]["connection_id"] == conn_id
 

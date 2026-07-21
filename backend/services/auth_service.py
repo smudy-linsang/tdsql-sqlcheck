@@ -296,8 +296,8 @@ def check_permission(role: str, method: str, path: str) -> bool:
         return False
 
     # 第二级：role_permissions菜单可见性校验
-    # 对于自定义角色，检查是否有对应菜单权限
-    if role not in _BUILTIN_ROLES:
+    # 对于所有非 admin 角色，检查是否有对应菜单权限
+    if role != "admin":
         for prefix, menu_key in _PATH_TO_MENU.items():
             if path.startswith(prefix):
                 try:

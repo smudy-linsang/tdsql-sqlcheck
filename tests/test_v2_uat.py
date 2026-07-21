@@ -214,10 +214,12 @@ class TestUATAuditorScenario:
     def test_d1_auditor_reads_everything(self, uat, aud_h):
         client, _ = uat
         for path in ("/api/v1/dashboard/summary", "/api/v1/rules",
-                     "/api/v1/rulesets", "/api/v1/admin/retention",
+                     "/api/v1/rulesets",
                      "/api/v1/admin/operation-logs", "/api/v1/slow-queries"):
             resp = client.get(path, headers=aud_h)
             assert resp.status_code == 200, f"{path}: {resp.status_code}"
+        # sys-retention is disabled for auditor by default
+        assert client.get("/api/v1/admin/retention", headers=aud_h).status_code == 403
 
     def test_d2_auditor_cannot_write_anything(self, uat, aud_h):
         client, _ = uat

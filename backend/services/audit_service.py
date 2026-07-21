@@ -95,8 +95,32 @@ class AuditService:
         Returns:
             (审核结果, 门禁结果或None)
         """
+        from backend.services.database import split_sql_statements
+        statements = [s.strip() for s in split_sql_statements(sql) if s.strip()]
+
         overrides = self._resolve_overrides(project_id)
-        result = self.checker.audit_sql(sql, rule_overrides=overrides)
+
+        if len(statements) <= 1:
+            result = self.checker.audit_sql(sql, rule_overrides=overrides)
+        else:
+            results = []
+            all_violations = []
+            for idx, stmt in enumerate(statements, 1):
+                res = self.checker.audit_sql(stmt, rule_overrides=overrides)
+                for v in res.violations:
+                    v.message = f"[第{idx}条语句] {v.message}"
+                    all_violations.append(v)
+                results.append(res)
+
+            sql_types = {res.sql_type for res in results if res.sql_type}
+            combined_type = "BATCH" if len(sql_types) > 1 else (list(sql_types)[0] if sql_types else "BATCH")
+
+            result = AuditResult(
+                sql=sql,
+                sql_type=combined_type,
+                passed=len(all_violations) == 0,
+                violations=all_violations,
+            )
 
         gate_result = None
         if evaluate_gate:

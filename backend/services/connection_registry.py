@@ -149,14 +149,31 @@ class ConnectionRegistry:
             if conn_id:
                 entry = self._pools.pop(conn_id, None)
                 targets = [entry] if entry else []
+                ids = [conn_id] if entry else []
             else:
                 targets = list(self._pools.values())
+                ids = list(self._pools.keys())
                 self._pools.clear()
         for entry in targets:
             try:
                 entry.pool.close_all()
             except Exception:
                 pass
+
+        if ids:
+            ensure_db()
+            conn = _get_connection()
+            try:
+                for cid in ids:
+                    conn.execute(
+                        "UPDATE tdsql_connections SET status = 'disconnected' "
+                        "WHERE id = ?", (cid,))
+                conn.commit()
+            except Exception as e:
+                logger.warning(f"更新连接状态为 disconnected 失败: {e}")
+            finally:
+                conn.close()
+
         return len(targets)
 
     def list_active(self) -> list[dict]:
@@ -319,6 +336,8 @@ class ConnectionRegistry:
                   monitor_host or "", int(monitor_port or 15001), monitor_user or "",
                   mon_pwd_enc, monitor_db or "tdsqlpcloud_monitor"))
             conn.commit()
+            if conn_id:
+                self.disconnect(conn_id)
             from backend.services.database import log_operation
             log_operation(operator, "save_connection", "tdsql_connection", conn_id,
                           f"{host}:{port}/{database}")

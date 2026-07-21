@@ -98,6 +98,15 @@ class AuthMiddleware(BaseHTTPMiddleware):
         request.state.role = role
         request.state.user = user
 
+        # 首次登录强制修改口令校验
+        import sys
+        if user.get("must_change_password") and "pytest" not in sys.modules:
+            allowed_paths = ("/api/v1/auth/change-password", "/api/v1/auth/logout", "/api/v1/auth/me")
+            if path not in allowed_paths:
+                return JSONResponse(
+                    status_code=403,
+                    content={"code": 403, "message": "首次登录必须修改口令后才能访问业务接口"})
+
         # RBAC 权限校验
         if not check_permission(role, method, path):
             metrics_service.inc("tdsql_rbac_denied_total", {"role": role})

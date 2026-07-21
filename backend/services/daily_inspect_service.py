@@ -743,7 +743,7 @@ def generate_comparison_html_report(connection_id: str, dates: list, threshold_m
 <head>
   <meta charset="utf-8">
   <title>{title}</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="/static/vendor/echarts.min.js"></script>
   <style>
     body {{
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -894,7 +894,7 @@ def generate_comparison_html_report(connection_id: str, dates: list, threshold_m
       </select>
     </div>
     <div class="chart-box">
-      <canvas id="trendChart"></canvas>
+      <div id="trendChart" style="width: 100%; height: 350px;"></div>
     </div>
   </div>
 
@@ -1161,7 +1161,7 @@ def generate_comparison_html_report(connection_id: str, dates: list, threshold_m
     function renderChart() {{
       const metric = document.getElementById("chartMetricSelect").value;
       const node = document.getElementById("chartNodeSelect").value;
-      const ctx = document.getElementById("trendChart").getContext("2d");
+      const chartDom = document.getElementById("trendChart");
 
       let labels = [];
       let dataVals = [];
@@ -1186,44 +1186,51 @@ def generate_comparison_html_report(connection_id: str, dates: list, threshold_m
         }}
       }}
 
-      if (myChart) myChart.destroy();
+      if (!myChart) {{
+        myChart = echarts.init(chartDom);
+      }}
 
-      myChart = new Chart(ctx, {{
-        type: 'line',
-        data: {{
-          labels: labels,
-          datasets: [{{
-            label: `${{node}} - ${{document.getElementById("chartMetricSelect").selectedOptions[0].text}}`,
-            data: dataVals,
-            borderColor: '#3b82f6',
-            backgroundColor: 'rgba(59, 130, 246, 0.1)',
-            borderWidth: 3,
-            fill: true,
-            tension: 0.1,
-            pointRadius: 5,
-            pointBackgroundColor: '#60a5fa'
-          }}]
+      const option = {{
+        backgroundColor: '#0f172a',
+        tooltip: {{
+          trigger: 'axis',
+          backgroundColor: '#1e293b',
+          borderColor: '#334155',
+          textStyle: {{ color: '#e2e8f0' }}
         }},
-        options: {{
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {{
-            legend: {{
-              labels: {{ color: '#94a3b8' }}
-            }}
-          }},
-          scales: {{
-            x: {{
-              grid: {{ color: '#334155' }},
-              ticks: {{ color: '#94a3b8' }}
-            }},
-            y: {{
-              grid: {{ color: '#334155' }},
-              ticks: {{ color: '#94a3b8' }}
-            }}
+        grid: {{
+          left: '3%',
+          right: '4%',
+          bottom: '10%',
+          top: '10%',
+          containLabel: true
+        }},
+        xAxis: {{
+          type: 'category',
+          data: labels,
+          axisLabel: {{ color: '#94a3b8' }}
+        }},
+        yAxis: {{
+          type: 'value',
+          axisLabel: {{ color: '#94a3b8' }},
+          splitLine: {{ lineStyle: {{ color: '#334155' }} }}
+        }},
+        series: [{{
+          name: document.getElementById("chartMetricSelect").selectedOptions[0].text,
+          data: dataVals,
+          type: 'line',
+          smooth: true,
+          itemStyle: {{ color: '#3b82f6' }},
+          areaStyle: {{
+            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+              {{ offset: 0, color: 'rgba(59, 130, 246, 0.3)' }},
+              {{ offset: 1, color: 'rgba(59, 130, 246, 0.0)' }}
+            ])
           }}
-        }}
-      }});
+        }}]
+      }};
+
+      myChart.setOption(option, true);
     }}
   </script>
 </body>

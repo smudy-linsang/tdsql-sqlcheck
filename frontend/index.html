@@ -504,7 +504,7 @@
                 <el-table-column label="默认" width="60"><template #default="{row}"><el-tag v-if="row.is_default" type="primary" size="small">默认</el-tag></template></el-table-column>
                 <el-table-column label="操作" width="280" fixed="right">
                   <template #default="{row}">
-                    <el-button link size="small" @click="connectInstance(row)" v-if="!row.active">连接</el-button>
+                    <el-button link size="small" @click="connectInstance(row)" v-if="!row.active" :loading="row.connecting">连接</el-button>
                     <el-button link size="small" @click="setDefaultConn(row)" v-if="!row.is_default">设为默认</el-button>
                     <el-button link type="primary" size="small" @click="openEditConn(row)">编辑</el-button>
                     <el-button link type="danger" size="small" @click="deleteConn(row)">删除</el-button>
@@ -1291,13 +1291,19 @@
   </div>
 
   <!-- 修改口令对话框 -->
-  <el-dialog v-model="pwdDialog.visible" title="修改口令" width="420px">
+  <el-dialog v-model="pwdDialog.visible" title="修改口令" width="420px"
+             :close-on-press-escape="!pwdDialog.forced"
+             :close-on-click-modal="!pwdDialog.forced"
+             :show-close="!pwdDialog.forced">
     <el-form label-position="top">
       <el-form-item label="旧口令"><el-input v-model="pwdDialog.old_password" type="password" show-password></el-input></el-form-item>
       <el-form-item label="新口令"><el-input v-model="pwdDialog.new_password" type="password" show-password></el-input></el-form-item>
       <div class="hint">≥8位，含大小写字母/数字/特殊字符三类</div>
     </el-form>
-    <template #footer><el-button @click="pwdDialog.visible=false">取消</el-button><el-button type="primary" @click="changePassword">确认</el-button></template>
+    <template #footer>
+      <el-button v-if="!pwdDialog.forced" @click="pwdDialog.visible=false">取消</el-button>
+      <el-button type="primary" @click="changePassword">确认</el-button>
+    </template>
   </el-dialog>
 
   <!-- G10 ZK 自动发现对话框 -->
