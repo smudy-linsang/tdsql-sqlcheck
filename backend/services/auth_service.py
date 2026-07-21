@@ -234,7 +234,6 @@ _PATH_TO_MENU = {
     "/api/v1/slow-queries/analyze-explain": "explain",
     "/api/v1/tdsql/connections": "instances",
     "/api/v1/tdsql/discover": "instances",
-    "/api/v1/tdsql/check": "health-check",
     "/api/v1/bigtable": "bigtable",
     "/api/v1/projects": "projects",
     "/api/v1/rulesets": "rulesets",
@@ -249,9 +248,16 @@ _PATH_TO_MENU = {
     "/api/v1/admin/logo": "sys-info",
     "/api/v1/auth/roles": "sys-roles",
     "/api/v1/auth/role-permissions": "sys-perms",
-    "/api/v1/gateway-log": "deep-diag",
-    "/api/v1/ppt-report": "deep-diag",
-    "/api/v1/toolkit": "deep-diag",
+    # 深度诊断子模块 API 映射
+    "/api/v1/cluster-inspect": "deep-diag-cluster",
+    "/api/v1/daily-inspect": "deep-diag-daily",
+    "/api/v1/index-audit": "deep-diag-index",
+    "/api/v1/schema-diff": "deep-diag-diff",
+    "/api/v1/emergency": "deep-diag-emergency",
+    "/api/v1/sql-stats": "deep-diag-sqlstats",
+    "/api/v1/gateway-log": "deep-diag-gateway",
+    "/api/v1/ppt-report": "deep-diag-ppt",
+    "/api/v1/toolkit": "deep-diag-toolkit",
 }
 
 def check_permission(role: str, method: str, path: str) -> bool:
@@ -312,7 +318,10 @@ def check_permission(role: str, method: str, path: str) -> bool:
 ALL_MENU_KEYS = [
     'dashboard', 'audit-sql', 'file-audit', 'rules',
     'slow-tasks', 'slow-records', 'slow-schedule', 'explain',
-    'instances', 'health-check', 'schema-check', 'bigtable', 'deep-diag',
+    'instances', 'schema-check', 'bigtable', 'deep-diag',
+    'deep-diag-cluster', 'deep-diag-daily', 'deep-diag-index', 'deep-diag-diff',
+    'deep-diag-emergency', 'deep-diag-sqlstats', 'deep-diag-gateway', 'deep-diag-ppt',
+    'deep-diag-toolkit',
     'projects', 'rulesets', 'gate', 'monitor', 'inspection',
     'sys-users', 'sys-retention', 'sys-auditlog', 'sys-info',
     'sys-roles', 'sys-perms',
@@ -323,8 +332,13 @@ MENU_LABELS = {
     'dashboard': '治理概览', 'audit-sql': '即时审核', 'file-audit': '文件审核',
     'rules': '审核规则库', 'slow-tasks': '扫描任务', 'slow-records': '慢SQL记录',
     'slow-schedule': '扫描计划', 'explain': 'EXPLAIN分析', 'instances': '实例管理',
-    'health-check': '数据库体检', 'schema-check': '上线检查', 'bigtable': '大表治理', 'deep-diag': '深度诊断', 'projects': '项目管理',
-    'rulesets': '规则集', 'gate': '质量门禁', 'monitor': '监控告警',
+    'schema-check': '上线检查', 'bigtable': '大表治理', 'deep-diag': '深度诊断',
+    'deep-diag-cluster': '深度诊断-集群巡检', 'deep-diag-daily': '深度诊断-日常巡检与对比报告',
+    'deep-diag-index': '深度诊断-索引体检', 'deep-diag-diff': '深度诊断-结构比对',
+    'deep-diag-emergency': '深度诊断-应急诊断', 'deep-diag-sqlstats': '深度诊断-SQL分析',
+    'deep-diag-gateway': '深度诊断-网关日志分析', 'deep-diag-ppt': '深度诊断-PDF报告与大屏',
+    'deep-diag-toolkit': '深度诊断-运维工具箱',
+    'projects': '项目管理', 'rulesets': '规则集', 'gate': '质量门禁', 'monitor': '监控告警',
     'inspection': '巡检管理', 'sys-users': '用户管理', 'sys-retention': '数据保留',
     'sys-auditlog': '操作审计', 'sys-info': '系统信息',
     'sys-roles': '角色管理', 'sys-perms': '权限矩阵',
@@ -426,7 +440,7 @@ def get_role_permissions() -> list[dict]:
             JOIN roles r ON rp.role_id = r.role_id
             ORDER BY rp.role_id, rp.menu_key
         """).fetchall()
-        return [dict(r) for r in rows]
+        return [dict(r) for r in rows if r["menu_key"] in ALL_MENU_KEYS]
     finally:
         conn.close()
 
@@ -457,7 +471,7 @@ def get_visible_menus(role: str) -> list[str]:
             (role,)
         ).fetchall()
         if rows:
-            return [r["menu_key"] for r in rows]
+            return [r["menu_key"] for r in rows if r["menu_key"] in ALL_MENU_KEYS]
         # 无记录时回退：admin全部可见，其他角色仅基础菜单
         if role == "admin":
             return ALL_MENU_KEYS

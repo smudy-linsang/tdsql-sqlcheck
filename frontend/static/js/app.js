@@ -10,7 +10,12 @@ async function apiFetch(url,options={}){
   opts.headers=Object.assign({},options.headers||{});
   const token=getToken();
   if(token)opts.headers['Authorization']='Bearer '+token;
-  const resp=await fetch(url,opts);
+  let finalUrl=url;
+  if(!opts.method||opts.method.toUpperCase()==='GET'){
+    const sep=url.includes('?')?'&':'?';
+    finalUrl=`${url}${sep}_t=${Date.now()}`;
+  }
+  const resp=await fetch(finalUrl,opts);
   if(resp.status===401&&onUnauthorized){clearToken();onUnauthorized()}
   else if(resp.status===403){try{const d=await resp.clone().json();ElementPlus.ElMessage.warning(d.detail||'当前角色无权执行该操作')}catch(e){ElementPlus.ElMessage.warning('当前角色无权执行该操作')}}
   else if(resp.status>=500){try{const d=await resp.clone().json();ElementPlus.ElNotification.error({title:'服务异常',message:d.detail||'服务暂时不可用，请稍后重试'})}catch(e){ElementPlus.ElNotification.error({title:'服务异常',message:'服务暂时不可用，请稍后重试'})}}
@@ -175,7 +180,7 @@ const app=createApp({
     const permsMatrixData=ref([]);
     const permsMenuList=ref([]);
     const permsLoading=ref(false);
-    const visibleMenus=ref(new Set(['dashboard','audit-sql','file-audit','rules','slow-tasks','slow-records','explain','instances','health-check','bigtable','deep-diag','projects','rulesets','gate','monitor','inspection','sys-users','sys-retention','sys-auditlog','sys-info','sys-roles','sys-perms']));
+    const visibleMenus=ref(new Set(['dashboard','audit-sql','file-audit','rules','slow-tasks','slow-records','explain','instances','bigtable','deep-diag','deep-diag-cluster','deep-diag-daily','deep-diag-index','deep-diag-diff','deep-diag-emergency','deep-diag-sqlstats','deep-diag-gateway','deep-diag-ppt','deep-diag-toolkit','projects','rulesets','gate','monitor','inspection','sys-users','sys-retention','sys-auditlog','sys-info','sys-roles','sys-perms']));
     // V3.0: 表名中文映射
     const tableNameLabel=(t)=>({slow_queries:'慢SQL记录',audit_history:'审核历史',scan_tasks:'扫描任务',alerts:'告警记录',operation_logs:'操作日志',gate_audit_logs:'门禁审计日志',fingerprint_stats:'SQL指纹统计'}[t]||t);
     // V3.0: 监控指标中文映射
@@ -191,7 +196,7 @@ const app=createApp({
     const canViewMonitor=computed(()=>['admin','dba','auditor'].includes(authState.role));
     const canViewSchedule=computed(()=>['admin','dba'].includes(authState.role));
     const canViewBigtable=computed(()=>['admin','dba','auditor'].includes(authState.role));
-    const breadcrumbItems=computed(()=>{const m={dashboard:[{key:'d',label:'工作台'},{key:'c',label:'治理概览'}],'audit-sql':[{key:'a',label:'SQL审核'},{key:'c',label:'即时审核'}],'file-audit':[{key:'a',label:'SQL审核'},{key:'c',label:'文件审核'}],rules:[{key:'a',label:'SQL审核'},{key:'c',label:'审核规则库'}],'slow-tasks':[{key:'s',label:'慢SQL治理'},{key:'c',label:'扫描任务'}],'slow-records':[{key:'s',label:'慢SQL治理'},{key:'c',label:'慢SQL记录'}],'slow-schedule':[{key:'s',label:'慢SQL治理'},{key:'c',label:'扫描计划'}],explain:[{key:'s',label:'慢SQL治理'},{key:'c',label:'EXPLAIN分析'}],instances:[{key:'i',label:'实例与体检'},{key:'c',label:'实例管理'}],'health-check':[{key:'i',label:'实例与体检'},{key:'c',label:'数据库体检'}],'schema-check':[{key:'i',label:'实例与体检'},{key:'c',label:'上线检查'}],bigtable:[{key:'i',label:'实例与体检'},{key:'c',label:'大表治理'}],projects:[{key:'p',label:'平台治理'},{key:'c',label:'项目管理'}],rulesets:[{key:'p',label:'平台治理'},{key:'c',label:'规则集'}],gate:[{key:'p',label:'平台治理'},{key:'c',label:'质量门禁'}],monitor:[{key:'p',label:'平台治理'},{key:'c',label:'监控告警'}],inspection:[{key:'p',label:'平台治理'},{key:'c',label:'巡检管理'}],'sys-users':[{key:'sys',label:'系统管理'},{key:'c',label:'用户管理'}],'sys-retention':[{key:'sys',label:'系统管理'},{key:'c',label:'数据保留'}],'sys-auditlog':[{key:'sys',label:'系统管理'},{key:'c',label:'操作审计'}],'sys-info':[{key:'sys',label:'系统管理'},{key:'c',label:'系统信息'}],'sys-roles':[{key:'sys',label:'系统管理'},{key:'c',label:'角色管理'}],'sys-perms':[{key:'sys',label:'系统管理'},{key:'c',label:'权限矩阵'}]};return m[currentPage.value]||[]});
+    const breadcrumbItems=computed(()=>{const m={dashboard:[{key:'d',label:'工作台'},{key:'c',label:'治理概览'}],'audit-sql':[{key:'a',label:'SQL审核'},{key:'c',label:'即时审核'}],'file-audit':[{key:'a',label:'SQL审核'},{key:'c',label:'文件审核'}],rules:[{key:'a',label:'SQL审核'},{key:'c',label:'审核规则库'}],'slow-tasks':[{key:'s',label:'慢SQL治理'},{key:'c',label:'扫描任务'}],'slow-records':[{key:'s',label:'慢SQL治理'},{key:'c',label:'慢SQL记录'}],'slow-schedule':[{key:'s',label:'慢SQL治理'},{key:'c',label:'扫描计划'}],explain:[{key:'s',label:'慢SQL治理'},{key:'c',label:'EXPLAIN分析'}],instances:[{key:'i',label:'实例与体检'},{key:'c',label:'实例管理'}],'schema-check':[{key:'i',label:'实例与体检'},{key:'c',label:'上线检查'}],bigtable:[{key:'i',label:'实例与体检'},{key:'c',label:'大表治理'}],projects:[{key:'p',label:'平台治理'},{key:'c',label:'项目管理'}],rulesets:[{key:'p',label:'平台治理'},{key:'c',label:'规则集'}],gate:[{key:'p',label:'平台治理'},{key:'c',label:'质量门禁'}],monitor:[{key:'p',label:'平台治理'},{key:'c',label:'监控告警'}],inspection:[{key:'p',label:'平台治理'},{key:'c',label:'巡检管理'}],'sys-users':[{key:'sys',label:'系统管理'},{key:'c',label:'用户管理'}],'sys-retention':[{key:'sys',label:'系统管理'},{key:'c',label:'数据保留'}],'sys-auditlog':[{key:'sys',label:'系统管理'},{key:'c',label:'操作审计'}],'sys-info':[{key:'sys',label:'系统管理'},{key:'c',label:'系统信息'}],'sys-roles':[{key:'sys',label:'系统管理'},{key:'c',label:'角色管理'}],'sys-perms':[{key:'sys',label:'系统管理'},{key:'c',label:'权限矩阵'}]};return m[currentPage.value]||[]});
     const kpiCards=computed(()=>{const a=stats.value.audit||{};const s=stats.value.slow_queries||{};return[{key:'audit_today',label:'今日审核',value:a.today_count||0,color:'var(--brand-500)',sub:`通过 ${a.today_passed||0} / 拦截 ${a.today_failed||0}`,onClick:()=>currentPage.value='audit-sql'},{key:'pass_rate',label:'今日通过率',value:(a.today_pass_rate||0).toFixed(1)+'%',color:(a.today_pass_rate||0)>=80?'var(--success-500)':'var(--danger-500)',sub:`ERROR ${a.today_errors||0} / WARNING ${a.today_warnings||0}`},{key:'slow_pending',label:'待处理慢SQL',value:s.pending||0,color:'var(--warning-500)',sub:`严重 ${s.critical_count||0}`,onClick:()=>{currentPage.value='slow-records';slowFilters.status='pending';loadSlowList()}},{key:'slow_optimized',label:'已优化慢SQL',value:s.optimized||0,color:'var(--success-500)'}]});
     const formatTime=(iso)=>{if(!iso)return'';try{const d=new Date(iso);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')}catch{return iso}};
     // P1-06: 修复CRITICAL级别显示为绿色问题
@@ -486,9 +491,12 @@ const app=createApp({
       if (!dailyInspectDates.value || dailyInspectDates.value.length < 2) {
         return ElementPlus.ElMessage.warning("请选择日期范围");
       }
+      const dates = getDatesInRange(dailyInspectDates.value[0], dailyInspectDates.value[1]);
+      if (dates.length > 3) {
+        return ElementPlus.ElMessage.warning("单次手动采集时间跨度不能超过 3 天，以避免超大集群拉取超时。");
+      }
       deepLoading.value = "daily_run";
       try {
-        const dates = getDatesInRange(dailyInspectDates.value[0], dailyInspectDates.value[1]);
         for (const d of dates) {
           await apiFetch(`${API_BASE}/api/v1/daily-inspect/run`, {
             method: "POST",
@@ -700,7 +708,7 @@ const app=createApp({
     const loadVisibleMenus=async()=>{try{const resp=await apiFetch(`${API_BASE}/api/v1/auth/visible-menus`);if(resp.ok){const d=await resp.json();visibleMenus.value=new Set(d.menus||[])}}catch(e){}};
     const loadAll=()=>{loadDashboard();loadSavedConnections();loadRules();loadScanTasks();loadSlowList();loadProjects();loadActiveAlerts();loadLogo();loadVisibleMenus()};
     onMounted(async()=>{onUnauthorized=()=>{authState.token='';authState.user=null};const ok=await checkSession();if(ok)loadAll()});
-    watch(currentPage,(v)=>{if(v==='dashboard')nextTick(renderTrendChart);if(v==='rules'&&rulesList.value.length===0)loadRules();if(v==='file-audit'&&fileAuditTab.value==='reports')loadFileReports();if(v==='slow-tasks')loadScanTasks();if(v==='slow-records')loadSlowList();if(v==='sys-users')loadUsers();if(v==='slow-schedule')loadScanSchedules();if(v==='bigtable')loadBigtable();if(v==='projects')loadProjectsList();if(v==='rulesets')loadRulesets();if(v==='gate'){loadGateStrategies();loadGateRules()};if(v==='monitor'){loadMonitorAlerts();loadMonitorRules()};if(v==='inspection')loadInspectionTasks();if(v==='sys-auditlog')loadAuditLogs();if(v==='sys-retention')loadRetention();if(v==='sys-info')loadSysInfo();if(v==='sys-roles')loadRoles();if(v==='sys-perms')loadPerms();if(v==='deep-diag'){if(deepTab.value==='gateway_log')loadGatewayReports();if(deepTab.value==='ppt_report')loadPptDashboard();if(deepTab.value==='toolkit')loadToolkitScripts()}});
+    watch(currentPage,(v)=>{if(v==='dashboard')nextTick(renderTrendChart);if(v==='rules'&&rulesList.value.length===0)loadRules();if(v==='file-audit'&&fileAuditTab.value==='reports')loadFileReports();if(v==='slow-tasks')loadScanTasks();if(v==='slow-records')loadSlowList();if(v==='sys-users')loadUsers();if(v==='slow-schedule')loadScanSchedules();if(v==='bigtable')loadBigtable();if(v==='projects')loadProjectsList();if(v==='rulesets')loadRulesets();if(v==='gate'){loadGateStrategies();loadGateRules()};if(v==='monitor'){loadMonitorAlerts();loadMonitorRules()};if(v==='inspection')loadInspectionTasks();if(v==='sys-auditlog')loadAuditLogs();if(v==='sys-retention')loadRetention();if(v==='sys-info')loadSysInfo();if(v==='sys-roles')loadRoles();if(v==='sys-perms')loadPerms();if(v==='deep-diag'){const subtabs=[{perm:'deep-diag-cluster',tab:'cluster'},{perm:'deep-diag-daily',tab:'daily_inspect'},{perm:'deep-diag-index',tab:'index'},{perm:'deep-diag-diff',tab:'diff'},{perm:'deep-diag-emergency',tab:'emergency'},{perm:'deep-diag-sqlstats',tab:'sqlstats'},{perm:'deep-diag-gateway',tab:'gateway_log'},{perm:'deep-diag-ppt',tab:'ppt_report'},{perm:'deep-diag-toolkit',tab:'toolkit'}];for(const t of subtabs){if(visibleMenus.value.has(t.perm)){deepTab.value=t.tab;break}}if(deepTab.value==='gateway_log')loadGatewayReports();if(deepTab.value==='ppt_report')loadPptDashboard();if(deepTab.value==='toolkit')loadToolkitScripts()}});
     watch(fileAuditTab,(v)=>{if(v==='reports')loadFileReports()});
     watch(deepTab,(v)=>{if(v==='gateway_log')loadGatewayReports();if(v==='ppt_report')loadPptDashboard();if(v==='toolkit')loadToolkitScripts()});
     watch(deepConnId,(v)=>{if(v){if(deepTab.value==='gateway_log')loadGatewayReports();if(deepTab.value==='ppt_report')loadPptDashboard()}});

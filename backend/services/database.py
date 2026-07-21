@@ -1358,7 +1358,10 @@ def _init_default_data(conn):
     all_menus = [
         'dashboard', 'audit-sql', 'file-audit', 'rules',
         'slow-tasks', 'slow-records', 'slow-schedule', 'explain',
-        'instances', 'health-check', 'schema-check', 'bigtable', 'deep-diag',
+        'instances', 'schema-check', 'bigtable', 'deep-diag',
+        'deep-diag-cluster', 'deep-diag-daily', 'deep-diag-index', 'deep-diag-diff',
+        'deep-diag-emergency', 'deep-diag-sqlstats', 'deep-diag-gateway', 'deep-diag-ppt',
+        'deep-diag-toolkit',
         'projects', 'rulesets', 'gate', 'monitor', 'inspection',
         'sys-users', 'sys-retention', 'sys-auditlog', 'sys-info',
         'sys-roles', 'sys-perms',
@@ -1388,6 +1391,34 @@ def _init_default_data(conn):
         UPDATE role_permissions SET visible=0
         WHERE menu_key='schema-check' AND role_id='auditor'
     """)
+
+    # 存量库增量订正：清理已经不用的菜单项并自动初始化新菜单项
+    # 1. 清理过期菜单键
+    placeholders = ",".join(["%s"] * len(all_menus))
+    conn.cursor().execute(f"DELETE FROM role_permissions WHERE menu_key NOT IN ({placeholders})", all_menus)
+
+    # 2. 为所有已有角色自动补齐缺失的新增菜单键可见性
+    cursor = conn.cursor()
+    cursor.execute("SELECT role_id FROM roles")
+    existing_roles = []
+    for row in cursor.fetchall():
+        try:
+            existing_roles.append(row["role_id"])
+        except Exception:
+            existing_roles.append(row[0])
+    for rid in existing_roles:
+        for mk in all_menus:
+            cursor.execute("SELECT 1 FROM role_permissions WHERE role_id = %s AND menu_key = %s", (rid, mk))
+            if not cursor.fetchone():
+                visible = 1
+                if rid == 'developer' and mk in ('monitor', 'inspection', 'slow-schedule', 'sys-users', 'sys-retention', 'sys-info', 'sys-roles', 'sys-perms'):
+                    visible = 0
+                if rid == 'auditor' and mk in ('slow-schedule', 'sys-users', 'sys-retention', 'sys-roles', 'sys-perms', 'schema-check'):
+                    visible = 0
+                cursor.execute("""
+                    INSERT INTO role_permissions(role_id, menu_key, visible)
+                    VALUES (%s, %s, %s)
+                """, (rid, mk, visible))
 
     # 更新版本号
     conn.cursor().execute("""

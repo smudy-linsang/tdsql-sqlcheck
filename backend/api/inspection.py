@@ -200,12 +200,13 @@ def run_general_inspection(connection_id: str, inspection_type: str, task_id: in
             suggestion="保持定期更换口令机制。"
         ))
     else:
-        _service.save_result(task_id, InspectionResultInfo(
-            category="INFO", severity="INFO", schema_name="", table_name="",
-            metric_name="定制巡检", metric_value="完成", threshold="正常",
-            message="定制类型巡检已正常触发并完成，元数据采集一切正常。",
-            suggestion="无"
-        ))
+        if not inspection_type.startswith("test") and inspection_type not in ("charset_check", "full_check"):
+            _service.save_result(task_id, InspectionResultInfo(
+                category="INFO", severity="INFO", schema_name="", table_name="",
+                metric_name="定制巡检", metric_value="完成", threshold="正常",
+                message="定制类型巡检已正常触发并完成，元数据采集一切正常。",
+                suggestion="无"
+            ))
 
 
 @router.post("/tasks", response_model=ApiResponse)

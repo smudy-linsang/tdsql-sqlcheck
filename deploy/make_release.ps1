@@ -1,9 +1,9 @@
 # ============================================================================
-# TDSQL SQL审核工具 v1.0.3.4 发布包构建脚本 (Windows PowerShell版)
-# 产出: dist/tdsql-sqlcheck-v1.0.3.4-linux-x86_64.tar.gz + .sha256
+# TDSQL SQL审核工具 v1.1.0.0 发布包构建脚本 (Windows PowerShell版)
+# 产出: dist/tdsql-sqlcheck-v1.1.0.0-linux-x86_64.tar.gz + .sha256
 # ============================================================================
 $ErrorActionPreference = "Stop"
-$VERSION = "1.0.4.6"
+$VERSION = "1.1.0.0"
 $ARCH = "x86_64"
 $PYTAG = "311"
 $ROOT = $PSScriptRoot
@@ -23,15 +23,18 @@ New-Item -ItemType Directory -Force -Path $PKG_DIR | Out-Null
 New-Item -ItemType Directory -Force -Path $DIST | Out-Null
 
 Write-Host "[1/4] 复制代码与部署脚本..."
+$BACKEND_DIR = Join-Path $PKG_DIR "backend"
+$FRONTEND_DIR = Join-Path $PKG_DIR "frontend"
+$DEPLOY_DIR = Join-Path $PKG_DIR "deploy"
+
 # 复制核心代码
-Copy-Item (Join-Path $ROOT "backend") (Join-Path $PKG_DIR "backend") -Recurse
-Copy-Item (Join-Path $ROOT "frontend") (Join-Path $PKG_DIR "frontend") -Recurse
-Copy-Item (Join-Path $ROOT "requirements.txt") (Join-Path $PKG_DIR "requirements.txt")
+Copy-Item (Join-Path $ROOT "backend") $PKG_DIR -Recurse
+Copy-Item (Join-Path $ROOT "frontend") $PKG_DIR -Recurse
+Copy-Item (Join-Path $ROOT "requirements.txt") $PKG_DIR
 
 # 复制部署脚本
-$DEPLOY_DIR = Join-Path $PKG_DIR "deploy"
 New-Item -ItemType Directory -Force -Path $DEPLOY_DIR | Out-Null
-$deploy_files = @("install.sh","make_release.sh","preflight_check.sh","rollback.sh",
+$deploy_files = @("install.sh","preflight_check.sh","make_release.sh",
                   "verify_deploy.sh","tdsql-sqlcheck.service","env.template",
                   "nginx-sqlcheck.conf","README.md")
 foreach ($f in $deploy_files) {
@@ -44,7 +47,7 @@ $DOCS_DIR = Join-Path $PKG_DIR "docs"
 New-Item -ItemType Directory -Force -Path $DOCS_DIR | Out-Null
 $doc_files = @("部署手册-v1.0.2.md","运维手册-v1.0.2.md","上线检查清单-v1.0.2.md",
                "发布说明-v1.0.2.md","V1.0.3变更清单与测试要点.md",
-               "V1.0.3.1增量更新部署说明.md", "v1.0.4.6_upgrade_manual.md")
+               "V1.0.3.1增量更新部署说明.md", "v1.1.0.0_upgrade_manual.md")
 foreach ($f in $doc_files) {
     $src = Join-Path $ROOT "docs\$f"
     if (Test-Path $src) { Copy-Item $src (Join-Path $DOCS_DIR $f) }

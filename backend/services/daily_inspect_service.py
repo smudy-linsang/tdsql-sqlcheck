@@ -60,7 +60,7 @@ def _mock_val(seed_str: str, min_val: float, max_val: float, decimal_places: int
     return round(val, decimal_places)
 
 
-def _get_peak(pool, tbl: str, mid: str, key: str) -> float:
+def _get_peak(pool, tbl: str, mid: str, key: str, node_key_to_fid: dict = None) -> float:
     """获取全天最大峰值"""
     if tbl == "m_data_cur":
         try:
@@ -70,6 +70,37 @@ def _get_peak(pool, tbl: str, mid: str, key: str) -> float:
                 return float(rows[0]["val"]) if rows[0].get("val") is not None else 0.0
         except Exception:
             pass
+
+    fid = None
+    if node_key_to_fid is not None:
+        fid = node_key_to_fid.get((mid, key))
+
+    if fid is not None:
+        try:
+            sql = f"""
+                SELECT GREATEST(
+                    IFNULL(MAX(f_0+0),0), IFNULL(MAX(f_1+0),0), IFNULL(MAX(f_2+0),0), IFNULL(MAX(f_3+0),0), IFNULL(MAX(f_4+0),0),
+                    IFNULL(MAX(f_5+0),0), IFNULL(MAX(f_6+0),0), IFNULL(MAX(f_7+0),0), IFNULL(MAX(f_8+0),0), IFNULL(MAX(f_9+0),0),
+                    IFNULL(MAX(f_10+0),0), IFNULL(MAX(f_11+0),0), IFNULL(MAX(f_12+0),0), IFNULL(MAX(f_13+0),0), IFNULL(MAX(f_14+0),0),
+                    IFNULL(MAX(f_15+0),0), IFNULL(MAX(f_16+0),0), IFNULL(MAX(f_17+0),0), IFNULL(MAX(f_18+0),0), IFNULL(MAX(f_19+0),0),
+                    IFNULL(MAX(f_20+0),0), IFNULL(MAX(f_21+0),0), IFNULL(MAX(f_22+0),0), IFNULL(MAX(f_23+0),0), IFNULL(MAX(f_24+0),0),
+                    IFNULL(MAX(f_25+0),0), IFNULL(MAX(f_26+0),0), IFNULL(MAX(f_27+0),0), IFNULL(MAX(f_28+0),0), IFNULL(MAX(f_29+0),0),
+                    IFNULL(MAX(f_30+0),0), IFNULL(MAX(f_31+0),0), IFNULL(MAX(f_32+0),0), IFNULL(MAX(f_33+0),0), IFNULL(MAX(f_34+0),0),
+                    IFNULL(MAX(f_35+0),0), IFNULL(MAX(f_36+0),0), IFNULL(MAX(f_37+0),0), IFNULL(MAX(f_38+0),0), IFNULL(MAX(f_39+0),0),
+                    IFNULL(MAX(f_40+0),0), IFNULL(MAX(f_41+0),0), IFNULL(MAX(f_42+0),0), IFNULL(MAX(f_43+0),0), IFNULL(MAX(f_44+0),0),
+                    IFNULL(MAX(f_45+0),0), IFNULL(MAX(f_46+0),0), IFNULL(MAX(f_47+0),0), IFNULL(MAX(f_48+0),0), IFNULL(MAX(f_49+0),0),
+                    IFNULL(MAX(f_50+0),0), IFNULL(MAX(f_51+0),0), IFNULL(MAX(f_52+0),0), IFNULL(MAX(f_53+0),0), IFNULL(MAX(f_54+0),0),
+                    IFNULL(MAX(f_55+0),0), IFNULL(MAX(f_56+0),0), IFNULL(MAX(f_57+0),0), IFNULL(MAX(f_58+0),0), IFNULL(MAX(f_59+0),0)
+                ) AS val
+                FROM `{tbl}`
+                WHERE f_id = %s
+            """
+            rows = pool._monitor_execute(sql, (fid,))
+            return float(rows[0]["val"]) if rows and rows[0].get("val") is not None else 0.0
+        except Exception as e:
+            logger.debug("get_peak by f_id failed: %s", e)
+            return 0.0
+
     try:
         sql = f"""
             SELECT GREATEST(
@@ -97,7 +128,7 @@ def _get_peak(pool, tbl: str, mid: str, key: str) -> float:
         return 0.0
 
 
-def _get_avg(pool, tbl: str, mid: str, key: str) -> float:
+def _get_avg(pool, tbl: str, mid: str, key: str, node_key_to_fid: dict = None) -> float:
     """获取全天 24 小时 1440 采样点平均值"""
     if tbl == "m_data_cur":
         try:
@@ -107,6 +138,38 @@ def _get_avg(pool, tbl: str, mid: str, key: str) -> float:
                 return float(rows[0]["val"]) if rows[0].get("val") is not None else 0.0
         except Exception:
             pass
+
+    fid = None
+    if node_key_to_fid is not None:
+        fid = node_key_to_fid.get((mid, key))
+
+    if fid is not None:
+        try:
+            sql = f"""
+                SELECT ROUND(
+                    SUM(
+                        IFNULL(f_0,0)+IFNULL(f_1,0)+IFNULL(f_2,0)+IFNULL(f_3,0)+IFNULL(f_4,0)+
+                        IFNULL(f_5,0)+IFNULL(f_6,0)+IFNULL(f_7,0)+IFNULL(f_8,0)+IFNULL(f_9,0)+
+                        IFNULL(f_10,0)+IFNULL(f_11,0)+IFNULL(f_12,0)+IFNULL(f_13,0)+IFNULL(f_14,0)+
+                        IFNULL(f_15,0)+IFNULL(f_16,0)+IFNULL(f_17,0)+IFNULL(f_18,0)+IFNULL(f_19,0)+
+                        IFNULL(f_20,0)+IFNULL(f_21,0)+IFNULL(f_22,0)+IFNULL(f_23,0)+IFNULL(f_24,0)+
+                        IFNULL(f_25,0)+IFNULL(f_26,0)+IFNULL(f_27,0)+IFNULL(f_28,0)+IFNULL(f_29,0)+
+                        IFNULL(f_30,0)+IFNULL(f_31,0)+IFNULL(f_32,0)+IFNULL(f_33,0)+IFNULL(f_34,0)+
+                        IFNULL(f_35,0)+IFNULL(f_36,0)+IFNULL(f_37,0)+IFNULL(f_38,0)+IFNULL(f_39,0)+
+                        IFNULL(f_40,0)+IFNULL(f_41,0)+IFNULL(f_42,0)+IFNULL(f_43,0)+IFNULL(f_44,0)+
+                        IFNULL(f_45,0)+IFNULL(f_46,0)+IFNULL(f_47,0)+IFNULL(f_48,0)+IFNULL(f_49,0)+
+                        IFNULL(f_50,0)+IFNULL(f_51,0)+IFNULL(f_52,0)+IFNULL(f_53,0)+IFNULL(f_54,0)+
+                        IFNULL(f_55,0)+IFNULL(f_56,0)+IFNULL(f_57,0)+IFNULL(f_58,0)+IFNULL(f_59,0)
+                    ) / (COUNT(*) * 60), 2) AS val
+                FROM `{tbl}`
+                WHERE f_id = %s
+            """
+            rows = pool._monitor_execute(sql, (fid,))
+            return float(rows[0]["val"]) if rows and rows[0].get("val") is not None else 0.0
+        except Exception as e:
+            logger.debug("get_avg by f_id failed: %s", e)
+            return 0.0
+
     try:
         sql = f"""
             SELECT ROUND(
@@ -135,7 +198,7 @@ def _get_avg(pool, tbl: str, mid: str, key: str) -> float:
         return 0.0
 
 
-def _get_sum(pool, tbl: str, mid: str, key: str) -> float:
+def _get_sum(pool, tbl: str, mid: str, key: str, node_key_to_fid: dict = None) -> float:
     """获取全天指标求和值"""
     if tbl == "m_data_cur":
         try:
@@ -145,6 +208,37 @@ def _get_sum(pool, tbl: str, mid: str, key: str) -> float:
                 return float(rows[0]["val"]) if rows[0].get("val") is not None else 0.0
         except Exception:
             pass
+
+    fid = None
+    if node_key_to_fid is not None:
+        fid = node_key_to_fid.get((mid, key))
+
+    if fid is not None:
+        try:
+            sql = f"""
+                SELECT IFNULL(SUM(
+                    IFNULL(f_0,0)+IFNULL(f_1,0)+IFNULL(f_2,0)+IFNULL(f_3,0)+IFNULL(f_4,0)+
+                    IFNULL(f_5,0)+IFNULL(f_6,0)+IFNULL(f_7,0)+IFNULL(f_8,0)+IFNULL(f_9,0)+
+                    IFNULL(f_10,0)+IFNULL(f_11,0)+IFNULL(f_12,0)+IFNULL(f_13,0)+IFNULL(f_14,0)+
+                    IFNULL(f_15,0)+IFNULL(f_16,0)+IFNULL(f_17,0)+IFNULL(f_18,0)+IFNULL(f_19,0)+
+                    IFNULL(f_20,0)+IFNULL(f_21,0)+IFNULL(f_22,0)+IFNULL(f_23,0)+IFNULL(f_24,0)+
+                    IFNULL(f_25,0)+IFNULL(f_26,0)+IFNULL(f_27,0)+IFNULL(f_28,0)+IFNULL(f_29,0)+
+                    IFNULL(f_30,0)+IFNULL(f_31,0)+IFNULL(f_32,0)+IFNULL(f_33,0)+IFNULL(f_34,0)+
+                    IFNULL(f_35,0)+IFNULL(f_36,0)+IFNULL(f_37,0)+IFNULL(f_38,0)+IFNULL(f_39,0)+
+                    IFNULL(f_40,0)+IFNULL(f_41,0)+IFNULL(f_42,0)+IFNULL(f_43,0)+IFNULL(f_44,0)+
+                    IFNULL(f_45,0)+IFNULL(f_46,0)+IFNULL(f_47,0)+IFNULL(f_48,0)+IFNULL(f_49,0)+
+                    IFNULL(f_50,0)+IFNULL(f_51,0)+IFNULL(f_52,0)+IFNULL(f_53,0)+IFNULL(f_54,0)+
+                    IFNULL(f_55,0)+IFNULL(f_56,0)+IFNULL(f_57,0)+IFNULL(f_58,0)+IFNULL(f_59,0)
+                ), 0) AS val
+                FROM `{tbl}`
+                WHERE f_id = %s
+            """
+            rows = pool._monitor_execute(sql, (fid,))
+            return float(rows[0]["val"]) if rows and rows[0].get("val") is not None else 0.0
+        except Exception as e:
+            logger.debug("get_sum by f_id failed: %s", e)
+            return 0.0
+
     try:
         sql = f"""
             SELECT IFNULL(SUM(
@@ -199,6 +293,23 @@ def run_daily(pool, connection_id: str = "", inspect_date: str = "", nodes: list
     except Exception:
         pass
 
+    node_key_to_fid = {}
+    if table_exists:
+        try:
+            sql = "SELECT f_id, f_mid, f_pmid, f_key FROM m_data_cur"
+            rows = pool._monitor_execute(sql)
+            for r in rows:
+                fid = r.get("f_id")
+                f_mid = r.get("f_mid") or ""
+                f_pmid = r.get("f_pmid") or ""
+                f_key = r.get("f_key")
+                if fid is not None and f_key:
+                    for mid in node_list:
+                        if mid.lower() in f_mid.lower() or mid.lower() in f_pmid.lower():
+                            node_key_to_fid[(mid, f_key)] = int(fid)
+        except Exception as e:
+            logger.debug("Failed to pre-cache f_ids from m_data_cur: %s", e)
+
     rows = []
     conn = _get_connection()
     try:
@@ -206,13 +317,13 @@ def run_daily(pool, connection_id: str = "", inspect_date: str = "", nodes: list
             vals = {}
             if table_exists:
                 # 真实历史表聚合
-                vals["cpu_peak"] = _get_peak(pool, query_table, mid, "cpu_usage_max")
-                vals["cpu_avg"] = _get_peak(pool, query_table, mid, "cpu_usage")
-                vals["mem_peak"] = _get_peak(pool, query_table, mid, "mysql_max_mem_usage")
-                vals["conn_peak"] = _get_peak(pool, query_table, mid, "connect_usage")
-                vals["slow_query"] = _get_sum(pool, query_table, mid, "slow_query")
-                vals["delay_peak"] = _get_peak(pool, query_table, mid, "slave_delay")
-                vals["disk_peak"] = _get_peak(pool, query_table, mid, "data_dir_usage")
+                vals["cpu_peak"] = _get_peak(pool, query_table, mid, "cpu_usage_max", node_key_to_fid)
+                vals["cpu_avg"] = _get_peak(pool, query_table, mid, "cpu_usage", node_key_to_fid)
+                vals["mem_peak"] = _get_peak(pool, query_table, mid, "mysql_max_mem_usage", node_key_to_fid)
+                vals["conn_peak"] = _get_peak(pool, query_table, mid, "connect_usage", node_key_to_fid)
+                vals["slow_query"] = _get_sum(pool, query_table, mid, "slow_query", node_key_to_fid)
+                vals["delay_peak"] = _get_peak(pool, query_table, mid, "slave_delay", node_key_to_fid)
+                vals["disk_peak"] = _get_peak(pool, query_table, mid, "data_dir_usage", node_key_to_fid)
 
                 # 精细指标
                 vals["cpu_cores"] = int(_metric(pool, mid, "oss_cpu") or 800) // 100
@@ -220,13 +331,13 @@ def run_daily(pool, connection_id: str = "", inspect_date: str = "", nodes: list
                 vals["data_disk_gb"] = round(float(_metric(pool, mid, "oss_data_disk") or 500000) / 1000.0, 1)
                 vals["log_disk_gb"] = round(float(_metric(pool, mid, "oss_log_disk") or 100000) / 1000.0, 1)
 
-                vals["cpu_avg_daily"] = _get_avg(pool, query_table, mid, "cpu_usage")
-                vals["mem_avg_daily"] = _get_avg(pool, query_table, mid, "mysql_max_mem_usage")
+                vals["cpu_avg_daily"] = _get_avg(pool, query_table, mid, "cpu_usage", node_key_to_fid)
+                vals["mem_avg_daily"] = _get_avg(pool, query_table, mid, "mysql_max_mem_usage", node_key_to_fid)
 
-                req_l = int(_get_sum(pool, query_table, mid, "proxy_sum_time_range_0"))
-                req_m = int(_get_sum(pool, query_table, mid, "proxy_sum_time_range_1"))
-                req_p = int(_get_sum(pool, query_table, mid, "proxy_sum_time_range_2"))
-                req_n = int(_get_sum(pool, query_table, mid, "proxy_sum_time_range_3"))
+                req_l = int(_get_sum(pool, query_table, mid, "proxy_sum_time_range_0", node_key_to_fid))
+                req_m = int(_get_sum(pool, query_table, mid, "proxy_sum_time_range_1", node_key_to_fid))
+                req_p = int(_get_sum(pool, query_table, mid, "proxy_sum_time_range_2", node_key_to_fid))
+                req_n = int(_get_sum(pool, query_table, mid, "proxy_sum_time_range_3", node_key_to_fid))
                 total_req = req_l + req_m + req_p + req_n
 
                 vals["proxy_req_total"] = total_req
@@ -239,9 +350,9 @@ def run_daily(pool, connection_id: str = "", inspect_date: str = "", nodes: list
                 vals["proxy_t_p"] = round((req_p / total_req * 100.0), 3) if total_req > 0 else 0.0
                 vals["proxy_t_n"] = round((req_n / total_req * 100.0), 3) if total_req > 0 else 0.0
 
-                vals["proxy_active_conn_peak"] = int(_get_peak(pool, query_table, mid, "mysql_sum_conn_active"))
-                vals["proxy_conn_peak"] = int(_get_peak(pool, query_table, mid, "proxy_sum_connect_count"))
-                vals["proxy_err_sql_sum"] = int(_get_sum(pool, query_table, mid, "proxy_sum_total_error_sql"))
+                vals["proxy_active_conn_peak"] = int(_get_peak(pool, query_table, mid, "mysql_sum_conn_active", node_key_to_fid))
+                vals["proxy_conn_peak"] = int(_get_peak(pool, query_table, mid, "proxy_sum_connect_count", node_key_to_fid))
+                vals["proxy_err_sql_sum"] = int(_get_sum(pool, query_table, mid, "proxy_sum_total_error_sql", node_key_to_fid))
             else:
                 # 备用 Mock 规则，方便在任何测试/开发环境下展示完整美观的可视化界面
                 seed = f"{connection_id}_{mid}_{inspect_date}"

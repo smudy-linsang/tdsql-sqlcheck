@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TDSQL数据库SQL审核工具 V1.0.4.6</title>
+  <title>TDSQL数据库SQL审核工具 V1.1.0.0</title>
   <script src="/static/vendor/vue.global.prod.js"></script>
   <link rel="stylesheet" href="/static/vendor/element-plus.css">
   <script src="/static/vendor/element-plus.full.min.js"></script>
@@ -18,7 +18,7 @@
   <div v-if="!authState.token" class="login-page">
     <div class="login-brand">
       <h1>TDSQL数据库SQL审核工具</h1>
-      <div class="version">V1.0.4.6 · Design by Linsang</div>
+      <div class="version">V1.1.0.0 · Design by Linsang</div>
     </div>
     <div class="login-form">
       <el-card>
@@ -84,10 +84,9 @@
             <el-menu-item v-if="visibleMenus.has('slow-schedule')" index="slow-schedule">扫描计划</el-menu-item>
             <el-menu-item v-if="visibleMenus.has('explain')" index="explain">EXPLAIN分析</el-menu-item>
           </el-sub-menu>
-          <el-sub-menu v-if="visibleMenus.has('instances')||visibleMenus.has('health-check')||visibleMenus.has('schema-check')||visibleMenus.has('bigtable')" index="instance-group">
+          <el-sub-menu v-if="visibleMenus.has('instances')||visibleMenus.has('schema-check')||visibleMenus.has('bigtable')" index="instance-group">
             <template #title><el-icon><Coin /></el-icon><span>实例与体检</span></template>
             <el-menu-item v-if="visibleMenus.has('instances')" index="instances">实例管理</el-menu-item>
-            <el-menu-item v-if="visibleMenus.has('health-check')" index="health-check">数据库体检</el-menu-item>
             <el-menu-item v-if="visibleMenus.has('schema-check')" index="schema-check">上线检查</el-menu-item>
             <el-menu-item v-if="visibleMenus.has('bigtable')" index="bigtable">大表治理</el-menu-item>
           </el-sub-menu>
@@ -545,56 +544,6 @@
             </template>
           </el-drawer>
 
-          <!-- ═══ 数据库体检 ═══ -->
-          <div v-if="currentPage==='health-check'">
-            <div class="page-card">
-              <div class="page-card-title">数据库体检</div>
-              <div class="filter-bar">
-                <el-select v-model="currentConnectionId" placeholder="选择实例" filterable size="small" class="w-200">
-                  <el-option v-for="c in savedConnections" :key="c.id" :value="c.id" :label="c.name + ' (' + c.host + ':' + c.port + ')'">
-                    <span style="display:flex;align-items:center;gap:6px"><span :style="{color: c.active ? '#16a34a' : '#94a3b8'}">●</span><span>{{ c.name }} ({{ c.host }}:{{ c.port }})</span></span>
-                  </el-option>
-                </el-select>
-                <el-radio-group v-model="healthCheckType"><el-radio value="charset">字符集一致性</el-radio></el-radio-group>
-                <el-input v-model="healthDbName" placeholder="库名(可选)" clearable size="small" class="w-140"></el-input>
-                <el-button type="primary" size="small" :loading="healthLoading" @click="runHealthCheck">开始检查</el-button>
-              </div>
-              <div v-loading="healthLoading">
-                <el-empty v-if="!healthResult" description="选择检查类型后点击开始"></el-empty>
-                <div v-else>
-                  <template v-if="healthCheckType==='charset'">
-                    <el-alert :title="healthResult.is_consistent?'字符集一致':'发现字符集不一致'" :type="healthResult.is_consistent?'success':'warning'" show-icon :closable="false" class="mb-12"></el-alert>
-                    <div v-if="healthResult.column_mismatches&&healthResult.column_mismatches.length" class="mb-16">
-                      <div class="page-card-title fs-14">列级不一致</div>
-                      <el-table :data="healthResult.column_mismatches" stripe size="small" class="w-full">
-                        <el-table-column prop="TABLE_NAME" label="表" show-overflow-tooltip></el-table-column>
-                        <el-table-column prop="COLUMN_NAME" label="列" show-overflow-tooltip></el-table-column>
-                        <el-table-column prop="col_collation" label="列排序规则" show-overflow-tooltip></el-table-column>
-                        <el-table-column prop="tbl_collation" label="表排序规则" show-overflow-tooltip></el-table-column>
-                      </el-table>
-                    </div>
-                    <div v-if="healthResult.cross_table_mismatches&&healthResult.cross_table_mismatches.length">
-                      <div class="page-card-title fs-14">跨表同名字段不一致</div>
-                      <el-table :data="healthResult.cross_table_mismatches" stripe size="small" class="w-full">
-                        <el-table-column prop="COLUMN_NAME" label="字段" show-overflow-tooltip></el-table-column>
-                        <el-table-column prop="tbl_a" label="表A" show-overflow-tooltip></el-table-column>
-                        <el-table-column prop="col_a" label="A排序规则" show-overflow-tooltip></el-table-column>
-                        <el-table-column prop="tbl_b" label="表B" show-overflow-tooltip></el-table-column>
-                        <el-table-column prop="col_b" label="B排序规则" show-overflow-tooltip></el-table-column>
-                      </el-table>
-                    </div>
-                  </template>
-                  <el-table v-if="healthCheckType==='large-tables'&&(healthResult.tables||[]).length" :data="healthResult.tables||[]" stripe size="small" class="w-full">
-                    <el-table-column prop="TABLE_NAME" label="表名" show-overflow-tooltip></el-table-column>
-                    <el-table-column prop="size_gb" label="大小(GB)" width="80" sortable></el-table-column>
-                    <el-table-column prop="TABLE_ROWS" label="行数" width="100" sortable></el-table-column>
-                    <el-table-column prop="level" label="级别" width="110"><template #default="{row}"><el-tag :type="row.level&&row.level.startsWith('L3')?'danger':row.level&&row.level.startsWith('L2')?'warning':'info'" size="small">{{ row.level }}</el-tag></template></el-table-column>
-                  </el-table>
-                  <el-empty v-if="healthCheckType==='large-tables'&&!(healthResult.tables||[]).length" description="未发现大表"></el-empty>
-                </div>
-              </div>
-            </div>
-          </div>
 
           <!-- ═══ 上线检查 ═══ -->
           <div v-if="currentPage==='schema-check'">
@@ -740,7 +689,7 @@
             </div>
             <el-tabs v-model="deepTab" type="border-card">
               <!-- 集群巡检 G3 -->
-              <el-tab-pane label="集群巡检" name="cluster">
+              <el-tab-pane v-if="visibleMenus.has('deep-diag-cluster')" label="集群巡检" name="cluster">
                 <el-button type="primary" size="small" :loading="deepLoading==='cluster'" :disabled="!deepConnId" @click="runClusterInspect">发起集群深度巡检</el-button>
                 <span v-if="deepResult.cluster" style="margin-left:12px;font-size:13px">节点 {{ deepResult.cluster.node_count }} · <b style="color:var(--danger-500)">ERROR {{ deepResult.cluster.error_count }}</b> · <b style="color:var(--warning-500)">WARNING {{ deepResult.cluster.warning_count }}</b> · INFO {{ deepResult.cluster.info_count }}</span>
                 <el-table v-if="deepResult.cluster" :data="deepResult.cluster.issues" size="small" border style="margin-top:12px" max-height="480">
@@ -753,7 +702,7 @@
               </el-tab-pane>
 
               <!-- 日常巡检与对比报告 G4 -->
-              <el-tab-pane label="日常巡检与对比报告" name="daily_inspect">
+              <el-tab-pane v-if="visibleMenus.has('deep-diag-daily')" label="日常巡检与对比报告" name="daily_inspect">
                 <div style="display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin-bottom:12px">
                   <el-date-picker
                     v-model="dailyInspectDates"
@@ -876,7 +825,7 @@
                 </div>
               </el-tab-pane>
               <!-- 索引体检 G5 -->
-              <el-tab-pane label="索引体检" name="index">
+              <el-tab-pane v-if="visibleMenus.has('deep-diag-index')" label="索引体检" name="index">
                 <el-input v-model="deepDb" placeholder="库名(空=全部业务库)" size="small" style="width:200px;margin-right:8px"></el-input>
                 <el-button type="primary" size="small" :loading="deepLoading==='index'" :disabled="!deepConnId" @click="runIndexAudit">发起索引体检</el-button>
                 <span v-if="deepResult.index" style="margin-left:12px;font-size:13px">表 {{ deepResult.index.total_tables }} / 索引 {{ deepResult.index.total_indexes }} · <b style="color:var(--danger-500)">ERROR {{ deepResult.index.error_count }}</b> · <b style="color:var(--warning-500)">WARNING {{ deepResult.index.warning_count }}</b></span>
@@ -890,7 +839,7 @@
                 </el-table>
               </el-tab-pane>
               <!-- 结构比对 G6 -->
-              <el-tab-pane label="结构比对" name="diff">
+              <el-tab-pane v-if="visibleMenus.has('deep-diag-diff')" label="结构比对" name="diff">
                 <el-select v-model="deepRightConnId" placeholder="对比实例" filterable size="small" style="width:220px;margin-right:8px">
                   <el-option v-for="c in savedConnections" :key="c.id" :label="c.name+' ('+c.host+':'+c.port+')'" :value="c.id"></el-option>
                 </el-select>
@@ -908,7 +857,7 @@
                 </el-table>
               </el-tab-pane>
               <!-- 应急诊断 G7 -->
-              <el-tab-pane label="应急诊断" name="emergency">
+              <el-tab-pane v-if="visibleMenus.has('deep-diag-emergency')" label="应急诊断" name="emergency">
                 <el-button type="primary" size="small" :loading="deepLoading==='emergency'" :disabled="!deepConnId" @click="runEmergency">一键应急体检(只读)</el-button>
                 <div v-if="deepResult.emergency" style="margin-top:12px">
                   <el-collapse>
@@ -923,21 +872,25 @@
                 </div>
               </el-tab-pane>
               <!-- SQL分析 G8 -->
-              <el-tab-pane label="SQL分析" name="sqlstats">
+              <el-tab-pane v-if="visibleMenus.has('deep-diag-sqlstats')" label="SQL分析" name="sqlstats">
                 <el-button type="primary" size="small" :loading="deepLoading==='sqlstats'" :disabled="!deepConnId" @click="runSqlStats">SQL调用量多维分析</el-button>
                 <div v-if="deepResult.sqlstats" style="margin-top:12px">
                   <div style="font-size:13px;margin-bottom:8px">SQL类别 {{ deepResult.sqlstats.sql_class_count }} · 总执行 {{ deepResult.sqlstats.total_exec }}</div>
                   <el-table :data="deepResult.sqlstats.top_slow" size="small" border max-height="360">
                     <el-table-column prop="sql_type" label="类型" width="90"></el-table-column>
                     <el-table-column prop="db_name" label="库" width="110"></el-table-column>
-                    <el-table-column prop="avg_seconds" label="平均耗时(s)" width="120"></el-table-column>
+                    <el-table-column label="平均耗时(ms)" width="120">
+                      <template #default="{row}">
+                        {{ row.avg_seconds != null ? (row.avg_seconds * 1000).toFixed(2) : '0.00' }}
+                      </template>
+                    </el-table-column>
                     <el-table-column prop="exec_count" label="次数" width="100"></el-table-column>
                     <el-table-column prop="fingerprint" label="慢SQL(TOP慢)"></el-table-column>
                   </el-table>
                 </div>
               </el-tab-pane>
               <!-- 网关日志分析 G11 -->
-              <el-tab-pane label="网关日志分析" name="gateway_log">
+              <el-tab-pane v-if="visibleMenus.has('deep-diag-gateway')" label="网关日志分析" name="gateway_log">
                 <div class="mb12" style="margin-bottom:12px">
                   <el-upload
                     action=""
@@ -964,7 +917,7 @@
                 </el-table>
               </el-tab-pane>
               <!-- PDF报告与大屏 G12 -->
-              <el-tab-pane label="PDF报告与大屏" name="ppt_report">
+              <el-tab-pane v-if="visibleMenus.has('deep-diag-ppt')" label="PDF报告与大屏" name="ppt_report">
                 <div class="mb12" style="display:flex; justify-content: space-between; align-items: center; margin-bottom:12px">
                   <span style="font-size: 14px; font-weight: bold">实例运维报告与总览大屏</span>
                   <el-button type="success" size="small" :loading="pptLoading" :disabled="!deepConnId" @click="generatePptReport">导出汇报 PDF</el-button>
@@ -1003,7 +956,7 @@
                 </div>
               </el-tab-pane>
               <!-- 运维工具箱 G13 -->
-              <el-tab-pane label="运维工具箱" name="toolkit">
+              <el-tab-pane v-if="visibleMenus.has('deep-diag-toolkit')" label="运维工具箱" name="toolkit">
                 <el-table :data="toolkitScripts" border size="small" v-loading="toolkitLoading">
                   <el-table-column prop="category" label="分类" width="120"></el-table-column>
                   <el-table-column prop="name" label="工具包名称" width="220"></el-table-column>

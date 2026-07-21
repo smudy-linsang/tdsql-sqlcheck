@@ -10,7 +10,7 @@
 #   加 --with-python 会额外内置便携 CPython（目标机无 python3.9+ 时使用）
 # ============================================================================
 set -euo pipefail
-VERSION="1.0.4.6"
+VERSION="1.1.0.0"
 ARCH="x86_64"; PYTAG="311"; WITH_PYTHON="no"
 while [[ $# -gt 0 ]]; do case "$1" in
   --arch) ARCH="$2"; shift 2;;
@@ -18,22 +18,27 @@ while [[ $# -gt 0 ]]; do case "$1" in
   --with-python) WITH_PYTHON="yes"; shift;;
   *) echo "未知参数 $1"; exit 1;; esac; done
 [[ "$ARCH" == "x86_64" || "$ARCH" == "aarch64" ]] || { echo "--arch 仅支持 x86_64/aarch64"; exit 1; }
+[[ "$WITH_PYTHON" == "yes" ]] && { echo "警告: 内置 CPython 将大幅增加发布包体积"; }
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STAGE="${ROOT}/dist/stage-${ARCH}"
 PKG="tdsql-sqlcheck-v${VERSION}-linux-${ARCH}"
-rm -rf "${STAGE}"; mkdir -p "${STAGE}/${PKG}" "${ROOT}/dist"
 
-echo "[1/5] 复制代码与部署脚本"
-cp -a "${ROOT}/backend" "${ROOT}/frontend" "${ROOT}/requirements.txt" "${STAGE}/${PKG}/"
+echo "[1/5] 清理并准备构建目录: ${PKG}"
+rm -rf "${STAGE}"
 mkdir -p "${STAGE}/${PKG}/deploy"
+
+# 拷贝核心目录
+cp -a "${ROOT}/backend" "${STAGE}/${PKG}/"
+cp -a "${ROOT}/frontend" "${STAGE}/${PKG}/"
+cp -a "${ROOT}/requirements.txt" "${STAGE}/${PKG}/"
 cp -a "${ROOT}/deploy/"*.sh "${ROOT}/deploy/"*.service "${ROOT}/deploy/env.template" \
       "${ROOT}/deploy/nginx-sqlcheck.conf" "${ROOT}/deploy/README.md" "${STAGE}/${PKG}/deploy/" 2>/dev/null || true
 # 文档随包（部署/运维/上线清单）
 mkdir -p "${STAGE}/${PKG}/docs"
 cp -a "${ROOT}/docs/部署手册-v1.0.2.md" "${ROOT}/docs/运维手册-v1.0.2.md" \
       "${ROOT}/docs/上线检查清单-v1.0.2.md" "${ROOT}/docs/发布说明-v1.0.2.md" \
-      "${ROOT}/docs/v1.0.4.6_upgrade_manual.md" "${STAGE}/${PKG}/docs/" 2>/dev/null || true
+      "${ROOT}/docs/v1.1.0.0_upgrade_manual.md" "${STAGE}/${PKG}/docs/" 2>/dev/null || true
 echo "${VERSION}" > "${STAGE}/${PKG}/VERSION"
 find "${STAGE}/${PKG}" -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
 
