@@ -10,7 +10,7 @@ from backend.engine.parser import ParsedSQL, SQLParser
 from backend.engine.rules import ALL_RULE_CLASSES
 from backend.engine.rules.base import BaseRule
 from backend.models import (
-    AuditResult, AuditSummary, Violation,
+    AuditResult, AuditSummary, Violation, RuleCategory,
 )
 
 
@@ -107,6 +107,16 @@ class RuleChecker:
         """
         parsed = self.parser.parse(sql)
         violations: list[Violation] = []
+
+        # 语法解析报错或结构不全时直接报 ERROR
+        if parsed.parse_error:
+            violations.append(Violation(
+                rule_id="E999_SYNTAX_ERROR",
+                category=RuleCategory.DDL if ("CREATE" in sql.upper() or "ALTER" in sql.upper()) else RuleCategory.DML,
+                severity="ERROR",
+                message=f"SQL 语句无法解析或结构不完整（可能是拉取截断/语法错误）: {parsed.parse_error}",
+                line_number=line_number,
+            ))
 
         for rule in self.get_enabled_rules(rule_overrides):
             # DDL 规则只在 CREATE/ALTER/DROP 时检查
@@ -267,26 +277,28 @@ class RuleChecker:
 
     def _split_sql_file(self, content: str) -> list[tuple[str, int]]:
         """
-        将 SQL 文件按分号分割为多条 SQL。
+        将 SQL 文件按分号及 SQL Object 注释标志智能分割为多条 SQL。
         返回 [(sql, line_number), ...]
         """
         results = []
+        # 防粘连：如果丢失分号，通过 -- SQL Object: 或 -- Table: 做智能分界
+        pre_split = re.split(r"(?=\n\s*--\s*(?:SQL Object:|Table:|View:))", content)
         current_line = 1
-        statements = content.split(";")
-        for stmt in statements:
-            stmt_stripped = stmt.strip()
-            if not stmt_stripped:
-                current_line += stmt.count("\n") + 1
-                continue
-            # 跳过纯注释语句（去掉注释后为空）
-            # 移除行注释和块注释后检查是否还有实际SQL
-            cleaned = re.sub(r"--[^\n]*", "", stmt_stripped)
-            cleaned = re.sub(r"/\*.*?\*/", "", cleaned, flags=re.DOTALL)
-            cleaned = cleaned.strip()
-            if not cleaned:
-                # 纯注释，跳过
-                current_line += stmt.count("\n") + 1
-                continue
-            results.append((stmt_stripped, current_line))
-            current_line += stmt.count("\n") + 1
+
+        for block in pre_split:
+            statements = block.split(";")
+            for stmt in statements:
+                stmt_stripped = stmt.strip()
+                if not stmt_stripped:
+                    current_line += stmt.count("\n") + (1 if ";" in stmt else 0)
+                    continue
+                # 跳过纯注释语句（去掉注释后为空）
+                cleaned = re.sub(r"--[^\n]*", "", stmt_stripped)
+                cleaned = re.sub(r"/\*.*?\*/", "", cleaned, flags=re.DOTALL)
+                cleaned = cleaned.strip()
+                if not cleaned:
+                    current_line += stmt.count("\n") + (1 if ";" in stmt else 0)
+                    continue
+                results.append((stmt_stripped, current_line))
+                current_line += stmt.count("\n") + (1 if ";" in stmt else 0)
         return results

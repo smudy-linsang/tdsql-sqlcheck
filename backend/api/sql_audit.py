@@ -194,23 +194,41 @@ async def extract_and_audit(http_request: Request, payload: dict):
                     try:
                         cursor.execute(f"SHOW CREATE TABLE `{target_db}`.`{obj_name}`")
                         res = cursor.fetchone()
-                        create_sql = list(res.values())[1] if res else ""
+                        create_sql = ""
+                        if res and isinstance(res, dict):
+                            create_sql = res.get("Create Table") or res.get("CREATE TABLE") or ""
+                            if not create_sql:
+                                for v in res.values():
+                                    val_str = str(v or "").strip()
+                                    if "CREATE" in val_str.upper():
+                                        create_sql = val_str
+                                        break
                         if create_sql:
+                            extracted_sqls.append(f"-- SQL Object: CREATE TABLE")
                             extracted_sqls.append(f"-- Table: {obj_name}")
                             extracted_sqls.append(f"{create_sql.rstrip(';')};\n")
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.warning(f"拉取表 {obj_name} DDL 失败: {e}")
                         
                 elif "VIEW" in scopes and "VIEW" in obj_type.upper():
                     try:
                         cursor.execute(f"SHOW CREATE VIEW `{target_db}`.`{obj_name}`")
                         res = cursor.fetchone()
-                        create_sql = list(res.values())[1] if res else ""
+                        create_sql = ""
+                        if res and isinstance(res, dict):
+                            create_sql = res.get("Create View") or res.get("CREATE VIEW") or ""
+                            if not create_sql:
+                                for v in res.values():
+                                    val_str = str(v or "").strip()
+                                    if "CREATE" in val_str.upper():
+                                        create_sql = val_str
+                                        break
                         if create_sql:
+                            extracted_sqls.append(f"-- SQL Object: CREATE VIEW")
                             extracted_sqls.append(f"-- View: {obj_name}")
                             extracted_sqls.append(f"{create_sql.rstrip(';')};\n")
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.warning(f"拉取视图 {obj_name} DDL 失败: {e}")
 
         full_extracted_sql = "\n".join(extracted_sqls)
         filename = f"extracted_{target_db}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.sql"
