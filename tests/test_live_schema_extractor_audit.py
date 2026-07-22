@@ -11,11 +11,11 @@ client = TestClient(app)
 def test_extract_and_audit_unauthorized():
     """未登录或无 Token 时响应状态非 200"""
     resp = client.post("/api/v1/audit/extract-and-audit", json={"connection_id": "test"})
-    assert resp.status_code in (401, 403, 404)
+    assert resp.status_code in (400, 401, 403, 404)
 
 
 def test_extract_and_audit_invalid_conn():
-    """选择无效连接 ID 时应返回 404"""
+    """选择未建连的 ID 姿态时应返回 400"""
     login_resp = client.post("/api/v1/auth/login", json={"username": "admin", "password": "adminpassword"})
     token = login_resp.json().get("token", "")
     
@@ -24,5 +24,5 @@ def test_extract_and_audit_invalid_conn():
         headers={"Authorization": f"Bearer {token}"},
         json={"connection_id": "non_existent_conn_9999"}
     )
-    assert resp.status_code == 404
-    assert "不存在" in resp.json()["detail"]
+    assert resp.status_code == 400
+    assert "未激活" in resp.json()["detail"] or "请在" in resp.json()["detail"]

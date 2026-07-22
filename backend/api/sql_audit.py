@@ -150,29 +150,15 @@ async def extract_and_audit(http_request: Request, payload: dict):
     if not connection_id:
         raise HTTPException(status_code=400, detail="请选择目标数据库实例")
 
-    import logging
-    logger = logging.getLogger("tdsql.sql_audit")
-
-    from backend.services.connection_registry import registry
-    conn_info = registry.get_saved(connection_id)
-    if not conn_info:
-        raise HTTPException(status_code=404, detail="选定的数据库实例连接不存在")
+    from backend.services.connection_registry import registry, ConnectionNotFoundError
+    try:
+        pool = registry.get(connection_id)
+        conn_info = registry.get_saved(connection_id) or {}
+    except ConnectionNotFoundError:
+        raise HTTPException(status_code=400, detail="选定的数据库实例未激活，请在「实例管理」中连接或重试")
 
     try:
-        db_user = conn_info.get("user") or conn_info.get("username") or "root"
-        db_password = conn_info.get("password") or conn_info.get("password_encrypted") or ""
-        db_host = conn_info.get("host", "127.0.0.1")
-        db_port = int(conn_info.get("port", 3306))
-
         from backend.connectors.metadata_fetcher import MetadataFetcher
-        from backend.connectors.connection_pool import ConnectionPool
-        pool = ConnectionPool(
-            host=db_host,
-            port=db_port,
-            user=db_user,
-            password=db_password,
-            database=database_name or conn_info.get("database", "")
-        )
         fetcher = MetadataFetcher(pool)
         
         # 1. 抓取该库下的表清单与 VIEW 列表
@@ -182,7 +168,9 @@ async def extract_and_audit(http_request: Request, payload: dict):
         extracted_sqls = []
         extracted_sqls.append(f"-- ============================================================================")
         extracted_sqls.append(f"-- TDSQL 自动拉取的最新在线元数据描述文件")
-        extracted_sqls.append(f"-- 目标实例: {conn_info.get('name', 'TDSQL')} ({conn_info['host']}:{conn_info['port']})")
+        host_str = conn_info.get('host', 'TDSQL')
+        port_str = conn_info.get('port', 3306)
+        extracted_sqls.append(f"-- 目标实例: {conn_info.get('name', 'TDSQL')} ({host_str}:{port_str})")
         extracted_sqls.append(f"-- 目标数据库: {target_db}")
         extracted_sqls.append(f"-- 提取日期: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         extracted_sqls.append(f"-- ============================================================================\n")
