@@ -8,11 +8,17 @@ import logging
 import hashlib
 import json
 import html
+import time
+from concurrent.futures import ThreadPoolExecutor
 
 from backend.services.database import _get_connection
 from backend.services.cluster_inspect_service import _metric, _discover_nodes
 
 logger = logging.getLogger("tdsql.daily_inspect")
+
+# 30秒 TTL 全局巡检内存缓存 (Key: connection_id:inspect_date)
+_DAILY_CACHE = {}
+_CACHE_TTL = 30
 
 # 实例指标映射
 _METRICS = {
@@ -267,9 +273,18 @@ def _get_sum(pool, tbl: str, mid: str, key: str, node_key_to_fid: dict = None) -
 
 
 def run_daily(pool, connection_id: str = "", inspect_date: str = "", nodes: list = None) -> dict:
-    """采集某日各监控对象的精细巡检指标并落库。"""
+    """采集某日各监控对象的精细巡检指标并落库（三重加速重构版）。"""
     if not inspect_date:
         inspect_date = _dt.date.today().strftime("%Y-%m-%d")
+
+    # 1. 方案三: 检查 30秒 内存快照缓存
+    cache_key = f"{connection_id}:{inspect_date}:{','.join(nodes or [])}"
+    now_ts = time.time()
+    if cache_key in _DAILY_CACHE:
+        cached_ts, cached_data = _DAILY_CACHE[cache_key]
+        if now_ts - cached_ts < _CACHE_TTL:
+            logger.info("命中 30秒 日常巡检快照缓存，直接返回 (%s)", cache_key)
+            return cached_data
 
     node_list = nodes if nodes else _discover_nodes(pool)
     if not node_list:
@@ -310,89 +325,102 @@ def run_daily(pool, connection_id: str = "", inspect_date: str = "", nodes: list
         except Exception as e:
             logger.debug("Failed to pre-cache f_ids from m_data_cur: %s", e)
 
+    def _process_node(mid: str) -> dict:
+        """单节点多指标快速计算逻辑"""
+        vals = {}
+        if table_exists:
+            # 真实历史表聚合
+            vals["cpu_peak"] = _get_peak(pool, query_table, mid, "cpu_usage_max", node_key_to_fid)
+            vals["cpu_avg"] = _get_peak(pool, query_table, mid, "cpu_usage", node_key_to_fid)
+            vals["mem_peak"] = _get_peak(pool, query_table, mid, "mysql_max_mem_usage", node_key_to_fid)
+            vals["conn_peak"] = _get_peak(pool, query_table, mid, "connect_usage", node_key_to_fid)
+            vals["slow_query"] = _get_sum(pool, query_table, mid, "slow_query", node_key_to_fid)
+            vals["delay_peak"] = _get_peak(pool, query_table, mid, "slave_delay", node_key_to_fid)
+            vals["disk_peak"] = _get_peak(pool, query_table, mid, "data_dir_usage", node_key_to_fid)
+
+            # 精细指标
+            vals["cpu_cores"] = int(_metric(pool, mid, "oss_cpu") or 800) // 100
+            vals["mem_gb"] = round(float(_metric(pool, mid, "oss_memory") or 16000) / 1000.0, 1)
+            vals["data_disk_gb"] = round(float(_metric(pool, mid, "oss_data_disk") or 500000) / 1000.0, 1)
+            vals["log_disk_gb"] = round(float(_metric(pool, mid, "oss_log_disk") or 100000) / 1000.0, 1)
+
+            vals["cpu_avg_daily"] = _get_avg(pool, query_table, mid, "cpu_usage", node_key_to_fid)
+            vals["mem_avg_daily"] = _get_avg(pool, query_table, mid, "mysql_max_mem_usage", node_key_to_fid)
+
+            req_l = int(_get_sum(pool, query_table, mid, "proxy_sum_time_range_0", node_key_to_fid))
+            req_m = int(_get_sum(pool, query_table, mid, "proxy_sum_time_range_1", node_key_to_fid))
+            req_p = int(_get_sum(pool, query_table, mid, "proxy_sum_time_range_2", node_key_to_fid))
+            req_n = int(_get_sum(pool, query_table, mid, "proxy_sum_time_range_3", node_key_to_fid))
+            total_req = req_l + req_m + req_p + req_n
+
+            vals["proxy_req_total"] = total_req
+            vals["proxy_req_l"] = req_l
+            vals["proxy_req_m"] = req_m
+            vals["proxy_req_p"] = req_p
+            vals["proxy_req_n"] = req_n
+            vals["proxy_t_l"] = round((req_l / total_req * 100.0), 3) if total_req > 0 else 100.0
+            vals["proxy_t_m"] = round((req_m / total_req * 100.0), 3) if total_req > 0 else 0.0
+            vals["proxy_t_p"] = round((req_p / total_req * 100.0), 3) if total_req > 0 else 0.0
+            vals["proxy_t_n"] = round((req_n / total_req * 100.0), 3) if total_req > 0 else 0.0
+
+            vals["proxy_active_conn_peak"] = int(_get_peak(pool, query_table, mid, "mysql_sum_conn_active", node_key_to_fid))
+            vals["proxy_conn_peak"] = int(_get_peak(pool, query_table, mid, "proxy_sum_connect_count", node_key_to_fid))
+            vals["proxy_err_sql_sum"] = int(_get_sum(pool, query_table, mid, "proxy_sum_total_error_sql", node_key_to_fid))
+        else:
+            # 备用 Mock 规则，方便在任何测试/开发环境下展示完整美观的可视化界面
+            seed = f"{connection_id}_{mid}_{inspect_date}"
+            vals["cpu_peak"] = _mock_val(seed + "cpu_p", 12.0, 85.0)
+            vals["cpu_avg"] = _mock_val(seed + "cpu_a", 8.0, 45.0)
+            vals["mem_peak"] = _mock_val(seed + "mem_p", 40.0, 92.0)
+            vals["conn_peak"] = _mock_val(seed + "conn_p", 10.0, 75.0)
+            vals["slow_query"] = int(_mock_val(seed + "slow", 10, 450, 0))
+            vals["delay_peak"] = _mock_val(seed + "delay", 0.0, 3.0)
+            if vals["delay_peak"] < 0.2:
+                vals["delay_peak"] = 0.0
+            vals["disk_peak"] = _mock_val(seed + "disk", 25.0, 82.0)
+
+            vals["cpu_cores"] = int(_mock_val(seed + "cores", 8, 32, 0))
+            vals["mem_gb"] = float(_mock_val(seed + "mgb", 32, 128, 0))
+            vals["data_disk_gb"] = float(_mock_val(seed + "dgb", 500, 2000, 0))
+            vals["log_disk_gb"] = float(_mock_val(seed + "lgb", 100, 500, 0))
+
+            vals["cpu_avg_daily"] = round(vals["cpu_avg"] * 0.7, 2)
+            vals["mem_avg_daily"] = round(vals["mem_peak"] * 0.9, 2)
+
+            req_l = int(_mock_val(seed + "reql", 10000, 500000, 0))
+            req_m = int(_mock_val(seed + "reqm", 200, 8000, 0))
+            req_p = int(_mock_val(seed + "reqp", 10, 1200, 0))
+            req_n = int(_mock_val(seed + "reqn", 5, 200, 0))
+            total_req = req_l + req_m + req_p + req_n
+
+            vals["proxy_req_total"] = total_req
+            vals["proxy_req_l"] = req_l
+            vals["proxy_req_m"] = req_m
+            vals["proxy_req_p"] = req_p
+            vals["proxy_req_n"] = req_n
+            vals["proxy_t_l"] = round((req_l / total_req * 100.0), 3) if total_req > 0 else 100.0
+            vals["proxy_t_m"] = round((req_m / total_req * 100.0), 3) if total_req > 0 else 0.0
+            vals["proxy_t_p"] = round((req_p / total_req * 100.0), 3) if total_req > 0 else 0.0
+            vals["proxy_t_n"] = round((req_n / total_req * 100.0), 3) if total_req > 0 else 0.0
+
+            vals["proxy_active_conn_peak"] = int(_mock_val(seed + "act_conn", 5, 80, 0))
+            vals["proxy_conn_peak"] = int(_mock_val(seed + "prx_conn", 50, 600, 0))
+            vals["proxy_err_sql_sum"] = int(_mock_val(seed + "err_sql", 0, 12, 0))
+
+        return {"mid": mid, "vals": vals}
+
+    # 2. 方案二: 线程池多节点并发采集
+    node_results = []
+    max_workers = min(8, max(1, len(node_list)))
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        node_results = list(executor.map(_process_node, node_list))
+
     rows = []
     conn = _get_connection()
     try:
-        for mid in node_list:
-            vals = {}
-            if table_exists:
-                # 真实历史表聚合
-                vals["cpu_peak"] = _get_peak(pool, query_table, mid, "cpu_usage_max", node_key_to_fid)
-                vals["cpu_avg"] = _get_peak(pool, query_table, mid, "cpu_usage", node_key_to_fid)
-                vals["mem_peak"] = _get_peak(pool, query_table, mid, "mysql_max_mem_usage", node_key_to_fid)
-                vals["conn_peak"] = _get_peak(pool, query_table, mid, "connect_usage", node_key_to_fid)
-                vals["slow_query"] = _get_sum(pool, query_table, mid, "slow_query", node_key_to_fid)
-                vals["delay_peak"] = _get_peak(pool, query_table, mid, "slave_delay", node_key_to_fid)
-                vals["disk_peak"] = _get_peak(pool, query_table, mid, "data_dir_usage", node_key_to_fid)
-
-                # 精细指标
-                vals["cpu_cores"] = int(_metric(pool, mid, "oss_cpu") or 800) // 100
-                vals["mem_gb"] = round(float(_metric(pool, mid, "oss_memory") or 16000) / 1000.0, 1)
-                vals["data_disk_gb"] = round(float(_metric(pool, mid, "oss_data_disk") or 500000) / 1000.0, 1)
-                vals["log_disk_gb"] = round(float(_metric(pool, mid, "oss_log_disk") or 100000) / 1000.0, 1)
-
-                vals["cpu_avg_daily"] = _get_avg(pool, query_table, mid, "cpu_usage", node_key_to_fid)
-                vals["mem_avg_daily"] = _get_avg(pool, query_table, mid, "mysql_max_mem_usage", node_key_to_fid)
-
-                req_l = int(_get_sum(pool, query_table, mid, "proxy_sum_time_range_0", node_key_to_fid))
-                req_m = int(_get_sum(pool, query_table, mid, "proxy_sum_time_range_1", node_key_to_fid))
-                req_p = int(_get_sum(pool, query_table, mid, "proxy_sum_time_range_2", node_key_to_fid))
-                req_n = int(_get_sum(pool, query_table, mid, "proxy_sum_time_range_3", node_key_to_fid))
-                total_req = req_l + req_m + req_p + req_n
-
-                vals["proxy_req_total"] = total_req
-                vals["proxy_req_l"] = req_l
-                vals["proxy_req_m"] = req_m
-                vals["proxy_req_p"] = req_p
-                vals["proxy_req_n"] = req_n
-                vals["proxy_t_l"] = round((req_l / total_req * 100.0), 3) if total_req > 0 else 100.0
-                vals["proxy_t_m"] = round((req_m / total_req * 100.0), 3) if total_req > 0 else 0.0
-                vals["proxy_t_p"] = round((req_p / total_req * 100.0), 3) if total_req > 0 else 0.0
-                vals["proxy_t_n"] = round((req_n / total_req * 100.0), 3) if total_req > 0 else 0.0
-
-                vals["proxy_active_conn_peak"] = int(_get_peak(pool, query_table, mid, "mysql_sum_conn_active", node_key_to_fid))
-                vals["proxy_conn_peak"] = int(_get_peak(pool, query_table, mid, "proxy_sum_connect_count", node_key_to_fid))
-                vals["proxy_err_sql_sum"] = int(_get_sum(pool, query_table, mid, "proxy_sum_total_error_sql", node_key_to_fid))
-            else:
-                # 备用 Mock 规则，方便在任何测试/开发环境下展示完整美观的可视化界面
-                seed = f"{connection_id}_{mid}_{inspect_date}"
-                vals["cpu_peak"] = _mock_val(seed + "cpu_p", 12.0, 85.0)
-                vals["cpu_avg"] = _mock_val(seed + "cpu_a", 8.0, 45.0)
-                vals["mem_peak"] = _mock_val(seed + "mem_p", 40.0, 92.0)
-                vals["conn_peak"] = _mock_val(seed + "conn_p", 10.0, 75.0)
-                vals["slow_query"] = int(_mock_val(seed + "slow", 10, 450, 0))
-                vals["delay_peak"] = _mock_val(seed + "delay", 0.0, 3.0)
-                if vals["delay_peak"] < 0.2:
-                    vals["delay_peak"] = 0.0
-                vals["disk_peak"] = _mock_val(seed + "disk", 25.0, 82.0)
-
-                vals["cpu_cores"] = int(_mock_val(seed + "cores", 8, 32, 0))
-                vals["mem_gb"] = float(_mock_val(seed + "mgb", 32, 128, 0))
-                vals["data_disk_gb"] = float(_mock_val(seed + "dgb", 500, 2000, 0))
-                vals["log_disk_gb"] = float(_mock_val(seed + "lgb", 100, 500, 0))
-
-                vals["cpu_avg_daily"] = round(vals["cpu_avg"] * 0.7, 2)
-                vals["mem_avg_daily"] = round(vals["mem_peak"] * 0.9, 2)
-
-                req_l = int(_mock_val(seed + "reql", 10000, 500000, 0))
-                req_m = int(_mock_val(seed + "reqm", 200, 8000, 0))
-                req_p = int(_mock_val(seed + "reqp", 10, 1200, 0))
-                req_n = int(_mock_val(seed + "reqn", 5, 200, 0))
-                total_req = req_l + req_m + req_p + req_n
-
-                vals["proxy_req_total"] = total_req
-                vals["proxy_req_l"] = req_l
-                vals["proxy_req_m"] = req_m
-                vals["proxy_req_p"] = req_p
-                vals["proxy_req_n"] = req_n
-                vals["proxy_t_l"] = round((req_l / total_req * 100.0), 3) if total_req > 0 else 98.0
-                vals["proxy_t_m"] = round((req_m / total_req * 100.0), 3) if total_req > 0 else 1.5
-                vals["proxy_t_p"] = round((req_p / total_req * 100.0), 3) if total_req > 0 else 0.4
-                vals["proxy_t_n"] = round((req_n / total_req * 100.0), 3) if total_req > 0 else 0.1
-
-                vals["proxy_active_conn_peak"] = int(_mock_val(seed + "actconn", 100, 800, 0))
-                vals["proxy_conn_peak"] = int(_mock_val(seed + "proxconn", 120, 1500, 0))
-                vals["proxy_err_sql_sum"] = int(_mock_val(seed + "errsql", 0, 50, 0))
+        for nr in node_results:
+            mid = nr["mid"]
+            vals = nr["vals"]
 
             # 主备延迟 Bug 过滤规则
             if vals["delay_peak"] == 4.0:
@@ -430,8 +458,16 @@ def run_daily(pool, connection_id: str = "", inspect_date: str = "", nodes: list
         conn.commit()
     finally:
         conn.close()
-    return {"inspect_date": inspect_date, "connection_id": connection_id,
-            "node_count": len(node_list), "rows": rows}
+    
+    result = {
+        "status": "SUCCESS",
+        "inspect_date": inspect_date,
+        "connection_id": connection_id,
+        "node_count": len(node_list),
+        "rows": rows
+    }
+    _DAILY_CACHE[cache_key] = (time.time(), result)
+    return result
 
 
 def run_server_daily(conn, connection_id: str, inspect_date: str):

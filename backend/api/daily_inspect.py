@@ -1,4 +1,5 @@
 """M3 · G4 每日巡检 + 趋势与对比分析 API"""
+import asyncio
 from fastapi import APIRouter, HTTPException, Response, Query
 from pydantic import BaseModel, Field
 from typing import Optional, List as TypedList
@@ -28,10 +29,13 @@ async def run(body: DailyRequest):
         if "mock" not in body.connection_id.lower() and "test" not in body.connection_id.lower():
             raise HTTPException(status_code=400, detail=f"monitordb不可用: {probe['error']}")
     try:
-        return svc.run_daily(pool, connection_id=body.connection_id,
-                             inspect_date=body.inspect_date, nodes=body.nodes)
+        # 使用 asyncio.to_thread 调度至 Worker 线程池，释放 Event Loop
+        return await asyncio.to_thread(
+            svc.run_daily, pool, connection_id=body.connection_id,
+            inspect_date=body.inspect_date, nodes=body.nodes
+        )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.get("/trend", summary="多日趋势")

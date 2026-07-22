@@ -11,13 +11,13 @@ ok()  { echo "  [PASS] $*"; PASS=$((PASS+1)); }
 bad() { echo "  [FAIL] $*"; FAILC=$((FAILC+1)); }
 J() { python3 -c "import sys,json;d=json.load(sys.stdin);print($1)" 2>/dev/null; }
 
-echo "════ 部署验证 v1.2.0.3 @ ${BASE} ════"
+echo "════ 部署验证 v1.2.0.4 @ ${BASE} ════"
 echo ""
 
 ok "探针响应 $(curl -s -m 3 ${BASE}/health)"
 
 VER=$(curl -s -m 3 ${BASE}/health | grep -o '"version":"[^"]*"' | cut -d'"' -f4)
-[[ "$VER" == "1.2.0.3" ]] && ok "版本号 ${VER}" || bad "版本号异常: ${VER}(期望1.2.0.3)"
+[[ "$VER" == "1.2.0.4" ]] && ok "版本号 ${VER}" || bad "版本号异常: ${VER}(期望1.2.0.4)"
 
 # 2. 前端资产
 FRONT=$(curl -s -m ${TIMEOUT} "${BASE}/")
