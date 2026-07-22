@@ -252,19 +252,20 @@ async def get_extracted_reports(limit: int = 20, offset: int = 0):
     ensure_db()
     conn = _get_connection()
     try:
+        like_pattern = "extracted_%.sql"
         rows = conn.execute("""
             SELECT id, audit_type, source, total_sql, passed, failed, error_count,
                    warning_count, pass_rate, created_by, created_at, results_json
             FROM audit_history
-            WHERE audit_type = 'extracted_schema' OR source LIKE 'extracted_%.sql'
+            WHERE audit_type = ? OR source LIKE ?
             ORDER BY created_at DESC
             LIMIT ? OFFSET ?
-        """, (limit, offset)).fetchall()
+        """, ("extracted_schema", like_pattern, limit, offset)).fetchall()
         
         count_row = conn.execute("""
             SELECT COUNT(*) FROM audit_history 
-            WHERE audit_type = 'extracted_schema' OR source LIKE 'extracted_%.sql'
-        """).fetchone()
+            WHERE audit_type = ? OR source LIKE ?
+        """, ("extracted_schema", like_pattern)).fetchone()
         total = count_row[0] if count_row else 0
         
         return {
