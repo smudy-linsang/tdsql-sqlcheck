@@ -66,7 +66,7 @@ def download_script(file_path: str):
 
 @router.post("/run")
 def trigger_tool_run(payload: dict, http_request: Request = None):
-    """提交工具箱任务"""
+    """提交工具箱运维调度任务（离线执行桩，记录追溯日志）"""
     from backend.services.tool_bridge_service import tool_bridge_service
     tool_name = payload.get("tool_name", "generic_tool")
     conn_id = payload.get("connection_id", "")
@@ -75,7 +75,7 @@ def trigger_tool_run(payload: dict, http_request: Request = None):
     if isinstance(operator, dict):
         operator = operator.get("username") or "system"
     run_id = tool_bridge_service.create_run_task(tool_name, conn_id, params, str(operator))
-    return {"status": "SUCCESS", "run_id": run_id, "message": "任务已提交调度"}
+    return {"status": "SUCCESS", "run_id": run_id, "message": "离线运维任务已成功登记调度（离线执行桩）"}
 
 
 @router.get("/history")

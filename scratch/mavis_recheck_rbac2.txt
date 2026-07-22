@@ -1,0 +1,52 @@
+﻿============================================================
+复测 #1: BUG-RBAC-01 — /api/v1/admin/operation-logs
+============================================================
+  login admin: OK
+  login test_dba: OK
+  login test_developer: OK
+  login test_auditor: OK
+
+  admin                -> 200
+  test_dba             -> 403
+  test_developer       -> 403
+  test_auditor         -> 200
+
+期望:
+  admin        -> 200  (允许)
+  test_dba     -> 403  (BUG-RBAC-01 修复验证)
+  test_developer -> 403 (本就一直禁止)
+  test_auditor -> 200  (允许)
+
+============================================================
+复测 #2: 数据库 role_permissions — sys-auditlog 可见性
+============================================================
+python : Traceback (most recent call last):
+所在位置 行:1 字符: 175
++ ... IOENCODING='utf-8'; python scratch/mavis_recheck_rbac.py 2>&1 | Out-F ...
++                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Traceback (most recent call last)::String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  File "C:\TDSQL_SQLCHECK\TDSQL-SQLCheck\scratch\mavis_recheck_rbac.py", line 73, in <module>
+    conn = pymysql.connect(host="127.0.0.1", port=13306, user="root", password="root", database="tdsql_sqlcheck_test")
+  File "C:\Users\linsa\AppData\Roaming\Python\Python314\site-packages\pymysql\connections.py", line 372, in __init__
+    self.connect()
+    ~~~~~~~~~~~~^^
+  File "C:\Users\linsa\AppData\Roaming\Python\Python314\site-packages\pymysql\connections.py", line 702, in connect
+    self._request_authentication()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\linsa\AppData\Roaming\Python\Python314\site-packages\pymysql\connections.py", line 1000, in _request_a
+uthentication
+    auth_packet = self._read_packet()
+  File "C:\Users\linsa\AppData\Roaming\Python\Python314\site-packages\pymysql\connections.py", line 803, in _read_packe
+t
+    packet.raise_for_error()
+    ~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\linsa\AppData\Roaming\Python\Python314\site-packages\pymysql\protocol.py", line 219, in raise_for_erro
+r
+    err.raise_mysql_exception(self._data)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+  File "C:\Users\linsa\AppData\Roaming\Python\Python314\site-packages\pymysql\err.py", line 154, in raise_mysql_excepti
+on
+    raise errorclass(errno, errval, sqlstate=sqlstate)
+pymysql.err.OperationalError: (1045, "Access denied for user 'root'@'172.20.0.1' (using password: YES)")
