@@ -69,6 +69,11 @@ async def lifespan(app: FastAPI):
     # ── 启动时 ──
     logger.info("TDSQL SQL审核平台启动中... (V%s)", config.APP_VERSION)
     try:
+        import anyio
+        anyio.to_thread.current_default_thread_limiter().total_tokens = 100
+    except Exception:
+        pass
+    try:
         from backend.services.database import ensure_db, init_rule_configs
         ensure_db()
         init_rule_configs()

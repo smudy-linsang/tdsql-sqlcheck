@@ -24,7 +24,7 @@ class StatsRequest(BaseModel):
 
 
 @router.post("/analyze", summary="SQL调用量多维分析(基于monitordb)")
-async def analyze(body: StatsRequest):
+def analyze(body: StatsRequest):
     pool = _pool(body.connection_id)
     if not pool.monitor_probe()["ok"]:
         raise HTTPException(status_code=400, detail="monitordb不可用")
@@ -44,7 +44,7 @@ class SnapRequest(BaseModel):
 
 
 @router.post("/bigtable/snapshot", summary="大表大小快照(增长趋势用)")
-async def bigtable_snapshot(body: SnapRequest):
+def bigtable_snapshot(body: SnapRequest):
     pool = _pool(body.connection_id)
     try:
         return bigtable_trend_service.snapshot(
@@ -55,6 +55,6 @@ async def bigtable_snapshot(body: SnapRequest):
 
 
 @router.get("/bigtable/growth", summary="大表增长趋势")
-async def bigtable_growth(connection_id: str = "", db_name: str = "", table_name: str = "",
+def bigtable_growth(connection_id: str = "", db_name: str = "", table_name: str = "",
                           date_from: str = "", date_to: str = ""):
     return bigtable_trend_service.get_growth(connection_id, db_name, table_name, date_from, date_to)

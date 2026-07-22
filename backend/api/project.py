@@ -11,7 +11,7 @@ _service = ProjectService()
 
 
 @router.post("", response_model=ApiResponse)
-async def create_project(req: ProjectCreate):
+def create_project(req: ProjectCreate):
     """创建项目"""
     project = _service.create_project(req)
     data = project.model_dump()
@@ -20,14 +20,14 @@ async def create_project(req: ProjectCreate):
 
 
 @router.get("", response_model=ApiResponse)
-async def list_projects():
+def list_projects():
     """列出所有项目"""
     projects = _service.list_projects()
     return ApiResponse(data=[{**p.model_dump(), "id": p.project_id} for p in projects])
 
 
 @router.get("/{project_id}", response_model=ApiResponse)
-async def get_project(project_id: str):
+def get_project(project_id: str):
     """获取项目详情"""
     project = _service.get_project(project_id)
     if not project:
@@ -38,7 +38,7 @@ async def get_project(project_id: str):
 
 
 @router.delete("/{project_id}", response_model=ApiResponse)
-async def delete_project(project_id: str):
+def delete_project(project_id: str):
     """真正删除项目（物理删除）"""
     if not _service.delete_project(project_id):
         raise HTTPException(status_code=404, detail="项目不存在")
@@ -46,7 +46,7 @@ async def delete_project(project_id: str):
 
 
 @router.put("/{project_id}/toggle-status", response_model=ApiResponse)
-async def toggle_project_status(project_id: str):
+def toggle_project_status(project_id: str):
     """切换项目状态（启用 ↔ 停用）"""
     new_status = _service.toggle_project_status(project_id)
     if new_status is None:

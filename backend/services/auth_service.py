@@ -469,13 +469,22 @@ def set_role_permissions(role_id: str, permissions: dict) -> bool:
                 ON DUPLICATE KEY UPDATE visible = VALUES(visible)
             """, (role_id, mk, 1 if visible else 0))
         conn.commit()
+        _VISIBLE_MENUS_CACHE.clear()
         log_operation("system", "set_role_permissions", "role", role_id)
         return True
     finally:
         conn.close()
 
+_VISIBLE_MENUS_CACHE = {}  # {role: (timestamp, menus_list)}
+
 def get_visible_menus(role: str) -> list[str]:
-    """获取某角色可见的菜单key列表"""
+    """获取某角色可见的菜单key列表 (30s内存缓存)"""
+    now = time.time()
+    if role in _VISIBLE_MENUS_CACHE:
+        ts, cached_menus = _VISIBLE_MENUS_CACHE[role]
+        if now - ts < 30:
+            return cached_menus
+
     ensure_db()
     conn = _get_connection()
     try:
@@ -484,11 +493,13 @@ def get_visible_menus(role: str) -> list[str]:
             (role,)
         ).fetchall()
         if rows:
-            return [r["menu_key"] for r in rows if r["menu_key"] in ALL_MENU_KEYS]
-        # 无记录时回退：admin全部可见，其他角色仅基础菜单
-        if role == "admin":
-            return ALL_MENU_KEYS
-        return ['dashboard', 'audit-sql', 'file-audit', 'schema-extractor-audit', 'rules']
+            res = [r["menu_key"] for r in rows if r["menu_key"] in ALL_MENU_KEYS]
+        elif role == "admin":
+            res = ALL_MENU_KEYS
+        else:
+            res = ['dashboard', 'audit-sql', 'file-audit', 'schema-extractor-audit', 'rules']
+        _VISIBLE_MENUS_CACHE[role] = (now, res)
+        return res
     except Exception:
         if role == "admin":
             return ALL_MENU_KEYS

@@ -16,9 +16,33 @@ from backend.services.cluster_inspect_service import _metric, _discover_nodes
 
 logger = logging.getLogger("tdsql.daily_inspect")
 
-# 30秒 TTL 全局巡检内存缓存 (Key: connection_id:inspect_date)
+# 30秒 TTL 全局巡检内存缓存 (Key: connection_id:inspect_date)，限制最大100条防止无界内存增长
 _DAILY_CACHE = {}
 _CACHE_TTL = 30
+_CACHE_MAX_SIZE = 100
+
+def _get_daily_cache(key: str):
+    now = time.time()
+    if key in _DAILY_CACHE:
+        ts, val = _DAILY_CACHE[key]
+        if now - ts < _CACHE_TTL:
+            return val
+        else:
+            del _DAILY_CACHE[key]
+    return None
+
+def _set_daily_cache(key: str, val):
+    now = time.time()
+    # 超过上限时清理旧的/过期条目
+    if len(_DAILY_CACHE) >= _CACHE_MAX_SIZE:
+        expired = [k for k, (ts, _) in _DAILY_CACHE.items() if now - ts >= _CACHE_TTL]
+        for k in expired:
+            _DAILY_CACHE.pop(k, None)
+        if len(_DAILY_CACHE) >= _CACHE_MAX_SIZE:
+            # 仍超限则强行弹出最古老的一条
+            oldest_key = min(_DAILY_CACHE.keys(), key=lambda k: _DAILY_CACHE[k][0])
+            _DAILY_CACHE.pop(oldest_key, None)
+    _DAILY_CACHE[key] = (now, val)
 
 # 实例指标映射
 _METRICS = {
@@ -279,12 +303,10 @@ def run_daily(pool, connection_id: str = "", inspect_date: str = "", nodes: list
 
     # 1. 方案三: 检查 30秒 内存快照缓存
     cache_key = f"{connection_id}:{inspect_date}:{','.join(nodes or [])}"
-    now_ts = time.time()
-    if cache_key in _DAILY_CACHE:
-        cached_ts, cached_data = _DAILY_CACHE[cache_key]
-        if now_ts - cached_ts < _CACHE_TTL:
-            logger.info("命中 30秒 日常巡检快照缓存，直接返回 (%s)", cache_key)
-            return cached_data
+    cached_data = _get_daily_cache(cache_key)
+    if cached_data is not None:
+        logger.info("命中 30秒 日常巡检快照缓存，直接返回 (%s)", cache_key)
+        return cached_data
 
     node_list = nodes if nodes else _discover_nodes(pool)
     if not node_list:
@@ -466,7 +488,7 @@ def run_daily(pool, connection_id: str = "", inspect_date: str = "", nodes: list
         "node_count": len(node_list),
         "rows": rows
     }
-    _DAILY_CACHE[cache_key] = (time.time(), result)
+    _set_daily_cache(cache_key, result)
     return result
 
 

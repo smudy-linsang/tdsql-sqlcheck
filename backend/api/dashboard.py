@@ -49,7 +49,7 @@ def _db_exists() -> bool:
 
 
 @router.get("/summary", summary="获取审核治理概览数据")
-async def get_summary():
+def get_summary():
     """
     获取审核拦截效果、慢SQL治理进展和最近审核活动，用于审核治理概览首页展示。
     """
@@ -173,7 +173,7 @@ async def get_summary():
 
 
 @router.get("/audit-trend", summary="获取审核趋势数据")
-async def get_audit_trend(days: int = 7):
+def get_audit_trend(days: int = 7):
     """
     获取最近N天的审核趋势数据，用于图表展示。
     """
@@ -204,7 +204,7 @@ async def get_audit_trend(days: int = 7):
 
 
 @router.get("/rule-stats", summary="获取高频违规规则统计")
-async def get_rule_stats():
+def get_rule_stats():
     """获取高频违规规则命中统计，返回规则描述和严重级别"""
     if not _db_exists():
         return {"rules": []}

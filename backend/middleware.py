@@ -121,8 +121,10 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if method in ("POST", "PUT", "DELETE", "PATCH") \
                 and not path.startswith("/api/v1/auth/"):
             try:
+                import asyncio
                 client_ip = request.client.host if request.client else ""
-                log_operation(
+                asyncio.create_task(asyncio.to_thread(
+                    log_operation,
                     operator=username,
                     operation_type=f"{method} {path}",
                     target_type="api",
@@ -130,7 +132,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
                     detail=f"status={response.status_code}",
                     ip_address=client_ip,
                     user_agent=request.headers.get("User-Agent", "")[:200],
-                )
+                ))
             except Exception:
                 logger.exception("操作审计日志写入失败")
 

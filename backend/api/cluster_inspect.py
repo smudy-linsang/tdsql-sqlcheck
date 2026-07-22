@@ -22,7 +22,7 @@ def _pool(connection_id: str):
 
 
 @router.post("/run", summary="发起集群深度巡检")
-async def run(body: InspectRequest):
+def run(body: InspectRequest):
     pool = _pool(body.connection_id)
     probe = pool.monitor_probe()
     if not probe["ok"]:
@@ -35,10 +35,10 @@ async def run(body: InspectRequest):
 
 
 @router.get("/list/{connection_id}", summary="巡检历史列表")
-async def list_history(connection_id: str):
+def list_history(connection_id: str):
     return {"items": svc.list_inspections(connection_id)}
 
 
 @router.get("/issues/{inspection_id}", summary="巡检明细(可按severity过滤)")
-async def issues(inspection_id: int, severity: str = ""):
+def issues(inspection_id: int, severity: str = ""):
     return {"items": svc.get_issues(inspection_id, severity)}

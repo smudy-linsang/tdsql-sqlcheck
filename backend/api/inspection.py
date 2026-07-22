@@ -210,7 +210,7 @@ def run_general_inspection(connection_id: str, inspection_type: str, task_id: in
 
 
 @router.post("/tasks", response_model=ApiResponse)
-async def create_task(connection_id: str, inspection_type: str):
+def create_task(connection_id: str, inspection_type: str):
     """创建并执行巡检任务"""
     task_id = _service.create_task(connection_id, inspection_type)
     
@@ -226,14 +226,14 @@ async def create_task(connection_id: str, inspection_type: str):
 
 
 @router.get("/tasks", response_model=ApiResponse)
-async def list_tasks(connection_id: str = "", limit: int = 20):
+def list_tasks(connection_id: str = "", limit: int = 20):
     """列出巡检任务"""
     tasks = _service.list_tasks(connection_id, limit)
     return ApiResponse(data=tasks)
 
 
 @router.get("/tasks/{task_id}", response_model=ApiResponse)
-async def get_task(task_id: int):
+def get_task(task_id: int):
     """获取巡检任务详情"""
     task = _service.get_task(task_id)
     if not task:
@@ -242,21 +242,21 @@ async def get_task(task_id: int):
 
 
 @router.post("/tasks/{task_id}/status", response_model=ApiResponse)
-async def update_task_status(task_id: int, status: str, error_message: str = ""):
+def update_task_status(task_id: int, status: str, error_message: str = ""):
     """更新巡检任务状态"""
     _service.update_task_status(task_id, status, error_message)
     return ApiResponse(message="任务状态已更新")
 
 
 @router.post("/tasks/{task_id}/results", response_model=ApiResponse)
-async def save_result(task_id: int, result: InspectionResultInfo):
+def save_result(task_id: int, result: InspectionResultInfo):
     """保存巡检结果"""
     _service.save_result(task_id, result)
     return ApiResponse(message="巡检结果已保存")
 
 
 @router.post("/schema-check", response_model=ApiResponse)
-async def run_schema_check(request: SchemaCheckRequest, http_request: Request):
+def run_schema_check(request: SchemaCheckRequest, http_request: Request):
     """执行数据库上线前Schema检查（12项）"""
     from backend.services.connection_registry import registry, ConnectionNotFoundError
     from backend.engine.schema_inspector import SchemaInspector
@@ -306,7 +306,7 @@ async def run_schema_check(request: SchemaCheckRequest, http_request: Request):
 
 
 @router.post("/schema-check/report")
-async def export_schema_check_report(request: SchemaCheckRequest):
+def export_schema_check_report(request: SchemaCheckRequest):
     """执行上线检查并导出HTML报告"""
     from backend.services.connection_registry import registry, ConnectionNotFoundError
     from backend.engine.schema_inspector import SchemaInspector

@@ -13,7 +13,7 @@ router = APIRouter(prefix="/api/v1/rules", tags=["规则管理"])
 
 
 @router.get("")
-async def list_rules() -> dict:
+def list_rules() -> dict:
     """
     获取所有审核规则列表。
     
@@ -29,7 +29,7 @@ async def list_rules() -> dict:
 
 
 @router.get("/categories")
-async def list_categories() -> dict:
+def list_categories() -> dict:
     """获取规则分类统计"""
     checker = RuleChecker()
     categories = checker.get_rules_by_category()

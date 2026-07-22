@@ -80,7 +80,7 @@ def _get_pool(connection_id: Optional[str] = None):
 
 
 @router.post("/connect", summary="连接TDSQL实例")
-async def connect_tdsql(request: TDSQLConnectRequest, http_request: Request):
+def connect_tdsql(request: TDSQLConnectRequest, http_request: Request):
     """
     以即席方式连接到TDSQL MySQL实例（注册为 adhoc 连接）。
 
@@ -112,7 +112,7 @@ async def connect_tdsql(request: TDSQLConnectRequest, http_request: Request):
 
 
 @router.post("/connect-from-config", summary="使用配置文件连接TDSQL")
-async def connect_from_config(config_path: Optional[str] = None):
+def connect_from_config(config_path: Optional[str] = None):
     """
     使用环境变量或配置文件中的参数连接TDSQL（注册为 adhoc 连接）。
 
@@ -157,7 +157,8 @@ async def connect_from_config(config_path: Optional[str] = None):
 
 
 @router.get("/test-connection", summary="测试TDSQL连接")
-async def test_connection(host: Optional[str] = None, port: int = 3306,
+@router.post("/test-connection", summary="测试TDSQL连接")
+def test_connection(host: Optional[str] = None, port: int = 3306,
                           user: Optional[str] = None, password: Optional[str] = None,
                           database: Optional[str] = None,
                           monitor_host: Optional[str] = None, monitor_port: int = 15001,
@@ -283,14 +284,14 @@ async def test_connection(host: Optional[str] = None, port: int = 3306,
 
 
 @router.post("/disconnect", summary="断开TDSQL连接")
-async def disconnect_tdsql(connection_id: Optional[str] = None):
+def disconnect_tdsql(connection_id: Optional[str] = None):
     """断开指定连接；不指定 connection_id 时断开全部活跃连接。"""
     count = registry.disconnect(connection_id)
     return {"message": "已断开连接", "disconnected": count}
 
 
 @router.get("/status", summary="检查连接状态")
-async def connection_status():
+def connection_status():
     """检查所有活跃连接状态（V2.0返回多连接列表）"""
     active = registry.list_active()
     if not active:
@@ -308,7 +309,7 @@ async def connection_status():
 
 
 @router.get("/tables", summary="获取表列表")
-async def get_tables(database: Optional[str] = None,
+def get_tables(database: Optional[str] = None,
                      connection_id: Optional[str] = None):
     """获取数据库中的所有表"""
     conn = _get_pool(connection_id)
@@ -320,7 +321,7 @@ async def get_tables(database: Optional[str] = None,
 
 
 @router.get("/tables/{table_name}/metadata", summary="获取表元数据")
-async def get_table_metadata(table_name: str, database: Optional[str] = None,
+def get_table_metadata(table_name: str, database: Optional[str] = None,
                              connection_id: Optional[str] = None):
     """
     获取表的完整元数据，包括分片键、索引、字段等信息。
@@ -350,7 +351,7 @@ async def get_table_metadata(table_name: str, database: Optional[str] = None,
 
 
 @router.get("/sets", summary="发现TDSQL分布式实例的所有SET")
-async def discover_sets(connection_id: Optional[str] = None):
+def discover_sets(connection_id: Optional[str] = None):
     """
     通过 /*proxy*/show status 发现 TDSQL 分布式实例的所有 SET（分片）。
 
@@ -415,7 +416,7 @@ def fetch_slow_queries(request: SlowQueryFetchRequest, http_request: Request):
 
 
 @router.get("/check/charset", summary="字符集一致性检查")
-async def check_charset(database: Optional[str] = None,
+def check_charset(database: Optional[str] = None,
                         connection_id: Optional[str] = None):
     """
     检查库内字符集和排序规则一致性。
@@ -429,7 +430,7 @@ async def check_charset(database: Optional[str] = None,
 
 
 @router.get("/check/large-tables", summary="大表检查")
-async def check_large_tables(
+def check_large_tables(
     database: Optional[str] = None,
     threshold_gb: float = 1.0,
     connection_id: Optional[str] = None,
@@ -458,7 +459,7 @@ async def check_large_tables(
 
 
 @router.get("/table-partitions", summary="分区表逐分区明细（大表下钻）")
-async def get_table_partitions(
+def get_table_partitions(
     connection_id: Optional[str] = None,
     schema: Optional[str] = None,
     table: Optional[str] = None,
@@ -474,7 +475,7 @@ async def get_table_partitions(
 
 
 @router.get("/slow-query-config", summary="获取慢查询配置")
-async def get_slow_query_config(connection_id: Optional[str] = None):
+def get_slow_query_config(connection_id: Optional[str] = None):
     """获取TDSQL实例的慢查询相关配置"""
     conn = _get_pool(connection_id)
     try:
@@ -484,8 +485,8 @@ async def get_slow_query_config(connection_id: Optional[str] = None):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/audit/with-metadata", summary="使用元数据增强审核")
-async def audit_with_metadata(request: dict):
+@router.post("/audit/with-metadata", summary="结合数据库元数据进行SQL审核")
+def audit_with_metadata(request: dict):
     """
     使用TDSQL表元数据增强SQL审核精度。
 
@@ -551,14 +552,14 @@ async def audit_with_metadata(request: dict):
 
 
 @router.get("/scheduler/status", summary="查看定时任务状态")
-async def get_scheduler_status():
+def get_scheduler_status():
     """查看定时慢日志拉取任务的运行状态和调度配置"""
     from backend.services.scheduler import get_scheduler_status
     return get_scheduler_status()
 
 
 @router.post("/scheduler/trigger", summary="手动触发慢日志拉取")
-async def trigger_slow_query_fetch():
+def trigger_slow_query_fetch():
     """手动触发一次慢日志拉取任务，立即从TDSQL拉取并分析"""
     from backend.services.scheduler import manual_fetch_slow_queries
     return manual_fetch_slow_queries()
@@ -579,7 +580,7 @@ class ScanScheduleRequest(BaseModel):
 
 
 @router.get("/scan-schedules", summary="获取扫描计划列表")
-async def list_scan_schedules():
+def list_scan_schedules():
     """获取所有按连接配置的定时扫描计划"""
     from backend.services.database import _get_connection, ensure_db
     ensure_db()
@@ -593,7 +594,7 @@ async def list_scan_schedules():
 
 
 @router.post("/scan-schedules", summary="创建扫描计划")
-async def create_scan_schedule(body: ScanScheduleRequest, request: Request):
+def create_scan_schedule(body: ScanScheduleRequest, request: Request):
     """为指定连接创建每日定时扫描计划（由调度器leader执行）"""
     if body.source not in ("digest", "processlist", "monitordb"):
         raise HTTPException(status_code=400, detail="source 仅支持 monitordb/digest/processlist")
@@ -618,7 +619,7 @@ async def create_scan_schedule(body: ScanScheduleRequest, request: Request):
 
 
 @router.put("/scan-schedules/{schedule_id}", summary="更新扫描计划")
-async def update_scan_schedule(schedule_id: int, body: ScanScheduleRequest):
+def update_scan_schedule(schedule_id: int, body: ScanScheduleRequest):
     from backend.services.database import _get_connection, ensure_db
     ensure_db()
     conn = _get_connection()
@@ -639,7 +640,7 @@ async def update_scan_schedule(schedule_id: int, body: ScanScheduleRequest):
 
 
 @router.delete("/scan-schedules/{schedule_id}", summary="删除扫描计划")
-async def delete_scan_schedule(schedule_id: int):
+def delete_scan_schedule(schedule_id: int):
     from backend.services.database import _get_connection, ensure_db
     ensure_db()
     conn = _get_connection()
@@ -657,7 +658,7 @@ async def delete_scan_schedule(schedule_id: int):
 
 
 @router.get("/connections", summary="获取所有连接配置")
-async def get_connections():
+def get_connections():
     """
     获取所有已保存的连接配置列表（密码脱敏，标记活跃状态）。
     """
@@ -675,7 +676,7 @@ async def get_connections():
 
 
 @router.post("/connections", summary="保存连接配置")
-async def save_connection(request: TDSQLConnectRequest, http_request: Request):
+def save_connection(request: TDSQLConnectRequest, http_request: Request):
     """
     保存一个新的连接配置或更新已存在的连接（密码加密存储到数据库）。
     如果未指定name，将自动生成一个唯一名称。
@@ -706,7 +707,7 @@ async def save_connection(request: TDSQLConnectRequest, http_request: Request):
 
 
 @router.put("/connections/{conn_id}", summary="更新连接配置")
-async def update_connection(conn_id: str, request: TDSQLConnectRequest, http_request: Request):
+def update_connection(conn_id: str, request: TDSQLConnectRequest, http_request: Request):
     """
     更新已存在的连接配置（所有字段均可修改，密码加密存储）。
     """
@@ -740,7 +741,8 @@ async def update_connection(conn_id: str, request: TDSQLConnectRequest, http_req
 
 
 @router.post("/connections/{conn_id}/monitor-probe", summary="测试 monitordb 连通性")
-async def monitor_probe(conn_id: str):
+@router.get("/connections/{conn_id}/probe", summary="探针检测monitordb状态")
+def monitor_probe(conn_id: str):
     """探测该连接的 monitordb（15001/tdsqlpcloud_monitor）是否可用。
     仅返回连通性与列数，不回列名明细（避免信息泄露）。"""
     conn = _get_pool(conn_id)
@@ -755,7 +757,7 @@ async def monitor_probe(conn_id: str):
 
 
 @router.delete("/connections/{conn_id}", summary="删除连接配置")
-async def delete_connection(conn_id: str, request: Request):
+def delete_connection(conn_id: str, request: Request):
     """删除指定ID的连接配置（同时断开其活跃连接）"""
     if not registry.delete_saved(conn_id, operator=_operator(request)):
         raise HTTPException(status_code=404, detail=f"连接配置不存在: {conn_id}")
@@ -763,15 +765,16 @@ async def delete_connection(conn_id: str, request: Request):
 
 
 @router.post("/connections/{conn_id}/set-default", summary="设置默认连接")
-async def set_default_connection(conn_id: str):
+@router.post("/connections/{conn_id}/default", summary="设为默认连接")
+def set_default_connection(conn_id: str):
     """设置指定ID的连接为默认连接"""
     if not registry.set_default_saved(conn_id):
         raise HTTPException(status_code=404, detail=f"连接配置不存在: {conn_id}")
     return {"message": "默认连接已设置"}
 
 
-@router.post("/connections/{conn_id}/connect", summary="使用已保存的连接配置连接")
-async def connect_by_saved_config(conn_id: str):
+@router.post("/connections/{conn_id}/connect", summary="激活连接")
+def connect_by_saved_config(conn_id: str):
     """
     使用已保存的连接配置建立连接（注册到连接注册表，ID即配置ID）。
     """
@@ -797,8 +800,8 @@ async def connect_by_saved_config(conn_id: str):
         raise HTTPException(status_code=500, detail=f"连接失败: {str(e)}")
 
 
-@router.get("/proxy-config", summary="获取Proxy慢日志配置")
-async def get_proxy_config(connection_id: Optional[str] = None):
+@router.get("/proxy-config", summary="获取Proxy与分布式拓扑参数")
+def get_proxy_config(connection_id: Optional[str] = None):
     """获取TDSQL Proxy层慢日志相关配置
 
     执行 /*proxy*/show config 命令获取Proxy配置信息，

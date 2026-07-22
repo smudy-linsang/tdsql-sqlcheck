@@ -35,18 +35,18 @@ async def run(body: DailyRequest):
             inspect_date=body.inspect_date, nodes=body.nodes
         )
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/trend", summary="多日趋势")
-async def trend(connection_id: str = "", date_from: str = "", date_to: str = "",
+def trend(connection_id: str = "", date_from: str = "", date_to: str = "",
                 metrics: str = ""):
     mlist = [m.strip() for m in metrics.split(",") if m.strip()] if metrics else None
     return svc.get_trend(connection_id, date_from, date_to, mlist)
 
 
 @router.get("/compare", summary="巡检差异多维比对 (JSON)")
-async def compare(connection_id: str = "",
+def compare(connection_id: str = "",
                   date1: str = "",
                   date2: str = "",
                   dates: Optional[str] = None,
@@ -67,7 +67,7 @@ async def compare(connection_id: str = "",
 
 
 @router.get("/compare/html", summary="生成差异比对可视化大屏 (HTML)")
-async def compare_html(connection_id: str = "",
+def compare_html(connection_id: str = "",
                        date1: str = "",
                        date2: str = "",
                        dates: Optional[str] = None,

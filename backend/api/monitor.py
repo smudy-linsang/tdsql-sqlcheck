@@ -12,14 +12,14 @@ _service = MonitorService()
 
 
 @router.get("/alerts", response_model=ApiResponse)
-async def get_active_alerts(connection_id: str = ""):
+def get_active_alerts(connection_id: str = ""):
     """获取活跃告警"""
     alerts = _service.get_active_alerts(connection_id)
     return ApiResponse(data=alerts)
 
 
 @router.post("/alerts/{alert_id}/acknowledge", response_model=ApiResponse)
-async def acknowledge_alert(alert_id: int, acknowledged_by: str = "system"):
+def acknowledge_alert(alert_id: int, acknowledged_by: str = "system"):
     """确认告警"""
     if not _service.acknowledge_alert(alert_id, acknowledged_by):
         raise HTTPException(status_code=404, detail="告警不存在")
@@ -27,21 +27,21 @@ async def acknowledge_alert(alert_id: int, acknowledged_by: str = "system"):
 
 
 @router.get("/rules", response_model=ApiResponse)
-async def get_alert_rules():
+def get_alert_rules():
     """获取告警规则"""
     rules = _service.get_alert_rules()
     return ApiResponse(data=rules)
 
 
 @router.post("/rules", response_model=ApiResponse)
-async def set_alert_rule(rule: AlertRuleConfig):
+def set_alert_rule(rule: AlertRuleConfig):
     """设置告警规则"""
     _service.set_alert_rule(rule)
     return ApiResponse(message="告警规则已更新")
 
 
 @router.post("/evaluate", response_model=ApiResponse)
-async def evaluate_metric(connection_id: str, metric_name: str, value: float):
+def evaluate_metric(connection_id: str, metric_name: str, value: float):
     """评估指标是否触发告警"""
     alert = _service.evaluate_metric(connection_id, metric_name, value)
     if alert:

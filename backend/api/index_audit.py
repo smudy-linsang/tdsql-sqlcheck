@@ -21,7 +21,7 @@ def _pool(cid):
 
 
 @router.post("/run", summary="发起索引体检")
-async def run(body: AuditRequest):
+def run(body: AuditRequest):
     pool = _pool(body.connection_id)
     try:
         return svc.run_audit(pool, connection_id=body.connection_id,
@@ -31,5 +31,5 @@ async def run(body: AuditRequest):
 
 
 @router.get("/findings/{audit_id}", summary="索引体检明细")
-async def findings(audit_id: int, severity: str = ""):
+def findings(audit_id: int, severity: str = ""):
     return {"items": svc.get_findings(audit_id, severity)}

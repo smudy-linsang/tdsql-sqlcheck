@@ -42,7 +42,7 @@ def _operator(request: Request) -> str:
 # ═══ 系统信息 + 配置 ═══
 
 @router.get("/info", summary="系统信息")
-async def system_info():
+def system_info():
     """系统版本与关键安全配置状态（不暴露敏感值）"""
     return {
         "version": config.APP_VERSION,
@@ -61,7 +61,7 @@ async def system_info():
 
 
 @router.get("/config", summary="获取系统配置")
-async def get_system_config():
+def get_system_config():
     """获取可配置的系统开关"""
     ensure_db()
     conn = _get_connection()
@@ -78,7 +78,7 @@ async def get_system_config():
 
 
 @router.put("/config", summary="更新系统配置")
-async def set_system_config(body: SystemConfigRequest, request: Request):
+def set_system_config(body: SystemConfigRequest, request: Request):
     """更新系统开关配置"""
     ensure_db()
     conn = _get_connection()
@@ -104,7 +104,7 @@ async def set_system_config(body: SystemConfigRequest, request: Request):
 # ═══ Logo上传 ═══
 
 @router.get("/logo", summary="获取Logo路径")
-async def get_logo():
+def get_logo():
     """返回当前Logo URL（自定义或默认）"""
     if _LOGO_PATH.exists():
         return {"logo_url": "/static/img/custom-logo.png", "is_custom": True}
@@ -129,7 +129,7 @@ async def upload_logo(file: UploadFile = File(...)):
 
 
 @router.delete("/logo", summary="恢复默认Logo")
-async def reset_logo():
+def reset_logo():
     """删除自定义Logo，恢复默认"""
     if _LOGO_PATH.exists():
         _LOGO_PATH.unlink()
@@ -139,12 +139,12 @@ async def reset_logo():
 # ═══ 数据保留 ═══
 
 @router.get("/retention", summary="获取数据保留策略")
-async def get_retention_policies():
+def get_retention_policies():
     return {"policies": retention_service.get_policies()}
 
 
 @router.put("/retention", summary="设置数据保留策略")
-async def set_retention_policy(body: RetentionPolicyRequest, request: Request):
+def set_retention_policy(body: RetentionPolicyRequest, request: Request):
     err = retention_service.set_policy(
         body.table_name, body.retention_days, body.enabled,
         operator=_operator(request))
@@ -154,7 +154,7 @@ async def set_retention_policy(body: RetentionPolicyRequest, request: Request):
 
 
 @router.post("/retention/run", summary="手动执行数据清理")
-async def run_retention_cleanup(request: Request):
+def run_retention_cleanup(request: Request):
     deleted = retention_service.run_cleanup(operator=_operator(request))
     return {"message": "数据清理完成", "deleted": deleted,
             "total": sum(deleted.values())}
@@ -163,7 +163,7 @@ async def run_retention_cleanup(request: Request):
 # ═══ 操作审计日志 ═══
 
 @router.get("/operation-logs", summary="查询操作审计日志")
-async def get_operation_logs(
+def get_operation_logs(
     operator: Optional[str] = None,
     operation_type: Optional[str] = None,
     target_type: Optional[str] = None,

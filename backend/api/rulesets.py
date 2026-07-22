@@ -39,12 +39,12 @@ def _operator(request: Request) -> str:
 
 
 @router.get("", summary="规则集列表")
-async def list_rulesets():
+def list_rulesets():
     return {"rulesets": ruleset_service.list_rulesets()}
 
 
 @router.get("/{rule_set_id}", summary="规则集详情")
-async def get_ruleset(rule_set_id: str):
+def get_ruleset(rule_set_id: str):
     result = ruleset_service.get_ruleset(rule_set_id)
     if not result:
         raise HTTPException(status_code=404, detail="规则集不存在")
@@ -52,7 +52,7 @@ async def get_ruleset(rule_set_id: str):
 
 
 @router.post("", summary="创建规则集")
-async def create_ruleset(body: RuleSetCreateRequest, request: Request):
+def create_ruleset(body: RuleSetCreateRequest, request: Request):
     result, err = ruleset_service.create_ruleset(
         rule_set_id=body.id, name=body.name, description=body.description,
         items=[i.model_dump() for i in body.items], operator=_operator(request))
@@ -62,7 +62,7 @@ async def create_ruleset(body: RuleSetCreateRequest, request: Request):
 
 
 @router.put("/{rule_set_id}", summary="更新规则集")
-async def update_ruleset(rule_set_id: str, body: RuleSetUpdateRequest, request: Request):
+def update_ruleset(rule_set_id: str, body: RuleSetUpdateRequest, request: Request):
     err = ruleset_service.update_ruleset(
         rule_set_id, name=body.name, description=body.description,
         items=[i.model_dump() for i in body.items] if body.items is not None else None,
@@ -73,7 +73,7 @@ async def update_ruleset(rule_set_id: str, body: RuleSetUpdateRequest, request: 
 
 
 @router.delete("/{rule_set_id}", summary="删除规则集")
-async def delete_ruleset(rule_set_id: str, request: Request):
+def delete_ruleset(rule_set_id: str, request: Request):
     err = ruleset_service.delete_ruleset(rule_set_id, operator=_operator(request))
     if err:
         raise HTTPException(status_code=400, detail=err)

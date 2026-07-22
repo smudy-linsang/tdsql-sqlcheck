@@ -66,7 +66,7 @@ class StatusUpdateRequest(BaseModel):
 # ============ API路由 ============
 
 @router.post("", summary="添加慢SQL记录并自动分析")
-async def create_slow_query(request: SlowQueryCreateRequest):
+def create_slow_query(request: SlowQueryCreateRequest):
     """
     添加一条慢SQL记录，系统会自动进行分析并给出优化建议。
     """
@@ -87,7 +87,7 @@ async def create_slow_query(request: SlowQueryCreateRequest):
 
 
 @router.get("", summary="获取慢SQL列表")
-async def list_slow_queries(
+def list_slow_queries(
     db_name: Optional[str] = None,
     status: Optional[str] = None,
     severity: Optional[str] = None,
@@ -117,7 +117,7 @@ async def list_slow_queries(
 
 
 @router.get("/statistics", summary="获取慢SQL统计信息")
-async def get_statistics():
+def get_statistics():
     """
     获取慢SQL的统计概览，包括Top高耗时和高频次SQL。
     """
@@ -125,13 +125,13 @@ async def get_statistics():
 
 
 @router.get("/scan-tasks", summary="获取扫描任务列表")
-async def list_scan_tasks(limit: int = 50, offset: int = 0):
+def list_scan_tasks(limit: int = 50, offset: int = 0):
     """获取所有慢SQL扫描任务列表"""
     return service.get_scan_tasks(limit=limit, offset=offset)
 
 
 @router.get("/scan-tasks/{task_id}", summary="获取扫描任务详情")
-async def get_scan_task_detail(task_id: int):
+def get_scan_task_detail(task_id: int):
     """获取指定扫描任务的详情，含统计摘要"""
     detail = service.get_scan_task_detail(task_id)
     if not detail:
@@ -140,7 +140,7 @@ async def get_scan_task_detail(task_id: int):
 
 
 @router.delete("/scan-tasks/{task_id}", summary="删除扫描任务")
-async def delete_scan_task(task_id: int, request: Request):
+def delete_scan_task(task_id: int, request: Request):
     """
     删除扫描任务及其关联的慢SQL记录。
 
@@ -156,7 +156,7 @@ async def delete_scan_task(task_id: int, request: Request):
 
 
 @router.delete("/orphan-records", summary="清理无任务关联的慢SQL记录")
-async def delete_orphan_records():
+def delete_orphan_records():
     """
     删除 scan_task_id 为 NULL 的慢SQL记录（手动录入或历史迁移数据）。
     仅管理员可操作。
@@ -174,19 +174,19 @@ async def delete_orphan_records():
 
 
 @router.get("/db-names", summary="获取数据库名列表")
-async def list_db_names():
+def list_db_names():
     """获取所有慢SQL记录中出现的数据库名列表（用于筛选下拉框）"""
     return {"db_names": service.get_db_names()}
 
 
 @router.get("/set-ids", summary="获取SET ID列表")
-async def list_set_ids():
+def list_set_ids():
     """获取所有慢SQL记录中出现的 SET ID 列表（用于筛选下拉框）"""
     return {"set_ids": service.get_set_ids()}
 
 
 @router.get("/cross-set-analysis", summary="跨SET对比分析")
-async def cross_set_analysis(scan_task_id: Optional[int] = None):
+def cross_set_analysis(scan_task_id: Optional[int] = None):
     """
     跨 SET 对比分析，需指定扫描任务ID。
 
@@ -202,7 +202,7 @@ async def cross_set_analysis(scan_task_id: Optional[int] = None):
 
 
 @router.get("/{slow_id}", summary="获取慢SQL详情")
-async def get_slow_query_detail(slow_id: int):
+def get_slow_query_detail(slow_id: int):
     """获取指定慢SQL的详细分析结果"""
     detail = service.get_slow_query_detail(slow_id)
     if not detail:
@@ -211,7 +211,7 @@ async def get_slow_query_detail(slow_id: int):
 
 
 @router.put("/{slow_id}/status", summary="更新慢SQL状态")
-async def update_status(slow_id: int, request: StatusUpdateRequest):
+def update_status(slow_id: int, request: StatusUpdateRequest):
     """更新慢SQL的处理状态"""
     if request.status not in ("pending", "optimized", "ignored"):
         raise HTTPException(status_code=400, detail="状态值无效，可选: pending/optimized/ignored")

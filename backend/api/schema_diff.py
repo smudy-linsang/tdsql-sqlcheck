@@ -23,7 +23,7 @@ def _pool(cid, side):
 
 
 @router.post("/run", summary="发起表结构比对")
-async def run(body: DiffRequest):
+def run(body: DiffRequest):
     lp = _pool(body.left_conn, "基准")
     rp = _pool(body.right_conn, "对比")
     try:
@@ -34,5 +34,5 @@ async def run(body: DiffRequest):
 
 
 @router.get("/items/{diff_id}", summary="结构差异明细")
-async def items(diff_id: int, severity: str = ""):
+def items(diff_id: int, severity: str = ""):
     return {"items": svc.get_items(diff_id, severity)}

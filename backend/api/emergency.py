@@ -23,7 +23,7 @@ def _pool(cid):
 
 
 @router.post("/run", summary="一键应急诊断(只读)")
-async def run(body: DiagRequest):
+def run(body: DiagRequest):
     pool = _pool(body.connection_id)
     try:
         return svc.run(pool, connection_id=body.connection_id,
