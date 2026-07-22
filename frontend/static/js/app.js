@@ -643,8 +643,9 @@ const app=createApp({
           extractedResult.value=d;
           ElementPlus.ElMessage.success('成功从 SIT/UAT 数据库提取在线元数据并完成文件规则审核');
         }else{
-          const d=await resp.json();
-          ElementPlus.ElMessage.error(d.detail||'提取或审核失败');
+          let msg='提取或审核失败';
+          try{const d=await resp.json(); msg=d.detail||msg;}catch(err){msg=`服务端响应异常 (HTTP ${resp.status})`;}
+          ElementPlus.ElMessage.error(msg);
         }
       }catch(e){ElementPlus.ElMessage.error('提取失败: '+e.message)}
       finally{extractAuditing.value=false}

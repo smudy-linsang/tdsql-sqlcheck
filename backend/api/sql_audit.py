@@ -150,19 +150,27 @@ async def extract_and_audit(http_request: Request, payload: dict):
     if not connection_id:
         raise HTTPException(status_code=400, detail="请选择目标数据库实例")
 
+    import logging
+    logger = logging.getLogger("tdsql.sql_audit")
+
     from backend.services.connection_registry import registry
     conn_info = registry.get_saved(connection_id)
     if not conn_info:
         raise HTTPException(status_code=404, detail="选定的数据库实例连接不存在")
 
     try:
+        db_user = conn_info.get("user") or conn_info.get("username") or "root"
+        db_password = conn_info.get("password") or conn_info.get("password_encrypted") or ""
+        db_host = conn_info.get("host", "127.0.0.1")
+        db_port = int(conn_info.get("port", 3306))
+
         from backend.connectors.metadata_fetcher import MetadataFetcher
         from backend.connectors.connection_pool import ConnectionPool
         pool = ConnectionPool(
-            host=conn_info["host"],
-            port=conn_info["port"],
-            user=conn_info["user"],
-            password=conn_info["password"],
+            host=db_host,
+            port=db_port,
+            user=db_user,
+            password=db_password,
             database=database_name or conn_info.get("database", "")
         )
         fetcher = MetadataFetcher(pool)
