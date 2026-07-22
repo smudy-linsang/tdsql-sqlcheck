@@ -219,7 +219,8 @@ async def extract_and_audit(http_request: Request, payload: dict):
         results, summary, _ = audit_service.audit_file_content(
             full_extracted_sql,
             file_path=filename,
-            created_by=_operator(http_request)
+            created_by=_operator(http_request),
+            save_history=False
         )
 
         # 显式持久化落盘至 audit_history 表 (audit_type = 'extracted_schema')
@@ -251,20 +252,19 @@ async def get_extracted_reports(limit: int = 20, offset: int = 0):
     ensure_db()
     conn = _get_connection()
     try:
-        like_pattern = "extracted_%.sql"
         rows = conn.execute("""
             SELECT id, audit_type, source, total_sql, passed, failed, error_count,
                    warning_count, pass_rate, created_by, created_at, results_json
             FROM audit_history
-            WHERE audit_type = ? OR source LIKE ?
+            WHERE audit_type = ?
             ORDER BY created_at DESC
             LIMIT ? OFFSET ?
-        """, ("extracted_schema", like_pattern, limit, offset)).fetchall()
+        """, ("extracted_schema", limit, offset)).fetchall()
         
         count_row = conn.execute("""
             SELECT COUNT(*) FROM audit_history 
-            WHERE audit_type = ? OR source LIKE ?
-        """, ("extracted_schema", like_pattern)).fetchone()
+            WHERE audit_type = ?
+        """, ("extracted_schema",)).fetchone()
         
         if count_row:
             total = count_row[0] if isinstance(count_row, (tuple, list)) else list(count_row.values())[0]

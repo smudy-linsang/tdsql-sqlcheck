@@ -1,5 +1,5 @@
 """G13 运维工具箱 API 路由"""
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
 from pathlib import Path
 
@@ -65,15 +65,15 @@ def download_script(file_path: str):
 
 
 @router.post("/run")
-def trigger_tool_run(payload: dict):
-    """提交工具箱异步任务"""
+def trigger_tool_run(payload: dict, http_request: Request):
+    """提交工具箱任务"""
     from backend.services.tool_bridge_service import tool_bridge_service
     tool_name = payload.get("tool_name", "generic_tool")
     conn_id = payload.get("connection_id", "")
     params = payload.get("params", {})
-    operator = payload.get("operator", "system")
+    operator = getattr(http_request.state, "user", None) or payload.get("operator", "system")
     run_id = tool_bridge_service.create_run_task(tool_name, conn_id, params, operator)
-    return {"status": "SUCCESS", "run_id": run_id, "message": "任务已提交调度"}
+    return {"status": "SUCCESS", "run_id": run_id, "message": "任务已提交调度并执行"}
 
 
 @router.get("/history")

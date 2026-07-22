@@ -176,7 +176,8 @@ class AuditService:
 
     def audit_file_content(self, content: str, file_path: str = "",
                            created_by: str = "", project_id: str = "",
-                           evaluate_gate: bool = False
+                           evaluate_gate: bool = False,
+                           save_history: bool = True
                            ) -> tuple[list[AuditResult], AuditSummary, Optional[GateResult]]:
         """审核文件内容，返回结果列表、汇总和门禁结果"""
         overrides = self._resolve_overrides(project_id)
@@ -190,9 +191,10 @@ class AuditService:
             gate_result = self._evaluate_gate(all_violations, project_id)
 
         source = file_path if file_path else "file_upload"
-        _save_audit_history("file", source, results, summary,
-                            created_by=created_by, project_id=project_id,
-                            gate_result=gate_result)
+        if save_history:
+            _save_audit_history("file", source, results, summary,
+                                created_by=created_by, project_id=project_id,
+                                gate_result=gate_result)
         return results, summary, gate_result
 
     def _evaluate_gate(self, violations, project_id: str) -> Optional[GateResult]:

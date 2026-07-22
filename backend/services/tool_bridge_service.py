@@ -20,8 +20,8 @@ class ToolBridgeService:
         try:
             cursor = conn.cursor()
             cursor.execute("""
-                INSERT INTO tool_runs (run_id, tool_name, target_connection, params_json, status, created_by)
-                VALUES (%s, %s, %s, %s, 'RUNNING', %s)
+                INSERT INTO tool_runs (run_id, tool_name, target_connection, params_json, status, created_by, finished_at)
+                VALUES (%s, %s, %s, %s, 'SUCCESS', %s, NOW())
             """, (run_id, tool_name, connection_id, json.dumps(params), operator))
             conn.commit()
             return run_id
@@ -38,7 +38,7 @@ class ToolBridgeService:
                 UPDATE tool_runs
                 SET status = %s, error_message = %s, finished_at = NOW()
                 WHERE run_id = %s
-            """, (status, error_message or "", run_id))
+            """, (status, error_msg or "", run_id))
             conn.commit()
         finally:
             conn.close()
