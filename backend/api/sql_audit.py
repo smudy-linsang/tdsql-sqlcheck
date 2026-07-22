@@ -266,11 +266,24 @@ async def get_extracted_reports(limit: int = 20, offset: int = 0):
             SELECT COUNT(*) FROM audit_history 
             WHERE audit_type = ? OR source LIKE ?
         """, ("extracted_schema", like_pattern)).fetchone()
-        total = count_row[0] if count_row else 0
         
+        if count_row:
+            total = count_row[0] if isinstance(count_row, (tuple, list)) else list(count_row.values())[0]
+        else:
+            total = 0
+        
+        report_list = []
+        for r in rows:
+            if hasattr(r, "keys"):
+                report_list.append(dict(r))
+            elif isinstance(r, dict):
+                report_list.append(r)
+            else:
+                report_list.append(dict(r))
+
         return {
             "total": total,
-            "reports": [dict(r) for r in rows]
+            "reports": report_list
         }
     finally:
         conn.close()
@@ -286,7 +299,7 @@ async def export_extracted_report_html(report_id: int):
         if not row:
             raise HTTPException(status_code=404, detail="审核报告不存在")
         
-        r_dict = dict(row)
+        r_dict = dict(row) if not isinstance(row, dict) else row
         try:
             results_data = json.loads(r_dict.get("results_json") or "[]")
         except Exception:
