@@ -163,7 +163,6 @@ async def extract_and_audit(http_request: Request, payload: dict):
         
         # 1. 抓取该库下的表清单与 VIEW 列表
         target_db = database_name or conn_info.get("database", "mysql")
-        tables = fetcher.fetch_databases()  # 获取包含数据库内所有的表或展示
         
         extracted_sqls = []
         extracted_sqls.append(f"-- ============================================================================")
@@ -198,7 +197,7 @@ async def extract_and_audit(http_request: Request, payload: dict):
                         create_sql = list(res.values())[1] if res else ""
                         if create_sql:
                             extracted_sqls.append(f"-- Table: {obj_name}")
-                            extracted_sqls.append(f"{create_sql};\n")
+                            extracted_sqls.append(f"{create_sql.rstrip(';')};\n")
                     except Exception:
                         pass
                         
@@ -209,7 +208,7 @@ async def extract_and_audit(http_request: Request, payload: dict):
                         create_sql = list(res.values())[1] if res else ""
                         if create_sql:
                             extracted_sqls.append(f"-- View: {obj_name}")
-                            extracted_sqls.append(f"{create_sql};\n")
+                            extracted_sqls.append(f"{create_sql.rstrip(';')};\n")
                     except Exception:
                         pass
 

@@ -57,10 +57,23 @@ def test_rbac_developer_restrictions(rbac_env):
     assert resp.status_code == 403
 
 
+def test_rbac_dba_restrictions(rbac_env):
+    client, tokens = rbac_env
+    # DBA 禁止越权访问操作/审计日志
+    resp = client.get("/api/v1/admin/operation-logs", headers=tokens["test_dba"])
+    assert resp.status_code == 403, f"DBA 不应能看操作审计日志: {resp.status_code}"
+    # DBA 禁止创建/管理用户
+    resp = client.post("/api/v1/auth/users", headers=tokens["test_dba"], json={"username": "new_user", "password": STRONG_PW, "role": "developer"})
+    assert resp.status_code == 403, f"DBA 不应能管理用户: {resp.status_code}"
+
+
 def test_rbac_auditor_read_only(rbac_env):
     client, tokens = rbac_env
     # 审计员只读
     resp = client.get("/api/v1/rules", headers=tokens["test_aud"])
+    assert resp.status_code == 200
+    # 审计员允许查看审计日志
+    resp = client.get("/api/v1/admin/operation-logs", headers=tokens["test_aud"])
     assert resp.status_code == 200
     # 写操作禁止
     resp = client.post("/api/v1/audit/sql", headers=tokens["test_aud"], json={"sql": "SELECT 1"})

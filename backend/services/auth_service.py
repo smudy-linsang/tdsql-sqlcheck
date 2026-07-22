@@ -203,6 +203,11 @@ _ADMIN_ONLY_PREFIXES = (
     "/api/v1/auth/users",
 )
 
+# 仅 admin 和 auditor 允许的路径（禁止 dba 和 developer）
+_ADMIN_AUDITOR_ONLY_PREFIXES = (
+    "/api/v1/admin/operation-logs",
+)
+
 # developer 禁止访问的路径（即使读操作也不允许）
 _DEVELOPER_DENIED_PREFIXES = (
     "/api/v1/admin/operation-logs",
@@ -268,6 +273,10 @@ def check_permission(role: str, method: str, path: str) -> bool:
     # 用户管理仅 admin
     if any(path.startswith(p) for p in _ADMIN_ONLY_PREFIXES):
         return role == "admin"
+
+    # 操作/审计日志仅 admin 和 auditor
+    if any(path.startswith(p) for p in _ADMIN_AUDITOR_ONLY_PREFIXES):
+        return role in ("admin", "auditor")
 
     if role == "admin":
         return True

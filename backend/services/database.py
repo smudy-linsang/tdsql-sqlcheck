@@ -1406,6 +1406,12 @@ def _init_default_data(conn):
             VALUES (%s, 'schema-extractor-audit', 1)
         """, (rid,))
 
+    # 存量库订正：sys-auditlog 仅 admin 与 auditor 可见，dba 与 developer 改为 0
+    conn.cursor().execute("""
+        UPDATE role_permissions SET visible=0
+        WHERE menu_key='sys-auditlog' AND role_id IN ('dba', 'developer')
+    """)
+
     # 存量库增量订正：清理已经不用的菜单项并自动初始化新菜单项
     # 1. 清理过期菜单键
     placeholders = ",".join(["%s"] * len(all_menus))
