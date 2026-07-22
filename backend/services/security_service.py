@@ -101,7 +101,7 @@ def encrypt_password(password: str) -> str:
 
 
 def decrypt_password(encrypted: str) -> str:
-    """解密密码（优先当前密钥，回退V1.0遗留密钥以兼容历史数据）"""
+    """解密密码（优先当前密钥，回退V1.0遗留密钥，若非密文或解密失败则认为本身即为明文密码原样返回）"""
     if not encrypted:
         return ""
     if _HAS_CRYPTO:
@@ -117,11 +117,18 @@ def decrypt_password(encrypted: str) -> str:
                 return plain
             except Exception:
                 pass
-    # 降级：base64解码
+
+    # 尝试 base64 解码（只对确实是 base64 且解码后为可打印字符的串生效）
     try:
-        return base64.b64decode(encrypted.encode()).decode()
+        raw_bytes = base64.b64decode(encrypted.encode(), validate=True)
+        decoded_str = raw_bytes.decode('utf-8')
+        if decoded_str and all(c.isprintable() or c in '\r\n\t' for c in decoded_str):
+            return decoded_str
     except Exception:
-        return ""
+        pass
+
+    # 兜底：若既不是 Fernet 密文也不是 Base64 密文，说明其本身就是明文密码！原样返回！
+    return encrypted
 
 
 class SecurityService:

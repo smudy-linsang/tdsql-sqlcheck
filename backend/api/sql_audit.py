@@ -261,7 +261,7 @@ async def extract_and_audit(http_request: Request, payload: dict):
         }
     except Exception as e:
         logger.error(f"反向拉取元数据失败: {e}")
-        raise HTTPException(status_code=500, detail=f"拉取目标库元数据失败: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"拉取目标库元数据失败: {str(e)}")
 
 
 @router.get("/extracted-reports", summary="在线元数据审核历史记录列表")

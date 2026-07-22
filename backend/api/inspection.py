@@ -302,7 +302,7 @@ async def run_schema_check(request: SchemaCheckRequest, http_request: Request):
         })
     except Exception as e:
         _service.update_task_status(task_id, "failed", str(e))
-        raise HTTPException(status_code=500, detail=f"Schema检查执行失败: {e}")
+        raise HTTPException(status_code=400, detail=f"Schema检查执行失败: {e}")
 
 
 @router.post("/schema-check/report")
