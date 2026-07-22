@@ -102,6 +102,26 @@ class AuditService:
 
         if len(statements) <= 1:
             result = self.checker.audit_sql(sql, rule_overrides=overrides)
+            # v1.2 TDSQL 分布式检测补充
+            try:
+                from backend.engine.parser.tdsql_auditor import TDSQLAuditor
+                from backend.engine.parser.ast_parser import ASTParser
+                auditor = TDSQLAuditor()
+                ast_p = ASTParser()
+                expr = ast_p.parse(sql)
+                findings = auditor.check_shard_key_presence(expr, ["order_id", "user_id"])
+                for f in findings:
+                    from backend.models import Violation, Severity
+                    sev = Severity.ERROR if f.severity == "ERROR" else Severity.WARNING
+                    result.violations.append(Violation(
+                        rule_id=f.rule_id,
+                        severity=sev,
+                        message=f.message,
+                        suggestion=f.suggestion
+                    ))
+                    result.passed = False if f.severity == "ERROR" else result.passed
+            except Exception as e:
+                logger.debug(f"TDSQL 深度分布式规则检查跳过: {e}")
         else:
             results = []
             all_violations = []

@@ -1,9 +1,9 @@
 # ============================================================================
-# TDSQL SQL审核工具 v1.1.0.1 发布包构建脚本 (Windows PowerShell版)
-# 产出: dist/tdsql-sqlcheck-v1.1.0.1-linux-x86_64.tar.gz + .sha256
+# TDSQL SQL审核工具 v1.2.0.0 发布包构建脚本 (Windows PowerShell版)
+# 产出: dist/tdsql-sqlcheck-v1.2.0.0-linux-x86_64.tar.gz + .sha256
 # ============================================================================
 $ErrorActionPreference = "Stop"
-$VERSION = "1.1.0.1"
+$VERSION = "1.2.0.0"
 $ARCH = "x86_64"
 $PYTAG = "311"
 $ROOT = $PSScriptRoot
@@ -47,7 +47,7 @@ $DOCS_DIR = Join-Path $PKG_DIR "docs"
 New-Item -ItemType Directory -Force -Path $DOCS_DIR | Out-Null
 $doc_files = @("部署手册-v1.0.2.md","运维手册-v1.0.2.md","上线检查清单-v1.0.2.md",
                "发布说明-v1.0.2.md","V1.0.3变更清单与测试要点.md",
-               "V1.0.3.1增量更新部署说明.md", "v1.1.0.1_upgrade_manual.md")
+               "V1.0.3.1增量更新部署说明.md", "v1.2.0.0_upgrade_manual.md")
 foreach ($f in $doc_files) {
     $src = Join-Path $ROOT "docs\$f"
     if (Test-Path $src) { Copy-Item $src (Join-Path $DOCS_DIR $f) }
