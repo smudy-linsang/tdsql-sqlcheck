@@ -282,68 +282,98 @@
 
           <!-- ═══ 在线元数据审核 (反向拉取元数据生成SQL文件并审核) ═══ -->
           <div v-if="currentPage==='schema-extractor-audit'">
-            <div class="page-card">
-              <div class="card-head" style="flex-wrap:wrap;gap:12px">
-                <div class="page-card-title mb0">在线元数据提取与文件审核</div>
-                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-                  <el-select v-model="extractedAuditConnId" placeholder="选择目标实例" filterable size="small" style="width:200px">
-                    <el-option v-for="c in savedConnections" :key="c.id" :label="c.name+' ('+c.host+':'+c.port+')'" :value="c.id"></el-option>
-                  </el-select>
-                  <el-input v-model="extractedDbName" placeholder="目标数据库(留空默认)" size="small" style="width:160px"></el-input>
-                  <el-checkbox-group v-model="extractedScope" size="small" style="display:inline-flex;gap:4px">
-                    <el-checkbox label="TABLE">表结构</el-checkbox>
-                    <el-checkbox label="INDEX">索引/主键</el-checkbox>
-                    <el-checkbox label="VIEW">视图定义</el-checkbox>
-                    <el-checkbox label="SHARDKEY">分片键</el-checkbox>
-                  </el-checkbox-group>
-                  <el-button type="primary" size="small" :loading="extractAuditing" :disabled="!extractedAuditConnId" @click="runExtractAndAudit">🚀 拉取元数据并执行文件审核</el-button>
-                </div>
-              </div>
-              <div style="color:#909399;font-size:13px;margin:8px 0">自动从选择的 SIT/UAT 测试库中提取当前最新表、索引、视图 DDL 元数据，拼接生成完整的 .sql 描述文件，并自动提交文件审核引擎进行规则评价。</div>
-            </div>
-
-            <!-- 提取与审核结果双栏视图 -->
-            <div v-if="extractedResult.filename" class="mt-16">
-              <el-row :gutter="16">
-                <!-- 左栏：导出的元数据 .sql 文件内容 -->
-                <el-col :span="12">
-                  <div class="page-card" style="height:100%">
-                    <div class="card-head">
-                      <div class="page-card-title mb0" style="font-size:14px">📄 生成的元数据 SQL 文件 ({{ extractedResult.filename }})</div>
-                      <el-button type="success" size="small" @click="downloadExtractedSql"><el-icon><Download /></el-icon>下载 .sql 文件</el-button>
+            <el-tabs v-model="extractedTab">
+              <el-tab-pane label="即时元数据提取与审核" name="audit">
+                <div class="page-card">
+                  <div class="card-head" style="flex-wrap:wrap;gap:12px">
+                    <div class="page-card-title mb0">在线元数据提取与文件审核</div>
+                    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                      <el-select v-model="extractedAuditConnId" placeholder="选择目标实例" filterable size="small" style="width:200px">
+                        <el-option v-for="c in savedConnections" :key="c.id" :label="c.name+' ('+c.host+':'+c.port+')'" :value="c.id"></el-option>
+                      </el-select>
+                      <el-input v-model="extractedDbName" placeholder="目标数据库(留空默认)" size="small" style="width:160px"></el-input>
+                      <el-checkbox-group v-model="extractedScope" size="small" style="display:inline-flex;gap:4px">
+                        <el-checkbox label="TABLE">表结构</el-checkbox>
+                        <el-checkbox label="INDEX">索引/主键</el-checkbox>
+                        <el-checkbox label="VIEW">视图定义</el-checkbox>
+                        <el-checkbox label="SHARDKEY">分片键</el-checkbox>
+                      </el-checkbox-group>
+                      <el-button type="primary" size="small" :loading="extractAuditing" :disabled="!extractedAuditConnId" @click="runExtractAndAudit">🚀 拉取元数据并执行文件审核</el-button>
                     </div>
-                    <div class="sql-block" style="max-height:500px;overflow-y:auto;margin-top:12px">{{ extractedResult.extracted_sql }}</div>
                   </div>
-                </el-col>
+                  <div style="color:#909399;font-size:13px;margin:8px 0">自动从选择的 SIT/UAT 测试库中提取当前最新表、索引、视图 DDL 元数据，拼接生成完整的 .sql 描述文件，并自动提交文件审核引擎进行规则评价。</div>
+                </div>
 
-                <!-- 右栏：类“文件审核”标准的审核报告与违规项 -->
-                <el-col :span="12">
-                  <div class="page-card" style="height:100%">
-                    <div class="page-card-title mb0" style="font-size:14px">📊 元数据文件规则审核报告</div>
-                    <el-descriptions :column="2" border class="mb-16 mt-12" size="small">
-                      <el-descriptions-item label="对象的总数">{{ extractedResult.summary?.total_sql }}</el-descriptions-item>
-                      <el-descriptions-item label="通过数">{{ extractedResult.summary?.passed }}</el-descriptions-item>
-                      <el-descriptions-item label="未通过数">{{ extractedResult.summary?.failed }}</el-descriptions-item>
-                      <el-descriptions-item label="整体通过率">{{ extractedResult.summary?.pass_rate?.toFixed(1) }}%</el-descriptions-item>
-                    </el-descriptions>
-                    <el-collapse style="max-height:420px;overflow-y:auto">
-                      <el-collapse-item v-for="(r,idx) in extractedResult.results" :key="idx" :name="idx">
-                        <template #title>
-                          <span class="mr-8"><strong>#{{ idx+1 }}</strong> {{ r.sql_type }}</span>
-                          <el-tag v-if="r.passed" type="success" size="small">通过</el-tag>
-                          <el-tag v-else type="danger" size="small">{{ r.violations?.length }}项违规</el-tag>
-                        </template>
-                        <div class="sql-block my-8" style="font-size:12px">{{ r.sql }}</div>
-                        <div v-for="v in r.violations" :key="v.rule_id+v.message" :class="'violation-card ' + (v.severity==='ERROR'?'error':'warning')">
-                          <div class="v-rule">[{{ v.rule_id }}] <el-tag :type="sevTagType(v.severity)" size="small">{{ v.severity }}</el-tag> {{ v.message }}</div>
-                          <div class="v-sug" v-if="v.suggestion">💡 {{ v.suggestion }}</div>
+                <!-- 提取与审核结果双栏视图 -->
+                <div v-if="extractedResult.filename" class="mt-16">
+                  <el-row :gutter="16">
+                    <!-- 左栏：导出的元数据 .sql 文件内容 -->
+                    <el-col :span="12">
+                      <div class="page-card" style="height:100%">
+                        <div class="card-head">
+                          <div class="page-card-title mb0" style="font-size:14px">📄 生成的元数据 SQL 文件 ({{ extractedResult.filename }})</div>
+                          <el-button type="success" size="small" @click="downloadExtractedSql"><el-icon><Download /></el-icon>下载 .sql 文件</el-button>
                         </div>
-                      </el-collapse-item>
-                    </el-collapse>
+                        <div class="sql-block" style="max-height:500px;overflow-y:auto;margin-top:12px">{{ extractedResult.extracted_sql }}</div>
+                      </div>
+                    </el-col>
+
+                    <!-- 右栏：类“文件审核”标准的审核报告与违规项 -->
+                    <el-col :span="12">
+                      <div class="page-card" style="height:100%">
+                        <div class="card-head mb-12">
+                          <div class="page-card-title mb0" style="font-size:14px">📊 元数据文件规则审核报告</div>
+                          <el-button v-if="extractedResult.report_id" type="primary" size="small" @click="downloadExtractedHtmlReport(extractedResult.report_id)"><el-icon><Download /></el-icon>导出 HTML 报告</el-button>
+                        </div>
+                        <el-descriptions :column="2" border class="mb-16" size="small">
+                          <el-descriptions-item label="对象的总数">{{ extractedResult.summary?.total_sql }}</el-descriptions-item>
+                          <el-descriptions-item label="通过数">{{ extractedResult.summary?.passed }}</el-descriptions-item>
+                          <el-descriptions-item label="未通过数">{{ extractedResult.summary?.failed }}</el-descriptions-item>
+                          <el-descriptions-item label="整体通过率">{{ extractedResult.summary?.pass_rate?.toFixed(1) }}%</el-descriptions-item>
+                        </el-descriptions>
+                        <el-collapse style="max-height:420px;overflow-y:auto">
+                          <el-collapse-item v-for="(r,idx) in extractedResult.results" :key="idx" :name="idx">
+                            <template #title>
+                              <span class="mr-8"><strong>#{{ idx+1 }}</strong> {{ r.sql_type }}</span>
+                              <el-tag v-if="r.passed" type="success" size="small">通过</el-tag>
+                              <el-tag v-else type="danger" size="small">{{ r.violations?.length }}项违规</el-tag>
+                            </template>
+                            <div class="sql-block my-8" style="font-size:12px">{{ r.sql }}</div>
+                            <div v-for="v in r.violations" :key="v.rule_id+v.message" :class="'violation-card ' + (v.severity==='ERROR'?'error':'warning')">
+                              <div class="v-rule">[{{ v.rule_id }}] <el-tag :type="sevTagType(v.severity)" size="small">{{ v.severity }}</el-tag> {{ v.message }}</div>
+                              <div class="v-sug" v-if="v.suggestion">💡 {{ v.suggestion }}</div>
+                            </div>
+                          </el-collapse-item>
+                        </el-collapse>
+                      </div>
+                    </el-col>
+                  </el-row>
+                </div>
+              </el-tab-pane>
+
+              <!-- Tab 2: 历史元数据审核报告与数据保存记录 -->
+              <el-tab-pane label="历史元数据审核记录" name="history">
+                <div class="page-card">
+                  <div class="card-head">
+                    <div class="page-card-title mb0">元数据提取与文件审核历史记录</div>
+                    <el-button size="small" @click="loadExtractedReports">刷新历史</el-button>
                   </div>
-                </el-col>
-              </el-row>
-            </div>
+                  <el-table :data="extractedReports" v-loading="extractedReportsLoading" stripe class="w-full">
+                    <el-table-column prop="source" label="提取生成的 SQL 文件" show-overflow-tooltip></el-table-column>
+                    <el-table-column prop="created_by" label="审核人" width="100"></el-table-column>
+                    <el-table-column prop="total_sql" label="对象数" width="70"></el-table-column>
+                    <el-table-column label="通过/失败" width="100"><template #default="{row}"><span class="t-success">{{ row.passed }}</span> / <span class="t-danger">{{ row.failed }}</span></template></el-table-column>
+                    <el-table-column label="通过率" width="80"><template #default="{row}"><el-tag :type="row.pass_rate>=80?'success':row.pass_rate>=50?'warning':'danger'" size="small">{{ row.pass_rate?.toFixed(1) }}%</el-tag></template></el-table-column>
+                    <el-table-column label="提取时间" width="160"><template #default="{row}">{{ formatTime(row.created_at) }}</template></el-table-column>
+                    <el-table-column label="操作" width="160" fixed="right">
+                      <template #default="{row}">
+                        <el-button type="primary" link size="small" @click="downloadExtractedHtmlReport(row.id)">下载 HTML 报告</el-button>
+                      </template>
+                    </el-table-column>
+                  </el-table>
+                </div>
+              </el-tab-pane>
+            </el-tabs>
           </div>
 
           <!-- ═══ 审核规则库 ═══ -->

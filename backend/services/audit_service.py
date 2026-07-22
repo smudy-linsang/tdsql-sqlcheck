@@ -48,7 +48,8 @@ def _save_audit_history(audit_type: str, source: str, results: list[AuditResult]
                     "line_number": v.line_number,
                 } for v in r.violations],
             } for r in results], ensure_ascii=False)
-            conn.execute("""
+            cursor = conn.cursor()
+            cursor.execute("""
                 INSERT INTO audit_history (audit_type, source, total_sql, passed, failed,
                     error_count, warning_count, pass_rate, results_json,
                     created_by, project_id, gate_passed, gate_detail, created_at)
@@ -63,10 +64,12 @@ def _save_audit_history(audit_type: str, source: str, results: list[AuditResult]
                 datetime.now().isoformat(),
             ))
             conn.commit()
+            return getattr(cursor, "lastrowid", None)
         finally:
             conn.close()
     except Exception as e:
         logger.warning(f"保存审核历史失败: {e}")
+        return None
 
 
 class AuditService:

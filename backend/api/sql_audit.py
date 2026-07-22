@@ -223,8 +223,19 @@ async def extract_and_audit(http_request: Request, payload: dict):
             created_by=_operator(http_request)
         )
 
+        # 显式持久化落盘至 audit_history 表 (audit_type = 'extracted_schema')
+        from backend.services.audit_service import _save_audit_history
+        report_id = _save_audit_history(
+            audit_type="extracted_schema",
+            source=filename,
+            results=results,
+            summary=summary,
+            created_by=_operator(http_request)
+        )
+
         return {
             "status": "SUCCESS",
+            "report_id": report_id,
             "filename": filename,
             "extracted_sql": full_extracted_sql,
             "results": results,
@@ -233,6 +244,107 @@ async def extract_and_audit(http_request: Request, payload: dict):
     except Exception as e:
         logger.error(f"反向拉取元数据失败: {e}")
         raise HTTPException(status_code=500, detail=f"拉取目标库元数据失败: {str(e)}")
+
+
+@router.get("/extracted-reports", summary="在线元数据审核历史记录列表")
+async def get_extracted_reports(limit: int = 20, offset: int = 0):
+    """获取在线元数据审核的历史提取与审查列表"""
+    ensure_db()
+    conn = _get_connection()
+    try:
+        rows = conn.execute("""
+            SELECT id, audit_type, source, total_sql, passed, failed, error_count,
+                   warning_count, pass_rate, created_by, created_at, results_json
+            FROM audit_history
+            WHERE audit_type = 'extracted_schema' OR source LIKE 'extracted_%.sql'
+            ORDER BY created_at DESC
+            LIMIT ? OFFSET ?
+        """, (limit, offset)).fetchall()
+        
+        count_row = conn.execute("""
+            SELECT COUNT(*) FROM audit_history 
+            WHERE audit_type = 'extracted_schema' OR source LIKE 'extracted_%.sql'
+        """).fetchone()
+        total = count_row[0] if count_row else 0
+        
+        return {
+            "total": total,
+            "reports": [dict(r) for r in rows]
+        }
+    finally:
+        conn.close()
+
+
+@router.get("/report/{report_id}/html", summary="导出元数据审核报告HTML")
+async def export_extracted_report_html(report_id: int):
+    """导出指定在线元数据审核记录的精美 HTML 格式报告"""
+    ensure_db()
+    conn = _get_connection()
+    try:
+        row = conn.execute("SELECT * FROM audit_history WHERE id = ?", (report_id,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="审核报告不存在")
+        
+        r_dict = dict(row)
+        try:
+            results_data = json.loads(r_dict.get("results_json") or "[]")
+        except Exception:
+            results_data = []
+
+        html_content = f"""<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>TDSQL 在线元数据规则审核报告 - {r_dict.get('source')}</title>
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background:#f4f6f9; color:#333; margin:0; padding:20px; }}
+        .container {{ max-width: 1000px; margin: 0 auto; background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }}
+        .header {{ border-bottom: 2px solid #2563eb; padding-bottom: 15px; margin-bottom: 20px; }}
+        .header h1 {{ margin: 0; font-size: 24px; color: #0f1e34; }}
+        .meta {{ font-size: 13px; color: #666; margin-top: 8px; }}
+        .kpi-grid {{ display: flex; gap: 15px; margin-bottom: 25px; }}
+        .kpi-card {{ flex: 1; background: #f8fafc; padding: 15px; border-radius: 6px; text-align: center; border: 1px solid #e2e8f0; }}
+        .kpi-num {{ font-size: 22px; font-weight: bold; margin-bottom: 4px; }}
+        .v-card {{ border: 1px solid #fee2e2; background: #fff5f5; padding: 10px 15px; border-radius: 6px; margin: 8px 0; font-size: 13px; }}
+        .v-card.warning {{ border-color: #fef3c7; background: #fffbeb; }}
+        .sql-box {{ background: #0f1e34; color: #e2e8f0; padding: 12px; border-radius: 6px; font-family: monospace; font-size: 13px; overflow-x: auto; white-space: pre-wrap; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>TDSQL 在线元数据规则审核报告</h1>
+            <div class="meta">提取文件: <b>{r_dict.get('source')}</b> | 审核人: {r_dict.get('created_by') or 'System'} | 审计时间: {r_dict.get('created_at')}</div>
+        </div>
+        <div class="kpi-grid">
+            <div class="kpi-card"><div class="kpi-num">{r_dict.get('total_sql')}</div><div>对象总数</div></div>
+            <div class="kpi-card"><div class="kpi-num" style="color:#16a34a">{r_dict.get('passed')}</div><div>通过数</div></div>
+            <div class="kpi-card"><div class="kpi-num" style="color:#dc2626">{r_dict.get('failed')}</div><div>未通过数</div></div>
+            <div class="kpi-card"><div class="kpi-num" style="color:#2563eb">{r_dict.get('pass_rate', 0):.1f}%</div><div>整体通过率</div></div>
+        </div>
+        <h2>元数据审核明细列表</h2>
+"""
+        for idx, res in enumerate(results_data, 1):
+            passed_tag = '<span style="color:#16a34a;font-weight:bold">[通过]</span>' if res.get('passed') else f'<span style="color:#dc2626;font-weight:bold">[{len(res.get("violations", []))}项违规]</span>'
+            html_content += f"""
+        <div style="margin-bottom: 20px; border-bottom: 1px dashed #e2e8f0; padding-bottom: 15px;">
+            <h3>#{idx} {res.get('sql_type', 'DDL')} {passed_tag}</h3>
+            <div class="sql-box">{res.get('sql', '')}</div>
+"""
+            for v in res.get("violations", []):
+                sev_cls = "warning" if v.get("severity") == "WARNING" else "error"
+                html_content += f"""
+            <div class="v-card {sev_cls}">
+                <b>[{v.get('rule_id')}] [{v.get('severity')}]</b> {v.get('message')}<br>
+                💡 <b>修复建议：</b>{v.get('suggestion', '无')}
+            </div>
+"""
+            html_content += "        </div>"
+
+        html_content += "    </div>\n</body>\n</html>"
+        return Response(content=html_content, media_type="text/html", headers={"Content-Disposition": f"attachment; filename=Extracted_Schema_Report_{report_id}.html"})
+    finally:
+        conn.close()
 
 
 
