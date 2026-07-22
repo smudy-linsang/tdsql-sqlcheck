@@ -62,3 +62,23 @@ def download_script(file_path: str):
         if isinstance(e, HTTPException):
             raise e
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/run")
+def trigger_tool_run(payload: dict):
+    """提交工具箱异步任务"""
+    from backend.services.tool_bridge_service import tool_bridge_service
+    tool_name = payload.get("tool_name", "generic_tool")
+    conn_id = payload.get("connection_id", "")
+    params = payload.get("params", {})
+    operator = payload.get("operator", "system")
+    run_id = tool_bridge_service.create_run_task(tool_name, conn_id, params, operator)
+    return {"status": "SUCCESS", "run_id": run_id, "message": "任务已提交调度"}
+
+
+@router.get("/history")
+def get_tool_run_history(limit: int = 20):
+    """查询工具箱运行历史"""
+    from backend.services.tool_bridge_service import tool_bridge_service
+    return {"items": tool_bridge_service.get_run_history(limit)}
+

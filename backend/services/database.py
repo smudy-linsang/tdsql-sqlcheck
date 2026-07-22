@@ -368,6 +368,13 @@ def init_db():
 
         conn.commit()
         logger.info("数据库初始化完成 (V2.0, MySQL)")
+
+        # v1.2 增量 Schema 迁移文件加载
+        try:
+            from backend.schema.migrator import migrator
+            migrator.run_migrations()
+        except Exception as me:
+            logger.warning(f"Schema 增量迁移执行提示: {me}")
     except Exception as e:
         logger.error(f"数据库初始化失败: {e}")
         raise

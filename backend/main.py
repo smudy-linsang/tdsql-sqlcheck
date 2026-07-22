@@ -178,8 +178,11 @@ async def metrics():
 
 # 前端页面路由
 @app.get("/", include_in_schema=False)
-async def serve_frontend():
-    """服务前端页面"""
+async def serve_frontend(ui: Optional[str] = None):
+    """服务前端页面（双 UI 渐进式智能路由与离线降级）"""
+    v2_dist_index = FRONTEND_DIR / "dist" / "index.html"
+    if ui != "v1" and v2_dist_index.exists():
+        return FileResponse(str(v2_dist_index))
     index_path = FRONTEND_DIR / "index.html"
     if index_path.exists():
         return FileResponse(str(index_path))

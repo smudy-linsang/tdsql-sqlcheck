@@ -108,6 +108,37 @@ async def audit_upload(http_request: Request, file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"审核失败: {str(e)}")
 
 
+@router.post("/batch-stream", summary="大文件/多SQL流式 NDJSON 审核")
+async def audit_batch_stream(file: UploadFile = File(...)):
+    """支持大文件 SQL 的异步流式批处理审核 (NDJSON 格式)"""
+    from backend.services.database import split_sql_statements
+    import json
+    content = await file.read()
+    try:
+        text = content.decode("utf-8")
+    except UnicodeDecodeError:
+        raise HTTPException(status_code=400, detail="文件编码错误，请使用 UTF-8 编码")
+
+    statements = split_sql_statements(text)
+
+    async def stream_generator():
+        for idx, stmt in enumerate(statements, 1):
+            stmt_clean = stmt.strip()
+            if not stmt_clean:
+                continue
+            res, _ = audit_service.audit_single_sql(stmt_clean)
+            item = {
+                "index": idx,
+                "passed": res.passed,
+                "violations_count": len(res.violations),
+                "violations": [{"rule_id": v.rule_id, "message": v.message, "severity": str(v.severity)} for v in res.violations]
+            }
+            yield json.dumps(item, ensure_ascii=False) + "\n"
+
+    return StreamingResponse(stream_generator(), media_type="application/x-ndjson")
+
+
+
 @router.get("/rules", summary="获取审核规则列表")
 async def get_rules():
     """获取所有已启用的审核规则列表"""
