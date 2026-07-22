@@ -548,16 +548,22 @@
           <!-- ═══ 上线检查 ═══ -->
           <div v-if="currentPage==='schema-check'">
             <div class="page-card">
-              <div class="card-head">
+              <div class="card-head" style="flex-wrap:wrap;gap:12px">
                 <div class="page-card-title mb0">数据库上线检查</div>
-                <div>
-                  <el-select v-model="schemaCheckConnId" placeholder="选择实例" filterable size="small" style="width:240px;margin-right:8px">
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                  <el-select v-model="schemaCheckConnId" placeholder="选择实例" filterable size="small" style="width:220px">
                     <el-option v-for="c in savedConnections" :key="c.id" :label="c.name+' ('+c.host+':'+c.port+')'" :value="c.id"></el-option>
                   </el-select>
-                  <el-button type="primary" size="small" :loading="schemaCheckLoading" :disabled="!schemaCheckConnId" @click="runSchemaCheck">执行12项检查</el-button>
+                  <el-checkbox-group v-model="schemaCheckScope" size="small" style="display:inline-flex;gap:4px">
+                    <el-checkbox label="TABLE">表结构</el-checkbox>
+                    <el-checkbox label="INDEX">索引/主键</el-checkbox>
+                    <el-checkbox label="VIEW">视图定义</el-checkbox>
+                    <el-checkbox label="SHARDKEY">TDSQL分片键</el-checkbox>
+                  </el-checkbox-group>
+                  <el-button type="primary" size="small" :loading="schemaCheckLoading" :disabled="!schemaCheckConnId" @click="runSchemaCheck">执行上线检查与元数据拉取</el-button>
                 </div>
               </div>
-              <div style="color:#909399;font-size:13px;margin:8px 0">替代 tdsql_12.sh 脚本，对目标实例全部非系统库执行上线前检查：字符集/排序规则、表名规范、索引数量、主键、字段长度、注释完整性、字段数量、timestamp类型等</div>
+              <div style="color:#909399;font-size:13px;margin:8px 0">可直接在线提取目标 SIT/UAT 数据库中最新表、索引、视图及 TDSQL 分片键元数据，自动合并并触发全量 119+ 条规则深度审核与上线预检。</div>
             </div>
 
             <!-- 统计卡片 -->
