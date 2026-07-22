@@ -71,8 +71,10 @@ def trigger_tool_run(payload: dict, http_request: Request = None):
     tool_name = payload.get("tool_name", "generic_tool")
     conn_id = payload.get("connection_id", "")
     params = payload.get("params", {})
-    operator = (getattr(http_request.state, "user", None) if http_request and hasattr(http_request, "state") else None) or payload.get("operator", "system")
-    run_id = tool_bridge_service.create_run_task(tool_name, conn_id, params, operator)
+    operator = (getattr(http_request.state, "username", None) if http_request and hasattr(http_request, "state") else None) or payload.get("operator", "system")
+    if isinstance(operator, dict):
+        operator = operator.get("username") or "system"
+    run_id = tool_bridge_service.create_run_task(tool_name, conn_id, params, str(operator))
     return {"status": "SUCCESS", "run_id": run_id, "message": "任务已提交调度"}
 
 

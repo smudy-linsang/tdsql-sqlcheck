@@ -17,6 +17,9 @@ class ToolBridgeService:
         ensure_db()
         run_id = f"tr_{uuid.uuid4().hex[:12]}"
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        if isinstance(operator, dict):
+            operator = operator.get("username") or "system"
+        operator = str(operator)
         conn = _get_connection()
         try:
             cursor = conn.cursor()
