@@ -1,0 +1,39 @@
+﻿报告 id=5492 source=extracted_tdsql_test_20260722_175141.sql
+FAIL: 401 {"code":401,"message":"未认证或令牌已过期，请重新登录"}
+
+
+=== results_json 里 results[*].sql 字段样例 ===
+
+--- result 1: CREATE TABLE (passed=False) ---
+-- ============================================================================
+-- TDSQL 自动拉取的最新在线元数据描述文件
+-- 目标实例: TDSQL (TDSQL:3306)
+-- 目标数据库: tdsql_test
+-- 提取日期: 2026-07-22 17:51:41
+-- ============================================================================
+
+-- Table: t_charset_latin1
+CREATE TABLE `t_charset_latin1` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `name` varchar(64) CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL COMMENT 'åç§°(latin1)',
+  `description` varchar(256) CHA
+
+--- result 2: CREATE TABLE (passed=False) ---
+-- Table: t_config
+CREATE TABLE `t_config` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT 'ä¸»é”®ID',
+  `config_key` varchar(128) COLLATE utf8mb4_general_ci NOT NULL COMMENT 'é…ç½®é”®',
+  `config_value` text COLLATE utf8mb4_general_ci COMMENT 'é…ç½®å€¼',
+  `config_desc` varchar(256) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT 'é…ç½®æè¿°',
+  `is_deleted` tinyint NOT NULL DEFAULT '0' COMMENT 'é€»è¾‘åˆ é™¤æ ‡è®°',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'åˆ›å»º
+
+--- result 3: CREATE TABLE (passed=False) ---
+-- Table: t_large_order_log
+CREATE TABLE `t_large_order_log` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT 'ä¸»é”®ID',
+  `order_id` bigint NOT NULL COMMENT 'è®¢å•ID',
+  `action` varchar(32) COLLATE utf8mb4_general_ci NOT NULL COMMENT 'æ“ä½œç±»åž‹',
+  `operator` varchar(64) COLLATE utf8mb4_general_ci NOT NULL COMMENT 'æ“ä½œäºº',
+  `remark` varchar(512) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT 'å¤‡æ³¨',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'åˆ›å»ºæ—¶é—´',

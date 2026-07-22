@@ -1,0 +1,2 @@
+﻿authenticate: OK
+HTTP login: 200 {"token":"eyJzdWIiOiJhZG1pbiIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc4NDcxODg5MiwiZXhwIjoxNzg0NzQ3NjkyLCJqdGkiOiJjZDZmZDU0ODkxZmMwZTRiIn0.fOir52g_qDmlL_-l0rBq4hSxWPxu8mbBNS7q87DEqZ0","token_type":"Bearer","us

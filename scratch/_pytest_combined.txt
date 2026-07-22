@@ -1,0 +1,20 @@
+﻿...................                                                      [100%]
+============================== warnings summary ===============================
+tests\test_v2_rbac_matrix.py:5
+  C:\TDSQL_SQLCHECK\TDSQL-SQLCheck\tests\test_v2_rbac_matrix.py:5: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient
+
+backend\models\__init__.py:211
+  C:\TDSQL_SQLCHECK\TDSQL-SQLCheck\backend\models\__init__.py:211: UserWarning: Field name "schema" in "BigTableInfo" shadows an attribute in parent "BaseModel"
+    class BigTableInfo(BaseModel):
+
+backend\models\__init__.py:239
+  C:\TDSQL_SQLCHECK\TDSQL-SQLCheck\backend\models\__init__.py:239: UserWarning: Field name "schema" in "TableClassification" shadows an attribute in parent "BaseModel"
+    class TableClassification(BaseModel):
+
+backend\models\__init__.py:333
+  C:\TDSQL_SQLCHECK\TDSQL-SQLCheck\backend\models\__init__.py:333: UserWarning: Field name "schema" in "CharsetDiagnosticReport" shadows an attribute in parent "BaseModel"
+    class CharsetDiagnosticReport(BaseModel):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+19 passed, 4 warnings in 35.80s

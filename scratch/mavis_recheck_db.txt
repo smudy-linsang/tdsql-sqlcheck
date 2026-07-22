@@ -1,0 +1,5 @@
+﻿admin 可见菜单 keys: ['audit-sql', 'bigtable', 'dashboard', 'deep-diag', 'deep-diag-cluster', 'deep-diag-daily', 'deep-diag-diff', 'deep-diag-emergency', 'deep-diag-gateway', 'deep-diag-index', 'deep-diag-ppt', 'deep-diag-sqlstats', 'deep-diag-toolkit', 'explain', 'file-audit', 'gate', 'inspection', 'instances', 'monitor', 'projects', 'rules', 'rulesets', 'schema-check', 'schema-extractor-audit', 'slow-records', 'slow-schedule', 'slow-tasks', 'sys-auditlog', 'sys-info', 'sys-perms', 'sys-retention', 'sys-roles', 'sys-users']
+  admin                sys-auditlog 可见: True
+  test_dba             sys-auditlog 可见: False
+  test_developer       sys-auditlog 可见: False
+  test_auditor         sys-auditlog 可见: True

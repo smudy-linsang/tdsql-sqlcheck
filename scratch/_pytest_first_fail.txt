@@ -1,0 +1,87 @@
+﻿........................................................................ [  7%]
+........................................................................ [ 14%]
+........................................................................ [ 21%]
+........................................................................ [ 28%]
+........................................................................ [ 36%]
+........................................................................ [ 43%]
+........................................................................ [ 50%]
+........................................................................ [ 57%]
+........................................................................ [ 65%]
+........................................................................ [ 72%]
+........................................................................ [ 79%]
+........................................................................ [ 86%]
+........................................................................ [ 94%]
+...........................................................              [100%]
+============================== warnings summary ===============================
+..\..\Users\linsa\AppData\Roaming\Python\Python314\site-packages\fastapi\testclient.py:1
+  C:\Users\linsa\AppData\Roaming\Python\Python314\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+backend\models\__init__.py:211
+  C:\TDSQL_SQLCHECK\TDSQL-SQLCheck\backend\models\__init__.py:211: UserWarning: Field name "schema" in "BigTableInfo" shadows an attribute in parent "BaseModel"
+    class BigTableInfo(BaseModel):
+
+backend\models\__init__.py:239
+  C:\TDSQL_SQLCHECK\TDSQL-SQLCheck\backend\models\__init__.py:239: UserWarning: Field name "schema" in "TableClassification" shadows an attribute in parent "BaseModel"
+    class TableClassification(BaseModel):
+
+backend\models\__init__.py:333
+  C:\TDSQL_SQLCHECK\TDSQL-SQLCheck\backend\models\__init__.py:333: UserWarning: Field name "schema" in "CharsetDiagnosticReport" shadows an attribute in parent "BaseModel"
+    class CharsetDiagnosticReport(BaseModel):
+
+tests/test_gateway_log.py::test_gateway_log_service
+  C:\Users\linsa\AppData\Roaming\Python\Python314\site-packages\_pytest\threadexception.py:58: PytestUnhandledThreadExceptionWarning: Exception in thread Thread-12 (_readerthread)
+  
+  Traceback (most recent call last):
+    File "C:\Python314\Lib\threading.py", line 1082, in _bootstrap_inner
+      self._context.run(self.run)
+      ~~~~~~~~~~~~~~~~~^^^^^^^^^^
+    File "C:\Python314\Lib\threading.py", line 1024, in run
+      self._target(*self._args, **self._kwargs)
+      ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "C:\Python314\Lib\subprocess.py", line 1614, in _readerthread
+      buffer.append(fh.read())
+                    ~~~~~~~^^
+  UnicodeDecodeError: 'gbk' codec can't decode byte 0xaa in position 57: illegal multibyte sequence
+  
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+    warnings.warn(pytest.PytestUnhandledThreadExceptionWarning(msg))
+
+tests/test_gateway_log.py::test_gateway_log_upload_api
+  C:\Users\linsa\AppData\Roaming\Python\Python314\site-packages\_pytest\threadexception.py:58: PytestUnhandledThreadExceptionWarning: Exception in thread Thread-15 (_readerthread)
+  
+  Traceback (most recent call last):
+    File "C:\Python314\Lib\threading.py", line 1082, in _bootstrap_inner
+      self._context.run(self.run)
+      ~~~~~~~~~~~~~~~~~^^^^^^^^^^
+    File "C:\Python314\Lib\threading.py", line 1024, in run
+      self._target(*self._args, **self._kwargs)
+      ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "C:\Python314\Lib\subprocess.py", line 1614, in _readerthread
+      buffer.append(fh.read())
+                    ~~~~~~~^^
+  UnicodeDecodeError: 'gbk' codec can't decode byte 0xaa in position 57: illegal multibyte sequence
+  
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+    warnings.warn(pytest.PytestUnhandledThreadExceptionWarning(msg))
+
+tests/test_uat_frontend.py::TestUAT34_FrontendErrorHandling::test_uat34_02_invalid_json_handling
+tests/test_uat_round4.py::TestUAT27_ErrorHandlingDeep::test_uat27_01_malformed_json
+  C:\Users\linsa\AppData\Roaming\Python\Python314\site-packages\httpx\_models.py:408: DeprecationWarning: Use 'content=<...>' to upload raw bytes/text content.
+    headers, stream = encode_request(
+
+tests/test_uat_multi_set.py::TestUATFrontendStructure::test_no_scan_all_sets_toggle
+tests/test_v2_uat.py::TestUATDBAScenario::test_b1_register_multiple_environments
+tests/test_v2_uat.py::TestUATDeveloperScenario::test_c1_developer_audits_sql
+tests/test_v2_uat.py::TestUATAuditorScenario::test_d1_auditor_reads_everything
+  C:\Users\linsa\AppData\Roaming\Python\Python314\site-packages\_pytest\fixtures.py:1313: PytestRemovedIn10Warning: Class-scoped fixture defined as instance method is deprecated.
+  Instance attributes set in this fixture will NOT be visible to test methods,
+  as each test gets a new instance while the fixture runs only once per class.
+  Use @classmethod decorator and set attributes on cls instead.
+  See https://docs.pytest.org/en/stable/deprecations.html#class-scoped-fixture-as-instance-method
+    fixturefunc = resolve_fixture_function(fixturedef, request)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+995 passed, 12 warnings in 211.93s (0:03:31)
