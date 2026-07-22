@@ -7,7 +7,7 @@ import tarfile
 import hashlib
 
 ROOT = r"c:\TDSQL_SQLCHECK\TDSQL-SQLCheck"
-VERSION = "1.2.0.1"
+VERSION = "1.2.0.2"
 OUTPUT_TAR = os.path.join(ROOT, "dist", f"tdsql-sqlcheck-v{VERSION}-source.tar.gz")
 OUTPUT_ROOT_TAR = os.path.join(ROOT, f"tdsql-sqlcheck-v{VERSION}-source.tar.gz")
 STAGE_DIR = os.path.join(ROOT, "dist", f"stage-v{VERSION}")
