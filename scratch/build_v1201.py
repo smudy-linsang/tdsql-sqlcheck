@@ -35,7 +35,7 @@ INCLUDE_ITEMS = [
     "VERSION"
 ]
 
-print("[2/4] 复制打包目录文件...")
+print("[2/4] 复制打包目录文件与离线 wheels 依赖包...")
 for item in INCLUDE_ITEMS:
     src = os.path.join(ROOT, item)
     dst = os.path.join(STAGE_DIR, item)
@@ -43,6 +43,21 @@ for item in INCLUDE_ITEMS:
         shutil.copytree(src, dst, ignore=shutil.ignore_patterns("__pycache__", "*.pyc", ".git", ".pytest_cache", "node_modules"))
     elif os.path.isfile(src):
         shutil.copy2(src, dst)
+
+# 下载离线 wheels 依赖包，供纯内网无网环境直接 pip install
+wheels_dst = os.path.join(STAGE_DIR, "wheels")
+wheels_src = os.path.join(ROOT, "wheels")
+os.makedirs(wheels_dst, exist_ok=True)
+if os.path.exists(wheels_src) and os.listdir(wheels_src):
+    for f in os.listdir(wheels_src):
+        shutil.copy2(os.path.join(wheels_src, f), os.path.join(wheels_dst, f))
+else:
+    print("下载依赖包到 wheels/...")
+    import subprocess
+    subprocess.run([
+        "python", "-m", "pip", "download", "-r", os.path.join(ROOT, "requirements.txt"),
+        "-d", wheels_dst, "--only-binary=:all:"
+    ], check=False)
 
 print("[3/4] 压缩为 tar.gz 离线发布包...")
 with tarfile.open(OUTPUT_TAR, "w:gz") as tar:
