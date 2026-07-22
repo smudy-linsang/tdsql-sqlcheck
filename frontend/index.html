@@ -365,8 +365,9 @@
                     <el-table-column label="通过/失败" width="100"><template #default="{row}"><span class="t-success">{{ row.passed }}</span> / <span class="t-danger">{{ row.failed }}</span></template></el-table-column>
                     <el-table-column label="通过率" width="80"><template #default="{row}"><el-tag :type="row.pass_rate>=80?'success':row.pass_rate>=50?'warning':'danger'" size="small">{{ row.pass_rate?.toFixed(1) }}%</el-tag></template></el-table-column>
                     <el-table-column label="提取时间" width="160"><template #default="{row}">{{ formatTime(row.created_at) }}</template></el-table-column>
-                    <el-table-column label="操作" width="160" fixed="right">
+                    <el-table-column label="操作" width="200" fixed="right">
                       <template #default="{row}">
+                        <el-button type="success" link size="small" @click="downloadExtractedSqlFile(row.id)">下载 .sql</el-button>
                         <el-button type="primary" link size="small" @click="downloadExtractedHtmlReport(row.id)">下载 HTML 报告</el-button>
                       </template>
                     </el-table-column>

@@ -4,7 +4,7 @@ TDSQL SQL审核工具 - SQL审核 API
 提供 RESTful 接口用于 SQL 审核和审核报告导出。
 """
 from fastapi import APIRouter, UploadFile, File, HTTPException, Request
-from fastapi.responses import StreamingResponse, HTMLResponse
+from fastapi.responses import StreamingResponse, HTMLResponse, Response
 from typing import Optional
 from urllib.parse import quote
 import json
@@ -357,6 +357,41 @@ async def export_extracted_report_html(report_id: int):
 
         html_content += "    </div>\n</body>\n</html>"
         return Response(content=html_content, media_type="text/html", headers={"Content-Disposition": f"attachment; filename=Extracted_Schema_Report_{report_id}.html"})
+    finally:
+        conn.close()
+
+
+@router.get("/report/{report_id}/sql", summary="下载历史提取的元数据SQL文件")
+async def download_extracted_report_sql(report_id: int):
+    """下载指定在线元数据审核历史中生成的元数据 .sql 文件"""
+    ensure_db()
+    conn = _get_connection()
+    try:
+        row = conn.execute("SELECT * FROM audit_history WHERE id = ?", (report_id,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="审核记录不存在")
+        
+        r_dict = dict(row) if not isinstance(row, dict) else row
+        try:
+            results_data = json.loads(r_dict.get("results_json") or "[]")
+        except Exception:
+            results_data = []
+
+        sql_blocks = []
+        for r in results_data:
+            if r.get("sql"):
+                sql_blocks.append(f"-- SQL Object: {r.get('sql_type', 'DDL')}\n{r.get('sql')}")
+        
+        full_sql = "\n\n".join(sql_blocks)
+        filename = r_dict.get("source") or f"extracted_{report_id}.sql"
+        if not filename.endswith(".sql"):
+            filename += ".sql"
+
+        return Response(
+            content=full_sql,
+            media_type="text/plain;charset=utf-8",
+            headers={"Content-Disposition": f"attachment; filename={quote(filename)}"}
+        )
     finally:
         conn.close()
 
