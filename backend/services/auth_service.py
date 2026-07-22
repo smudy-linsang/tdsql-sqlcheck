@@ -227,6 +227,7 @@ _PATH_TO_MENU = {
     "/api/v1/audit/sql": "audit-sql",
     "/api/v1/audit/file": "file-audit",
     "/api/v1/audit/upload": "file-audit",
+    "/api/v1/audit/extract-and-audit": "schema-extractor-audit",
     "/api/v1/rules": "rules",
     "/api/v1/slow-queries": "slow-tasks",
     "/api/v1/tdsql/slow-queries": "slow-tasks",
@@ -319,7 +320,7 @@ def check_permission(role: str, method: str, path: str) -> bool:
 
 # 全部菜单key清单
 ALL_MENU_KEYS = [
-    'dashboard', 'audit-sql', 'file-audit', 'rules',
+    'dashboard', 'audit-sql', 'file-audit', 'schema-extractor-audit', 'rules',
     'slow-tasks', 'slow-records', 'slow-schedule', 'explain',
     'instances', 'schema-check', 'bigtable', 'deep-diag',
     'deep-diag-cluster', 'deep-diag-daily', 'deep-diag-index', 'deep-diag-diff',
@@ -332,7 +333,7 @@ ALL_MENU_KEYS = [
 
 # 菜单中文标签
 MENU_LABELS = {
-    'dashboard': '治理概览', 'audit-sql': '即时审核', 'file-audit': '文件审核',
+    'dashboard': '治理概览', 'audit-sql': '即时审核', 'file-audit': '文件审核', 'schema-extractor-audit': '在线元数据审核',
     'rules': '审核规则库', 'slow-tasks': '扫描任务', 'slow-records': '慢SQL记录',
     'slow-schedule': '扫描计划', 'explain': 'EXPLAIN分析', 'instances': '实例管理',
     'schema-check': '上线检查', 'bigtable': '大表治理', 'deep-diag': '深度诊断',
@@ -478,11 +479,11 @@ def get_visible_menus(role: str) -> list[str]:
         # 无记录时回退：admin全部可见，其他角色仅基础菜单
         if role == "admin":
             return ALL_MENU_KEYS
-        return ['dashboard', 'audit-sql', 'file-audit', 'rules']
+        return ['dashboard', 'audit-sql', 'file-audit', 'schema-extractor-audit', 'rules']
     except Exception:
         if role == "admin":
             return ALL_MENU_KEYS
-        return ['dashboard', 'audit-sql', 'file-audit', 'rules']
+        return ['dashboard', 'audit-sql', 'file-audit', 'schema-extractor-audit', 'rules']
     finally:
         conn.close()
 

@@ -138,6 +138,108 @@ async def audit_batch_stream(file: UploadFile = File(...)):
     return StreamingResponse(stream_generator(), media_type="application/x-ndjson")
 
 
+@router.post("/extract-and-audit", summary="反向拉取元数据生成SQL文件并审核")
+async def extract_and_audit(http_request: Request, payload: dict):
+    """
+    拉取指定 TDSQL 实例与数据库的元数据（表/索引/视图），
+    反向生成完整 .sql 文件并提交文件审核引擎进行规则化审核。
+    """
+    connection_id = payload.get("connection_id")
+    database_name = payload.get("database") or payload.get("database_name") or ""
+    scopes = payload.get("scopes") or ["TABLE", "INDEX", "VIEW", "SHARDKEY"]
+    if not connection_id:
+        raise HTTPException(status_code=400, detail="请选择目标数据库实例")
+
+    from backend.services.connection_registry import registry
+    conn_info = registry.get_saved(connection_id)
+    if not conn_info:
+        raise HTTPException(status_code=404, detail="选定的数据库实例连接不存在")
+
+    try:
+        from backend.connectors.metadata_fetcher import MetadataFetcher
+        from backend.connectors.connection_pool import ConnectionPool
+        pool = ConnectionPool(
+            host=conn_info["host"],
+            port=conn_info["port"],
+            user=conn_info["user"],
+            password=conn_info["password"],
+            database=database_name or conn_info.get("database", "")
+        )
+        fetcher = MetadataFetcher(pool)
+        
+        # 1. 抓取该库下的表清单与 VIEW 列表
+        target_db = database_name or conn_info.get("database", "mysql")
+        tables = fetcher.fetch_databases()  # 获取包含数据库内所有的表或展示
+        
+        extracted_sqls = []
+        extracted_sqls.append(f"-- ============================================================================")
+        extracted_sqls.append(f"-- TDSQL 自动拉取的最新在线元数据描述文件")
+        extracted_sqls.append(f"-- 目标实例: {conn_info.get('name', 'TDSQL')} ({conn_info['host']}:{conn_info['port']})")
+        extracted_sqls.append(f"-- 目标数据库: {target_db}")
+        extracted_sqls.append(f"-- 提取日期: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        extracted_sqls.append(f"-- ============================================================================\n")
+
+        with pool.get_connection() as conn:
+            cursor = conn.cursor()
+            # 获取数据库下所有的 TABLES 与 VIEWS
+            cursor.execute("""
+                SELECT TABLE_NAME, TABLE_TYPE 
+                FROM information_schema.TABLES 
+                WHERE TABLE_SCHEMA = %s
+            """, (target_db,))
+            db_objects = cursor.fetchall()
+            
+            for obj in db_objects:
+                obj_name = obj.get("TABLE_NAME") or obj.get("table_name")
+                obj_type = obj.get("TABLE_TYPE") or obj.get("table_type")
+                if not obj_name:
+                    continue
+                
+                if "TABLE" in scopes and "VIEW" not in obj_type.upper():
+                    try:
+                        cursor.execute(f"SHOW CREATE TABLE `{target_db}`.`{obj_name}`")
+                        res = cursor.fetchone()
+                        create_sql = list(res.values())[1] if res else ""
+                        if create_sql:
+                            extracted_sqls.append(f"-- Table: {obj_name}")
+                            extracted_sqls.append(f"{create_sql};\n")
+                    except Exception:
+                        pass
+                        
+                elif "VIEW" in scopes and "VIEW" in obj_type.upper():
+                    try:
+                        cursor.execute(f"SHOW CREATE VIEW `{target_db}`.`{obj_name}`")
+                        res = cursor.fetchone()
+                        create_sql = list(res.values())[1] if res else ""
+                        if create_sql:
+                            extracted_sqls.append(f"-- View: {obj_name}")
+                            extracted_sqls.append(f"{create_sql};\n")
+                    except Exception:
+                        pass
+
+        full_extracted_sql = "\n".join(extracted_sqls)
+        filename = f"extracted_{target_db}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.sql"
+
+        # 2. 调用文件审核引擎进行规则化全面评估
+        results, summary, _ = audit_service.audit_file_content(
+            full_extracted_sql,
+            file_path=filename,
+            created_by=_operator(http_request)
+        )
+
+        return {
+            "status": "SUCCESS",
+            "filename": filename,
+            "extracted_sql": full_extracted_sql,
+            "results": results,
+            "summary": summary
+        }
+    except Exception as e:
+        logger.error(f"反向拉取元数据失败: {e}")
+        raise HTTPException(status_code=500, detail=f"拉取目标库元数据失败: {str(e)}")
+
+
+
 
 @router.get("/rules", summary="获取审核规则列表")
 async def get_rules():
