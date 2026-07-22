@@ -1363,7 +1363,7 @@ def _init_default_data(conn):
 
     # V3.0: 初始化角色权限矩阵（全菜单默认可见=1）
     all_menus = [
-        'dashboard', 'audit-sql', 'file-audit', 'rules',
+        'dashboard', 'audit-sql', 'file-audit', 'schema-extractor-audit', 'rules',
         'slow-tasks', 'slow-records', 'slow-schedule', 'explain',
         'instances', 'schema-check', 'bigtable', 'deep-diag',
         'deep-diag-cluster', 'deep-diag-daily', 'deep-diag-index', 'deep-diag-diff',
@@ -1398,6 +1398,13 @@ def _init_default_data(conn):
         UPDATE role_permissions SET visible=0
         WHERE menu_key='schema-check' AND role_id='auditor'
     """)
+
+    # V3.2: schema-extractor-audit 存量库订正补齐
+    for rid in ('admin', 'dba', 'developer', 'auditor'):
+        conn.cursor().execute("""
+            INSERT IGNORE INTO role_permissions(role_id, menu_key, visible)
+            VALUES (%s, 'schema-extractor-audit', 1)
+        """, (rid,))
 
     # 存量库增量订正：清理已经不用的菜单项并自动初始化新菜单项
     # 1. 清理过期菜单键
