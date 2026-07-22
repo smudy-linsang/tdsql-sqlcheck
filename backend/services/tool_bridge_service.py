@@ -16,13 +16,14 @@ class ToolBridgeService:
         """创建工具箱调度任务并插入 tool_runs 表"""
         ensure_db()
         run_id = f"tr_{uuid.uuid4().hex[:12]}"
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         conn = _get_connection()
         try:
             cursor = conn.cursor()
             cursor.execute("""
                 INSERT INTO tool_runs (run_id, tool_name, target_connection, params_json, status, created_by, finished_at)
-                VALUES (%s, %s, %s, %s, 'SUCCESS', %s, NOW())
-            """, (run_id, tool_name, connection_id, json.dumps(params), operator))
+                VALUES (%s, %s, %s, %s, 'RUNNING', %s, %s)
+            """, (run_id, tool_name, connection_id, json.dumps(params), operator, now_str))
             conn.commit()
             return run_id
         finally:
@@ -31,14 +32,15 @@ class ToolBridgeService:
     def update_run_status(self, run_id: str, status: str, error_msg: Optional[str] = None):
         """更新任务状态与结束时间"""
         ensure_db()
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         conn = _get_connection()
         try:
             cursor = conn.cursor()
             cursor.execute("""
                 UPDATE tool_runs
-                SET status = %s, error_message = %s, finished_at = NOW()
+                SET status = %s, error_message = %s, finished_at = %s
                 WHERE run_id = %s
-            """, (status, error_msg or "", run_id))
+            """, (status, error_msg or "", now_str, run_id))
             conn.commit()
         finally:
             conn.close()
