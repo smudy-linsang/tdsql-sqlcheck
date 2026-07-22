@@ -10,12 +10,13 @@ API_BASE = "http://localhost:8000/api/v1"
 
 
 def _get_auth_headers():
-    try:
-        resp = requests.post(f"{API_BASE}/auth/login", json={"username": "admin", "password": "Abcd1234"}, timeout=5)
-        if resp.ok:
-            return {"Authorization": f"Bearer {resp.json().get('token', '')}"}
-    except Exception:
-        pass
+    for pwd in ("Test@2026Admin", "Admin@1234", "adminpassword", "Abcd1234"):
+        try:
+            resp = requests.post(f"{API_BASE}/auth/login", json={"username": "admin", "password": pwd}, timeout=3)
+            if resp.ok:
+                return {"Authorization": f"Bearer {resp.json().get('token', '')}"}
+        except Exception:
+            pass
     return {}
 
 _AUTH = None
