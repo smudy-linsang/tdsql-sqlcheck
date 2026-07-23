@@ -14,7 +14,12 @@ from concurrent.futures import ThreadPoolExecutor
 from backend.services.database import _get_connection
 from backend.services.cluster_inspect_service import _metric, _discover_nodes
 
+import threading
+
 logger = logging.getLogger("tdsql.daily_inspect")
+
+# 线程锁保护元数据库的并发落库写入
+_INSPECT_DB_LOCK = threading.Lock()
 
 # 30秒 TTL 全局巡检内存缓存 (Key: connection_id:inspect_date)，限制最大100条防止无界内存增长
 _DAILY_CACHE = {}
@@ -448,36 +453,36 @@ def run_daily(pool, connection_id: str = "", inspect_date: str = "", nodes: list
             if vals["delay_peak"] == 4.0:
                 vals["delay_peak"] = 0.0
 
-            # 插入/更新系统元数据库
-            conn.execute(
-                "INSERT INTO daily_inspection (inspect_date, connection_id, node, "
-                "cpu_peak, cpu_avg, mem_peak, conn_peak, slow_query, delay_peak, disk_peak, "
-                "cpu_cores, mem_gb, data_disk_gb, log_disk_gb, cpu_avg_daily, mem_avg_daily, "
-                "proxy_req_total, proxy_t_l, proxy_t_m, proxy_t_p, proxy_t_n, "
-                "proxy_req_l, proxy_req_m, proxy_req_p, proxy_req_n, "
-                "proxy_active_conn_peak, proxy_conn_peak, proxy_err_sql_sum) "
-                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
-                "ON DUPLICATE KEY UPDATE cpu_peak=VALUES(cpu_peak), cpu_avg=VALUES(cpu_avg), "
-                "mem_peak=VALUES(mem_peak), conn_peak=VALUES(conn_peak), "
-                "slow_query=VALUES(slow_query), delay_peak=VALUES(delay_peak), disk_peak=VALUES(disk_peak), "
-                "cpu_cores=VALUES(cpu_cores), mem_gb=VALUES(mem_gb), data_disk_gb=VALUES(data_disk_gb), log_disk_gb=VALUES(log_disk_gb), "
-                "cpu_avg_daily=VALUES(cpu_avg_daily), mem_avg_daily=VALUES(mem_avg_daily), "
-                "proxy_req_total=VALUES(proxy_req_total), proxy_t_l=VALUES(proxy_t_l), proxy_t_m=VALUES(proxy_t_m), proxy_t_p=VALUES(proxy_t_p), proxy_t_n=VALUES(proxy_t_n), "
-                "proxy_req_l=VALUES(proxy_req_l), proxy_req_m=VALUES(proxy_req_m), proxy_req_p=VALUES(proxy_req_p), proxy_req_n=VALUES(proxy_req_n), "
-                "proxy_active_conn_peak=VALUES(proxy_active_conn_peak), proxy_conn_peak=VALUES(proxy_conn_peak), proxy_err_sql_sum=VALUES(proxy_err_sql_sum)",
-                (inspect_date, connection_id, mid, vals["cpu_peak"], vals["cpu_avg"],
-                 vals["mem_peak"], vals["conn_peak"], vals["slow_query"],
-                 vals["delay_peak"], vals["disk_peak"],
-                 vals["cpu_cores"], vals["mem_gb"], vals["data_disk_gb"], vals["log_disk_gb"],
-                 vals["cpu_avg_daily"], vals["mem_avg_daily"],
-                 vals["proxy_req_total"], vals["proxy_t_l"], vals["proxy_t_m"], vals["proxy_t_p"], vals["proxy_t_n"],
-                 vals["proxy_req_l"], vals["proxy_req_m"], vals["proxy_req_p"], vals["proxy_req_n"],
-                 vals["proxy_active_conn_peak"], vals["proxy_conn_peak"], vals["proxy_err_sql_sum"]))
+            # 插入/更新系统元数据库（加线程锁保护并发事务安全）
+            with _INSPECT_DB_LOCK:
+                conn.execute(
+                    "INSERT INTO daily_inspection (inspect_date, connection_id, node, "
+                    "cpu_peak, cpu_avg, mem_peak, conn_peak, slow_query, delay_peak, disk_peak, "
+                    "cpu_cores, mem_gb, data_disk_gb, log_disk_gb, cpu_avg_daily, mem_avg_daily, "
+                    "proxy_req_total, proxy_t_l, proxy_t_m, proxy_t_p, proxy_t_n, "
+                    "proxy_req_l, proxy_req_m, proxy_req_p, proxy_req_n, "
+                    "proxy_active_conn_peak, proxy_conn_peak, proxy_err_sql_sum) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
+                    "ON DUPLICATE KEY UPDATE cpu_peak=VALUES(cpu_peak), cpu_avg=VALUES(cpu_avg), "
+                    "mem_peak=VALUES(mem_peak), conn_peak=VALUES(conn_peak), "
+                    "slow_query=VALUES(slow_query), delay_peak=VALUES(delay_peak), disk_peak=VALUES(disk_peak), "
+                    "cpu_cores=VALUES(cpu_cores), mem_gb=VALUES(mem_gb), data_disk_gb=VALUES(data_disk_gb), log_disk_gb=VALUES(log_disk_gb), "
+                    "cpu_avg_daily=VALUES(cpu_avg_daily), mem_avg_daily=VALUES(mem_avg_daily), "
+                    "proxy_req_total=VALUES(proxy_req_total), proxy_t_l=VALUES(proxy_t_l), proxy_t_m=VALUES(proxy_t_m), proxy_t_p=VALUES(proxy_t_p), proxy_t_n=VALUES(proxy_t_n), "
+                    "proxy_req_l=VALUES(proxy_req_l), proxy_req_m=VALUES(proxy_req_m), proxy_req_p=VALUES(proxy_req_p), proxy_req_n=VALUES(proxy_req_n), "
+                    "proxy_active_conn_peak=VALUES(proxy_active_conn_peak), proxy_conn_peak=VALUES(proxy_conn_peak), proxy_err_sql_sum=VALUES(proxy_err_sql_sum)",
+                    (inspect_date, connection_id, mid, vals["cpu_peak"], vals["cpu_avg"],
+                     vals["mem_peak"], vals["conn_peak"], vals["slow_query"],
+                     vals["delay_peak"], vals["disk_peak"],
+                     vals["cpu_cores"], vals["mem_gb"], vals["data_disk_gb"], vals["log_disk_gb"],
+                     vals["cpu_avg_daily"], vals["mem_avg_daily"],
+                     vals["proxy_req_total"], vals["proxy_t_l"], vals["proxy_t_m"], vals["proxy_t_p"], vals["proxy_t_n"],
+                     vals["proxy_req_l"], vals["proxy_req_m"], vals["proxy_req_p"], vals["proxy_req_n"],
+                     vals["proxy_active_conn_peak"], vals["proxy_conn_peak"], vals["proxy_err_sql_sum"]))
+                # 触发物理主机巡检收集 (Sheet2)
+                run_server_daily(conn, connection_id, inspect_date)
+                conn.commit()
             rows.append({"node": mid, **vals})
-        
-        # 触发物理主机巡检收集 (Sheet2)
-        run_server_daily(conn, connection_id, inspect_date)
-        conn.commit()
     finally:
         conn.close()
     
