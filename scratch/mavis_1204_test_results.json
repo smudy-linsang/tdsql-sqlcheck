@@ -1,0 +1,498 @@
+{
+  "version": "1.2.0.4",
+  "env_note": "测试环境无 monitordb, daily inspect HTTP 成功路径不可达, 改用 in-process 验证 (svc.run_daily + MagicMock)",
+  "round_results": [
+    {
+      "round": "冒烟R1",
+      "name": "openapi 200",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "round": "冒烟R1",
+      "name": "openapi 标题 = TDSQL SQL审核平台",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "round": "冒烟R1",
+      "name": "openapi 版本 = 1.2.0.4",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "round": "冒烟R1",
+      "name": "daily-inspect 端点注册 (共 4 个)",
+      "passed": true,
+      "detail": "端点: ['/api/v1/daily-inspect/run', '/api/v1/daily-inspect/trend', '/api/v1/daily-inspect/compare', '/api/v1/daily-inspect/compare/html']"
+    },
+    {
+      "round": "冒烟R1",
+      "name": "4 角色登录全部 200",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "round": "冒烟R2",
+      "name": "文件存在 backend/api/daily_inspect.py",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "round": "冒烟R2",
+      "name": "文件存在 backend/services/daily_inspect_service.py",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "round": "冒烟R2",
+      "name": "文件存在 backend/config.py",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "round": "冒烟R2",
+      "name": "API 层使用 asyncio.to_thread",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "round": "冒烟R2",
+      "name": "API 层 import asyncio",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "round": "冒烟R2",
+      "name": "service 层 import ThreadPoolExecutor",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "round": "冒烟R2",
+      "name": "service 层定义 _DAILY_CACHE 字典",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "round": "冒烟R2",
+      "name": "service 层定义 _CACHE_TTL",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "round": "冒烟R2",
+      "name": "service 层 status=SUCCESS 返回值",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "round": "冒烟R2",
+      "name": "Agent A 增强: _CACHE_MAX_SIZE 上限",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "round": "冒烟R2",
+      "name": "Agent A 增强: _get_daily_cache 封装函数",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "round": "冒烟R2",
+      "name": "Agent A 增强: _set_daily_cache 封装函数",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "round": "冒烟R2",
+      "name": "config 中 APP_VERSION = 1.2.0.4",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "round": "冒烟R2",
+      "name": "trend 已从 async def 改回 def (Agent A 性能优化)",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "round": "冒烟R2",
+      "name": "compare 已从 async def 改回 def",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "round": "冒烟R3",
+      "name": "不存在 connection_id → 4xx (实测 400)",
+      "passed": true,
+      "detail": "detail=未连接TDSQL实例或连接不存在"
+    },
+    {
+      "round": "冒烟R3",
+      "name": "空 connection_id → 4xx (实测 400)",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "round": "冒烟R3",
+      "name": "无 token → 401 (实测 401)",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "round": "SIT R1",
+      "name": "adhoc (无 monitordb) 错误码 = 4xx (实测 400)",
+      "passed": true,
+      "detail": "detail=monitordb不可用: (2003, \"Can't connect to MySQL server on '127.0.0.1' ([WinError 10"
+    },
+    {
+      "round": "SIT R1",
+      "name": "✅ 当前实现遵循 G 1.2.0.4 设计 (500→400)",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "round": "SIT R1",
+      "name": "不存在连接错误码 = 4xx (实测 400)",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "round": "SIT R2",
+      "name": "In-process: import service 成功 (无代码改动)",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "round": "SIT R2",
+      "name": "第一次调用 status=SUCCESS",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "round": "SIT R2",
+      "name": "第一次调用 node_count >= 1",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "round": "SIT R2",
+      "name": "第一次耗时 < 5s (实测 0.050s)",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "round": "SIT R2",
+      "name": "第二次 status=SUCCESS (cache hit)",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "round": "SIT R2",
+      "name": "第二次耗时 < 50ms (实测 0.0ms, G perf test 期望)",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "round": "SIT R2",
+      "name": "二次加速比 >= 5x (实测 50.1x)",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "round": "SIT R2",
+      "name": "缓存命中: 两次结果完全一致 (rows count)",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "round": "SIT R2",
+      "name": "31s 后 status=SUCCESS (cache miss 重新计算)",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "round": "SIT R2",
+      "name": "31s 后耗时 > 50ms (实测 25.9ms)",
+      "passed": false,
+      "detail": ""
+    },
+    {
+      "round": "SIT R2",
+      "name": "Agent A: _CACHE_MAX_SIZE 已定义",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "round": "SIT R2",
+      "name": "Agent A: _CACHE_MAX_SIZE = 100",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "round": "SIT R2",
+      "name": "Agent A: _get_daily_cache 函数存在",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "round": "SIT R2",
+      "name": "Agent A: _set_daily_cache 函数存在",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "round": "SIT R2",
+      "name": "_DAILY_CACHE 容量限制生效 (101 次写入后长度 = 100)",
+      "passed": true,
+      "detail": "实际 100"
+    },
+    {
+      "round": "SIT R3",
+      "name": "run_daily 中使用 ThreadPoolExecutor",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "round": "SIT R3",
+      "name": "max_workers = min(8, max(1, len(node_list)))",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "round": "SIT R3",
+      "name": "2 并发全部 SUCCESS (2/2)",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "round": "SIT R3",
+      "name": "2 并发最大耗时 < 5s (实测 0.04s)",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "round": "SIT R3",
+      "name": "线程池无死锁/数据污染 (2 任务 node_count 一致)",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "round": "UAT R1",
+      "name": "run() 是 async def",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "round": "UAT R1",
+      "name": "run() 内部 await asyncio.to_thread",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "round": "UAT R1",
+      "name": "run() 调用 svc.run_daily",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "round": "UAT R2",
+      "name": "admin POST /run 越权扫描 (400, 表明 RBAC 通过)",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "round": "UAT R2",
+      "name": "dba POST /run 越权扫描 (400, 表明 RBAC 通过)",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "round": "UAT R2",
+      "name": "developer POST /run 越权 → 403",
+      "passed": true,
+      "detail": "RBAC 拦截 (符合只读角色)"
+    },
+    {
+      "round": "UAT R2",
+      "name": "auditor POST /run 越权 → 403",
+      "passed": true,
+      "detail": "RBAC 拦截 (符合只读角色)"
+    },
+    {
+      "round": "UAT R2",
+      "name": "admin GET /trend 越权扫描 (200)",
+      "passed": true,
+      "detail": "RBAC 通过"
+    },
+    {
+      "round": "UAT R2",
+      "name": "dba GET /trend 越权扫描 (200)",
+      "passed": true,
+      "detail": "RBAC 通过"
+    },
+    {
+      "round": "UAT R2",
+      "name": "developer GET /trend 越权扫描 (200)",
+      "passed": true,
+      "detail": "RBAC 通过"
+    },
+    {
+      "round": "UAT R2",
+      "name": "auditor GET /trend 越权扫描 (200)",
+      "passed": true,
+      "detail": "RBAC 通过"
+    },
+    {
+      "round": "UAT R2",
+      "name": "admin GET /compare 越权扫描 (400)",
+      "passed": true,
+      "detail": "RBAC 通过"
+    },
+    {
+      "round": "UAT R2",
+      "name": "dba GET /compare 越权扫描 (400)",
+      "passed": true,
+      "detail": "RBAC 通过"
+    },
+    {
+      "round": "UAT R2",
+      "name": "developer GET /compare 越权扫描 (400)",
+      "passed": true,
+      "detail": "RBAC 通过"
+    },
+    {
+      "round": "UAT R2",
+      "name": "auditor GET /compare 越权扫描 (400)",
+      "passed": true,
+      "detail": "RBAC 通过"
+    },
+    {
+      "round": "UAT R2",
+      "name": "⚠️ auditor 是否能 POST /run? (403)",
+      "passed": true,
+      "detail": "aud_can_write=False, 当前设计允许只读角色写 daily inspect?"
+    },
+    {
+      "round": "UAT R3",
+      "name": "GET /api/v1/rules = 200",
+      "passed": true,
+      "detail": "实测 200"
+    },
+    {
+      "round": "UAT R3",
+      "name": "GET /api/v1/dashboard/summary = 200",
+      "passed": true,
+      "detail": "实测 200"
+    },
+    {
+      "round": "UAT R3",
+      "name": "GET /api/v1/inspection/tasks?limit=5 = 200",
+      "passed": true,
+      "detail": "实测 200"
+    },
+    {
+      "round": "UAT R3",
+      "name": "GET /api/v1/admin/operation-logs?limit=5 = 200",
+      "passed": true,
+      "detail": "实测 200"
+    },
+    {
+      "round": "UAT R3",
+      "name": "GET /api/v1/auth/visible-menus = 200",
+      "passed": true,
+      "detail": "实测 200"
+    },
+    {
+      "round": "UAT R3",
+      "name": "GET /api/v1/tdsql/status = 200",
+      "passed": true,
+      "detail": "实测 200"
+    },
+    {
+      "round": "UAT R3",
+      "name": "GET /api/v1/audit/file-reports?limit=5 = 200",
+      "passed": true,
+      "detail": "实测 200"
+    },
+    {
+      "round": "UAT R3",
+      "name": "GET /api/v1/audit/extracted-reports?limit=5 = 200",
+      "passed": true,
+      "detail": "实测 200"
+    },
+    {
+      "round": "UAT R3",
+      "name": "GET /api/v1/slow-queries?limit=5 = 200",
+      "passed": true,
+      "detail": "实测 200"
+    },
+    {
+      "round": "UAT R3",
+      "name": "GET /api/v1/slow-queries/statistics = 200",
+      "passed": true,
+      "detail": "实测 200"
+    },
+    {
+      "round": "UAT R3",
+      "name": "GET /api/v1/slow-queries/scan-tasks?limit=5 = 200",
+      "passed": true,
+      "detail": "实测 200"
+    },
+    {
+      "round": "UAT R3",
+      "name": "GET /api/v1/rulesets = 200",
+      "passed": true,
+      "detail": "实测 200"
+    },
+    {
+      "round": "UAT R3",
+      "name": "GET /api/v1/projects = 200",
+      "passed": true,
+      "detail": "实测 200"
+    },
+    {
+      "round": "UAT R3",
+      "name": "GET /api/v1/admin/info = 200",
+      "passed": true,
+      "detail": "实测 200"
+    },
+    {
+      "round": "UAT R3",
+      "name": "GET /api/v1/admin/retention = 200",
+      "passed": true,
+      "detail": "实测 200"
+    },
+    {
+      "round": "UAT R3",
+      "name": "GET /api/v1/monitor/alerts = 200",
+      "passed": true,
+      "detail": "实测 200"
+    },
+    {
+      "round": "UAT R3",
+      "name": "GET /api/v1/toolkit/scripts = 200",
+      "passed": true,
+      "detail": "实测 200"
+    },
+    {
+      "round": "UAT R3",
+      "name": "BUG-RBAC-01 回归: dba operation-logs = 403",
+      "passed": true,
+      "detail": "实测 403"
+    },
+    {
+      "round": "UAT R3",
+      "name": "auditor operation-logs = 200",
+      "passed": true,
+      "detail": "实测 200"
+    }
+  ],
+  "summary": {
+    "total": 81,
+    "passed": 80,
+    "failed": 1,
+    "pass_rate": 0.9876543209876543
+  }
+}

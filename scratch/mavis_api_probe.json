@@ -11,8 +11,8 @@
       "method": "GET",
       "path": "/health",
       "status": 200,
-      "ms": 30,
-      "body_first": "{\"status\":\"ok\",\"version\":\"1.2.0.0\"}",
+      "ms": 25,
+      "body_first": "{\"status\":\"ok\",\"version\":\"1.2.0.4\"}",
       "result": "PASS"
     },
     {
@@ -20,7 +20,7 @@
       "method": "GET",
       "path": "/api/v1/auth/visible-menus",
       "status": 401,
-      "ms": 27,
+      "ms": 5,
       "body_first": "{\"code\":401,\"message\":\"未认证或令牌已过期，请重新登录\"}",
       "result": "FAIL"
     },
@@ -29,8 +29,8 @@
       "method": "GET",
       "path": "/api/v1/auth/me",
       "status": 200,
-      "ms": 12,
-      "body_first": "{\"username\":\"admin\",\"display_name\":\"系统管理员\",\"role\":\"admin\",\"role_label\":\"系统管理员\",\"must_change_password\":false,\"last_login_at\":\"2026-07-22 19:29:22\"}",
+      "ms": 8,
+      "body_first": "{\"username\":\"admin\",\"display_name\":\"系统管理员\",\"role\":\"admin\",\"role_label\":\"系统管理员\",\"must_change_password\":false,\"last_login_at\":\"2026-07-23 09:06:27\"}",
       "result": "PASS"
     },
     {
@@ -38,7 +38,7 @@
       "method": "GET",
       "path": "/api/v1/auth/roles",
       "status": 200,
-      "ms": 14,
+      "ms": 11,
       "body_first": "{\"roles\":[{\"role_id\":\"admin\",\"role_name\":\"系统管理员\",\"role\":\"admin\",\"label\":\"系统管理员\",\"is_builtin\":1,\"description\":\"拥有全部权限\"},{\"role_id\":\"auditor\",\"role_name\":\"审计员\",\"role\":\"auditor\",\"label\":\"审计员\",\"is_builtin",
       "result": "PASS"
     },
@@ -47,7 +47,7 @@
       "method": "GET",
       "path": "/api/v1/auth/role-permissions",
       "status": 200,
-      "ms": 20,
+      "ms": 34,
       "body_first": "{\"roles\":[{\"role_id\":\"admin\",\"role_name\":\"系统管理员\",\"is_builtin\":1},{\"role_id\":\"auditor\",\"role_name\":\"审计员\",\"is_builtin\":1},{\"role_id\":\"dba\",\"role_name\":\"数据库管理员\",\"is_builtin\":1},{\"role_id\":\"developer\",\"ro",
       "result": "PASS"
     },
@@ -56,8 +56,8 @@
       "method": "GET",
       "path": "/api/v1/auth/users",
       "status": 200,
-      "ms": 13,
-      "body_first": "{\"users\":[{\"id\":1,\"username\":\"admin\",\"display_name\":\"系统管理员\",\"role\":\"admin\",\"status\":\"active\",\"must_change_password\":0,\"failed_attempts\":0,\"locked_until\":null,\"last_login_at\":\"2026-07-22 19:29:22\",\"cre",
+      "ms": 24,
+      "body_first": "{\"users\":[{\"id\":1,\"username\":\"admin\",\"display_name\":\"系统管理员\",\"role\":\"admin\",\"status\":\"active\",\"must_change_password\":0,\"failed_attempts\":0,\"locked_until\":null,\"last_login_at\":\"2026-07-23 09:06:27\",\"cre",
       "result": "PASS"
     },
     {
@@ -65,7 +65,7 @@
       "method": "GET",
       "path": "/api/v1/audit/rules",
       "status": 200,
-      "ms": 31,
+      "ms": 10,
       "body_first": "{\"rules\":[{\"rule_id\":\"R001\",\"category\":\"naming\",\"severity\":\"ERROR\",\"description\":\"库名/表名字符限制32以内，必须以小写字母开头，仅包含小写字母、数字和下划线\",\"enabled\":true},{\"rule_id\":\"R002\",\"category\":\"naming\",\"severity\":\"ERROR\",\"desc",
       "result": "PASS"
     },
@@ -74,8 +74,8 @@
       "method": "GET",
       "path": "/api/v1/audit/file-reports?limit=5",
       "status": 200,
-      "ms": 15,
-      "body_first": "{\"items\":[{\"id\":5491,\"source\":\"extracted_tdsql_test_20260722_175141.sql\",\"total_sql\":10,\"passed\":0,\"failed\":10,\"error_count\":10,\"warning_count\":19,\"pass_rate\":0.0,\"created_by\":\"admin\",\"created_at\":\"20",
+      "ms": 33,
+      "body_first": "{\"items\":[{\"id\":5500,\"source\":\"extracted_tdsql_test_20260722_192924.sql\",\"total_sql\":10,\"passed\":0,\"failed\":10,\"error_count\":10,\"warning_count\":19,\"pass_rate\":0.0,\"created_by\":\"admin\",\"created_at\":\"20",
       "result": "PASS"
     },
     {
@@ -83,8 +83,8 @@
       "method": "GET",
       "path": "/api/v1/audit/extracted-reports?limit=5",
       "status": 200,
-      "ms": 36,
-      "body_first": "{\"total\":16,\"reports\":[{\"id\":5492,\"audit_type\":\"extracted_schema\",\"source\":\"extracted_tdsql_test_20260722_175141.sql\",\"total_sql\":10,\"passed\":0,\"failed\":10,\"error_count\":10,\"warning_count\":19,\"pass_ra",
+      "ms": 12,
+      "body_first": "{\"total\":9,\"reports\":[{\"id\":5505,\"audit_type\":\"extracted_schema\",\"source\":\"extracted_tdsql_check_20260722_233415.sql\",\"total_sql\":11,\"passed\":0,\"failed\":11,\"error_count\":5,\"warning_count\":23,\"pass_rat",
       "result": "PASS"
     },
     {
@@ -92,8 +92,8 @@
       "method": "GET",
       "path": "/api/v1/slow-queries?limit=5",
       "status": 200,
-      "ms": 30,
-      "body_first": "{\"items\":[{\"id\":2334,\"fingerprint\":\"select count(*) from big_audit_trail limit ?\",\"sql_text\":\"select count(*) from big_audit_trail limit ?\",\"normalized_sql\":null,\"db_name\":\"tdsql_check\",\"set_id\":\"set_",
+      "ms": 22,
+      "body_first": "{\"items\":[{\"id\":2380,\"fingerprint\":\"select count(*) from big_audit_trail limit ?\",\"sql_text\":\"select count(*) from big_audit_trail limit ?\",\"normalized_sql\":null,\"db_name\":\"tdsql_check\",\"set_id\":\"set_",
       "result": "PASS"
     },
     {
@@ -101,8 +101,8 @@
       "method": "GET",
       "path": "/api/v1/slow-queries/statistics",
       "status": 200,
-      "ms": 28,
-      "body_first": "{\"total\":181,\"by_severity\":{\"ERROR\":7,\"INFO\":67,\"WARNING\":107},\"by_status\":{\"pending\":181},\"top_by_time\":[{\"id\":2334,\"fingerprint\":\"select count(*) from big_audit_trail limit ?\",\"avg_time_ms\":76619.5,",
+      "ms": 49,
+      "body_first": "{\"total\":199,\"by_severity\":{\"ERROR\":7,\"INFO\":75,\"WARNING\":117},\"by_status\":{\"pending\":199},\"top_by_time\":[{\"id\":2362,\"fingerprint\":\"select count(*) from big_audit_trail limit ?\",\"avg_time_ms\":76619.5,",
       "result": "PASS"
     },
     {
@@ -110,8 +110,8 @@
       "method": "GET",
       "path": "/api/v1/slow-queries/scan-tasks?limit=5",
       "status": 200,
-      "ms": 29,
-      "body_first": "{\"items\":[{\"id\":94,\"task_name\":\"集群级慢SQL(monitordb) - 119.45.220.89:15005 [07-10 00:00 ~ 07-16 00:00]\",\"source\":\"monitordb\",\"db_name\":\"tdsql_check\",\"connection_id\":\"5ea70d74\",\"connection_name\":\"119.45.",
+      "ms": 49,
+      "body_first": "{\"items\":[{\"id\":98,\"task_name\":\"集群级慢SQL(monitordb) - 119.45.220.89:15005 [07-10 00:00 ~ 07-16 21:40]\",\"source\":\"monitordb\",\"db_name\":\"tdsql_check\",\"connection_id\":\"5ea70d74\",\"connection_name\":\"119.45.",
       "result": "PASS"
     },
     {
@@ -128,7 +128,7 @@
       "method": "GET",
       "path": "/api/v1/slow-queries/set-ids",
       "status": 200,
-      "ms": 30,
+      "ms": 33,
       "body_first": "{\"set_ids\":[\"set_1782130875_4\",\"set_1782132369_1\",\"set_1782132369_1(1)\",\"set_1782132369_1(1),set_1782132389_3(1)\",\"set_1782132369_1(10)\",\"set_1782132369_1(10),set_1782132389_3(10)\",\"set_1782132369_1(2",
       "result": "PASS"
     },
@@ -137,8 +137,8 @@
       "method": "GET",
       "path": "/api/v1/tdsql/status",
       "status": 200,
-      "ms": 27,
-      "body_first": "{\"connected\":false,\"active_connections\":[]}",
+      "ms": 28,
+      "body_first": "{\"connected\":true,\"host\":\"127.0.0.1\",\"port\":13306,\"database\":\"tdsql_test\",\"user\":\"root\",\"active_connections\":[{\"connection_id\":\"adhoc\",\"host\":\"127.0.0.1\",\"port\":13306,\"database\":\"tdsql_test\",\"user\":\"r",
       "result": "PASS"
     },
     {
@@ -146,7 +146,7 @@
       "method": "GET",
       "path": "/api/v1/tdsql/connections",
       "status": 200,
-      "ms": 33,
+      "ms": 13,
       "body_first": "{\"connections\":[{\"id\":\"5ea70d74\",\"name\":\"SIT-分布式实例A\",\"host\":\"119.45.220.89\",\"port\":15005,\"username\":\"tdsql_check_user\",\"database\":\"tdsql_check\",\"charset\":\"utf8mb4\",\"is_default\":0,\"is_distributed\":1,\"d",
       "result": "PASS"
     },
@@ -155,7 +155,7 @@
       "method": "GET",
       "path": "/api/v1/tdsql/scan-schedules",
       "status": 200,
-      "ms": 31,
+      "ms": 21,
       "body_first": "{\"schedules\":[{\"id\":1,\"connection_id\":\"2ae05773\",\"source\":\"digest\",\"cron_hour\":3,\"cron_minute\":0,\"limit_rows\":50,\"min_time\":0.1,\"enabled\":0,\"last_run_at\":null,\"last_run_status\":\"\",\"created_by\":\"admin\"",
       "result": "PASS"
     },
@@ -164,7 +164,7 @@
       "method": "GET",
       "path": "/api/v1/rules",
       "status": 200,
-      "ms": 10,
+      "ms": 28,
       "body_first": "{\"total\":119,\"rules\":[{\"rule_id\":\"R001\",\"category\":\"naming\",\"severity\":\"ERROR\",\"description\":\"库名/表名字符限制32以内，必须以小写字母开头，仅包含小写字母、数字和下划线\",\"enabled\":true,\"spec_source\":\"TDSQL数据库开发规范 - 命名规范\",\"fix_suggestion",
       "result": "PASS"
     },
@@ -173,7 +173,7 @@
       "method": "GET",
       "path": "/api/v1/rules/categories",
       "status": 200,
-      "ms": 32,
+      "ms": 9,
       "body_first": "{\"categories\":{\"naming\":[{\"rule_id\":\"R001\",\"severity\":\"ERROR\",\"description\":\"库名/表名字符限制32以内，必须以小写字母开头，仅包含小写字母、数字和下划线\"},{\"rule_id\":\"R002\",\"severity\":\"ERROR\",\"description\":\"表名不能使用 TDSQL/MySQL 保留关键字\"},{\"r",
       "result": "PASS"
     },
@@ -182,7 +182,7 @@
       "method": "GET",
       "path": "/api/v1/rulesets",
       "status": 200,
-      "ms": 34,
+      "ms": 13,
       "body_first": "{\"rulesets\":[{\"id\":\"default\",\"name\":\"默认规则集\",\"description\":\"全部规则按内置默认启停与级别执行\",\"is_builtin\":1,\"created_by\":\"system\",\"created_at\":\"2026-07-03T23:43:12\",\"updated_at\":\"2026-07-03T23:43:12\",\"item_count\":0},",
       "result": "PASS"
     },
@@ -191,7 +191,7 @@
       "method": "GET",
       "path": "/api/v1/projects",
       "status": 200,
-      "ms": 14,
+      "ms": 13,
       "body_first": "{\"code\":0,\"message\":\"success\",\"data\":[{\"id\":\"mavis复测项目\",\"project_id\":\"mavis复测项目\",\"project_name\":\"Mavis复测项目\",\"tdsql_connection_id\":\"\",\"rule_set_id\":\"default\",\"gate_rule_id\":\"default\",\"gitlab_project_id",
       "result": "PASS"
     },
@@ -200,7 +200,7 @@
       "method": "GET",
       "path": "/api/v1/gate/rules/default",
       "status": 200,
-      "ms": 14,
+      "ms": 13,
       "body_first": "{\"code\":0,\"message\":\"success\",\"data\":{\"project_id\":\"default\",\"max_error_count\":0,\"max_warning_count\":-1,\"required_rules\":[],\"blocked_rules\":[],\"description\":\"默认门禁规则：不允许任何ERROR级别违规\"},\"timestamp\":\"\"}",
       "result": "PASS"
     },
@@ -209,7 +209,7 @@
       "method": "GET",
       "path": "/api/v1/gate/strategies",
       "status": 200,
-      "ms": 10,
+      "ms": 8,
       "body_first": "{\"code\":0,\"message\":\"success\",\"data\":{\"strict\":{\"max_error\":0,\"max_warning\":0,\"desc\":\"严格策略：不允许任何违规\"},\"normal\":{\"max_error\":0,\"max_warning\":-1,\"desc\":\"普通策略：不允许ERROR，WARNING不限\"},\"loose\":{\"max_error\":-1,",
       "result": "PASS"
     },
@@ -218,7 +218,7 @@
       "method": "GET",
       "path": "/api/v1/monitor/alerts",
       "status": 200,
-      "ms": 49,
+      "ms": 12,
       "body_first": "{\"code\":0,\"message\":\"success\",\"data\":[],\"timestamp\":\"\"}",
       "result": "PASS"
     },
@@ -227,7 +227,7 @@
       "method": "GET",
       "path": "/api/v1/monitor/rules",
       "status": 200,
-      "ms": 46,
+      "ms": 13,
       "body_first": "{\"code\":0,\"message\":\"success\",\"data\":[{\"metric_name\":\"cpu_usage\",\"warning_threshold\":80.0,\"urgent_threshold\":95.0,\"check_interval_sec\":30,\"notify_webhook\":\"\",\"notify_email\":\"\",\"enabled\":1,\"created_at\"",
       "result": "PASS"
     },
@@ -236,8 +236,8 @@
       "method": "GET",
       "path": "/api/v1/inspection/tasks?limit=5",
       "status": 200,
-      "ms": 30,
-      "body_first": "{\"code\":0,\"message\":\"success\",\"data\":[{\"id\":193,\"connection_id\":\"5ea70d74\",\"inspection_type\":\"schema_check\",\"status\":\"completed\",\"started_at\":\"2026-07-22T16:38:48.959749\",\"completed_at\":\"2026-07-22T16",
+      "ms": 27,
+      "body_first": "{\"code\":0,\"message\":\"success\",\"data\":[{\"id\":196,\"connection_id\":\"5ea70d74\",\"inspection_type\":\"schema_check\",\"status\":\"completed\",\"started_at\":\"2026-07-22T23:57:40.968735\",\"completed_at\":\"2026-07-22T23",
       "result": "PASS"
     },
     {
@@ -245,8 +245,8 @@
       "method": "GET",
       "path": "/api/v1/admin/info",
       "status": 200,
-      "ms": 39,
-      "body_first": "{\"version\":\"1.2.0.0\",\"auth_enabled\":true,\"data_masking_enabled\":true,\"metrics_enabled\":true,\"scan_limits\":{\"per_connection\":2,\"global\":8},\"connection_pool\":{\"max_instances\":256,\"idle_seconds\":1800}}",
+      "ms": 16,
+      "body_first": "{\"version\":\"1.2.0.4\",\"auth_enabled\":true,\"data_masking_enabled\":true,\"metrics_enabled\":true,\"scan_limits\":{\"per_connection\":2,\"global\":8},\"connection_pool\":{\"max_instances\":256,\"idle_seconds\":1800}}",
       "result": "PASS"
     },
     {
@@ -254,7 +254,7 @@
       "method": "GET",
       "path": "/api/v1/admin/config",
       "status": 200,
-      "ms": 24,
+      "ms": 23,
       "body_first": "{\"auth_enabled\":true,\"data_masking_enabled\":true,\"metrics_enabled\":true}",
       "result": "PASS"
     },
@@ -263,7 +263,7 @@
       "method": "GET",
       "path": "/api/v1/admin/retention",
       "status": 200,
-      "ms": 16,
+      "ms": 13,
       "body_first": "{\"policies\":[{\"table_name\":\"alerts\",\"retention_days\":90,\"enabled\":1,\"updated_at\":\"2026-07-03T23:43:12\"},{\"table_name\":\"audit_history\",\"retention_days\":365,\"enabled\":1,\"updated_at\":\"2026-07-03T23:43:12",
       "result": "PASS"
     },
@@ -272,8 +272,8 @@
       "method": "GET",
       "path": "/api/v1/admin/operation-logs?limit=5",
       "status": 200,
-      "ms": 25,
-      "body_first": "{\"total\":1625,\"logs\":[{\"id\":1625,\"operator\":\"test_auditor\",\"operation_type\":\"login_success\",\"target_type\":\"user\",\"target_id\":\"test_auditor\",\"detail\":\"\",\"ip_address\":\"127.0.0.1\",\"user_agent\":\"\",\"create",
+      "ms": 13,
+      "body_first": "{\"total\":1767,\"logs\":[{\"id\":1767,\"operator\":\"test_auditor\",\"operation_type\":\"login_success\",\"target_type\":\"user\",\"target_id\":\"test_auditor\",\"detail\":\"\",\"ip_address\":\"127.0.0.1\",\"user_agent\":\"\",\"create",
       "result": "PASS"
     },
     {
@@ -281,8 +281,8 @@
       "method": "GET",
       "path": "/api/v1/dashboard/summary",
       "status": 200,
-      "ms": 26,
-      "body_first": "{\"audit\":{\"today_count\":38,\"today_passed\":0,\"today_failed\":213,\"today_errors\":275,\"today_warnings\":364,\"today_violations\":639,\"today_pass_rate\":0.0},\"slow_queries\":{\"total\":181,\"pending\":181,\"optimize",
+      "ms": 29,
+      "body_first": "{\"audit\":{\"today_count\":3,\"today_passed\":0,\"today_failed\":3,\"today_errors\":18,\"today_warnings\":3,\"today_violations\":21,\"today_pass_rate\":0.0},\"slow_queries\":{\"total\":199,\"pending\":199,\"optimized\":0,\"c",
       "result": "PASS"
     },
     {
@@ -290,8 +290,8 @@
       "method": "GET",
       "path": "/api/v1/dashboard/rule-stats",
       "status": 200,
-      "ms": 42,
-      "body_first": "{\"rules\":[{\"rule_id\":\"R077\",\"description\":\"TDSQL分布式实例建表必须声明分片键(SHARDKEY)或广播表标记(BROADCAST)，不允许创建单表；分片键必须是主键或唯一索引的字段\",\"severity\":\"ERROR\",\"category\":\"distributed\",\"hit_count\":151},{\"rule_id\":\"R036\",\"desc",
+      "ms": 32,
+      "body_first": "{\"rules\":[{\"rule_id\":\"R001\",\"description\":\"库名/表名字符限制32以内，必须以小写字母开头，仅包含小写字母、数字和下划线\",\"severity\":\"ERROR\",\"category\":\"naming\",\"hit_count\":3},{\"rule_id\":\"R003\",\"description\":\"CREATE TABLE 必须显式指定主键\",\"severi",
       "result": "PASS"
     },
     {
@@ -299,7 +299,7 @@
       "method": "GET",
       "path": "/api/v1/cluster-inspect/list/adhoc?limit=5",
       "status": 200,
-      "ms": 27,
+      "ms": 38,
       "body_first": "{\"items\":[]}",
       "result": "PASS"
     },
@@ -308,7 +308,7 @@
       "method": "GET",
       "path": "/api/v1/daily-inspect/trend?connection_id=adhoc",
       "status": 200,
-      "ms": 14,
+      "ms": 12,
       "body_first": "{\"metrics\":[\"cpu_peak\",\"cpu_avg\",\"mem_peak\",\"conn_peak\",\"slow_query\",\"delay_peak\",\"disk_peak\"],\"days\":0,\"series\":{\"cpu_peak\":[],\"cpu_avg\":[],\"mem_peak\":[],\"conn_peak\":[],\"slow_query\":[],\"delay_peak\":[",
       "result": "PASS"
     },
@@ -317,7 +317,7 @@
       "method": "GET",
       "path": "/api/v1/sql-stats/bigtable/growth?connection_id=adhoc",
       "status": 200,
-      "ms": 36,
+      "ms": 11,
       "body_first": "{\"series\":{},\"growth_ranking\":[]}",
       "result": "PASS"
     },
@@ -326,7 +326,7 @@
       "method": "GET",
       "path": "/api/v1/toolkit/scripts",
       "status": 200,
-      "ms": 21,
+      "ms": 43,
       "body_first": "[{\"id\":\"disk_perf_test\",\"name\":\"TDSQL 磁盘性能测试脚本 (fio/dd)\",\"category\":\"主机与磁盘诊断\",\"description\":\"用于物理或虚拟机节点上自动化进行磁盘 IO/吞吐量/延时的压测工具，支持一键配置免密并生成测试对比报告 HTML。\",\"files\":[{\"name\":\"disk_perf_test.sh\",\"path\":\"dis",
       "result": "PASS"
     },
@@ -335,8 +335,8 @@
       "method": "GET",
       "path": "/metrics",
       "status": 200,
-      "ms": 32,
-      "body_first": "# HELP tdsql_app_info 应用版本信息\n# TYPE tdsql_app_info gauge\ntdsql_app_info{version=\"1.2.0.0\"} 1\n# HELP tdsql_uptime_seconds 进程运行时长\n# TYPE tdsql_uptime_seconds gauge\ntdsql_uptime_seconds 1013.0\n# HELP tds",
+      "ms": 27,
+      "body_first": "# HELP tdsql_app_info 应用版本信息\n# TYPE tdsql_app_info gauge\ntdsql_app_info{version=\"1.2.0.4\"} 1\n# HELP tdsql_uptime_seconds 进程运行时长\n# TYPE tdsql_uptime_seconds gauge\ntdsql_uptime_seconds 25257.2\n# HELP td",
       "result": "PASS"
     },
     {
@@ -344,7 +344,7 @@
       "method": "POST",
       "path": "/api/v1/audit/sql",
       "status": 200,
-      "ms": 72,
+      "ms": 28,
       "body_first": "{\"passed\":false,\"violations\":[{\"rule_id\":\"R003\",\"category\":\"ddl\",\"severity\":\"ERROR\",\"message\":\"CREATE TABLE 未指定主键，TDSQL 要求每个表必须有主键\",\"suggestion\":\"建议添加自增主键: id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT P",
       "result": "PASS"
     },
@@ -353,7 +353,7 @@
       "method": "POST",
       "path": "/api/v1/audit/sql",
       "status": 200,
-      "ms": 68,
+      "ms": 31,
       "body_first": "{\"passed\":false,\"violations\":[{\"rule_id\":\"R012\",\"category\":\"dml\",\"severity\":\"ERROR\",\"message\":\"[第1条语句] 禁止使用 SELECT *（涉及表: t_user），应指定具体字段\",\"suggestion\":\"请明确列出需要的字段，如: SELECT col1, col2, col3 FROM ...\"",
       "result": "PASS"
     },
@@ -362,7 +362,7 @@
       "method": "POST",
       "path": "/api/v1/audit/sql",
       "status": 200,
-      "ms": 66,
+      "ms": 46,
       "body_first": "{\"passed\":false,\"violations\":[{\"rule_id\":\"R012\",\"category\":\"dml\",\"severity\":\"ERROR\",\"message\":\"禁止使用 SELECT *（涉及表: t_test），应指定具体字段\",\"suggestion\":\"请明确列出需要的字段，如: SELECT col1, col2, col3 FROM ...\",\"line_n",
       "result": "PASS"
     },
@@ -371,7 +371,7 @@
       "method": "POST",
       "path": "/api/v1/gitlab/audit/diff",
       "status": 200,
-      "ms": 58,
+      "ms": 27,
       "body_first": "{\"file_path\":\"test.sql\",\"total_sql\":1,\"passed\":0,\"failed\":1,\"pass_rate\":0.0,\"results\":[{\"sql\":\"SELECT * FROM t_user\",\"sql_type\":\"SELECT\",\"passed\":false,\"violations\":[{\"rule_id\":\"R012\",\"severity\":\"ERRO",
       "result": "PASS"
     },
@@ -380,7 +380,7 @@
       "method": "POST",
       "path": "/api/v1/tdsql/connect",
       "status": 200,
-      "ms": 53,
+      "ms": 35,
       "body_first": "{\"message\":\"连接成功\",\"connection_id\":\"adhoc\",\"host\":\"127.0.0.1\",\"port\":13306,\"database\":\"tdsql_test\",\"user\":\"root\"}",
       "result": "PASS"
     },
@@ -389,8 +389,8 @@
       "method": "POST",
       "path": "/api/v1/audit/extract-and-audit",
       "status": 200,
-      "ms": 140,
-      "body_first": "{\"status\":\"SUCCESS\",\"report_id\":5501,\"filename\":\"extracted_tdsql_test_20260722_192924.sql\",\"extracted_sql\":\"-- ============================================================================\\n-- TDSQL 自动",
+      "ms": 95,
+      "body_first": "{\"status\":\"SUCCESS\",\"report_id\":5512,\"filename\":\"extracted_tdsql_test_20260723_090628.sql\",\"extracted_sql\":\"-- ============================================================================\\n-- TDSQL 自动",
       "result": "PASS"
     },
     {
@@ -398,26 +398,26 @@
       "method": "GET",
       "path": "/api/v1/audit/extracted-reports?limit=5",
       "status": 200,
-      "ms": 39,
-      "body_first": "{\"total\":18,\"reports\":[{\"id\":5501,\"audit_type\":\"extracted_schema\",\"source\":\"extracted_tdsql_test_20260722_192924.sql\",\"total_sql\":10,\"passed\":0,\"failed\":10,\"error_count\":10,\"warning_count\":19,\"pass_ra",
+      "ms": 10,
+      "body_first": "{\"total\":10,\"reports\":[{\"id\":5512,\"audit_type\":\"extracted_schema\",\"source\":\"extracted_tdsql_test_20260723_090628.sql\",\"total_sql\":10,\"passed\":0,\"failed\":10,\"error_count\":10,\"warning_count\":19,\"pass_ra",
       "result": "PASS"
     },
     {
-      "tag": "F1 report 5501 HTML",
+      "tag": "F1 report 5512 HTML",
       "method": "GET",
-      "path": "/api/v1/audit/report/5501/html",
+      "path": "/api/v1/audit/report/5512/html",
       "status": 200,
-      "ms": 37,
-      "body_first": "<!DOCTYPE html>\n<html lang=\"zh-CN\">\n<head>\n    <meta charset=\"UTF-8\">\n    <title>TDSQL 在线元数据规则审核报告 - extracted_tdsql_test_20260722_192924.sql</title>\n    <style>\n        body { font-family: -apple-sys",
+      "ms": 11,
+      "body_first": "<!DOCTYPE html>\n<html lang=\"zh-CN\">\n<head>\n    <meta charset=\"UTF-8\">\n    <title>TDSQL 在线元数据规则审核报告 - extracted_tdsql_test_20260723_090628.sql</title>\n    <style>\n        body { font-family: -apple-sys",
       "result": "PASS"
     },
     {
-      "tag": "F1 report 5501 SQL",
+      "tag": "F1 report 5512 SQL",
       "method": "GET",
-      "path": "/api/v1/audit/report/5501/sql",
+      "path": "/api/v1/audit/report/5512/sql",
       "status": 200,
-      "ms": 33,
-      "body_first": "-- SQL Object: CREATE TABLE\n-- ============================================================================\n-- TDSQL 自动拉取的最新在线元数据描述文件\n-- 目标实例: TDSQL (TDSQL:3306)\n-- 目标数据库: tdsql_test\n-- 提取日期: 2026-07-",
+      "ms": 11,
+      "body_first": "-- SQL Object: CREATE TABLE\n-- Table: t_charset_latin1\nCREATE TABLE `t_charset_latin1` (\n  `id` bigint NOT NULL AUTO_INCREMENT,\n  `name` varchar(64) CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT ",
       "result": "PASS"
     },
     {
@@ -425,8 +425,8 @@
       "method": "POST",
       "path": "/api/v1/slow-queries/analyze-explain",
       "status": 200,
-      "ms": 49,
-      "body_first": "{\"summary\":\"2个严重问题；主要问题: 全表扫描, 缺失索引\",\"analyses\":[{\"problem_type\":\"全表扫描\",\"severity\":\"ERROR\",\"description\":\"访问类型为 ALL（全表扫描）\",\"evidence\":\"type=ALL, rows=1000, table=t_test\",\"root_cause\":\"WHERE条件未命中索引，导致全",
+      "ms": 30,
+      "body_first": "{\"summary\":\"2个严重问题；主要问题: 缺失索引, 全表扫描\",\"analyses\":[{\"problem_type\":\"全表扫描\",\"severity\":\"ERROR\",\"description\":\"访问类型为 ALL（全表扫描）\",\"evidence\":\"type=ALL, rows=1000, table=t_test\",\"root_cause\":\"WHERE条件未命中索引，导致全",
       "result": "PASS"
     },
     {
@@ -434,7 +434,7 @@
       "method": "POST",
       "path": "/api/v1/slow-queries/analyze-explain-by-sql",
       "status": 400,
-      "ms": 39,
+      "ms": 32,
       "body_first": "{\"detail\":\"连接配置不存在: adhoc\"}",
       "result": "PASS"
     },
@@ -443,7 +443,7 @@
       "method": "GET",
       "path": "/api/v1/tdsql/tables?connection_id=adhoc&database=tdsql_test",
       "status": 200,
-      "ms": 35,
+      "ms": 12,
       "body_first": "{\"tables\":[{\"TABLE_NAME\":\"t_charset_latin1\",\"TABLE_TYPE\":\"BASE TABLE\",\"ENGINE\":\"InnoDB\",\"TABLE_COLLATION\":\"latin1_swedish_ci\",\"TABLE_COMMENT\":\"å­—ç¬¦é›†ä¸ä¸€è‡´æµ‹è¯•è¡¨\",\"TABLE_ROWS\":0,\"DATA_LENGTH\"",
       "result": "PASS"
     },
@@ -452,7 +452,7 @@
       "method": "GET",
       "path": "/api/v1/tdsql/check/charset?connection_id=adhoc&database=tdsql_test",
       "status": 200,
-      "ms": 41,
+      "ms": 45,
       "body_first": "{\"database\":\"tdsql_test\",\"db_charset\":{\"DEFAULT_CHARACTER_SET_NAME\":\"utf8mb4\",\"DEFAULT_COLLATION_NAME\":\"utf8mb4_general_ci\"},\"table_charset_distribution\":[{\"TABLE_COLLATION\":\"latin1_swedish_ci\",\"cnt\":",
       "result": "PASS"
     },
@@ -461,7 +461,7 @@
       "method": "GET",
       "path": "/api/v1/tdsql/check/large-tables?connection_id=adhoc&database=tdsql_test&threshold_gb=0.001",
       "status": 200,
-      "ms": 35,
+      "ms": 11,
       "body_first": "{\"database\":\"tdsql_test\",\"threshold_gb\":0.001,\"total\":0,\"tables\":[]}",
       "result": "PASS"
     },
@@ -470,7 +470,7 @@
       "method": "GET",
       "path": "/api/v1/tdsql/proxy-config?connection_id=adhoc",
       "status": 200,
-      "ms": 57,
+      "ms": 52,
       "body_first": "{\"status\":\"success\",\"proxy_config\":{\"slow_log_level\":\"unknown\",\"slow_log_ms\":\"unknown\",\"slow_config\":{},\"all_config\":{},\"error\":\"(1064, \\\"You have an error in your SQL syntax; check the manual that co",
       "result": "PASS"
     },
@@ -479,7 +479,7 @@
       "method": "GET",
       "path": "/api/v1/tdsql/slow-query-config?connection_id=adhoc",
       "status": 200,
-      "ms": 34,
+      "ms": 42,
       "body_first": "{\"variables\":{\"log_queries_not_using_indexes\":\"ON\",\"log_slow_extra\":\"OFF\",\"long_query_time\":\"0.500000\",\"min_examined_row_limit\":\"0\",\"slow_query_log\":\"ON\"}}",
       "result": "PASS"
     },
@@ -488,7 +488,7 @@
       "method": "GET",
       "path": "/api/v1/tdsql/sets?connection_id=adhoc",
       "status": 200,
-      "ms": 56,
+      "ms": 33,
       "body_first": "{\"sets\":[],\"total\":0}",
       "result": "PASS"
     },
@@ -497,8 +497,8 @@
       "method": "GET",
       "path": "/api/v1/admin/operation-logs",
       "status": 200,
-      "ms": 38,
-      "body_first": "{\"total\":1633,\"logs\":[{\"id\":1633,\"operator\":\"admin\",\"operation_type\":\"POST /api/v1/slow-queries/analyze-explain-by-sql\",\"target_type\":\"api\",\"target_id\":\"/api/v1/slow-queries/analyze-explain-by-sql\",\"d",
+      "ms": 16,
+      "body_first": "{\"total\":1775,\"logs\":[{\"id\":1775,\"operator\":\"admin\",\"operation_type\":\"POST /api/v1/slow-queries/analyze-explain-by-sql\",\"target_type\":\"api\",\"target_id\":\"/api/v1/slow-queries/analyze-explain-by-sql\",\"d",
       "result": "PASS"
     },
     {
@@ -506,8 +506,8 @@
       "method": "GET",
       "path": "/api/v1/admin/operation-logs",
       "status": 200,
-      "ms": 26,
-      "body_first": "{\"total\":1633,\"logs\":[{\"id\":1633,\"operator\":\"admin\",\"operation_type\":\"POST /api/v1/slow-queries/analyze-explain-by-sql\",\"target_type\":\"api\",\"target_id\":\"/api/v1/slow-queries/analyze-explain-by-sql\",\"d",
+      "ms": 32,
+      "body_first": "{\"total\":1775,\"logs\":[{\"id\":1775,\"operator\":\"admin\",\"operation_type\":\"POST /api/v1/slow-queries/analyze-explain-by-sql\",\"target_type\":\"api\",\"target_id\":\"/api/v1/slow-queries/analyze-explain-by-sql\",\"d",
       "result": "PASS"
     },
     {
@@ -515,7 +515,7 @@
       "method": "GET",
       "path": "/api/v1/admin/operation-logs",
       "status": 403,
-      "ms": 27,
+      "ms": 8,
       "body_first": "{\"code\":403,\"message\":\"当前角色(dba)无权执行该操作\"}",
       "result": "PASS"
     },
@@ -524,7 +524,7 @@
       "method": "GET",
       "path": "/api/v1/admin/operation-logs",
       "status": 403,
-      "ms": 14,
+      "ms": 32,
       "body_first": "{\"code\":403,\"message\":\"当前角色(developer)无权执行该操作\"}",
       "result": "PASS"
     },
@@ -533,7 +533,7 @@
       "method": "POST",
       "path": "/api/v1/auth/users",
       "status": 422,
-      "ms": 29,
+      "ms": 33,
       "body_first": "{\"detail\":[{\"type\":\"missing\",\"loc\":[\"body\"],\"msg\":\"Field required\",\"input\":null}]}",
       "result": "FAIL"
     },
@@ -542,7 +542,7 @@
       "method": "POST",
       "path": "/api/v1/auth/users",
       "status": 403,
-      "ms": 10,
+      "ms": 6,
       "body_first": "{\"code\":403,\"message\":\"当前角色(dba)无权执行该操作\"}",
       "result": "PASS"
     },
@@ -551,7 +551,7 @@
       "method": "POST",
       "path": "/api/v1/auth/users",
       "status": 403,
-      "ms": 32,
+      "ms": 7,
       "body_first": "{\"code\":403,\"message\":\"当前角色(developer)无权执行该操作\"}",
       "result": "PASS"
     },
@@ -560,7 +560,7 @@
       "method": "POST",
       "path": "/api/v1/auth/users",
       "status": 403,
-      "ms": 28,
+      "ms": 6,
       "body_first": "{\"code\":403,\"message\":\"当前角色(auditor)无权执行该操作\"}",
       "result": "PASS"
     },
@@ -569,7 +569,7 @@
       "method": "GET",
       "path": "/api/v1/gate/rules/default",
       "status": 200,
-      "ms": 38,
+      "ms": 10,
       "body_first": "{\"code\":0,\"message\":\"success\",\"data\":{\"project_id\":\"default\",\"max_error_count\":0,\"max_warning_count\":-1,\"required_rules\":[],\"blocked_rules\":[],\"description\":\"默认门禁规则：不允许任何ERROR级别违规\"},\"timestamp\":\"\"}",
       "result": "PASS"
     },
@@ -578,7 +578,7 @@
       "method": "GET",
       "path": "/api/v1/gateway-log/reports",
       "status": 200,
-      "ms": 33,
+      "ms": 12,
       "body_first": "[]",
       "result": "PASS"
     },
@@ -587,7 +587,7 @@
       "method": "GET",
       "path": "/api/v1/gate/strategies",
       "status": 200,
-      "ms": 24,
+      "ms": 9,
       "body_first": "{\"code\":0,\"message\":\"success\",\"data\":{\"strict\":{\"max_error\":0,\"max_warning\":0,\"desc\":\"严格策略：不允许任何违规\"},\"normal\":{\"max_error\":0,\"max_warning\":-1,\"desc\":\"普通策略：不允许ERROR，WARNING不限\"},\"loose\":{\"max_error\":-1,",
       "result": "PASS"
     },
@@ -596,8 +596,8 @@
       "method": "GET",
       "path": "/api/v1/dashboard/summary",
       "status": 200,
-      "ms": 42,
-      "body_first": "{\"audit\":{\"today_count\":43,\"today_passed\":0,\"today_failed\":236,\"today_errors\":302,\"today_warnings\":406,\"today_violations\":708,\"today_pass_rate\":0.0},\"slow_queries\":{\"total\":181,\"pending\":181,\"optimize",
+      "ms": 35,
+      "body_first": "{\"audit\":{\"today_count\":7,\"today_passed\":0,\"today_failed\":16,\"today_errors\":35,\"today_warnings\":26,\"today_violations\":61,\"today_pass_rate\":0.0},\"slow_queries\":{\"total\":199,\"pending\":199,\"optimized\":0,",
       "result": "PASS"
     },
     {
@@ -605,7 +605,7 @@
       "method": "POST",
       "path": "/api/v1/audit/sql",
       "status": 422,
-      "ms": 64,
+      "ms": 6,
       "body_first": "{\"detail\":[{\"type\":\"missing\",\"loc\":[\"body\"],\"msg\":\"Field required\",\"input\":null}]}",
       "result": "FAIL"
     },
@@ -614,8 +614,8 @@
       "method": "GET",
       "path": "/api/v1/slow-queries?limit=5",
       "status": 200,
-      "ms": 42,
-      "body_first": "{\"items\":[{\"id\":2334,\"fingerprint\":\"select count(*) from big_audit_trail limit ?\",\"sql_text\":\"select count(*) from big_audit_trail limit ?\",\"normalized_sql\":null,\"db_name\":\"tdsql_check\",\"set_id\":\"set_",
+      "ms": 14,
+      "body_first": "{\"items\":[{\"id\":2380,\"fingerprint\":\"select count(*) from big_audit_trail limit ?\",\"sql_text\":\"select count(*) from big_audit_trail limit ?\",\"normalized_sql\":null,\"db_name\":\"tdsql_check\",\"set_id\":\"set_",
       "result": "PASS"
     },
     {
@@ -623,7 +623,7 @@
       "method": "POST",
       "path": "/api/v1/audit/sql",
       "status": 403,
-      "ms": 33,
+      "ms": 7,
       "body_first": "{\"code\":403,\"message\":\"当前角色(auditor)无权执行该操作\"}",
       "result": "PASS"
     },
@@ -632,7 +632,7 @@
       "method": "POST",
       "path": "/api/v1/projects",
       "status": 500,
-      "ms": 50,
+      "ms": 34,
       "body_first": "Internal Server Error",
       "result": "WARN"
     },
@@ -641,7 +641,7 @@
       "method": "POST",
       "path": "/api/v1/rulesets",
       "status": 400,
-      "ms": 51,
+      "ms": 12,
       "body_first": "{\"detail\":\"规则集已存在: mavis_test_set\"}",
       "result": "PASS"
     }
