@@ -19,7 +19,7 @@ logger = logging.getLogger("tdsql.scan")
 VALID_SOURCES = {"digest", "processlist", "monitordb"}
 
 
-def run_scan(connection_id: Optional[str] = None, source: str = "digest",
+def run_scan(connection_id: Optional[str] = None, source: str = "monitordb",
              limit: int = 50, min_time: float = 0.1,
              task_name: str = "", time_window_start: str = "",
              time_window_end: str = "", poll_duration: float = 10.0,
@@ -30,7 +30,7 @@ def run_scan(connection_id: Optional[str] = None, source: str = "digest",
 
     Args:
         connection_id: 目标连接ID（空则使用默认/即席连接）
-        source: digest(性能摘要,推荐) / processlist(实时进程轮询)
+        source: monitordb(全网慢SQL,推荐) / digest(性能摘要) / processlist(实时进程轮询)
         limit: 抓取条数上限
         min_time: 最小耗时阈值(秒)
         task_name: 自定义任务名

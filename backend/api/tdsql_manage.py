@@ -45,7 +45,7 @@ class TDSQLConnectRequest(BaseModel):
 
 class SlowQueryFetchRequest(BaseModel):
     """慢SQL抓取请求"""
-    source: str = Field("digest", description="数据源: monitordb(集群级慢SQL,推荐)/digest(性能摘要)/processlist(实时进程轮询)")
+    source: str = Field("monitordb", description="数据源: monitordb(集群级慢SQL,推荐)/digest(性能摘要)/processlist(实时进程轮询)")
     connection_id: str = Field("", description="目标连接ID（空则使用当前/默认连接）")
     limit: int = Field(50, description="抓取条数上限")
     min_time: float = Field(0.1, description="最小耗时阈值(秒)，digest模式按平均耗时过滤，processlist按当前执行时间过滤")
@@ -571,7 +571,7 @@ def trigger_slow_query_fetch():
 class ScanScheduleRequest(BaseModel):
     """扫描计划请求"""
     connection_id: str = Field(..., description="目标连接ID（已保存的连接配置）")
-    source: str = Field("digest", description="数据源: monitordb/digest/processlist")
+    source: str = Field("monitordb", description="数据源: monitordb(集群级慢SQL,推荐)/digest/processlist")
     cron_hour: int = Field(2, ge=0, le=23, description="执行小时(0-23)")
     cron_minute: int = Field(0, ge=0, le=59, description="执行分钟(0-59)")
     limit_rows: int = Field(100, description="单次抓取条数上限")

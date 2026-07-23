@@ -440,9 +440,9 @@
               <el-form-item label="任务名称"><el-input v-model="scanTaskForm.task_name" placeholder="如：核心库晨间扫描"></el-input></el-form-item>
               <el-form-item label="数据源">
                 <el-radio-group v-model="scanTaskForm.source">
-                  <el-radio value="digest">性能摘要(digest,推荐)</el-radio>
+                  <el-radio value="monitordb">全网慢SQL(monitordb,推荐)</el-radio>
+                  <el-radio value="digest">性能摘要(digest)</el-radio>
                   <el-radio value="processlist">实时进程(processlist)</el-radio>
-                  <el-radio value="monitordb">全网慢SQL(monitordb)</el-radio>
                 </el-radio-group>
               </el-form-item>
               <el-form-item label="时间窗口">
