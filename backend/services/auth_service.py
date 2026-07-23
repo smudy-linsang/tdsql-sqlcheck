@@ -468,6 +468,7 @@ def set_role_permissions(role_id: str, permissions: dict) -> bool:
                 VALUES (?, ?, ?)
                 ON DUPLICATE KEY UPDATE visible = VALUES(visible)
             """, (role_id, mk, 1 if visible else 0))
+        _bump_permission_version(conn)
         conn.commit()
         _VISIBLE_MENUS_CACHE.clear()
         log_operation("system", "set_role_permissions", "role", role_id)
@@ -475,19 +476,43 @@ def set_role_permissions(role_id: str, permissions: dict) -> bool:
     finally:
         conn.close()
 
+def _bump_permission_version(conn):
+    """递增权限配置版本号，通知所有 worker 实时失效本地缓存"""
+    try:
+        ver = str(int(time.time() * 1000))
+        conn.execute("REPLACE INTO system_config(config_key, config_value) VALUES('permission_version', ?)", (ver,))
+    except Exception:
+        pass
+
+_LOCAL_PERM_VERSION = None
 _VISIBLE_MENUS_CACHE = {}  # {role: (timestamp, menus_list)}
 
 def get_visible_menus(role: str) -> list[str]:
-    """获取某角色可见的菜单key列表 (30s内存缓存)"""
+    """获取某角色可见的菜单key列表 (支持跨 Worker 实时失效)"""
+    global _LOCAL_PERM_VERSION
     now = time.time()
-    if role in _VISIBLE_MENUS_CACHE:
-        ts, cached_menus = _VISIBLE_MENUS_CACHE[role]
-        if now - ts < 30:
-            return cached_menus
-
+    
     ensure_db()
     conn = _get_connection()
     try:
+        # 检查数据库中是否存在最新的权限版本变更
+        db_ver = None
+        try:
+            row = conn.execute("SELECT config_value FROM system_config WHERE config_key = 'permission_version'").fetchone()
+            if row:
+                db_ver = row["config_value"]
+        except Exception:
+            pass
+
+        # 若权限版本发生变化，清空本地缓存
+        if db_ver and db_ver != _LOCAL_PERM_VERSION:
+            _VISIBLE_MENUS_CACHE.clear()
+            _LOCAL_PERM_VERSION = db_ver
+        elif role in _VISIBLE_MENUS_CACHE:
+            ts, cached_menus = _VISIBLE_MENUS_CACHE[role]
+            if now - ts < 30:
+                return cached_menus
+
         rows = conn.execute(
             "SELECT menu_key FROM role_permissions WHERE role_id = ? AND visible = 1",
             (role,)

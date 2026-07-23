@@ -11,6 +11,7 @@ import queue
 import re
 import threading
 import os
+import time
 import pymysql
 import pymysql.cursors
 from datetime import datetime
@@ -37,7 +38,7 @@ MYSQL_CONFIG = {
 # ── 元数据库连接池（V2.1性能优化：避免每次请求新建TCP连接引发连接风暴） ──
 # 池中保留最多 SQLCHECK_DB_POOL_SIZE 个空闲连接复用；
 # 超出池容量的并发请求按需新建、用完直接关闭（不阻塞排队）。
-POOL_SIZE = int(os.getenv("SQLCHECK_DB_POOL_SIZE", "10"))
+POOL_SIZE = int(os.getenv("SQLCHECK_DB_POOL_SIZE", "60"))
 _conn_pool: "queue.Queue" = queue.Queue(maxsize=POOL_SIZE)
 
 
@@ -290,22 +291,32 @@ def _checkout_connection():
         try:
             raw = _conn_pool.get_nowait()
         except queue.Empty:
-            return _create_raw_connection()
-        try:
-            raw.ping(reconnect=False)  # 仅校验存活；失效连接直接淘汰重建
+            raw = _create_raw_connection()
+            raw._last_used = time.time()
             return raw
-        except Exception:
+        
+        now = time.time()
+        # 优化探活策略：连接底层 socket 关闭或池中空闲时间超过 10 秒时执行 ping 校验；热连接免去 ping() RTT 开销
+        last_used = getattr(raw, "_last_used", 0)
+        sock_closed = getattr(raw, "_sock", None) is None
+        if sock_closed or (now - last_used > 10):
             try:
-                raw.close()
+                raw.ping(reconnect=False)
             except Exception:
-                pass
-            # 继续尝试池中下一个，直至池空新建
+                try:
+                    raw.close()
+                except Exception:
+                    pass
+                continue  # 探活失败淘汰，获取下一个
+        raw._last_used = now
+        return raw
 
 
 def _checkin_connection(raw):
     """归还连接到池：回滚未提交事务后入池；池满或连接异常则关闭"""
     try:
         raw.rollback()  # 清理事务状态，避免复用连接携带旧快照/未提交变更
+        raw._last_used = time.time()
         _conn_pool.put_nowait(raw)
     except queue.Full:
         try:
