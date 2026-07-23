@@ -479,10 +479,12 @@ def run_daily(pool, connection_id: str = "", inspect_date: str = "", nodes: list
                      vals["proxy_req_total"], vals["proxy_t_l"], vals["proxy_t_m"], vals["proxy_t_p"], vals["proxy_t_n"],
                      vals["proxy_req_l"], vals["proxy_req_m"], vals["proxy_req_p"], vals["proxy_req_n"],
                      vals["proxy_active_conn_peak"], vals["proxy_conn_peak"], vals["proxy_err_sql_sum"]))
-                # 触发物理主机巡检收集 (Sheet2)
-                run_server_daily(conn, connection_id, inspect_date)
-                conn.commit()
             rows.append({"node": mid, **vals})
+
+        # 触发物理主机巡检收集并统一提交事务 (每次 run_daily 仅收集1次服务器巡检)
+        with _INSPECT_DB_LOCK:
+            run_server_daily(conn, connection_id, inspect_date)
+            conn.commit()
     finally:
         conn.close()
     

@@ -56,6 +56,9 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         return response
 
 
+_BACKGROUND_TASKS = set()
+
+
 class AuthMiddleware(BaseHTTPMiddleware):
     """认证 + RBAC + 操作审计"""
 
@@ -123,7 +126,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
             try:
                 import asyncio
                 client_ip = request.client.host if request.client else ""
-                asyncio.create_task(asyncio.to_thread(
+                task = asyncio.create_task(asyncio.to_thread(
                     log_operation,
                     operator=username,
                     operation_type=f"{method} {path}",
@@ -133,6 +136,8 @@ class AuthMiddleware(BaseHTTPMiddleware):
                     ip_address=client_ip,
                     user_agent=request.headers.get("User-Agent", "")[:200],
                 ))
+                _BACKGROUND_TASKS.add(task)
+                task.add_done_callback(_BACKGROUND_TASKS.discard)
             except Exception:
                 logger.exception("操作审计日志写入失败")
 
