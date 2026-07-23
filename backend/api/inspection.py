@@ -146,7 +146,14 @@ def run_general_inspection(connection_id: str, inspection_type: str, task_id: in
                 ))
 
         # 检查物理主机指标
-        ips = ["10.0.8.21", "10.0.8.22", "10.0.8.23"]
+        ips = []
+        if pool and hasattr(pool, 'config') and pool.config and getattr(pool.config, 'host', None):
+            h = pool.config.host
+            if h and h not in ("127.0.0.1", "localhost"):
+                ips.append(h)
+        if not ips:
+            ips = [f"host-{connection_id}"]
+            
         for idx, ip in enumerate(ips):
             seed = f"srv_{connection_id}_{ip}_{today}"
             cpu_peak = daily_svc._mock_val(seed + "cpup", 10.0, 90.0)

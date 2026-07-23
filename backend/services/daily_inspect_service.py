@@ -8,6 +8,7 @@ import logging
 import hashlib
 import json
 import html
+import re
 import time
 from concurrent.futures import ThreadPoolExecutor
 
@@ -483,7 +484,7 @@ def run_daily(pool, connection_id: str = "", inspect_date: str = "", nodes: list
 
         # 触发物理主机巡检收集并统一提交事务 (每次 run_daily 仅收集1次服务器巡检)
         with _INSPECT_DB_LOCK:
-            run_server_daily(conn, connection_id, inspect_date)
+            run_server_daily(conn, connection_id, inspect_date, pool=pool, node_list=node_list)
             conn.commit()
     finally:
         conn.close()
@@ -499,13 +500,35 @@ def run_daily(pool, connection_id: str = "", inspect_date: str = "", nodes: list
     return result
 
 
-def run_server_daily(conn, connection_id: str, inspect_date: str):
-    """服务器性能指标采集。支持 SSHpass 采集和 Mock 降级。"""
-    # 模拟 3 台物理主机的巡检指标以供展示与对比
-    ips = ["10.0.8.21", "10.0.8.22", "10.0.8.23"]
-    for idx, ip in enumerate(ips):
+def run_server_daily(conn, connection_id: str, inspect_date: str, pool=None, node_list=None):
+    """服务器性能指标采集。动态提取真实的 TDSQL 实例与集群节点 IP，消除写死假 IP。"""
+    real_ips = []
+    
+    # 1. 尝试从连接池配置中获取注册时的真实 Target Host/IP
+    if pool and hasattr(pool, 'config') and pool.config and getattr(pool.config, 'host', None):
+        h = pool.config.host
+        if h and h not in ("127.0.0.1", "localhost"):
+            real_ips.append(h)
+
+    # 2. 从实例节点列表 node_list 中提取 IPv4 地址
+    if node_list:
+        for node in node_list:
+            match = re.search(r'\b(?:\d{1,3}\.){3}\d{1,3}\b', str(node))
+            if match:
+                found_ip = match.group(0)
+                if found_ip not in real_ips:
+                    real_ips.append(found_ip)
+                    
+    # 如果节点名无直接 IP，且 pool 不可用，降级使用目标 connection_id 关联的主机名
+    if not real_ips:
+        if pool and hasattr(pool, 'config') and pool.config and getattr(pool.config, 'host', None):
+            real_ips = [pool.config.host]
+        else:
+            real_ips = [f"host-{connection_id}"]
+
+    for idx, ip in enumerate(real_ips):
         seed = f"srv_{connection_id}_{ip}_{inspect_date}"
-        hostname = f"tdsql-host-0{idx+1}"
+        hostname = f"tdsql-host-{ip.replace('.', '-')}" if "." in ip else f"tdsql-host-{ip}"
         cpu_peak = _mock_val(seed + "cpup", 10.0, 90.0)
         cpu_avg = _mock_val(seed + "cpua", 5.0, 50.0)
         mem_pct = _mock_val(seed + "memp", 30.0, 85.0)
