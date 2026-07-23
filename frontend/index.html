@@ -956,15 +956,123 @@
               </el-tab-pane>
               <!-- 应急诊断 G7 -->
               <el-tab-pane v-if="visibleMenus.has('deep-diag-emergency')" label="应急诊断" name="emergency">
-                <el-button type="primary" size="small" :loading="deepLoading==='emergency'" :disabled="!deepConnId" @click="runEmergency">一键应急体检(只读)</el-button>
-                <div v-if="deepResult.emergency" style="margin-top:12px">
-                  <el-collapse>
+                <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+                  <el-button type="primary" size="small" :loading="deepLoading==='emergency'" :disabled="!deepConnId" @click="runEmergency">一键应急体检(只读)</el-button>
+                  <span style="font-size:12px;color:#64748b">包含 6 大维度全量只读诊断：实例健康 / 活跃会话 / 大事务 / 锁等待阻塞链 / 长SQL / InnoDB死锁</span>
+                </div>
+                <div v-if="deepResult.emergency">
+                  <el-collapse v-model="activeEmergencyNames">
                     <el-collapse-item v-for="(sec,name) in deepResult.emergency.sections" :key="name" :name="name">
                       <template #title>
-                        <el-tag :type="sec.severity==='ERROR'?'danger':sec.severity==='WARNING'?'warning':sec.ok?'success':'info'" size="small" style="margin-right:8px">{{ name }}</el-tag>
-                        <span style="font-size:13px">{{ sec.summary || sec.error || '' }}</span>
+                        <div style="display:flex;align-items:center;gap:8px">
+                          <el-tag :type="sec.severity==='ERROR'?'danger':sec.severity==='WARNING'?'warning':sec.ok?'success':'info'" size="small">{{ name }}</el-tag>
+                          <span style="font-weight:600;font-size:13px;color:#334155">{{ emergencyNameLabel(name) }}</span>
+                          <span style="font-size:12px;color:#64748b;margin-left:8px">{{ sec.summary || sec.error || '' }}</span>
+                        </div>
                       </template>
-                      <pre style="font-size:12px;white-space:pre-wrap;max-height:300px;overflow:auto">{{ JSON.stringify(sec, null, 2) }}</pre>
+
+                      <!-- 1. status 实例健康度 -->
+                      <div v-if="name==='status' && sec.data">
+                        <el-descriptions :column="4" border size="small" style="margin-bottom:10px">
+                          <el-descriptions-item label="当前连接数">{{ sec.data.Threads_connected || 0 }}</el-descriptions-item>
+                          <el-descriptions-item label="最大连接上限">{{ sec.max_connections || 0 }}</el-descriptions-item>
+                          <el-descriptions-item label="连接使用率">
+                            <el-tag :type="sec.conn_usage_pct >= 85 ? 'danger' : sec.conn_usage_pct >= 70 ? 'warning' : 'success'" size="small">
+                              {{ sec.conn_usage_pct }}%
+                            </el-tag>
+                          </el-descriptions-item>
+                          <el-descriptions-item label="运行中线程">{{ sec.data.Threads_running || 0 }}</el-descriptions-item>
+                          <el-descriptions-item label="慢查询累计数">{{ sec.data.Slow_queries || 0 }}</el-descriptions-item>
+                          <el-descriptions-item label="连接中断数">{{ sec.data.Aborted_connects || 0 }}</el-descriptions-item>
+                          <el-descriptions-item label="累计 Questions">{{ sec.data.Questions || 0 }}</el-descriptions-item>
+                          <el-descriptions-item label="Uptime(运行秒)">{{ sec.data.Uptime || 0 }}s</el-descriptions-item>
+                        </el-descriptions>
+                      </div>
+
+                      <!-- 2. session 活跃会话 -->
+                      <div v-else-if="name==='session'">
+                        <el-table v-if="sec.top_sessions && sec.top_sessions.length" :data="sec.top_sessions" size="small" border stripe max-height="300">
+                          <el-table-column prop="id" label="ID" width="80"></el-table-column>
+                          <el-table-column prop="user" label="用户" width="110"></el-table-column>
+                          <el-table-column prop="host" label="主机" width="140"></el-table-column>
+                          <el-table-column prop="db" label="数据库" width="110"></el-table-column>
+                          <el-table-column prop="command" label="命令" width="90"></el-table-column>
+                          <el-table-column label="耗时(s)" width="90">
+                            <template #default="{row}">
+                              <span :style="{color: row.time >= 10 ? '#ef4444' : '#334155', fontWeight: row.time >= 10 ? 'bold' : 'normal'}">{{ row.time }}s</span>
+                            </template>
+                          </el-table-column>
+                          <el-table-column prop="state" label="状态" width="140"></el-table-column>
+                          <el-table-column prop="info" label="正在执行SQL" show-overflow-tooltip></el-table-column>
+                        </el-table>
+                        <el-empty v-else description="当前无非Sleep活跃会话" :image-size="60" style="padding:10px 0"></el-empty>
+                      </div>
+
+                      <!-- 3. bigtrx 大事务 -->
+                      <div v-else-if="name==='bigtrx'">
+                        <el-table v-if="sec.transactions && sec.transactions.length" :data="sec.transactions" size="small" border stripe max-height="300">
+                          <el-table-column prop="trx_id" label="事务ID" width="110"></el-table-column>
+                          <el-table-column prop="trx_mysql_thread_id" label="线程ID" width="90"></el-table-column>
+                          <el-table-column prop="trx_started" label="开始时间" width="160"></el-table-column>
+                          <el-table-column label="时长(s)" width="100">
+                            <template #default="{row}">
+                              <el-tag :type="row.duration_s >= 60 ? 'danger' : row.duration_s >= 10 ? 'warning' : 'info'" size="small">
+                                {{ row.duration_s }}s
+                              </el-tag>
+                            </template>
+                          </el-table-column>
+                          <el-table-column prop="trx_rows_modified" label="修改行" width="90"></el-table-column>
+                          <el-table-column prop="trx_rows_locked" label="锁行" width="90"></el-table-column>
+                          <el-table-column prop="trx_query" label="事务SQL" show-overflow-tooltip></el-table-column>
+                        </el-table>
+                        <el-empty v-else description="当前无运行时间≥10s的长事务" :image-size="60" style="padding:10px 0"></el-empty>
+                      </div>
+
+                      <!-- 4. lock 锁等待 -->
+                      <div v-else-if="name==='lock'">
+                        <el-table v-if="sec.lock_waits && sec.lock_waits.length" :data="sec.lock_waits" size="small" border stripe max-height="300">
+                          <el-table-column prop="waiting_trx" label="等待事务" width="120"></el-table-column>
+                          <el-table-column prop="waiting_thread" label="等待线程" width="100"></el-table-column>
+                          <el-table-column prop="waiting_query" label="等待SQL" show-overflow-tooltip></el-table-column>
+                          <el-table-column prop="blocking_trx" label="阻塞源事务" width="120"></el-table-column>
+                          <el-table-column prop="blocking_thread" label="阻塞源线程" width="100"></el-table-column>
+                        </el-table>
+                        <el-empty v-else description="当前无锁等待阻塞链" :image-size="60" style="padding:10px 0"></el-empty>
+                      </div>
+
+                      <!-- 5. slow 正在执行的长SQL -->
+                      <div v-else-if="name==='slow'">
+                        <el-table v-if="sec.slow_running && sec.slow_running.length" :data="sec.slow_running" size="small" border stripe max-height="300">
+                          <el-table-column prop="id" label="ID" width="80"></el-table-column>
+                          <el-table-column prop="user" label="用户" width="110"></el-table-column>
+                          <el-table-column prop="host" label="主机" width="140"></el-table-column>
+                          <el-table-column prop="db" label="数据库" width="110"></el-table-column>
+                          <el-table-column label="耗时(s)" width="90">
+                            <template #default="{row}">
+                              <span style="color:#ef4444;font-weight:bold">{{ row.time }}s</span>
+                            </template>
+                          </el-table-column>
+                          <el-table-column prop="state" label="状态" width="130"></el-table-column>
+                          <el-table-column prop="info" label="正在执行SQL" show-overflow-tooltip></el-table-column>
+                        </el-table>
+                        <el-empty v-else description="当前无正在执行且耗时>2s的慢SQL" :image-size="60" style="padding:10px 0"></el-empty>
+                      </div>
+
+                      <!-- 6. innodb 死锁记录 -->
+                      <div v-else-if="name==='innodb'">
+                        <div v-if="sec.latest_deadlock && sec.latest_deadlock !== '(无)'">
+                          <el-alert title="检测到最近一次 InnoDB 死锁记录" type="warning" show-icon :closable="false" style="margin-bottom:8px"></el-alert>
+                          <pre style="font-size:12px;background:#0f172a;color:#38bdf8;padding:10px;border-radius:6px;max-height:260px;overflow:auto;white-space:pre-wrap">{{ sec.latest_deadlock }}</pre>
+                        </div>
+                        <el-empty v-else description="无最近死锁记录" :image-size="60" style="padding:10px 0"></el-empty>
+                      </div>
+
+                      <!-- 7. 通用兜底 / 崩溃错误显示 -->
+                      <div v-else>
+                        <div v-if="sec.error" style="color:#ef4444;font-size:13px;padding:8px">错误信息: {{ sec.error }}</div>
+                        <pre style="font-size:12px;white-space:pre-wrap;max-height:250px;overflow:auto;background:#f8fafc;padding:8px;border-radius:4px">{{ JSON.stringify(sec, null, 2) }}</pre>
+                      </div>
+
                     </el-collapse-item>
                   </el-collapse>
                 </div>
