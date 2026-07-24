@@ -113,7 +113,20 @@ body{font-family:var(--font-family);background:var(--bg-page);color:var(--text-p
 .flex-end{display:flex;justify-content:flex-end}
 .time-row{display:flex;gap:var(--sp-2);align-items:center}
 /* 宽度 */
-.w-full{width:100%}
+.w-full { width: 100%; }
+
+.online-check-suggestion {
+  background: #f0f9eb;
+  border-left: 4px solid #67c23a;
+  color: #2b541e;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  border-radius: 4px;
+}
+.online-check-suggestion b {
+  color: #1e3c15;
+}
 .w-100{width:100px} .w-120{width:120px} .w-140{width:140px} .w-200{width:200px} .w-300{width:300px}
 /* 分页器居右 */
 .pager{margin-top:var(--sp-3);justify-content:flex-end}

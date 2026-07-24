@@ -696,7 +696,7 @@
                       <span v-if="check.error" style="color:#f56c6c;font-size:12px;margin-left:auto">执行失败: {{ check.error }}</span>
                     </div>
                   </template>
-                  <div v-if="check.suggestion" style="background:#f0f9eb;border-left:4px solid #67c23a;padding:8px 12px;margin-bottom:12px;font-size:13px;border-radius:4px">
+                  <div v-if="check.suggestion" class="online-check-suggestion">
                     <b>修复建议：</b>{{ check.suggestion }}
                   </div>
                   <el-table v-if="check.rows&&check.rows.length" :data="check.rows" stripe size="small" max-height="400" class="w-full">

@@ -273,3 +273,13 @@
 /* ── 13. 主题切换（登录页浮动开关）深色配色 ── */
 :root[data-theme="dark"] .login-theme-toggle { background: rgba(56,189,248,.10); border-color: rgba(56,189,248,.30); color: var(--text-sky); }
 :root[data-theme="dark"] .login-theme-toggle:hover { background: rgba(56,189,248,.18); color: #e0f2fe; }
+
+/* ── 14. 上线检查修复建议框深色高对比度沉浸式风格 ── */
+:root[data-theme="dark"] .online-check-suggestion {
+  background: rgba(230, 162, 60, 0.15) !important;
+  border-left: 4px solid #e6a23c !important;
+  color: #ffe6ba !important;
+}
+:root[data-theme="dark"] .online-check-suggestion b {
+  color: #ffc069 !important;
+}
