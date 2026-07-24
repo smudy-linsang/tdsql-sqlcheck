@@ -10,7 +10,7 @@
 #   加 --with-python 会额外内置便携 CPython（目标机无 python3.9+ 时使用）
 # ============================================================================
 set -euo pipefail
-VERSION="1.2.0.5"
+VERSION="1.2.0.6"
 ARCH="x86_64"; PYTAG="311"; WITH_PYTHON="no"
 while [[ $# -gt 0 ]]; do case "$1" in
   --arch) ARCH="$2"; shift 2;;

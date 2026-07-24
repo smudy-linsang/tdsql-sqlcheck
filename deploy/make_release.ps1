@@ -3,7 +3,7 @@
 # 产出: dist/tdsql-sqlcheck-v1.2.0.5-linux-x86_64.tar.gz + .sha256
 # ============================================================================
 $ErrorActionPreference = "Stop"
-$VERSION = "1.2.0.5"
+$VERSION = "1.2.0.6"
 $ARCH = "x86_64"
 $PYTAG = "311"
 $ROOT = $PSScriptRoot
