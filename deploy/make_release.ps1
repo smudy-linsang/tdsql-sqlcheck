@@ -3,39 +3,38 @@
 # 产出: dist/tdsql-sqlcheck-v1.2.0.5-linux-x86_64.tar.gz + .sha256
 # ============================================================================
 $ErrorActionPreference = "Stop"
-$VERSION = "1.2.0.6"
+$VERSION = "1.2.0.7"
 $ARCH = "x86_64"
 $PYTAG = "311"
 $ROOT = $PSScriptRoot
-if (-not $ROOT) { $ROOT = Split-Path -Parent $MyInvocation.MyCommand.Path }
-if (-not $ROOT) { $ROOT = (Get-Location).Path }
-if ($ROOT -like '*\deploy') { $ROOT = Split-Path -Parent $ROOT }
-if ($ROOT -like '*\deploy\') { $ROOT = Split-Path -Parent $ROOT }
 
-$STAGE = Join-Path $ROOT "dist\stage-$ARCH"
-$PKG = "tdsql-sqlcheck-v$VERSION-linux-$ARCH"
-$PKG_DIR = Join-Path $STAGE $PKG
-$DIST = Join-Path $ROOT "dist"
+# 离线环境提示
+Write-Host "============================================================================" -ForegroundColor Cyan
+Write-Host " 开始打包 TDSQL SQL审核工具 v${VERSION} (x86_64)" -ForegroundColor Cyan
+Write-Host "============================================================================" -ForegroundColor Cyan
 
-# 清理旧目录
-if (Test-Path $STAGE) { Remove-Item $STAGE -Recurse -Force }
+$DIST_DIR = Join-Path $ROOT "dist"
+$STAGE_DIR = Join-Path $DIST_DIR "stage-${ARCH}"
+$PKG_NAME = "tdsql-sqlcheck-v${VERSION}-linux-${ARCH}"
+$PKG_DIR = Join-Path $STAGE_DIR $PKG_NAME
+$TAR_NAME = "${PKG_NAME}.tar.gz"
+$TAR_PATH = Join-Path $DIST_DIR $TAR_NAME
+
+# 清理并创建阶段目录
+if (Test-Path $PKG_DIR) { Remove-Item -Recurse -Force $PKG_DIR }
 New-Item -ItemType Directory -Force -Path $PKG_DIR | Out-Null
-New-Item -ItemType Directory -Force -Path $DIST | Out-Null
 
-Write-Host "[1/4] 复制代码与部署脚本..."
-$BACKEND_DIR = Join-Path $PKG_DIR "backend"
-$FRONTEND_DIR = Join-Path $PKG_DIR "frontend"
-$DEPLOY_DIR = Join-Path $PKG_DIR "deploy"
-
-# 复制核心代码
-Copy-Item (Join-Path $ROOT "backend") $PKG_DIR -Recurse
-Copy-Item (Join-Path $ROOT "frontend") $PKG_DIR -Recurse
-Copy-Item (Join-Path $ROOT "requirements.txt") $PKG_DIR
+# 复制 backend / frontend / requirements.txt
+Write-Host "[1/4] 复制源码与配置文件..." -ForegroundColor Green
+Copy-Item -Recurse (Join-Path $ROOT "backend") (Join-Path $PKG_DIR "backend")
+Copy-Item -Recurse (Join-Path $ROOT "frontend") (Join-Path $PKG_DIR "frontend")
+Copy-Item (Join-Path $ROOT "requirements.txt") (Join-Path $PKG_DIR "requirements.txt")
 
 # 复制部署脚本
+$DEPLOY_DIR = Join-Path $PKG_DIR "deploy"
 New-Item -ItemType Directory -Force -Path $DEPLOY_DIR | Out-Null
 $deploy_files = @("install.sh","preflight_check.sh","make_release.sh",
-                  "verify_deploy.sh","tdsql-sqlcheck.service","env.template",
+                  "verify_deploy.sh","rollback.sh","tdsql-sqlcheck.service","env.template",
                   "nginx-sqlcheck.conf","README.md")
 foreach ($f in $deploy_files) {
     $src = Join-Path $ROOT "deploy\$f"
@@ -49,7 +48,8 @@ $doc_files = @("部署手册-v1.0.2.md","运维手册-v1.0.2.md","上线检查�
                "发布说明-v1.0.2.md","V1.0.3变更清单与测试要点.md",
                "V1.0.3.1增量更新部署说明.md", "V1.2.0.5更新部署指南.md",
                "v1.2.0.5_upgrade_manual.md", "V1.2.0.6更新部署指南.md",
-               "v1.2.0.6_upgrade_manual.md", "v1.2.0.4_性能压测与并发改善报告.md")
+               "v1.2.0.6_upgrade_manual.md", "V1.2.0.7更新部署指南.md",
+               "v1.2.0.7_upgrade_manual.md", "v1.2.0.4_性能压测与并发改善报告.md")
 foreach ($f in $doc_files) {
     $src = Join-Path $ROOT "docs\$f"
     if (Test-Path $src) { Copy-Item $src (Join-Path $DOCS_DIR $f) }

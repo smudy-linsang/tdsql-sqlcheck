@@ -14,14 +14,13 @@ APP_JS_URL = "http://localhost:8000/static/js/app.js"
 
 def _get_auth_headers():
     """登录admin获取token"""
-    for pwd in ("Test@2026Admin", "Admin@1234", "adminpassword", "Abcd1234"):
-        try:
-            resp = requests.post(f"{API_BASE}/auth/login", json={"username": "admin", "password": pwd}, timeout=3)
-            if resp.ok:
-                token = resp.json().get("token", "")
-                return {"Authorization": f"Bearer {token}"}
-        except Exception:
-            pass
+    try:
+        resp = requests.post(f"{API_BASE}/auth/login", json={"username": "admin", "password": "Admin@123"}, timeout=3)
+        if resp.ok:
+            token = resp.json().get("token", "")
+            return {"Authorization": f"Bearer {token}"}
+    except Exception:
+        pass
     return {}
 
 
