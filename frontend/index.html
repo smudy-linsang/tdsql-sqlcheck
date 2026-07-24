@@ -3,6 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- 主题预置：首帧前置 data-theme，避免深/浅切换闪烁；默认深色，localStorage 记忆 -->
+  <script>(function(){try{var t=localStorage.getItem('tdsql-theme');if(t!=='light'&&t!=='dark')t='dark';document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','dark');}})();</script>
   <title>TDSQL数据库SQL审核工具 V1.2.0.7</title>
   <script src="/static/vendor/vue.global.prod.js"></script>
   <link rel="stylesheet" href="/static/vendor/element-plus.css">
@@ -18,6 +20,10 @@
 <div id="app">
   <!-- ═══ 登录页 ═══ -->
   <div v-if="!authState.token" class="login-page">
+    <div class="login-theme-toggle clickable" @click="toggleTheme">
+      <el-icon size="16"><component :is="theme==='dark' ? 'Sunny' : 'Moon'"></component></el-icon>
+      <span>{{ theme==='dark' ? '浅色' : '深色' }}</span>
+    </div>
     <div class="login-brand">
       <h1>TDSQL数据库SQL审核工具</h1>
       <div class="version">V1.2.0.7 · Design by Linsang</div>
@@ -49,6 +55,11 @@
         <span>TDSQL数据库SQL审核工具</span>
       </div>
       <div class="right-area">
+        <el-tooltip :content="theme==='dark' ? '切换浅色主题' : '切换深色主题'" placement="bottom">
+          <el-icon size="19" class="clickable theme-toggle" @click="toggleTheme">
+            <component :is="theme==='dark' ? 'Sunny' : 'Moon'"></component>
+          </el-icon>
+        </el-tooltip>
         <el-badge :value="activeAlerts" :hidden="activeAlerts===0" class="alert-badge">
           <el-icon size="20" class="clickable" @click="currentPage='monitor'"><Bell /></el-icon>
         </el-badge>

@@ -147,3 +147,10 @@ body{font-family:var(--font-family);background:var(--bg-page);color:var(--text-p
 .login-alert{margin-bottom:var(--sp-4)}
 /* 大表分区下钻：非分区行隐藏展开箭头 */
 .el-table .bt-no-expand .el-table__expand-icon{visibility:hidden;pointer-events:none}
+
+/* 主题切换开关（顶栏图标 + 登录页浮动按钮）——布局层，深/浅两套主题共用 */
+.theme-toggle{transition:color .15s}
+.theme-toggle:hover{color:#fff}
+.login-theme-toggle{position:fixed;top:16px;right:18px;z-index:20;display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;font-size:13px;line-height:1;user-select:none;background:rgba(15,23,42,.05);border:1px solid rgba(15,23,42,.14);color:#475569;transition:background .15s,color .15s,border-color .15s}
+.login-theme-toggle:hover{background:rgba(15,23,42,.1);color:#0f172a}
+.login-theme-toggle .el-icon{display:inline-flex}
