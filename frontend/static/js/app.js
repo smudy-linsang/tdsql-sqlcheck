@@ -17,7 +17,6 @@ async function apiFetch(url,options={}){
   }
   const resp=await fetch(finalUrl,opts);
   if(resp.status===401&&onUnauthorized){clearToken();onUnauthorized()}
-  else if(resp.status===403){try{const d=await resp.clone().json();ElementPlus.ElMessage.warning(d.detail||'当前角色无权执行该操作')}catch(e){ElementPlus.ElMessage.warning('当前角色无权执行该操作')}}
   else if(resp.status>=500){try{const d=await resp.clone().json();ElementPlus.ElNotification.error({title:'服务异常',message:d.detail||'服务暂时不可用，请稍后重试'})}catch(e){ElementPlus.ElNotification.error({title:'服务异常',message:'服务暂时不可用，请稍后重试'})}}
   return resp;
 }
@@ -240,7 +239,7 @@ const app=createApp({
     });
 
     const applyUser=(u)=>{authState.user=u;authState.role=u.role};
-    const doLogin=async()=>{if(!loginForm.username||!loginForm.password){loginError.value='请输入用户名和口令';return}loginLoading.value=true;loginError.value='';try{const resp=await fetch(`${API_BASE}/api/v1/auth/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:loginForm.username,password:loginForm.password})});const data=await resp.json();if(!resp.ok){loginError.value=data.detail||'登录失败';return}setToken(data.token);authState.token=data.token;applyUser(data.user);loginForm.password='';if(data.user.must_change_password){ElementPlus.ElMessage.warning('首次登录请修改口令');pwdDialog.visible=true;pwdDialog.forced=true}loadAll()}catch(e){loginError.value='登录请求失败: '+e.message}finally{loginLoading.value=false}};
+    const doLogin=async()=>{if(!loginForm.username||!loginForm.password){loginError.value='请输入用户名和口令';return}loginLoading.value=true;loginError.value='';try{const resp=await fetch(`${API_BASE}/api/v1/auth/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:loginForm.username,password:loginForm.password})});const data=await resp.json();if(!resp.ok){loginError.value=data.detail||'登录失败';return}setToken(data.token);authState.token=data.token;applyUser(data.user);loginForm.password='';if(data.user.must_change_password){ElementPlus.ElMessage.warning('首次登录请修改口令');pwdDialog.visible=true;pwdDialog.forced=true}else{await loadAll()}}catch(e){loginError.value='登录请求失败: '+e.message}finally{loginLoading.value=false}};
     const doLogout=async()=>{try{await apiFetch(`${API_BASE}/api/v1/auth/logout`,{method:'POST'})}catch(e){}clearToken();authState.token='';authState.user=null;loginForm.username='';loginForm.password=''};
     const changePassword=async()=>{if(!pwdDialog.new_password){ElementPlus.ElMessage.warning('请输入新口令');return}pwdDialog.loading=true;try{const resp=await apiFetch(`${API_BASE}/api/v1/auth/change-password`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({old_password:pwdDialog.old_password,new_password:pwdDialog.new_password})});const data=await resp.json();if(!resp.ok){ElementPlus.ElMessage.error(data.detail||'修改失败');return}ElementPlus.ElMessage.success('口令修改成功，请重新登录');pwdDialog.visible=false;pwdDialog.forced=false;pwdDialog.old_password='';pwdDialog.new_password='';doLogout()}catch(e){ElementPlus.ElMessage.error('修改失败: '+e.message)}finally{pwdDialog.loading=false}};
     const checkSession=async()=>{try{const resp=await apiFetch(`${API_BASE}/api/v1/auth/me`);if(resp.ok){const u=await resp.json();applyUser(u);if(u.must_change_password){ElementPlus.ElMessage.warning('首次登录请修改口令');pwdDialog.visible=true;pwdDialog.forced=true}return true}}catch(e){}return false};
@@ -773,8 +772,23 @@ const app=createApp({
     const openRetentionEdit=(row)=>{if(row){retentionEditMode.value=true;retentionDialog.form={table_name:row.table_name,retention_days:row.retention_days,enabled:!!row.enabled}}else{retentionEditMode.value=false;retentionDialog.form={table_name:'',retention_days:30,enabled:true}}retentionDialog.visible=true};
     const saveRetention=async()=>{if(!retentionDialog.form.table_name){ElementPlus.ElMessage.warning('请输入表名');return}retentionDialog.loading=true;try{const resp=await apiFetch(`${API_BASE}/api/v1/admin/retention`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(retentionDialog.form)});if(resp.ok){ElementPlus.ElMessage.success('保留策略已保存');retentionDialog.visible=false;loadRetention()}else{const d=await resp.json();ElementPlus.ElMessage.error(d.detail||'保存失败')}}catch(e){ElementPlus.ElMessage.error('保存失败: '+e.message)}finally{retentionDialog.loading=false}};
     const loadVisibleMenus=async()=>{try{const resp=await apiFetch(`${API_BASE}/api/v1/auth/visible-menus`);if(resp.ok){const d=await resp.json();visibleMenus.value=new Set(d.menus||[])}}catch(e){}};
-    const loadAll=()=>{loadDashboard();loadSavedConnections();loadRules();loadScanTasks();loadSlowList();loadProjects();loadActiveAlerts();loadLogo();loadVisibleMenus()};
-    onMounted(async()=>{onUnauthorized=()=>{authState.token='';authState.user=null};const ok=await checkSession();if(ok)loadAll()});
+    const loadAll=async()=>{
+      await loadVisibleMenus();
+      loadLogo();
+      if(visibleMenus.value.has('dashboard')){loadDashboard();loadActiveAlerts()}
+      if(visibleMenus.value.has('tdsql-connections'))loadSavedConnections();
+      if(visibleMenus.value.has('rules'))loadRules();
+      if(visibleMenus.value.has('slow-tasks'))loadScanTasks();
+      if(visibleMenus.value.has('slow-records'))loadSlowList();
+      if(visibleMenus.value.has('projects'))loadProjects();
+      const menuOrder=['dashboard','sql-audit','file-audit','schema-extractor-audit','slow-overview','slow-records','slow-tasks','slow-schedule','bigtable','deep-diag','projects','rulesets','gate','monitor','inspection','sys-users','sys-roles','sys-perms','sys-auditlog','sys-retention','sys-info'];
+      if(!visibleMenus.value.has(currentPage.value)){
+        for(const m of menuOrder){
+          if(visibleMenus.value.has(m)){currentPage.value=m;break}
+        }
+      }
+    };
+    onMounted(async()=>{onUnauthorized=()=>{authState.token='';authState.user=null};const ok=await checkSession();if(ok&&!pwdDialog.forced)await loadAll()});
     watch(currentPage,(v)=>{if(v==='dashboard')nextTick(renderTrendChart);if(v==='rules'&&rulesList.value.length===0)loadRules();if(v==='file-audit'&&fileAuditTab.value==='reports')loadFileReports();if(v==='schema-extractor-audit'&&extractedTab.value==='history')loadExtractedReports();if(v==='slow-tasks')loadScanTasks();if(v==='slow-records')loadSlowList();if(v==='sys-users')loadUsers();if(v==='slow-schedule')loadScanSchedules();if(v==='bigtable')loadBigtable();if(v==='projects')loadProjectsList();if(v==='rulesets')loadRulesets();if(v==='gate'){loadGateStrategies();loadGateRules()};if(v==='monitor'){loadMonitorAlerts();loadMonitorRules()};if(v==='inspection')loadInspectionTasks();if(v==='sys-auditlog')loadAuditLogs();if(v==='sys-retention')loadRetention();if(v==='sys-info')loadSysInfo();if(v==='sys-roles')loadRoles();if(v==='sys-perms')loadPerms();if(v==='deep-diag'){const subtabs=[{perm:'deep-diag-cluster',tab:'cluster'},{perm:'deep-diag-daily',tab:'daily_inspect'},{perm:'deep-diag-index',tab:'index'},{perm:'deep-diag-diff',tab:'diff'},{perm:'deep-diag-emergency',tab:'emergency'},{perm:'deep-diag-sqlstats',tab:'sqlstats'},{perm:'deep-diag-gateway',tab:'gateway_log'},{perm:'deep-diag-ppt',tab:'ppt_report'},{perm:'deep-diag-toolkit',tab:'toolkit'}];for(const t of subtabs){if(visibleMenus.value.has(t.perm)){deepTab.value=t.tab;break}}if(deepTab.value==='gateway_log')loadGatewayReports();if(deepTab.value==='ppt_report')loadPptDashboard();if(deepTab.value==='toolkit')loadToolkitScripts()}});
     watch(fileAuditTab,(v)=>{if(v==='reports')loadFileReports()});
     watch(extractedTab,(v)=>{if(v==='history')loadExtractedReports()});
