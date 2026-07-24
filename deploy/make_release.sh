@@ -39,6 +39,7 @@ mkdir -p "${STAGE}/${PKG}/docs"
 cp -a "${ROOT}/docs/部署手册-v1.0.2.md" "${ROOT}/docs/运维手册-v1.0.2.md" \
       "${ROOT}/docs/上线检查清单-v1.0.2.md" "${ROOT}/docs/发布说明-v1.0.2.md" \
       "${ROOT}/docs/V1.2.0.5更新部署指南.md" "${ROOT}/docs/v1.2.0.5_upgrade_manual.md" \
+      "${ROOT}/docs/V1.2.0.6更新部署指南.md" "${ROOT}/docs/v1.2.0.6_upgrade_manual.md" \
       "${ROOT}/docs/v1.2.0.4_性能压测与并发改善报告.md" "${STAGE}/${PKG}/docs/" 2>/dev/null || true
 echo "${VERSION}" > "${STAGE}/${PKG}/VERSION"
 find "${STAGE}/${PKG}" -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
