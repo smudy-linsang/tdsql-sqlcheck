@@ -6,7 +6,8 @@ $ErrorActionPreference = "Stop"
 $VERSION = "1.2.0.7"
 $ARCH = "x86_64"
 $PYTAG = "311"
-$ROOT = $PSScriptRoot
+$ROOT = Split-Path -Parent $PSScriptRoot
+if (-not $ROOT) { $ROOT = (Get-Location).Path }
 
 # 离线环境提示
 Write-Host "============================================================================" -ForegroundColor Cyan
@@ -79,9 +80,9 @@ Write-Host "[3/4] 打包为 tar.gz..."
 # 使用Python创建tar.gz (Windows无原生tar)
 python -c "
 import tarfile, os
-stage = r'$STAGE'
-pkg = '$PKG'
-dist = r'$DIST'
+stage = r'$STAGE_DIR'
+pkg = '$PKG_NAME'
+dist = r'$DIST_DIR'
 out = os.path.join(dist, pkg + '.tar.gz')
 with tarfile.open(out, 'w:gz') as tar:
     tar.add(os.path.join(stage, pkg), arcname=pkg)
@@ -91,8 +92,8 @@ print(f'  已创建: {out}')
 Write-Host "[4/4] 生成 SHA256 校验和..."
 python -c "
 import hashlib, os
-dist = r'$DIST'
-pkg = '$PKG'
+dist = r'$DIST_DIR'
+pkg = '$PKG_NAME'
 tarball = os.path.join(dist, pkg + '.tar.gz')
 sha = hashlib.sha256()
 with open(tarball, 'rb') as f:
@@ -105,18 +106,18 @@ print(f'  SHA256: {digest}')
 "
 
 # 清理staging
-Remove-Item $STAGE -Recurse -Force
+Remove-Item $STAGE_DIR -Recurse -Force
 
-$tarball = Join-Path $DIST "$PKG.tar.gz"
+$tarball = Join-Path $DIST_DIR "$PKG_NAME.tar.gz"
 $size_mb = [math]::Round((Get-Item $tarball).Length / 1MB, 2)
 Write-Host ""
 Write-Host "══════════════════════════════════════════"
-Write-Host " 发布包: dist/$PKG.tar.gz ($size_mb MB)"
-Write-Host " 校验和: dist/$PKG.tar.gz.sha256"
+Write-Host " 发布包: dist/$PKG_NAME.tar.gz ($size_mb MB)"
+Write-Host " 校验和: dist/$PKG_NAME.tar.gz.sha256"
 Write-Host ""
 Write-Host " 交付部署: 将 dist/ 目录整个拷贝至内网目标机"
-Write-Host "          cd dist && sha256sum -c $PKG.tar.gz.sha256"
-Write-Host "          tar -xzf $PKG.tar.gz"
-Write-Host "          cd $PKG && cp deploy/env.template deploy/.env"
+Write-Host "          cd dist && sha256sum -c $PKG_NAME.tar.gz.sha256"
+Write-Host "          tar -xzf $PKG_NAME.tar.gz"
+Write-Host "          cd $PKG_NAME && cp deploy/env.template deploy/.env"
 Write-Host "          vi deploy/.env && sudo ./deploy/install.sh"
 Write-Host "══════════════════════════════════════════"
