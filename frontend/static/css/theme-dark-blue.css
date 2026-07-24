@@ -1,0 +1,275 @@
+/* =========================================================================
+   TDSQL 智能 SQL 审核工具 — 深蓝高密度主题 (Dark Blue Theme)
+   —— 视觉重构层：纯 CSS 换肤，覆盖 app.css 设计令牌 + Element Plus --el-* 变量
+   —— 作用域限定在 :root[data-theme="dark"]：仅深色模式生效；浅色模式回落到 app.css 原皮肤
+   —— 顶栏开关切换深/浅，localStorage 记忆；纯 CSS 换肤 → 性能零影响、功能零改动
+   —— 设计基线：美工提供的「深蓝高密度」小样（墨蓝背景 + 冰蓝文字 + 湛蓝高亮 + 1px 线分割）
+   ========================================================================= */
+
+:root[data-theme="dark"] {
+  /* ── 1. 深蓝主题基色（美工小样） ── */
+  --bg-main:    #0b132b;   /* 全局主背景（墨蓝） */
+  --bg-panel:   #1c2541;   /* 面板/卡片（比背景稍亮，区分层级） */
+  --bg-panel-2: #22305a;   /* 二级面板/悬浮层（下拉/弹窗） */
+  --bg-header:  #070d1f;   /* 顶栏 */
+  --bg-hover:   #2a3a5e;   /* 悬浮/选中态 */
+
+  --text-ice:   #e0f2fe;   /* 主文字：浅冰蓝 */
+  --text-sky:   #7dd3fc;   /* 次要/标签：天蓝 */
+  --line-blue:  #22345f;   /* 分隔线/边框：暗科技蓝 */
+  --line-active:#38bdf8;   /* 高亮边框/焦点：湛蓝 */
+
+  --c-pass:   #10b981;     /* 通过：翡翠绿 */
+  --c-warn:   #f59e0b;     /* 中危：琥珀黄 */
+  --c-danger: #ef4444;     /* 高危：霓虹红 */
+  --c-accent: #38bdf8;     /* 科技蓝高亮（链接/激活/发光） */
+
+  /* ── 2. 覆盖 app.css 既有设计令牌（一处改、全站变） ── */
+  --text-primary:  var(--text-ice);
+  --text-regular:  #c3d3ec;
+  --text-secondary:#8aa2c6;
+  --border-base:   var(--line-blue);
+  --border-light:  #1a294a;
+  --fill-base:     #16223f;
+  --bg-page:       var(--bg-main);
+  --bg-container:  var(--bg-panel);
+
+  --nav-bg:        var(--bg-header);
+  --nav-bg-active: #17325a;
+  --nav-text:      #a9bcd8;
+  --nav-text-active:#ffffff;
+  --nav-accent:    var(--c-accent);
+
+  /* 状态浅底改为深色半透（供 violation/tag 等浅底类使用） */
+  --success-50: rgba(16,185,129,.12);  --success-500: var(--c-pass);
+  --warning-50: rgba(245,158,11,.12);  --warning-500: var(--c-warn);
+  --danger-50:  rgba(239,68,68,.12);   --danger-500:  var(--c-danger);
+  --info-50:    rgba(148,163,184,.10); --info-500:    #94a3b8;
+
+  --brand-500: #3b82f6; --brand-600: #2563eb; --brand-700: #1e3a8a;
+
+  /* 阴影：深色下用发光边替代重投影（更"科技感"且更轻量） */
+  --shadow-card:    0 0 0 1px rgba(56,189,248,.06), 0 2px 8px rgba(0,0,0,.35);
+  --shadow-raised:  0 0 0 1px rgba(56,189,248,.14), 0 6px 18px rgba(0,0,0,.45);
+  --shadow-overlay: 0 12px 40px rgba(0,0,0,.6);
+
+  /* ── 3. 覆盖 Element Plus 全局变量（一次性接管所有 el-* 组件） ── */
+  --el-color-primary: #3b82f6;
+  --el-color-primary-light-3: #2f6fe0;
+  --el-color-primary-light-5: #2a5fbf;
+  --el-color-primary-light-7: #24467f;
+  --el-color-primary-light-8: #1f3a66;
+  --el-color-primary-light-9: #172a47;
+  --el-color-primary-dark-2:  #60a5fa;
+  --el-color-success: var(--c-pass);
+  --el-color-warning: var(--c-warn);
+  --el-color-danger:  var(--c-danger);
+  --el-color-error:   var(--c-danger);
+  --el-color-info:    #94a3b8;
+
+  --el-bg-color:          var(--bg-panel);
+  --el-bg-color-page:     var(--bg-main);
+  --el-bg-color-overlay:  var(--bg-panel-2);
+
+  --el-text-color-primary:     var(--text-ice);
+  --el-text-color-regular:     #c3d3ec;
+  --el-text-color-secondary:   #8aa2c6;
+  --el-text-color-placeholder: #6a7ea3;
+  --el-text-color-disabled:    #4c5b7d;
+
+  --el-border-color:             var(--line-blue);
+  --el-border-color-light:       #1f2f52;
+  --el-border-color-lighter:     #1a294a;
+  --el-border-color-extra-light: #172343;
+  --el-border-color-dark:        #33477a;
+  --el-border-color-darker:      #3d5490;
+  --el-border-color-hover:       var(--c-accent);
+
+  --el-fill-color:         #1f2c4d;
+  --el-fill-color-light:   #1a2542;
+  --el-fill-color-lighter: #16203a;
+  --el-fill-color-extra-light: #141d34;
+  --el-fill-color-dark:    #24325a;
+  --el-fill-color-darker:  #2a3a5e;
+  --el-fill-color-blank:   var(--bg-panel);   /* 输入/开关底色 */
+
+  --el-mask-color: rgba(6,10,25,.75);
+  --el-mask-color-extra-light: rgba(6,10,25,.4);
+  --el-box-shadow:        var(--shadow-overlay);
+  --el-box-shadow-light:  var(--shadow-card);
+  --el-box-shadow-lighter:var(--shadow-card);
+  --el-box-shadow-dark:   var(--shadow-overlay);
+
+  --el-disabled-bg-color: #18233d;
+  --el-disabled-text-color: #556080;
+  --el-disabled-border-color: #223052;
+
+  /* 表格 */
+  --el-table-bg-color:            transparent;
+  --el-table-tr-bg-color:         transparent;
+  --el-table-header-bg-color:     rgba(56,189,248,.06);
+  --el-table-header-text-color:   var(--text-sky);
+  --el-table-text-color:          #c3d3ec;
+  --el-table-border-color:        var(--line-blue);
+  --el-table-row-hover-bg-color:  rgba(56,189,248,.08);
+  --el-table-current-row-bg-color:rgba(56,189,248,.12);
+  --el-table-fixed-box-shadow:    0 0 12px rgba(0,0,0,.5);
+
+  /* 输入/滚动 */
+  --el-input-bg-color: var(--bg-panel);
+  --el-fill-color-blank: var(--bg-panel);
+}
+/* ── 4. 基础背景 ── */
+:root[data-theme="dark"], :root[data-theme="dark"] body { background: var(--bg-main); color: var(--text-ice); }
+:root[data-theme="dark"] .app-layout, :root[data-theme="dark"] .main-body, :root[data-theme="dark"] .content-area { background: var(--bg-main); }
+/* 顶栏更沉，带一条湛蓝底线，强化"银行运维系统"层次 */
+:root[data-theme="dark"] .topbar {
+  background: var(--bg-header);
+  border-bottom: 1px solid var(--line-blue);
+  box-shadow: 0 1px 0 rgba(56,189,248,.10);
+}
+:root[data-theme="dark"] .topbar .brand { color: var(--text-ice); }
+:root[data-theme="dark"] .topbar .brand .logo { background: linear-gradient(135deg, #38bdf8, #2563eb); color: #041022; }
+/* 侧栏：深墨蓝 + 选中湛蓝左条 + 发光 */
+:root[data-theme="dark"] .sidebar { background: var(--bg-header); border-right: 1px solid var(--line-blue); }
+:root[data-theme="dark"] .sidebar .el-menu, :root[data-theme="dark"] .sidebar .el-sub-menu .el-menu { background: transparent; }
+:root[data-theme="dark"] .sidebar .el-sub-menu .el-menu { background: rgba(0,0,0,.25); }
+:root[data-theme="dark"] .sidebar .el-menu-item:hover, :root[data-theme="dark"] .sidebar .el-sub-menu__title:hover { background: var(--nav-bg-active); color: #fff; }
+:root[data-theme="dark"] .sidebar .el-menu-item.is-active {
+  background: var(--nav-bg-active);
+  color: #fff;
+  border-left: 3px solid var(--c-accent);
+  box-shadow: inset 0 0 18px rgba(56,189,248,.12);
+}
+/* 面包屑条 */
+:root[data-theme="dark"] .breadcrumb-bar { background: var(--bg-header); border-bottom: 1px solid var(--line-blue); }
+:root[data-theme="dark"] .el-breadcrumb__inner, :root[data-theme="dark"] .el-breadcrumb__separator { color: var(--text-secondary) !important; }
+:root[data-theme="dark"] .el-breadcrumb__item:last-child .el-breadcrumb__inner { color: var(--text-sky) !important; }
+/* ── 5. 卡片 / KPI / 面板：面板色 + 细湛蓝描边 ── */
+:root[data-theme="dark"] .page-card, :root[data-theme="dark"] .kpi-card {
+  background: var(--bg-panel);
+  border: 1px solid var(--line-blue);
+  box-shadow: var(--shadow-card);
+}
+:root[data-theme="dark"] .page-card-title { color: var(--text-ice); border-left-color: var(--c-accent); }
+:root[data-theme="dark"] .kpi-card:hover { box-shadow: var(--shadow-raised); border-color: rgba(56,189,248,.35); }
+:root[data-theme="dark"] .kpi-card .kpi-num { color: var(--text-ice); text-shadow: 0 0 12px rgba(56,189,248,.25); }
+:root[data-theme="dark"] .kpi-card .kpi-label, :root[data-theme="dark"] .kpi-card .kpi-sub { color: var(--text-secondary); }
+/* Element 卡片/描述/折叠/标签页统一深色 */
+:root[data-theme="dark"] .el-card { background: var(--bg-panel); border-color: var(--line-blue); color: var(--text-ice); }
+:root[data-theme="dark"] .el-card__header, :root[data-theme="dark"] .el-card__footer { border-color: var(--line-blue); }
+:root[data-theme="dark"] .el-collapse, :root[data-theme="dark"] .el-collapse-item__header, :root[data-theme="dark"] .el-collapse-item__wrap { background: var(--bg-panel); border-color: var(--line-blue); color: var(--text-ice); }
+:root[data-theme="dark"] .el-descriptions__body { background: var(--bg-panel); color: var(--text-ice); }
+:root[data-theme="dark"] .el-descriptions__cell, :root[data-theme="dark"] .el-descriptions__label { border-color: var(--line-blue) !important; }
+:root[data-theme="dark"] .el-descriptions__label { background: rgba(56,189,248,.05); color: var(--text-sky); }
+:root[data-theme="dark"] .el-tabs__item { color: var(--text-secondary); }
+:root[data-theme="dark"] .el-tabs__item.is-active { color: var(--c-accent); }
+:root[data-theme="dark"] .el-tabs__active-bar { background: var(--c-accent); }
+:root[data-theme="dark"] .el-tabs__nav-wrap::after { background: var(--line-blue); }
+/* ── 6. 表格：高密度 + 深色 + 悬浮湛蓝 ── */
+:root[data-theme="dark"] .el-table, :root[data-theme="dark"] .el-table__inner-wrapper { background: transparent; color: var(--text-ice); }
+:root[data-theme="dark"] .el-table th.el-table__cell { background: rgba(56,189,248,.06); color: var(--text-sky); font-weight: 600; }
+:root[data-theme="dark"] .el-table tr, :root[data-theme="dark"] .el-table td.el-table__cell { background: transparent; }
+:root[data-theme="dark"] .el-table td.el-table__cell, :root[data-theme="dark"] .el-table th.el-table__cell { border-bottom: 1px solid var(--line-blue); padding: 6px 0; }
+:root[data-theme="dark"] .el-table--border .el-table__cell { border-right: 1px solid var(--line-blue); }
+:root[data-theme="dark"] .el-table--border, :root[data-theme="dark"] .el-table--group { border-color: var(--line-blue); }
+:root[data-theme="dark"] .el-table__border-left-patch, :root[data-theme="dark"] .el-table--border::after, :root[data-theme="dark"] .el-table--border::before, :root[data-theme="dark"] .el-table__inner-wrapper::before { background-color: var(--line-blue); }
+:root[data-theme="dark"] .el-table .el-table__row:hover > td.el-table__cell { background: rgba(56,189,248,.08) !important; }
+:root[data-theme="dark"] .el-table__empty-text { color: var(--text-secondary); }
+:root[data-theme="dark"] .el-table__body tr.hover-row > td.el-table__cell { background: rgba(56,189,248,.08) !important; }
+/* ── 7. 表单控件：输入/选择/开关/日期 ── */
+:root[data-theme="dark"] .el-input__wrapper, :root[data-theme="dark"] .el-textarea__inner, :root[data-theme="dark"] .el-select__wrapper {
+  background: var(--bg-panel) !important;
+  box-shadow: 0 0 0 1px var(--line-blue) inset !important;
+}
+:root[data-theme="dark"] .el-input__wrapper.is-focus, :root[data-theme="dark"] .el-select__wrapper.is-focused { box-shadow: 0 0 0 1px var(--c-accent) inset, 0 0 8px rgba(56,189,248,.25) !important; }
+:root[data-theme="dark"] .el-input__inner, :root[data-theme="dark"] .el-textarea__inner { color: var(--text-ice) !important; }
+:root[data-theme="dark"] .el-input__inner::placeholder, :root[data-theme="dark"] .el-textarea__inner::placeholder { color: #6a7ea3 !important; }
+:root[data-theme="dark"] .el-input-group__append, :root[data-theme="dark"] .el-input-group__prepend { background: var(--fill-base); border-color: var(--line-blue); color: var(--text-sky); }
+:root[data-theme="dark"] .el-select-dropdown__item.is-hovering, :root[data-theme="dark"] .el-select-dropdown__item:hover { background: var(--bg-hover); }
+:root[data-theme="dark"] .el-select-dropdown__item.is-selected { color: var(--c-accent); font-weight: 600; }
+/* 下拉/弹层/日期面板/tooltip 统一深色浮层 */
+:root[data-theme="dark"] .el-popper, :root[data-theme="dark"] .el-select-dropdown, :root[data-theme="dark"] .el-dropdown-menu, :root[data-theme="dark"] .el-picker-panel, :root[data-theme="dark"] .el-cascader__dropdown, :root[data-theme="dark"] .el-autocomplete-suggestion {
+  background: var(--bg-panel-2) !important;
+  border: 1px solid var(--line-blue) !important;
+  color: var(--text-ice) !important;
+}
+:root[data-theme="dark"] .el-popper.is-light .el-popper__arrow::before, :root[data-theme="dark"] .el-popper .el-popper__arrow::before { background: var(--bg-panel-2) !important; border-color: var(--line-blue) !important; }
+:root[data-theme="dark"] .el-dropdown-menu__item { color: var(--text-regular); }
+:root[data-theme="dark"] .el-dropdown-menu__item:hover { background: var(--bg-hover); color: #fff; }
+:root[data-theme="dark"] .el-date-table td.available:hover, :root[data-theme="dark"] .el-date-table td.today .el-date-table-cell__text { color: var(--c-accent); }
+:root[data-theme="dark"] .el-date-table td.current:not(.disabled) .el-date-table-cell__text { background: var(--el-color-primary); }
+:root[data-theme="dark"] .el-picker-panel__icon-btn, :root[data-theme="dark"] .el-date-picker__header-label, :root[data-theme="dark"] .el-picker-panel__content { color: var(--text-ice); }
+/* 开关 */
+:root[data-theme="dark"] .el-switch__core { background: var(--fill-base); border-color: var(--line-blue); }
+:root[data-theme="dark"] .el-switch.is-checked .el-switch__core { background: var(--el-color-primary); border-color: var(--el-color-primary); }
+/* ── 8. 弹窗 / 抽屉 ── */
+:root[data-theme="dark"] .el-dialog, :root[data-theme="dark"] .el-drawer { background: var(--bg-panel) !important; color: var(--text-ice); }
+:root[data-theme="dark"] .el-dialog__title, :root[data-theme="dark"] .el-drawer__title { color: var(--text-ice); }
+:root[data-theme="dark"] .el-dialog__header, :root[data-theme="dark"] .el-drawer__header { border-bottom: 1px solid var(--line-blue); margin-right: 0; }
+:root[data-theme="dark"] .el-dialog__body, :root[data-theme="dark"] .el-drawer__body { color: var(--text-regular); }
+:root[data-theme="dark"] .el-overlay { background-color: rgba(6,10,25,.72); }
+:root[data-theme="dark"] .el-message-box { background: var(--bg-panel); border-color: var(--line-blue); }
+:root[data-theme="dark"] .el-message-box__title, :root[data-theme="dark"] .el-message-box__content { color: var(--text-ice); }
+/* ── 9. 消息 / 通知 / 标签 / 警告 ── */
+:root[data-theme="dark"] .el-message { background: var(--bg-panel-2); border-color: var(--line-blue); color: var(--text-ice); box-shadow: var(--shadow-overlay); }
+:root[data-theme="dark"] .el-message .el-message__content { color: var(--text-ice); }
+:root[data-theme="dark"] .el-tag { background: rgba(56,189,248,.12); border-color: rgba(56,189,248,.3); color: var(--text-sky); }
+:root[data-theme="dark"] .el-tag.el-tag--success { background: var(--success-50); border-color: rgba(16,185,129,.35); color: #34d399; }
+:root[data-theme="dark"] .el-tag.el-tag--warning { background: var(--warning-50); border-color: rgba(245,158,11,.35); color: #fbbf24; }
+:root[data-theme="dark"] .el-tag.el-tag--danger { background: var(--danger-50);  border-color: rgba(239,68,68,.35);  color: #f87171; }
+:root[data-theme="dark"] .el-tag.el-tag--info { background: var(--info-50);    border-color: rgba(148,163,184,.3); color: #cbd5e1; }
+:root[data-theme="dark"] .el-alert--success.is-light { background: var(--success-50); color: #34d399; }
+:root[data-theme="dark"] .el-alert--warning.is-light { background: var(--warning-50); color: #fbbf24; }
+:root[data-theme="dark"] .el-alert--error.is-light { background: var(--danger-50);  color: #f87171; }
+:root[data-theme="dark"] .el-alert--info.is-light { background: var(--info-50);    color: #cbd5e1; }
+/* 违规卡（app 自定义类）→ 深色半透底 + 发光左条 */
+:root[data-theme="dark"] .violation-card.error { background: var(--danger-50);  border-color: var(--c-danger); }
+:root[data-theme="dark"] .violation-card.warning { background: var(--warning-50); border-color: var(--c-warn); }
+:root[data-theme="dark"] .violation-card .v-rule { color: var(--text-ice); }
+:root[data-theme="dark"] .violation-card .v-msg { color: var(--text-regular); }
+:root[data-theme="dark"] .violation-card .v-sug { color: #34d399; }
+/* 过滤条 / 代码块 */
+:root[data-theme="dark"] .filter-bar { background: var(--fill-base); border: 1px solid var(--line-blue); }
+:root[data-theme="dark"] .sql-block, :root[data-theme="dark"] .mono-input { background: #0e1730; color: #b9d5ff; border: 1px solid var(--line-blue); }
+:root[data-theme="dark"] .hint, :root[data-theme="dark"] .empty-guide, :root[data-theme="dark"] .el-empty__description p { color: var(--text-secondary); }
+/* 按钮：默认(次要)按钮深色描边；主/文字按钮走 Element 变量 */
+:root[data-theme="dark"] .el-button { background: var(--bg-panel); border-color: var(--line-blue); color: var(--text-regular); }
+:root[data-theme="dark"] .el-button:hover { background: var(--bg-hover); border-color: var(--c-accent); color: #fff; }
+:root[data-theme="dark"] .el-button.is-text { background: transparent; border-color: transparent; }
+:root[data-theme="dark"] .el-button--primary { color: #fff; }
+:root[data-theme="dark"] .el-button.is-link.el-button--primary { color: var(--c-accent); }
+/* 分页 */
+:root[data-theme="dark"] .el-pagination { color: var(--text-regular); }
+:root[data-theme="dark"] .el-pagination button, :root[data-theme="dark"] .el-pager li { background: var(--bg-panel); color: var(--text-regular); }
+:root[data-theme="dark"] .el-pager li.is-active { background: var(--el-color-primary); color: #fff; }
+/* 复选/单选 */
+:root[data-theme="dark"] .el-checkbox__inner, :root[data-theme="dark"] .el-radio__inner { background: var(--bg-panel); border-color: var(--line-blue); }
+:root[data-theme="dark"] .el-checkbox__label, :root[data-theme="dark"] .el-radio__label { color: var(--text-regular); }
+/* 上传拖拽区 */
+:root[data-theme="dark"] .el-upload-dragger { background: var(--fill-base); border-color: var(--line-blue); color: var(--text-secondary); }
+:root[data-theme="dark"] .el-upload-dragger:hover { border-color: var(--c-accent); }
+:root[data-theme="dark"] .upload-icon { color: var(--text-sky); }
+/* ── 10. 登录页 ── */
+:root[data-theme="dark"] .login-page { background: radial-gradient(1200px 600px at 20% -10%, #16233f 0%, var(--bg-main) 55%); }
+:root[data-theme="dark"] .login-brand { background: linear-gradient(135deg, #070d1f 0%, #12294f 55%, #0b3b66 100%); }
+:root[data-theme="dark"] .login-brand h1 { color: #fff; text-shadow: 0 0 20px rgba(56,189,248,.35); }
+:root[data-theme="dark"] .login-form .el-card { background: var(--bg-panel); border: 1px solid var(--line-blue); box-shadow: var(--shadow-overlay); }
+:root[data-theme="dark"] .login-form .login-title { color: var(--text-ice); }
+/* ── 11. 滚动条：细湛蓝 ── */
+:root[data-theme="dark"]::-webkit-scrollbar, :root[data-theme="dark"] ::-webkit-scrollbar { width: 8px; height: 8px; }
+:root[data-theme="dark"]::-webkit-scrollbar-track, :root[data-theme="dark"] ::-webkit-scrollbar-track { background: var(--bg-main); }
+:root[data-theme="dark"]::-webkit-scrollbar-thumb, :root[data-theme="dark"] ::-webkit-scrollbar-thumb { background: #24365f; border-radius: 4px; }
+:root[data-theme="dark"]::-webkit-scrollbar-thumb:hover, :root[data-theme="dark"] ::-webkit-scrollbar-thumb:hover { background: var(--c-accent); }
+/* ── 12. 高密度：整体略收紧留白，信息密度↑（银行运维风） ── */
+:root[data-theme="dark"] .page-content { padding: 14px 16px; }
+:root[data-theme="dark"] .page-card { padding: 14px 16px; margin-bottom: 12px; }
+:root[data-theme="dark"] .page-card-title { font-size: 15px; margin-bottom: 12px; }
+:root[data-theme="dark"] .breadcrumb-bar { padding: 8px 16px; }
+:root[data-theme="dark"] .el-table th.el-table__cell, :root[data-theme="dark"] .el-table td.el-table__cell { padding-top: 6px; padding-bottom: 6px; }
+:root[data-theme="dark"] .el-table { font-size: 12.5px; }
+:root[data-theme="dark"] .el-descriptions__cell { padding: 8px 11px !important; }
+
+/* ── 13. 主题切换（登录页浮动开关）深色配色 ── */
+:root[data-theme="dark"] .login-theme-toggle { background: rgba(56,189,248,.10); border-color: rgba(56,189,248,.30); color: var(--text-sky); }
+:root[data-theme="dark"] .login-theme-toggle:hover { background: rgba(56,189,248,.18); color: #e0f2fe; }
