@@ -292,8 +292,8 @@ CLEANABLE_TABLES = {
 ```
 
 并在 `database.py` 默认策略初始化处（`INSERT IGNORE INTO retention_policies` 附近，约 :1358）插入默认值：
-`scan_snapshots = 365 天`、`scan_compare_reports = 90 天`
-（快照需长周期保留；对比报告留档 90 天即可，因可重新生成。详见 ARCHITECTURE §8.1 M 合并说明）。
+`scan_snapshots = 365 天`、`scan_compare_reports = 365 天`
+（**领导决策 2026-07-26**：两份表统一保留 365 天，不做差异化。快照与留档同等长周期，便于跨年整改溯源）。
 
 ---
 
