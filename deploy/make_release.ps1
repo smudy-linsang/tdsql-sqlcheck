@@ -42,18 +42,11 @@ foreach ($f in $deploy_files) {
     if (Test-Path $src) { Copy-Item $src (Join-Path $DEPLOY_DIR $f) }
 }
 
-# 复制文档
+# 复制文档 (全量复制 docs 目录下所有部署与操作指南)
 $DOCS_DIR = Join-Path $PKG_DIR "docs"
 New-Item -ItemType Directory -Force -Path $DOCS_DIR | Out-Null
-$doc_files = @("部署手册-v1.0.2.md","运维手册-v1.0.2.md","上线检查清单-v1.0.2.md",
-               "发布说明-v1.0.2.md","V1.0.3变更清单与测试要点.md",
-               "V1.0.3.1增量更新部署说明.md", "V1.2.0.5更新部署指南.md",
-               "v1.2.0.5_upgrade_manual.md", "V1.2.0.6更新部署指南.md",
-               "v1.2.0.6_upgrade_manual.md", "V1.2.0.7更新部署指南.md",
-               "v1.2.0.7_upgrade_manual.md", "v1.2.0.4_性能压测与并发改善报告.md")
-foreach ($f in $doc_files) {
-    $src = Join-Path $ROOT "docs\$f"
-    if (Test-Path $src) { Copy-Item $src (Join-Path $DOCS_DIR $f) }
+Get-ChildItem -Path (Join-Path $ROOT "docs") -Filter "*.md" | ForEach-Object {
+    Copy-Item $_.FullName (Join-Path $DOCS_DIR $_.Name) -Force
 }
 
 # VERSION文件
