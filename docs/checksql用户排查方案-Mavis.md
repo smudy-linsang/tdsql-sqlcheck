@@ -6,6 +6,7 @@
 | 任务目标 | 在不依赖 DBA 的前提下，找出**所有真实存在 `checksql` 用户的数据库实例**清单（cluster / set / group / 连接地址），用于后续接入审核工具 |
 | 适用环境 | TDSQL 分布式 MySQL（基于 TXSQL 内核，公网/内网 proxy + 内网 monitordb） |
 | 实验环境 | 云测试 cluster `tdsql_th16yls3c`（刘晴的集群），proxy `118.195.161.48`/`119.45.220.89:15001` |
+| checksql 凭据 | 用户已提供：`checksql` / `Abcd972&*(`（仅 set 端，monitordb 无此账号） |
 | 编写人 | Mavis（基于 2026-07-26 实验产出） |
 
 ---
@@ -242,6 +243,12 @@ ORDER BY user, host;
 | set 只有 proxy 端口（`15xxx`） | 直连 proxy，加 `/*sets:set_xxx*/` 注释 | 用 TDSQL 客户端或 pymysql + `init_command` |
 | group（分布式组） | 走 group proxy 端口 + `/*+ set:set_xxx */` 路由 | 同上 |
 
+**凭据**（用户已提供）：
+- 用户名：`checksql`
+- 密码：`Abcd972&*(`
+
+> 经验证（云测 monitordb），该密码**在 monitordb 上不生效**（monitordb 自身的 mysql.user 里没有 checksql 这个账号），这是**仅 set 端**的密码。生产内网智能体拿到后直接对 set 跑即可。
+
 **参考 Python 脚本骨架**（内网智能体可直接复用）：
 
 ```python
@@ -249,8 +256,8 @@ import pymysql
 import json
 
 CHECKSQL_USER = "checksql"
-# !!! 需要从 ops / DBA 拿凭据, 不能假定
-CHECKSQL_PWD = "<向 ops 询问>"  # 标记：可考虑先尝试空密码、常见默认密码、读 tdsql_check_user 同款
+# 凭据已确认（用户提供, 2026-07-26）
+CHECKSQL_PWD = "Abcd972&*("
 
 def check_set(host, port, set_name, conn_timeout=5):
     """直连一个 set, 查 checksql 用户是否存在."""
@@ -344,7 +351,8 @@ MONITOR = dict(
     charset="utf8mb4",
 )
 CHECKSQL_USER = "checksql"
-CHECKSQL_PWD = None  # None 表示跳过 Track 2 直连; 否则填入
+# 凭据已确认（用户提供, 2026-07-26）
+CHECKSQL_PWD = "Abcd972&*("
 OUTPUT_DIR = "./checksql_scan_result"
 
 
@@ -497,7 +505,7 @@ def main():
 
         step("Step 5: Track 2 — 直连每个 set 验证 mysql.user")
         track2_results = []
-        if CHECKSQL_PWD is None:
+        if not CHECKSQL_PWD:
             print("  ⚠ CHECKSQL_PWD 未配置, 跳过 Track 2 直连")
         else:
             for inst in instances:
@@ -553,9 +561,10 @@ if __name__ == "__main__":
 
 ### 4.1 凭据问题
 
-- **`checksql` 密码未知**：脚本默认不跑 Track 2 直连。需先问 ops / DBA 拿到密码才能跑
-- **错密会被封禁**：MySQL 5.7+ 的 `connection_control` 插件对同 IP 错密 3 次会递增延迟（最多 1 天）。**不要用脚本试密码**。先问 ops。
-- **monitordb 密码已知**（`Abcd@!#1234`）：可连 monitordb，但 monitordb 自己的 `mysql.user` 不是 set 的 user 表，**Track 1 通过 t_dbuser_privileges 走元数据更靠谱**
+- **`checksql` 凭据已确认**（用户提供 2026-07-26）：`checksql` / `Abcd972&*(`
+  - **仅 set 端有效**：经验证（云测 monitordb proxy），用此账号密码连 monitordb 返回 `Access denied`，因为 monitordb 自身的 mysql.user 里没有这个账号（只有 `tdsql_check_user`）。生产内网智能体直接拿去连 set 即可。
+- **错密会被封禁**：MySQL 5.7+ 的 `connection_control` 插件对同 IP 错密 3 次会递增延迟（最多 1 天）。**不要用脚本试其他密码**。如果生产实际跑下来发现这密码不通，**停下来问 ops**，不要自动重试。
+- **monitordb 密码已知**（`tdsql_check_user` / `Abcd@!#1234`）：可连 monitordb 查 Track 1 元数据。
 
 ### 4.2 网络与可达性
 
@@ -660,4 +669,4 @@ WHERE mkey IN ('mdb_list','mdb_user','mdb_pwd','mdb_port','mdb_name',
 
 ---
 
-> **文档版本**：v1.0（2026-07-26） · Mavis 出品 · 未经 DBA 复核仅供参考
+> **文档版本**：v1.1（2026-07-26） · 凭据已确认 `checksql` / `Abcd972&*(` · 未经 DBA 复核仅供参考
