@@ -3,48 +3,29 @@ SIT 测试 - SQL审核规则功能
 
 测试规则 API 和前端展示功能
 """
-import os
-
 import pytest
 import requests
 
 API_BASE = "http://localhost:8000/api/v1"
 
-# 本模块为"打真实服务"的集成测试，需要一个已启动且可登录的后端。
-# 口令随部署环境而异，不能硬编码：从环境变量读取，未配置/登录失败时整体 skip，
-# 避免因环境未就绪而报大量 401 失败、淹没真实缺陷。
-TEST_ADMIN_USER = os.getenv("TDSQL_TEST_ADMIN_USER", "admin")
-TEST_ADMIN_PASSWORD = os.getenv("TDSQL_TEST_ADMIN_PASSWORD", "Abcd1234")
-
 
 def _get_auth_headers():
-    """登录admin获取token；失败返回 None（与"拿到空头部"区分开）"""
+    import os
+    username = os.getenv("TDSQL_TEST_ADMIN_USER", "admin")
+    password = os.getenv("TDSQL_TEST_ADMIN_PASSWORD", "Admin@1234")
     try:
-        resp = requests.post(
-            f"{API_BASE}/auth/login",
-            json={"username": TEST_ADMIN_USER, "password": TEST_ADMIN_PASSWORD},
-            timeout=3)
+        resp = requests.post(f"{API_BASE}/auth/login", json={"username": username, "password": password}, timeout=3)
         if resp.ok:
-            token = resp.json().get("token", "")
-            if token:
-                return {"Authorization": f"Bearer {token}"}
+            return {"Authorization": f"Bearer {resp.json().get('token', '')}"}
     except Exception:
         pass
-    return None
+    return {}
 
 _AUTH = None
-_AUTH_TRIED = False
-
 def _h():
-    """返回鉴权头；服务不可用或登录失败时 skip 当前用例"""
-    global _AUTH, _AUTH_TRIED
-    if not _AUTH_TRIED:
-        _AUTH = _get_auth_headers()
-        _AUTH_TRIED = True
+    global _AUTH
     if _AUTH is None:
-        pytest.skip(
-            "集成测试需要可登录的后端服务；请启动服务并按需设置 "
-            "TDSQL_TEST_ADMIN_USER / TDSQL_TEST_ADMIN_PASSWORD")
+        _AUTH = _get_auth_headers()
     return _AUTH
 
 
