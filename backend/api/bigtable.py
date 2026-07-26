@@ -12,9 +12,13 @@ _service = BigTableService()
 
 
 @router.get("/inventory/{connection_id}", response_model=ApiResponse)
-def get_inventory(connection_id: str, level: str = ""):
-    """获取大表清单"""
-    items = _service.get_inventory(connection_id, level)
+def get_inventory(connection_id: str, level: str = "", inspection_date: str = ""):
+    """获取大表清单
+
+    V1.3(D2): inspection_date 为空时返回最近一次盘点结果（此前返回所有历史日期，
+    导致同一张表出现多行、清单虚高）。传入具体日期可查看历史批次。
+    """
+    items = _service.get_inventory(connection_id, level, inspection_date)
     return ApiResponse(data=items)
 
 

@@ -552,8 +552,27 @@ def _migrate_old_tables(conn):
         _add_column_if_not_exists(conn, "audit_history", "top_violations", "TEXT")
         _add_column_if_not_exists(conn, "audit_history", "results_summary", "TEXT")
         _add_column_if_not_exists(conn, "audit_history", "created_by", "VARCHAR(64) DEFAULT ''")
+        # V1.3 D1: 在线元数据审核落实例信息，支撑扫描结果对比按实例筛选
+        _add_column_if_not_exists(conn, "audit_history", "db_name", "VARCHAR(128) DEFAULT ''")
+        _add_index_if_not_exists(conn, "audit_history", "idx_audit_conn", "(connection_id, created_at)")
 
     conn.commit()
+
+
+def _add_index_if_not_exists(conn, table: str, index: str, definition: str):
+    """如果索引不存在则添加（MySQL版）"""
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT COUNT(*) AS cnt FROM information_schema.STATISTICS "
+        "WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND INDEX_NAME = %s",
+        (MYSQL_CONFIG['database'], table, index)
+    )
+    if cursor.fetchone()['cnt'] == 0:
+        try:
+            conn.cursor().execute(f"ALTER TABLE `{table}` ADD INDEX `{index}` {definition}")
+            logger.info(f"迁移: {table} 添加索引 {index}")
+        except pymysql.err.OperationalError:
+            pass
 
 
 def _add_column_if_not_exists(conn, table: str, column: str, definition: str):
@@ -1352,6 +1371,9 @@ def _init_default_data(conn):
         ("operation_logs", 365),
         ("gate_audit_logs", 365),
         ("fingerprint_stats", 180),
+        # V1.3: 扫描结果对比，快照与留档统一 365 天（领导决策 2026-07-26）
+        ("scan_snapshots", 365),
+        ("scan_compare_reports", 365),
     ]
     for table, days in retention_defaults:
         conn.cursor().execute("""
@@ -1383,12 +1405,13 @@ def _init_default_data(conn):
         'projects', 'rulesets', 'gate', 'monitor', 'inspection',
         'sys-users', 'sys-retention', 'sys-auditlog', 'sys-info',
         'sys-roles', 'sys-perms',
+        'scan-compare',
     ]
     for rid, _, _, _ in builtin_roles:
         for mk in all_menus:
             visible = 1
-            # developer 默认不可见监控/巡检/扫描计划/用户管理/数据保留/系统信息
-            if rid == 'developer' and mk in ('monitor', 'inspection', 'slow-schedule', 'sys-users', 'sys-retention', 'sys-info', 'sys-roles', 'sys-perms'):
+            # developer 默认不可见监控/巡检/扫描计划/用户管理/数据保留/系统信息/扫描结果对比
+            if rid == 'developer' and mk in ('monitor', 'inspection', 'slow-schedule', 'sys-users', 'sys-retention', 'sys-info', 'sys-roles', 'sys-perms', 'scan-compare'):
                 visible = 0
             # auditor 默认不可见扫描计划/用户管理/数据保留/角色管理/上线检查(只读角色不可执行POST)
             if rid == 'auditor' and mk in ('slow-schedule', 'sys-users', 'sys-retention', 'sys-roles', 'sys-perms', 'schema-check'):
@@ -1422,6 +1445,15 @@ def _init_default_data(conn):
         UPDATE role_permissions SET visible=0
         WHERE menu_key='sys-auditlog' AND role_id IN ('dba', 'developer')
     """)
+
+    # V1.3: scan-compare（扫描结果对比）存量库补齐 —— admin/dba/auditor 可见。
+    # 注意：菜单键必须同时存在于上方 all_menus，否则会被"清理过期菜单键"删除。
+    # 删除留档另有 admin 独占校验，回填另有 admin/dba 校验（见 api/scan_compare.py）。
+    for rid in ('admin', 'dba', 'auditor'):
+        conn.cursor().execute("""
+            INSERT IGNORE INTO role_permissions(role_id, menu_key, visible)
+            VALUES (%s, 'scan-compare', 1)
+        """, (rid,))
 
     # 存量库增量订正：清理已经不用的菜单项并自动初始化新菜单项
     # 1. 清理过期菜单键

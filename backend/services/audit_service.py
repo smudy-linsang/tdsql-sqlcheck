@@ -28,8 +28,13 @@ from backend.services.database import _get_connection, ensure_db
 def _save_audit_history(audit_type: str, source: str, results: list[AuditResult],
                         summary: AuditSummary, created_by: str = "",
                         project_id: str = "",
-                        gate_result: Optional[GateResult] = None):
-    """保存审核历史到数据库"""
+                        gate_result: Optional[GateResult] = None,
+                        connection_id: str = "", db_name: str = ""):
+    """保存审核历史到数据库
+
+    V1.3(D1): 新增 connection_id / db_name，支撑扫描结果对比按实例筛选。
+    两参数均有默认值，既有调用方无需改动。
+    """
     try:
         ensure_db()
         conn = _get_connection()
@@ -52,8 +57,9 @@ def _save_audit_history(audit_type: str, source: str, results: list[AuditResult]
             cursor.execute("""
                 INSERT INTO audit_history (audit_type, source, total_sql, passed, failed,
                     error_count, warning_count, pass_rate, results_json,
-                    created_by, project_id, gate_passed, gate_detail, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    created_by, project_id, gate_passed, gate_detail, created_at,
+                    connection_id, db_name)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 audit_type, source,
                 summary.total_sql, summary.passed, summary.failed,
@@ -62,6 +68,7 @@ def _save_audit_history(audit_type: str, source: str, results: list[AuditResult]
                 (1 if gate_result.passed else 0) if gate_result else None,
                 gate_result.detail if gate_result else "",
                 datetime.now().isoformat(),
+                connection_id or "", db_name or "",
             ))
             conn.commit()
             return getattr(cursor, "lastrowid", None)

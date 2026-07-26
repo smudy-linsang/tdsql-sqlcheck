@@ -264,6 +264,8 @@ _PATH_TO_MENU = {
     "/api/v1/gateway-log": "deep-diag-gateway",
     "/api/v1/ppt-report": "deep-diag-ppt",
     "/api/v1/toolkit": "deep-diag-toolkit",
+    # V1.3 扫描结果纵向对比（接口层另按 module 二次校验模块自身权限）
+    "/api/v1/scan-compare": "scan-compare",
 }
 
 def check_permission(role: str, method: str, path: str) -> bool:
@@ -338,6 +340,7 @@ ALL_MENU_KEYS = [
     'projects', 'rulesets', 'gate', 'monitor', 'inspection',
     'sys-users', 'sys-retention', 'sys-auditlog', 'sys-info',
     'sys-roles', 'sys-perms',
+    'scan-compare',
 ]
 
 # 菜单中文标签
@@ -355,6 +358,7 @@ MENU_LABELS = {
     'inspection': '巡检管理', 'sys-users': '用户管理', 'sys-retention': '数据保留',
     'sys-auditlog': '操作审计', 'sys-info': '系统信息',
     'sys-roles': '角色管理', 'sys-perms': '权限矩阵',
+    'scan-compare': '扫描结果对比',
 }
 
 def get_all_roles() -> list[dict]:

@@ -428,14 +428,37 @@ class SlowQueryService:
         finally:
             conn.close()
 
-    def get_scan_tasks(self, limit: int = 50, offset: int = 0) -> dict:
-        """获取扫描任务列表"""
+    def get_scan_tasks(self, limit: int = 50, offset: int = 0,
+                       connection_id: str = "", db_name: str = "",
+                       date_from: str = "", date_to: str = "") -> dict:
+        """获取扫描任务列表
+
+        V1.3(D4): 支持按实例/库名/时间范围筛选（值全部参数化，禁止拼接）。
+        connection_name 表中已有，随 SELECT * 返回，前端展示"实例"列即可。
+        """
         conn = _get_connection()
         try:
-            total = conn.execute("SELECT COUNT(*) as cnt FROM scan_tasks").fetchone()["cnt"]
+            where, args = [], []
+            if connection_id:
+                where.append("connection_id = ?")
+                args.append(connection_id)
+            if db_name:
+                where.append("db_name = ?")
+                args.append(db_name)
+            if date_from:
+                where.append("DATE(created_at) >= ?")
+                args.append(date_from)
+            if date_to:
+                where.append("DATE(created_at) <= ?")
+                args.append(date_to)
+            cond = (" WHERE " + " AND ".join(where)) if where else ""
+
+            total = conn.execute(
+                f"SELECT COUNT(*) as cnt FROM scan_tasks{cond}", args
+            ).fetchone()["cnt"]
             rows = conn.execute(
-                """SELECT * FROM scan_tasks ORDER BY created_at DESC LIMIT ? OFFSET ?""",
-                (limit, offset),
+                f"SELECT * FROM scan_tasks{cond} ORDER BY created_at DESC LIMIT ? OFFSET ?",
+                (*args, limit, offset),
             ).fetchall()
             return {"items": [dict(r) for r in rows], "total": total}
         finally:

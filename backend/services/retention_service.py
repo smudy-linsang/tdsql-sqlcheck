@@ -24,6 +24,9 @@ CLEANABLE_TABLES = {
     "operation_logs": "created_at",
     "gate_audit_logs": "created_at",
     "fingerprint_stats": "created_at",
+    # V1.3 扫描结果纵向对比
+    "scan_snapshots": "created_at",
+    "scan_compare_reports": "created_at",
 }
 
 
