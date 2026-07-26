@@ -149,6 +149,7 @@ async def extract_and_audit(http_request: Request, payload: dict):
     scopes = payload.get("scopes") or ["TABLE", "INDEX", "VIEW", "SHARDKEY"]
     if not connection_id:
         raise HTTPException(status_code=400, detail="请选择目标数据库实例")
+    _started_at = datetime.now().isoformat()   # V1.3: 快照 scan_started_at
 
     from backend.services.connection_registry import registry, ConnectionNotFoundError
     try:
@@ -242,18 +243,42 @@ async def extract_and_audit(http_request: Request, payload: dict):
         )
 
         # 显式持久化落盘至 audit_history 表 (audit_type = 'extracted_schema')
+        # V1.3(D1): 补落 connection_id / db_name，支撑按实例筛选与对比
         from backend.services.audit_service import _save_audit_history
         report_id = _save_audit_history(
             audit_type="extracted_schema",
             source=filename,
             results=results,
             summary=summary,
-            created_by=_operator(http_request)
+            created_by=_operator(http_request),
+            connection_id=connection_id,
+            db_name=target_db,
         )
+
+        # V1.3: 旁路生成对比快照（失败仅告警，不影响审核主流程）
+        snapshot_id = None
+        try:
+            from backend.services.snapshot_extractors.schema_audit import extract as _extract
+            from backend.services import scan_snapshot_service as _snap
+            _items, _obj_total = _extract(results, target_db, node="")
+            snapshot_id = _snap.safe_create_snapshot("schema_audit", {
+                "biz_ref_id": str(report_id),
+                "connection_id": connection_id,
+                "connection_name": conn_info.get("name", ""),
+                "db_name": target_db,
+                "node": "",
+                "scan_label": filename,
+                "scan_started_at": _started_at,
+                "scan_finished_at": datetime.now().isoformat(),
+                "created_by": _operator(http_request),
+            }, _items, _obj_total)
+        except Exception as e:
+            logger.warning(f"生成元数据审核快照失败: {e}")
 
         return {
             "status": "SUCCESS",
             "report_id": report_id,
+            "snapshot_id": snapshot_id,
             "filename": filename,
             "extracted_sql": full_extracted_sql,
             "results": results,
@@ -265,38 +290,51 @@ async def extract_and_audit(http_request: Request, payload: dict):
 
 
 @router.get("/extracted-reports", summary="在线元数据审核历史记录列表")
-async def get_extracted_reports(limit: int = 20, offset: int = 0):
-    """获取在线元数据审核的历史提取与审查列表"""
+async def get_extracted_reports(limit: int = 20, offset: int = 0,
+                                connection_id: str = "", db_name: str = "",
+                                date_from: str = "", date_to: str = ""):
+    """获取在线元数据审核的历史提取与审查列表
+
+    V1.3(D1): 支持按实例/库名/时间范围筛选，并回显实例名。
+    列表不再返回 results_json 大字段（前端未使用，明细走 /report/{id}/html）。
+    """
     ensure_db()
     conn = _get_connection()
     try:
-        rows = conn.execute("""
-            SELECT id, audit_type, source, total_sql, passed, failed, error_count,
-                   warning_count, pass_rate, created_by, created_at, results_json
-            FROM audit_history
-            WHERE audit_type = ?
-            ORDER BY created_at DESC
+        where, args = ["h.audit_type = ?"], ["extracted_schema"]
+        if connection_id == "__unknown__":
+            where.append("(h.connection_id IS NULL OR h.connection_id = '')")
+        elif connection_id:
+            where.append("h.connection_id = ?")
+            args.append(connection_id)
+        if db_name:
+            where.append("h.db_name = ?")
+            args.append(db_name)
+        if date_from:
+            where.append("DATE(h.created_at) >= ?")
+            args.append(date_from)
+        if date_to:
+            where.append("DATE(h.created_at) <= ?")
+            args.append(date_to)
+        cond = " AND ".join(where)
+
+        rows = conn.execute(f"""
+            SELECT h.id, h.audit_type, h.source, h.total_sql, h.passed, h.failed,
+                   h.error_count, h.warning_count, h.pass_rate, h.created_by, h.created_at,
+                   h.connection_id, h.db_name, COALESCE(c.name, '') AS connection_name
+            FROM audit_history h
+            LEFT JOIN tdsql_connections c ON c.id = h.connection_id
+            WHERE {cond}
+            ORDER BY h.created_at DESC
             LIMIT ? OFFSET ?
-        """, ("extracted_schema", limit, offset)).fetchall()
-        
-        count_row = conn.execute("""
-            SELECT COUNT(*) FROM audit_history 
-            WHERE audit_type = ?
-        """, ("extracted_schema",)).fetchone()
-        
-        if count_row:
-            total = count_row[0] if isinstance(count_row, (tuple, list)) else list(count_row.values())[0]
-        else:
-            total = 0
-        
-        report_list = []
-        for r in rows:
-            if hasattr(r, "keys"):
-                report_list.append(dict(r))
-            elif isinstance(r, dict):
-                report_list.append(r)
-            else:
-                report_list.append(dict(r))
+        """, (*args, limit, offset)).fetchall()
+
+        count_row = conn.execute(f"""
+            SELECT COUNT(*) AS cnt FROM audit_history h WHERE {cond}
+        """, args).fetchone()
+        total = dict(count_row).get("cnt", 0) if count_row else 0
+
+        report_list = [dict(r) for r in (rows or [])]
 
         return {
             "total": total,

@@ -82,9 +82,12 @@ def _do_scan(pool, connection_id: str, source: str, limit: int, min_time: float,
     from backend.services import metrics_service
     from backend.services.slow_query_service import SlowQueryService
 
+    from datetime import datetime
+
     service = SlowQueryService()
     db_name = pool.config.database or ""
     conn_name = f"{pool.config.host}:{pool.config.port}"
+    scan_started_at = datetime.now().isoformat()   # V1.3: 快照 scan_started_at
 
     # 创建扫描任务（任务名自动包含时间段）
     source_labels = {"digest": "性能摘要分析", "processlist": "实时进程快照",
@@ -219,6 +222,26 @@ def _do_scan(pool, connection_id: str, source: str, limit: int, min_time: float,
     if operator:
         logger.info("扫描完成: operator=%s conn=%s source=%s fetched=%d",
                     operator, connection_id or "default", source, len(results))
+
+    # V1.3: 旁路生成对比快照（失败仅告警，不影响扫描主流程）
+    try:
+        from backend.services.snapshot_extractors.slow_scan import extract as _extract
+        from backend.services import scan_snapshot_service as _snap
+        _items, _obj_total = _extract(task_id, db_name)
+        _snap.safe_create_snapshot("slow_scan", {
+            "biz_ref_id": str(task_id),
+            "connection_id": connection_id or "",
+            "connection_name": conn_name,
+            "db_name": db_name,
+            "scan_label": final_task_name,
+            "scan_started_at": scan_started_at,
+            "scan_finished_at": datetime.now().isoformat(),
+            "time_window_start": time_window_start or "",
+            "time_window_end": time_window_end or "",
+            "created_by": operator or "",
+        }, _items, _obj_total)
+    except Exception as e:
+        logger.warning(f"生成慢SQL扫描快照失败: {e}")
 
     return {
         "source": source,

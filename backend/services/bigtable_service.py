@@ -22,10 +22,11 @@ class BigTableService:
     def save_inventory(self, connection_id: str, tables_info: list[dict]) -> dict:
         """保存大表盘点结果"""
         ensure_db()
+        started_at = datetime.now()
         big_tables = self.engine.scan_big_tables(tables_info)
         conn = _get_connection()
         try:
-            now = datetime.now().strftime("%Y-%m-%d")
+            now = started_at.strftime("%Y-%m-%d")
             for bt in big_tables:
                 conn.execute("""
                     REPLACE INTO bigtable_inventory
@@ -41,23 +42,67 @@ class BigTableService:
             conn.commit()
         finally:
             conn.close()
+
+        # V1.3: 旁路生成对比快照。biz_ref_id 带时分秒，使同日多次盘点各成一份快照
+        # （解决 D3：inventory 表以"天"为粒度 REPLACE 覆盖，当天无法保留两批次）
+        self._create_snapshot(connection_id, now, started_at)
+
         return self.engine.get_governance_report(big_tables)
 
-    def get_inventory(self, connection_id: str, level: str = "") -> list[dict]:
-        """获取大表清单"""
+    @staticmethod
+    def _create_snapshot(connection_id: str, inspection_date: str, started_at):
+        """旁路生成大表治理快照，失败仅告警，不影响盘点主流程"""
+        try:
+            from backend.services.snapshot_extractors.bigtable import extract as bt_extract
+            from backend.services import scan_snapshot_service as snap
+            from backend.services.connection_registry import registry
+
+            items, obj_total = bt_extract(connection_id, inspection_date)
+            conn_name = ""
+            try:
+                conn_name = (registry.get_saved(connection_id) or {}).get("name", "")
+            except Exception:
+                pass
+            finished = datetime.now()
+            snap.safe_create_snapshot("bigtable", {
+                "biz_ref_id": f"{connection_id}:{inspection_date}:{finished.strftime('%H%M%S')}",
+                "connection_id": connection_id,
+                "connection_name": conn_name,
+                "db_name": "",
+                "scan_label": f"大表盘点 {inspection_date} {finished.strftime('%H:%M:%S')}",
+                "scan_started_at": started_at.isoformat(),
+                "scan_finished_at": finished.isoformat(),
+                "created_by": "",
+            }, items, obj_total)
+        except Exception as e:
+            logger.warning(f"生成大表治理快照失败: {e}")
+
+    def get_inventory(self, connection_id: str, level: str = "",
+                      inspection_date: str = "") -> list[dict]:
+        """获取大表清单
+
+        V1.3(D2): 增加 inspection_date 过滤。为空时自动取该实例最近一次盘点日期，
+        避免多次盘点后返回跨日期混合数据（同一张表出现多行、清单虚高）。
+        """
         ensure_db()
         conn = _get_connection()
         try:
-            if level:
-                rows = conn.execute(
-                    "SELECT * FROM bigtable_inventory WHERE connection_id = ? AND level = ? ORDER BY size_gb DESC",
-                    (connection_id, level)
-                ).fetchall()
-            else:
-                rows = conn.execute(
-                    "SELECT * FROM bigtable_inventory WHERE connection_id = ? ORDER BY size_gb DESC",
+            if not inspection_date:
+                row = conn.execute(
+                    "SELECT MAX(inspection_date) AS d FROM bigtable_inventory WHERE connection_id = ?",
                     (connection_id,)
-                ).fetchall()
+                ).fetchone()
+                inspection_date = (dict(row).get("d") if row else "") or ""
+                if not inspection_date:
+                    return []   # 该实例从未盘点
+            sql = ("SELECT * FROM bigtable_inventory "
+                   "WHERE connection_id = ? AND inspection_date = ?")
+            args = [connection_id, inspection_date]
+            if level:
+                sql += " AND level = ?"
+                args.append(level)
+            sql += " ORDER BY size_gb DESC"
+            rows = conn.execute(sql, args).fetchall()
             return [dict(r) for r in rows]
         finally:
             conn.close()

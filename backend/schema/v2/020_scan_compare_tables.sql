@@ -1,0 +1,58 @@
+-- v1.3 扫描结果纵向对比：快照表与对比报告表
+-- 设计依据：docs/DETAIL-v1.3-扫描结果对比.md §4.2
+
+CREATE TABLE IF NOT EXISTS scan_snapshots (
+    id                  BIGINT PRIMARY KEY AUTO_INCREMENT,
+    module              VARCHAR(32)  NOT NULL COMMENT 'schema_audit|slow_scan|bigtable',
+    biz_ref_id          VARCHAR(64)  NOT NULL DEFAULT '' COMMENT '源记录ID',
+    connection_id       VARCHAR(64)  NOT NULL DEFAULT '',
+    connection_name     VARCHAR(256) NOT NULL DEFAULT '',
+    db_name             VARCHAR(128) NOT NULL DEFAULT '',
+    scan_label          VARCHAR(512) NOT NULL DEFAULT '' COMMENT '展示名',
+    scan_started_at     DATETIME     NULL,
+    scan_finished_at    DATETIME     NOT NULL COMMENT '比对方向判定依据',
+    time_window_start   VARCHAR(32)  NOT NULL DEFAULT '' COMMENT '慢SQL可比性',
+    time_window_end     VARCHAR(32)  NOT NULL DEFAULT '',
+    object_total        INT          NOT NULL DEFAULT 0,
+    issue_total         INT          NOT NULL DEFAULT 0,
+    error_count         INT          NOT NULL DEFAULT 0,
+    warning_count       INT          NOT NULL DEFAULT 0,
+    fingerprint_algo    VARCHAR(16)  NOT NULL DEFAULT 'v1',
+    schema_version      INT          NOT NULL DEFAULT 1,
+    truncated           TINYINT      NOT NULL DEFAULT 0,
+    truncated_count     INT          NOT NULL DEFAULT 0,
+    snapshot_json       LONGTEXT     NULL COMMENT '快照主体',
+    snapshot_size       INT          NOT NULL DEFAULT 0,
+    source_kind         VARCHAR(16)  NOT NULL DEFAULT 'live' COMMENT 'live=扫描实时生成, rebuild=回填',
+    created_by          VARCHAR(64)  NOT NULL DEFAULT '',
+    created_at          DATETIME     DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_snap_module_biz (module, biz_ref_id),
+    INDEX idx_snap_query (module, connection_id, scan_finished_at),
+    INDEX idx_snap_db (module, db_name),
+    INDEX idx_snap_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS scan_compare_reports (
+    id                  BIGINT PRIMARY KEY AUTO_INCREMENT,
+    module              VARCHAR(32)  NOT NULL,
+    connection_id       VARCHAR(64)  NOT NULL DEFAULT '',
+    connection_name     VARCHAR(256) NOT NULL DEFAULT '',
+    db_name             VARCHAR(128) NOT NULL DEFAULT '',
+    base_snapshot_id    BIGINT       NOT NULL,
+    target_snapshot_id  BIGINT       NOT NULL,
+    base_scan_at        DATETIME     NULL,
+    target_scan_at      DATETIME     NULL,
+    title               VARCHAR(512) NOT NULL DEFAULT '',
+    base_total          INT          NOT NULL DEFAULT 0,
+    target_total        INT          NOT NULL DEFAULT 0,
+    fixed_count         INT          NOT NULL DEFAULT 0,
+    new_count           INT          NOT NULL DEFAULT 0,
+    remain_count        INT          NOT NULL DEFAULT 0,
+    changed_count       INT          NOT NULL DEFAULT 0,
+    fix_rate            DOUBLE       NOT NULL DEFAULT 0,
+    summary_json        LONGTEXT     NULL COMMENT '汇总，不含明细',
+    created_by          VARCHAR(64)  NOT NULL DEFAULT '',
+    created_at          DATETIME     DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_cmp_query (module, connection_id, created_at),
+    INDEX idx_cmp_snap (base_snapshot_id, target_snapshot_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
