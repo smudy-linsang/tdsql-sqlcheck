@@ -43,6 +43,14 @@ def _err(code: str, message: str, status: int = 400):
 
 
 def _check_module(module: str) -> str:
+    """校验 module。
+
+    缺失与非法都返回 400 E4006（而非 FastAPI 默认的 422）：
+    422 不带 `code` 字段，会破坏 API 文档 §1.3 "失败一律返回 {detail, code}" 的约定；
+    且平台既有先例（daily_inspect.compare 对 connection_id）也是 400 + 明确提示。
+    """
+    if not module:
+        raise _err("E4006", "必须指定 module（schema_audit / slow_scan / bigtable）")
     if module not in _MODULE_MENU:
         raise _err("E4006", f"不支持的模块类型: {module}")
     return module
@@ -95,9 +103,11 @@ def _raise_compare_error(e: CompareError):
 # ── 1. 快照列表 ──
 
 @router.get("/snapshots", summary="扫描快照列表（按实例/库名/时间筛选）")
-def list_snapshots(request: Request, module: str, connection_id: str = "",
+def list_snapshots(request: Request, module: str = "", connection_id: str = "",
                    db_name: str = "", date_from: str = "", date_to: str = "",
                    limit: int = 20, offset: int = 0):
+    # module 设为可选参数 + 手动校验，缺失时返回 400 E4006 而非 FastAPI 默认 422
+    module = _check_module(module)
     _check_module_perm(request, module)
     data = snapshot_service.list_snapshots(
         module=module, connection_id=connection_id, db_name=db_name,
@@ -171,7 +181,7 @@ def compare_snapshots(request: Request, payload: dict):
 # ── 4. 对比报告 HTML ──
 
 @router.get("/compare/html", summary="导出对比报告HTML")
-def compare_html(request: Request, module: str,
+def compare_html(request: Request, module: str = "",
                  snapshot_ids: list[int] = Query(default=None),
                  inline: bool = False, token: str = ""):
     """浏览器直开的下载型接口。window.open 无法带请求头，故额外接受 token 查询参数

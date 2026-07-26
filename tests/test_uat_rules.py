@@ -3,6 +3,8 @@ UAT 测试 - SQL审核规则功能
 
 用户验收测试：从开发者/用户视角验证规则展示功能
 """
+import os
+
 import pytest
 import requests
 import re
@@ -11,25 +13,42 @@ API_BASE = "http://localhost:8000/api/v1"
 FRONTEND_BASE = "http://localhost:8000"
 APP_JS_URL = "http://localhost:8000/static/js/app.js"
 
+# 本模块为"打真实服务"的集成测试，需要一个已启动且可登录的后端。
+# 口令随部署环境而异，不能硬编码：从环境变量读取，未配置/登录失败时整体 skip，
+# 避免因环境未就绪而报大量 401 失败、淹没真实缺陷。
+TEST_ADMIN_USER = os.getenv("TDSQL_TEST_ADMIN_USER", "admin")
+TEST_ADMIN_PASSWORD = os.getenv("TDSQL_TEST_ADMIN_PASSWORD", "Abcd1234")
+
 
 def _get_auth_headers():
-    """登录admin获取token"""
+    """登录admin获取token；失败返回 None（与"拿到空头部"区分开）"""
     try:
-        resp = requests.post(f"{API_BASE}/auth/login", json={"username": "admin", "password": "Admin@123"}, timeout=3)
+        resp = requests.post(
+            f"{API_BASE}/auth/login",
+            json={"username": TEST_ADMIN_USER, "password": TEST_ADMIN_PASSWORD},
+            timeout=3)
         if resp.ok:
             token = resp.json().get("token", "")
-            return {"Authorization": f"Bearer {token}"}
+            if token:
+                return {"Authorization": f"Bearer {token}"}
     except Exception:
         pass
-    return {}
+    return None
 
 
 AUTH_HEADERS = None
+_AUTH_TRIED = False
 
 def _headers():
-    global AUTH_HEADERS
-    if AUTH_HEADERS is None:
+    """返回鉴权头；服务不可用或登录失败时 skip 当前用例"""
+    global AUTH_HEADERS, _AUTH_TRIED
+    if not _AUTH_TRIED:
         AUTH_HEADERS = _get_auth_headers()
+        _AUTH_TRIED = True
+    if AUTH_HEADERS is None:
+        pytest.skip(
+            "集成测试需要可登录的后端服务；请启动服务并按需设置 "
+            "TDSQL_TEST_ADMIN_USER / TDSQL_TEST_ADMIN_PASSWORD")
     return AUTH_HEADERS
 
 
