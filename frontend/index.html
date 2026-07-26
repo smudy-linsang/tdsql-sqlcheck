@@ -369,10 +369,28 @@
                 <div class="page-card">
                   <div class="card-head">
                     <div class="page-card-title mb0">元数据提取与文件审核历史记录</div>
-                    <el-button size="small" @click="loadExtractedReports">刷新历史</el-button>
+                    <div class="flex-gap8">
+                      <el-checkbox v-if="canDeleteExtractedReports" v-model="extractedPurgeSnapshots" size="small">同时删除对比基线快照</el-checkbox>
+                      <el-button v-if="canDeleteExtractedReports" type="danger" size="small" :disabled="selectedExtractedIds.length===0" :loading="extractedDeleting" @click="batchDeleteExtractedReports">批量删除{{ selectedExtractedIds.length ? ' (' + selectedExtractedIds.length + ')' : '' }}</el-button>
+                      <el-button size="small" @click="loadExtractedReports">刷新历史</el-button>
+                    </div>
                   </div>
-                  <el-table :data="extractedReports" v-loading="extractedReportsLoading" stripe class="w-full">
+                  <div class="filter-bar">
+                    <el-select v-model="extractedFilters.connection_id" placeholder="数据库实例" clearable filterable size="small" class="w-220">
+                      <el-option v-for="c in savedConnections" :key="c.id" :value="c.id" :label="c.name"></el-option>
+                    </el-select>
+                    <el-input v-model="extractedFilters.db_name" placeholder="库名" clearable size="small" class="w-140"></el-input>
+                    <el-date-picker v-model="extractedFilters.date_from" type="date" value-format="YYYY-MM-DD" placeholder="开始日期" size="small"></el-date-picker>
+                    <el-date-picker v-model="extractedFilters.date_to" type="date" value-format="YYYY-MM-DD" placeholder="结束日期" size="small"></el-date-picker>
+                    <el-button type="primary" size="small" @click="extractedQuery">查询</el-button>
+                    <el-button size="small" @click="extractedResetFilters">重置</el-button>
+                    <el-button size="small" @click="extractedPickOlderThan(182)">只看半年前</el-button>
+                  </div>
+                  <el-table ref="extractedTableRef" :data="extractedReports" v-loading="extractedReportsLoading" stripe class="w-full" row-key="id" @selection-change="onExtractedSelect">
+                    <el-table-column v-if="canDeleteExtractedReports" type="selection" width="40" reserve-selection></el-table-column>
                     <el-table-column prop="source" label="提取生成的 SQL 文件" show-overflow-tooltip></el-table-column>
+                    <el-table-column label="实例" width="150" show-overflow-tooltip><template #default="{row}">{{ row.connection_name || row.connection_id || '未知实例' }}</template></el-table-column>
+                    <el-table-column prop="db_name" label="库名" width="120" show-overflow-tooltip></el-table-column>
                     <el-table-column prop="created_by" label="审核人" width="100"></el-table-column>
                     <el-table-column prop="total_sql" label="对象数" width="70"></el-table-column>
                     <el-table-column label="通过/失败" width="100"><template #default="{row}"><span class="t-success">{{ row.passed }}</span> / <span class="t-danger">{{ row.failed }}</span></template></el-table-column>
@@ -385,6 +403,7 @@
                       </template>
                     </el-table-column>
                   </el-table>
+                  <el-pagination v-if="extractedReportsTotal>extractedPageSize" small layout="total,sizes,prev,pager,next" :total="extractedReportsTotal" :page-sizes="[20,50,100,200]" v-model:page-size="extractedPageSize" v-model:current-page="extractedReportsPage" @current-change="loadExtractedReports" @size-change="extractedQuery" class="pager"></el-pagination>
                 </div>
               </el-tab-pane>
 

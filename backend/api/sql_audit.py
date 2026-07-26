@@ -8,6 +8,7 @@ from fastapi.responses import StreamingResponse, HTMLResponse, Response
 from typing import Optional
 from urllib.parse import quote
 import json
+import logging
 from datetime import datetime
 
 from backend.models import (
@@ -18,7 +19,9 @@ from backend.models import (
     Violation,
 )
 from backend.services.audit_service import AuditService
-from backend.services.database import _get_connection, ensure_db
+from backend.services.database import _get_connection, ensure_db, log_operation
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/audit", tags=["SQL审核"])
 
@@ -28,6 +31,38 @@ audit_service = AuditService()
 
 def _operator(request: Request) -> str:
     return getattr(request.state, "username", "anonymous")
+
+
+def _role(request: Request) -> str:
+    return getattr(request.state, "role", "")
+
+
+def _require_admin(request: Request, action: str):
+    """删除类操作仅系统管理员可用。
+
+    注意：/api/v1/audit/extracted-reports 未登记在 auth_service._PATH_TO_MENU 中，
+    而未映射路径中间件默认放行（auth_service.py "无映射的路径默认放行"），
+    因此权限必须在处理函数内显式把关，不能依赖中间件。
+    """
+    if _role(request) != "admin":
+        raise HTTPException(status_code=403, detail=f"仅系统管理员可{action}")
+
+
+def _audit_log(request: Request, operation_type: str, target_id: str, detail: str):
+    """写操作审计日志；失败仅告警，不影响主流程"""
+    try:
+        client = getattr(request, "client", None)
+        log_operation(
+            operator=_operator(request),
+            operation_type=operation_type,
+            target_type="audit_history",
+            target_id=str(target_id)[:64],
+            detail=str(detail)[:500],
+            ip_address=(client.host if client else ""),
+            user_agent=request.headers.get("user-agent", "")[:200],
+        )
+    except Exception as e:
+        logger.warning(f"审计日志写入失败: {e}")
 
 
 @router.post("/sql", response_model=AuditResponse, summary="审核单条SQL")
@@ -342,6 +377,106 @@ async def get_extracted_reports(limit: int = 20, offset: int = 0,
         }
     finally:
         conn.close()
+
+
+# 单批删除上限：既防一次误清全表，也避免超长 IN 列表拖垮元数据库
+MAX_DELETE_BATCH = 500
+
+
+@router.post("/extracted-reports/batch-delete",
+             summary="批量删除在线元数据审核历史记录（仅系统管理员）")
+async def batch_delete_extracted_reports(payload: dict, http_request: Request):
+    """按 id 批量删除"历史元数据审核记录"。
+
+    - 仅 admin 可调用；
+    - 只删 audit_type='extracted_schema'，避免误伤文件审核（'file'）等其它类型；
+    - audit_results 由外键 ON DELETE CASCADE 自动清理；
+      gate_audit_logs 为 ON DELETE SET NULL，门禁合规痕迹保留不受影响；
+    - purge_snapshots=True 时同时删除对应的对比基线快照（module='schema_audit'），
+      但被 scan_compare_reports 留档引用的快照一律保留——否则留档会指向不存在的快照。
+      默认 False：快照是 V1.3 设计中独立冻结的比对基线，保留策略也按独立表清理，
+      静默摧毁基线是不可逆且更糟的后果。
+    """
+    _require_admin(http_request, "删除历史元数据审核记录")
+
+    raw_ids = (payload or {}).get("ids") or []
+    purge_snapshots = bool((payload or {}).get("purge_snapshots"))
+    try:
+        ids = sorted({int(i) for i in raw_ids if int(i) > 0})
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="ids 必须为正整数列表")
+    if not ids:
+        raise HTTPException(status_code=400, detail="请至少勾选一条待删除记录")
+    if len(ids) > MAX_DELETE_BATCH:
+        raise HTTPException(
+            status_code=400,
+            detail=f"单次最多删除 {MAX_DELETE_BATCH} 条，请缩小筛选范围后分批操作")
+
+    ensure_db()
+    conn = _get_connection()
+    try:
+        ph = ",".join(["?"] * len(ids))
+        rows = conn.execute(
+            f"""SELECT id, source FROM audit_history
+                WHERE id IN ({ph}) AND audit_type = ?""",
+            (*ids, "extracted_schema")).fetchall()
+        found_ids = [dict(r)["id"] for r in (rows or [])]
+        if not found_ids:
+            raise HTTPException(status_code=404, detail="勾选的记录不存在或已被删除")
+
+        fph = ",".join(["?"] * len(found_ids))
+        biz_refs = [str(i) for i in found_ids]
+
+        # 关联快照：module='schema_audit' 且 biz_ref_id 指向 audit_history.id
+        snap_rows = conn.execute(
+            f"""SELECT id FROM scan_snapshots
+                WHERE module = ? AND biz_ref_id IN ({fph})""",
+            ("schema_audit", *biz_refs)).fetchall()
+        snap_ids = [dict(r)["id"] for r in (snap_rows or [])]
+
+        snapshots_deleted = 0
+        kept_referenced = 0
+        if purge_snapshots and snap_ids:
+            sph = ",".join(["?"] * len(snap_ids))
+            ref_rows = conn.execute(
+                f"""SELECT DISTINCT s.id FROM scan_snapshots s
+                    JOIN scan_compare_reports r
+                      ON r.base_snapshot_id = s.id OR r.target_snapshot_id = s.id
+                    WHERE s.id IN ({sph})""", tuple(snap_ids)).fetchall()
+            referenced = {dict(r)["id"] for r in (ref_rows or [])}
+            kept_referenced = len(referenced)
+            deletable = [i for i in snap_ids if i not in referenced]
+            if deletable:
+                dph = ",".join(["?"] * len(deletable))
+                cur = conn.execute(
+                    f"DELETE FROM scan_snapshots WHERE id IN ({dph})", tuple(deletable))
+                snapshots_deleted = getattr(cur, "rowcount", 0) or 0
+
+        cur = conn.execute(
+            f"DELETE FROM audit_history WHERE id IN ({fph}) AND audit_type = ?",
+            (*found_ids, "extracted_schema"))
+        deleted = getattr(cur, "rowcount", 0) or 0
+        conn.commit()
+    finally:
+        conn.close()
+
+    skipped_ids = [i for i in ids if i not in set(found_ids)]
+    _audit_log(http_request, "delete_audit_history",
+               ",".join(str(i) for i in found_ids),
+               f"deleted={deleted};purge_snapshots={purge_snapshots};"
+               f"snapshots_found={len(snap_ids)};snapshots_deleted={snapshots_deleted};"
+               f"snapshots_kept_referenced={kept_referenced};skipped={len(skipped_ids)}")
+
+    return {
+        "status": "SUCCESS",
+        "deleted": deleted,
+        "deleted_ids": found_ids,
+        "skipped_ids": skipped_ids,
+        "snapshots_found": len(snap_ids),
+        "snapshots_deleted": snapshots_deleted,
+        "snapshots_kept": len(snap_ids) - snapshots_deleted,
+        "snapshots_kept_referenced": kept_referenced,
+    }
 
 
 @router.get("/report/{report_id}/html", summary="导出元数据审核报告HTML")
