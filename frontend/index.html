@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <!-- 主题预置：首帧前置 data-theme，避免深/浅切换闪烁；默认深色，localStorage 记忆 -->
   <script>(function(){try{var t=localStorage.getItem('tdsql-theme');if(t!=='light'&&t!=='dark')t='dark';document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','dark');}})();</script>
-  <title>TDSQL数据库SQL审核工具 V1.2.0.7</title>
+  <title>TDSQL数据库SQL审核工具 V1.2.0.8</title>
   <script src="/static/vendor/vue.global.prod.js"></script>
   <link rel="stylesheet" href="/static/vendor/element-plus.css">
   <script src="/static/vendor/element-plus.full.min.js"></script>
@@ -26,7 +26,7 @@
     </div>
     <div class="login-brand">
       <h1>TDSQL数据库SQL审核工具</h1>
-      <div class="version">V1.2.0.7 · Design by Linsang</div>
+      <div class="version">V1.2.0.8 · Design by Linsang</div>
     </div>
     <div class="login-form">
       <el-card>
@@ -92,7 +92,7 @@
             <el-menu-item v-if="visibleMenus.has('rules')" index="rules">审核规则库</el-menu-item>
           </el-sub-menu>
           <el-sub-menu v-if="visibleMenus.has('slow-tasks')||visibleMenus.has('slow-records')||visibleMenus.has('slow-schedule')||visibleMenus.has('explain')" index="slow-group">
-            <template #title><el-icon><DataAnalysis /></el-icon><span>慢SQL治理</span></template>
+            <template #title><el-icon><Timer /></el-icon><span>慢SQL治理</span></template>
             <el-menu-item v-if="visibleMenus.has('slow-tasks')" index="slow-tasks">扫描任务</el-menu-item>
             <el-menu-item v-if="visibleMenus.has('slow-records')" index="slow-records">慢SQL记录</el-menu-item>
             <el-menu-item v-if="visibleMenus.has('slow-schedule')" index="slow-schedule">扫描计划</el-menu-item>
@@ -104,7 +104,7 @@
             <el-menu-item v-if="visibleMenus.has('schema-check')" index="schema-check">上线检查</el-menu-item>
             <el-menu-item v-if="visibleMenus.has('bigtable')" index="bigtable">大表治理</el-menu-item>
           </el-sub-menu>
-          <el-menu-item v-if="visibleMenus.has('deep-diag')" index="deep-diag"><el-icon><DataAnalysis /></el-icon><span>深度诊断</span></el-menu-item>
+          <el-menu-item v-if="visibleMenus.has('deep-diag')" index="deep-diag"><el-icon><Cpu /></el-icon><span>深度诊断</span></el-menu-item>
           <el-sub-menu v-if="visibleMenus.has('projects')||visibleMenus.has('rulesets')||visibleMenus.has('gate')||visibleMenus.has('monitor')||visibleMenus.has('inspection')" index="platform-group">
             <template #title><el-icon><Setting /></el-icon><span>平台治理</span></template>
             <el-menu-item v-if="visibleMenus.has('projects')" index="projects">项目管理</el-menu-item>
@@ -859,12 +859,18 @@
                 <div v-if="dailyCompareResult" style="margin-top:12px">
                   <el-tabs type="card" size="small">
                     <el-tab-pane label="实例级指标比对">
-                      <div class="search-box" style="margin-bottom:8px; display:flex; justify-content:space-between; align-items:center">
-                        <el-input v-model="dailyInstSearch" placeholder="搜索节点或指标" size="small" style="width:220px"></el-input>
+                      <div class="search-box" style="margin-bottom:8px; display:flex; flex-wrap:wrap; gap:8px; justify-content:space-between; align-items:center">
+                        <div style="display:flex; align-items:center; gap:8px">
+                          <el-select v-model="dailyInstNodeSelect" placeholder="全部节点/分片" size="small" clearable filterable style="width:200px">
+                            <el-option label="全部节点/分片" value=""></el-option>
+                            <el-option v-for="n in dailyInstNodeList" :key="n" :label="n" :value="n"></el-option>
+                          </el-select>
+                          <el-input v-model="dailyInstSearch" placeholder="搜索节点或指标..." size="small" style="width:200px"></el-input>
+                        </div>
                         <el-checkbox v-model="dailyInstSigOnly" size="small">仅显示波动异常项 (⚠️)</el-checkbox>
                       </div>
-                      <el-table :data="filteredDailyInstDiffs" border size="small" max-height="300">
-                        <el-table-column prop="node" label="节点/分片" width="130"></el-table-column>
+                      <el-table :data="pagedDailyInstDiffs" border size="small" max-height="400">
+                        <el-table-column prop="node" label="节点/分片" width="140"></el-table-column>
                         <el-table-column prop="metric_label" label="巡检指标项" width="160"></el-table-column>
                         <el-table-column prop="old_val" label="前期值" width="100">
                           <template #default="{row}">{{row.old_val}}{{row.unit}}</template>
@@ -893,16 +899,31 @@
                           </template>
                         </el-table-column>
                       </el-table>
+                      <el-pagination
+                        v-model:current-page="dailyInstPage"
+                        v-model:page-size="dailyInstPageSize"
+                        :page-sizes="[15, 30, 50, 100]"
+                        layout="total, sizes, prev, pager, next, jumper"
+                        :total="filteredDailyInstDiffs.length"
+                        size="small"
+                        style="margin-top:8px; justify-content:flex-end">
+                      </el-pagination>
                     </el-tab-pane>
 
                     <el-tab-pane label="服务器级别比对">
-                      <div class="search-box" style="margin-bottom:8px; display:flex; justify-content:space-between; align-items:center">
-                        <el-input v-model="dailySrvSearch" placeholder="搜索服务器 IP/指标" size="small" style="width:220px"></el-input>
+                      <div class="search-box" style="margin-bottom:8px; display:flex; flex-wrap:wrap; gap:8px; justify-content:space-between; align-items:center">
+                        <div style="display:flex; align-items:center; gap:8px">
+                          <el-select v-model="dailySrvIpSelect" placeholder="全部服务器 IP" size="small" clearable filterable style="width:200px">
+                            <el-option label="全部服务器 IP" value=""></el-option>
+                            <el-option v-for="ip in dailySrvIpList" :key="ip" :label="ip" :value="ip"></el-option>
+                          </el-select>
+                          <el-input v-model="dailySrvSearch" placeholder="搜索服务器 IP/指标..." size="small" style="width:200px"></el-input>
+                        </div>
                         <el-checkbox v-model="dailySrvSigOnly" size="small">仅显示波动异常项 (⚠️)</el-checkbox>
                       </div>
-                      <el-table :data="filteredDailySrvDiffs" border size="small" max-height="300">
-                        <el-table-column prop="ip" label="服务器 IP" width="120"></el-table-column>
-                        <el-table-column prop="hostname" label="主机名称" width="120"></el-table-column>
+                      <el-table :data="pagedDailySrvDiffs" border size="small" max-height="400">
+                        <el-table-column prop="ip" label="服务器 IP" width="130"></el-table-column>
+                        <el-table-column prop="hostname" label="主机名称" width="130"></el-table-column>
                         <el-table-column prop="metric_label" label="物理指标项" width="160"></el-table-column>
                         <el-table-column prop="old_val" label="前期值" width="100">
                           <template #default="{row}">{{row.old_val}}{{row.unit}}</template>
@@ -931,6 +952,15 @@
                           </template>
                         </el-table-column>
                       </el-table>
+                      <el-pagination
+                        v-model:current-page="dailySrvPage"
+                        v-model:page-size="dailySrvPageSize"
+                        :page-sizes="[15, 30, 50, 100]"
+                        layout="total, sizes, prev, pager, next, jumper"
+                        :total="filteredDailySrvDiffs.length"
+                        size="small"
+                        style="margin-top:8px; justify-content:flex-end">
+                      </el-pagination>
                     </el-tab-pane>
                   </el-tabs>
                 </div>

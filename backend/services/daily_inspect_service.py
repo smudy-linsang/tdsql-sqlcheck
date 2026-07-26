@@ -997,9 +997,12 @@ def generate_comparison_html_report(connection_id: str, dates: list, threshold_m
       <div class="card">
         <div class="card-title">实例检测明细清单</div>
         <div class="search-box">
-          <input type="text" id="instSearch" placeholder="搜索实例名称/指标..." onkeyup="filterTables()" class="search-input">
+          <select id="instNodeSelect" onchange="resetInstPageAndRender()" class="search-input" style="width:200px">
+            <option value="">全部节点/分片</option>
+          </select>
+          <input type="text" id="instSearch" placeholder="搜索实例名称/指标..." onkeyup="resetInstPageAndRender()" class="search-input">
           <label style="display:flex; align-items:center; gap:5px; font-size:14px; color:#94a3b8">
-            <input type="checkbox" id="instSigOnly" onchange="filterTables()"> 仅显示显著变化 (⚠️)
+            <input type="checkbox" id="instSigOnly" onchange="resetInstPageAndRender()"> 仅显示显著变化 (⚠️)
           </label>
         </div>
         <table id="instTable">
@@ -1018,6 +1021,7 @@ def generate_comparison_html_report(connection_id: str, dates: list, threshold_m
             <!-- JS 渲染 -->
           </tbody>
         </table>
+        <div id="instPagination" style="display:flex; justify-content:space-between; align-items:center; margin-top:12px; font-size:13px; color:#94a3b8"></div>
       </div>
     </div>
 
@@ -1026,9 +1030,12 @@ def generate_comparison_html_report(connection_id: str, dates: list, threshold_m
       <div class="card">
         <div class="card-title">物理主机指标明细清单</div>
         <div class="search-box">
-          <input type="text" id="srvSearch" placeholder="搜索主机/指标..." onkeyup="filterTables()" class="search-input">
+          <select id="srvIpSelect" onchange="resetSrvPageAndRender()" class="search-input" style="width:200px">
+            <option value="">全部服务器 IP</option>
+          </select>
+          <input type="text" id="srvSearch" placeholder="搜索主机/指标..." onkeyup="resetSrvPageAndRender()" class="search-input">
           <label style="display:flex; align-items:center; gap:5px; font-size:14px; color:#94a3b8">
-            <input type="checkbox" id="srvSigOnly" onchange="filterTables()"> 仅显示显著变化 (⚠️)
+            <input type="checkbox" id="srvSigOnly" onchange="resetSrvPageAndRender()"> 仅显示显著变化 (⚠️)
           </label>
         </div>
         <table id="srvTable">
@@ -1048,6 +1055,7 @@ def generate_comparison_html_report(connection_id: str, dates: list, threshold_m
             <!-- JS 渲染 -->
           </tbody>
         </table>
+        <div id="srvPagination" style="display:flex; justify-content:space-between; align-items:center; margin-top:12px; font-size:13px; color:#94a3b8"></div>
       </div>
     </div>
   </div>
@@ -1058,6 +1066,11 @@ def generate_comparison_html_report(connection_id: str, dates: list, threshold_m
     const srvConfigs = {js_server_metrics};
     let myChart = null;
 
+    let instPage = 1;
+    const instPageSize = 20;
+    let srvPage = 1;
+    const srvPageSize = 20;
+
     // 初始化加载
     window.onload = function() {{
       initUI();
@@ -1065,29 +1078,59 @@ def generate_comparison_html_report(connection_id: str, dates: list, threshold_m
     }};
 
     function initUI() {{
-      // 1. 初始化图表节点下拉框
-      const nodeSelect = document.getElementById("chartNodeSelect");
-      nodeSelect.innerHTML = "";
+      // 1. 初始化图表与列表节点/IP下拉框
+      const chartNodeSelect = document.getElementById("chartNodeSelect");
+      const instNodeSelect = document.getElementById("instNodeSelect");
+      const srvIpSelect = document.getElementById("srvIpSelect");
+
+      chartNodeSelect.innerHTML = "";
       
       let nodes = [];
-      if (reportData.dates) {{
-        nodes = Object.keys(reportData.instance_names || {{}});
-      }} else {{
-        // 双日比对，提取所有的 node
+      let srvIps = [];
+
+      if (!reportData.dates) {{
+        // 双日比对
         const nodeSet = new Set();
-        reportData.instance_diffs.forEach(item => nodeSet.add(item.node));
+        (reportData.instance_diffs || []).forEach(item => {{ if(item.node) nodeSet.add(item.node); }});
         nodes = Array.from(nodeSet);
+
+        const ipSet = new Set();
+        (reportData.server_diffs || []).forEach(item => {{ if(item.ip) ipSet.add(item.ip); }});
+        srvIps = Array.from(ipSet);
+      }} else {{
+        // 多日比对
+        nodes = Object.keys(reportData.instance_names || {{}});
+        srvIps = Object.keys(reportData.server_hosts || {{}});
       }}
 
       nodes.forEach(node => {{
+        const opt1 = document.createElement("option");
+        opt1.value = node; opt1.textContent = node;
+        chartNodeSelect.appendChild(opt1);
+
+        const opt2 = document.createElement("option");
+        opt2.value = node; opt2.textContent = node;
+        instNodeSelect.appendChild(opt2);
+      }});
+
+      srvIps.forEach(ip => {{
         const opt = document.createElement("option");
-        opt.value = node;
-        opt.textContent = node;
-        nodeSelect.appendChild(opt);
+        opt.value = ip; opt.textContent = ip;
+        srvIpSelect.appendChild(opt);
       }});
 
       // 2. 渲染表格明细
       renderInstanceTable();
+      renderServerTable();
+    }}
+
+    function resetInstPageAndRender() {{
+      instPage = 1;
+      renderInstanceTable();
+    }}
+
+    function resetSrvPageAndRender() {{
+      srvPage = 1;
       renderServerTable();
     }}
 
@@ -1098,31 +1141,18 @@ def generate_comparison_html_report(connection_id: str, dates: list, threshold_m
       btn.classList.add("active");
     }}
 
-    function renderInstanceTable() {{
-      const tbody = document.querySelector("#instTable tbody");
-      tbody.innerHTML = "";
+    function getInstFilteredData() {{
+      let list = [];
+      const nodeSel = document.getElementById("instNodeSelect").value;
+      const q = document.getElementById("instSearch").value.toLowerCase().trim();
+      const sigOnly = document.getElementById("instSigOnly").checked;
 
       if (!reportData.dates) {{
-        // 双日模式
-        reportData.instance_diffs.forEach(item => {{
-          const tr = document.createElement("tr");
-          if (item.significant) tr.classList.add("warn-row");
-          
-          tr.innerHTML = `
-            <td>${{item.node}}</td>
-            <td>${{item.metric_label}}</td>
-            <td>${{item.old_val}} ${{item.unit}}</td>
-            <td>${{item.new_val}} ${{item.unit}}</td>
-            <td>${{item.diff > 0 ? '+' : ''}}${{item.diff}}</td>
-            <td>${{item.pct_change > 0 ? '+' : ''}}${{item.pct_change}}%</td>
-            <td>${{item.significant ? '<span class="warn-badge">⚠️ 波动过大</span>' : '正常'}}</td>
-          `;
-          tbody.appendChild(tr);
-        }});
+        list = reportData.instance_diffs || [];
       }} else {{
-        // 多日模式，做简化双向首尾对比展示
+        // 多日模式构建列表
         const dates = reportData.dates;
-        const trend = reportData.instance_trend;
+        const trend = reportData.instance_trend || {{}};
         const firstDate = dates[0];
         const lastDate = dates[dates.length - 1];
 
@@ -1131,7 +1161,6 @@ def generate_comparison_html_report(connection_id: str, dates: list, threshold_m
             const field = cfg[0];
             const label = cfg[1];
             const unit = cfg[2];
-            const isPct = cfg[3];
 
             const oldVal = trend[node][field][firstDate] || 0;
             const newVal = trend[node][field][lastDate] || 0;
@@ -1139,54 +1168,82 @@ def generate_comparison_html_report(connection_id: str, dates: list, threshold_m
             const pct = oldVal !== 0 ? ((diff / oldVal) * 100).toFixed(2) : 0;
             const isSig = Math.abs(diff) >= cfg[4];
 
-            const tr = document.createElement("tr");
-            if (isSig) tr.classList.add("warn-row");
-            tr.innerHTML = `
-              <td>${{node}}</td>
-              <td>${{label}}</td>
-              <td>${{oldVal}} ${{unit}}</td>
-              <td>${{newVal}} ${{unit}}</td>
-              <td>${{diff > 0 ? '+' : ''}}${{diff.toFixed(2)}}</td>
-              <td>${{pct > 0 ? '+' : ''}}${{pct}}%</td>
-              <td>${{isSig ? '<span class="warn-badge">⚠️ 显著变化</span>' : '平稳'}}</td>
-            `;
-            tbody.appendChild(tr);
+            list.push({{
+              node: node,
+              metric_label: label,
+              old_val: oldVal,
+              new_val: newVal,
+              diff: diff,
+              pct_change: pct,
+              unit: unit,
+              significant: isSig ? '⚠️ 波动过大' : ''
+            }});
           }});
         }});
       }}
+
+      if (nodeSel) list = list.filter(item => item.node === nodeSel);
+      if (sigOnly) list = list.filter(item => !!item.significant);
+      if (q) list = list.filter(item => (item.node && item.node.toLowerCase().includes(q)) || (item.metric_label && item.metric_label.toLowerCase().includes(q)));
+
+      return list;
     }}
 
-    function renderServerTable() {{
-      const tbody = document.querySelector("#srvTable tbody");
+    function renderInstanceTable() {{
+      const tbody = document.querySelector("#instTable tbody");
+      const pageBox = document.getElementById("instPagination");
       tbody.innerHTML = "";
 
+      const fullList = getInstFilteredData();
+      const total = fullList.length;
+      const totalPages = Math.ceil(total / instPageSize) || 1;
+      if (instPage > totalPages) instPage = totalPages;
+
+      const start = (instPage - 1) * instPageSize;
+      const pagedList = fullList.slice(start, start + instPageSize);
+
+      pagedList.forEach(item => {{
+        const tr = document.createElement("tr");
+        if (item.significant) tr.classList.add("warn-row");
+        
+        tr.innerHTML = `
+          <td>${{item.node}}</td>
+          <td>${{item.metric_label}}</td>
+          <td>${{item.old_val}} ${{item.unit || ''}}</td>
+          <td>${{item.new_val}} ${{item.unit || ''}}</td>
+          <td>${{item.diff > 0 ? '+' : ''}}${{typeof item.diff === 'number' ? item.diff.toFixed(2) : item.diff}}</td>
+          <td>${{item.pct_change > 0 ? '+' : ''}}${{item.pct_change}}%</td>
+          <td>${{item.significant ? '<span class="warn-badge">⚠️ 波动过大</span>' : '正常'}}</td>
+        `;
+        tbody.appendChild(tr);
+      }});
+
+      pageBox.innerHTML = `
+        <div>共 <b>${{total}}</b> 条记录 | 第 <b>${{instPage}}</b> / <b>${{totalPages}}</b> 页 (每页 20 条)</div>
+        <div>
+          <button onclick="instPage--; renderInstanceTable();" ${{instPage <= 1 ? 'disabled' : ''}} style="background:#334155;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;margin-right:4px">上一页</button>
+          <button onclick="instPage++; renderInstanceTable();" ${{instPage >= totalPages ? 'disabled' : ''}} style="background:#334155;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer">下一页</button>
+        </div>
+      `;
+    }}
+
+    function getSrvFilteredData() {{
+      let list = [];
+      const ipSel = document.getElementById("srvIpSelect").value;
+      const q = document.getElementById("srvSearch").value.toLowerCase().trim();
+      const sigOnly = document.getElementById("srvSigOnly").checked;
+
       if (!reportData.dates) {{
-        // 双日模式
-        reportData.server_diffs.forEach(item => {{
-          const tr = document.createElement("tr");
-          if (item.significant) tr.classList.add("warn-row");
-          
-          tr.innerHTML = `
-            <td>${{item.ip}}</td>
-            <td>${{item.hostname}}</td>
-            <td>${{item.metric_label}}</td>
-            <td>${{item.old_val}} ${{item.unit}}</td>
-            <td>${{item.new_val}} ${{item.unit}}</td>
-            <td>${{item.diff > 0 ? '+' : ''}}${{item.diff}}</td>
-            <td>${{item.pct_change > 0 ? '+' : ''}}${{item.pct_change}}%</td>
-            <td>${{item.significant ? '<span class="warn-badge">⚠️ 物理告警</span>' : '健康'}}</td>
-          `;
-          tbody.appendChild(tr);
-        }});
+        list = reportData.server_diffs || [];
       }} else {{
-        // 多日模式
+        // 多日模式构建列表
         const dates = reportData.dates;
-        const trend = reportData.server_trend;
+        const trend = reportData.server_trend || {{}};
         const firstDate = dates[0];
         const lastDate = dates[dates.length - 1];
 
         Object.keys(trend).forEach(ip => {{
-          const hostname = reportData.server_hostnames[ip] || ip;
+          const hostname = (reportData.server_hostnames && reportData.server_hostnames[ip]) || ip;
           srvConfigs.forEach(cfg => {{
             const field = cfg[0];
             const label = cfg[1];
@@ -1198,22 +1255,65 @@ def generate_comparison_html_report(connection_id: str, dates: list, threshold_m
             const pct = oldVal !== 0 ? ((diff / oldVal) * 100).toFixed(2) : 0;
             const isSig = Math.abs(diff) >= cfg[4];
 
-            const tr = document.createElement("tr");
-            if (isSig) tr.classList.add("warn-row");
-            tr.innerHTML = `
-              <td>${{ip}}</td>
-              <td>${{hostname}}</td>
-              <td>${{label}}</td>
-              <td>${{oldVal}} ${{unit}}</td>
-              <td>${{newVal}} ${{unit}}</td>
-              <td>${{diff > 0 ? '+' : ''}}${{diff.toFixed(2)}}</td>
-              <td>${{pct > 0 ? '+' : ''}}${{pct}}%</td>
-              <td>${{isSig ? '<span class="warn-badge">⚠️ 显著变化</span>' : '平稳'}}</td>
-            `;
-            tbody.appendChild(tr);
+            list.push({{
+              ip: ip,
+              hostname: hostname,
+              metric_label: label,
+              old_val: oldVal,
+              new_val: newVal,
+              diff: diff,
+              pct_change: pct,
+              unit: unit,
+              significant: isSig ? '⚠️ 物理告警' : ''
+            }});
           }});
         }});
       }}
+
+      if (ipSel) list = list.filter(item => item.ip === ipSel);
+      if (sigOnly) list = list.filter(item => !!item.significant);
+      if (q) list = list.filter(item => (item.ip && item.ip.toLowerCase().includes(q)) || (item.hostname && item.hostname.toLowerCase().includes(q)) || (item.metric_label && item.metric_label.toLowerCase().includes(q)));
+
+      return list;
+    }}
+
+    function renderServerTable() {{
+      const tbody = document.querySelector("#srvTable tbody");
+      const pageBox = document.getElementById("srvPagination");
+      tbody.innerHTML = "";
+
+      const fullList = getSrvFilteredData();
+      const total = fullList.length;
+      const totalPages = Math.ceil(total / srvPageSize) || 1;
+      if (srvPage > totalPages) srvPage = totalPages;
+
+      const start = (srvPage - 1) * srvPageSize;
+      const pagedList = fullList.slice(start, start + srvPageSize);
+
+      pagedList.forEach(item => {{
+        const tr = document.createElement("tr");
+        if (item.significant) tr.classList.add("warn-row");
+        
+        tr.innerHTML = `
+          <td>${{item.ip}}</td>
+          <td>${{item.hostname || item.ip}}</td>
+          <td>${{item.metric_label}}</td>
+          <td>${{item.old_val}} ${{item.unit || ''}}</td>
+          <td>${{item.new_val}} ${{item.unit || ''}}</td>
+          <td>${{item.diff > 0 ? '+' : ''}}${{typeof item.diff === 'number' ? item.diff.toFixed(2) : item.diff}}</td>
+          <td>${{item.pct_change > 0 ? '+' : ''}}${{item.pct_change}}%</td>
+          <td>${{item.significant ? '<span class="warn-badge">⚠️ 物理告警</span>' : '健康'}}</td>
+        `;
+        tbody.appendChild(tr);
+      }});
+
+      pageBox.innerHTML = `
+        <div>共 <b>${{total}}</b> 条记录 | 第 <b>${{srvPage}}</b> / <b>${{totalPages}}</b> 页 (每页 20 条)</div>
+        <div>
+          <button onclick="srvPage--; renderServerTable();" ${{srvPage <= 1 ? 'disabled' : ''}} style="background:#334155;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;margin-right:4px">上一页</button>
+          <button onclick="srvPage++; renderServerTable();" ${{srvPage >= totalPages ? 'disabled' : ''}} style="background:#334155;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer">下一页</button>
+        </div>
+      `;
     }}
 
     function filterTables() {{
