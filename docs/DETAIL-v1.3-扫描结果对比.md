@@ -519,7 +519,11 @@ def extract(task_id: int, db_name_default: str = "") -> tuple[list[IssueItem], i
 
 | issue_type | 判定 | severity |
 |---|---|---|
-| `OVERSIZE` | `level` 属于大表分级（L1/L2/L3 等） | L1→ERROR，其余→WARNING |
+| `OVERSIZE` | `level` 属于大表分级（L1/L2/L3） | **L3/L2→ERROR，L1→WARNING** |
+
+> **口径勘误（v1.3.0.1）**：分级严重度以 `backend/engine/bigtable_engine.py::BigTableClassifier` 为准——
+> **L3 严控级(500GB+/5亿行) 最重、L2 管控级(200GB+/2亿行)、L1 关注级(50GB+/5千万行) 最轻**。
+> 本表初稿误写为"L1→ERROR"，实现已按正确口径落地，此处同步订正。
 | `NO_PARTITION` | `is_partitioned = 0` 且已判定为大表 | WARNING |
 | `NO_SHARD_KEY` | `shard_key` 为空 | WARNING |
 | `PARTITION_WATERMARK` | 关联 `partition_watermarks.status` 异常 | ERROR |
