@@ -3,7 +3,7 @@
 | 项 | 内容 |
 |---|---|
 | 目标版本 | V1.3.0.0 |
-| 基线版本 | V1.2.0.7 |
+| 基线版本 | **V1.2.0.9**（main @ `a700de5`，2026-07-26 逐项复核） |
 | 统一前缀 | `/api/v1/scan-compare` |
 | 配套文档 | 《需求分析与概要设计》《详细设计说明书》 |
 | 编制 | 智能体 A |
@@ -204,7 +204,7 @@ POST /api/v1/scan-compare/compare
 | `module` | string | 是 | — | 模块枚举 |
 | `snapshot_ids` | int[] | 是 | — | **必须恰好 2 个**，否则 `400 E4001`；顺序无关，服务端按扫描时间自动定基准 |
 | `include_details` | bool | 否 | `true` | 为 `false` 时只返回 `summary`（用于列表快速预览） |
-| `detail_limit` | int | 否 | `500` | 每类明细最多返回条数，上限 2000 |
+| `detail_limit` | int | 否 | `500` | 每类明细最多返回条数，上限 2000（明细量控制设计依据见概要设计 §2.3） |
 
 **响应 200**
 
@@ -421,23 +421,23 @@ POST /api/v1/scan-compare/reports        # 保存当前对比结果
 
 ---
 
-## 4. 既有接口改造说明
+## 4. 既有接口改造说明（含 D1/D2/D4 缺陷修复，施工细节见《详细设计》§11）
 
 **兼容性总则**：全部改造**仅新增可选参数与返回字段**，不删除、不重命名既有字段，老前端不受影响。
 唯一行为变更为 §4.4（属修正错误行为），已在升级说明中标注。
 
-### 4.1 在线元数据提取与审核
+### 4.1 在线元数据提取与审核（修复 D1）
 
 ```
 POST /api/v1/audit/extract-and-audit
 ```
 
-**变更**：审核结果落库时补写实例信息（修复缺陷 D1，本需求"按实例筛选"的前置条件）。
+**变更**：审核结果落库时补写实例信息（本需求"按实例筛选"的前置条件）。
 
 | 项 | 变更 |
 |---|---|
-| 请求 | 无变化（`connection_id` 本已是入参） |
-| 落库 | `audit_history.connection_id`、`audit_history.db_name`（**新增列**）写入实际值 |
+| 请求 | 无变化（`connection_id` 本已是入参，`payload.get("connection_id")`） |
+| 落库 | `audit_history.connection_id` 写入实际值；`audit_history.db_name`（**新增列**，迁移自动补）写入目标库名 |
 | 响应 | 新增 `snapshot_id`（快照ID，可为 `null`） |
 | 副作用 | 旁路生成对比快照；失败仅告警，不影响审核结果返回 |
 
@@ -447,7 +447,7 @@ POST /api/v1/audit/extract-and-audit
   "extracted_sql": "...", "results": [], "summary": {} }
 ```
 
-### 4.2 元数据审核历史列表
+### 4.2 元数据审核历史列表（修复 D1 查询侧）
 
 ```
 GET /api/v1/audit/extracted-reports
@@ -457,22 +457,24 @@ GET /api/v1/audit/extracted-reports
 
 | 参数 | 类型 | 默认 | 说明 |
 |---|---|---|---|
-| `connection_id` | string | `""` | 按实例筛选 |
+| `connection_id` | string | `""` | 按实例筛选；`__unknown__` 查询无实例信息的存量记录 |
 | `db_name` | string | `""` | 按库名筛选 |
-| `date_from` / `date_to` | string | `""` | 按审核时间筛选 |
+| `date_from` / `date_to` | string | `""` | 按审核时间筛选 `YYYY-MM-DD` |
 
-**响应新增字段**：每条记录追加 `connection_id`、`connection_name`、`db_name`。
+**响应变更**：每条记录追加 `connection_id`、`db_name`、`connection_name`
+（`connection_name` 由 `LEFT JOIN tdsql_connections` 实时解析，连接已删除时为空串）；
+列表响应**不再包含** `results_json` 大字段（现前端历史列表未使用，属传输优化，施工时复核确认）。
 
-### 4.3 慢SQL扫描任务列表
+### 4.3 慢SQL扫描任务列表（修复 D4）
 
 ```
 GET /api/v1/slow-queries/scan-tasks
 ```
 
 **新增可选 Query 参数**：`connection_id`、`db_name`、`date_from`、`date_to`
-**响应新增字段**：`connection_name`（表中已有该列，此前未回显；修复缺陷 D4）
+**响应说明**：`connection_name` 字段表中已有、随 `SELECT *` 本就返回，此前仅前端未展示；前端任务表格新增"实例"列。
 
-### 4.4 大表清单
+### 4.4 大表清单（修复 D2）
 
 ```
 GET /api/v1/bigtable/inventory/{connection_id}
@@ -488,9 +490,10 @@ GET /api/v1/bigtable/inventory/{connection_id}
 
 | | 变更前 | 变更后 |
 |---|---|---|
-| 不传 `inspection_date` | 返回该实例**所有历史日期**的记录，同一张表出现多行，清单虚高 | 返回**最近一次盘点**的记录 |
+| 不传 `inspection_date` | 返回该实例**所有历史日期**的记录，同一张表出现多行，清单虚高 | 返回**最近一次盘点**的记录；从未盘点返回空数组 |
 
 此为修正错误行为，升级后大表清单数量可能较此前"减少"，属正确表现，需在升级说明与用户培训中说明。
+连带收益：`GET /bigtable/report/{connection_id}`（治理报告）内部复用同一查询，口径同步修正。
 
 ---
 
@@ -541,4 +544,7 @@ curl -s -H "Authorization: Bearer $TOKEN" \
 | 9 | `include_details=false` | 仅返回 summary，无明细数组 |
 | 10 | 无模块权限用户调用 | 403 `E4031` |
 | 11 | HTML 报告离线打开 | 样式完整，无外部资源请求 |
-| 12 | 既有接口不传新参数 | 行为与 V1.2.0.7 一致（§4.4 除外） |
+| 12 | 既有接口不传新参数 | 行为与 V1.2.0.9 一致（§4.4 除外） |
+| 13 | D1：审核后最新 `audit_history` 行带实例信息 | `connection_id`/`db_name` 值正确 |
+| 14 | D2：`inspection_date` 传历史日期 | 返回该批次数据 |
+| 15 | D4：`connection_id` 筛选扫描任务 | 只返回该实例任务 |

@@ -3,7 +3,7 @@
 | 项 | 内容 |
 |---|---|
 | 目标版本 | V1.3.0.0 |
-| 基线版本 | V1.2.0.7 |
+| 基线版本 | **V1.2.0.9**（main @ `a700de5`，2026-07-26 逐项复核，文中行号均以此为准） |
 | 配套文档 | 《需求分析与概要设计》《接口说明书》 |
 | 定位 | **照图施工级**：明确到文件、函数、字段、算法、SQL 与前端代码结构 |
 | 编制 | 智能体 A |
@@ -14,7 +14,7 @@
 
 | 约定 | 说明 |
 |---|---|
-| SQL 占位符 | 统一用 `?`。`backend/services/database.py::_MySQLCompatCursor.execute()` 会自动把独立的 `?` 转成 MySQL 的 `%s`，**不要手写 `%s`** |
+| SQL 占位符 | 统一用 `?`。`backend/services/database.py::_MySQLCompatCursor.execute()`（:54）会自动把独立的 `?` 转成 MySQL 的 `%s`，**不要手写 `%s`** |
 | 取连接 | `from backend.services.database import _get_connection, ensure_db`；`conn = _get_connection()`，务必 `try/finally: conn.close()`（close 是归还连接池） |
 | 查询返回 | `fetchone()/fetchall()` 返回 dict-like，可直接 `dict(row)` |
 | 时间格式 | 存 `DATETIME`，Python 侧统一 `datetime.now().isoformat()`，前端用既有 `formatTime()` |
@@ -41,20 +41,22 @@
 | `backend/api/scan_compare.py` | 统一 API | ~230 |
 | `tests/test_scan_compare.py` | 单测 | ~200 |
 
-### 2.2 改造文件
+### 2.2 改造文件（行号为 V1.2.0.9 现状）
 
 | 文件 | 改造点 | 章节 |
 |---|---|---|
-| `backend/services/audit_service.py` | `_save_audit_history()` 增加 `connection_id`/`db_name` 参数 | §11.1 |
-| `backend/api/sql_audit.py` | extract-and-audit 传实例信息 + 挂快照；extracted-reports 加筛选 | §5.3.1 / §11.1 |
-| `backend/services/slow_query_service.py` | `get_scan_tasks()` 增加筛选参数 | §11.3 |
+| `backend/services/database.py` | `audit_history` 补 `db_name` 列 + 组合索引；新增 `_add_index_if_not_exists` 辅助函数 | §11.1 |
+| `backend/services/audit_service.py` | `_save_audit_history()`（:28）增加 `connection_id`/`db_name` 参数 | §11.1 |
+| `backend/api/sql_audit.py` | `extract_and_audit`（:141）传实例信息 + 挂快照；`get_extracted_reports`（:267）加筛选 | §11.1 / §5.3.1 |
+| `backend/services/slow_query_service.py` | `get_scan_tasks()`（:431）增加筛选参数 | §11.3 |
+| `backend/api/slow_query.py` | `list_scan_tasks`（:127）透传筛选参数 | §11.3 |
 | `backend/services/scan_service.py` | `run_scan()` 末尾挂快照生成 | §5.3.2 |
-| `backend/services/bigtable_service.py` | `save_inventory()` 挂快照；`get_inventory()` 修复日期过滤 | §5.3.3 / §11.2 |
-| `backend/api/bigtable.py` | inventory 接口加 `inspection_date` 参数 | §11.2 |
-| `backend/services/retention_service.py` | `CLEANABLE_TABLES` 增加两表 | §4.4 |
-| `backend/services/auth_service.py` | `ALL_MENU_KEYS`/`MENU_LABELS`/`_PATH_TO_MENU` 增加 `scan-compare` | §8.2 |
+| `backend/services/bigtable_service.py` | `get_inventory()`（:46）补日期过滤；`save_inventory()`（:22）挂快照 | §11.2 / §5.3.3 |
+| `backend/api/bigtable.py` | `get_inventory`（:14）加 `inspection_date` 参数 | §11.2 |
+| `backend/services/retention_service.py` | `CLEANABLE_TABLES`（:19）增加两表 | §4.4 |
+| `backend/services/auth_service.py` | `ALL_MENU_KEYS`（:331）/`MENU_LABELS`（:344）/`_PATH_TO_MENU`（:230）增加 `scan-compare` | §8.2 |
 | `backend/main.py` | 注册 `scan_compare` 路由 | §8.1 |
-| `frontend/index.html` | 三模块扫描历史区 + 对比结果视图 | §9 |
+| `frontend/index.html` | 三模块扫描历史区 + 对比结果视图（三模块块位于 :297 / :412 / :712） | §9 |
 | `frontend/static/js/app.js` | 对比相关状态与方法 | §9 |
 
 ---
@@ -271,7 +273,7 @@ CREATE TABLE IF NOT EXISTS scan_compare_reports (
 
 ### 4.4 数据保留策略
 
-`backend/services/retention_service.py` 的 `CLEANABLE_TABLES` 增加：
+`backend/services/retention_service.py` 的 `CLEANABLE_TABLES`（:19）增加：
 
 ```python
 CLEANABLE_TABLES = {
@@ -281,7 +283,8 @@ CLEANABLE_TABLES = {
 }
 ```
 
-并在 `database.py` 默认策略初始化处插入默认值：`scan_snapshots = 365 天`、`scan_compare_reports = 365 天`
+并在 `database.py` 默认策略初始化处（`INSERT IGNORE INTO retention_policies` 附近，约 :1358）插入默认值：
+`scan_snapshots = 365 天`、`scan_compare_reports = 365 天`
 （对比是长周期行为，需长于慢SQL默认策略；下限 7 天由既有 `set_policy` 校验保证）。
 
 ---
@@ -414,26 +417,32 @@ def extract(results, db_name: str) -> tuple[list[IssueItem], int]:
     return items, len(objects)
 ```
 
-**挂载点**：`backend/api/sql_audit.py` 的 `extract-and-audit`，在 `_save_audit_history(...)` 取得 `report_id` 之后：
+**挂载点**：`backend/api/sql_audit.py::extract_and_audit`（现签名
+`async def extract_and_audit(http_request: Request, payload: dict)`，:141），
+在 `_save_audit_history(...)` 取得 `report_id` 之后（现 :246 附近）追加。
+端点内**现成可用**的上下文变量：`connection_id = payload.get("connection_id")`（:145）、
+`conn_info = registry.get_saved(connection_id) or {}`（:151，含 `name` 字段）、`target_db`（:160）、`filename`（:234）：
 
 ```python
 # —— 旁路：生成对比快照（失败不影响审核主流程）——
+snapshot_id = None
 try:
     from backend.services.snapshot_extractors.schema_audit import extract as _extract
     from backend.services import scan_snapshot_service as _snap
     _items, _obj_total = _extract(results, target_db)
-    _snap.safe_create_snapshot("schema_audit", {
+    snapshot_id = _snap.safe_create_snapshot("schema_audit", {
         "biz_ref_id": str(report_id),
-        "connection_id": body.connection_id,
-        "connection_name": _conn_name,          # 由 registry/连接表取得
+        "connection_id": connection_id,
+        "connection_name": conn_info.get("name", ""),
         "db_name": target_db,
         "scan_label": filename,
-        "scan_started_at": _started_at,
+        "scan_started_at": _started_at,          # 端点入口处记录 datetime.now().isoformat()
         "scan_finished_at": datetime.now().isoformat(),
         "created_by": _operator(http_request),
     }, _items, _obj_total)
 except Exception as e:
     logger.warning(f"生成元数据审核快照失败: {e}")
+# 响应体中增加 "snapshot_id": snapshot_id
 ```
 
 #### 5.3.2 慢SQL扫描 `snapshot_extractors/slow_scan.py`
@@ -529,7 +538,7 @@ def extract(connection_id: str, inspection_date: str) -> tuple[list[IssueItem], 
     return items, len(rows)
 ```
 
-**挂载点**：`bigtable_service.save_inventory()` 在 `conn.commit()` 之后，以当次 `inspection_date` 调用抽取并生成快照；
+**挂载点**：`bigtable_service.save_inventory()`（:22）在 `conn.commit()`（:41）之后，以当次 `inspection_date` 调用抽取并生成快照；
 `biz_ref_id` 取 `f"{connection_id}:{inspection_date}:{时:分:秒}"`，使同日多次盘点各成一份快照（解决概要设计 D3）。
 
 ---
@@ -646,9 +655,9 @@ def compare(s_base: dict, s_target: dict) -> dict:
 
 - **纯静态自包含**：内联 CSS，**不引用任何外部资源**（与平台内网部署一致，且保证离线可打开、可邮件转发）
 - **打印友好**：`@media print` 去背景色、表格 `page-break-inside: avoid`
-- **明细行数保护**：单类明细超过 500 行时只渲染前 500 行并注明"其余 N 条请在页面查看/导出"，避免生成超大 HTML
+- **明细行数保护**：单类明细超过 500 行时只渲染前 500 行并注明"其余 N 条请在页面查看/导出"，避免生成超大 HTML（1.2.0.8 巡检对比补分页的教训，首版即内置）
 - **XSS 防护**：所有来自 DDL/SQL/消息的文本必须 `html.escape()` 后再拼接（**当前 `sql_audit.py` 的 HTML 报告存在未转义拼接，建议本次一并修正**）
-- 复用 `daily_inspect_service.generate_comparison_html_report()` 的视觉风格，保持平台内报告观感统一
+- 复用 `daily_inspect_service.generate_comparison_html_report()`（:811）的视觉风格，保持平台内报告观感统一
 
 ---
 
@@ -667,12 +676,12 @@ app.include_router(scan_compare.router)
 
 ### 8.2 权限接入
 
-`backend/services/auth_service.py` 三处修改：
+`backend/services/auth_service.py` 三处修改（行号为 1.2.0.9）：
 
 ```python
-ALL_MENU_KEYS = [..., 'scan-compare']
-MENU_LABELS   = {..., 'scan-compare': '扫描结果对比'}
-_PATH_TO_MENU = {..., "/api/v1/scan-compare": "scan-compare"}
+ALL_MENU_KEYS = [..., 'scan-compare']            # :331
+MENU_LABELS   = {..., 'scan-compare': '扫描结果对比'}   # :344
+_PATH_TO_MENU = {..., "/api/v1/scan-compare": "scan-compare"}  # :230
 ```
 
 **二次越权校验（重要）**：仅有 `scan-compare` 权限不足以查看任意模块数据。
@@ -847,13 +856,13 @@ const exportCompareHtml = () => {
 </div>
 ```
 
-### 9.4 挂载位置
+### 9.4 挂载位置（行号为 1.2.0.9 现状）
 
 | 模块 | 位置 |
 |---|---|
-| 在线元数据审核 | `currentPage==='schema-extractor-audit'` 的 `el-tabs` 内**新增第三个 tab「扫描对比」** |
-| 慢SQL扫描任务 | `currentPage==='slow-tasks'` 现有任务列表卡片**下方追加** |
-| 大表治理 | `currentPage==='bigtable'` 页面**下方追加** |
+| 在线元数据审核 | `currentPage==='schema-extractor-audit'`（index.html:297）的 `el-tabs` 内**新增第三个 tab「扫描对比」** |
+| 慢SQL扫描任务 | `currentPage==='slow-tasks'`（index.html:412）现有任务列表卡片**下方追加** |
+| 大表治理 | `currentPage==='bigtable'`（index.html:712）页面**下方追加** |
 
 进入对应页/tab 时在 `watch(currentPage)` 中调用 `loadSnapshots(<module>)`（与既有 `loadRules`/`loadScanTasks` 同风格）。
 
@@ -877,49 +886,242 @@ const exportCompareHtml = () => {
 
 ---
 
-## 11. 既有缺陷修复（详细）
+## 11. 既有缺陷修复施工方案（D1 / D2 / D4）
 
-### 11.1 D1：元数据审核未落实例信息（P0，阻断需求）
+> 本章为三个既有缺陷的**照图施工**修复设计：给出现状代码、修改后代码、迁移与兼容性说明。
+> 三处修复均可独立提交、独立验证，建议在快照功能（S2）之前先行落地（S3 排期见概要设计 §10）。
 
-**改 `audit_service._save_audit_history()` 签名**（新增参数带默认值，向后兼容）：
+### 11.1 D1：元数据审核未落实例信息（P0，阻断"按实例筛选"）
+
+**现状（V1.2.0.9）**
+- `audit_history` 表：有 `connection_id` 列（`database.py:549` 迁移补列）但**从未被写入**；**无 `db_name` 列**。
+- `audit_service.py:28 _save_audit_history()` 签名无实例参数：
 
 ```python
-def _save_audit_history(audit_type, source, results, summary, created_by="",
-                        project_id="", gate_result=None,
-                        connection_id="", db_name=""):          # ← 新增
+# 现状 backend/services/audit_service.py:28
+def _save_audit_history(audit_type: str, source: str, results: list[AuditResult],
+                        summary: AuditSummary, created_by: str = "",
+                        project_id: str = "",
+                        gate_result: Optional[GateResult] = None):
 ```
 
-INSERT 语句增加 `connection_id, db_name` 两列与对应值。
+- `api/sql_audit.py:246` 调用处未传实例信息，而端点内**实例信息现成可得**：
+  `connection_id = payload.get("connection_id")`（:145）、`target_db`（:160）。
 
-**DDL 变更**：`audit_history` 已有 `connection_id`，但**无 `db_name`**，需在 `database.py` 的迁移区
-用既有 `_add_column_if_not_exists(conn, "audit_history", "db_name", "VARCHAR(128) DEFAULT ''")` 补列，
-并追加索引 `idx_audit_conn (connection_id, created_at)`。
+**修复步骤**
 
-`sql_audit.py::extract-and-audit` 调用处传入 `connection_id=body.connection_id, db_name=target_db`。
+**① `database.py` — 补列与索引**
+
+在既有 `if "audit_history" in table_names:` 迁移块（:547-556）内追加一行：
+
+```python
+        _add_column_if_not_exists(conn, "audit_history", "db_name", "VARCHAR(128) DEFAULT ''")
+```
+
+新增索引辅助函数（放在 `_add_column_if_not_exists`（:559）旁，同风格）：
+
+```python
+def _add_index_if_not_exists(conn, table: str, index: str, definition: str):
+    """幂等加索引：先查 information_schema.STATISTICS，存在即跳过"""
+    row = conn.execute("""
+        SELECT COUNT(*) AS cnt FROM information_schema.STATISTICS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ?
+    """, (table, index)).fetchone()
+    if not (row and row["cnt"]):
+        conn.execute(f"ALTER TABLE {table} ADD INDEX {index} {definition}")
+```
+
+并在同一迁移块调用：
+
+```python
+        _add_index_if_not_exists(conn, "audit_history", "idx_audit_conn", "(connection_id, created_at)")
+```
+
+**② `audit_service.py` — 扩展 `_save_audit_history`**（新增参数带默认值，其余 4 处既有调用不受影响）：
+
+```python
+# 修改后
+def _save_audit_history(audit_type: str, source: str, results: list[AuditResult],
+                        summary: AuditSummary, created_by: str = "",
+                        project_id: str = "",
+                        gate_result: Optional[GateResult] = None,
+                        connection_id: str = "", db_name: str = ""):   # ← 新增
+    ...
+    cursor.execute("""
+        INSERT INTO audit_history (audit_type, source, total_sql, passed, failed,
+            error_count, warning_count, pass_rate, results_json,
+            created_by, project_id, gate_passed, gate_detail, created_at,
+            connection_id, db_name)                                    -- ← 新增两列
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, ( ...原有值..., connection_id, db_name))
+```
+
+**③ `api/sql_audit.py:246` — 调用处传值**：
+
+```python
+        report_id = _save_audit_history(
+            audit_type="extracted_schema",
+            source=filename,
+            results=results,
+            summary=summary,
+            created_by=_operator(http_request),
+            connection_id=connection_id,      # ← 新增（:145 已有该变量）
+            db_name=target_db,                # ← 新增（:160 已有该变量）
+        )
+```
+
+**④ `api/sql_audit.py:267 get_extracted_reports` — 列表查询加筛选与实例名回显**：
+
+```python
+@router.get("/extracted-reports", summary="在线元数据审核历史记录列表")
+async def get_extracted_reports(limit: int = 20, offset: int = 0,
+                                connection_id: str = "", db_name: str = "",
+                                date_from: str = "", date_to: str = ""):
+    ...
+    where = ["h.audit_type = ?"]; args = ["extracted_schema"]
+    if connection_id == "__unknown__":
+        where.append("(h.connection_id IS NULL OR h.connection_id = '')")
+    elif connection_id:
+        where.append("h.connection_id = ?"); args.append(connection_id)
+    if db_name:
+        where.append("h.db_name = ?"); args.append(db_name)
+    if date_from:
+        where.append("DATE(h.created_at) >= ?"); args.append(date_from)
+    if date_to:
+        where.append("DATE(h.created_at) <= ?"); args.append(date_to)
+
+    rows = conn.execute(f"""
+        SELECT h.id, h.audit_type, h.source, h.total_sql, h.passed, h.failed,
+               h.error_count, h.warning_count, h.pass_rate, h.created_by, h.created_at,
+               h.connection_id, h.db_name, COALESCE(c.name, '') AS connection_name
+        FROM audit_history h
+        LEFT JOIN tdsql_connections c ON c.id = h.connection_id
+        WHERE {' AND '.join(where)}
+        ORDER BY h.created_at DESC LIMIT ? OFFSET ?
+    """, (*args, limit, offset)).fetchall()
+    # COUNT 同 WHERE 条件；注意本查询不再返回 results_json（大字段，列表页不需要）
+```
+
+> `connection_name` 通过 `LEFT JOIN tdsql_connections` 实时解析（连接被删除时回落为空串），
+> `audit_history` 不冗余存名称，避免改名后陈旧。
+
+**兼容性**：新参数均有默认值；老前端不传参行为不变。响应新增 `connection_id`/`db_name`/`connection_name` 字段，不删除既有字段（`results_json` 从列表响应移除属优化，前端历史 tab 未使用该字段——施工时复核 `loadExtractedReports` 确认）。
+
+**验证**：跑一次在线元数据审核 → `SELECT connection_id, db_name FROM audit_history ORDER BY id DESC LIMIT 1` 应为实际值；按实例筛选列表应只返回该实例记录。
 
 ### 11.2 D2：大表清单跨日期混合返回（P0）
+
+**现状（V1.2.0.9）**：`bigtable_service.py:46`
+
+```python
+# 现状：无日期过滤 → 多次盘点后同一张表出现多行
+def get_inventory(self, connection_id: str, level: str = "") -> list[dict]:
+    ...
+    "SELECT * FROM bigtable_inventory WHERE connection_id = ? [AND level = ?] ORDER BY size_gb DESC"
+```
+
+**修复后**：
 
 ```python
 def get_inventory(self, connection_id: str, level: str = "",
                   inspection_date: str = "") -> list[dict]:
-    # inspection_date 为空时，自动取该实例最近一次盘点日期
-    #   SELECT MAX(inspection_date) FROM bigtable_inventory WHERE connection_id = ?
-    # 再以该日期过滤，避免返回跨日期重复表
+    """获取大表清单；inspection_date 为空时自动取该实例最近一次盘点日期"""
+    ensure_db()
+    conn = _get_connection()
+    try:
+        if not inspection_date:
+            row = conn.execute(
+                "SELECT MAX(inspection_date) AS d FROM bigtable_inventory WHERE connection_id = ?",
+                (connection_id,)).fetchone()
+            inspection_date = (row and row["d"]) or ""
+            if not inspection_date:
+                return []                      # 从未盘点
+        sql = "SELECT * FROM bigtable_inventory WHERE connection_id = ? AND inspection_date = ?"
+        args = [connection_id, inspection_date]
+        if level:
+            sql += " AND level = ?"; args.append(level)
+        sql += " ORDER BY size_gb DESC"
+        return [dict(r) for r in conn.execute(sql, args).fetchall()]
+    finally:
+        conn.close()
 ```
 
-`backend/api/bigtable.py` 的 `GET /inventory/{connection_id}` 增加可选 `inspection_date` 查询参数并透传。
-**兼容性**：不传参时行为从"返回所有日期"变为"返回最近一次盘点"——这是**修正错误行为**，前端展示更正确，需在升级说明中写明。
-
-### 11.3 D4：扫描任务列表缺筛选与实例名（P1）
+**API 层**（`api/bigtable.py:14`）：
 
 ```python
-def get_scan_tasks(self, limit=50, offset=0,
-                   connection_id="", db_name="",
-                   date_from="", date_to="") -> dict:
-    # 动态拼 WHERE（参数化，禁止字符串拼接值）
+@router.get("/inventory/{connection_id}", response_model=ApiResponse)
+def get_inventory(connection_id: str, level: str = "", inspection_date: str = ""):
+    items = _service.get_inventory(connection_id, level, inspection_date)
+    return ApiResponse(data=items)
 ```
 
-`scan_tasks` 已有 `connection_name` 字段，SELECT * 即可返回，前端表格新增"实例"列。
+**连带核查**：`get_governance_report()`（:70）内部调用 `get_inventory()`，修复后自动继承"最近一次盘点"语义——治理报告口径同步修正，属预期收益。
+
+**⚠️ 行为变更声明**：不传 `inspection_date` 时由"返回所有历史日期"变为"返回最近一次盘点"。这是**修正错误行为**——升级后大表清单数量可能较此前"减少"，属正确表现，需写入升级说明与用户培训材料。
+
+**验证**：对同一实例执行两次盘点（不同日期）→ 清单只显示最近一次；传 `inspection_date=首次日期` 可查看历史批次。
+
+### 11.3 D4：扫描任务列表无筛选、不回显实例名（P1）
+
+**现状（V1.2.0.9）**：`slow_query_service.py:431`
+
+```python
+# 现状：无任何筛选
+def get_scan_tasks(self, limit: int = 50, offset: int = 0) -> dict:
+    total = conn.execute("SELECT COUNT(*) as cnt FROM scan_tasks").fetchone()["cnt"]
+    rows = conn.execute(
+        """SELECT * FROM scan_tasks ORDER BY created_at DESC LIMIT ? OFFSET ?""",
+        (limit, offset)).fetchall()
+```
+
+**修复后**（动态 WHERE，**值全部参数化**，禁止字符串拼接值）：
+
+```python
+def get_scan_tasks(self, limit: int = 50, offset: int = 0,
+                   connection_id: str = "", db_name: str = "",
+                   date_from: str = "", date_to: str = "") -> dict:
+    """获取扫描任务列表，支持按实例/库/时间筛选"""
+    conn = _get_connection()
+    try:
+        where, args = [], []
+        if connection_id:
+            where.append("connection_id = ?"); args.append(connection_id)
+        if db_name:
+            where.append("db_name = ?"); args.append(db_name)
+        if date_from:
+            where.append("DATE(created_at) >= ?"); args.append(date_from)
+        if date_to:
+            where.append("DATE(created_at) <= ?"); args.append(date_to)
+        cond = (" WHERE " + " AND ".join(where)) if where else ""
+        total = conn.execute(f"SELECT COUNT(*) AS cnt FROM scan_tasks{cond}",
+                             args).fetchone()["cnt"]
+        rows = conn.execute(
+            f"SELECT * FROM scan_tasks{cond} ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            (*args, limit, offset)).fetchall()
+        return {"total": total, "tasks": [dict(r) for r in rows]}
+    finally:
+        conn.close()
+```
+
+**API 层**（`api/slow_query.py:127`）：
+
+```python
+@router.get("/scan-tasks", summary="获取扫描任务列表")
+def list_scan_tasks(limit: int = 50, offset: int = 0,
+                    connection_id: str = "", db_name: str = "",
+                    date_from: str = "", date_to: str = ""):
+    return service.get_scan_tasks(limit=limit, offset=offset,
+                                  connection_id=connection_id, db_name=db_name,
+                                  date_from=date_from, date_to=date_to)
+```
+
+**实例名回显**：`scan_tasks` 表**已有 `connection_name` 列**（建表即含，`database.py:1006`），
+`SELECT *` 已随行返回，此前只是前端未展示——前端任务表格新增"实例"列即可
+（`<el-table-column prop="connection_name" label="实例" show-overflow-tooltip>`）。
+
+**兼容性**：新参数均有默认值，返回结构不变（`tasks` 内多出的字段本就存在）。
+
+**验证**：多实例各建一个扫描任务 → 按实例筛选各自只见自己的任务；表格"实例"列正确显示。
 
 ---
 
@@ -959,6 +1161,9 @@ def get_scan_tasks(self, limit=50, offset=0,
 | T16 | 回填后立即比对 | 正常产出结果 |
 | T17 | 仅有 `scan-compare` 权限、无模块权限 | 403 `E4031` |
 | T18 | HTML 报告含恶意字符的对象名 | 正确转义，无 XSS |
+| T19 | **D1 修复**：extract-and-audit 后 `audit_history` 最新行带 `connection_id`/`db_name` | 值正确 |
+| T20 | **D2 修复**：两次不同日期盘点后 `get_inventory` 默认只返回最近一次 | 无跨日期重复表 |
+| T21 | **D4 修复**：按实例筛选扫描任务 | 只返回该实例任务且带 `connection_name` |
 
 ---
 
@@ -966,16 +1171,16 @@ def get_scan_tasks(self, limit=50, offset=0,
 
 **部署顺序**
 1. 备份元数据库
-2. 部署代码（迁移由 `ensure_db()` 启动时自动执行，`schema_migrations` 幂等保证）
-3. 验证 `scan_snapshots`、`scan_compare_reports` 已创建，`audit_history.db_name` 已补列
+2. 部署代码（迁移由 `ensure_db()` 启动时自动执行：新表走 `schema/v2` 迁移文件，`audit_history` 补列走 `_add_column_if_not_exists`，均幂等）
+3. 验证 `scan_snapshots`、`scan_compare_reports` 已创建，`audit_history.db_name` 列与 `idx_audit_conn` 索引已存在
 4. 调用 `POST /snapshots/rebuild` 分批回填三模块存量数据
 5. 前端强刷（静态文件由后端从磁盘实时读取，无需重启）
-6. 冒烟：各模块跑一次扫描 → 确认生成快照 → 选两次执行对比 → 导出报告
+6. 冒烟：各模块跑一次扫描 → 确认生成快照 → 选两次执行对比 → 导出报告；D1/D2/D4 按 §11 各自验证项复验
 
 **回滚**
-- 代码回滚至 V1.2.0.7 即可；新表与新列**保留不删**（不影响旧版本运行）
+- 代码回滚至 V1.2.0.9 即可；新表与新列**保留不删**（不影响旧版本运行）
 - 快照生成为旁路，回滚后三模块功能与现状完全一致
-- 已修复的 D2 行为变更如需回退，单独还原 `get_inventory()` 即可
+- D2 行为变更如需回退，单独还原 `get_inventory()` 即可
 
 ---
 
@@ -983,9 +1188,9 @@ def get_scan_tasks(self, limit=50, offset=0,
 
 | 模块 | 内容 | 人日 |
 |---|---|---|
-| 数据层 | DDL + 迁移 + 保留策略 + 补列 | 0.5 |
+| 数据层 | DDL + 迁移 + 保留策略 + 补列/索引辅助函数 | 0.5 |
 | 快照层 | service + base + 三抽取器 | 2.0 |
-| 缺陷修复 | D1/D2/D4 + 三处挂载 | 1.5 |
+| 缺陷修复 | D1/D2/D4（§11）+ 三处挂载 | 1.5 |
 | 比对层 | 校验 + 引擎 + CHANGED + 汇总 | 1.5 |
 | 报告层 | HTML 渲染 + 打印样式 + 转义 | 1.0 |
 | 接口层 | 6 个接口 + 权限二次校验 | 1.0 |
