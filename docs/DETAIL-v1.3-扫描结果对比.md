@@ -4,7 +4,8 @@
 > **基线版本**：V1.2.0.9（main @ `a700de5`，2026-07-26 逐项复核，文中行号均以此为准）
 > **配套文档**：《ARCHITECTURE-v1.3-扫描结果对比.md》 概要设计 / 《API-v1.3-扫描结果对比.md》 接口契约
 > **定位**：**照图施工级**：明确到文件、函数、字段、算法、SQL 与前端代码结构
-> **编制**：智能体 A（原始设计） / 智能体 G（D1/D2/D4 异常处置） / 智能体 M（Mavis 合并与补充）
+> **编制**：智能体 A（原始设计 + 定版） / 智能体 G（异常处置补充） / 智能体 M（合并与补充）
+> **状态**：**定版（Final）** — A 审核 G/M 修改后定稿，2026-07-26；取舍结论见《ARCHITECTURE》§14.2
 
 ---
 
@@ -36,8 +37,8 @@
 | `backend/services/snapshot_extractors/bigtable.py` | 大表抽取器 | ~110 |
 | `backend/services/scan_compare_service.py` | 比对引擎 + 汇总 | ~280 |
 | `backend/services/scan_compare_report.py` | 对比报告 HTML 渲染 | ~260 |
-| `backend/api/scan_compare.py` | 统一 API | ~230 |
-| `tests/test_scan_compare.py` | 单测 | ~200 |
+| `backend/api/scan_compare.py` | 统一 API（7 个端点 + 权限/admin 校验 + 审计封装） | ~280 |
+| `tests/test_scan_compare.py` | 单测（T01–T29） | ~260 |
 
 ### 2.2 改造文件（行号为 V1.2.0.9 现状）
 
@@ -89,11 +90,13 @@ class IssueItem:
   "module": "schema_audit",            // schema_audit | slow_scan | bigtable
   "fingerprint_algo": "v1",            // 指纹算法版本
   "truncated": false,                  // 问题项是否被截断（超限保护）
+  "truncated_count": 0,                // 被截掉的条数（M 补充 6；未截断时为 0）
   "meta": {
     "biz_ref_id": "1024",              // 源记录ID
     "connection_id": "conn-8f2a",
     "connection_name": "核心交易库-SIT",
     "db_name": "trade_core",
+    "node": "",                        // set 预留位：当前恒空串，未来按 set 直连审核时启用（§3.3.2）
     "scan_label": "extracted_trade_core_20260701_020000.sql",
     "scan_started_at": "2026-07-01T02:00:00",
     "scan_finished_at": "2026-07-01T02:03:11",
@@ -161,11 +164,14 @@ def _stable_text(msg: str) -> str:
 
 | 模块 | 指纹输入 | 说明 |
 |---|---|---|
-| `schema_audit` | `_fp(module, node, object_name, object_type, rule_id, disc)` | `node` 为 set 区分位（M 补充 1）；`disc` 为同对象同规则多次命中的区分位，取 `_fp(_stable_text(message))[:8]`；仍冲突时追加该对象内出现序号 |
-| `slow_scan` | `_fp(module, db_name, sha1(fingerprint))` | `fingerprint` 为平台既有 SQL 归一化指纹，天然跨扫描稳定 |
+| `schema_audit` | `_fp(module, node, object_name, object_type, rule_id, disc)` | `node` 为 **set 预留区分位，当前恒传空串 `""`**（见下方定版说明）；`disc` 为同对象同规则多次命中的区分位，取 `_fp(_stable_text(message))[:8]`；仍冲突时追加该对象内出现序号 |
+| `slow_scan` | `_fp(module, db_name, sha1(fingerprint))` | `fingerprint` 为平台既有 SQL 归一化指纹，天然跨扫描稳定；`set_id` 分布**不入指纹**、记入 `attrs.set_id` 供展示（见下方定版说明） |
 | `bigtable` | `_fp(module, schema_name, table_name, issue_type)` | 一张表可能命中多个问题类型，各自独立成项 |
 
-> **M 补充 1 [set 区分位]**: TDSQL 分布式架构下，同一 `db_name` 在不同 set（节点）有独立物理表。元数据问题必须**按 set 独立成项**，否则跨 set 的同问题会被误判。指纹中显式加入 `node` 字段（来自 `meta.node`）。
+> **M 补充 1 [set 区分位] — A 定版审定为"预留位"**（详细论证见《ARCHITECTURE》§3.1）：
+> ① F1 在线元数据审核经代理连接拉取逻辑 schema，`extract_and_audit` 端点内**不存在 set 变量**（V1.2.0.9 实测），当前拿不到也不需要 set 粒度；跨 set schema 漂移属"深度诊断-跨节点结构比对"既有职责。
+> ② `slow_queries.set_id`（`database.py:471`，VARCHAR(512)）存的是**多 SET 合并分布字符串**（如 `set_a(40),set_b(11)`），一行本为跨 set 聚合，放入指纹主键会错切同一问题。
+> **施工口径**：`node` 参数**保留在算法签名中、当前恒传 `""`**——空串参与哈希为常量，不影响指纹取值与稳定性；未来 F1 支持按 set 直连审核时，仅在挂载点传入真实 node 即可启用 set 粒度，**无需升级 `fingerprint_algo` 版本**。慢SQL 抽取器把 `set_id` 原样放入 `attrs`。
 
 #### 3.3.3 对象名解析（schema_audit 专用）
 
@@ -334,20 +340,26 @@ def create_snapshot(module, meta, issues, object_total=0, source_kind="live"):
     if module not in MODULES:
         raise ValueError(f"不支持的模块: {module}")
 
-    truncated = False
-    if len(issues) > SNAPSHOT_MAX_ISSUES:
-        order = {"ERROR": 0, "WARNING": 1, "INFO": 2}
-        issues = sorted(issues, key=lambda i: order.get(i.severity, 9))[:SNAPSHOT_MAX_ISSUES]
-        truncated = True
-
     # 1) 指纹去重（同 key 只保留一条，防止抽取器产生重复）
+    #    注意顺序：先去重再截断，否则重复项会挤占截断名额，导致 truncated_count 失真
     seen, uniq = set(), []
     for it in issues:
         if it.key in seen:
             continue
         seen.add(it.key); uniq.append(it)
 
-    # 2) 统计
+    # 2) 超限截断（M 补充 6：截断发生在写库前，按 ERROR > WARNING > INFO 保留）
+    truncated, truncated_count = False, 0
+    if len(uniq) > SNAPSHOT_MAX_ISSUES:
+        order = {"ERROR": 0, "WARNING": 1, "INFO": 2}
+        uniq.sort(key=lambda i: order.get(i.severity, 9))
+        truncated_count = len(uniq) - SNAPSHOT_MAX_ISSUES
+        uniq = uniq[:SNAPSHOT_MAX_ISSUES]
+        truncated = True
+        logger.warning("快照问题项超限：module=%s biz_ref_id=%s 截断 %d 条",
+                       module, meta.get("biz_ref_id"), truncated_count)
+
+    # 3) 统计
     by_sev, by_type = {}, {}
     for it in uniq:
         by_sev[it.severity] = by_sev.get(it.severity, 0) + 1
@@ -358,6 +370,7 @@ def create_snapshot(module, meta, issues, object_total=0, source_kind="live"):
         "module": module,
         "fingerprint_algo": FINGERPRINT_ALGO,
         "truncated": truncated,
+        "truncated_count": truncated_count,     # M 补充 6
         "meta": meta,
         "stats": {"object_total": object_total, "issue_total": len(uniq),
                   "by_severity": by_sev, "by_issue_type": by_type},
@@ -365,7 +378,7 @@ def create_snapshot(module, meta, issues, object_total=0, source_kind="live"):
     }
     blob = json.dumps(payload, ensure_ascii=False)
 
-    # 3) 幂等落库
+    # 4) 幂等落库
     conn = _get_connection()
     try:
         cur = conn.cursor()
@@ -399,7 +412,7 @@ def create_snapshot(module, meta, issues, object_total=0, source_kind="live"):
 
 #### 5.3.1 元数据审核 `snapshot_extractors/schema_audit.py`
 
-**输入**：`results: list[AuditResult]`（内存对象）、`db_name`、`node`（set 区分位）
+**输入**：`results: list[AuditResult]`（内存对象）、`db_name`、`node`（set 预留位，当前恒 `""`）
 **输出**：`list[IssueItem]`、`object_total`
 
 ```python
@@ -437,13 +450,14 @@ snapshot_id = None
 try:
     from backend.services.snapshot_extractors.schema_audit import extract as _extract
     from backend.services import scan_snapshot_service as _snap
-    _items, _obj_total = _extract(results, target_db, node=set_id)  # M 补充 1
+    _items, _obj_total = _extract(results, target_db, node="")  # node 预留位：F1 经代理审核逻辑 schema，
+    #   端点内无 set 变量（V1.2.0.9 实测），当前恒传空串；见 §3.3.2 定版说明
     snapshot_id = _snap.safe_create_snapshot("schema_audit", {
         "biz_ref_id": str(report_id),
         "connection_id": connection_id,
         "connection_name": conn_info.get("name", ""),
         "db_name": target_db,
-        "node": set_id,                                              # M 补充 1
+        "node": "",                                                  # 预留字段，与指纹 node 同步
         "scan_label": filename,
         "scan_started_at": _started_at,          # 端点入口处记录 datetime.now().isoformat()
         "scan_finished_at": datetime.now().isoformat(),
@@ -464,7 +478,7 @@ def extract(task_id: int, db_name_default: str = "") -> tuple[list[IssueItem], i
     conn = _get_connection()
     try:
         rows = conn.execute("""
-            SELECT fingerprint, db_name, avg_time_ms, max_time_ms, exec_count,
+            SELECT fingerprint, db_name, set_id, avg_time_ms, max_time_ms, exec_count,
                    severity, problem_type, suggestion, last_seen, involved_tables
             FROM slow_queries WHERE scan_task_id = ?
         """, (task_id,)).fetchall()
@@ -491,7 +505,8 @@ def extract(task_id: int, db_name_default: str = "") -> tuple[list[IssueItem], i
                    "max_time_ms": float(d.get("max_time_ms") or 0),
                    "exec_count": int(d.get("exec_count") or 0),
                    "severity": (d.get("severity") or "").upper(),
-                   "last_seen": d.get("last_seen") or ""}))
+                   "last_seen": d.get("last_seen") or "",
+                   "set_id": d.get("set_id") or ""}))   # set 分布仅展示，不入指纹（§3.3.2）
     return items, total
 ```
 
@@ -571,14 +586,30 @@ def extract(connection_id: str, inspection_date: str) -> tuple[list[IssueItem], 
 
 **基准判定**：`base, target = sorted([s1, s2], key=lambda s: s["scan_finished_at"])`，与用户勾选顺序无关。
 
-> **M 补充 3 [反向比对]**: 接受 `POST /compare {snapshot_ids: [a, b]}`，**不**接受 `base_snapshot_id` / `target_snapshot_id` 的指定——避免误导。若业务方需要反向查看，可调换 `snapshot_ids` 顺序重新调用，后端会重新按时间排序并告知真正的 base/target。
+> **M 补充 3 [反向比对] — 定版口径**: 只接受 `POST /compare {snapshot_ids: [a, b]}`（顺序无关），**不**接受 `base_snapshot_id` / `target_snapshot_id` 指定，恒按时间自动定基准并在响应中回告实际 base/target。"30号比1号新增了什么"看 NEW 栏、"改了多少"看 FIXED 栏——时间正序结果已同时回答两种汇报措辞，无需反向机制（论证见《ARCHITECTURE》§3.5）。
 
 ### 6.2 比对算法
 
 ```python
+def _safe_issues(snap: dict) -> tuple[list, bool]:
+    """取问题项数组；缺失/损坏/非列表时返回 ([], True) 触发降级（D1'）"""
+    try:
+        arr = snap.get("issues")
+        if not isinstance(arr, list):
+            return [], True
+        return [i for i in arr if isinstance(i, dict) and i.get("key")], False
+    except Exception:
+        return [], True
+
+
 def compare(s_base: dict, s_target: dict) -> dict:
-    b_issues = {i["key"]: i for i in s_base["issues"]}
-    t_issues = {i["key"]: i for i in s_target["issues"]}
+    # 【D1' 降级保护】任一快照明细缺失/损坏时，不抛异常，退化为全量差集并打标
+    b_arr, b_bad = _safe_issues(s_base)
+    t_arr, t_bad = _safe_issues(s_target)
+    degraded = b_bad or t_bad
+
+    b_issues = {i["key"]: i for i in b_arr}
+    t_issues = {i["key"]: i for i in t_arr}
     b_keys, t_keys = set(b_issues), set(t_issues)
 
     fixed_keys  = b_keys - t_keys          # 基准有、目标无
@@ -611,9 +642,10 @@ def compare(s_base: dict, s_target: dict) -> dict:
             "remain_count": len(remain), "changed_count": len(changed),
             "fix_rate": fix_rate,
             "delta": target_total - base_total,
+            "degraded": degraded,          # D1'：明细缺失导致的降级比对
             "by_severity": {
-                "base": s_base["stats"]["by_severity"],
-                "target": s_target["stats"]["by_severity"],
+                "base": (s_base.get("stats") or {}).get("by_severity", {}),
+                "target": (s_target.get("stats") or {}).get("by_severity", {}),
             },
         },
         "fixed": fixed, "new": new, "remain": remain, "changed": changed,
@@ -622,6 +654,13 @@ def compare(s_base: dict, s_target: dict) -> dict:
 ```
 
 **复杂度**：`O(n + m)`，n/m 为两份快照问题项数。千级规模实测目标 < 200ms。
+
+**`degraded` 与 `truncated` 的区别（施工时勿混用）**：
+
+| 标记 | 位置 | 含义 | 触发 | 前端呈现 |
+|---|---|---|---|---|
+| `summary.degraded` | 比对响应 | 快照明细**缺失/损坏**，结果由退化差集得出，不可信 | `snapshot_json` 无 `issues` 或非列表（D1'） | 黄色警示"该快照数据不完整，结果仅供参考" |
+| 快照 `truncated` / `truncated_count` | 快照本身 + `warnings[]` | 明细**完整但被截断**，结果对保留部分有效 | 问题项 > `SNAPSHOT_MAX_ISSUES` | 报告顶部红色 banner，注明截掉条数 |
 
 ### 6.3 CHANGED 判定规则（`detect_change`）
 
@@ -712,7 +751,85 @@ def _check_module_perm(request, module: str):
 
 > **M 补充 4 [报告留档权限]**: 报告留档（`scan_compare_reports` 表）的**删除操作仅 admin 拥有**；其他角色（dba / auditor）可创建、查看、下载。详见《API》§3.6。
 
-> **M 补充 5 [审计日志]**: 所有 `/api/v1/scan-compare/*` 接口调用必须调用既有 `log_operation()` 写入 `operation_logs`，记录 operator / operation_type（`compare_snapshot` / `view_compare` / `export_compare_html` / `save_compare_report` 等）/ target_id（snapshot_ids 或 report_id）。RBAC 审计合规要求。
+### 8.3 admin 独占操作与审计日志（M 补充 4/5 施工细节）
+
+**① admin 独占校验**（报告留档删除，领导决策 2026-07-26）
+
+`scan_compare.py` 内定义一个复用的角色校验，与既有 `_check_module_perm` 同风格：
+
+```python
+def _require_admin(request):
+    """仅 admin 可调用，否则 403 E4031。用于 DELETE /reports/{id}"""
+    user = get_current_user(request)                 # 沿用平台既有取用户方式
+    if (user or {}).get("role") != "admin":
+        raise HTTPException(status_code=403,
+                            detail={"detail": "仅系统管理员可删除对比报告留档",
+                                    "code": "E4031"})
+    return user
+```
+
+**② 删除留档接口实现**
+
+```python
+@router.delete("/reports/{report_id}", summary="删除对比报告留档（仅 admin）")
+def delete_compare_report(report_id: int, request: Request):
+    user = _require_admin(request)                   # ← 先鉴权
+    ensure_db()
+    conn = _get_connection()
+    try:
+        row = conn.execute(
+            "SELECT module, connection_id FROM scan_compare_reports WHERE id = ?",
+            (report_id,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404,
+                                detail={"detail": "报告留档不存在", "code": "E4004"})
+        _check_module_perm(request, dict(row)["module"])   # 仍需模块权限（双重校验）
+        conn.execute("DELETE FROM scan_compare_reports WHERE id = ?", (report_id,))
+        conn.commit()
+    finally:
+        conn.close()
+    _audit(request, "delete_compare_report", str(report_id), f"module={dict(row)['module']}")
+    return {"status": "SUCCESS", "id": report_id}
+```
+
+**③ 审计日志统一封装**（M 补充 5）
+
+复用既有 `log_operation(operator, operation_type, target_type="", target_id="", detail="", ip_address="", user_agent="")`
+（`backend/services/database.py:1489`，定版已核实存在）。在 `scan_compare.py` 顶部定义薄封装，各接口一行调用：
+
+```python
+from backend.services.database import log_operation
+
+def _audit(request, operation_type: str, target_id: str = "", detail: str = ""):
+    """写审计日志；失败仅告警，不得影响主流程"""
+    try:
+        log_operation(
+            operator=_operator(request),                     # 沿用各 api 模块既有取操作人方式
+            operation_type=operation_type,
+            target_type="scan_compare",
+            target_id=target_id,
+            detail=detail[:500],
+            ip_address=(request.client.host if request.client else ""),
+            user_agent=request.headers.get("user-agent", "")[:200],
+        )
+    except Exception as e:
+        logger.warning(f"审计日志写入失败: {e}")
+```
+
+**各接口落点与填值约定**（施工时逐个对照实现）：
+
+| 接口 | `operation_type` | `target_id` | `detail` |
+|---|---|---|---|
+| `GET /snapshots` | `view_snapshots` | `""` | `module=X;conn=Y;db=Z;range=A~B` |
+| `GET /snapshots/{id}` | `view_snapshot_detail` | `{id}` | `module=X` |
+| `POST /compare` | `compare_snapshot` | `"{base_id}vs{target_id}"` | `module=X;conn=Y;fixed=N;new=M` |
+| `GET /compare/html` | `export_compare_html` | `"{base_id}vs{target_id}"` | `module=X;conn=Y` |
+| `POST /reports` | `save_compare_report` | `{report_id}` | `module=X;title=...` |
+| `DELETE /reports/{id}` | `delete_compare_report` | `{report_id}` | `module=X` |
+| `POST /snapshots/rebuild` | `rebuild_snapshot` | `module` | `created=N;skipped=M;failed=K` |
+
+> 写入时机：**操作成功后**写（`POST /compare` 在拿到 summary 后写，便于审计追溯当次结论）；
+> 鉴权失败（403）不写业务审计，由既有中间件的访问日志覆盖。
 
 ---
 
@@ -1139,15 +1256,16 @@ def list_scan_tasks(limit: int = 50, offset: int = 0,
 
 **验证**：多实例各建一个扫描任务 → 按实例筛选各自只见自己的任务；表格"实例"列正确显示。
 
-### 11.4 异常处置预案（融合 G 的 D1/D2/D4 后续方案）
+### 11.4 比对期异常处置预案（融合 G 的补充）
 
-> 本节明确"快照比对过程中"遇到边缘情况时的处置策略，与 §11.1-11.3 的"数据修复"互补。
+> 本节明确"快照比对过程中"遇到边缘情况时的处置策略，与 §11.1-11.3 的"既有缺陷修复"互补。
+> **编号说明**：本节用 `D1'～D4'`（带撇），与 §2.2 / §11.1-11.3 中的既有缺陷 `D1/D2/D4` 是**两套不同编号**，勿混淆。
 
 | 异常 | 触发条件 | 处置 |
 |---|---|---|
 | **D1'**: 快照明细为空 | 某一快照的 `snapshot_json` 为空或损坏 | 比对引擎自动退化为全量差集（FIXED=base_total, NEW=target_total, REMAIN=0），响应中标记 `degraded: true`；前端显示黄色提示"该快照数据不完整，结果仅供参考" |
 | **D2'**: 实例已删除 | 快照对应的 `connection_id` 已在系统中被删除 | 保留历史快照在比对列表中的呈现，但标记 `(已归档实例)`，支持照常离线比对 |
-| **D3'**: 跨算法版本比对 | base 与 target 的 `fingerprint_algo` 不一致 | 拒绝比对，返回 400 提示"快照算法版本不一致，请联系管理员重新生成" |
+| **D3'**: 跨算法版本比对 | base 与 target 的 `fingerprint_algo` 不一致 | 拒绝比对，返回 409 `E4005` 提示"快照算法版本不一致，请联系管理员重新生成" |
 | **D4'**: 跨实例/跨模块比对 | base 与 target 的 `module` 或 `connection_id` 不一致 | 拒绝比对，返回 400 提示"只能比对同一模块同一实例的两次扫描" |
 
 ---
@@ -1191,10 +1309,14 @@ def list_scan_tasks(limit: int = 50, offset: int = 0,
 | T19 | **D1 修复**：extract-and-audit 后 `audit_history` 最新行带 `connection_id`/`db_name` | 值正确 |
 | T20 | **D2 修复**：两次不同日期盘点后 `get_inventory` 默认只返回最近一次 | 无跨日期重复表 |
 | T21 | **D4 修复**：按实例筛选扫描任务 | 只返回该实例任务且带 `connection_name` |
-| T22 | **M 补充：set 区分**：同 db 不同 set 各自独立成项 | 跨 set 不算同一问题 |
-| T23 | **M 补充：算法版本不匹配** | 400 `E4005` |
-| T24 | **M 补充：审计日志**：每次 compare 调用 operation_logs 有记录 | 必过 |
-| T25 | **M 补充：超限截断 banner** | 报告顶部有截断提示，truncated_count 正确 |
+| T22 | **M 补充（定版口径）：node 预留位**：指纹算法传 `node=""` 与省略 node 结果一致且稳定；快照 meta 含 `node` 字段；慢SQL 问题项 `attrs.set_id` 与源行一致 | 预留位不改变指纹、set 分布正确透传 |
+| T23 | **M 补充：算法版本不匹配** | 409 `E4005` |
+| T24 | **M 补充：审计日志**：compare / 导出 / 留档 / 删除 / 回填 各调用一次后，`operation_logs` 中 `target_type='scan_compare'` 记录数 +5，`operation_type` 与 §8.3 表一致 | 必过 |
+| T25 | **M 补充：超限截断**：构造 > `SNAPSHOT_MAX_ISSUES` 的问题项 | 快照 `truncated=true`、`truncated_count` = 实际截掉条数；保留项全为高优先级；报告顶部有红色 banner |
+| T26 | **D1' 降级比对**：将某快照 `snapshot_json` 的 `issues` 置空/损坏后比对 | 不抛异常；`summary.degraded=true`；FIXED=base_total、NEW=target_total、REMAIN=0 |
+| T27 | **M 补充 4：DELETE 鉴权**：admin 删除留档 / dba 删除留档 | admin 200 且记录消失；dba 403 `E4031` 且记录仍在 |
+| T28 | **截断与降级不混淆**：仅截断的快照比对 | `summary.degraded=false`，`warnings` 含截断提示 |
+| T29 | **去重先于截断**：构造大量重复 key 的问题项 | 去重后未超限则 `truncated=false`，`truncated_count=0` |
 
 ---
 

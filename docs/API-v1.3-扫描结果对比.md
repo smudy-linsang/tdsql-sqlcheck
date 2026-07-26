@@ -4,7 +4,8 @@
 > **基线版本**：V1.2.0.9（main @ `a700de5`，2026-07-26 逐项复核）
 > **统一前缀**：`/api/v1/scan-compare`
 > **配套文档**：《ARCHITECTURE-v1.3-扫描结果对比.md》 概要设计 / 《DETAIL-v1.3-扫描结果对比.md》 详细设计
-> **编制**：智能体 A（原始设计） / 智能体 M（Mavis 合并与补充）
+> **编制**：智能体 A（原始设计 + 定版） / 智能体 M（合并与补充）
+> **状态**：**定版（Final）** — A 审核 G/M 修改后定稿，2026-07-26；取舍结论见《ARCHITECTURE》§14.2
 
 ---
 
@@ -23,7 +24,7 @@ Authorization: Bearer <token>
 > **例外**：`GET /compare/html` 为浏览器直接打开的下载型接口，`window.open` 无法携带请求头，
 > 额外接受 `token` 查询参数（详见 §3.4）。该方式仅限此类导出接口，且服务端记录操作日志。
 
-> **M 补充 5 [审计日志]**: 所有 `/api/v1/scan-compare/*` 接口调用必须调用既有 `log_operation()` 写入 `operation_logs`（M 补充 5），记录 operator / operation_type / target_id，便于 RBAC 审计追溯。
+> **M 补充 5 [审计日志]**: 所有 `/api/v1/scan-compare/*` 接口调用必须复用既有 `log_operation()`（`backend/services/database.py:1489`）写入 `operation_logs`，记录 operator / operation_type / target_id，便于 RBAC 审计追溯。`operation_type` 枚举与填值约定见《DETAIL》§8.2。
 
 ### 1.2 模块枚举 `module`
 
@@ -63,7 +64,7 @@ Authorization: Bearer <token>
 | `GET /compare/html` | ✅ | ✅ | ✅ | 按模块权限 |
 | `GET /reports` | ✅ | ✅ | ✅ | ❌ |
 | `POST /reports` | ✅ | ✅ | ✅ | ❌ |
-| **`DELETE /reports/{id}`** | ✅ | ❌ | ❌ | ❌ | ← M 补充 4：报告留档删除仅 admin |
+| **`DELETE /reports/{id}`**（报告留档删除仅 admin，领导决策 2026-07-26） | ✅ | ❌ | ❌ | ❌ |
 | `POST /snapshots/rebuild` | ✅ | ✅ | ❌ | ❌ |
 
 ---
@@ -239,6 +240,7 @@ POST /api/v1/scan-compare/compare
     "changed_count": 7,
     "fix_rate": 40.8,
     "delta": -126,
+    "degraded": false,
     "by_severity": {
       "base":   { "ERROR": 190, "WARNING": 222 },
       "target": { "ERROR": 118, "WARNING": 168 }
@@ -284,6 +286,7 @@ POST /api/v1/scan-compare/compare
 | `summary.new_count` | **有没有新增的问题** |
 | `summary.fix_rate` | 整改率 = 已修复 ÷ 之前总数 × 100 |
 | `summary.delta` | 净变化（负数为总量下降） |
+| `summary.degraded` | **降级标记**。`true` 表示任一快照明细缺失/损坏，结果由退化差集得出，**仅供参考**；前端须显著提示。与"快照被截断"是两回事——后者由 `warnings[]` 承载，结果对保留部分仍有效（对照见《DETAIL》§6.2） |
 
 **`labels` 按模块差异化**（前端与报告直接取用，勿硬编码）：
 
@@ -301,7 +304,7 @@ POST /api/v1/scan-compare/compare
 | `两次扫描的时间窗口长度差异较大（24.0h vs 1.0h），整改率仅供参考` | 慢SQL 两次窗口时长比 > 2 或 < 0.5 |
 | `基准快照问题项过多已被截断，对比结果可能不完整` | 快照 `truncated=true` |
 | `历史回填数据缺少实例信息，请确认对比对象一致` | 参与比对的快照 `source_kind=rebuild` 且 `connection_id` 为空 |
-| **M 补充**: `两份快照位于不同 set 节点，对比结果按 set 隔离` | 跨 set 比对（M 补充 1） |
+| **预留**: `两份快照的 node 不一致，对比结果按节点隔离` | 仅当未来启用 set 直连审核、两份快照 `meta.node` 均非空且不同时触发（当前 node 恒空，不会出现；见《DETAIL》§3.3.2） |
 
 **错误响应**
 
@@ -424,7 +427,30 @@ DELETE /api/v1/scan-compare/reports/{id} # 删除留档 (M 补充 4, 仅 admin)
 }
 ```
 
-**DELETE 请求**：`DELETE /api/v1/scan-compare/reports/{id}` — 仅 admin 可调用，其他角色 403。
+**DELETE 删除留档**
+
+```
+DELETE /api/v1/scan-compare/reports/{id}
+```
+
+| 项 | 说明 |
+|---|---|
+| 权限 | **仅 admin**（领导决策 2026-07-26）；dba / auditor / developer 一律 `403 E4031`。删除前另需通过该报告所属 `module` 的模块权限二次校验 |
+| 路径参数 | `id` — 报告留档 ID |
+| 成功响应 | `200`：`{"status": "SUCCESS", "id": 12}` |
+| 影响范围 | 仅删除 `scan_compare_reports` 一行留档；**不影响** `scan_snapshots` 快照本身，删除后仍可用原两个快照重新比对并再次留档 |
+| 审计 | 写入 `operation_logs`，`operation_type=delete_compare_report`（见《DETAIL》§8.3） |
+
+**错误响应**
+
+| HTTP | code | 场景 |
+|---|---|---|
+| 403 | `E4031` | 非 admin 调用 |
+| 404 | `E4004` | 留档不存在（或已被删除/清理） |
+
+```json
+{ "detail": "仅系统管理员可删除对比报告留档", "code": "E4031" }
+```
 
 ---
 
@@ -559,8 +585,8 @@ curl -X DELETE -H "Authorization: Bearer $TOKEN" \
 | 13 | D1：审核后最新 `audit_history` 行带实例信息 | `connection_id`/`db_name` 值正确 |
 | 14 | D2：`inspection_date` 传历史日期 | 返回该批次数据 |
 | 15 | D4：`connection_id` 筛选扫描任务 | 只返回该实例任务 |
-| 16 | **M 补充 1**：跨 set 指纹不冲突 | 同 db 不同 set 的同问题各自独立成项 |
-| 17 | **M 补充 2**：跨算法版本比对 | 400 `E4005` |
+| 16 | **M 补充 1（定版口径）**：node 预留位 | 快照 `meta.node` 存在且为 `""`；慢SQL 问题项 `attrs.set_id` 与源行一致 |
+| 17 | **M 补充 2**：跨算法版本比对 | 409 `E4005` |
 | 18 | **M 补充 4**：dba 删除留档 | 403 |
-| 19 | **M 补充 5**：operation_logs 记录 | 必有过审计记录 |
-| 20 | **M 补充 6**：超限截断响应 | `truncated_count` 字段存在，summary `degraded=true` 标记 |
+| 19 | **M 补充 5**：operation_logs 记录 | 每次 compare/导出/留档调用后必有审计记录 |
+| 20 | **M 补充 6**：超限截断响应 | 快照被截断时响应含 `truncated=true` 与 `truncated_count`；（注意与 `degraded` 区分：后者仅在快照损坏退化比对时出现，见《DETAIL》§11.4） |
