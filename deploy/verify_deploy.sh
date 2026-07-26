@@ -9,15 +9,16 @@ BASE="http://${HOST}:${PORT}"
 PASS=0; FAILC=0
 ok()  { echo "  [PASS] $*"; PASS=$((PASS+1)); }
 bad() { echo "  [FAIL] $*"; FAILC=$((FAILC+1)); }
-J() { python3 -c "import sys,json;d=json.load(sys.stdin);print($1)" 2>/dev/null; }
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+EXPECTED_VER="$(cat "${SCRIPT_DIR}/../VERSION" 2>/dev/null | tr -d '\r\n' || echo "1.2.0.8")"
 
-echo "════ 部署验证 v1.2.0.4 @ ${BASE} ════"
+echo "════ 部署验证 v${EXPECTED_VER} @ ${BASE} ════"
 echo ""
 
 ok "探针响应 $(curl -s -m 3 ${BASE}/health)"
 
 VER=$(curl -s -m 3 ${BASE}/health | grep -o '"version":"[^"]*"' | cut -d'"' -f4)
-[[ "$VER" == "1.2.0.4" ]] && ok "版本号 ${VER}" || bad "版本号异常: ${VER}(期望1.2.0.4)"
+[[ "$VER" == "$EXPECTED_VER" ]] && ok "版本号 ${VER}" || bad "版本号异常: ${VER}(期望 ${EXPECTED_VER})"
 
 # 2. 前端资产
 FRONT=$(curl -s -m ${TIMEOUT} "${BASE}/")
