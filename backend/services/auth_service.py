@@ -52,9 +52,49 @@ _USER_CACHE_TTL = 30.0
 # ── 登录失败的 IP 级滑动窗口限流 ──
 # 既有的账户锁定只保护"已存在且被反复尝试"的单个账号，攻击者对大量账号
 # 各试几次（锁定阈值之下）即可完成密码喷洒。此处按来源 IP 兜底。
-# 单进程内存实现：多副本部署时应换为 Redis 等共享计数器。
+#
+# 计数源为 operation_logs 中的 login_failed 记录（authenticate 本就会写，带 ip_address）：
+# 生产以 --workers 2 运行（deploy/tdsql-sqlcheck.service），若用进程内字典，
+# 两个 worker 各算各的，配 15 实际约等于 30，运维按配置值评估 NAT 出口误伤阈值会算错；
+# 走元数据库则天然跨 worker、跨副本一致，也不必额外引入 Redis。
+# 登录本就有 PBKDF2 24 万次迭代，一次带索引的 COUNT 查询在其面前可忽略。
+#
+# 内存字典仅作元数据库不可用时的降级兜底（限流属纵深防御，不应因此阻断登录）。
 _ip_fail: dict[str, list[float]] = {}
 _ip_fail_lock = threading.Lock()
+
+
+def _count_recent_failures(ip: str, window: float) -> Optional[int]:
+    """统计该 IP 在窗口内、且在最近一次成功登录之后的失败次数。
+
+    只数"上次成功之后"的失败，等价于成功即清零：
+    NAT 出口后面有正常用户在陆续登录成功，计数就不会持续累积，
+    避免早高峰把整个出口 IP 误封；而纯喷洒流量没有成功记录，照常触发限流。
+    元数据库不可用时返回 None，由调用方降级为进程内计数。
+    """
+    try:
+        ensure_db()
+        conn = _get_connection()
+        try:
+            row = conn.execute(
+                "SELECT COUNT(*) AS cnt FROM operation_logs "
+                "WHERE operation_type = 'login_failed' AND ip_address = ? "
+                "AND created_at >= DATE_SUB(NOW(), INTERVAL ? SECOND) "
+                "AND created_at > COALESCE(("
+                "    SELECT MAX(created_at) FROM operation_logs "
+                "    WHERE operation_type = 'login_success' AND ip_address = ? "
+                "    AND created_at >= DATE_SUB(NOW(), INTERVAL ? SECOND)"
+                "), '1970-01-01')",
+                (ip, int(window), ip, int(window))).fetchone()
+            return dict(row).get("cnt", 0) if row else 0
+        except Exception as e:
+            logger.warning(f"读取登录失败计数失败，降级为进程内计数: {e}")
+            return None
+        finally:
+            conn.close()
+    except Exception as e:
+        logger.warning(f"读取登录失败计数失败，降级为进程内计数: {e}")
+        return None
 
 
 def ip_rate_limited(ip: str) -> bool:
@@ -63,6 +103,11 @@ def ip_rate_limited(ip: str) -> bool:
     if not ip or limit <= 0:
         return False
     window = config.login_ip_fail_window()
+
+    shared = _count_recent_failures(ip, window)
+    if shared is not None:
+        return shared >= limit
+
     now = time.time()
     with _ip_fail_lock:
         hits = [t for t in _ip_fail.get(ip, []) if now - t < window]
@@ -71,7 +116,7 @@ def ip_rate_limited(ip: str) -> bool:
 
 
 def record_ip_failure(ip: str) -> None:
-    """记录一次来源 IP 的登录失败"""
+    """记录一次来源 IP 的登录失败（降级路径用；正常计数由 login_failed 审计日志承担）"""
     if not ip or config.login_ip_fail_limit() <= 0:
         return
     window = config.login_ip_fail_window()

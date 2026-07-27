@@ -1,12 +1,22 @@
 # 内网生产 TDSQL 集群 `checksql` 用户排查方案 v1.2
 
+> ⚠ **凭据处理约定（v1.3.3 起）**
+>
+> 本文档此前直接写入了 `checksql` 的明文口令，并随 `dbb0918`、`376f2e1` 两个提交
+> 进入 git 历史。现已从工作区清除，改为经环境变量 `CHECKSQL_PWD` 注入。
+>
+> **注意：清除文档不等于消除泄露。** 该口令已存在于历史提交中，凡是拉取过本仓库的
+> 人员/机器上的克隆里都还有，必须由 DBA **轮换该账号口令**才算真正处置完毕。
+> 后续任何文档、脚本、测试一律不得写入明文凭据，`tests/test_no_hardcoded_secrets.py`
+> 会拦截复发。
+
 | 项目 | 内容 |
 |---|---|
 | 任务来源 | DBA 已在生产 TDSQL 集群为所有需纳入《TDSQL 数据库 SQL 审核工具》的实例创建 `checksql` 管理用户，事后联系不上 |
 | 任务目标 | 在不依赖 DBA 的前提下，对**所有真实存在 `checksql` 用户的数据库实例**，采集完整接入元数据（proxy 地址/端口/实例名/业务描述/SET/DB 列表），用于后续接入审核工具 |
 | 适用环境 | TDSQL 分布式 MySQL（基于 TXSQL 内核，公网/内网 proxy + 内网 monitordb） |
 | 实验环境 | 云测试 cluster `tdsql_th16yls3c`（刘晴的集群），proxy `118.195.161.48`/`119.45.220.89:15001` |
-| checksql 凭据 | 用户已提供：`checksql` / `Abcd972&*(`（仅 set 端有效） |
+| checksql 凭据 | 账号 `checksql`，口令经环境变量 `CHECKSQL_PWD` 注入（仅 set 端有效）。**口令不入库、不写文档** |
 | 编写人 | Mavis（基于 2026-07-26 实验产出） |
 | **文档版本** | **v1.2（2026-07-26）** —— 重写为"采集维度"导向：列出每个有 checksql 实例的完整元数据 |
 
@@ -27,7 +37,7 @@
 |---|---|---|
 | **业务描述** | **TDSQL 平台层不维护** set 级别的业务名（"订单库/支付库"等是业务方自己定义）。`clientName` / `instance_name` 存的是 TDSQL 系统标签（"集中式实例/分布式实例"），不是用户业务名 | 文档中该字段给"平台可查 + 业务方补"双轨；fallback 到 cluster 业务名 |
 | **数据库名（DB 列表）** | monitordb 上的 `SHOW DATABASES` 只能看到 monitordb 自己的库，**看不到 set 上的业务库** | 必须 Track 2 直连 set 跑 `SHOW DATABASES` |
-| **checksql 凭据** | 用户已提供 `checksql` / `Abcd972&*(`，但**仅 set 端有效**（monitordb 自身的 mysql.user 里没这账号，验证过） | 文档已内置，Track 2 直连直接用 |
+| **checksql 凭据** | 账号 `checksql`，口令走环境变量 `CHECKSQL_PWD`，**仅 set 端有效**（monitordb 自身的 mysql.user 里没这账号，验证过） | 文档已内置，Track 2 直连直接用 |
 
 ### 0.3 输出维度（核心交付物）
 
@@ -109,7 +119,7 @@
 ### 2.1 步骤总览
 
 ```
-[Step 1] 拿 monitordb 连接 (用户已确认 118.195.161.48:15001, tdsql_check_user / Abcd@!#1234)
+[Step 1] 拿 monitordb 连接 (118.195.161.48:15001, tdsql_check_user / 口令见 MONITORDB_PWD 环境变量)
    ↓
 [Step 2] Track 1 — 从 monitordb 取所有候选 set/group 列表 (4 个数据源并集)
    ↓
@@ -201,7 +211,7 @@ import pymysql
 from pymysql.cursors import DictCursor
 
 CHECKSQL_USER = "checksql"
-CHECKSQL_PWD = "Abcd972&*("  # 用户已提供
+CHECKSQL_PWD = os.environ["CHECKSQL_PWD"]  # 口令从环境变量注入，禁止硬编码
 
 # 来自 Step 2-3 SQL 的输出
 CANDIDATE_SETS = [
@@ -259,7 +269,7 @@ def probe_set(master_node, set_id):
 ```
 
 **凭据处理细则**：
-- `checksql` / `Abcd972&*(` 已确认仅 set 端有效
+- `checksql`（口令见 `CHECKSQL_PWD` 环境变量）已确认仅 set 端有效
 - 如果直连时收到 `1045 Access denied`：
   - 先确认是连到了 set（不是 monitordb）
   - **不要重试**（MySQL `connection_control` 插件会封禁）
@@ -320,12 +330,12 @@ MONITOR = dict(
     host="118.195.161.48",       # monitordb proxy
     port=15001,
     user="tdsql_check_user",
-    password="Abcd@!#1234",      # monitordb 密码 (已知)
+    password=os.environ["MONITORDB_PWD"],   # monitordb 口令，从环境变量注入
     connect_timeout=5,
     charset="utf8mb4",
 )
 CHECKSQL_USER = "checksql"
-CHECKSQL_PWD = "Abcd972&*("     # set 端密码 (用户已提供, 2026-07-26)
+CHECKSQL_PWD = os.environ["CHECKSQL_PWD"]  # set 端口令，从环境变量注入
 OUTPUT_DIR = "./checksql_scan_result"
 CONNECT_TIMEOUT = 5             # 直连 set 超时 (秒)
 
@@ -565,7 +575,7 @@ if __name__ == "__main__":
 
 ### 4.1 凭据与封禁
 
-- `checksql` / `Abcd972&*(` 已确认仅 set 端有效（云测 monitordb 上验证过不通）
+- `checksql`（口令见 `CHECKSQL_PWD` 环境变量）已确认仅 set 端有效（云测 monitordb 上验证过不通）
 - **MySQL 5.7+ 的 `connection_control` 插件对同 IP 错密 3 次会递增延迟（最多 1 天）**
   - 脚本里**不要做错密重试**
   - 如果 Track 2 全军覆没（都是 1045），先**确认你连的是 set 不是 monitordb**，再**停下来问 ops**
@@ -707,4 +717,4 @@ WHERE f_key = 'setid' AND f_mid LIKE '10.%.%.%:%';
 
 ---
 
-> **文档版本**：v1.2（2026-07-26） · 凭据已确认 `checksql` / `Abcd972&*(` · 未经 DBA 复核仅供参考
+> **文档版本**：v1.2（2026-07-26） · 凭据账号 `checksql`，口令经 `CHECKSQL_PWD` 环境变量注入 · 未经 DBA 复核仅供参考
