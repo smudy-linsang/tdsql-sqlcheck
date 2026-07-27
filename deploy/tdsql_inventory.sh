@@ -95,7 +95,8 @@ trap 'rm -f "${_LOCK_FILE}" 2>/dev/null; exit' EXIT INT TERM
 
 DEFAULT_ZK_SERVER="127.0.0.1:2118"
 DEFAULT_ZK_AUTH_USER="tdsqlsys_zk"
-DEFAULT_ZK_AUTH_PASSWORD="gK#7S2sAnogZWopa3"
+# ZK 口令不得内置于脚本：由环境变量 ZK_AUTH_PASSWORD 注入，未设置则运行时报错退出
+DEFAULT_ZK_AUTH_PASSWORD="${ZK_AUTH_PASSWORD:-}"
 DEFAULT_ZK_ROOT="/tdsqlzk"
 DEFAULT_ZKCLI_PATH="/data/application/zookeeper/bin/zkCli.sh"
 
@@ -251,6 +252,14 @@ if [ -n "${ZK_AUTH_OVERRIDE}" ]; then
 else
     ZK_AUTH_USER="${ZK_AUTH_USER:-${ZK_FROM_CONF_AUTH_USER:-${DEFAULT_ZK_AUTH_USER}}}"
     ZK_AUTH_PASSWORD="${ZK_AUTH_PASSWORD:-${ZK_FROM_CONF_AUTH_PASSWORD:-${DEFAULT_ZK_AUTH_PASSWORD}}}"
+fi
+
+# 口令此前内置在脚本里（已随提交泄露，现已移除）。缺失时必须显式报错退出，
+# 否则会带着空口令去 addauth，表现为难以定位的 ZK 鉴权失败。
+if [ -z "${ZK_AUTH_PASSWORD}" ]; then
+    echo "[ERROR] 未提供 ZK 鉴权口令。请设置环境变量 ZK_AUTH_PASSWORD，" >&2
+    echo "        或用 --zk-auth <user>:<password> 传入；脚本不再内置默认口令。" >&2
+    exit 2
 fi
 
 ZK_ROOT="${ZK_ROOT_OVERRIDE:-${ZK_ROOT:-${ZK_FROM_CONF_ROOT:-${DEFAULT_ZK_ROOT}}}}"
