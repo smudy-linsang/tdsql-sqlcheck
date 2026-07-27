@@ -9,7 +9,7 @@
 #   ./deploy/make_release.sh --arch aarch64 --py 39   # 目标机使用 python3.9
 #   加 --with-python 会额外内置便携 CPython（目标机无 python3.9+ 时使用）
 # ============================================================================
-VERSION="1.3.0.0"
+VERSION="1.3.3.1"
 ARCH="x86_64"; PYTAG="311"; WITH_PYTHON="no"
 while [[ $# -gt 0 ]]; do case "$1" in
   --arch) ARCH="$2"; shift 2;;
