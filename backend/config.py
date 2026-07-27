@@ -106,9 +106,44 @@ def admin_initial_password() -> str:
     return os.getenv("ADMIN_INITIAL_PASSWORD", "")
 
 
+def login_ip_fail_limit() -> int:
+    """登录失败的 IP 级限流阈值（次/窗口）。置 0 关闭。
+
+    需可配置：银行内网大量用户共用少数 NAT 出口 IP，阈值定死会在早高峰
+    误伤正常登录；而互联网暴露侧则需要更严。默认 15 兼顾两端。
+    """
+    try:
+        return int(os.getenv("LOGIN_IP_FAIL_LIMIT", "15"))
+    except ValueError:
+        return 15
+
+
+def login_ip_fail_window() -> float:
+    """登录失败限流的滑动窗口（秒）"""
+    try:
+        return float(os.getenv("LOGIN_IP_FAIL_WINDOW", "60"))
+    except ValueError:
+        return 60.0
+
+
+def max_body_bytes() -> int:
+    """请求体大小上限（字节）。默认 8MB，置 0 表示不限制。
+
+    需容纳大 SQL 文件审核与元数据审核报文，故不宜过小。
+    """
+    try:
+        return int(os.getenv("MAX_BODY_BYTES", str(8 * 1024 * 1024)))
+    except ValueError:
+        return 8 * 1024 * 1024
+
+
 def docs_public() -> bool:
-    """API文档(/docs, /openapi.json)是否免认证开放。生产建议 false。"""
-    return _env_bool("DOCS_PUBLIC", "true")
+    """API文档(/docs, /openapi.json)是否免认证开放。
+
+    默认 false：默认值必须是安全的一侧。免认证开放 openapi.json 等于把全部
+    端点与出入参交给攻击者做攻击面测绘，仅调试环境可临时置 true。
+    """
+    return _env_bool("DOCS_PUBLIC", "false")
 
 
 def cors_allow_origins() -> list[str]:

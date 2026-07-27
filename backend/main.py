@@ -19,6 +19,7 @@ from typing import Optional
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -45,7 +46,8 @@ from backend.api.auth import router as auth_router
 from backend.api.rulesets import router as rulesets_router
 from backend.api.admin import router as admin_router
 from backend.api.scan_compare import router as scan_compare_router
-from backend.middleware import AuthMiddleware, RequestContextMiddleware
+from backend.middleware import (AuthMiddleware, BodySizeLimitMiddleware,
+                                RequestContextMiddleware)
 
 # G10-G13 新增路由
 from backend.api.zk_discovery import router as zk_discovery_router
@@ -123,6 +125,12 @@ app = FastAPI(
 # ── 中间件（注册顺序与执行顺序相反：请求先过RequestContext再过Auth） ──
 app.add_middleware(AuthMiddleware)
 app.add_middleware(RequestContextMiddleware)
+
+# 请求体大小上限：此前无限制，超大报文可直接打满内存
+app.add_middleware(BodySizeLimitMiddleware)
+
+# 响应压缩：首页与报告类响应均在 100KB 以上，内网带宽也不该白白浪费
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 
 # CORS 配置（V2.0: 默认同源不下发跨域头；跨域部署时配置 CORS_ALLOW_ORIGINS）
 _cors_origins = config.cors_allow_origins()

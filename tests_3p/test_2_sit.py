@@ -68,12 +68,26 @@ class TestB1AuthIntegration:
             assert "salt" not in u
 
     def test_sit05_logout_behavior(self, client, tokens):
-        """SIT-05 登出接口行为基线记录"""
-        tok = login(client, "t3p_auditor", ROLE_PASSWORD)
+        """SIT-05 登出接口行为基线记录
+
+        必须用一次性账号：登出已按 S02 整改为服务端真吊销（递增
+        users.token_version），若沿用共享的 t3p_auditor，会连带作废
+        session 级 tokens 夹具里缓存的 auditor 令牌，导致后续所有
+        auditor 用例拿到 401 而非预期的 403，产生大批假失败。
+        """
+        uname = rid("t3p_sit05_")
+        client.post("/api/v1/auth/users", headers=auth(tokens["admin"]),
+                    json={"username": uname, "password": "Sit05#Pass123",
+                          "role": "auditor"})
+        client.post(f"/api/v1/auth/users/{uname}/reset-password",
+                    headers=auth(tokens["admin"]),
+                    json={"new_password": "Sit05#Pass123"})
+        tok = login(client, uname, "Sit05#Pass123")
         r = client.post("/api/v1/auth/logout", headers=auth(tok))
         assert r.status_code in (200, 204, 404, 405)
         # 登出后令牌是否仍可用（行为记录，安全性在安全轮判定）
         r2 = client.get("/api/v1/auth/me", headers=auth(tok))
+        client.delete(f"/api/v1/auth/users/{uname}", headers=auth(tokens["admin"]))
         assert r2.status_code in (200, 401)
 
 
@@ -233,7 +247,6 @@ class TestB4InstanceScan:
         d = client.delete(f"/api/v1/tdsql/connections/{server_id}", headers=auth(tokens["dba"]))
         assert d.status_code in (200, 204)
 
-    @pytest.mark.xfail(reason="DEFECT-D01: 创建连接接口静默忽略传入id并自动生成随机id，客户端按原id无法管理（404）", strict=False)
     def test_sit20b_create_connection_id_semantics(self, client, tokens):
         """SIT-20b 【缺陷确认】创建连接接口静默忽略调用方传入的 id
 

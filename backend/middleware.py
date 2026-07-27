@@ -26,6 +26,55 @@ from backend.services.database import log_operation
 
 logger = logging.getLogger("tdsql.access")
 
+# index.html 首部内联主题脚本的 CSP 哈希。
+# 该脚本必须在渲染前同步执行（否则深/浅色主题切换会闪白），无法外置为文件，
+# 故以哈希放行而非 'unsafe-inline'——后者等于对全部内联脚本敞开。
+# 脚本内容一旦改动必须同步更新此哈希，tests/test_security_headers.py 会守住这一点。
+_INLINE_THEME_SCRIPT_HASH = "'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='"
+
+# 安全响应头基线。style-src 保留 'unsafe-inline'：Element Plus 运行期动态注入
+# 行内样式，且页面本身有大量 style= 属性，收紧会直接破坏界面。
+_SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+    "Content-Security-Policy": (
+        "default-src 'self'; "
+        # 'unsafe-eval' 是本架构的硬约束：前端为免构建的 Vue 全量版 + in-DOM 模板，
+        # 运行期模板编译走 new Function()，去掉它页面直接白屏（实测 #app 为空）。
+        # 要摘掉它必须先引入构建步骤把模板预编译，属架构级改动。
+        # 保留 CSP 仍有价值：外域脚本、点击劫持、表单劫持、base 注入均已被挡住。
+        f"script-src 'self' 'unsafe-eval' {_INLINE_THEME_SCRIPT_HASH}; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data: blob:; "
+        "font-src 'self' data:; "
+        "connect-src 'self'; "
+        "frame-ancestors 'none'; "
+        "base-uri 'self'; "
+        "form-action 'self'"
+    ),
+}
+
+
+class BodySizeLimitMiddleware(BaseHTTPMiddleware):
+    """限制请求体大小，超限返回 413。
+
+    此前无任何限制，单个超大报文即可把内存打满。上限取 config.max_body_bytes()，
+    默认 8MB——需容纳大 SQL 文件与元数据审核报文，故不宜过小。
+    文件上传走 UploadFile 流式读取，同样受此限制保护。
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        limit = config.max_body_bytes()
+        if limit > 0:
+            declared = request.headers.get("content-length")
+            if declared and declared.isdigit() and int(declared) > limit:
+                return JSONResponse(
+                    status_code=413,
+                    content={"code": 413,
+                             "message": f"请求体过大，上限 {limit // 1024 // 1024}MB"})
+        return await call_next(request)
+
 
 class RequestContextMiddleware(BaseHTTPMiddleware):
     """请求上下文：X-Request-ID、访问日志、指标"""
@@ -44,6 +93,8 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
             raise
         duration = time.time() - start
         response.headers["X-Request-ID"] = request_id
+        for k, v in _SECURITY_HEADERS.items():
+            response.headers.setdefault(k, v)
         if config.metrics_enabled():
             metrics_service.observe_request(
                 request.method, request.url.path, response.status_code, duration)
@@ -57,6 +108,30 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
 
 
 _BACKGROUND_TASKS = set()
+
+# ── 允许经 URL 查询参数携带令牌的端点白名单 ──
+# URL 中的 token 会被 Nginx/网关 access_log、浏览器历史明文留存，属凭证泄露面，
+# 因此默认只认 Authorization 头。但下载/导出类端点由 window.open 触发，
+# 浏览器无法为其附加请求头，只能走 URL 传参。故收敛为白名单：
+# 既堵住 /dashboard/summary?access_token=... 这类通用接口的滥用，
+# 又不破坏既有导出功能。
+# 后续应改为一次性下载 ticket（POST 签发、60s 有效、用后即焚），彻底消除 URL 明文令牌。
+_QUERY_TOKEN_PATHS = frozenset({
+    "/api/v1/ppt-report/generate",
+    "/api/v1/daily-inspect/compare/html",
+    "/api/v1/toolkit/download",
+    "/api/v1/scan-compare/compare/html",
+})
+_QUERY_TOKEN_SUFFIXES = ("/html", "/sql", "/export")
+_QUERY_TOKEN_PREFIXES = ("/api/v1/audit/", "/api/v1/slow-queries/")
+
+
+def _allows_query_token(path: str) -> bool:
+    """该路径是否允许用 ?access_token= 携带令牌（仅下载/导出类）"""
+    if path in _QUERY_TOKEN_PATHS:
+        return True
+    return (path.startswith(_QUERY_TOKEN_PREFIXES)
+            and path.endswith(_QUERY_TOKEN_SUFFIXES))
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
@@ -80,7 +155,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         token = ""
         if auth_header.startswith("Bearer "):
             token = auth_header[7:].strip()
-        if not token:
+        if not token and _allows_query_token(path):
             token = request.query_params.get("access_token") or request.query_params.get("token") or ""
 
         payload = verify_token(token)
@@ -95,6 +170,14 @@ class AuthMiddleware(BaseHTTPMiddleware):
             return JSONResponse(
                 status_code=401,
                 content={"code": 401, "message": "账户不存在或已禁用"})
+
+        # 会话吊销校验：令牌载荷 tv 与 users.token_version 不符即已失效。
+        # 放在此处而非 verify_token 内，是因为 user 已在上一步取到（带短TTL缓存），
+        # 避免为每个请求额外增加一次元数据库查询。
+        if int(payload.get("tv", 0)) != int(user.get("token_version", 0) or 0):
+            return JSONResponse(
+                status_code=401,
+                content={"code": 401, "message": "会话已失效，请重新登录"})
 
         role = user.get("role", "developer")
         request.state.username = username

@@ -5,7 +5,7 @@ TDSQL SQL审核工具 - 慢SQL API
 """
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from backend.engine.slow_analyzer import SlowQueryRecord
@@ -96,8 +96,8 @@ def list_slow_queries(
     keyword: Optional[str] = None,
     created_by: Optional[str] = None,
     task_name: Optional[str] = None,
-    limit: int = 20,
-    offset: int = 0,
+    limit: int = Query(20, ge=1, le=200),
+    offset: int = Query(0, ge=0),
 ):
     """
     获取慢SQL列表，支持按数据库名、SET、状态、严重程度、扫描任务、关键词、操作者、任务名筛选。
@@ -125,7 +125,7 @@ def get_statistics():
 
 
 @router.get("/scan-tasks", summary="获取扫描任务列表")
-def list_scan_tasks(limit: int = 50, offset: int = 0,
+def list_scan_tasks(limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0),
                     connection_id: str = "", db_name: str = "",
                     date_from: str = "", date_to: str = ""):
     """获取慢SQL扫描任务列表（V1.3(D4): 支持按实例/库名/时间范围筛选）"""

@@ -15,10 +15,11 @@ TDSQL SQL审核工具 - 认证与用户管理 API (V2.0)
 """
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from backend.services import metrics_service
+from backend.services import auth_service as auth_service_mod
 from backend.services.auth_service import (
     ROLES, auth_service, issue_token,
     get_all_roles, get_role_ids, create_custom_role, update_role, delete_role,
@@ -75,12 +76,19 @@ def _operator(request: Request) -> str:
 def login(body: LoginRequest, request: Request):
     """登录成功返回访问令牌。请求头 Authorization: Bearer <token> 携带。"""
     client_ip = request.client.host if request.client else ""
+    # IP 级限流兜底：账户锁定只护住单个已存在账号，挡不住跨账号的密码喷洒
+    if auth_service_mod.ip_rate_limited(client_ip):
+        metrics_service.inc("tdsql_login_total", {"result": "rate_limited"})
+        raise HTTPException(status_code=429, detail="登录尝试过于频繁，请稍后再试")
     user, err = auth_service.authenticate(body.username, body.password, client_ip)
     if err:
+        auth_service_mod.record_ip_failure(client_ip)
         metrics_service.inc("tdsql_login_total", {"result": "failed"})
         raise HTTPException(status_code=401, detail=err)
+    auth_service_mod.reset_ip_failures(client_ip)
     metrics_service.inc("tdsql_login_total", {"result": "success"})
-    token = issue_token(user["username"], user["role"])
+    token = issue_token(user["username"], user["role"],
+                        user.get("token_version", 0))
     return {
         "token": token,
         "token_type": "Bearer",
@@ -96,9 +104,15 @@ def login(body: LoginRequest, request: Request):
 
 @router.post("/logout", summary="登出")
 def logout(request: Request):
-    """令牌为自包含短时效设计，登出由客户端丢弃令牌；服务端记录审计。"""
+    """服务端真吊销：递增令牌版本号，使该用户此前签发的全部令牌立即失效。
+
+    自包含令牌本身无法单独作废，故以用户态版本号实现。副作用是会一并
+    踢掉该用户其它终端的会话——对本平台（银行内控场景）这是期望行为。
+    """
     from backend.services.database import log_operation
-    log_operation(_operator(request), "logout", "user", _operator(request))
+    op = _operator(request)
+    auth_service.bump_token_version(op)
+    log_operation(op, "logout", "user", op)
     return {"message": "已登出"}
 
 
@@ -200,8 +214,10 @@ def visible_menus(request: Request):
 # ── 用户管理（admin only，中间件强制） ─────────────────────
 
 @router.get("/users", summary="用户列表")
-def list_users():
-    return {"users": auth_service.list_users()}
+def list_users(limit: int = Query(50, ge=1, le=500), offset: int = Query(0, ge=0),
+               keyword: str = ""):
+    """用户列表（分页）。返回 {"users": [...], "total": N}"""
+    return auth_service.list_users(limit=limit, offset=offset, keyword=keyword)
 
 
 @router.post("/users", summary="创建用户")

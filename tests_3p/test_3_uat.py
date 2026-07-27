@@ -62,7 +62,6 @@ class TestC1DeveloperJourney:
 # ════════════════════════════════════════════════════════════
 class TestC2DbaJourney:
 
-    @pytest.mark.xfail(reason="DEFECT-D02: dashboard 口径矛盾 today_passed(1)+today_failed(44)!=today_count(22)，failed 超过总数两倍，治理汇报数字不可信", strict=False)
     def test_uat05_dba_dashboard_numbers_consistent(self, client, tokens):
         """UAT-05 【口径验收】治理概览统计数字必须自洽（银行汇报可信度）"""
         r = client.get("/api/v1/dashboard/summary", headers=auth(tokens["dba"]))
@@ -83,7 +82,6 @@ class TestC2DbaJourney:
                          headers=auth(tokens["dba"]))
         assert lst.status_code == 200
 
-    @pytest.mark.xfail(reason="DEFECT-D03: 大表报告对不存在实例返回 code:0/success+全0空数据，DBA 无法区分'实例不存在'与'实例无大表'，应返回 404/业务错误码", strict=False)
     def test_uat07_dba_bigtable_report(self, client, tokens):
         """UAT-07 大表治理报告接口对不存在实例明确报错"""
         r = client.get("/api/v1/bigtable/report/t3p_nonexistent",
@@ -206,7 +204,6 @@ class TestC5UsabilityAcceptance:
                    if not x.get("description") or not x.get("fix_suggestion")]
         assert not missing, f"{len(missing)} 条规则缺描述或建议: {missing[:5]}"
 
-    @pytest.mark.xfail(reason="DEFECT-D04: 用户列表无 total 字段且不响应 limit/offset 参数，数百账号场景全量拉取，存在性能与可用性隐患", strict=False)
     def test_uat19_user_list_pagination_support(self, client, tokens):
         """UAT-19 【规模验收】用户列表应支持分页（银行数百账号场景）"""
         r = client.get("/api/v1/auth/users", headers=auth(tokens["admin"]))

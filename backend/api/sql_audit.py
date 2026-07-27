@@ -3,7 +3,7 @@ TDSQL SQL审核工具 - SQL审核 API
 
 提供 RESTful 接口用于 SQL 审核和审核报告导出。
 """
-from fastapi import APIRouter, UploadFile, File, HTTPException, Request
+from fastapi import APIRouter, UploadFile, File, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse, HTMLResponse, Response
 from typing import Optional
 from urllib.parse import quote
@@ -325,7 +325,7 @@ async def extract_and_audit(http_request: Request, payload: dict):
 
 
 @router.get("/extracted-reports", summary="在线元数据审核历史记录列表")
-async def get_extracted_reports(limit: int = 20, offset: int = 0,
+async def get_extracted_reports(limit: int = Query(20, ge=1, le=200), offset: int = Query(0, ge=0),
                                 connection_id: str = "", db_name: str = "",
                                 date_from: str = "", date_to: str = ""):
     """获取在线元数据审核的历史提取与审查列表
@@ -632,7 +632,7 @@ async def export_audit_report(report_id: int):
 # ============ 文件审核报告 ============
 
 @router.get("/file-reports", summary="获取文件审核报告列表")
-async def list_file_reports(limit: int = 50, offset: int = 0):
+async def list_file_reports(limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0)):
     """获取文件审核历史记录列表"""
     ensure_db()
     conn = _get_connection()

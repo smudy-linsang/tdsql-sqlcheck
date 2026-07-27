@@ -1736,7 +1736,11 @@
             <div class="page-card">
               <div class="card-head">
                 <div class="page-card-title mb0">用户管理</div>
-                <el-button type="primary" size="small" @click="userDialog.visible=true">+ 新建用户</el-button>
+                <div class="flex-gap8">
+                  <el-input v-model="userKeyword" placeholder="搜索用户名/姓名" clearable size="small" class="w-220" @keyup.enter="userQuery" @clear="userQuery"></el-input>
+                  <el-button size="small" @click="userQuery">搜索</el-button>
+                  <el-button type="primary" size="small" @click="userDialog.visible=true">+ 新建用户</el-button>
+                </div>
               </div>
               <el-table :data="usersList" v-loading="usersLoading" stripe class="w-full">
                 <el-table-column prop="username" label="用户名" width="120"></el-table-column>
@@ -1752,6 +1756,7 @@
                   </template>
                 </el-table-column>
               </el-table>
+              <el-pagination v-if="usersTotal>usersPageSize" small layout="total,prev,pager,next" :total="usersTotal" :page-size="usersPageSize" v-model:current-page="usersPage" @current-change="loadUsers" class="pager"></el-pagination>
             </div>
           </div>
 

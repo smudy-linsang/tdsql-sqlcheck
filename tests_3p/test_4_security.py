@@ -21,7 +21,6 @@ from conftest import auth, login, rid, ROLE_PASSWORD
 # ════════════════════════════════════════════════════════════
 class TestS1AuthSession:
 
-    @pytest.mark.xfail(reason="DEFECT-S01: 改密/重置密码后旧 token 依然有效，HMAC 无状态令牌无吊销机制，离岗/泄密场景无法及时踢出会话", strict=False)
     def test_sec01_old_token_revoked_after_password_reset(self, client, tokens):
         """SEC-01 重置密码后旧 token 必须立即失效（会话吊销）"""
         uname = rid("t3p_sec01_")
@@ -39,7 +38,6 @@ class TestS1AuthSession:
         assert r.status_code == 401, \
             f"DEFECT: 重置密码后旧 token 仍可用（{r.status_code}），无法紧急踢出会话"
 
-    @pytest.mark.xfail(reason="DEFECT-S02: 登出接口存在但登出后旧 token 仍可用(200)，登出未吊销会话，离岗场景会话无法及时终止", strict=False)
     def test_sec02_logout_invalidates_token(self, client, tokens):
         """SEC-02 服务端登出后 token 必须失效"""
         uname = rid("t3p_sec02_")

@@ -105,7 +105,7 @@ def _raise_compare_error(e: CompareError):
 @router.get("/snapshots", summary="扫描快照列表（按实例/库名/时间筛选）")
 def list_snapshots(request: Request, module: str = "", connection_id: str = "",
                    db_name: str = "", date_from: str = "", date_to: str = "",
-                   limit: int = 20, offset: int = 0):
+                   limit: int = Query(20, ge=1, le=200), offset: int = Query(0, ge=0)):
     # module 设为可选参数 + 手动校验，缺失时返回 400 E4006 而非 FastAPI 默认 422
     module = _check_module(module)
     _check_module_perm(request, module)
@@ -238,7 +238,7 @@ def rebuild_snapshots(request: Request, payload: dict):
 
 @router.get("/reports", summary="对比报告留档列表")
 def list_reports(request: Request, module: str = "", connection_id: str = "",
-                 limit: int = 20, offset: int = 0):
+                 limit: int = Query(20, ge=1, le=200), offset: int = Query(0, ge=0)):
     if module:
         _check_module_perm(request, module)
     ensure_db()
