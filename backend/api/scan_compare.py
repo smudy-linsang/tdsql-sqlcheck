@@ -183,7 +183,7 @@ def compare_snapshots(request: Request, payload: dict):
 @router.get("/compare/html", summary="导出对比报告HTML")
 def compare_html(request: Request, module: str = "",
                  snapshot_ids: list[int] = Query(default=None),
-                 inline: bool = False, token: str = ""):
+                 inline: bool = False, token: str = "", access_token: str = ""):
     """浏览器直开的下载型接口。window.open 无法带请求头，故额外接受 token 查询参数
     （由认证中间件识别），此处仅做权限与业务处理。
     """

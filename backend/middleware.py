@@ -81,7 +81,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if auth_header.startswith("Bearer "):
             token = auth_header[7:].strip()
         if not token:
-            token = request.query_params.get("access_token", "")
+            token = request.query_params.get("access_token") or request.query_params.get("token") or ""
 
         payload = verify_token(token)
         if not payload:

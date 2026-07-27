@@ -1085,8 +1085,9 @@ const app=createApp({
     const exportCompareHtml=()=>{
       if(cmpState.selected.length!==2){ElementPlus.ElMessage.warning('请先选择两次扫描结果');return}
       const [a,b]=cmpState.selected.map(s=>s.id);
+      const t=getToken();
       window.open(`${API_BASE}/api/v1/scan-compare/compare/html?module=${cmpState.module}`
-        +`&snapshot_ids=${a}&snapshot_ids=${b}&token=${encodeURIComponent(authState.token||'')}`,'_blank');
+        +`&snapshot_ids=${a}&snapshot_ids=${b}&access_token=${encodeURIComponent(t)}`,'_blank');
     };
     const saveCompareReport=async()=>{
       if(cmpState.selected.length!==2){ElementPlus.ElMessage.warning('请先选择两次扫描结果');return}
