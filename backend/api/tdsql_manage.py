@@ -31,6 +31,7 @@ class TDSQLConnectRequest(BaseModel):
     password: str = Field(..., description="密码")
     database: str = Field("", description="默认数据库")
     name: str = Field("", description="连接名称（可选，用于多连接管理）")
+    id: str = Field("", description="可选：客户端指定连接ID（幂等键）。留空则服务端生成")
     is_default: bool = Field(False, description="是否设为默认连接")
     is_distributed: bool = Field(True, description="是否分布式实例")
     description: str = Field("", description="连接描述")
@@ -680,8 +681,22 @@ def save_connection(request: TDSQLConnectRequest, http_request: Request):
     """
     保存一个新的连接配置或更新已存在的连接（密码加密存储到数据库）。
     如果未指定name，将自动生成一个唯一名称。
+
+    可选传入 id 作为幂等键：此前该字段被 pydantic 静默丢弃、服务端另生成随机 ID，
+    自动化运维按原 ID 回查/删除会得到 404，幂等登记契约被破坏。
+    若 id 已被另一实例（host:port 不同）占用，返回 409。
     """
+    if request.id:
+        existing = registry.get_saved(request.id) or {}
+        if existing and (existing.get("host") != request.host
+                         or int(existing.get("port") or 0) != int(request.port)):
+            raise HTTPException(
+                status_code=409,
+                detail=f"连接ID {request.id} 已被 "
+                       f"{existing.get('host')}:{existing.get('port')} 占用")
+
     conn_id = registry.save_connection(
+        conn_id=request.id,
         name=request.name,
         host=request.host,
         port=request.port,

@@ -20,6 +20,16 @@ import pytest
 BASE_URL = os.getenv("T3P_BASE_URL", "http://127.0.0.1:8899")
 ADMIN_PASSWORD = os.getenv("T3P_ADMIN_PASSWORD", "Admin@1234")
 
+# ⚠ 复跑约束（S09 整改后）：
+# 登录接口已按 SEC-22 的要求加上 IP 级失败限流（默认 15 次 / 60 秒）。
+# 本套件自身包含大量故意失败的登录（SIT-01 锁定 5 次、SEC-08 注入 4 次、
+# SEC-22 喷洒 20 次…），单轮冷启动跑得完，但**60 秒内连续跑第二轮**会因上一轮
+# 残留的失败计数直接被 429 拦住，表现为大批 fixture 报错。
+# 处理方式（任选其一）：
+#   1) 两轮之间间隔 60 秒以上；
+#   2) 测试环境启动服务时放宽：LOGIN_IP_FAIL_LIMIT=500 —— 但此时 SEC-22
+#      会因为等不到 429 而转为 xfail，验证限流本身请务必用默认阈值。
+
 # 各角色测试账号口令（由本测试套件自行创建）
 ROLE_PASSWORD = "T3p#Passw0rd2026"
 

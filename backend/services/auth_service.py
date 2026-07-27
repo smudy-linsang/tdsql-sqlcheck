@@ -49,6 +49,51 @@ _secret_lock = threading.Lock()
 _user_cache: dict[str, tuple[float, dict]] = {}
 _USER_CACHE_TTL = 30.0
 
+# ── 登录失败的 IP 级滑动窗口限流 ──
+# 既有的账户锁定只保护"已存在且被反复尝试"的单个账号，攻击者对大量账号
+# 各试几次（锁定阈值之下）即可完成密码喷洒。此处按来源 IP 兜底。
+# 单进程内存实现：多副本部署时应换为 Redis 等共享计数器。
+_ip_fail: dict[str, list[float]] = {}
+_ip_fail_lock = threading.Lock()
+
+
+def ip_rate_limited(ip: str) -> bool:
+    """同一来源 IP 在窗口内登录失败达阈值即限流（阈值 0 表示关闭）"""
+    limit = config.login_ip_fail_limit()
+    if not ip or limit <= 0:
+        return False
+    window = config.login_ip_fail_window()
+    now = time.time()
+    with _ip_fail_lock:
+        hits = [t for t in _ip_fail.get(ip, []) if now - t < window]
+        _ip_fail[ip] = hits
+        return len(hits) >= limit
+
+
+def record_ip_failure(ip: str) -> None:
+    """记录一次来源 IP 的登录失败"""
+    if not ip or config.login_ip_fail_limit() <= 0:
+        return
+    window = config.login_ip_fail_window()
+    now = time.time()
+    with _ip_fail_lock:
+        hits = [t for t in _ip_fail.get(ip, []) if now - t < window]
+        hits.append(now)
+        _ip_fail[ip] = hits
+        # 防止长期运行下字典无界增长
+        if len(_ip_fail) > 10000:
+            for k in [k for k, v in _ip_fail.items()
+                      if not v or now - v[-1] > window]:
+                _ip_fail.pop(k, None)
+
+
+def reset_ip_failures(ip: str) -> None:
+    """登录成功后清空该 IP 的失败计数"""
+    if not ip:
+        return
+    with _ip_fail_lock:
+        _ip_fail.pop(ip, None)
+
 
 # ══════════════════════════════════════════════════════════════════
 # 密钥与口令
@@ -134,12 +179,17 @@ def _b64url_decode(data: str) -> bytes:
     return base64.urlsafe_b64decode(data + padding)
 
 
-def issue_token(username: str, role: str) -> str:
-    """签发访问令牌: base64url(payload_json).base64url(hmac_sha256)"""
+def issue_token(username: str, role: str, token_version: int = 0) -> str:
+    """签发访问令牌: base64url(payload_json).base64url(hmac_sha256)
+
+    tv 为签发时的用户令牌版本号，校验侧与 users.token_version 比对，
+    不一致即视为已吊销（改密/重置/登出会递增该版本号）。
+    """
     now = int(time.time())
     payload = {
         "sub": username,
         "role": role,
+        "tv": int(token_version or 0),
         "iat": now,
         "exp": now + config.auth_token_ttl_hours() * 3600,
         "jti": secrets.token_hex(8),
@@ -266,6 +316,19 @@ _PATH_TO_MENU = {
     "/api/v1/toolkit": "deep-diag-toolkit",
     # V1.3 扫描结果纵向对比（接口层另按 module 二次校验模块自身权限）
     "/api/v1/scan-compare": "scan-compare",
+    # ── R01：补齐此前未登记、靠"未映射默认放行"兜底的写端点 ──
+    # 兜底放行意味着新端点忘登记就对所有登录角色敞开（fail-open）。
+    # 这里把它们全部显式登记，使兜底分支不再覆盖任何实际端点；
+    # tests/test_rbac_path_coverage.py 会在新增写端点漏登记时直接失败。
+    "/api/v1/tdsql/connect": "instances",
+    "/api/v1/tdsql/connect-from-config": "instances",
+    "/api/v1/tdsql/test-connection": "instances",
+    "/api/v1/tdsql/disconnect": "instances",
+    "/api/v1/tdsql/audit": "audit-sql",
+    "/api/v1/tdsql/scheduler": "slow-schedule",
+    "/api/v1/audit/batch-stream": "file-audit",
+    "/api/v1/audit/extracted-reports": "schema-extractor-audit",
+    "/api/v1/gitlab/audit": "file-audit",
 }
 
 def check_permission(role: str, method: str, path: str) -> bool:
@@ -320,6 +383,12 @@ def check_permission(role: str, method: str, path: str) -> bool:
                     return menu_key in visible
                 except Exception:
                     return False
+        # 兜底放行（fail-open）。经 R01 整改后此分支不应再覆盖任何业务写端点，
+        # 命中即说明有新端点漏登记 _PATH_TO_MENU，打日志便于及时发现。
+        if method not in _READ_METHODS:
+            logger.warning(
+                "写端点未登记 _PATH_TO_MENU，已按兜底放行：%s %s (role=%s)",
+                method, path, role)
         return True  # 无映射的路径默认放行
 
     return True
@@ -667,6 +736,28 @@ class AuthService:
         finally:
             conn.close()
 
+    def bump_token_version(self, username: str) -> None:
+        """递增用户令牌版本号，使其此前签发的全部令牌立即失效。
+
+        用于改密 / 管理员重置口令 / 主动登出。失败仅告警：吊销属安全增强，
+        不应因元数据库抖动阻断主流程（口令本身已改，旧口令无法再登录）。
+        """
+        try:
+            ensure_db()
+            conn = _get_connection()
+            try:
+                conn.execute(
+                    "UPDATE users SET token_version = token_version + 1 "
+                    "WHERE username = ?", (username,))
+                conn.commit()
+            finally:
+                conn.close()
+        except Exception as e:
+            logger.warning(f"递增令牌版本号失败 username={username}: {e}")
+        finally:
+            # 必须清缓存，否则中间件仍读到旧版本号，吊销不生效
+            _user_cache.pop(username, None)
+
     def change_password(self, username: str, old_password: str,
                         new_password: str) -> Optional[str]:
         """用户自助修改口令，返回错误信息或None（成功）"""
@@ -683,8 +774,10 @@ class AuthService:
             if not verify_password(old_password, row["password_hash"], row["salt"]):
                 return "原口令错误"
             pw_hash, salt = hash_password(new_password)
+            # token_version 与口令同事务递增：改密即吊销此前签发的全部令牌
             conn.execute(
                 "UPDATE users SET password_hash = ?, salt = ?, must_change_password = 0, "
+                "token_version = token_version + 1, "
                 "updated_at = NOW() WHERE username = ?",
                 (pw_hash, salt, username))
             conn.commit()
@@ -726,14 +819,28 @@ class AuthService:
         finally:
             conn.close()
 
-    def list_users(self) -> list[dict]:
-        """用户列表（脱敏）"""
+    def list_users(self, limit: int = 50, offset: int = 0,
+                   keyword: str = "") -> dict:
+        """用户列表（脱敏、分页）
+
+        返回 {"users": [...], "total": N}。此前全量返回，银行数百账号场景下
+        管理端一次性拉全表、页面卡顿。
+        """
         ensure_db()
         conn = _get_connection()
         try:
+            where, args = "", []
+            if keyword:
+                where = "WHERE username LIKE ? OR display_name LIKE ?"
+                args = [f"%{keyword}%", f"%{keyword}%"]
+            total_row = conn.execute(
+                f"SELECT COUNT(*) AS cnt FROM users {where}", args).fetchone()
+            total = dict(total_row).get("cnt", 0) if total_row else 0
             rows = conn.execute(
-                "SELECT * FROM users ORDER BY created_at").fetchall()
-            return [self._safe_user(dict(r)) for r in rows]
+                f"SELECT * FROM users {where} ORDER BY created_at LIMIT ? OFFSET ?",
+                (*args, limit, offset)).fetchall()
+            return {"users": [self._safe_user(dict(r)) for r in rows],
+                    "total": total}
         finally:
             conn.close()
 
@@ -796,9 +903,11 @@ class AuthService:
             if not row:
                 return "用户不存在"
             pw_hash, salt = hash_password(new_password)
+            # token_version 同事务递增：管理员重置口令即踢掉该用户所有在途会话
             conn.execute(
                 "UPDATE users SET password_hash = ?, salt = ?, must_change_password = 1, "
-                "failed_attempts = 0, locked_until = NULL, updated_at = NOW() "
+                "failed_attempts = 0, locked_until = NULL, "
+                "token_version = token_version + 1, updated_at = NOW() "
                 "WHERE username = ?", (pw_hash, salt, username))
             conn.commit()
             _user_cache.pop(username, None)

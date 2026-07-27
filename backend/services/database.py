@@ -556,6 +556,11 @@ def _migrate_old_tables(conn):
         _add_column_if_not_exists(conn, "audit_history", "db_name", "VARCHAR(128) DEFAULT ''")
         _add_index_if_not_exists(conn, "audit_history", "idx_audit_conn", "(connection_id, created_at)")
 
+    if "users" in table_names:
+        # 会话吊销：令牌载荷携带 tv，与本列不符即视为已失效。
+        # 改密 / 管理员重置 / 登出时递增，实现"及时终止会话"（等保 2.0 三级 8.1.4.1）。
+        _add_column_if_not_exists(conn, "users", "token_version", "INT NOT NULL DEFAULT 0")
+
     conn.commit()
 
 

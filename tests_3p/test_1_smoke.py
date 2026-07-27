@@ -37,11 +37,16 @@ class TestA1Availability:
         assert r.status_code == 200
         assert "tdsql_" in r.text or "# HELP" in r.text
 
-    def test_sm04_api_docs_public(self, client):
-        """SM-04 OpenAPI 文档可访问（DOCS_PUBLIC 默认 true）"""
+    def test_sm04_api_docs_not_public_by_default(self, client):
+        """SM-04 OpenAPI 文档默认不免认证开放（S04 整改）
+
+        原用例断言 DOCS_PUBLIC 默认 true 且 /openapi.json 返回 200，
+        与本套件自身给出的 S04 结论（默认值不安全，应改 false）相矛盾。
+        整改后默认关闭，调试环境需要时显式置 DOCS_PUBLIC=true。
+        """
         r = client.get("/openapi.json")
-        assert r.status_code == 200
-        assert r.json().get("info", {}).get("title")
+        assert r.status_code == 401, \
+            f"openapi.json 默认应要求认证，实际 {r.status_code}"
 
 
 class TestA2Auth:

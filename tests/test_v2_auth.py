@@ -269,7 +269,7 @@ class TestAuthAPI:
         # 仅保留admin一个管理员时删除应被拒绝
         headers = _auth_headers(auth_client, "admin")
         # 先删掉可能存在的其他admin
-        for u in auth_service.list_users():
+        for u in auth_service.list_users(limit=500)["users"]:
             if u["role"] == "admin" and u["username"] != "admin":
                 auth_service.delete_user(u["username"], operator="test")
         err = auth_service.delete_user("admin", operator="test")

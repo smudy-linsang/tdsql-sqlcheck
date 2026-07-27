@@ -80,10 +80,15 @@ def get_summary():
         today = datetime.now().strftime("%Y-%m-%d")
 
         # 今日审核统计（含ERROR/WARNING违规数）
+        # 注意量纲：passed / failed_count 均按"审核记录数"统计，与 COUNT(*) 同量纲，
+        # 保证 today_passed + today_failed == today_count。
+        # audit_history.failed 列存的是该次审核中未通过的 SQL 条数（可 >1），
+        # 直接 SUM 会与记录数混用量纲，故单列为 failed_sql_count。
         audit_today = conn.execute("""
             SELECT COUNT(*) as cnt,
                    SUM(CASE WHEN failed = 0 THEN 1 ELSE 0 END) as passed,
-                   SUM(failed) as failed_count,
+                   SUM(CASE WHEN failed > 0 THEN 1 ELSE 0 END) as failed_count,
+                   SUM(failed) as failed_sql_count,
                    SUM(error_count) as errors,
                    SUM(warning_count) as warnings
             FROM audit_history
@@ -93,6 +98,7 @@ def get_summary():
         today_count = audit_today["cnt"] or 0
         today_passed = audit_today["passed"] or 0
         today_failed = audit_today["failed_count"] or 0
+        today_failed_sql = audit_today["failed_sql_count"] or 0
         today_errors = audit_today["errors"] or 0
         today_warnings = audit_today["warnings"] or 0
         today_pass_rate = (today_passed / today_count * 100) if today_count > 0 else 0
@@ -150,9 +156,12 @@ def get_summary():
 
         return {
             "audit": {
+                # 记录数口径：today_passed + today_failed == today_count
                 "today_count": today_count,
                 "today_passed": today_passed,
                 "today_failed": today_failed,
+                # SQL 条数口径：未通过的 SQL 条数（与记录数不同量纲，勿相加）
+                "today_failed_sql": today_failed_sql,
                 "today_errors": today_errors,
                 "today_warnings": today_warnings,
                 "today_violations": today_violations,
