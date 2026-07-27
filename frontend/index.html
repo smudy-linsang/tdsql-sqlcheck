@@ -1058,6 +1058,10 @@
                 </el-tab-pane>
               </el-tabs>
             </div>
+          </div>
+
+          <!-- ═══ 深度诊断 ═══ -->
+          <div v-if="currentPage==='deep-diag'">
             <el-tabs v-model="deepTab" type="border-card">
               <!-- 集群巡检 G3 -->
               <el-tab-pane v-if="visibleMenus.has('deep-diag-cluster')" label="集群巡检" name="cluster">
