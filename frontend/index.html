@@ -1062,6 +1062,15 @@
 
           <!-- ═══ 深度诊断 ═══ -->
           <div v-if="currentPage==='deep-diag'">
+            <div class="page-card">
+              <div class="card-head">
+                <div class="page-card-title mb0">深度诊断</div>
+                <el-select v-model="deepConnId" placeholder="选择目标实例" filterable size="small" style="width:260px">
+                  <el-option v-for="c in savedConnections" :key="c.id" :label="c.name+' ('+c.host+':'+c.port+')'" :value="c.id"></el-option>
+                </el-select>
+              </div>
+              <div style="color:#909399;font-size:13px;margin:8px 0">吸收 TDSQL 原厂工具能力：集群诊断 / 索引体检 / 结构比对 / 应急诊断 / SQL分析。深检绩效观 monitordb(15001)：只需操作。</div>
+            </div>
             <el-tabs v-model="deepTab" type="border-card">
               <!-- 集群巡检 G3 -->
               <el-tab-pane v-if="visibleMenus.has('deep-diag-cluster')" label="集群巡检" name="cluster">
