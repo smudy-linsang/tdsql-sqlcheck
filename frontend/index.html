@@ -271,16 +271,25 @@
                 <div class="page-card">
                   <div class="card-head">
                     <div class="page-card-title mb0">文件审核报告历史</div>
-                    <el-button size="small" @click="loadFileReports">刷新</el-button>
+                    <div style="display:flex;align-items:center;gap:8px">
+                      <el-button v-if="canManagePlatform" type="danger" size="small" :disabled="!selectedFileReportIds.length" :loading="fileReportsDeleting" @click="batchDeleteFileReports">🗑️ 批量删除{{ selectedFileReportIds.length ? ' (' + selectedFileReportIds.length + ')' : '' }}</el-button>
+                      <el-button size="small" @click="loadFileReports">刷新</el-button>
+                    </div>
                   </div>
-                  <el-table :data="fileReports" v-loading="fileReportsLoading" stripe class="w-full">
+                  <el-table ref="fileReportsTableRef" :data="fileReports" v-loading="fileReportsLoading" stripe class="w-full" row-key="id" @selection-change="onFileReportsSelect">
+                    <el-table-column v-if="canManagePlatform" type="selection" width="40" reserve-selection></el-table-column>
                     <el-table-column prop="source" label="文件名" show-overflow-tooltip></el-table-column>
                     <el-table-column prop="created_by" label="审核人" width="100"></el-table-column>
                     <el-table-column prop="total_sql" label="SQL数" width="70"></el-table-column>
                     <el-table-column label="通过/失败" width="100"><template #default="{row}"><span class="t-success">{{ row.passed }}</span> / <span class="t-danger">{{ row.failed }}</span></template></el-table-column>
                     <el-table-column label="通过率" width="80"><template #default="{row}"><el-tag :type="row.pass_rate>=80?'success':row.pass_rate>=50?'warning':'danger'" size="small">{{ row.pass_rate?.toFixed(1) }}%</el-tag></template></el-table-column>
                     <el-table-column label="时间" width="160"><template #default="{row}">{{ formatTime(row.created_at) }}</template></el-table-column>
-                    <el-table-column label="操作" width="120" fixed="right"><template #default="{row}"><el-button type="primary" link size="small" @click="downloadFileReport(row.id)">下载HTML</el-button></template></el-table-column>
+                    <el-table-column label="操作" :width="canManagePlatform ? 180 : 120" fixed="right">
+                      <template #default="{row}">
+                        <el-button type="primary" link size="small" @click="downloadFileReport(row.id)">下载HTML</el-button>
+                        <el-button v-if="canManagePlatform" type="danger" link size="small" @click="deleteSingleFileReport(row)">删除</el-button>
+                      </template>
+                    </el-table-column>
                   </el-table>
                   <el-pagination v-if="fileReportsTotal>10" small layout="total,prev,pager,next" :total="fileReportsTotal" :page-size="10" v-model:current-page="fileReportsPage" @current-change="loadFileReports" class="pager"></el-pagination>
                 </div>

@@ -688,6 +688,62 @@ async def list_file_reports(limit: int = Query(50, ge=1, le=200), offset: int = 
         conn.close()
 
 
+@router.post("/file-reports/batch-delete",
+             summary="批量删除文件审核报告（仅系统管理员）")
+async def batch_delete_file_reports(payload: dict, http_request: Request):
+    """按 id 批量删除文件审核报告历史记录（audit_type='file'）。
+    - 仅 admin 可调用 (_require_admin)；
+    - 仅删除 audit_type='file' 的记录，隔离安全边界；
+    - 支持写审计日志。
+    """
+    _require_admin(http_request, "删除文件审核报告")
+
+    raw_ids = (payload or {}).get("ids") or []
+    try:
+        ids = sorted({int(i) for i in raw_ids if int(i) > 0})
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="ids 必须为正整数列表")
+    if not ids:
+        raise HTTPException(status_code=400, detail="请至少勾选一条待删除记录")
+    if len(ids) > MAX_DELETE_BATCH:
+        raise HTTPException(
+            status_code=400,
+            detail=f"单次最多删除 {MAX_DELETE_BATCH} 条，请缩小筛选范围后分批操作")
+
+    ensure_db()
+    conn = _get_connection()
+    try:
+        ph = ",".join(["?"] * len(ids))
+        rows = conn.execute(
+            f"""SELECT id FROM audit_history
+                WHERE id IN ({ph}) AND audit_type = ?""",
+            (*ids, "file")).fetchall()
+        found_ids = [dict(r)["id"] for r in (rows or [])]
+        if not found_ids:
+            raise HTTPException(status_code=404, detail="勾选的记录不存在或已被删除")
+
+        fph = ",".join(["?"] * len(found_ids))
+        cur = conn.execute(
+            f"DELETE FROM audit_history WHERE id IN ({fph}) AND audit_type = ?",
+            (*found_ids, "file"))
+        deleted = getattr(cur, "rowcount", 0) or 0
+        conn.commit()
+    finally:
+        conn.close()
+
+    skipped_ids = [i for i in ids if i not in set(found_ids)]
+    _audit_log(http_request, "delete_file_audit_history",
+               ",".join(str(i) for i in found_ids),
+               f"deleted={deleted};skipped={len(skipped_ids)}")
+
+    return {
+        "status": "SUCCESS",
+        "deleted": deleted,
+        "deleted_ids": found_ids,
+        "skipped_ids": skipped_ids,
+    }
+
+
 @router.get("/file-reports/{report_id}/html", summary="下载文件审核HTML报告")
 async def export_file_report_html(report_id: int):
     """生成并下载指定文件审核记录的HTML报告"""
