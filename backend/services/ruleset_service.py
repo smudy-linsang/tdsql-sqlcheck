@@ -26,13 +26,28 @@ class RulesetService:
         ensure_db()
         conn = _get_connection()
         try:
+            from backend.engine.checker import RuleChecker
+            total_rules_count = len(RuleChecker().get_rules_info())
+
             rows = conn.execute("""
-                SELECT rs.*, COUNT(rsi.rule_id) AS item_count
+                SELECT rs.*,
+                       COUNT(CASE WHEN rsi.enabled = 0 THEN 1 END) AS disabled_count,
+                       COUNT(rsi.rule_id) AS total_items
                 FROM rule_sets rs
                 LEFT JOIN rule_set_items rsi ON rsi.rule_set_id = rs.id
                 GROUP BY rs.id ORDER BY rs.created_at
             """).fetchall()
-            return [dict(r) for r in rows]
+
+            result = []
+            for r in rows:
+                item = dict(r)
+                if item.get("is_builtin") or item.get("id") == "default":
+                    item["item_count"] = total_rules_count
+                else:
+                    dis = item.get("disabled_count", 0)
+                    item["item_count"] = max(0, total_rules_count - dis)
+                result.append(item)
+            return result
         finally:
             conn.close()
 
