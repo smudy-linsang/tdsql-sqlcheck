@@ -168,6 +168,10 @@ DELETE /api/v1/rulesets/{rule_set_id}
 
 ## 3. 实例级质量门禁
 
+> **配置入口在实例管理页面**（决策 2026-07-28）：门禁没有独立页面，阈值字段并入实例的新建/编辑表单，实例列表额外展示两列。以下接口由该页面调用。
+
+**默认值**：`max_error_count = 0`、`max_warning_count = -1`（不限）。**与 V1.3 的 `gate_rules` 默认值完全一致**，因此判定结论不变、存量实例无需迁移。
+
 ### 3.1 门禁配置列表
 
 ```
@@ -181,7 +185,7 @@ GET /api/v1/gate/instances
 ```json
 {
   "total": 2,
-  "default_rule": {"max_error_count": 0, "max_warning_count": 0, "mode": "enforce"},
+  "default_rule": {"max_error_count": 0, "max_warning_count": -1, "mode": "enforce"},
   "items": [
     {
       "connection_id": "c-core-01",
@@ -190,7 +194,7 @@ GET /api/v1/gate/instances
       "max_warning_count": 0,
       "mode": "enforce",
       "is_default": false,
-      "description": "",
+      "description": "核心库，WARNING 也不允许",
       "updated_by": "admin",
       "updated_at": "2026-07-28 11:00:00"
     },
@@ -198,7 +202,7 @@ GET /api/v1/gate/instances
       "connection_id": "c-report-02",
       "connection_name": "内部报表库",
       "max_error_count": 0,
-      "max_warning_count": 0,
+      "max_warning_count": -1,
       "mode": "enforce",
       "is_default": true
     }
@@ -206,7 +210,9 @@ GET /api/v1/gate/instances
 }
 ```
 
-**为什么返回全部实例而非仅已配置的**：管理员需要看到"哪些实例还没配"，只返回已配置的会让未配置实例隐形，而它们恰恰是走默认 0/0、最可能被拦截的那批。
+**为什么返回全部实例而非仅已配置的**：管理员需要看到"哪些实例还没配过"。只返回已配置的会让未配置实例隐形，而管理员恰恰需要知道这批实例正在走系统默认。
+
+> 本接口在门禁独立页面取消后仍然保留：供管理员做全局一览与导出，也供实例页面列表复用（见 §3.6）。
 
 ---
 
@@ -231,20 +237,22 @@ PUT /api/v1/gate/instances/{connection_id}
 ```json
 {
   "max_error_count": 0,
-  "max_warning_count": -1,
+  "max_warning_count": 0,
   "mode": "enforce",
-  "description": "核心账务库，暂不收紧 WARNING"
+  "description": "核心账务库，WARNING 也不允许"
 }
 ```
 
-| 字段 | 必填 | 约束 |
-|---|---|---|
-| `max_error_count` | 是 | `-1`（不限）或 `>= 0` |
-| `max_warning_count` | 是 | 同上 |
-| `mode` | 否 | `enforce`（默认）/ `observe` |
-| `description` | 否 | 备注 |
+| 字段 | 必填 | 约束 | 默认 |
+|---|---|---|---|
+| `max_error_count` | 是 | `-1`（不限）或 `>= 0` | 0 |
+| `max_warning_count` | 是 | 同上 | **-1（不限）** |
+| `mode` | 否 | `enforce` / `observe` | `enforce` |
+| `description` | 否 | 备注 | — |
 
-> **`0` 与 `-1` 的语义极易被理解反**：`0` = 一个都不允许；`-1` = 不限量。前端弹窗必须显式说明。
+> **`0` 与 `-1` 的语义极易被理解反**：`0` = 一个都不允许；`-1` = 不限量。实例表单中必须在字段旁**常驻文字说明**，不能只放 tooltip。
+
+**调用方式**：由实例新建/编辑表单在实例保存成功后单独发起，**不合并进实例保存报文**——实例保存 dba 可调用，而门禁阈值是治理动作，必须保持 admin 独占的权限边界（《DETAIL-v1.4》§7.3.3）。
 
 **响应**
 
@@ -271,7 +279,7 @@ PUT /api/v1/gate/instances/{connection_id}
 DELETE /api/v1/gate/instances/{connection_id}
 ```
 
-删除后该实例回落系统默认（0/0/enforce）。用于「配错了想恢复默认」。
+删除后该实例回落系统默认（0 / -1 / enforce）。用于「配错了想恢复默认」。
 
 ---
 
@@ -284,6 +292,40 @@ DELETE /api/v1/gate/instances/{connection_id}
 | `POST /api/v1/gate/strategy/{project_id}` | **DEPRECATED**，同上 |
 
 > 关键：兼容期内这些接口**可以调用成功，但不改变任何放行结论**。必须在响应中明确提示，否则调用方会以为配置生效了（《ARCHITECTURE-v1.4》风险 R-3）。
+
+---
+
+### 3.6 实例列表接口响应扩展
+
+```
+GET /api/v1/tdsql/connections
+```
+
+门禁配置并入实例页面后，列表需直接渲染阈值。为避免前端为每行再发一次请求，在既有响应的每个实例对象中**追加三个字段**：
+
+```json
+{
+  "id": "c-core-01",
+  "name": "核心账务库",
+  "host": "10.0.0.1",
+  "port": 15001,
+  "max_error_count": 0,
+  "max_warning_count": -1,
+  "gate_is_default": true
+}
+```
+
+| 新增字段 | 说明 |
+|---|---|
+| `max_error_count` | 生效的 ERROR 上限（未配置时返回系统默认 0） |
+| `max_warning_count` | 生效的 WARNING 上限（未配置时返回系统默认 -1） |
+| `gate_is_default` | `true` = 从未配置过、当前走系统默认；`false` = 管理员显式配置过 |
+
+**实现方式**：`LEFT JOIN instance_gate_rules`，未命中时用默认值填充。**不新增查询次数**。
+
+**兼容性**：纯新增字段，不删除、不重命名任何既有字段，存量调用方不受影响。
+
+`gate_is_default` 是必要的——没有它，管理员无法区分「我特意配成了 0/-1」与「这实例我压根没配过」，而这两者在需要收紧时的处理完全不同。
 
 ---
 
@@ -377,7 +419,7 @@ HTTP `409`。
 | `POST /api/v1/audit/sql` | 新增可选 `connection_id`，用于确定门禁绑定的实例 |
 | `POST /api/v1/audit/file` | 同上 |
 
-未传时门禁走系统默认（0/0）。`extract-and-audit` 本就有 `connection_id`，直接复用。
+未传时门禁走系统默认（0 / -1）。`extract-and-audit` 本就有 `connection_id`，直接复用。
 
 ---
 
@@ -393,6 +435,7 @@ HTTP `409`。
 | 6 | GET | `/api/v1/gate/instances/{cid}` | 菜单权限 | 新增 |
 | 7 | PUT | `/api/v1/gate/instances/{cid}` | **admin** | 新增 |
 | 8 | DELETE | `/api/v1/gate/instances/{cid}` | **admin** | 新增 |
+| 8b | GET | `/api/v1/tdsql/connections` | 菜单权限 | 响应扩展（§3.6） |
 | 9 | GET | `/api/v1/gate/rules/{pid}` | — | DEPRECATED |
 | 10 | POST | `/api/v1/gate/rules` | — | DEPRECATED |
 | 11 | POST | `/api/v1/gate/strategy/{pid}` | — | DEPRECATED |
@@ -411,8 +454,14 @@ HTTP `409`。
 ```python
     "/api/v1/rulesets": "rulesets",
     "/api/v1/gate": "gate",          # 既有，已覆盖 /gate/instances
+    "/api/v1/projects": "projects",  # 既有，菜单隐藏后仅 admin 可达
 ```
 
 `/api/v1/rulesets` 若已登记则无需重复。**新增后请运行 `tests/test_rbac_path_coverage.py` 确认无遗漏**——该用例会在写端点漏登记时直接失败（v1.3.2 为此专门建立）。
+
+> ⚠ **隐藏「项目管理」「质量门禁」菜单时，务必保留上面 `gate` 与 `projects` 这两条路径映射。**
+> 菜单键从 `ALL_MENU_KEYS` 移除后，`get_visible_menus()` 不再包含它们，非 admin 访问这两个 API 一律 403，
+> admin 仍可访问——这正是期望行为。**但若把映射本身删掉**，这两个路径会落入「未映射默认放行」的兜底分支，
+> 反而对所有登录角色敞开，与 v1.3.2 的 R01 整改方向相悖。
 
 此外，切换生效规则集与配置实例门禁两个端点，**在处理函数内还需显式 admin 校验**，不能只依赖菜单权限——菜单权限只区分"能不能进这个页面"，区分不了"能不能改全局尺度"。

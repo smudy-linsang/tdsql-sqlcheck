@@ -70,9 +70,9 @@ MySQL 不支持部分唯一索引（`WHERE is_active = 1` 的唯一约束），�
 CREATE TABLE IF NOT EXISTS instance_gate_rules (
     connection_id       VARCHAR(64) PRIMARY KEY COMMENT '实例ID，对应 tdsql_connections.id',
     max_error_count     INT NOT NULL DEFAULT 0   COMMENT 'ERROR 数量上限；-1 表示不限',
-    max_warning_count   INT NOT NULL DEFAULT 0   COMMENT 'WARNING 数量上限；-1 表示不限',
+    max_warning_count   INT NOT NULL DEFAULT -1  COMMENT 'WARNING 数量上限；-1 表示不限（默认不限）',
     mode                VARCHAR(16) NOT NULL DEFAULT 'enforce'
-                        COMMENT '判定模式：enforce=正式拦截 / observe=仅记录不拦截',
+                        COMMENT '判定模式：enforce=正式拦截 / observe=仅记录不拦截（可选能力）',
     description         TEXT                     COMMENT '备注',
     updated_by          VARCHAR(64) NOT NULL DEFAULT '',
     created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -89,50 +89,31 @@ CREATE TABLE IF NOT EXISTS instance_gate_rules (
 |---|---|
 | `connection_id` | 主键即实例，天然保证"一个实例一份门禁配置"，无需额外唯一约束 |
 | 外键 `ON DELETE CASCADE` | 实例被删除时门禁配置一并清理，避免留下指向不存在实例的孤儿配置。与 `audit_history` 等历史表不同——门禁配置是**配置**不是**留痕**，无保留价值 |
-| `max_error_count` 默认 0 | 按决策要求 |
-| `max_warning_count` 默认 0 | 按决策要求。**这是相对现状（-1 不限）的重大行为变更**，见 §3.4 |
-| `-1` 语义 | 保留"不限"语义，与既有 `gate_service.evaluate` 中 `>= 0 才判定` 的逻辑一致，无需改判定代码 |
-| `mode` | 支撑《ARCHITECTURE-v1.4》§4.2 的灰度方案；`observe` 下正常计算与记录，但 `passed` 恒为 true |
+| `max_error_count` 默认 0 | 按决策要求，与现行 `gate_rules` 默认值一致 |
+| `max_warning_count` 默认 -1 | 按决策要求（2026-07-28）。**与现行 `gate_rules` 默认值完全一致**，因此门禁判定结论不发生任何变化 |
+| `-1` 语义 | "不限"，与既有 `gate_service.evaluate` 中 `>= 0 才参与判定` 的逻辑一致，**无需改判定算法** |
+| `mode` | **可选能力**。`observe` 下正常计算与记录但 `passed` 恒为 true，供管理员日后把某个核心库的 WARNING 收紧到 0 前评估影响面。不在本期必须实现的路径上 |
 | 无 `required_rules` / `blocked_rules` | 现状使用率为零，不迁移（见《ARCHITECTURE-v1.4》§7） |
 
 ### 3.3 未配置实例的兜底
 
-**不预先为每个实例插入一行**。未配置的实例在判定时使用系统默认值（`enforce` / 0 / 0），由代码兜底。
+**不预先为每个实例插入一行**。未配置的实例在判定时使用系统默认值（`enforce` / 0 / -1），由代码兜底。
 
 理由：预插入会在新增实例时产生同步负担（漏插即行为不一致），而兜底逻辑只需一处。
 
-### 3.4 ⚠ 存量迁移策略（关键）
+### 3.4 存量迁移：不需要
 
-直接对存量实例应用 0/0 会导致**几乎所有实例立即门禁不通过**（WARNING 级规则覆盖面广，一次元数据审核产生数十个 WARNING 是常态）。
+**决策（2026-07-28）取 ERROR=0 / WARNING=-1，与现行 `gate_rules` 的默认值完全一致**，因此：
 
-迁移脚本提供两种模式，**由团队负责人选定后执行其一**：
+| 事项 | 结论 |
+|---|---|
+| 迁移 SQL | **无**。不需要为存量实例插入任何行 |
+| 行为变化 | **无**。未配置实例走系统默认，判定结论与 V1.3 一致 |
+| 灰度方案 | **不需要** |
+| 发布通知 | 不需要特别通知 |
 
-**模式 A — 保守迁移（推荐，默认）**：存量实例显式写入现行等效值，新建实例才享受 0/0 默认。
-
-```sql
--- 为所有存量实例写入与现行行为等效的配置（error=0, warning=不限）
-INSERT IGNORE INTO instance_gate_rules
-    (connection_id, max_error_count, max_warning_count, mode, description, updated_by)
-SELECT id, 0, -1, 'enforce',
-       'V1.4 迁移：保留 V1.3 等效行为（WARNING 不限），待管理员按实例逐步收紧至 0',
-       'system'
-FROM tdsql_connections;
-```
-
-**模式 B — 观察模式迁移**：按 0/0 判定并记录，但不拦截，供评估影响面。
-
-```sql
-INSERT IGNORE INTO instance_gate_rules
-    (connection_id, max_error_count, max_warning_count, mode, description, updated_by)
-SELECT id, 0, 0, 'observe',
-       'V1.4 迁移：观察模式，按 0/0 判定并记录但不拦截',
-       'system'
-FROM tdsql_connections;
-```
-
-**模式 C — 直接全量生效**：不执行任何迁移语句，全部实例走 0/0 默认。**风险最高，需发布通知并准备回滚开关。**
-
-> 迁移脚本中三种模式均以注释形式提供，默认放开模式 A，另两种注释掉，由实施人按决策取舍。
+> 早先草案曾按 WARNING 默认 0 设计，并准备了三种迁移模式（保守 / 观察 / 直接生效）。
+> 采用 -1 后该风险整体消失，**相关迁移语句已从脚本中删除，不要再照那版施工**。
 
 ---
 
@@ -242,9 +223,9 @@ VALUES ('active_rule_set_id', 'default');
 CREATE TABLE IF NOT EXISTS instance_gate_rules (
     connection_id       VARCHAR(64) PRIMARY KEY COMMENT '实例ID，对应 tdsql_connections.id',
     max_error_count     INT NOT NULL DEFAULT 0   COMMENT 'ERROR 数量上限；-1 表示不限',
-    max_warning_count   INT NOT NULL DEFAULT 0   COMMENT 'WARNING 数量上限；-1 表示不限',
+    max_warning_count   INT NOT NULL DEFAULT -1  COMMENT 'WARNING 数量上限；-1 表示不限（默认不限）',
     mode                VARCHAR(16) NOT NULL DEFAULT 'enforce'
-                        COMMENT '判定模式：enforce=正式拦截 / observe=仅记录不拦截',
+                        COMMENT '判定模式：enforce=正式拦截 / observe=仅记录不拦截（可选能力）',
     description         TEXT,
     updated_by          VARCHAR(64) NOT NULL DEFAULT '',
     created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -254,22 +235,9 @@ CREATE TABLE IF NOT EXISTS instance_gate_rules (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   COMMENT='实例级质量门禁规则（V1.4，替代按项目绑定的 gate_rules）';
 
--- ── 存量实例迁移：三选一，默认放开模式 A（保守） ──
--- 模式 A：保留 V1.3 等效行为，待管理员逐步收紧
-INSERT IGNORE INTO instance_gate_rules
-    (connection_id, max_error_count, max_warning_count, mode, description, updated_by)
-SELECT id, 0, -1, 'enforce',
-       'V1.4 迁移：保留 V1.3 等效行为（WARNING 不限），待管理员按实例逐步收紧至 0',
-       'system'
-FROM tdsql_connections;
-
--- 模式 B：观察模式（如选此模式，注释掉模式 A，放开本段）
--- INSERT IGNORE INTO instance_gate_rules
---     (connection_id, max_error_count, max_warning_count, mode, description, updated_by)
--- SELECT id, 0, 0, 'observe', 'V1.4 迁移：观察模式，按 0/0 判定并记录但不拦截', 'system'
--- FROM tdsql_connections;
-
--- 模式 C：直接全量 0/0 生效 —— 不执行任何迁移语句即可（走代码兜底默认）
+-- ── 存量实例迁移：不需要 ──
+-- 默认值 (error=0 / warning=-1) 与现行 gate_rules 默认值完全一致，
+-- 未配置的实例走代码兜底默认，判定结论与 V1.3 无差异，故无任何迁移语句。
 
 -- ── C-7 旧门禁表停用标注 ──
 ALTER TABLE gate_rules
@@ -288,7 +256,7 @@ ALTER TABLE gate_rules
 |---|---|
 | 1 | 回滚应用代码至 v1.3.3.1 |
 | 2 | 无需执行任何 DDL —— 新增的表与列不被旧代码读取，不影响旧逻辑运行 |
-| 3 | 若模式 A 已执行，`instance_gate_rules` 中的数据成为孤立数据，不影响旧门禁逻辑（旧逻辑读 `gate_rules`） |
+| 3 | `instance_gate_rules` 中管理员已配置的数据成为孤立数据，不影响旧门禁逻辑（旧逻辑读 `gate_rules`） |
 | 4 | 若需彻底清理：`DROP TABLE instance_gate_rules;` + `DELETE FROM system_config WHERE config_key='active_rule_set_id';` |
 
 **回滚不丢数据**：本次所有变更均为新增，`projects.rule_set_id` / `gate_rules` 原值原封不动，旧代码回滚后立即恢复原有行为。

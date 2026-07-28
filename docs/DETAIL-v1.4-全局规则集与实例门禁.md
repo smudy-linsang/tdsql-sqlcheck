@@ -21,7 +21,7 @@
 5. S4 门禁改绑实例
 6. S5 可追溯性与对比校验
 7. S6 前端改造
-8. S7 灰度与开关
+8. S7 上线与回滚
 9. 测试用例清单
 10. 施工检查清单
 
@@ -38,7 +38,7 @@ S4 门禁改绑实例        S5 可追溯性与对比校验
       ↓                      ↓
             S6 前端改造
                   ↓
-            S7 灰度与开关
+            S7 上线与回滚
 ```
 
 **强制顺序**：S1 必须先行（S2/S4 依赖新表与新列）。S3 依赖 S2。其余可并行。
@@ -451,9 +451,11 @@ from backend.services.database import _get_connection, ensure_db, log_operation
 
 logger = logging.getLogger(__name__)
 
-# 未配置实例的兜底默认值（决策：ERROR / WARNING 上限均为 0）
+# 未配置实例的兜底默认值（决策 2026-07-28：ERROR 上限 0、WARNING 上限 -1 不限）
+# 该取值与 V1.3 的 gate_rules 默认值完全一致，因此门禁判定结论不发生任何变化，
+# 存量实例无需迁移。切勿改成 0/0——那会让几乎所有实例立即门禁不通过。
 DEFAULT_MAX_ERROR = 0
-DEFAULT_MAX_WARNING = 0
+DEFAULT_MAX_WARNING = -1
 DEFAULT_MODE = "enforce"
 VALID_MODES = ("enforce", "observe")
 
@@ -636,7 +638,7 @@ instance_gate_service = InstanceGateService()
 
 调用处（`audit_service.py:150` 与 `:191`）把传入的 `project_id` 改为 `connection_id`。
 
-> **施工注意**：`audit_single_sql` / `audit_file_content` 当前签名里没有 `connection_id`，需要增加该可选参数并由 API 层传入。即时 SQL 审核若未选实例，`connection_id` 为空 → 走系统默认（0/0）。
+> **施工注意**：`audit_single_sql` / `audit_file_content` 当前签名里没有 `connection_id`，需要增加该可选参数并由 API 层传入。即时 SQL 审核若未选实例，`connection_id` 为空 → 走系统默认（0 / -1）。
 
 ### 5.5 门禁审计落库
 
@@ -646,8 +648,8 @@ instance_gate_service = InstanceGateService()
 
 | 场景 | 期望 |
 |---|---|
-| 实例未配置门禁 | 按 0/0 判定 |
-| 实例配置 error=0 / warning=-1 | 仅 ERROR 拦截，WARNING 不拦 |
+| 实例未配置门禁 | 按 0 / -1 判定（仅 ERROR 拦截，WARNING 不限） |
+| 实例配置 error=0 / warning=0 | ERROR 与 WARNING 均拦截 |
 | observe 模式 + 超限 | `passed=true`、`observed_passed=false`、detail 含"观察模式" |
 | 实例被删除 | `instance_gate_rules` 对应行随外键级联删除 |
 | 传入非法上限 -2 | `save_rule` 返回错误信息，不落库 |
@@ -705,15 +707,64 @@ instance_gate_service = InstanceGateService()
 
 ## 7. S6 前端改造
 
-### 7.1 菜单调整
+### 7.1 菜单调整（决策 2026-07-28）
 
 | 菜单 | 变更 |
 |---|---|
 | 规则集 | 提升为一级入口，页面标题改为「评估规则集（全局）」 |
-| 项目管理 | 保留但降级，页面顶部加提示条：「V1.4 起规则集与门禁不再由项目决定；本页仅用于业务标签与 GitLab 绑定」 |
-| 质量门禁 | 改为按实例配置（见 §7.3） |
+| 项目管理 | **整体隐藏** |
+| 质量门禁 | **整体隐藏**，配置并入实例管理页面 |
 
-若新增菜单键，**务必同步 `_init_default_data` 的 `all_menus` 列表**（见 §2.4 施工陷阱）。
+#### 7.1.1 隐藏项目管理与质量门禁菜单的施工点
+
+三处必须同步，缺一处即出问题：
+
+**（1）`backend/services/auth_service.py:338` `ALL_MENU_KEYS`**
+
+```python
+# 现状
+    'projects', 'rulesets', 'gate', 'monitor', 'inspection',
+# 修改后（移除 projects 与 gate）
+    'rulesets', 'monitor', 'inspection',
+```
+
+**（2）同文件 `:354` `MENU_LABELS`** —— 删除对应两项：
+
+```python
+# 删除这两个条目
+    'projects': '项目管理',
+    'gate': '质量门禁',
+```
+
+**（3）`backend/services/database.py` `_init_default_data` 的 `all_menus` 白名单**
+
+同步移除 `'projects'` 与 `'gate'`。该函数中存在
+
+```sql
+DELETE FROM role_permissions WHERE menu_key NOT IN (...)
+```
+
+因此**移除后既有的残留权限行会被自动清理**，无需另写清理脚本。
+
+> ⚠ 反过来说，这也是 v1.3 踩过的坑：**新增**菜单键时若忘了加进 `all_menus`，
+> INSERT 进去的权限行会被这条 DELETE 立即删掉。本次是移除，方向相反，但同一处逻辑。
+
+**（4）`_PATH_TO_MENU` 保持不动**
+
+```python
+    "/api/v1/projects": "projects",   # 保留
+    "/api/v1/gate": "gate",           # 保留
+```
+
+菜单键从 `ALL_MENU_KEYS` 移除后，`get_visible_menus()` 永远不会包含它们，因此非 admin 角色访问这两个 API 一律 403；admin 因 `check_permission` 中 `role == "admin"` 提前返回 True 仍可访问。**这正是期望行为**：页面入口去掉，但接口对管理员与存量集成（GitLab 绑定）仍然可用。
+
+> **不要把这两个映射一并删掉**——删掉会让这两个路径落入「未映射默认放行」的兜底分支，对所有登录角色敞开，与 v1.3.2 的 R01 整改方向相悖，且 `tests/test_rbac_path_coverage.py` 会失败。
+
+**（5）前端**
+
+- 侧边栏菜单项删除「项目管理」「质量门禁」两项；
+- `app.js` 中 `canViewProjects` 计算属性及相关页面代码块删除；
+- 质量门禁页整块删除，其中的项目选择器（`index.html:1134`）与 `currentProjectId` 一并移除——该选择器**仅在门禁页使用**，删除门禁页即彻底消除。
 
 ### 7.2 规则集页面
 
@@ -753,20 +804,96 @@ const activateRuleset=async(row)=>{
 
 > **30 秒必须写进提示**：否则管理员切换后立即验证、发现未生效，会误判为故障（《ARCHITECTURE-v1.4》风险 R-2）。
 
-### 7.3 质量门禁页面改造
+### 7.3 门禁配置并入实例管理页面
 
-由「选项目 → 配门禁」改为「实例列表 → 每行配门禁」：
+门禁不再有独立页面。改造分两处：
 
-| 列 | 说明 |
-|---|---|
-| 实例 | `tdsql_connections.name` |
-| ERROR 上限 | 数字，-1 显示为「不限」 |
-| WARNING 上限 | 同上 |
-| 模式 | `enforce` 正式 / `observe` 观察（Tag 区分） |
-| 配置来源 | 「已配置」/「系统默认」（对应 `is_default`） |
-| 操作 | 编辑 |
+#### 7.3.1 实例列表增加两列
 
-编辑弹窗需明确提示：**上限为 0 表示"一个都不允许"**，-1 表示不限。这两个值容易被理解反。
+`index.html` 实例管理表格中追加：
+
+```html
+<el-table-column label="ERROR 上限" width="110">
+  <template #default="{row}">
+    <span :class="row.gate_is_default ? 't-secondary' : ''">
+      {{ row.max_error_count === -1 ? '不限' : row.max_error_count }}
+      <el-tag v-if="row.gate_is_default" size="small" type="info">默认</el-tag>
+    </span>
+  </template>
+</el-table-column>
+<el-table-column label="WARNING 上限" width="120">
+  <template #default="{row}">
+    <span :class="row.gate_is_default ? 't-secondary' : ''">
+      {{ row.max_warning_count === -1 ? '不限' : row.max_warning_count }}
+    </span>
+  </template>
+</el-table-column>
+```
+
+`gate_is_default` 用于区分「管理员显式配置过」与「走系统默认」——后者需要一眼可辨，否则管理员无法知道哪些实例其实从没配过。
+
+#### 7.3.2 实例新建/编辑抽屉增加门禁分组
+
+在既有 `connDrawer` 表单末尾追加一个分组：
+
+```html
+<el-divider content-position="left">质量门禁</el-divider>
+<el-form-item label="ERROR 上限">
+  <el-input-number v-model="connForm.max_error_count" :min="-1" :step="1"
+                   :disabled="!isAdmin" class="w-160"></el-input-number>
+  <span class="form-hint">0 = 一个都不允许；-1 = 不限</span>
+</el-form-item>
+<el-form-item label="WARNING 上限">
+  <el-input-number v-model="connForm.max_warning_count" :min="-1" :step="1"
+                   :disabled="!isAdmin" class="w-160"></el-input-number>
+  <span class="form-hint">默认 -1（不限）</span>
+</el-form-item>
+<el-alert v-if="!isAdmin" type="info" :closable="false" show-icon
+          title="门禁阈值仅系统管理员可修改，此处为只读展示"></el-alert>
+```
+
+**两条设计要点**：
+
+1. **`0` 与 `-1` 的语义极易被理解反**，必须在字段旁常驻文字说明，不能只放在 tooltip 里；
+2. **非 admin 只读**。实例配置本身 dba 可编辑，但门禁阈值是治理动作。`isAdmin` 需在 `app.js` 中新增计算属性：
+
+```js
+const isAdmin=computed(()=>authState.role==='admin');
+```
+
+#### 7.3.3 保存逻辑：门禁走独立接口，不混入实例报文
+
+```js
+const saveConn=async()=>{
+  // …既有实例保存逻辑不变…
+  const resp=await apiFetch(`${API_BASE}/api/v1/tdsql/connections`, {...});
+  if(!resp.ok){ /* 既有错误处理 */ return }
+  const saved=await resp.json();
+
+  // 门禁阈值单独提交（仅 admin，且仅在值有变化时）
+  if(isAdmin.value && gateChanged()){
+    const cid=saved.id||connForm.id;
+    const r=await apiFetch(`${API_BASE}/api/v1/gate/instances/${cid}`,{
+      method:'PUT',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        max_error_count:connForm.max_error_count,
+        max_warning_count:connForm.max_warning_count})});
+    if(!r.ok){
+      const d=await r.json().catch(()=>({}));
+      // 实例已保存成功，门禁没存上——必须明确告知，不能静默
+      ElementPlus.ElMessage.warning('实例已保存，但门禁阈值保存失败：'+(d.detail||'未知错误'));
+    }
+  }
+};
+```
+
+**为什么不把门禁字段直接塞进实例保存报文**：实例保存接口 dba 可调用，若门禁阈值随报文一起提交，就等于把治理权限下放给了 dba。拆成两个请求虽然多一次往返，但权限边界清晰。
+
+**为什么保存失败要单独提示**：两个请求非原子，实例存成功而门禁失败时若静默处理，管理员会以为阈值已生效。
+
+#### 7.3.4 实例列表接口需返回门禁字段
+
+`GET /api/v1/tdsql/connections` 的响应中，每个实例追加 `max_error_count` / `max_warning_count` / `gate_is_default` 三个字段（详见《API-v1.4》§3.6），供列表直接渲染，避免前端为每行再发一次请求。
 
 ### 7.4 移除尺度选择入口
 
@@ -776,15 +903,32 @@ const activateRuleset=async(row)=>{
 
 ---
 
-## 8. S7 灰度与开关
+## 8. S7 上线与回滚
 
-### 8.1 门禁收紧的三阶段
+### 8.1 无需灰度
 
-见《ARCHITECTURE-v1.4》§4.2 与《DB-v1.4》§3.4。迁移脚本默认走**模式 A（保守）**。
+决策取 ERROR=0 / WARNING=-1，与 V1.3 的 `gate_rules` 默认值完全一致，**门禁判定结论不发生任何变化**，因此：
+
+- 无存量迁移 SQL；
+- 无灰度阶段；
+- 无需发布通知（判定行为不变）。
+
+> `observe` 模式作为可选能力保留在表结构与服务层中，供管理员日后把某个核心库的
+> WARNING 收紧到 0 之前评估影响面。**不在本期必须实现的路径上**，实施时若认为多余，
+> 可只建列不写逻辑（判定代码中 `mode != 'observe'` 走正常分支即可）。
 
 ### 8.2 回滚开关
 
 无需代码开关：回滚应用版本即可，新表新列不被旧代码读取（《DB-v1.4》§7）。
+
+### 8.3 上线后的人工确认项
+
+| 项 | 确认方式 |
+|---|---|
+| 全局规则集已指向预期的规则集 | `GET /api/v1/rulesets/active` |
+| 隐藏的两个菜单确实不可见 | 用 dba / developer / auditor 三个角色分别登录查看 |
+| 残留权限行已被清理 | `SELECT * FROM role_permissions WHERE menu_key IN ('projects','gate')` 应为空 |
+| 实例列表能看到门禁两列 | 界面确认，未配置实例显示「默认」标记 |
 
 ---
 
@@ -802,11 +946,16 @@ const activateRuleset=async(row)=>{
 | T08 | **传不同 project_id 审核结果完全一致**（核心反作弊） | 集成 |
 | T09 | 切换全局规则集后审核结果随之改变 | 集成 |
 | T10 | 审核记录落 rule_set_id；V1.4 前记录为 NULL | 集成 |
-| T11 | 实例门禁：未配置走 0/0 | 单元 |
-| T12 | 实例门禁：error=0/warning=-1 时 WARNING 不拦 | 单元 |
-| T13 | observe 模式 passed=true 且 observed_passed=false | 单元 |
+| T11 | 实例门禁：未配置走 0 / -1（仅 ERROR 拦截） | 单元 |
+| T11b | **默认值与 V1.3 行为等价**：同一批 violations 在 V1.3 与 V1.4 判定结论一致 | 回归 |
+| T12 | 实例门禁：error=0/warning=0 时 WARNING 也拦 | 单元 |
+| T13 | observe 模式 passed=true 且 observed_passed=false（可选能力） | 单元 |
 | T14 | 非法上限 -2 被拒 | 单元 |
 | T15 | 实例删除后门禁配置级联清理 | 集成 |
+| T15b | 非 admin 调 `PUT /gate/instances/{cid}` → 403 | 集成 |
+| T15c | 实例列表响应含 `max_error_count` / `gate_is_default` | 集成 |
+| T15d | 隐藏菜单后 dba/developer/auditor 的 `get_visible_menus` 不含 projects/gate | 单元 |
+| T15e | 残留 `role_permissions` 行被 `_init_default_data` 清理 | 集成 |
 | T16 | 对比：两快照尺度不同 → E4007 拒绝 | 单元 |
 | T17 | 对比：任一快照尺度为 NULL → 允许但带警告 | 单元 |
 | T18 | 对比：两快照同尺度 → 正常 | 单元 |
@@ -835,7 +984,15 @@ const activateRuleset=async(row)=>{
 - [ ] `validate_pair` 已加 E4007 校验，NULL 走警告而非拒绝
 - [ ] 前端切换规则集的确认文案写明「最长 30 秒生效」
 - [ ] 前端已删除 `app.js:261` 的 `project_id` 传参
-- [ ] 门禁配置弹窗已说明 0 与 -1 的语义差别
+- [ ] 门禁默认值为 **0 / -1**（不是 0/0），与 V1.3 行为等价
+- [ ] 门禁字段已并入实例抽屉，且对非 admin 只读
+- [ ] 门禁保存走独立接口，未混入实例保存报文
+- [ ] 实例保存成功但门禁保存失败时有明确提示（非静默）
+- [ ] 实例列表已增加两列且能区分「已配置 / 系统默认」
+- [ ] `ALL_MENU_KEYS`、`MENU_LABELS`、`all_menus` 三处已同步移除 `projects` 与 `gate`
+- [ ] `_PATH_TO_MENU` 的两条映射**保留未删**（删除会落入兜底放行）
+- [ ] `tests/test_rbac_path_coverage.py` 通过
+- [ ] 侧边栏已无「项目管理」「质量门禁」，且 `currentProjectId` 已随门禁页一并移除
 - [ ] T08 核心用例通过
+- [ ] T11b 门禁行为等价性回归通过
 - [ ] 全量回归无新增失败
-- [ ] 存量门禁迁移模式已由负责人确认（A/B/C 三选一）
