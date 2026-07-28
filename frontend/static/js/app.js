@@ -262,7 +262,7 @@ const app=createApp({
     // P1-03: 项目切换后刷新受影响页面
     const onProjectSwitch=()=>{if(currentPage.value==='audit-sql'||currentPage.value==='file-audit'){ElementPlus.ElMessage.info('项目已切换，审核将使用项目规则集')}};
     // P1-02: 加载项目列表
-    const loadProjects=async()=>{try{const resp=await apiFetch(`${API_BASE}/api/v1/projects`);if(resp.ok){const d=await resp.json();projects.value=d.data||[]}}catch(e){}};
+    const loadProjects=async()=>{try{const resp=await apiFetch(`${API_BASE}/api/v1/projects`);if(resp.ok){const d=await resp.json();projects.value=d.data||[];if(projects.value.length>0&&!currentProjectId.value){currentProjectId.value=projects.value[0].project_id}}}catch(e){}};
     const loadDashboard=async()=>{statsLoading.value=true;try{const resp=await apiFetch(`${API_BASE}/api/v1/dashboard/summary`);if(resp.ok)stats.value=await resp.json();loadRuleHits()}catch(e){}finally{statsLoading.value=false}};
     const loadRuleHits=async()=>{try{const resp=await apiFetch(`${API_BASE}/api/v1/dashboard/rule-stats`);if(resp.ok)ruleHits.value=(await resp.json()).rules||[]}catch(e){}};
     const renderTrendChart=async()=>{const el=trendChartRef.value;if(!el)return;if(el.offsetWidth===0){setTimeout(renderTrendChart,100);return}try{const resp=await apiFetch(`${API_BASE}/api/v1/dashboard/audit-trend?days=7`);const td=resp.ok?await resp.json():{dates:[],passed:[],failed:[]};const dk=isDarkTheme();const cTxt=dk?'#c3d3ec':'#475569';const cAxis=dk?'#8aa2c6':'#64748b';const cLine=dk?'#22345f':'#e2e8f0';const chart=echarts.getInstanceByDom(el)||echarts.init(el);chart.setOption({textStyle:{color:cTxt},tooltip:{trigger:'axis'},legend:{data:['通过','拦截'],bottom:0,textStyle:{color:cTxt}},grid:{left:'3%',right:'4%',bottom:'15%',top:'5%',containLabel:true},xAxis:{type:'category',data:td.dates||[],axisLabel:{color:cAxis},axisLine:{lineStyle:{color:cLine}}},yAxis:{type:'value',minInterval:1,axisLabel:{color:cAxis},splitLine:{lineStyle:{color:cLine}}},series:[{name:'通过',type:'bar',stack:'t',data:td.passed||[],itemStyle:{color:'#16a34a'}},{name:'拦截',type:'bar',stack:'t',data:td.failed||[],itemStyle:{color:'#dc2626'}}]},true)}catch(e){}};
@@ -1130,6 +1130,7 @@ const app=createApp({
     watch(extractedTab,(v)=>{if(v==='history')loadExtractedReports();if(v==='compare')cmpQuery('schema_audit')});
     watch(deepTab,(v)=>{if(v==='gateway_log')loadGatewayReports();if(v==='ppt_report')loadPptDashboard();if(v==='toolkit')loadToolkitScripts()});
     watch(deepConnId,(v)=>{if(v){if(deepTab.value==='gateway_log')loadGatewayReports();if(deepTab.value==='ppt_report')loadPptDashboard()}});
+    watch(currentProjectId,(v)=>{if(v)loadGateRules();else gateRules.value=null});
     return{currentPage,sidebarCollapsed,theme,toggleTheme,
       cmpState,cmpTableRef,loadSnapshots,cmpQuery,cmpResetFilters,onSnapshotSelect,
       runCompare,exportCompareHtml,saveCompareReport,cmpFmtChange,
