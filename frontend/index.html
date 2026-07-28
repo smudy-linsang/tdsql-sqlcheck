@@ -200,9 +200,6 @@
               <el-input v-model="sqlInput" type="textarea" :autosize="{minRows:6}" placeholder="粘贴SQL语句，Ctrl+Enter 快速审核" class="mono-input mb-16" @keydown.ctrl.enter="auditSql" @keydown.meta.enter="auditSql"></el-input>
               <div class="flex-gap">
                 <el-button type="primary" :loading="auditing" @click="auditSql">开始审核</el-button>
-                <el-select v-model="auditProjectId" placeholder="绑定项目" clearable size="small" class="w-200">
-                  <el-option v-for="p in projects" :key="p.project_id" :label="p.project_name" :value="p.project_id"></el-option>
-                </el-select>
                 <el-dropdown @command="loadExample" class="ml-auto">
                   <el-button size="small">示例 <el-icon><ArrowDown /></el-icon></el-button>
                   <template #dropdown>
