@@ -38,9 +38,51 @@ def _operator(request: Request) -> str:
     return getattr(request.state, "username", "anonymous")
 
 
+def _role(request: Request) -> str:
+    return getattr(request.state, "role", "")
+
+
+def _raise_err(err: dict):
+    """将 service 返回的 {message,code,status} 映射为 HTTP 错误（遵循平台 {detail,code} 约定）"""
+    raise HTTPException(status_code=err["status"],
+                        detail={"detail": err["message"], "code": err["code"]})
+
+
+@router.get("/active", summary="查询当前生效规则集")
+def get_active_ruleset():
+    """返回全局生效规则集详情；兜底链保证恒有结果（《ARCHITECTURE-v1.4》§3.2）。"""
+    return ruleset_service.get_active_detail()
+
+
+@router.post("/{rule_set_id}/activate", summary="切换全局生效规则集（admin）")
+def activate_ruleset(rule_set_id: str, request: Request):
+    """切换全局生效规则集。改变全系统评估尺度，属高影响操作，admin 独占。
+
+    不提供“停用”接口：系统必须始终有一个生效规则集（INV-2）。
+    """
+    if _role(request) != "admin":
+        raise HTTPException(status_code=403,
+                            detail={"detail": "仅系统管理员可切换全局生效规则集", "code": "E403"})
+    err = ruleset_service.set_active_rule_set(rule_set_id, operator=_operator(request))
+    if err:
+        _raise_err(err)
+    detail = ruleset_service.get_active_detail()
+    return {
+        "status": "SUCCESS",
+        "rule_set_id": rule_set_id,
+        "name": detail.get("name", rule_set_id),
+        "effective_within_seconds": detail.get("cache_ttl_seconds", 30),
+        "message": "已切换全局生效规则集，最长 30 秒内全量生效",
+    }
+
+
 @router.get("", summary="规则集列表")
 def list_rulesets():
-    return {"rulesets": ruleset_service.list_rulesets()}
+    rulesets = ruleset_service.list_rulesets()
+    return {
+        "rulesets": rulesets,
+        "active_rule_set_id": ruleset_service.get_active_rule_set_id(),
+    }
 
 
 @router.get("/{rule_set_id}", summary="规则集详情")
@@ -76,5 +118,5 @@ def update_ruleset(rule_set_id: str, body: RuleSetUpdateRequest, request: Reques
 def delete_ruleset(rule_set_id: str, request: Request):
     err = ruleset_service.delete_ruleset(rule_set_id, operator=_operator(request))
     if err:
-        raise HTTPException(status_code=400, detail=err)
+        _raise_err(err)
     return {"message": "规则集已删除"}

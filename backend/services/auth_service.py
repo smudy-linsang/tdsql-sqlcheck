@@ -451,7 +451,10 @@ ALL_MENU_KEYS = [
     'deep-diag-cluster', 'deep-diag-daily', 'deep-diag-index', 'deep-diag-diff',
     'deep-diag-emergency', 'deep-diag-sqlstats', 'deep-diag-gateway', 'deep-diag-ppt',
     'deep-diag-toolkit',
-    'projects', 'rulesets', 'gate', 'monitor', 'inspection',
+    # V1.4：项目管理/质量门禁菜单隐藏（项目降级为业务标签，门禁并入实例页）。
+    # 注意：仅从菜单键移除，_PATH_TO_MENU 的 /api/v1/projects、/api/v1/gate 映射必须保留，
+    # 否则这两个路径会落入"未映射默认放行"兜底分支，与 v1.3.2 的 R01 整改相悖。
+    'rulesets', 'monitor', 'inspection',
     'sys-users', 'sys-retention', 'sys-auditlog', 'sys-info',
     'sys-roles', 'sys-perms',
     'scan-compare',
@@ -468,7 +471,7 @@ MENU_LABELS = {
     'deep-diag-emergency': '深度诊断-应急诊断', 'deep-diag-sqlstats': '深度诊断-SQL分析',
     'deep-diag-gateway': '深度诊断-网关日志分析', 'deep-diag-ppt': '深度诊断-PDF报告与大屏',
     'deep-diag-toolkit': '深度诊断-运维工具箱',
-    'projects': '项目管理', 'rulesets': '规则集', 'gate': '质量门禁', 'monitor': '监控告警',
+    'rulesets': '评估规则集', 'monitor': '监控告警',
     'inspection': '巡检管理', 'sys-users': '用户管理', 'sys-retention': '数据保留',
     'sys-auditlog': '操作审计', 'sys-info': '系统信息',
     'sys-roles': '角色管理', 'sys-perms': '权限矩阵',

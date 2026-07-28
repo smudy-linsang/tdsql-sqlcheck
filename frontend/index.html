@@ -105,11 +105,10 @@
             <el-menu-item v-if="visibleMenus.has('bigtable')" index="bigtable">大表治理</el-menu-item>
           </el-sub-menu>
           <el-menu-item v-if="visibleMenus.has('deep-diag')" index="deep-diag"><el-icon><Cpu /></el-icon><span>深度诊断</span></el-menu-item>
-          <el-sub-menu v-if="visibleMenus.has('projects')||visibleMenus.has('rulesets')||visibleMenus.has('gate')||visibleMenus.has('monitor')||visibleMenus.has('inspection')" index="platform-group">
+          <el-sub-menu v-if="visibleMenus.has('rulesets')||visibleMenus.has('monitor')||visibleMenus.has('inspection')" index="platform-group">
             <template #title><el-icon><Setting /></el-icon><span>平台治理</span></template>
-            <el-menu-item v-if="visibleMenus.has('projects')" index="projects">项目管理</el-menu-item>
-            <el-menu-item v-if="visibleMenus.has('rulesets')" index="rulesets">规则集</el-menu-item>
-            <el-menu-item v-if="visibleMenus.has('gate')" index="gate">质量门禁</el-menu-item>
+            <!-- V1.4：项目管理/质量门禁菜单隐藏（项目降级为业务标签，门禁并入实例页） -->
+            <el-menu-item v-if="visibleMenus.has('rulesets')" index="rulesets">评估规则集</el-menu-item>
             <el-menu-item v-if="visibleMenus.has('monitor')" index="monitor">监控告警</el-menu-item>
             <el-menu-item v-if="visibleMenus.has('inspection')" index="inspection">巡检管理</el-menu-item>
           </el-sub-menu>
@@ -798,6 +797,18 @@
                 <el-table-column label="类型" width="90"><template #default="{row}"><el-tag size="small" :type="row.is_distributed?'warning':'info'">{{ row.is_distributed?'分布式':'集中式' }}</el-tag></template></el-table-column>
                 <el-table-column label="状态" width="80"><template #default="{row}"><span :style="{color:row.active?'#16a34a':'#94a3b8'}">●</span> {{ row.active?'已连接':'未连接' }}</template></el-table-column>
                 <el-table-column label="默认" width="60"><template #default="{row}"><el-tag v-if="row.is_default" type="primary" size="small">默认</el-tag></template></el-table-column>
+                <!-- V1.4：门禁阈值两列（gate_is_default 区分"已配置"与"走系统默认"） -->
+                <el-table-column label="ERROR上限" width="100">
+                  <template #default="{row}">
+                    <span :class="row.gate_is_default?'t-secondary':''">{{ row.max_error_count===-1?'不限':row.max_error_count }}</span>
+                    <el-tag v-if="row.gate_is_default" size="small" type="info">默认</el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column label="WARNING上限" width="110">
+                  <template #default="{row}">
+                    <span :class="row.gate_is_default?'t-secondary':''">{{ row.max_warning_count===-1?'不限':row.max_warning_count }}</span>
+                  </template>
+                </el-table-column>
                 <el-table-column label="操作" width="280" fixed="right">
                   <template #default="{row}">
                     <el-button link size="small" @click="connectInstance(row)" v-if="!row.active" :loading="row.connecting">连接</el-button>
@@ -832,6 +843,17 @@
               </el-collapse>
               <el-form-item label="实例类型" required><el-radio-group v-model="connForm.is_distributed"><el-radio :value="true">分布式实例</el-radio><el-radio :value="false">集中式实例</el-radio></el-radio-group><div style="font-size:12px;color:#94a3b8;margin-top:4px">分布式与集中式实例的审核规则不同，请根据实际情况选择</div></el-form-item>
               <el-form-item v-if="connForm.is_distributed" label="SET列表"><el-input v-model="connForm.set_list" type="textarea" :rows="2" placeholder="分布式实例慢SQL扫描用，从赤兔获取，逗号分隔，如 set_1772437478_1,set_1772437504_3"></el-input><div style="font-size:12px;color:#94a3b8;margin-top:4px">TDSQL Proxy 查 performance_schema 会随机路由到单个 SET；填写全部 SET 后，慢SQL扫描会逐 SET 查询并合并。留空则只反映随机一个 SET。</div></el-form-item>
+              <!-- V1.4：质量门禁（绑定实例）。阈值修改是治理动作，非 admin 只读 -->
+              <el-divider content-position="left">质量门禁</el-divider>
+              <el-form-item label="ERROR 上限">
+                <el-input-number v-model="connForm.max_error_count" :min="-1" :step="1" :disabled="!isAdmin"></el-input-number>
+                <span style="font-size:12px;color:#94a3b8;margin-left:8px">0 = 一个都不允许；-1 = 不限</span>
+              </el-form-item>
+              <el-form-item label="WARNING 上限">
+                <el-input-number v-model="connForm.max_warning_count" :min="-1" :step="1" :disabled="!isAdmin"></el-input-number>
+                <span style="font-size:12px;color:#94a3b8;margin-left:8px">默认 -1（不限）</span>
+              </el-form-item>
+              <el-alert v-if="!isAdmin" type="info" :closable="false" show-icon title="门禁阈值仅系统管理员可修改，此处为只读展示" class="mb-12"></el-alert>
               <el-alert v-if="connTestResult" :title="connTestResult.msg" :type="connTestResult.type" show-icon :closable="false" class="mb-12"></el-alert>
             </el-form>
             <template #footer>
@@ -1523,19 +1545,28 @@
           <div v-if="currentPage==='rulesets'">
             <div class="page-card">
               <div class="card-head">
-                <div class="page-card-title mb0">规则集管理</div>
+                <div class="page-card-title mb0">评估规则集（全局）</div>
                 <el-button v-if="canManagePlatform" type="primary" size="small" @click="rulesetDialog.visible=true">+ 新建规则集</el-button>
               </div>
+              <el-alert type="info" :closable="false" show-icon class="mb-16"
+                title="规则集是全系统唯一的评估尺度。管理员设为生效后，所有审核与扫描统一使用该规则集，最长 30 秒内全量生效。"></el-alert>
               <el-table :data="rulesets" v-loading="rulesetsLoading" stripe class="w-full">
                 <el-table-column prop="name" label="名称" show-overflow-tooltip></el-table-column>
                 <el-table-column prop="description" label="描述" show-overflow-tooltip></el-table-column>
                 <el-table-column prop="item_count" label="规则数" width="80"></el-table-column>
+                <el-table-column label="状态" width="100">
+                  <template #default="{row}">
+                    <el-tag v-if="row.is_active" type="success" size="small">当前生效</el-tag>
+                    <span v-else class="t-secondary">—</span>
+                  </template>
+                </el-table-column>
                 <el-table-column prop="is_builtin" label="内置" width="60"><template #default="{row}">{{ row.is_builtin?'是':'否' }}</template></el-table-column>
                 <el-table-column prop="created_by" label="创建人" width="80"></el-table-column>
-                <el-table-column label="操作" width="160" fixed="right" v-if="canManagePlatform">
+                <el-table-column label="操作" width="230" fixed="right">
                   <template #default="{row}">
-                    <el-button link type="primary" size="small" @click="openRulesetConfig(row)">{{ row.is_builtin ? '查看规则' : '配置规则' }}</el-button>
-                    <el-button link type="danger" size="small" :disabled="!!row.is_builtin" @click="deleteRuleset(row)">删除</el-button>
+                    <el-button v-if="isAdmin && !row.is_active" link type="success" size="small" @click="activateRuleset(row)">设为生效</el-button>
+                    <el-button v-if="canManagePlatform" link type="primary" size="small" @click="openRulesetConfig(row)">{{ row.is_builtin ? '查看规则' : '配置规则' }}</el-button>
+                    <el-button v-if="canManagePlatform" link type="danger" size="small" :disabled="!!row.is_builtin || !!row.is_active" @click="deleteRuleset(row)">删除</el-button>
                   </template>
                 </el-table-column>
               </el-table>

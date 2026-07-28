@@ -373,8 +373,13 @@ class ConnectionRegistry:
         ensure_db()
         conn = _get_connection()
         try:
+            # V1.4：LEFT JOIN 实例门禁，列表直接渲染阈值（不为每行另发请求）
             rows = conn.execute(
-                "SELECT * FROM tdsql_connections ORDER BY created_at").fetchall()
+                "SELECT c.*, g.max_error_count AS gate_max_error, "
+                "g.max_warning_count AS gate_max_warning "
+                "FROM tdsql_connections c "
+                "LEFT JOIN instance_gate_rules g ON g.connection_id = c.id "
+                "ORDER BY c.created_at").fetchall()
             result = []
             with self._lock:
                 active_ids = set(self._pools.keys())
@@ -383,6 +388,13 @@ class ConnectionRegistry:
                 d.pop("password_encrypted", None)
                 d["password"] = "***"
                 d["active"] = d["id"] in active_ids
+                # V1.4 门禁字段：未配置走系统默认（0 / -1）并标记 gate_is_default
+                gate_err = d.pop("gate_max_error", None)
+                gate_warn = d.pop("gate_max_warning", None)
+                configured = gate_err is not None
+                d["max_error_count"] = gate_err if configured else 0
+                d["max_warning_count"] = gate_warn if configured else -1
+                d["gate_is_default"] = not configured
                 result.append(d)
             return result
         finally:

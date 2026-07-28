@@ -56,6 +56,7 @@ class BigTableService:
             from backend.services.snapshot_extractors.bigtable import extract as bt_extract
             from backend.services import scan_snapshot_service as snap
             from backend.services.connection_registry import registry
+            from backend.services.ruleset_service import ruleset_service as _rs_svc
 
             items, obj_total = bt_extract(connection_id, inspection_date)
             conn_name = ""
@@ -73,6 +74,8 @@ class BigTableService:
                 "scan_started_at": started_at.isoformat(),
                 "scan_finished_at": finished.isoformat(),
                 "created_by": "",
+                # V1.4：大表治理本身不走规则集，但报告需标注当时全局尺度（对比校验用）
+                "rule_set_id": _rs_svc.get_active_rule_set_id(),
             }, items, obj_total)
         except Exception as e:
             logger.warning(f"生成大表治理快照失败: {e}")

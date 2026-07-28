@@ -29,8 +29,26 @@ _LIST_COLUMNS = """
     scan_started_at, scan_finished_at, time_window_start, time_window_end,
     object_total, issue_total, error_count, warning_count,
     fingerprint_algo, schema_version, truncated, truncated_count,
-    snapshot_size, source_kind, created_by, created_at
+    snapshot_size, source_kind, created_by, created_at, rule_set_id
 """
+
+
+def _rule_set_name_map(ids) -> dict:
+    """批量查规则集名称（V1.4：快照列表/对比响应需展示尺度名称）。"""
+    ids = {i for i in (ids or []) if i}
+    if not ids:
+        return {}
+    conn = _get_connection()
+    try:
+        ph = ",".join(["?"] * len(ids))
+        rows = conn.execute(
+            f"SELECT id, name FROM rule_sets WHERE id IN ({ph})", list(ids)).fetchall()
+        return {r["id"]: r["name"] for r in rows}
+    except Exception as e:
+        logger.warning(f"查询规则集名称失败: {e}")
+        return {}
+    finally:
+        conn.close()
 
 
 def _fmt_dt(value) -> str:
@@ -112,8 +130,8 @@ def create_snapshot(module: str, meta: dict, issues: list,
                scan_started_at, scan_finished_at, time_window_start, time_window_end,
                object_total, issue_total, error_count, warning_count,
                fingerprint_algo, schema_version, truncated, truncated_count,
-               snapshot_json, snapshot_size, source_kind, created_by)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+               snapshot_json, snapshot_size, source_kind, created_by, rule_set_id)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             ON DUPLICATE KEY UPDATE
                connection_id=VALUES(connection_id),
                connection_name=VALUES(connection_name),
@@ -130,7 +148,8 @@ def create_snapshot(module: str, meta: dict, issues: list,
                truncated=VALUES(truncated),
                truncated_count=VALUES(truncated_count),
                snapshot_json=VALUES(snapshot_json),
-               snapshot_size=VALUES(snapshot_size)
+               snapshot_size=VALUES(snapshot_size),
+               rule_set_id=VALUES(rule_set_id)
         """, (
             module, str(meta.get("biz_ref_id", ""))[:64],
             meta.get("connection_id", "") or "",
@@ -147,6 +166,8 @@ def create_snapshot(module: str, meta: dict, issues: list,
             1 if truncated else 0, truncated_count,
             blob, len(blob), source_kind,
             (meta.get("created_by", "") or "")[:64],
+            # V1.4：生成本快照时生效的规则集（对比时校验同尺度）；NULL=V1.4 前尺度未知
+            (meta.get("rule_set_id", "") or None),
         ))
         conn.commit()
         snap_id = getattr(cur, "lastrowid", None)
@@ -211,9 +232,14 @@ def list_snapshots(module: str = "", connection_id: str = "", db_name: str = "",
             f"SELECT {_LIST_COLUMNS} FROM scan_snapshots{cond} "
             f"ORDER BY scan_finished_at DESC, id DESC LIMIT ? OFFSET ?",
             (*args, limit, offset)).fetchall()
-        return {"total": total, "items": [_row_to_item(r) for r in rows or []]}
+        items = [_row_to_item(r) for r in rows or []]
     finally:
         conn.close()
+    # V1.4：补充尺度名称（rule_set_id 为 NULL 的存量快照名称为空）
+    name_map = _rule_set_name_map([it.get("rule_set_id") for it in items])
+    for it in items:
+        it["rule_set_name"] = name_map.get(it.get("rule_set_id"), "")
+    return {"total": total, "items": items}
 
 
 def get_snapshot(snapshot_id: int, with_issues: bool = True):
@@ -230,6 +256,9 @@ def get_snapshot(snapshot_id: int, with_issues: bool = True):
 
     item = _row_to_item(row)
     raw = item.pop("snapshot_json", None)
+    # V1.4：补充尺度名称
+    item["rule_set_name"] = _rule_set_name_map([item.get("rule_set_id")]).get(
+        item.get("rule_set_id"), "")
     if not with_issues:
         return item
 

@@ -256,9 +256,13 @@ class TestC6Collaboration:
         assert r.status_code == 200
 
     def test_uat24_project_isolation_baseline(self, client, tokens):
-        """UAT-24 项目列表读取（多租户项目隔离基线）"""
+        """UAT-24 项目访问控制（V1.4：项目菜单隐藏，仅 admin 与存量集成可达）"""
+        # V1.4：projects 从 ALL_MENU_KEYS 移除，非 admin 访问一律 403
         r = client.get("/api/v1/projects", headers=auth(tokens["dba"]))
-        assert r.status_code == 200
+        assert r.status_code == 403, "项目菜单隐藏后 dba 不应可访问 /projects"
+        # admin 仍可访问（接口保留供 GitLab 绑定与历史留痕）
+        r2 = client.get("/api/v1/projects", headers=auth(tokens["admin"]))
+        assert r2.status_code == 200
 
     def test_uat25_role_menu_visibility_reflected(self, client, tokens):
         """UAT-25 角色可见菜单反映到前端导航（最小权限呈现）"""

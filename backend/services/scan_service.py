@@ -227,6 +227,7 @@ def _do_scan(pool, connection_id: str, source: str, limit: int, min_time: float,
     try:
         from backend.services.snapshot_extractors.slow_scan import extract as _extract
         from backend.services import scan_snapshot_service as _snap
+        from backend.services.ruleset_service import ruleset_service as _rs_svc
         _items, _obj_total = _extract(task_id, db_name)
         _snap.safe_create_snapshot("slow_scan", {
             "biz_ref_id": str(task_id),
@@ -239,6 +240,8 @@ def _do_scan(pool, connection_id: str, source: str, limit: int, min_time: float,
             "time_window_start": time_window_start or "",
             "time_window_end": time_window_end or "",
             "created_by": operator or "",
+            # V1.4：慢SQL本身不走规则集，但报告需标注当时全局尺度（对比校验用）
+            "rule_set_id": _rs_svc.get_active_rule_set_id(),
         }, _items, _obj_total)
     except Exception as e:
         logger.warning(f"生成慢SQL扫描快照失败: {e}")

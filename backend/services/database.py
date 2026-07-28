@@ -566,6 +566,23 @@ def _migrate_old_tables(conn):
         # 改密 / 管理员重置 / 登出时递增，实现"及时终止会话"（等保 2.0 三级 8.1.4.1）。
         _add_column_if_not_exists(conn, "users", "token_version", "INT NOT NULL DEFAULT 0")
 
+    # ── V1.4 可追溯性：记录每次评估实际生效的规则集 ──
+    # 规则集改为全局启用后，"这份报告用的哪把尺"必须落库，
+    # 否则历史报告事后不可复现（V1.3 及以前只落 project_id，而项目的规则集可随时改）。
+    # NULL 语义：V1.4 之前产生的记录，尺度未知（对比时走警告而非拒绝）。
+    if "audit_history" in table_names:
+        _add_column_if_not_exists(conn, "audit_history", "rule_set_id",
+                                  "VARCHAR(64) DEFAULT NULL")
+    if "scan_snapshots" in table_names:
+        _add_column_if_not_exists(conn, "scan_snapshots", "rule_set_id",
+                                  "VARCHAR(64) DEFAULT NULL")
+    if "gate_audit_logs" in table_names:
+        # 门禁绑定对象由项目改为实例，判定依据需要落库
+        _add_column_if_not_exists(conn, "gate_audit_logs", "connection_id",
+                                  "VARCHAR(64) DEFAULT NULL")
+        _add_column_if_not_exists(conn, "gate_audit_logs", "rule_set_id",
+                                  "VARCHAR(64) DEFAULT NULL")
+
     conn.commit()
 
 
@@ -739,7 +756,7 @@ def _create_all_tables(conn):
             INDEX idx_whitelist_rule (rule_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""",
 
-        # T06. gate_rules
+        # T06. gate_rules（V1.4 起 DEPRECATED：门禁改绑实例，见 instance_gate_rules）
         """CREATE TABLE IF NOT EXISTS gate_rules (
             project_id          VARCHAR(64) PRIMARY KEY,
             max_error_count     INT DEFAULT 0,
@@ -749,6 +766,22 @@ def _create_all_tables(conn):
             description         TEXT,
             created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at          DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""",
+
+        # T06b. instance_gate_rules（V1.4 实例级质量门禁，替代按项目绑定的 gate_rules）
+        # 默认值 error=0 / warning=-1 与 gate_rules 完全一致，判定结论不变、无需存量迁移。
+        # 外键 ON DELETE CASCADE：实例删除时门禁配置一并清理（配置非留痕，无保留价值）。
+        """CREATE TABLE IF NOT EXISTS instance_gate_rules (
+            connection_id       VARCHAR(64) PRIMARY KEY,
+            max_error_count     INT NOT NULL DEFAULT 0,
+            max_warning_count   INT NOT NULL DEFAULT -1,
+            mode                VARCHAR(16) NOT NULL DEFAULT 'enforce',
+            description         TEXT,
+            updated_by          VARCHAR(64) NOT NULL DEFAULT '',
+            created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at          DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            CONSTRAINT fk_igr_connection FOREIGN KEY (connection_id)
+                REFERENCES tdsql_connections(id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""",
 
         # T07. gate_audit_logs
@@ -1353,6 +1386,13 @@ def _init_default_data(conn):
         VALUES ('default', 0, -1, '默认门禁规则：不允许任何ERROR级别违规')
     """)
 
+    # V1.4：全局生效规则集，兜底指向内置 default。
+    # 单键为唯一权威来源（不用 rule_sets.is_active 列，避免并发切换歧义）。
+    conn.cursor().execute("""
+        INSERT IGNORE INTO system_config(config_key, config_value)
+        VALUES ('active_rule_set_id', 'default')
+    """)
+
     # 默认告警规则
     alert_rules = [
         ('threads_running', 100, 200, 60, 1),
@@ -1412,7 +1452,8 @@ def _init_default_data(conn):
         'deep-diag-cluster', 'deep-diag-daily', 'deep-diag-index', 'deep-diag-diff',
         'deep-diag-emergency', 'deep-diag-sqlstats', 'deep-diag-gateway', 'deep-diag-ppt',
         'deep-diag-toolkit',
-        'projects', 'rulesets', 'gate', 'monitor', 'inspection',
+        # V1.4：移除 projects / gate（菜单隐藏）。下方 DELETE ... NOT IN 会自动清理残留权限行。
+        'rulesets', 'monitor', 'inspection',
         'sys-users', 'sys-retention', 'sys-auditlog', 'sys-info',
         'sys-roles', 'sys-perms',
         'scan-compare',

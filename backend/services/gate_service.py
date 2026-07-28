@@ -82,6 +82,49 @@ class GateService:
             detail=detail,
         )
 
+    def evaluate_for_instance(self, violations: list[Violation],
+                              connection_id: str) -> GateResult:
+        """按实例门禁判定（V1.4）。
+
+        门禁绑定对象由项目改为实例：同一把全局尺度下，不同实例可有不同放行标准。
+        observe 模式下照常计算与记录，但 passed 恒为 true——
+        用于收紧阈值前评估影响面，避免一刀切导致全量实例立即不通过。
+        """
+        from backend.services.instance_gate_service import instance_gate_service
+        rule = instance_gate_service.get_rule(connection_id)
+
+        error_count = sum(1 for v in violations
+                          if v.severity == Severity.ERROR or str(v.severity) == "ERROR")
+        warning_count = sum(1 for v in violations
+                            if v.severity == Severity.WARNING or str(v.severity) == "WARNING")
+
+        reasons = []
+        passed = True
+        # -1 表示不限，沿用既有语义（>= 0 才参与判定）
+        if rule["max_error_count"] >= 0 and error_count > rule["max_error_count"]:
+            passed = False
+            reasons.append(f"ERROR违规{error_count}个，超过上限{rule['max_error_count']}")
+        if rule["max_warning_count"] >= 0 and warning_count > rule["max_warning_count"]:
+            passed = False
+            reasons.append(f"WARNING违规{warning_count}个，超过上限{rule['max_warning_count']}")
+
+        observed_passed = passed
+        if rule["mode"] == "observe" and not passed:
+            passed = True
+            reasons.append("（观察模式：仅记录，不拦截）")
+
+        detail = "；".join(reasons) if reasons else "门禁检查通过"
+        return GateResult(
+            passed=passed,
+            gate_rule_id=connection_id,
+            error_count=error_count,
+            warning_count=warning_count,
+            blocked_by=[],
+            detail=detail,
+            # observe 模式下记录真实判定，供管理员评估"收紧后会拦掉多少"
+            observed_passed=observed_passed if rule["mode"] == "observe" else None,
+        )
+
     def get_gate_rule(self, project_id: str = "default") -> GateRule:
         """获取门禁规则"""
         ensure_db()
@@ -142,19 +185,26 @@ class GateService:
 
     def log_gate_audit(self, project_id: str, passed: bool, error_count: int,
                        warning_count: int, blocked_by: list, detail: str,
-                       audit_history_id: Optional[int] = None, source: str = ""):
-        """记录门禁审核日志"""
+                       audit_history_id: Optional[int] = None, source: str = "",
+                       connection_id: str = "", rule_set_id: str = ""):
+        """记录门禁审核日志。
+
+        V1.4：门禁绑定对象由项目改为实例，补记 connection_id 与 rule_set_id；
+        project_id 入参保留（V1.4 起传空串），历史留痕列不动。
+        """
         ensure_db()
         conn = _get_connection()
         try:
             conn.execute("""
                 INSERT INTO gate_audit_logs
-                (project_id, audit_history_id, source, passed, error_count, warning_count, blocked_by, detail)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                (project_id, audit_history_id, source, passed, error_count, warning_count,
+                 blocked_by, detail, connection_id, rule_set_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 project_id, audit_history_id, source,
                 1 if passed else 0, error_count, warning_count,
                 json.dumps(blocked_by), detail,
+                connection_id or None, rule_set_id or None,
             ))
             conn.commit()
         finally:

@@ -48,6 +48,24 @@ def _require_admin(request: Request, action: str):
         raise HTTPException(status_code=403, detail=f"仅系统管理员可{action}")
 
 
+def _active_scale() -> tuple[str, str]:
+    """取当前全局生效规则集的 (id, name)，供审核响应标注尺度（带缓存，无额外开销）。"""
+    try:
+        from backend.services.ruleset_service import ruleset_service
+        rid, _ = ruleset_service.get_active_overrides()
+        info = ruleset_service.get_ruleset(rid) or {}
+        return rid, info.get("name", rid)
+    except Exception:
+        return "default", ""
+
+
+def _deprecated_params(project_id: Optional[str]) -> Optional[dict]:
+    """V1.4：传了 project_id 则提示其不再决定尺度（静默忽略会让调用方误以为仍生效）。"""
+    if project_id:
+        return {"project_id": "V1.4 起规则集已改为管理员全局启用，本参数不再影响评估尺度，将在后续版本移除"}
+    return None
+
+
 def _audit_log(request: Request, operation_type: str, target_id: str, detail: str):
     """写操作审计日志；失败仅告警，不影响主流程"""
     try:
@@ -74,17 +92,23 @@ async def audit_sql(request: AuditRequest, http_request: Request):
     - **project_id**: 项目ID（可选，绑定项目的规则集与门禁）
     """
     try:
+        # V1.4：尺度全局化（project_id 不再决定尺度）；门禁按 connection_id 绑定的实例判定
         result, gate_result = audit_service.audit_single_sql(
             request.sql,
             created_by=_operator(http_request),
             project_id=request.project_id or "",
-            evaluate_gate=bool(request.project_id),
+            evaluate_gate=bool(request.connection_id),
+            connection_id=request.connection_id or "",
         )
+        rs_id, rs_name = _active_scale()
         return AuditResponse(
             passed=result.passed,
             violations=result.violations,
             sql_type=result.sql_type,
             gate_result=gate_result,
+            rule_set_id=rs_id,
+            rule_set_name=rs_name,
+            deprecated_params=_deprecated_params(request.project_id),
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"SQL解析失败: {str(e)}")
@@ -100,14 +124,20 @@ async def audit_file(request: FileAuditRequest, http_request: Request):
     - **project_id**: 项目ID（可选，绑定项目的规则集与门禁）
     """
     try:
+        # V1.4：尺度全局化；门禁按 connection_id 绑定的实例判定
         results, summary, gate_result = audit_service.audit_file_content(
             request.content, file_path=request.file_path,
             created_by=_operator(http_request),
             project_id=request.project_id or "",
-            evaluate_gate=bool(request.project_id),
+            evaluate_gate=bool(request.connection_id),
+            connection_id=request.connection_id or "",
         )
+        rs_id, rs_name = _active_scale()
         return FileAuditResponse(results=results, summary=summary,
-                                 gate_result=gate_result)
+                                 gate_result=gate_result,
+                                 rule_set_id=rs_id,
+                                 rule_set_name=rs_name,
+                                 deprecated_params=_deprecated_params(request.project_id))
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"文件审核失败: {str(e)}")
 
@@ -270,6 +300,9 @@ async def extract_and_audit(http_request: Request, payload: dict):
         filename = f"extracted_{target_db}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.sql"
 
         # 2. 调用文件审核引擎进行规则化全面评估
+        # V1.4：尺度取自全局生效规则集，记录当时用的哪把尺（可追溯）
+        from backend.services.ruleset_service import ruleset_service as _rs_svc
+        _rule_set_id = _rs_svc.get_active_rule_set_id()
         results, summary, _ = audit_service.audit_file_content(
             full_extracted_sql,
             file_path=filename,
@@ -279,6 +312,7 @@ async def extract_and_audit(http_request: Request, payload: dict):
 
         # 显式持久化落盘至 audit_history 表 (audit_type = 'extracted_schema')
         # V1.3(D1): 补落 connection_id / db_name，支撑按实例筛选与对比
+        # V1.4: 补落 rule_set_id（尺度可追溯）
         from backend.services.audit_service import _save_audit_history
         report_id = _save_audit_history(
             audit_type="extracted_schema",
@@ -288,6 +322,7 @@ async def extract_and_audit(http_request: Request, payload: dict):
             created_by=_operator(http_request),
             connection_id=connection_id,
             db_name=target_db,
+            rule_set_id=_rule_set_id,
         )
 
         # V1.3: 旁路生成对比快照（失败仅告警，不影响审核主流程）
@@ -306,6 +341,7 @@ async def extract_and_audit(http_request: Request, payload: dict):
                 "scan_started_at": _started_at,
                 "scan_finished_at": datetime.now().isoformat(),
                 "created_by": _operator(http_request),
+                "rule_set_id": _rule_set_id,
             }, _items, _obj_total)
         except Exception as e:
             logger.warning(f"生成元数据审核快照失败: {e}")

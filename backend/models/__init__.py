@@ -96,6 +96,10 @@ class AuditResponse(BaseModel):
     violations: list[Violation] = Field(default_factory=list, description="违规列表")
     sql_type: str = Field("", description="SQL类型")
     gate_result: Optional["GateResult"] = Field(None, description="门禁结果")
+    rule_set_id: str = Field("", description="V1.4：本次审核生效的规则集ID")
+    rule_set_name: str = Field("", description="V1.4：本次审核生效的规则集名称")
+    deprecated_params: Optional[dict] = Field(
+        None, description="V1.4：已废弃参数的提示（如 project_id 不再决定尺度）")
 
 
 class FileAuditRequest(BaseModel):
@@ -111,6 +115,10 @@ class FileAuditResponse(BaseModel):
     results: list[AuditResult] = Field(default_factory=list, description="审核结果列表")
     summary: AuditSummary = Field(..., description="审核汇总")
     gate_result: Optional["GateResult"] = Field(None, description="门禁结果")
+    rule_set_id: str = Field("", description="V1.4：本次审核生效的规则集ID")
+    rule_set_name: str = Field("", description="V1.4：本次审核生效的规则集名称")
+    deprecated_params: Optional[dict] = Field(
+        None, description="V1.4：已废弃参数的提示（如 project_id 不再决定尺度）")
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -135,6 +143,8 @@ class GateResult(BaseModel):
     warning_count: int = Field(0, description="WARNING违规数")
     blocked_by: list[str] = Field(default_factory=list, description="阻断规则列表")
     detail: str = Field("", description="门禁详情")
+    observed_passed: Optional[bool] = Field(
+        None, description="V1.4：observe 模式下'若正式生效会否通过'（enforce 模式为 None）")
 
 
 # ═══════════════════════════════════════════════════════════════════

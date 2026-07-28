@@ -29,11 +29,13 @@ def _save_audit_history(audit_type: str, source: str, results: list[AuditResult]
                         summary: AuditSummary, created_by: str = "",
                         project_id: str = "",
                         gate_result: Optional[GateResult] = None,
-                        connection_id: str = "", db_name: str = ""):
+                        connection_id: str = "", db_name: str = "",
+                        rule_set_id: str = ""):
     """保存审核历史到数据库
 
     V1.3(D1): 新增 connection_id / db_name，支撑扫描结果对比按实例筛选。
-    两参数均有默认值，既有调用方无需改动。
+    V1.4: 新增 rule_set_id，记录本次审核实际生效的规则集（尺度可追溯）。
+    均有默认值，既有调用方无需改动。
     """
     try:
         ensure_db()
@@ -58,8 +60,8 @@ def _save_audit_history(audit_type: str, source: str, results: list[AuditResult]
                 INSERT INTO audit_history (audit_type, source, total_sql, passed, failed,
                     error_count, warning_count, pass_rate, results_json,
                     created_by, project_id, gate_passed, gate_detail, created_at,
-                    connection_id, db_name)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    connection_id, db_name, rule_set_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 audit_type, source,
                 summary.total_sql, summary.passed, summary.failed,
@@ -69,6 +71,8 @@ def _save_audit_history(audit_type: str, source: str, results: list[AuditResult]
                 gate_result.detail if gate_result else "",
                 datetime.now().isoformat(),
                 connection_id or "", db_name or "",
+                # NULL 语义为"V1.4 前历史记录，尺度未知"，故空串写 None 而非 ""
+                rule_set_id or None,
             ))
             conn.commit()
             return getattr(cursor, "lastrowid", None)
@@ -85,22 +89,33 @@ class AuditService:
     def __init__(self):
         self.checker = RuleChecker(dialect="mysql")
 
-    def _resolve_overrides(self, project_id: Optional[str]) -> Optional[dict]:
-        """按项目解析规则集覆盖"""
-        if not project_id:
-            return None
+    def _resolve_scale(self) -> tuple[str, Optional[dict]]:
+        """解析当前全局生效的评估尺度，返回 (规则集ID, 规则覆盖)。
+
+        V1.4：尺度由管理员全局启用，不再随调用方传入的 project_id 变化——
+        这正是为了消除"换个项目再扫一次，问题就变少了"的伪命题。
+        解析失败一律回落全默认，绝不因尺度解析异常打断审核主流程。
+        """
         try:
             from backend.services.ruleset_service import ruleset_service
-            return ruleset_service.get_overrides_for_project(project_id)
+            return ruleset_service.get_active_overrides()
         except Exception as e:
-            logger.warning(f"解析项目规则集失败(按默认规则执行): {e}")
-            return None
+            logger.warning(f"解析全局规则集失败(按引擎默认执行): {e}")
+            return "default", None
+
+    def _resolve_overrides(self, project_id: Optional[str] = None) -> Optional[dict]:
+        """DEPRECATED(V1.4)：保留仅为兼容；尺度已全局化，project_id 被忽略"""
+        return self._resolve_scale()[1]
 
     def audit_single_sql(self, sql: str, created_by: str = "",
                          project_id: str = "",
-                         evaluate_gate: bool = False) -> tuple[AuditResult, Optional[GateResult]]:
+                         evaluate_gate: bool = False,
+                         connection_id: str = "") -> tuple[AuditResult, Optional[GateResult]]:
         """
         审核单条 SQL。
+
+        V1.4：尺度取自全局生效规则集（project_id 不再决定尺度，仅兼容保留）；
+        门禁按 connection_id 绑定的实例判定。
 
         Returns:
             (审核结果, 门禁结果或None)
@@ -108,7 +123,7 @@ class AuditService:
         from backend.services.database import split_sql_statements
         statements = [s.strip() for s in split_sql_statements(sql) if s.strip()]
 
-        overrides = self._resolve_overrides(project_id)
+        rule_set_id, overrides = self._resolve_scale()
 
         if len(statements) <= 1:
             result = self.checker.audit_sql(sql, rule_overrides=overrides)
@@ -154,12 +169,13 @@ class AuditService:
 
         gate_result = None
         if evaluate_gate:
-            gate_result = self._evaluate_gate(result.violations, project_id)
+            gate_result = self._evaluate_gate(result.violations, connection_id)
 
         summary = self.checker.compute_summary([result])
         _save_audit_history("sql", "api", [result], summary,
                             created_by=created_by, project_id=project_id,
-                            gate_result=gate_result)
+                            gate_result=gate_result, connection_id=connection_id,
+                            rule_set_id=rule_set_id)
         try:
             from backend.services import metrics_service
             metrics_service.inc("tdsql_audit_sql_total")
@@ -173,21 +189,23 @@ class AuditService:
     def audit_sql_list(self, sql_list: list[str], created_by: str = "",
                        project_id: str = "") -> list[AuditResult]:
         """审核多条 SQL"""
-        overrides = self._resolve_overrides(project_id)
+        rule_set_id, overrides = self._resolve_scale()
         results = [self.checker.audit_sql(sql, rule_overrides=overrides)
                    for sql in sql_list]
         summary = self.checker.compute_summary(results)
         _save_audit_history("sql_batch", "api", results, summary,
-                            created_by=created_by, project_id=project_id)
+                            created_by=created_by, project_id=project_id,
+                            rule_set_id=rule_set_id)
         return results
 
     def audit_file_content(self, content: str, file_path: str = "",
                            created_by: str = "", project_id: str = "",
                            evaluate_gate: bool = False,
-                           save_history: bool = True
+                           save_history: bool = True,
+                           connection_id: str = ""
                            ) -> tuple[list[AuditResult], AuditSummary, Optional[GateResult]]:
-        """审核文件内容，返回结果列表、汇总和门禁结果"""
-        overrides = self._resolve_overrides(project_id)
+        """审核文件内容，返回结果列表、汇总和门禁结果（V1.4：尺度全局、门禁按实例）"""
+        rule_set_id, overrides = self._resolve_scale()
         results = self.checker.audit_file(content, file_path=file_path,
                                           rule_overrides=overrides)
         summary = self.checker.compute_summary(results)
@@ -195,22 +213,21 @@ class AuditService:
         gate_result = None
         if evaluate_gate:
             all_violations = [v for r in results for v in r.violations]
-            gate_result = self._evaluate_gate(all_violations, project_id)
+            gate_result = self._evaluate_gate(all_violations, connection_id)
 
         source = file_path if file_path else "file_upload"
         if save_history:
             _save_audit_history("file", source, results, summary,
                                 created_by=created_by, project_id=project_id,
-                                gate_result=gate_result)
+                                gate_result=gate_result, connection_id=connection_id,
+                                rule_set_id=rule_set_id)
         return results, summary, gate_result
 
-    def _evaluate_gate(self, violations, project_id: str) -> Optional[GateResult]:
-        """门禁评估"""
+    def _evaluate_gate(self, violations, connection_id: str = "") -> Optional[GateResult]:
+        """门禁评估（V1.4：按实例，不再按项目）"""
         try:
             from backend.services.gate_service import GateService
-            gate_service = GateService()
-            gate_rule = gate_service.get_gate_rule(project_id or "default")
-            return gate_service.evaluate(violations, gate_rule)
+            return GateService().evaluate_for_instance(violations, connection_id)
         except Exception as e:
             logger.warning(f"门禁评估失败: {e}")
             return None

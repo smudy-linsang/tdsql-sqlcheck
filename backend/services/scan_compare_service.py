@@ -114,10 +114,26 @@ def validate_pair(snapshot_ids, module: str = "") -> tuple[dict, dict, list]:
     if s1.get("fingerprint_algo") != s2.get("fingerprint_algo"):
         raise CompareError("E4005", "两次扫描的指纹算法版本不一致，无法可靠对比", status=409)
 
+    # 7. 同评估尺度（V1.4，修复既有缺陷）
+    # 尺度不同则"问题数变化"不可解释：规则集变了，事实没变，只是判断变了。
+    # 此前 validate_pair 校验了模块/实例/指纹算法版本，唯独没有规则集，
+    # 导致能拿两个不同尺度的快照算出看似权威的"整改率"。
+    r1, r2 = s1.get("rule_set_id"), s2.get("rule_set_id")
+    if r1 and r2 and r1 != r2:
+        raise CompareError(
+            "E4007",
+            f"两次扫描的评估尺度不同（{r1} vs {r2}），问题数变化不可比，已拒绝对比",
+            status=409)
+
     # 基准判定：时间早的为 base，与勾选顺序无关
     base, target = sorted([s1, s2], key=lambda s: (s.get("scan_finished_at") or "", s.get("id")))
 
     warnings = []
+    # 7b. 存量快照宽容处理：任一尺度为 NULL（V1.4 前产生）不拒绝，仅警告。
+    # 若一律拒绝，全部存量快照立即不可对比，等于废掉 V1.3 刚交付的能力。
+    if not r1 or not r2:
+        warnings.append(
+            "其中一次扫描产生于 V1.4 之前，评估尺度未知，整改率仅供参考")
     # 7. 慢SQL 时间窗口一致性（不拦截，仅提示）
     if base.get("module") == "slow_scan":
         h1 = _parse_window_hours(base.get("time_window_start"), base.get("time_window_end"))
@@ -288,6 +304,9 @@ def run_compare(snapshot_ids, module: str = "", include_details: bool = True,
         "connection_id": base.get("connection_id") or target.get("connection_id") or "",
         "connection_name": base.get("connection_name") or target.get("connection_name") or "",
         "db_name": base.get("db_name") or target.get("db_name") or "",
+        # V1.4：评估尺度（两快照同尺度时取 base；NULL 表示 V1.4 前尺度未知）
+        "rule_set_id": base.get("rule_set_id") or target.get("rule_set_id") or "",
+        "rule_set_name": base.get("rule_set_name") or target.get("rule_set_name") or "",
         "labels": result["labels"],
         "warnings": warnings,
         "summary": result["summary"],

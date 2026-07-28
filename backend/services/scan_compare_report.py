@@ -175,6 +175,14 @@ def render_compare_html(result: dict) -> str:
         _e(result.get("db_name") or ""),
     ]))
 
+    # V1.4：报告自解释——脱离尺度的问题数没有意义，页眉必须标注用的哪把尺
+    rs_id = result.get("rule_set_id") or ""
+    rs_name = result.get("rule_set_name") or ""
+    if rs_id:
+        scale_line = f"{_e(rs_name or rs_id)}（{_e(rs_id)}）"
+    else:
+        scale_line = "V1.4 前记录，尺度未知"
+
     kpis = [
         ("之前问题数", summary.get("base_total", 0), ""),
         ("现在问题数", summary.get("target_total", 0), ""),
@@ -227,6 +235,7 @@ def render_compare_html(result: dict) -> str:
   <h1>TDSQL 扫描结果对比报告 · {_e(module_label)}</h1>
   <div class="meta">
     实例：<b>{conn_line}</b><br>
+    评估尺度：<b>{scale_line}</b><br>
     基准：<b>{_e(_fmt_time(base.get('scan_finished_at')))}</b>
     <span class="arrow">&nbsp;→&nbsp;</span>
     目标：<b>{_e(_fmt_time(target.get('scan_finished_at')))}</b>
