@@ -1638,10 +1638,6 @@
               </div>
               <el-empty v-if="!currentProjectId" description="请选择项目以查看门禁配置"></el-empty>
               <div v-else v-loading="gateLoading">
-                <div class="mb-16">
-                  <span class="mr-12">预设策略:</span>
-                  <el-button v-for="s in gateStrategies" :key="s.name" size="small" @click="applyGateStrategy(s.name)" class="mr-8">{{ s.name }}</el-button>
-                </div>
                 <el-descriptions v-if="gateRules" :column="2" border>
                   <el-descriptions-item label="最大ERROR数">{{ gateRules.max_error_count }}</el-descriptions-item>
                   <el-descriptions-item label="最大WARNING数">{{ gateRules.max_warning_count }}</el-descriptions-item>
