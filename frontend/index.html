@@ -203,7 +203,6 @@
                 <el-select v-model="auditProjectId" placeholder="绑定项目" clearable size="small" class="w-200">
                   <el-option v-for="p in projects" :key="p.project_id" :label="p.project_name" :value="p.project_id"></el-option>
                 </el-select>
-                <el-switch v-model="metadataEnhanced" active-text="元数据增强" inactive-text=""></el-switch>
                 <el-dropdown @command="loadExample" class="ml-auto">
                   <el-button size="small">示例 <el-icon><ArrowDown /></el-icon></el-button>
                   <template #dropdown>
