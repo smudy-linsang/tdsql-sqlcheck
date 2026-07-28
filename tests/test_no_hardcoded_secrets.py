@@ -37,6 +37,9 @@ _ALLOWED_TEST_DEFAULTS = {
 # 已确认泄露、必须永不再出现的生产凭据（值本身不写在此处，用特征匹配）
 _FORBIDDEN_PATTERNS = [
     (re.compile(r"Abcd972"), "checksql 生产口令（已泄露，须由 DBA 轮换）"),
+    # monitordb 云测口令：赋值正则只能抓 password= 形式，元组传参会绕过，
+    # 故必须以特征匹配兜底（第三方复测在 scratch/_mavis_checksql_probe4.py 实证）
+    (re.compile(r"Abcd@!#"), "monitordb 云测口令（已泄露，须由 DBA 轮换）"),
 ]
 
 
