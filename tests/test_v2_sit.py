@@ -99,15 +99,16 @@ class TestSITGateFlow:
             "VALUES ('sit_proj', 'SIT项目', 'default', 'sit_proj')")
         conn.commit()
         conn.close()
-        # DBA配置严格门禁
-        resp = client.post("/api/v1/gate/strategy/sit_proj?strategy=normal",
-                           headers=tokens["sit_dba"])
+        # Admin配置实例门禁 (v1.4 门禁改绑实例，PUT 方法)
+        resp = client.put("/api/v1/gate/instances/sit_conn",
+                          json={"max_error_count": 0, "max_warning_count": 5},
+                          headers=tokens["admin"])
         assert resp.status_code == 200, resp.text
 
         # 含ERROR违规的SQL → 门禁不通过
         resp = client.post("/api/v1/audit/sql",
                            json={"sql": "SELECT * FROM t_user ORDER BY RAND()",
-                                 "project_id": "sit_proj"},
+                                 "connection_id": "sit_conn"},
                            headers=tokens["sit_dev"])
         assert resp.status_code == 200
         data = resp.json()
@@ -117,13 +118,13 @@ class TestSITGateFlow:
         # 合规SQL → 门禁通过
         resp = client.post("/api/v1/audit/sql",
                            json={"sql": "SELECT id, name FROM t_user WHERE id = 1",
-                                 "project_id": "sit_proj"},
+                                 "connection_id": "sit_conn"},
                            headers=tokens["sit_dev"])
         data = resp.json()
         assert data["gate_result"]["passed"] is True
 
     def test_ruleset_project_gate_integration(self, sit):
-        """自定义规则集降级R012后，门禁放行SELECT*"""
+        """自定义规则集激活后，门禁放行SELECT*"""
         client, tokens = sit
         # 幂等: 先解除历史运行的项目引用，规则集才可删除重建
         from backend.services.database import _get_connection
@@ -131,26 +132,26 @@ class TestSITGateFlow:
         conn.execute("DELETE FROM projects WHERE project_id = 'sit_proj2'")
         conn.commit()
         conn.close()
-        # DBA创建规则集: R012禁用
-        client.delete("/api/v1/rulesets/sit_loose", headers=tokens["sit_dba"])
-        resp = client.post("/api/v1/rulesets", headers=tokens["sit_dba"], json={
+        # Admin创建规则集并激活为全局规则集
+        client.delete("/api/v1/rulesets/sit_loose", headers=tokens["admin"])
+        resp = client.post("/api/v1/rulesets", headers=tokens["admin"], json={
             "id": "sit_loose", "name": "SIT宽松集",
             "items": [{"rule_id": "R012", "enabled": False},
                       {"rule_id": "R051", "enabled": False}]})
         assert resp.status_code == 200, resp.text
-        conn = _get_connection()
-        conn.execute(
-            "INSERT INTO projects(project_id, project_name, rule_set_id) "
-            "VALUES ('sit_proj2', 'SIT项目2', 'sit_loose')")
-        conn.commit()
-        conn.close()
+        # v1.4: 激活为全局规则集
+        act_resp = client.post("/api/v1/rulesets/sit_loose/activate", headers=tokens["admin"])
+        assert act_resp.status_code == 200
 
-        resp = client.post("/api/v1/audit/sql",
-                           json={"sql": "SELECT * FROM t_user WHERE id = 1",
-                                 "project_id": "sit_proj2"},
-                           headers=tokens["sit_dev"])
-        rule_ids = [v["rule_id"] for v in resp.json()["violations"]]
-        assert "R012" not in rule_ids
+        try:
+            resp = client.post("/api/v1/audit/sql",
+                               json={"sql": "SELECT * FROM t_user WHERE id = 1",
+                                     "project_id": "sit_proj2"},
+                               headers=tokens["sit_dev"])
+            rule_ids = [v["rule_id"] for v in resp.json()["violations"]]
+            assert "R012" not in rule_ids
+        finally:
+            client.post("/api/v1/rulesets/default/activate", headers=tokens["admin"])
 
 
 class TestSITConnectionFlow:

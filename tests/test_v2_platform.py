@@ -305,14 +305,16 @@ class TestRulesets:
             "VALUES ('p_rs_test', '规则集测试项目', 'proj_rs')")
         conn.commit()
         conn.close()
-        # 带project_id审核: R012被项目规则集禁用
+        # V1.4: 显式激活 proj_rs 为全局规则集
+        ruleset_service.set_active_rule_set("proj_rs")
         resp = client.post("/api/v1/audit/sql", json={
             "sql": "SELECT * FROM t_user WHERE id = 1",
             "project_id": "p_rs_test"})
         assert resp.status_code == 200
         rule_ids = [v["rule_id"] for v in resp.json()["violations"]]
         assert "R012" not in rule_ids
-        # 不带project_id: R012照常触发
+        # 恢复激活 default 规则集
+        ruleset_service.set_active_rule_set("default")
         resp = client.post("/api/v1/audit/sql",
                            json={"sql": "SELECT * FROM t_user WHERE id = 1"})
         rule_ids = [v["rule_id"] for v in resp.json()["violations"]]
