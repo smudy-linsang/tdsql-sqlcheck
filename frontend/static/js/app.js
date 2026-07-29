@@ -34,7 +34,9 @@ const app=createApp({
     const cmpState=reactive({
       module:'', filters:{connection_id:'',db_name:'',date_from:'',date_to:''},
       list:[], total:0, page:1, pageSize:10, loading:false,
-      selected:[], result:null, comparing:false, visible:false, saving:false
+      selected:[], result:null, comparing:false, visible:false, saving:false,
+      activeTab:'snapshots',
+      reports:[], reportsTotal:0, reportsPage:1, reportsPageSize:10, reportsLoading:false
     });
     const cmpTableRef=ref(null);
     const authState=reactive({token:getToken(),user:null,role:''});
@@ -1138,8 +1140,58 @@ const app=createApp({
         const data=await resp.json();
         if(!resp.ok){ElementPlus.ElMessage.error((data.detail&&data.detail.detail)||data.detail||'保存失败');return}
         ElementPlus.ElMessage.success('对比报告已留档');
+        loadCompareReports(cmpState.module);
       }catch(e){ElementPlus.ElMessage.error('保存失败: '+e.message)}
       finally{cmpState.saving=false}
+    };
+    const loadCompareReports=async(module)=>{
+      if(module) cmpState.module=module;
+      cmpState.reportsLoading=true;
+      try{
+        const offset=(cmpState.reportsPage-1)*cmpState.reportsPageSize;
+        const qs=new URLSearchParams({module:cmpState.module,limit:cmpState.reportsPageSize,offset});
+        const resp=await apiFetch(`${API_BASE}/api/v1/scan-compare/reports?${qs}`);
+        if(resp.ok){
+          const d=await resp.json();
+          cmpState.reports=d.items||[];
+          cmpState.reportsTotal=d.total||0;
+        }else{
+          cmpState.reports=[];cmpState.reportsTotal=0;
+        }
+      }catch(e){cmpState.reports=[];cmpState.reportsTotal=0}
+      finally{cmpState.reportsLoading=false}
+    };
+    const viewSavedCompareReport=async(row)=>{
+      if(!row.base_snapshot_id||!row.target_snapshot_id){ElementPlus.ElMessage.warning('快照信息缺失');return}
+      cmpState.comparing=true;
+      try{
+        const resp=await apiFetch(`${API_BASE}/api/v1/scan-compare/compare`,{method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({module:row.module||cmpState.module,snapshot_ids:[row.base_snapshot_id,row.target_snapshot_id]})});
+        const data=await resp.json();
+        if(!resp.ok){ElementPlus.ElMessage.error((data.detail&&data.detail.detail)||data.detail||'解压对比失败');return}
+        cmpState.result=data;cmpState.visible=true;
+        ElementPlus.ElMessage.success('已自动载入留档对比报告');
+      }catch(e){ElementPlus.ElMessage.error('无法展示对比: '+e.message)}
+      finally{cmpState.comparing=false}
+    };
+    const downloadSavedCompareReportHtml=(row)=>{
+      if(!row.base_snapshot_id||!row.target_snapshot_id){ElementPlus.ElMessage.warning('快照信息缺失');return}
+      const t=getToken();
+      window.open(`${API_BASE}/api/v1/scan-compare/compare/html?module=${encodeURIComponent(row.module||cmpState.module)}&snapshot_ids=${row.base_snapshot_id}&snapshot_ids=${row.target_snapshot_id}&access_token=${encodeURIComponent(t)}`,'_blank');
+    };
+    const deleteSavedCompareReport=async(row)=>{
+      try{await ElementPlus.ElMessageBox.confirm(`确认删除对比报告留档「${row.title||('ID: '+row.id)}」？`,'删除确认',{type:'warning'})}catch(e){return}
+      try{
+        const resp=await apiFetch(`${API_BASE}/api/v1/scan-compare/reports/${row.id}`,{method:'DELETE'});
+        if(resp.ok){
+          ElementPlus.ElMessage.success('留档报告已删除');
+          loadCompareReports(row.module||cmpState.module);
+        }else{
+          const d=await resp.json();
+          ElementPlus.ElMessage.error((d.detail&&d.detail.detail)||d.detail||'删除失败');
+        }
+      }catch(e){ElementPlus.ElMessage.error('删除失败: '+e.message)}
     };
     const cmpFmtChange=(ch)=>{
       if(!ch)return '';
@@ -1150,13 +1202,13 @@ const app=createApp({
     onMounted(async()=>{onUnauthorized=()=>{authState.token='';authState.user=null};const ok=await checkSession();if(ok&&!pwdDialog.forced)await loadAll()});
     watch(currentPage,(v)=>{if(v==='dashboard')nextTick(renderTrendChart);if(v==='instances')loadSavedConnections();if(v==='rules'&&rulesList.value.length===0)loadRules();if(v==='file-audit'&&fileAuditTab.value==='reports')loadFileReports();if(v==='schema-extractor-audit'&&extractedTab.value==='history')loadExtractedReports();if(v==='slow-tasks'){loadScanTasks();cmpQuery('slow_scan')};if(v==='bigtable')cmpQuery('bigtable');if(v==='slow-records')loadSlowList();if(v==='sys-users')loadUsers();if(v==='slow-schedule')loadScanSchedules();if(v==='bigtable')loadBigtable();if(v==='projects')loadProjectsList();if(v==='rulesets')loadRulesets();if(v==='gate'){loadGateStrategies();loadGateRules()};if(v==='monitor'){loadMonitorAlerts();loadMonitorRules()};if(v==='inspection')loadInspectionTasks();if(v==='sys-auditlog')loadAuditLogs();if(v==='sys-retention')loadRetention();if(v==='sys-info')loadSysInfo();if(v==='sys-roles')loadRoles();if(v==='sys-perms')loadPerms();if(v==='deep-diag'){const subtabs=[{perm:'deep-diag-cluster',tab:'cluster'},{perm:'deep-diag-daily',tab:'daily_inspect'},{perm:'deep-diag-index',tab:'index'},{perm:'deep-diag-diff',tab:'diff'},{perm:'deep-diag-emergency',tab:'emergency'},{perm:'deep-diag-sqlstats',tab:'sqlstats'},{perm:'deep-diag-gateway',tab:'gateway_log'},{perm:'deep-diag-ppt',tab:'ppt_report'},{perm:'deep-diag-toolkit',tab:'toolkit'}];for(const t of subtabs){if(visibleMenus.value.has(t.perm)){deepTab.value=t.tab;break}}if(deepTab.value==='gateway_log')loadGatewayReports();if(deepTab.value==='ppt_report')loadPptDashboard();if(deepTab.value==='toolkit')loadToolkitScripts()}});
     watch(fileAuditTab,(v)=>{if(v==='reports')loadFileReports()});
-    watch(extractedTab,(v)=>{if(v==='history')loadExtractedReports();if(v==='compare')cmpQuery('schema_audit')});
+    watch(extractedTab,(v)=>{if(v==='history')loadExtractedReports();if(v==='compare')cmpQuery('schema_audit');if(v==='compare-reports')loadCompareReports('schema_audit')});
     watch(deepTab,(v)=>{if(v==='gateway_log')loadGatewayReports();if(v==='ppt_report')loadPptDashboard();if(v==='toolkit')loadToolkitScripts()});
     watch(deepConnId,(v)=>{if(v){if(deepTab.value==='gateway_log')loadGatewayReports();if(deepTab.value==='ppt_report')loadPptDashboard()}});
     watch(currentProjectId,(v)=>{if(v)loadGateRules();else gateRules.value=null});
     return{currentPage,sidebarCollapsed,theme,toggleTheme,
       cmpState,cmpTableRef,loadSnapshots,cmpQuery,cmpResetFilters,onSnapshotSelect,
-      runCompare,exportCompareHtml,saveCompareReport,cmpFmtChange,
+      runCompare,exportCompareHtml,saveCompareReport,loadCompareReports,viewSavedCompareReport,downloadSavedCompareReportHtml,deleteSavedCompareReport,cmpFmtChange,
       authState,loginForm,loginLoading,loginError,pwdDialog,savedConnections,currentConnectionId,projects,currentProjectId,activeAlerts,metadataEnhanced,statsLoading,stats,ruleHits,trendChartRef,kpiCards,sqlInput,auditing,auditResult,auditProjectId,fileAuditTab,fileAuditResult,fileReports,fileReportsLoading,fileReportsTotal,fileReportsPage,selectedFileReportIds,fileReportsDeleting,fileReportsTableRef,onFileReportsSelect,batchDeleteFileReports,deleteSingleFileReport,rulesList,rulesByCategory,ruleSearch,expandedCategories,filteredCategories,slowList,slowListLoading,slowFilters,slowPage,scanTasks,scanTaskTotal,scanTaskCurrentPage,scanTaskLoading,selectedTaskIds,batchDeleting,clearingOrphan,scanDrawer,scanTimeWindow,scanTaskForm,slowDetailDrawer,slowDetail,explainMode,explainSqlInput,explainInput,explainConnId,analyzingExplain,explainResult,tdsqlStatus,connDrawer,connForm,connEditMode,connTestResult,connTesting,connLoading,usersList,usersLoading,usersTotal,usersPage,usersPageSize,userKeyword,userQuery,userDialog,resetDialog,scanSchedules,scanScheduleLoading,scheduleDrawer,scheduleForm,healthLoading,healthResult,healthCheckType,healthDbName,schemaCheckConnId,schemaCheckScope,schemaCheckResults,schemaCheckSummary,schemaCheckLoading,extractedAuditConnId,extractedDbName,extractedScope,extractAuditing,extractedResult,runExtractAndAudit,downloadExtractedSql,bigtableLoading,bigtableData,bigtableRef,partitionDetail,partitionLoading,projectsList,projectsLoading,projectDialog,rulesets,rulesetsLoading,gateRules,gateStrategies,gateLoading,monitorAlerts,monitorRules,monitorLoading,monitorTab,inspectionTasks,inspectionLoading,auditLogs,auditLogsLoading,auditLogsTotal,auditLogsPage,retentionPolicies,retentionLoading,sysInfo,sysInfoLoading,roleLabel,canManagePlatform,isAdmin,canManageInstances,canViewAuditLog,canViewSysInfo,canViewProjects,canViewMonitor,canViewSchedule,canViewBigtable,breadcrumbItems,formatTime,sevTagType,statusLabel,sourceLabel,categoryOrder,doLogin,doLogout,changePassword,onUserCommand,onMenuSelect,onConnectionSwitch,onProjectSwitch,auditSql,loadExample,onFileChange,loadFileReports,downloadFileReport,loadRules,loadSlowList,resetSlowFilter,openSlowDetail,setSlowStatus,exportSlowReport,downloadScanReport,goSlowDetail,goExplainFromSlow,loadScanTasks,onTaskSelectChange,deleteScanTask,batchDeleteScanTasks,startScanTask,viewTaskSlowQueries,clearOrphanRecords,analyzeExplainBySql,analyzeExplain,loadSavedConnections,testConn,saveConn,openEditConn,openNewConn,deleteConn,setDefaultConn,connectInstance,loadUsers,createUser,openResetPwd,resetUserPwd,unlockUser,toggleUserStatus,deleteUser,loadAll,renderTrendChart,loadProjects,loadActiveAlerts,loadScanSchedules,createScanSchedule,deleteScanSchedule,toggleScheduleEnabled,runHealthCheck,runSchemaCheck,exportSchemaCheckReport,loadBigtable,bigtableRowKey,partitionBoundaryLabel,bigtableRowClass,togglePartitions,onBigtableExpand,loadTablePartitions,loadProjectsList,createProject,deleteProject,toggleProjectStatus,loadRulesets,loadGateRules,loadGateStrategies,applyGateStrategy,loadMonitorAlerts,acknowledgeAlert,loadMonitorRules,loadInspectionTasks,loadAuditLogs,loadRetention,runRetentionCleanup,loadSysInfo,bigtableCollecting,collectBigtable,rulesetDialog,createRuleset,deleteRuleset,activateRuleset,gateCustom,openGateCustom,saveGateCustom,monitorRuleDialog,createMonitorRule,inspectionDialog,createInspection,inspectionResultDrawer,inspectionResults,viewInspectionResult,retentionDialog,openRetentionEdit,saveRetention,retentionEditMode,logoUrl,loadLogo,onLogoUpload,resetLogo,toggleSysConfig,auditFilter,resetAuditFilter,tableNameLabel,metricLabel,rolesList,rolesLoading,roleDialog,deleteRole,openRoleEdit,saveRole,roleLabelFn,permsMatrixData,permsMenuList,permsLoading,loadPerms,onPermChange,deepConnId,deepRightConnId,deepDb,deepTab,deepLoading,deepResult,runClusterInspect,runIndexAudit,runSchemaDiff,runEmergency,runSqlStats,visibleMenus,zkDialogVisible,zkForm,zkScanning,zkDiscovered,zkSelected,zkRegistering,openZkDiscovery,runZkDiscovery,handleZkSelection,registerZkInstances,gatewayLoading,gatewayReports,gatewayHtml,gatewayDetailVisible,loadGatewayReports,viewGatewayReport,onGatewayUpload,pptLoading,pptDashboard,loadPptDashboard,generatePptReport,toolkitLoading,toolkitScripts,loadToolkitScripts,downloadToolkitScript,extractedTab,extractedReports,extractedReportsLoading,loadExtractedReports,downloadExtractedHtmlReport,downloadExtractedSqlFile,extractedReportsTotal,extractedReportsPage,extractedPageSize,extractedFilters,extractedTableRef,selectedExtractedIds,extractedPurgeSnapshots,extractedDeleting,canDeleteExtractedReports,extractedQuery,extractedResetFilters,extractedPickOlderThan,onExtractedSelect,batchDeleteExtractedReports,dailyInspectDates,dailyInspectThreshold,dailyCompareResult,dailyInstSearch,dailyInstSigOnly,dailySrvSearch,dailySrvSigOnly,dailyInspectChartData,dailyInspectChartMetric,dailyInspectChartNode,dailyInspectChartNodes,dailyTrendChartRef,filteredDailyInstDiffs,filteredDailySrvDiffs,runDailyInspect,compareDailyInspect,renderDailyTrendChart,exportDailyHtmlReport,activeEmergencyNames,emergencyNameLabel,rulesetDrawer,rulesetConfigItems,openRulesetConfig,rulesetCategories,rulesetCategoryCounts,filteredRulesetItems,modifiedOverrideCount,disabledCount,setFilteredRulesEnabled,resetFilteredRulesOverrides,saveRulesetConfig,dailyInstNodeSelect,dailyInstPage,dailyInstPageSize,dailySrvIpSelect,dailySrvPage,dailySrvPageSize,dailyInstNodeList,dailySrvIpList,pagedDailyInstDiffs,pagedDailySrvDiffs};
   }
 });

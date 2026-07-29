@@ -496,6 +496,50 @@
                   </el-tabs>
                 </div>
               </el-tab-pane>
+
+              <!-- Tab 4: V1.3 比对留档历史 -->
+              <el-tab-pane label="对比留档报告" name="compare-reports">
+                <div class="page-card">
+                  <div class="card-head">
+                    <div class="page-card-title mb0">在线元数据对比留档报告</div>
+                    <el-button size="small" @click="loadCompareReports('schema_audit')">刷新</el-button>
+                  </div>
+                  <el-table :data="cmpState.reports" v-loading="cmpState.reportsLoading" stripe size="small" class="w-full" empty-text="暂无留档对比报告">
+                    <el-table-column prop="title" label="报告名称" show-overflow-tooltip></el-table-column>
+                    <el-table-column label="实例/库名" width="200" show-overflow-tooltip>
+                      <template #default="{row}">{{ row.connection_name || row.connection_id || '全局' }}{{ row.db_name ? ' / ' + row.db_name : '' }}</template>
+                    </el-table-column>
+                    <el-table-column label="基线 → 目标扫描时间" width="280" show-overflow-tooltip>
+                      <template #default="{row}">{{ formatTime(row.base_scan_at) }} → {{ formatTime(row.target_scan_at) }}</template>
+                    </el-table-column>
+                    <el-table-column label="问题数(前→后)" width="110">
+                      <template #default="{row}">{{ row.base_total }} → {{ row.target_total }}</template>
+                    </el-table-column>
+                    <el-table-column label="解决/新增" width="130">
+                      <template #default="{row}">
+                        <span class="t-success">{{ row.fixed_count }}</span> / <span class="t-danger">{{ row.new_count }}</span>
+                      </template>
+                    </el-table-column>
+                    <el-table-column label="整改率" width="80">
+                      <template #default="{row}">
+                        <el-tag :type="row.fix_rate>=80?'success':row.fix_rate>=50?'warning':'danger'" size="small">{{ row.fix_rate?.toFixed(1) }}%</el-tag>
+                      </template>
+                    </el-table-column>
+                    <el-table-column prop="created_by" label="留档人" width="90"></el-table-column>
+                    <el-table-column label="留档时间" width="150">
+                      <template #default="{row}">{{ formatTime(row.created_at) }}</template>
+                    </el-table-column>
+                    <el-table-column label="操作" width="200" fixed="right">
+                      <template #default="{row}">
+                        <el-button type="primary" link size="small" @click="viewSavedCompareReport(row)">查看对比</el-button>
+                        <el-button type="success" link size="small" @click="downloadSavedCompareReportHtml(row)">下载HTML</el-button>
+                        <el-button v-if="canManagePlatform" type="danger" link size="small" @click="deleteSavedCompareReport(row)">删除</el-button>
+                      </template>
+                    </el-table-column>
+                  </el-table>
+                  <el-pagination v-if="cmpState.reportsTotal>cmpState.reportsPageSize" small layout="total,prev,pager,next" :total="cmpState.reportsTotal" :page-size="cmpState.reportsPageSize" v-model:current-page="cmpState.reportsPage" @current-change="loadCompareReports('schema_audit')" class="pager"></el-pagination>
+                </div>
+              </el-tab-pane>
             </el-tabs>
           </div>
 
@@ -545,36 +589,81 @@
               <el-pagination v-if="scanTaskTotal>10" small layout="total,prev,pager,next" :total="scanTaskTotal" :page-size="10" v-model:current-page="scanTaskCurrentPage" @current-change="loadScanTasks" class="pager"></el-pagination>
             </div>
 
-            <!-- V1.3 扫描结果纵向对比 -->
+            <!-- V1.3 扫描结果纵向对比 与 留档报告 -->
             <div class="page-card">
-              <div class="card-head">
-                <div class="page-card-title mb0">扫描历史（勾选两次进行对比）</div>
-                <div class="flex-gap8">
-                  <el-button type="primary" size="small" :disabled="cmpState.selected.length!==2" :loading="cmpState.comparing" @click="runCompare">开始对比</el-button>
-                  <el-button size="small" @click="loadSnapshots('slow_scan')">刷新</el-button>
-                </div>
-              </div>
-              <div class="filter-bar">
-                <el-select v-model="cmpState.filters.connection_id" placeholder="数据库实例" clearable filterable size="small" class="w-220">
-                  <el-option v-for="c in savedConnections" :key="c.id" :value="c.id" :label="c.name"></el-option>
-                </el-select>
-                <el-input v-model="cmpState.filters.db_name" placeholder="库名" clearable size="small" class="w-140"></el-input>
-                <el-date-picker v-model="cmpState.filters.date_from" type="date" value-format="YYYY-MM-DD" placeholder="开始日期" size="small"></el-date-picker>
-                <el-date-picker v-model="cmpState.filters.date_to" type="date" value-format="YYYY-MM-DD" placeholder="结束日期" size="small"></el-date-picker>
-                <el-button type="primary" size="small" @click="cmpQuery('slow_scan')">查询</el-button>
-                <el-button size="small" @click="cmpResetFilters('slow_scan')">重置</el-button>
-              </div>
-              <el-table ref="cmpTableRef" :data="cmpState.list" v-loading="cmpState.loading" stripe size="small" class="w-full" empty-text="暂无快照数据，请执行新的扫描以生成比对基线" @selection-change="onSnapshotSelect">
-                <el-table-column type="selection" width="40"></el-table-column>
-                <el-table-column label="扫描时间" width="160"><template #default="{row}">{{ formatTime(row.scan_finished_at) }}</template></el-table-column>
-                <el-table-column label="实例" show-overflow-tooltip><template #default="{row}">{{ row.connection_name || row.connection_id || '未知实例' }}</template></el-table-column>
-                <el-table-column prop="db_name" label="库名" width="130"></el-table-column>
-                <el-table-column prop="object_total" label="对象数" width="80"></el-table-column>
-                <el-table-column label="问题数" width="150"><template #default="{row}"><span class="t-danger">{{ row.error_count }}</span> / <span class="t-warning">{{ row.warning_count }}</span> <span class="t-secondary">（共 {{ row.issue_total }}）</span></template></el-table-column>
-                <el-table-column prop="created_by" label="执行人" width="90"></el-table-column>
-                <el-table-column label="来源" width="80"><template #default="{row}"><el-tag size="small" :type="row.source_kind==='rebuild'?'info':'success'">{{ row.source_kind==='rebuild'?'回填':'实时' }}</el-tag></template></el-table-column>
-              </el-table>
-              <el-pagination v-if="cmpState.total>cmpState.pageSize" small layout="total,prev,pager,next" :total="cmpState.total" :page-size="cmpState.pageSize" v-model:current-page="cmpState.page" @current-change="loadSnapshots('slow_scan')" class="pager"></el-pagination>
+              <el-tabs v-model="cmpState.activeTab" @tab-change="(t)=>{ if(t==='reports') loadCompareReports('slow_scan'); else loadSnapshots('slow_scan'); }">
+                <el-tab-pane label="扫描历史对比" name="snapshots">
+                  <div class="card-head">
+                    <div class="page-card-title mb0">扫描历史（勾选两次进行对比）</div>
+                    <div class="flex-gap8">
+                      <el-button type="primary" size="small" :disabled="cmpState.selected.length!==2" :loading="cmpState.comparing" @click="runCompare">开始对比</el-button>
+                      <el-button size="small" @click="loadSnapshots('slow_scan')">刷新</el-button>
+                    </div>
+                  </div>
+                  <div class="filter-bar">
+                    <el-select v-model="cmpState.filters.connection_id" placeholder="数据库实例" clearable filterable size="small" class="w-220">
+                      <el-option v-for="c in savedConnections" :key="c.id" :value="c.id" :label="c.name"></el-option>
+                    </el-select>
+                    <el-input v-model="cmpState.filters.db_name" placeholder="库名" clearable size="small" class="w-140"></el-input>
+                    <el-date-picker v-model="cmpState.filters.date_from" type="date" value-format="YYYY-MM-DD" placeholder="开始日期" size="small"></el-date-picker>
+                    <el-date-picker v-model="cmpState.filters.date_to" type="date" value-format="YYYY-MM-DD" placeholder="结束日期" size="small"></el-date-picker>
+                    <el-button type="primary" size="small" @click="cmpQuery('slow_scan')">查询</el-button>
+                    <el-button size="small" @click="cmpResetFilters('slow_scan')">重置</el-button>
+                  </div>
+                  <el-table ref="cmpTableRef" :data="cmpState.list" v-loading="cmpState.loading" stripe size="small" class="w-full" empty-text="暂无快照数据，请执行新的扫描以生成比对基线" @selection-change="onSnapshotSelect">
+                    <el-table-column type="selection" width="40"></el-table-column>
+                    <el-table-column label="扫描时间" width="160"><template #default="{row}">{{ formatTime(row.scan_finished_at) }}</template></el-table-column>
+                    <el-table-column label="实例" show-overflow-tooltip><template #default="{row}">{{ row.connection_name || row.connection_id || '未知实例' }}</template></el-table-column>
+                    <el-table-column prop="db_name" label="库名" width="130"></el-table-column>
+                    <el-table-column prop="object_total" label="对象数" width="80"></el-table-column>
+                    <el-table-column label="问题数" width="150"><template #default="{row}"><span class="t-danger">{{ row.error_count }}</span> / <span class="t-warning">{{ row.warning_count }}</span> <span class="t-secondary">（共 {{ row.issue_total }}）</span></template></el-table-column>
+                    <el-table-column prop="created_by" label="执行人" width="90"></el-table-column>
+                    <el-table-column label="来源" width="80"><template #default="{row}"><el-tag size="small" :type="row.source_kind==='rebuild'?'info':'success'">{{ row.source_kind==='rebuild'?'回填':'实时' }}</el-tag></template></el-table-column>
+                  </el-table>
+                  <el-pagination v-if="cmpState.total>cmpState.pageSize" small layout="total,prev,pager,next" :total="cmpState.total" :page-size="cmpState.pageSize" v-model:current-page="cmpState.page" @current-change="loadSnapshots('slow_scan')" class="pager"></el-pagination>
+                </el-tab-pane>
+
+                <el-tab-pane label="已留档对比报告" name="reports">
+                  <div class="card-head">
+                    <div class="page-card-title mb0">慢SQL扫描历史对比留档报告</div>
+                    <el-button size="small" @click="loadCompareReports('slow_scan')">刷新</el-button>
+                  </div>
+                  <el-table :data="cmpState.reports" v-loading="cmpState.reportsLoading" stripe size="small" class="w-full" empty-text="暂无留档对比报告">
+                    <el-table-column prop="title" label="报告名称" show-overflow-tooltip></el-table-column>
+                    <el-table-column label="实例/库名" width="200" show-overflow-tooltip>
+                      <template #default="{row}">{{ row.connection_name || row.connection_id || '全局' }}{{ row.db_name ? ' / ' + row.db_name : '' }}</template>
+                    </el-table-column>
+                    <el-table-column label="基线 → 目标扫描时间" width="280" show-overflow-tooltip>
+                      <template #default="{row}">{{ formatTime(row.base_scan_at) }} → {{ formatTime(row.target_scan_at) }}</template>
+                    </el-table-column>
+                    <el-table-column label="问题数(前→后)" width="110">
+                      <template #default="{row}">{{ row.base_total }} → {{ row.target_total }}</template>
+                    </el-table-column>
+                    <el-table-column label="解决/新增" width="130">
+                      <template #default="{row}">
+                        <span class="t-success">{{ row.fixed_count }}</span> / <span class="t-danger">{{ row.new_count }}</span>
+                      </template>
+                    </el-table-column>
+                    <el-table-column label="整改率" width="80">
+                      <template #default="{row}">
+                        <el-tag :type="row.fix_rate>=80?'success':row.fix_rate>=50?'warning':'danger'" size="small">{{ row.fix_rate?.toFixed(1) }}%</el-tag>
+                      </template>
+                    </el-table-column>
+                    <el-table-column prop="created_by" label="留档人" width="90"></el-table-column>
+                    <el-table-column label="留档时间" width="150">
+                      <template #default="{row}">{{ formatTime(row.created_at) }}</template>
+                    </el-table-column>
+                    <el-table-column label="操作" width="200" fixed="right">
+                      <template #default="{row}">
+                        <el-button type="primary" link size="small" @click="viewSavedCompareReport(row)">查看对比</el-button>
+                        <el-button type="success" link size="small" @click="downloadSavedCompareReportHtml(row)">下载HTML</el-button>
+                        <el-button v-if="canManagePlatform" type="danger" link size="small" @click="deleteSavedCompareReport(row)">删除</el-button>
+                      </template>
+                    </el-table-column>
+                  </el-table>
+                  <el-pagination v-if="cmpState.reportsTotal>cmpState.reportsPageSize" small layout="total,prev,pager,next" :total="cmpState.reportsTotal" :page-size="cmpState.reportsPageSize" v-model:current-page="cmpState.reportsPage" @current-change="loadCompareReports('slow_scan')" class="pager"></el-pagination>
+                </el-tab-pane>
+              </el-tabs>
             </div>
             <div class="page-card" v-if="cmpState.visible && cmpState.result">
               <div class="card-head">
