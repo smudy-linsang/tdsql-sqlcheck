@@ -22,7 +22,7 @@ DATABASE_DIR.mkdir(exist_ok=True)
 
 # FastAPI 配置
 APP_TITLE = "TDSQL SQL审核平台"
-APP_VERSION = "1.5.1.1"
+APP_VERSION = "1.5.1.2"
 APP_DESCRIPTION = "银行级SQL质量管控与慢SQL分析平台（V1.5.1 - 实例类型多源分级判定(ZK权威源/管理员锁定)/实例类型感知规则适用域/全局规则集尺度/实例级质量门禁/认证授权/多实例连接/数据治理）"
 
 # SQL 解析配置
