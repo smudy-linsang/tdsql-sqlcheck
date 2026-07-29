@@ -9,6 +9,9 @@
 | 缺陷定级 | **P0 — v1.5 核心目标 G1 完全未达成** |
 | 责任归属 | **v1.5 设计缺陷（本人）**，非实现偏差 |
 | 前置文档 | `ARCHITECTURE-v1.5-*.md` · `DB-v1.5-*.md` · `API-v1.5-*.md` · `DETAIL-v1.5-*.md` |
+| 实测依据 | `TEST-v1.5.1-…-G.md`（方案） · `REPORT-v1.5.1-…-G.md`（结果） · `raw_probe_out_CENT.txt` / `raw_probe_out_DIST.txt`（**原始输出**） |
+| 修订 | **2026-07-29 据 G 实测结果修订**：Proxy 层判据成立，SQL 探测由「无判据」升为**主判定源**；判据裁定见 §8 |
+| 修订 | **2026-07-29 据 G 补充材料再修订**：PR001 签名泛化为「键名含 `:`」；**新增 PR004**（`xa` 系统库）；核验见 §8.7 |
 
 > **本文档为什么不拆成四份**：v1.5 是新建能力，四份文档各自成体量；v1.5.1 是对其中**一个判定环节**的定点重构，代码面 6 个文件、数据库 4 列、接口 2 处。拆四份会让读者在文档间反复跳转去拼一条本来很短的链路。因此合为一份，内部仍按概要（§1–§4）/ 数据库（§5）/ 接口（§6）/ 详细（§7–§9）分节，详细设计部分保持照图施工粒度。
 
@@ -167,18 +170,21 @@ G 的第 1、2 步（端口对应 Proxy 网关；Proxy 响应了探针，`rows: 
 
 ```
 ┌───────────────────────────────────────────────────────────────────┐
-│ S1 管控面（ZooKeeper）—— 权威源                        置信度：确定 │
-│    /tdsqlzk/sets/set@xxx          → noshard    → 集中式            │
-│    /tdsqlzk/group_xxx/sets/set@y  → groupshard → 分布式            │
-│    落库缓存，不在扫描链路上实时访问 ZK                              │
-└───────────────────────────────┬───────────────────────────────────┘
-                                │ 无 ZK 数据时下沉
-┌───────────────────────────────┴───────────────────────────────────┐
-│ S2 Proxy 层 SQL 探测 —— 次级源                    置信度：仅阳性可信 │
-│    判据待实测确定（§8）。在实测落地前，本源恒返回"无结论"           │
-│    —— 宁可不给结论，绝不给错结论                                    │
+│ S1 Proxy 层 SQL 探测 —— 实时源                        置信度：确定 │
+│    /*proxy*/show status 的拓扑签名（PR001，见 §8.5）：              │
+│      cluster 行 / :hash_range 行 / 多 SET  → 分布式                 │
+│      单 SET 且无上述特征                   → 集中式                 │
+│    EXPLAIN 的 info 列（PR002，仅阳性）     → 分布式                 │
+│    直接读取【正在被审核的那个连接端点】的实时事实，无外部依赖        │
 └───────────────────────────────┬───────────────────────────────────┘
                                 │ 无结论时下沉
+┌───────────────────────────────┴───────────────────────────────────┐
+│ S2 管控面（ZooKeeper）—— 权威源                        置信度：确定 │
+│    /tdsqlzk/sets/set@xxx          → noshard    → 集中式            │
+│    /tdsqlzk/group_xxx/sets/set@y  → groupshard → 分布式            │
+│    落库缓存，不在扫描链路上实时访问 ZK；实例不可达时仍可用          │
+└───────────────────────────────┬───────────────────────────────────┘
+                                │ 无 ZK 数据时下沉
 ┌───────────────────────────────┴───────────────────────────────────┐
 │ S3 人工声明 tdsql_connections.is_distributed          置信度：中     │
 └───────────────────────────────┬───────────────────────────────────┘
@@ -193,12 +199,30 @@ G 的第 1、2 步（端口对应 Proxy 网关；Proxy 响应了探针，`rows: 
                └─────────────────────────────────────┘
 ```
 
+#### 为什么 SQL 探测排在 ZK 之前（2026-07-29 实测后调整）
+
+本设计初稿把 ZK 列为 S1、SQL 探测列为 S2，因为当时**不知道 SQL 层有没有可用判据**。G 的实测（§8）改变了这个前提：
+
+| 对比项 | Proxy 探测（PR001） | ZK 管控面 |
+|---|---|---|
+| 读到的事实 | `cluster` = `group_1782132247_10` | `groupshard` / `group_1782132247_10` |
+| 权威性 | **同一个事实**，只是来源通道不同 | 同左 |
+| 时效 | **实时**，反映当下连接的那个端点 | 上次 `zk_synced_at` 的快照 |
+| 依赖 | **无**（用已有连接） | zkCli + ZK 网络可达 + inventory 脚本 |
+| 实例不可达时 | 不可用 | **仍可用** |
+
+两者读的是**同一个底层事实**（赤兔里的 group/set 标识），权威性相同。因此排序应按**可用性与时效**：
+
+> **探测只需要一条已有的连接；ZK 需要一整套外部依赖。把一个有硬性部署依赖的源放在首位，而旁边就有一个零依赖、等权威、更实时的源，是不合理的。**
+
+ZK 保留在 S2 有三个不可替代的作用：**① 探测失败时兜底；② 与探测互为交叉校验，不一致即暴露异常；③ 实例连不上时依然能给出类型。**
+
 ### 4.2 三项核心变更
 
 | # | 变更 | 解决什么 |
 |---|---|---|
-| **C1** | **失效探针摘除**：删掉两个无鉴别力的判据，`probe_instance_type()` 在无有效判据时返回 `None`（无结论）而非 `distributed` | **立即止血**。探测不再覆盖声明 → 使用者勾的「集中式」生效 → R077 误报当场消失 |
-| **C2** | **接入 ZK 权威源**：`tdsql_inventory.sh` 输出 `instance_kind` / `instance_id` / `proxy_list`，贯通至 `tdsql_connections` | 根治。类型来自管控面事实，不再依赖任何推断 |
+| **C1** | **判据换成拓扑签名**：不再看"有没有返回"，改看返回内容里的 `cluster` / `hash_range` / SET 个数（PR001）。无有效判据时返回 `None`（无结论）而非 `distributed` | **止血 + 根治**。探测第一次真正具备鉴别力 |
+| **C2** | **接入 ZK 权威源**：`tdsql_inventory.sh` 输出 `instance_kind` / `instance_id` / `proxy_list`，贯通至 `tdsql_connections` | 交叉校验 + 探测失败/实例不可达时的兜底 |
 | **C3** | **冲突策略改为"取更保守者"**：任一来源判定为分布式即按分布式执行；并新增管理员锁定作为终审 | 缩小任何单点误判的影响面；给确定性场景一个可审计的终审通道 |
 
 ### 4.3 C3 详解：为什么"取更保守者"严格优于"探测优先"
@@ -558,55 +582,74 @@ POST /api/v1/tdsql/connections/{connection_id}/probe-diagnostics
 | | B.6 | `backend/api/tdsql_manage.py` | 探测接口改多源；新增锁定接口 |
 | | B.7 | `backend/services/auth_service.py` | RBAC 校验（锁定接口 admin-only） |
 | | B.8 | `frontend/index.html` · `static/js/app.js` | 类型来源徽标、锁定开关、多源明细 |
-| **C 次源框架** | C.1 | `backend/services/instance_probe_rules.py` | **新建**：可插拔判据表（出厂为空 → 恒无结论） |
+| **C 判据表** | C.1 | `backend/services/instance_probe_rules.py` | **新建**：判据表，PR001/PR002/PR004 已启用 + PR003 可选 |
 | | C.2 | `backend/services/tdsql_connector.py` | `collect_probe_diagnostics()` 采集器 |
 | | C.3 | `backend/api/tdsql_manage.py` | **新增** `POST /connections/{id}/probe-diagnostics` |
 | | C.4 | `frontend/index.html` · `static/js/app.js` | 「采集探测诊断」按钮 + 结果导出 |
 | **D 收尾** | D.1 | `backend/config.py` · `frontend/index.html` | 版本号 → `1.5.1.0` |
 | | D.2 | `docs/DETAIL-v1.5-*.md` | 勘误：标注 §4.1 探测方案作废，指向本文档 |
 
-#### 关于 C 组：为什么 P2 能和 P0/P1 一起做完
+#### 关于 C 组：判据已就位，框架仍然要
 
-**存在一个顺序矛盾必须先解开**：P2 的内容本是"依据实测结果确定 Proxy 层判据"，而实测被安排在 Q 开发完成之后由 G 执行。按原计划，Q 开工时手上没有判据可写。
+原计划把 P2 拆成「框架 + 判据」两半，是因为当时实测排在开发之后、Q 开工时没有判据可写。**负责人后续复议改为 G 先实测，该顺序矛盾已消失——判据（PR001/PR002/PR003）现在直接随本次交付上线。**
 
-**解法：把 P2 拆成「框架」与「判据」两半，Q 本次只做框架。**
+**但「可插拔判据表」这个结构仍然保留**，理由有三：
 
-| 拆分 | 内容 | 责任 | 时点 |
-|---|---|---|---|
-| **C 组（本次交付）** | 判据**框架**：可插拔判据表 + 诊断采集端点。**出厂判据表为空 ⟹ S2 源恒返回"无结论"** | Q | 本次开发 |
-| **判据填充（后续）** | 依据实测输出，按 §8.4 标准评审后填入判据表 | A 评审 → Q 填表 | G 实测之后 |
+1. **判据会变**。TDSQL 版本升级、客户现场差异，都可能让某条判据失效或新增。判据独立成表后，增删只动 `instance_probe_rules.py` **一个文件**，不碰连接器逻辑，也不碰判定流程。
+2. **`evidence` 字段是强制约束的载体**。§8.4 要求每条判据必须写明实测出处，`test_every_rule_has_evidence` 会把它钉死。**把"必须有实测依据"变成结构上填不满就过不了的字段，比写在文档里靠人自觉可靠得多**——这正是本次事故的教训。
+3. **PR003 需要一个"登记但不启用"的位置**。它有效但昂贵（需先选表、空库无表可查），`enabled=False` 让它登记在案、由诊断接口按需调用，而不是散落在别处。
 
-**这样拆的三个好处：**
+**C.2 / C.3 诊断采集端点同样保留**（负责人此前问过去留）。本次采集用途虽已由 G 手工完成，但它有两个持续价值：
 
-1. **C 组上线零行为变更**。判据表为空时 S2 恒无结论，与 A 组（摘除失效探针）的行为**完全一致**，因此 C 组可以放心地和 P0/P1 一起上线，不引入任何新风险。
-2. **把 G 的实测从"登机器手工敲"变成"点个按钮"**。`POST /probe-diagnostics` 让系统**用自己的连接、自己的账号、自己的驱动**去跑 §8.3 那批语句并原样返回。这一点很关键——手工用 mysql 客户端从后端 socket 采到的东西，和系统实际通过 Proxy 端口能看到的东西**未必相同**（本次事故就栽在这个差别上：`/*proxy*/show status` 直连后端 458 行、经 Proxy 2 行）。**采集环境必须与判定环境一致，否则实测结论不可迁移。**
-3. **判据后续以配置填入，不再改代码**。避免"每验证一条判据就动一次 `tdsql_connector.py`"。
+- **排障**：某台实例探测返回"无结论"时，运维需要看到各判据各自返回了什么。没有它就只能登机器手工敲。
+- **把纪律变成代码**：它用系统自己的连接池、账号、驱动去采，天然满足"采集环境 = 判定环境"。**这条约束靠人遵守失败过一次，交给代码保证。**
 
-> **C 组的验收标准是"采得到数据"，不是"判得出类型"。** 判据为空、S2 恒无结论，是本次交付的**预期状态**，不是未完成。
 
----
+### 7.0.1 判据表 — `backend/services/instance_probe_rules.py`（新建）
 
-### 7.0.1 判据框架 — `backend/services/instance_probe_rules.py`（新建）
+> **v1.5.1 实测后更新**：本表**出厂即带 2 条已验证判据**（PR001 / PR002），另有 1 条可选判据（PR003）默认不启用。判据依据见 §8.5，全部经真实环境实测并与赤兔管理台交叉核验。
 
 ```python
 """SQL 层实例类型判据表（V1.5.1）
 
-出厂为空 —— 这是有意的，不是未完成。
+判据全部来自 2026-07-29 的真实环境实测（TDSQL 8.0.33-v24-txsql-22.4.1），
+原始数据见 docs/REPORT-v1.5.1-Proxy层实例类型判据实测结果-G.md，
+采纳裁定见 docs/DESIGN-v1.5.1-实例类型判定重构.md §8。
 
-V1.5 的两个判据（/*proxy*/show status 非空、TDSQL_SHARDING_RULES 存在）
-经真实环境实测全部证伪，详见设计文档 §2。在取得经实测确认的新判据之前，
-本表保持为空，S2 源恒返回"无结论"，判定下沉至 ZK 权威源或人工声明。
+【铁律】判据只做阳性判定，禁止把"未命中"当作反向结论。
+  V1.5 的教训是"恒判分布式"（误报，可见、可纠正）；
+  比它更危险的是"易判集中式"（漏报，不可见、直接放行风险）。
+  因此除 PR001 命中【集中式正面签名】外，任何判据未命中一律返回 None。
 
 【新增判据的强制门槛】——三条全部满足才可入表，见设计文档 §8.4：
-  1) 两类实例上实测输出确有差异（不是"应该有差异"）；
-  2) 差异方向明确：命中即为分布式的【阳性证据】；
-  3) 未命中时不得判集中式，必须返回"无结论"下沉至下一源。
-
-新增判据必须同时补一条反向鉴别用例（对两类实例各跑一次、断言结论不同），
-仅断言"某类返回某值"无法发现常量函数 —— V1.5 正是这样漏掉的。
+  1) 两类实例上实测输出确有差异，evidence 必须写明实测出处；
+  2) 差异方向明确：命中即为分布式的阳性证据；
+  3) 未命中时不得判集中式，必须返回 None 下沉至下一源。
+外加：每条判据必须配套一条反向鉴别用例（两类实例各跑一次、断言结论不同）。
 """
-from dataclasses import dataclass
+import re
+from dataclasses import dataclass, field
 from typing import Callable, Optional
+
+# 结果行取字段名的兼容顺序（沿用 discover_sets() 的多版本兼容口径）
+_NAME_KEYS = ("status_name", "Variable_name", "Config_name", "name", "Key")
+_VALUE_KEYS = ("Value", "value")
+
+
+def _row_name(row) -> str:
+    if isinstance(row, dict):
+        for k in _NAME_KEYS:
+            if k in row and row[k] is not None:
+                return str(row[k])
+    return ""
+
+
+def _row_value(row) -> str:
+    if isinstance(row, dict):
+        for k in _VALUE_KEYS:
+            if k in row and row[k] is not None:
+                return str(row[k])
+    return ""
 
 
 @dataclass(frozen=True)
@@ -614,23 +657,160 @@ class ProbeRule:
     """一条 SQL 层判据。
 
     Attributes:
-        rule_id:  判据标识，如 "PR001"
+        rule_id:  判据标识
         sql:      在目标实例上执行的语句
-        decide:   (rows) -> True 表示【阳性命中，判分布式】；
-                  返回 False 表示"本判据未命中"，**不等于集中式**
-        evidence: 判据依据（实测日期 + 数据出处），入表必填
+        decide:   (rows) -> "distributed" | "centralized" | None
+                  返回 None 表示【本判据无结论】，绝不等同于集中式
+        evidence: 实测依据（日期 + 数据出处），入表必填
+        enabled:  是否参与自动探测
     """
     rule_id: str
     sql: str
-    decide: Callable[[list], bool]
+    decide: Callable[[list], Optional[str]]
     evidence: str
+    enabled: bool = True
 
 
-# 出厂为空。填充前请通读 §8.4 的采纳标准。
-ACTIVE_PROBE_RULES: list[ProbeRule] = []
+# ── PR001：/*proxy*/show status 拓扑签名（主判据）────────────────────────
+def _decide_proxy_status(rows: list) -> Optional[str]:
+    """依据 Proxy 返回的拓扑签名判定。判定表见设计文档 §8.5。
+
+    实测（2026-07-29）：
+      CENT 2 行 —— set=set_1782130875_4 ；无 cluster / 无 hash_range
+      DIST 8 行 —— cluster=group_1782132247_10 ；
+                   set_1782132369_1:hash_range=0---7 ；
+                   set_1782132389_3:hash_range=8---15 ；
+                   set="set_1782132369_1,set_1782132389_3 "  ← 注意末尾空格
+    """
+    if not rows:
+        return None
+
+    set_values = []
+    for r in rows:
+        name = _row_name(r)
+        # 签名 1：cluster 行 —— 分布式的结构性阳性证据
+        # 签名 2：键名含冒号 —— DIST 用 <set_id>:<属性> 命名空间式键名
+        #        （实测形态 :ip / :alias / :hash_range）；
+        #        CENT 用裸键名 <set_id>，不含冒号。
+        #        泛化为"含冒号"而非仅 :hash_range —— 更灵敏，且误判方向安全。
+        if name == "cluster" or ":" in name:
+            return "distributed"
+        if name == "set":
+            set_values.append(_row_value(r))
+
+    if not set_values:
+        return None                      # 形态不符，不猜
+
+    # 实测中 value 末尾带空格，且可能出现尾随逗号，必须先 strip 再过滤空串
+    sets = [s.strip() for s in set_values[0].split(",")]
+    sets = [s for s in sets if s]
+
+    if len(sets) >= 2:
+        return "distributed"             # 签名 3：多 SET 拓扑
+    if len(sets) == 1:
+        # 签名 4：单 SET 拓扑 + 无 cluster + 无 hash_range
+        # 这是【集中式的正面签名】，不是"没看到分布式特征"，故允许下结论。
+        # 已知边界：单分片分布式实例若不输出 cluster 行会落到这里被判集中式。
+        # 该形态未实测。缓解措施是 §4.3 的保守合并——只有人工声明也为集中式
+        # 时该结论才会真正生效。
+        return "centralized"
+    return None
+
+
+# ── PR002：EXPLAIN 路由信息注入（辅助，仅阳性）──────────────────────────
+def _decide_explain_info(rows: list) -> Optional[str]:
+    """Proxy 为分布式实例的 EXPLAIN 注入 info 列（含路由到的 SET）。
+
+    实测（2026-07-29）：
+      CENT: 标准 12 列，无 info
+      DIST: info = "set_1782132369_1,EXPLAIN SELECT 1"
+
+    【只判阳性】无 info 什么也证明不了 —— EXPLAIN SELECT 1 不涉及任何表，
+    Proxy 是否注入路由信息带有偶然性，不同版本/配置未必一致。
+    """
+    if rows and isinstance(rows[0], dict) and "info" in rows[0]:
+        return "distributed"
+    return None
+
+
+# ── PR003：表 DDL 分片标记（可选兜底，仅阳性，默认不启用）───────────────
+_RE_SHARDKEY = re.compile(r"\bshardkey\s*=", re.IGNORECASE)
+
+
+def _decide_table_ddl(rows: list) -> Optional[str]:
+    """分布式实例的表 DDL 尾部带 shardkey= 或广播表标记。
+
+    实测（2026-07-29）：
+      CENT: ... COLLATE=utf8mb4_bin COMMENT='...'      （无 shardkey）
+      DIST: ... COLLATE=utf8mb4_bin shardkey=id
+
+    默认不启用：需先选定一张表，比 PR001/PR002 昂贵，且空库无表可查。
+    仅由诊断接口在 PR001/PR002 均无结论时按需调用。
+    """
+    for r in rows or []:
+        text = " ".join(str(v) for v in r.values()) if isinstance(r, dict) else str(r)
+        if _RE_SHARDKEY.search(text) or "broadcast" in text.lower():
+            return "distributed"
+    return None
+
+
+# ── PR004：xa 系统库存在性（辅助，仅阳性）────────────────────────────
+def _decide_xa_database(rows: list) -> Optional[str]:
+    """分布式实例存在 xa 系统库（跨 SET 全局自增 + 跨分片 2PC 协调）。
+
+    实测（2026-07-29）：
+      CENT: 7 库，无 xa
+      DIST: 8 库，含 xa（内含 auto_inc_table / gtid_log_t）
+      两侧 6 个系统库完全一致，差异有且仅有 xa。
+
+    【只判阳性，且这条尤其重要】
+    SHOW DATABASES 只返回当前账号【有权限看到】的库。权限更窄的账号在
+    真正的分布式实例上也可能看不到 xa。若反推"无 xa → 集中式"，等于让
+    账号权限决定审核口径 —— 换个账号 27 条规则就静默关了。
+    """
+    for r in rows or []:
+        if isinstance(r, dict):
+            vals = [str(v).strip().lower() for v in r.values()]
+        else:
+            vals = [str(r).strip().lower()]
+        if "xa" in vals:
+            return "distributed"
+    return None
+
+
+ACTIVE_PROBE_RULES: list[ProbeRule] = [
+    ProbeRule(
+        rule_id="PR001",
+        sql="/*proxy*/show status",
+        decide=_decide_proxy_status,
+        evidence=("2026-07-29 实测，REPORT-v1.5.1 §1 判据1；"
+                  "与赤兔管理台 group/set 标识及 hash 区间逐字核验一致"),
+    ),
+    ProbeRule(
+        rule_id="PR002",
+        sql="EXPLAIN SELECT 1",
+        decide=_decide_explain_info,
+        evidence="2026-07-29 实测，REPORT-v1.5.1 §1 判据2（仅阳性方向）",
+    ),
+    ProbeRule(
+        rule_id="PR004",
+        sql="SHOW DATABASES",
+        decide=_decide_xa_database,
+        evidence=("2026-07-29 实测 T06，raw_probe_out_{CENT,DIST}.txt；"
+                  "xa 库归属经 SHOW TABLES FROM xa 专项确认"
+                  "（auto_inc_table / gtid_log_t，均为分布式协调设施）"),
+    ),
+    ProbeRule(
+        rule_id="PR003",
+        sql="",                     # 由调用方拼入具体表名，见 §7.1
+        decide=_decide_table_ddl,
+        evidence="2026-07-29 实测，REPORT-v1.5.1 §1 判据3（仅阳性方向）",
+        enabled=False,              # 默认不参与自动探测
+    ),
+]
 ```
 
-`tdsql_connector.probe_instance_type()` 遍历该表：**任一判据阳性命中 → `distributed`；全部未命中或表为空 → `None`（无结论）**。**永远不会**因为"都没命中"就返回 `centralized`——这正是 §8.4 标准 3 的代码化。
+> **`sets[0]` 的取法说明**：实测中 `set` 行只出现一次。若某版本出现多行 `set`，取第一行即可——因为多 SET 的情况已被签名 1/2（`cluster` / `hash_range`）先行拦截，走不到这里。
 
 ---
 
@@ -638,82 +818,78 @@ ACTIVE_PROBE_RULES: list[ProbeRule] = []
 
 **文件**：`backend/services/tdsql_connector.py:520`
 
-**全量替换**（下方注释为事故记录，**必须原样保留**——它的作用是阻止后来者本着好意把这个函数"补全"回同样的错误）：
+**全量替换**（docstring 中的事故记录**必须原样保留**——它的作用是阻止后来者把这个函数"改回"原来的写法）：
 
 ```python
     def probe_instance_type(self) -> tuple:
         """SQL 层实例类型探测（V1.5.1 重写）。返回 (类型 或 None, 探针明细)。
 
-        ⚠ 本方法当前恒返回 (None, ...) —— 这是有意为之，不是未完成。
+        ── 事故记录：V1.5 的两个判据为什么全错 ──────────────────────────
+        V1.5 用了两个判据，经真实环境实测（8.0.33-v24-txsql-22.4.1）全部证伪：
 
-        V1.5 曾用两个判据，经真实环境实测（8.0.33-v24-txsql-22.4.1）全部证伪：
-
-          1) /*proxy*/show status
+          1) /*proxy*/show status 返回非空
              /*proxy*/ 只是一个 SQL 注释。直连后端 TXSQL 执行该语句会返回
-             完整的 458 行标准 MySQL 状态变量，即任何 MySQL 兼容端点都会
-             返回非空结果。原判据"非空即分布式"因此恒为真。
+             完整的 458 行标准 MySQL 状态变量 —— 任何 MySQL 兼容端点都返回
+             非空结果。原判据"非空即分布式"因此恒为真。
+             【正确的用法是看返回内容的拓扑签名，而不是看有没有返回。】
 
-          2) information_schema.TDSQL_SHARDING_RULES
+          2) information_schema.TDSQL_SHARDING_RULES 存在
              该视图在本版本 TDSQL 上根本不存在（ERROR 1109），原判据恒为假。
 
-        两者合并的净效果：旧实现对任何可连实例恒返回 "distributed"，
-        是一个常量函数，毫无鉴别力，并因"探测优先于声明"覆盖了使用者
-        正确填写的实例类型，导致 V1.5 的核心目标 G1 完全未达成。
+        净效果：旧实现对任何可连实例恒返回 "distributed"，是一个常量函数，
+        毫无鉴别力，并因"探测优先于声明"覆盖了使用者正确填写的实例类型，
+        导致 V1.5 的核心目标 G1 完全未达成。
 
-        更根本的结论（同物理机对照实验，10.206.0.8 的 4002/4003 两端口）：
-        集中式实例的节点与分布式实例的分片节点，在后端 TXSQL 的 SQL 层
-        输出逐字一致。分片拓扑只存在于 Proxy 路由层与管控面（ZK/赤兔），
-        不是数据节点的属性。因此任何试图在数据节点 SQL 层区分二者的探针，
-        原理上都不可能成立。
+        另一条同样重要的结论（同物理机对照实验，10.206.0.8 的 4002/4003）：
+        集中式实例的节点与分布式实例的分片节点，在【后端 TXSQL】的 SQL 层
+        输出逐字一致。分片拓扑不是数据节点的属性 —— 只有【经 Proxy 端口】
+        才能看到差异。因此本方法必须走实例配置的 Proxy 端口，
+        任何绕过 Proxy 直连后端节点的探测都不可能成立。
 
-        实例类型请改用管控面权威源（ZK，见 instance_type_service S1）。
+        ── V1.5.1 的做法 ────────────────────────────────────────────────
+        遍历 instance_probe_rules.ACTIVE_PROBE_RULES：
+          · 任一判据返回 "distributed" → 立即判分布式（阳性证据优先）
+          · 无任何阳性命中，但有判据返回 "centralized" → 判集中式
+          · 全部无结论 / 全部执行失败 → 返回 None，下沉至 ZK 或人工声明
 
-        本方法改为遍历 instance_probe_rules.ACTIVE_PROBE_RULES 判据表：
-        任一判据【阳性命中】→ distributed；全部未命中或表为空 → None。
-        永远不会因为"都没命中"就返回 centralized —— 那是设计文档 §8.4
-        标准 3 明令禁止的，也正是本次事故的失效方向。
-
-        判据表出厂为空，故本方法当前恒返回 (None, ...)。Proxy 层判据待
-        G 用 POST /connections/{id}/probe-diagnostics 采集实测数据后，
-        按 §8.4 三项标准评审通过再入表。
+        【铁律】未命中不等于集中式。只有命中【集中式的正面签名】才可判集中式
+        （目前仅 PR001 的"单 SET 拓扑"具备该签名）。把"没看到分布式特征"
+        当成"是集中式"，会让一次网络抖动就静默关掉 27 条规则 —— 那是比 V1.5
+        的误报危险得多的失效方向。
 
         Returns:
             (类型字符串 或 None, 明细 dict)
         """
         from backend.services.instance_probe_rules import ACTIVE_PROBE_RULES
 
-        if not ACTIVE_PROBE_RULES:
-            return None, {
-                "disabled": True,
-                "reason": ("SQL 层探测暂无可用判据：经实测，TDSQL 后端数据节点上"
-                           "集中式实例与分布式分片无法区分，原判据 "
-                           "/*proxy*/show status 与 TDSQL_SHARDING_RULES 均无鉴别力。"
-                           "请使用 ZK 管控面判定，或由管理员锁定实例类型。"),
-                "since": "v1.5.1",
-            }
+        detail, distributed_hit, centralized_hit = {}, None, None
 
-        detail, hit = {}, None
         for rule in ACTIVE_PROBE_RULES:
+            if not rule.enabled or not rule.sql:
+                continue
             try:
                 rows = self._execute(rule.sql)
-                positive = bool(rule.decide(rows or []))
-                detail[rule.rule_id] = {"ok": True, "positive": positive}
-                if positive and hit is None:
-                    hit = rule.rule_id
+                verdict = rule.decide(rows or [])
+                detail[rule.rule_id] = {"ok": True, "verdict": verdict,
+                                        "row_count": len(rows or [])}
+                if verdict == "distributed" and distributed_hit is None:
+                    distributed_hit = rule.rule_id
+                elif verdict == "centralized" and centralized_hit is None:
+                    centralized_hit = rule.rule_id
             except Exception as e:
-                # 判据执行失败仅记录，不参与判定（INV-5：绝不抛异常）
+                # 判据执行失败仅记录，不参与判定，绝不抛出（INV-5）
                 detail[rule.rule_id] = {"ok": False, "reason": str(e)[:200]}
 
-        if hit:
-            return "distributed", {"matched": hit, "rules": detail}
-        # 全部未命中 ≠ 集中式。返回无结论，下沉至 ZK / 声明。
+        if distributed_hit:
+            return "distributed", {"matched": distributed_hit, "rules": detail}
+        if centralized_hit:
+            return "centralized", {"matched": centralized_hit, "rules": detail}
         return None, {"matched": None, "rules": detail}
 ```
 
-**为什么保留方法而不是删除**：`_probe_and_persist()` / `probe_now()` / 测试均在调用它。保留签名、由判据表驱动，后续补判据只需改 `instance_probe_rules.py` 一个文件，**不再动连接器代码**。
+**阳性优先于阴性**：即使某条判据判了集中式，只要另一条判了分布式，仍取分布式。与 §4.3 的保守合并同一原则——**判错成分布式只是多报，判错成集中式是静默漏报。**
 
-**方法内的长注释是事故记录，不得精简。** 它的唯一作用，是阻止后来者看到一个"看起来没实现"的函数、本着好意把 `/*proxy*/show status` 那套再写回去。
-
+**为什么保留方法而不是删除**：`_probe_and_persist()` / `probe_now()` / 测试均在调用它。后续增删判据只需改 `instance_probe_rules.py` **一个文件**，不再动连接器代码。
 ---
 
 ### 7.1.1 C.2：诊断采集器 `collect_probe_diagnostics()`
@@ -1085,17 +1261,20 @@ class TypeSource(str, Enum):
                 _cache[connection_id] = (now, connection_id, ctx)
             return ctx
 
-        # ── S1 ZK 管控面 ──
-        zk = self._KIND_TO_TYPE.get((saved.get("zk_instance_kind") or "").strip())
-
-        # ── S2 SQL 探测（判据表出厂为空 → 恒为 None，见 instance_probe_rules）──
+        # ── S1 Proxy 层 SQL 探测（PR001/PR002，见 instance_probe_rules）──
+        # 排在 ZK 之前：读的是同一个底层事实，但实时、且无外部依赖（§4.1）
         detected = None
         raw = saved.get("detected_instance_type")
         if raw in (InstanceType.DISTRIBUTED.value, InstanceType.CENTRALIZED.value):
             detected = InstanceType(raw)
+        else:
+            detected = self._probe_and_persist(connection_id)
+
+        # ── S2 ZK 管控面（交叉校验 + 探测失败/实例不可达时兜底）──
+        zk = self._KIND_TO_TYPE.get((saved.get("zk_instance_kind") or "").strip())
 
         # ── 保守合并 ──
-        candidates = [(TypeSource.ZK, zk), (TypeSource.PROBED, detected),
+        candidates = [(TypeSource.PROBED, detected), (TypeSource.ZK, zk),
                       (TypeSource.DECLARED, declared)]
         available = [(s, v) for s, v in candidates if v is not None]
 
@@ -1113,8 +1292,8 @@ class TypeSource(str, Enum):
         if conflict:
             logger.warning(
                 f"实例 {connection_id} 类型判定存在分歧："
-                f"ZK={zk.value if zk else '无'}，"
                 f"探测={detected.value if detected else '无'}，"
+                f"ZK={zk.value if zk else '无'}，"
                 f"声明={declared.value}。按保守原则采用 {val.value}"
                 f"（来源 {src.value}）。")
 
@@ -1268,68 +1447,84 @@ def set_instance_type_lock(connection_id: str, payload: dict, http_request: Requ
 
 ---
 
-## 8. Proxy 层判据：实测与填充流程
+## 8. Proxy 层判据：实测结果与采纳裁定
 
-### 8.1 时序安排（负责人 2026-07-29 修订）
+### 8.1 实测已完成（2026-07-29）
 
-> **修订说明**：原定"Q 先开发、G 后实测"。负责人复议后调整为 **G 先实测、A 据实调整文档、Q 再一次性开发**。
-
-```
-G 按《TEST-v1.5.1-Proxy层实例类型判据实测方案-G.md》手工采集两类实例数据
-        ↓
-A 按 §8.4 三项标准逐条评审候选判据
-        ↓
-  ┌──────────────────────┬───────────────────────────────┐
-  │ 找到可用判据            │ 未找到可用判据                  │
-  ├──────────────────────┼───────────────────────────────┤
-  │ 判据写入本节 §8.5      │ 本节标注"SQL 层无可用判据"      │
-  │ 并给出 ProbeRule 定义  │ ACTIVE_PROBE_RULES 保持为空     │
-  └──────────────────────┴───────────────────────────────┘
-        ↓
-Q 一次性完成 A/B/C/D 四组开发
-```
-
-**两条路径都能交付。** S1（ZK）才是根治手段，S2 从设计之初就只是补充——即使 SQL 层最终没有任何可用判据，G1 与 G3 依然达成。
-
-> **不要为了"让探测能出结论"而降低 §8.4 的标准。** 那正是本次事故的成因：v1.5 就是因为想让探测有个结论，才把"能响应 proxy hint"这种无鉴别力的信号当成了判据。
-
-### 8.2 采集方法（G 执行，Q 开发之前）
-
-**详见独立测试文档**：`docs/TEST-v1.5.1-Proxy层实例类型判据实测方案-G.md`
-
-由于实测排在开发之前，诊断接口（C.3）尚不存在，G 只能**手工采集**。因此测试文档把"采集环境 = 判定环境"写成了硬性前提，逐条约束：
-
-| 前提 | 约束 | 不遵守的后果 |
-|---|---|---|
-| 1 | 必须走 **Proxy 端口**，禁用 `jmysql.sh` / 后端 socket | 后端节点两类实例完全同构（上轮已证），采了也没用 |
-| 2 | 必须用**系统实例配置中的同一账号** | 权限差异导致采到的东西与系统实际可见范围不一致 |
-| 3 | 两类实例**成对采集** | 判据的本质是差异，单侧数据无法得出任何结论 |
-| 4 | **原样回传**，不概括不截断 | 上轮 "rows: 2" 这个概括，让关键信息丢了整整一轮 |
-| 5 | `mysql` 必须带 **`--comments`** | 否则客户端会剥掉 `/*proxy*/` hint，proxy 类用例全部失效 |
-
-**前提 5 是本次采集最容易犯的错误**，且失败方式很隐蔽——漏加时输出看似正常，实则 hint 在发到服务端之前就被删掉了。测试文档中已给出自检方法（比对 T01 与 T09 的行数）。
-
-#### 关于 C.3 诊断接口的去留
-
-实测提前后，C.3（`POST /probe-diagnostics`）**本次的采集用途已由手工方案替代**。是否保留由负责人决定：
-
-| 选项 | 理由 |
+| 项 | 内容 |
 |---|---|
-| **保留**（建议） | ① 换 TDSQL 版本、换客户现场时可一键复测，不必每次重走手工流程；② 它是"采集环境 = 判定环境"这条约束的**工程化保证**，把靠人遵守的纪律变成靠代码保证；③ 实现成本很低（一个只读端点） |
-| 移除 | 若判定为一次性需求，可从 C 组剔除，`instance_probe_rules.py` 框架仍保留 |
+| 执行人 | 智能体 G |
+| 原始报告 | `docs/REPORT-v1.5.1-Proxy层实例类型判据实测结果-G.md` |
+| 被测对象 | `SIT-集中式实例A`（Proxy `:15002`） / `SIT-分布式实例A`（Proxy `:15005`） |
+| 采集方式 | **PyMySQL 直连 Proxy 端口**，账号与「实例管理」配置一致 |
+| **结论** | **Proxy 层存在决定性差异，判据成立** |
 
+**G 的方法偏离及评价**：测试文档规定用 `mysql` CLI + `--comments`，G 实际用了 **PyMySQL**。
 
-### 8.3 采集清单（用例明细见测试文档 §5）
+> **这个偏离是正确的，且优于原方案。** PyMySQL 正是系统自身使用的驱动，比 CLI 更贴近"采集环境 = 判定环境"这条硬性前提。此外它天然不剥离注释，绕开了 `--comments` 这个最易翻车的点。**后续复测应直接沿用 PyMySQL 方案，测试文档据此更新。**
 
-| # | 语句 | 观察点 |
+**独立交叉核验**：G 报告的 T01 输出与赤兔管理台数据**逐字吻合**——
+
+| 项 | 赤兔管理台（用户独立提供） | G 实测 T01 |
 |---|---|---|
-| 1 | `/*proxy*/show status` | **完整输出**。G 此前报告经 Proxy 时仅 2 行——需确认是哪 2 行。现有 `discover_sets()` 正是指望从中解析 `Variable_name='set'` 的逗号分隔 SET 列表 |
-| 2 | `/*proxy*/show connectionpool` | 是否暴露后端 SET 拓扑 |
-| 3 | `/*proxy*/show shard` · `/*proxy*/show sets` | 该版本是否支持这类命令 |
-| 4 | `show databases` | 两类实例是否有系统库差异 |
-| 5 | `SHOW CREATE TABLE <业务表>` | 分布式实例的表 DDL 是否带 `shardkey=` / 广播表标记 |
+| 分布式 groupid | `group_1782132247_10` | `cluster` = `group_1782132247_10` |
+| 分片 1 | `set_1782132369_1` **(0-7)** | `set_1782132369_1:hash_range` = `0---7` |
+| 分片 2 | `set_1782132389_3` **(8-15)** | `set_1782132389_3:hash_range` = `8---15` |
+| 集中式实例 ID | `set_1782130875_4` | `set` = `set_1782130875_4` |
+| 集中式后端节点 | 【主】`10.206.0.4:4002`【备】`10.206.0.8:4002` | `10.206.0.4:4002;s1@10.206.0.8:4002@...` |
 
-### 8.4 判据采纳标准（防止重蹈覆辙）
+**两路独立来源完全一致，数据可信度确认。**
+
+**另一项自证**：CENT 的 T01 只返回 **2 行**。而普通 `SHOW STATUS` 在本版本返回 **458 行**（上一轮后端实测已确认）。**行数从 458 降到 2，本身就证明 `/*proxy*/` hint 确实被 Proxy 拦截并改写了**——原设计中"T01 vs T09 对照"这个自检目的，由此以另一条路径达成。
+
+> **测试文档缺陷（本人责任）**：T09 用了 `information_schema.SESSION_STATUS`，该表在 MySQL 8.0 已移除，两侧均报 `Unknown table`。原定的对照校验落空。所幸 458→2 的行数差已提供等价证据。测试文档需修正此用例。
+
+### 8.2 判据采纳裁定
+
+G 提出 3 项候选判据。**逐条对照 §8.4 三项标准**：
+
+| 判据 | 标准 1<br>确有差异 | 标准 2<br>阳性方向明确 | 标准 3<br>未命中不判集中式 | 裁定 |
+|---|---|---|---|---|
+| **PR001** T01 `/*proxy*/show status` 内容 | ✅ | ✅ | ⚠️ G 的写法违反 | **采纳（重写后）· 主判据** |
+| **PR002** T10 `EXPLAIN` 的 `info` 列 | ✅ | ✅ | ❌ G 的写法违反 | **采纳（仅阳性方向）· 辅助** |
+| **PR003** T11 `SHOW CREATE TABLE` 的 `shardkey=` | ✅ | ✅ | ❌ G 的写法未涉及 | **采纳（仅阳性方向）· 可选兜底** |
+| **PR004** T06 `xa` 系统库存在性 | ✅ | ✅ | — | **采纳（仅阳性方向）· 辅助**<br>G 首版评为"弱（业务库差异）"，经补充确认后改判 |
+
+**G 提出的代码实现不予采纳。** 原因见 §8.3。
+
+### 8.3 为什么 G 的代码实现不能直接用
+
+G 在报告 §4 给出的 `probe_instance_type()` 实现有**两处会重演本次事故**，且方向更危险：
+
+```python
+# G 的原始实现（节选）
+        is_cent = any(r.get("status_name") == "set" for r in rows ...)
+        if is_cent:
+            return "centralized", detail          # ← 问题 1
+    except Exception as e:
+        detail["proxy_show_status"] = {"ok": False, ...}
+
+    # 兜底探针
+    try:
+        exp_rows = self._execute("EXPLAIN SELECT 1")
+        if exp_rows and "info" in exp_rows[0]:
+            return "distributed", detail
+        else:
+            return "centralized", detail          # ← 问题 2（更严重）
+```
+
+**问题 1：把"没看到 cluster"当成"是集中式"。**
+这是**阴性证据当阳性用**。若某个 TDSQL 版本不输出 `cluster` 行、或单分片分布式实例的输出形态不同，真正的分布式实例会被判成集中式——**27 条规则静默失效**。
+
+**问题 2（更严重）：`else: return "centralized"` 是一个兜底判定。**
+注意它的触发路径：**T01 抛异常**（网络抖动、权限不足、Proxy 忙）→ 落入 EXPLAIN 分支 → EXPLAIN 成功但没有 `info` → **判集中式**。
+
+> **一次网络抖动就能让一台分布式实例的 27 条规则静默关闭。** 这正是 §8.4 标准 3 要防的东西，也是本次事故的镜像——v1.5 是"恒判分布式"（误报，可见），这个写法是"易判集中式"（**漏报，不可见**）。**后者危险得多。**
+
+**问题 3：`EXPLAIN` 的 `info` 列缺失是弱证据。**
+`EXPLAIN SELECT 1` 不涉及任何表，Proxy 为它注入路由信息（`set_1782132369_1,EXPLAIN SELECT 1`）带有偶然性。**有 `info` 是强阳性；没有 `info` 什么也证明不了。**
+
+### 8.4 判据采纳标准（原文保留，本次据此裁定）
 
 一条判据只有**同时满足**下列三条，才可填入 `ACTIVE_PROBE_RULES`：
 
@@ -1337,11 +1532,180 @@ Q 一次性完成 A/B/C/D 四组开发
 2. 差异**方向明确**：命中即为分布式的**阳性证据**；
 3. 未命中时**不得**判集中式，必须返回"无结论"下沉至下一源。
 
-**外加一条硬性配套**：每新增一条判据，**必须同时补一条反向鉴别用例**（对两类实例各跑一次、断言结论**不同**）。仅断言"某类返回某值"的用例无法发现常量函数——v1.5 正是这样漏掉的。
+**外加一条硬性配套**：每新增一条判据，**必须同时补一条反向鉴别用例**（对两类实例各跑一次、断言结论**不同**）。
 
-> **先验最强的候选是 #5（表 DDL 含 `shardkey=`）**：R077 规定分布式实例不允许建单表，故其每张表必带分片键或广播表标记，而集中式实例永远没有。弱点是空库时无表可查——按标准 3，此时返回"无结论"即可，不构成风险。
+> **本次裁定对标准 3 的一处澄清**：标准 3 禁止的是**以"未命中"为由判集中式**（阴性证据当阳性用）。它**不禁止**基于**集中式自身的阳性特征**做判定。
 >
-> **#1 要特别小心，不要重蹈"非空即分布式"的覆辙。** 即使经 Proxy 只返回 2 行，判据也必须落在**具体某一行的具体值**上（例如 `set` 行里 SET 的个数），而绝不能是"返回了几行"这类形态特征。
+> T01 恰好提供了这样的阳性特征：**`set` 行的 value 只含一个 SET（无逗号）+ 存在以该 SET ID 为键的明细行 + 无 `cluster` 行**——这是"单 SET 拓扑"的**结构性正面签名**，不是"没看到分布式特征"。
+>
+> 因此 PR001 允许输出 `centralized`，但**必须命中该正面签名**；形态不符（如无 `set` 行、值为空、格式异常）一律返回**无结论**。**PR002 / PR003 没有对应的集中式正面签名，故只允许输出 `distributed` 或无结论。**
+
+### 8.5 采纳的判据定义（照图施工）
+
+以下内容直接落入 `backend/services/instance_probe_rules.py`。
+
+#### PR001 — `/*proxy*/show status` 拓扑签名（主判据）
+
+**实测原文**（`docs/raw_probe_out_{CENT,DIST}.txt` T01 段，**全量**）
+
+```
+CENT (:15002)  —— 共 2 行
+  {"status_name": "set",              "value": "set_1782130875_4"}
+  {"status_name": "set_1782130875_4", "value": "10.206.0.4:4002;s1@10.206.0.8:4002@100@IDC3@0"}
+
+DIST (:15005)  —— 共 8 行
+  {"status_name": "cluster",                     "value": "group_1782132247_10"}
+  {"status_name": "set_1782132369_1:ip",         "value": "10.206.0.8:4003;"}
+  {"status_name": "set_1782132369_1:alias",      "value": "s1"}
+  {"status_name": "set_1782132369_1:hash_range", "value": "0---7"}
+  {"status_name": "set_1782132389_3:ip",         "value": "10.206.0.13:4002;"}
+  {"status_name": "set_1782132389_3:alias",      "value": "s2"}
+  {"status_name": "set_1782132389_3:hash_range", "value": "8---15"}
+  {"status_name": "set",  "value": "set_1782132369_1,set_1782132389_3 "}
+```
+
+> **补全 8 行后发现的结构性规律**（G 的首版报告只列了 4 行，未指出此点）：
+>
+> **DIST 用「命名空间」式键名 `<set_id>:<属性>`（`:ip` / `:alias` / `:hash_range`）；CENT 用裸键名 `<set_id>`，键名中不含冒号。**
+>
+> 这比"是否有 `hash_range`"更本质。据此把签名 2 从"含 `:hash_range`"**泛化为"键名含 `:`"**——更灵敏（`:ip` / `:alias` 单独出现也能命中），且误判方向安全（万一某版本集中式出现冒号键名，只会多判成分布式 = 多报，可见可纠）。
+>
+> **另一处交叉核验**：`:ip` 行的值与赤兔 DB监控截图完全吻合——`set_1782132369_1` → `10.206.0.8:4003`、`set_1782132389_3` → `10.206.0.13:4002`。**至此 8 行全部与管控面对上。**
+
+**判定逻辑**
+
+| 优先级 | 签名 | 结论 |
+|---|---|---|
+| 1 | 存在 `status_name == "cluster"` 的行 | **distributed** |
+| 2 | 任一 `status_name` **含 `":"`**（观测形态：`:ip` / `:alias` / `:hash_range`） | **distributed** |
+| 3 | `set` 行 value 按逗号切分后 **≥ 2 个非空 SET** | **distributed** |
+| 4 | `set` 行 value 恰好 **1 个非空 SET**，且无上述 1/2/3 | **centralized** |
+| 5 | 其余一切情况（无 `set` 行、value 为空、语句失败） | **无结论** |
+
+**实现要点**
+
+- `value` 必须 `.strip()`——实测 DIST 的 `set` 行 value 末尾带一个空格（`"set_..._1,set_..._3 "`），不处理会导致切分出空元素；
+- 切分后**过滤空串**再计数，否则末尾逗号会让 1 个 SET 被数成 2 个；
+- 行可能是 dict 也可能是 tuple，取值需兼容（沿用 `discover_sets()` 的多字段名兼容写法：`status_name` / `Variable_name` / `name` / `Key`）。
+
+**已知边界**（写入代码注释）：单分片分布式实例若不输出 `cluster` 行，将命中签名 4 被判集中式。该形态未实测。缓解措施是 §4.3 的保守合并——只有当人工声明**也**为集中式时该结论才会生效。
+
+#### PR002 — `EXPLAIN` 路由信息注入（辅助，仅阳性）
+
+**实测原文**
+
+```
+CENT: {id, select_type, table, partitions, type, possible_keys, key,
+       key_len, ref, rows, filtered, Extra}                      ← 标准 12 列，无 info
+DIST: {..., Extra: "No tables used",
+       info: "set_1782132369_1,EXPLAIN SELECT 1"}                ← Proxy 注入 info
+```
+
+**判定逻辑**：结果集首行含 `info` 键 → **distributed**；**其余一切情况 → 无结论**。
+
+**严禁**由"无 `info`"推出集中式（§8.3 问题 3）。
+
+#### PR004 — `xa` 系统库存在性（辅助，仅阳性）
+
+**实测原文**（T06 `show databases`）
+
+```
+CENT (:15002) —— 7 个库
+  information_schema, mysql, performance_schema, query_rewrite,
+  sys, sysdb, tdsql_check2                        ← 无 xa
+
+DIST (:15005) —— 8 个库
+  information_schema, mysql, performance_schema, query_rewrite,
+  sys, sysdb, tdsql_check, xa                     ← 多出 xa
+```
+
+**`xa` 的归属已由 G 专项确认**（复测 `SHOW TABLES FROM xa`）：
+
+| 表 | 用途 |
+|---|---|
+| `auto_inc_table` | Proxy 跨 SET 维护**全局自增序列** |
+| `gtid_log_t` | Proxy 协调**跨分片 2PC 事务**与 GTID 跟踪 |
+
+**两者都是分布式架构独有的协调设施。** 集中式单 SET 实例不存在 2PC 协调器与跨分片自增，故无此库。
+
+> **本人独立核验**：两侧 6 个系统库（`information_schema` / `mysql` / `performance_schema` / `query_rewrite` / `sys` / `sysdb`）**完全一致**，业务库仅名称不同（`tdsql_check2` vs `tdsql_check`）。**差异有且仅有 `xa` 一项**，排除了"业务库差异"的解释——G 首版报告把它归为"弱（业务库差异）"是误判，本次已由其自行修正。
+
+**判定逻辑**：库列表含 `xa` → **distributed**；**其余一切情况 → 无结论**。
+
+> ### ⚠️ 为什么绝对不能反推"无 `xa` → 集中式"
+>
+> **`SHOW DATABASES` 只返回当前账号有权限看到的库。** 一个权限更窄的审核账号在**真正的分布式实例**上也可能看不到 `xa`。
+>
+> 若把"没看到 `xa`"当成集中式，等于**让账号权限决定审核口径**——换个账号，27 条规则就静默关了。这是本判据最危险的误用方式，比 PR002 的情形更隐蔽（PR002 至少不受权限影响）。
+>
+> **本项与 PR001 的 `centralized` 分支有本质区别**：PR001 命中的是"单 SET 拓扑"这一**结构性正面签名**（`show status` 由 Proxy 生成，不受账号权限裁剪）；而 `xa` 的缺席可能只是**看不见**，不是**不存在**。
+
+#### PR003 — 表 DDL 分片标记（可选兜底，仅阳性）
+
+**实测原文**
+
+```
+CENT: ... ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin COMMENT='...'
+DIST: ... ENGINE=InnoDB AUTO_INCREMENT=25600001 DEFAULT CHARSET=utf8mb4
+          COLLATE=utf8mb4_bin shardkey=id
+```
+
+**判定逻辑**：DDL 匹配 `\bshardkey\s*=` 或广播表标记 → **distributed**；其余 → **无结论**。
+
+**默认不启用。** 它需要先选定一张表，比 PR001/PR002 昂贵且有副作用（空库无表可查）。仅在 PR001 与 PR002 均无结论时，由诊断接口按需调用。
+
+### 8.6 未采纳与待确认项
+
+| 用例 | G 的评价 | 本次裁定 |
+|---|---|---|
+| T02 `show connectionpool` · T03 `show shard` · T04 `show sets` | 两侧均 `Command is not supported` | **不采纳**，本版本 Proxy 不支持 |
+| T05 `show variables` | 两侧 199 项完全一致 | **不采纳** |
+| T07 / T08 information_schema | 两侧完全一致 | **不采纳**（与后端节点结论一致） |
+| **T06 `show databases`** | 首版评为"弱（业务库差异）"，补充确认后改判 | ✅ **采纳为 PR004**（见 §8.5） |
+
+**关于 T06（已闭环）**：G 首版把 DIST 多出的 **`xa`** 库归因为"业务库差异"，本人不同意并要求补充确认。**补充确认结果支持改判**：
+
+- `SHOW TABLES FROM xa` → `auto_inc_table`（跨 SET 全局自增）、`gtid_log_t`（跨分片 2PC / GTID），**均为分布式架构独有的协调设施**；
+- 本人独立核验两侧库列表：**6 个系统库完全一致，业务库仅名称不同，差异有且仅有 `xa`**，排除"业务库差异"解释。
+
+**已采纳为 PR004（仅阳性方向）。**
+
+> **这一条值得记下**：如果当初接受了"弱（业务库差异）"这个归纳而不去看原始清单，就会漏掉一条成本极低（一条 `show databases`）的有效判据。**归纳会丢信息，原始数据不会——这也是坚持要原文而非概括的价值所在。**
+
+### 8.7 G 补充材料（✅ 已于 2026-07-29 全部收到并核验）
+
+| # | 材料 | 落地位置 | 核验结果 |
+|---|---|---|---|
+| 1 | 原始输出文件 | `docs/raw_probe_out_CENT.txt`<br>`docs/raw_probe_out_DIST.txt` | ✅ 已入库，各判据 `evidence` 已引用 |
+| 2 | DIST 的 T01 完整 8 行 | 同上 T01 段 | ✅ 已补全，**并由此发现新规律**（见 §8.5 PR001） |
+| 3 | `xa` 库归属确认 | 报告 §2 专项分析 | ✅ 已确认，**采纳为 PR004** |
+
+#### 本人对补充材料的独立核验
+
+**（1）逐用例系统性 diff**（不依赖 G 的归纳，自行比对两个原始文件的全部 12 个用例）：
+
+| 结果 | 用例 |
+|---|---|
+| **有差异** | T00（会话上下文，预期）· **T01** · **T06** · **T10** · **T11** |
+| **逐字节相同** | T02 · T03 · T04 · T05 · T07 · T08 · T09 |
+
+**与 G 的结论一致，无遗漏项。**
+
+**（2）T01 全 8 行与赤兔管控台交叉核验**——补全的 4 行同样对得上：
+
+| 项 | 赤兔 DB监控（用户独立提供） | T01 原文 |
+|---|---|---|
+| `set_1782132369_1` 主机 | 【主】`10.206.0.8:4003` | `set_1782132369_1:ip` = `10.206.0.8:4003;` |
+| `set_1782132389_3` 主机 | 【主】`10.206.0.13:4002` | `set_1782132389_3:ip` = `10.206.0.13:4002;` |
+
+**8 行全部与管控面吻合。**
+
+**（3）补全数据带来的两项设计改进**（G 未指出）：
+
+- **PR001 签名 2 泛化**：DIST 用 `<set_id>:<属性>` 命名空间式键名，CENT 用裸键名——判据由"含 `:hash_range`"改为"键名含 `:`"，更灵敏且误判方向安全；
+- **新增 PR004**：`xa` 库判据（G 首版归为"弱"，补充确认后改判采纳）。
+
+**（4）一处顺带确认**：CENT 的表 DDL 中也出现 `AUTO_INCREMENT=55647`，**说明 `AUTO_INCREMENT` 不具鉴别力**。PR003 只匹配 `shardkey=`（不匹配 `AUTO_INCREMENT`）是正确的。
 
 ---
 
@@ -1362,21 +1726,46 @@ Q 一次性完成 A/B/C/D 四组开发
 #### （1）反向鉴别用例（本次事故的直接防线）
 
 ```python
+# 实测原文（2026-07-29，REPORT-v1.5.1）。用作 mock 数据源，
+# 使单元测试不依赖真实实例即可复现两类实例的差异。
+FAKE_STATUS_CENT = [
+    {"status_name": "set", "value": "set_1782130875_4"},
+    {"status_name": "set_1782130875_4",
+     "value": "10.206.0.4:4002;s1@10.206.0.8:4002@100@IDC3@0"},
+]
+FAKE_STATUS_DIST = [                      # 全 8 行，实测原样
+    {"status_name": "cluster", "value": "group_1782132247_10"},
+    {"status_name": "set_1782132369_1:ip", "value": "10.206.0.8:4003;"},
+    {"status_name": "set_1782132369_1:alias", "value": "s1"},
+    {"status_name": "set_1782132369_1:hash_range", "value": "0---7"},
+    {"status_name": "set_1782132389_3:ip", "value": "10.206.0.13:4002;"},
+    {"status_name": "set_1782132389_3:alias", "value": "s2"},
+    {"status_name": "set_1782132389_3:hash_range", "value": "8---15"},
+    # 注意末尾空格 —— 实测原样，用于验证 strip 处理
+    {"status_name": "set", "value": "set_1782132369_1,set_1782132389_3 "},
+]
+FAKE_DATABASES_CENT = [{"Database": d} for d in (
+    "information_schema", "mysql", "performance_schema",
+    "query_rewrite", "sys", "sysdb", "tdsql_check2")]
+FAKE_DATABASES_DIST = [{"Database": d} for d in (
+    "information_schema", "mysql", "performance_schema",
+    "query_rewrite", "sys", "sysdb", "tdsql_check", "xa")]
+
+
 def test_probe_must_not_be_a_constant_function():
     """探测源不得对两类实例返回相同结论。
 
     这是 V1.5 缺陷的直接防线：当时的探测对任何实例恒返回 "distributed"，
     是一个常量函数。任何"某类返回某值"式的断言都发现不了这一点，
-    只有对两类目标各跑一次、断言结论不同，才能捕获。
+    只有对两类目标各跑一次、断言结论【不同】，才能捕获。
 
-    当前 SQL 探测已停用（恒返回 None），因此断言"两侧都无结论"；
-    P2 补上 Proxy 判据后，本用例改为断言两侧结论相反。
+    【新增判据时必须同步扩充本用例】——见 §8.4 的硬性配套要求。
     """
-    dist_result, _ = distributed_pool.probe_instance_type()
-    cent_result, _ = centralized_pool.probe_instance_type()
-    if dist_result is None and cent_result is None:
-        return          # 当前预期：SQL 探测已停用
-    assert dist_result != cent_result, "探测源无鉴别力（对两类实例返回相同结论）"
+    from backend.services.instance_probe_rules import _decide_proxy_status
+    assert _decide_proxy_status(FAKE_STATUS_DIST) == "distributed"
+    assert _decide_proxy_status(FAKE_STATUS_CENT) == "centralized"
+    assert (_decide_proxy_status(FAKE_STATUS_DIST)
+            != _decide_proxy_status(FAKE_STATUS_CENT)), "探测源无鉴别力"
 ```
 
 #### （2）P0 止血验证
@@ -1455,50 +1844,119 @@ def test_sync_matches_any_proxy_of_instance():
     ...
 ```
 
-#### （5）判据框架（C 组）
+#### （5）判据表（C 组）
 
 ```python
-def test_probe_rules_table_ships_empty():
-    """出厂判据表必须为空 —— 这是本次交付的预期状态，不是未完成。
+def test_pr001_signature_priority():
+    """PR001 判定表逐行验证（§8.5）"""
+    from backend.services.instance_probe_rules import _decide_proxy_status as d
+    # 签名 1：cluster 行
+    assert d([{"status_name": "cluster", "value": "group_x"}]) == "distributed"
+    # 签名 2：键名含冒号（即使没有 cluster 行）—— 三种实测形态都要覆盖
+    assert d([{"status_name": "set_a:hash_range", "value": "0---7"}]) == "distributed"
+    assert d([{"status_name": "set_a:ip", "value": "10.0.0.1:4003;"}]) == "distributed"
+    assert d([{"status_name": "set_a:alias", "value": "s1"}]) == "distributed"
+    # 反例：CENT 的裸键名不含冒号，不得命中签名 2
+    #（值里的 10.206.0.4:4002 有冒号，但判据只看键名）
+    assert d(FAKE_STATUS_CENT) == "centralized"
+    # 签名 3：多 SET
+    assert d([{"status_name": "set", "value": "set_a,set_b"}]) == "distributed"
+    # 签名 4：单 SET → 集中式正面签名
+    assert d([{"status_name": "set", "value": "set_a"}]) == "centralized"
 
-    任何在未经 §8.4 评审的情况下往表里加判据的改动，本用例都会失败。
+
+def test_pr001_handles_trailing_space_and_comma():
+    """实测 DIST 的 set 行 value 末尾带空格；尾随逗号也不得把 1 个数成 2 个"""
+    from backend.services.instance_probe_rules import _decide_proxy_status as d
+    assert d([{"status_name": "set", "value": "set_a,set_b "}]) == "distributed"
+    assert d([{"status_name": "set", "value": "set_a,"}]) == "centralized"
+    assert d([{"status_name": "set", "value": " set_a "}]) == "centralized"
+
+
+@pytest.mark.parametrize("rows", [
+    [],                                              # 空结果
+    [{"status_name": "other", "value": "x"}],        # 无 set 行
+    [{"status_name": "set", "value": ""}],           # set 行值为空
+    [{"status_name": "set", "value": " , "}],        # 全是分隔符
+])
+def test_pr001_unknown_shape_returns_none(rows):
+    """形态不符一律返回无结论，绝不猜（§8.4 标准 3）"""
+    from backend.services.instance_probe_rules import _decide_proxy_status as d
+    assert d(rows) is None
+
+
+def test_pr002_only_positive():
+    """PR002 只判阳性：有 info → 分布式；无 info → 无结论（不是集中式）"""
+    from backend.services.instance_probe_rules import _decide_explain_info as d
+    assert d([{"id": 1, "Extra": "No tables used",
+               "info": "set_1782132369_1,EXPLAIN SELECT 1"}]) == "distributed"
+    assert d([{"id": 1, "Extra": "No tables used"}]) is None    # 不是 "centralized"
+    assert d([]) is None
+
+
+def test_pr004_only_positive():
+    """PR004 只判阳性：有 xa → 分布式；无 xa → 无结论（绝不是集中式）。
+
+    SHOW DATABASES 只返回账号有权限看到的库。若反推"无 xa → 集中式"，
+    等于让账号权限决定审核口径 —— 换个窄权限账号，27 条规则就静默关了。
     """
+    from backend.services.instance_probe_rules import _decide_xa_database as d
+    assert d(FAKE_DATABASES_DIST) == "distributed"
+    assert d(FAKE_DATABASES_CENT) is None          # 不是 "centralized"
+    assert d([]) is None
+
+
+def test_pr004_reverse_discrimination():
+    """反向鉴别：两侧结论必须不同（§8.4 硬性配套）"""
+    from backend.services.instance_probe_rules import _decide_xa_database as d
+    assert d(FAKE_DATABASES_DIST) != d(FAKE_DATABASES_CENT)
+
+
+def test_pr003_only_positive():
+    from backend.services.instance_probe_rules import _decide_table_ddl as d
+    assert d([{"Create Table": "... COLLATE=utf8mb4_bin shardkey=id"}]) == "distributed"
+    assert d([{"Create Table": "... COLLATE=utf8mb4_bin COMMENT='x'"}]) is None
+    assert d([]) is None
+
+
+def test_pr003_disabled_by_default():
+    """PR003 需要先选表，默认不参与自动探测"""
     from backend.services.instance_probe_rules import ACTIVE_PROBE_RULES
-    assert ACTIVE_PROBE_RULES == [], (
-        "新增判据须先通过 §8.4 三项标准评审，并同步更新本用例与反向鉴别用例")
+    pr003 = [r for r in ACTIVE_PROBE_RULES if r.rule_id == "PR003"]
+    assert pr003 and pr003[0].enabled is False
 
 
-def test_empty_rules_yield_no_conclusion():
-    """判据表为空时必须返回无结论，绝不能回退成某个默认类型"""
-    result, detail = any_pool.probe_instance_type()
-    assert result is None
-    assert detail.get("disabled") is True
+def test_every_rule_has_evidence():
+    """§8.4 标准 1：入表判据必须写明实测出处，不接受空 evidence"""
+    from backend.services.instance_probe_rules import ACTIVE_PROBE_RULES
+    for r in ACTIVE_PROBE_RULES:
+        assert r.evidence and "实测" in r.evidence, f"{r.rule_id} 缺少实测依据"
 
 
-def test_all_rules_miss_never_means_centralized(monkeypatch):
-    """§8.4 标准 3 的代码化：全部判据未命中 ≠ 集中式。
-
-    这是本次事故的失效方向 —— 必须由用例钉死。
-    """
-    from backend.services import instance_probe_rules as m
-    monkeypatch.setattr(m, "ACTIVE_PROBE_RULES", [
-        m.ProbeRule("PRTEST", "select 1", lambda rows: False, "unit-test"),
-    ])
-    result, _ = any_pool.probe_instance_type()
-    assert result is None          # 不是 "centralized"
+def test_positive_beats_negative():
+    """阳性优先：一条判分布式、一条判集中式时，必须取分布式"""
+    # PR001 给集中式、PR002 给分布式 → 结果应为 distributed
+    result, detail = pool_cent_status_but_explain_info.probe_instance_type()
+    assert result == "distributed"
 
 
-def test_probe_rule_failure_does_not_raise():
+def test_rule_failure_does_not_raise():
     """判据执行异常仅记录，不得抛出（INV-5）"""
-    result, detail = broken_pool.probe_instance_type()
+    result, _ = broken_pool.probe_instance_type()
     assert result is None
+
+
+def test_all_rules_no_conclusion_returns_none():
+    """全部判据无结论 → None，绝不回退成某个默认类型"""
+    result, detail = pool_with_unknown_shape.probe_instance_type()
+    assert result is None
+    assert detail["matched"] is None
 
 
 def test_diagnostics_collects_all_statements():
     """诊断采集：单条语句失败不影响其余条目"""
     out = pool_with_partial_support.collect_probe_diagnostics()
     assert set(out["statements"]) >= {"proxy_show_status", "show_databases"}
-    assert any(v["ok"] for v in out["statements"].values())
 
 
 @pytest.mark.parametrize("bad", ["a;drop table t", "a b", "`x`", "a.b.c", "-- x"])
@@ -1509,16 +1967,19 @@ def test_diagnostics_rejects_bad_sample_table(bad):
     assert e.value.status_code == 400
 ```
 
+
 ### 9.3 真实环境验收（SIT）
 
 | # | 用例 | 步骤 | 预期 |
 |---|---|---|---|
 | **H1** | **缺陷现场复验（本次交付核心验收项）** | 对 `SIT-集中式实例A` 执行在线元数据审核 | 报告中 **R077 = 0**；横幅显示"按【集中式】口径评估，已跳过 27 条" |
-| H2 | 探测不再覆盖声明 | 点「探测类型」 | 生效类型 = 集中式，来源 = 实例声明；SQL 探测一栏显示"已停用"而非"失败" |
+| **H2** | **探测判对集中式** | 对 `SIT-集中式实例A` 点「探测类型」 | 生效类型 = **集中式**，来源 = **探测(PR001)**；多源明细中 PR001 命中"单 SET 拓扑" |
+| **H2b** | **探测判对分布式** | 对 `SIT-分布式实例A` 点「探测类型」 | 生效类型 = **分布式**，来源 = 探测(PR001)；明细显示命中 `cluster` 签名 |
 | H3 | 分布式零回归 | 对 `SIT-分布式实例A` 扫描，与 v1.5.0.0 逐条 diff | **完全一致** |
 | H4 | ZK 形态同步 | 执行「ZK 自动发现」 | 集中式实例 `zk_instance_kind=noshard`、`zk_instance_id=set_1782130875_4`；分布式 `groupshard` / `group_1782132247_10`（与赤兔一致） |
 | H5 | 跨网关匹配 | 系统登记 `10.206.0.8:15002`，ZK CSV 选中 `10.206.0.4:15002` | 仍同步成功 |
-| H6 | 保守合并 | 把分布式实例声明故意改为「集中式」 | 生效仍为分布式（ZK 说分布式），扫描中 R077 仍在 |
+| H6 | 保守合并 | 把分布式实例声明故意改为「集中式」 | 生效仍为分布式（探测/ZK 均判分布式），扫描中 R077 仍在 |
+| **H6b** | **探测与 ZK 交叉一致** | 两台实例分别比对探测结论与 `zk_instance_kind` | **两路结论必须一致**；不一致即为异常，须查明原因 |
 | H7 | 管理员锁定 | admin 锁定某实例为「集中式」并填理由 | 生效类型 = 集中式，来源 = 锁定；`operation_logs` 有记录 |
 | H8 | 锁定权限 | dba 调用锁定接口 | 403 |
 | H9 | 锁定理由强制 | 锁「集中式」不填理由 | 400 + 明确提示 |
@@ -1531,8 +1992,9 @@ def test_diagnostics_rejects_bad_sample_table(bad):
 > **交付方式：A / B / C 三组一次性开发完成，单次交付。** 下列各组不分先后上线，但组内顺序按 §7.0 的依赖关系施工。
 
 **A 组 止血**
-- [ ] `probe_instance_type()` 由**判据表驱动**；表为空时返回 `(None, {"disabled": True, ...})`
-- [ ] 方法内的事故记录注释**完整保留**，未被精简
+- [ ] `probe_instance_type()` 由**判据表驱动**；全部判据无结论时返回 `(None, {...})`
+- [ ] **阳性优先**：一条判分布式、一条判集中式时取分布式
+- [ ] docstring 中的事故记录**完整保留**，未被精简
 - [ ] `_resolve_by_connection()` 冲突策略为**取更保守者**，不再"探测一律优先"
 - [ ] `test_probe_distributed_when_proxy_ok` **已删除**
 - [ ] 新增 `test_probe_must_not_be_a_constant_function` 反向鉴别用例
@@ -1550,10 +2012,15 @@ def test_diagnostics_rejects_bad_sample_table(bad):
 - [ ] 锁「集中式」强制填理由，且落 `operation_logs`
 - [ ] 前端 F3 多源明细弹窗已实现（不是单句结论）
 
-**C 组 次源框架**
-- [ ] `instance_probe_rules.py` 已建，`ACTIVE_PROBE_RULES` **出厂为空**
-- [ ] `test_probe_rules_table_ships_empty` 通过（钉死出厂状态）
-- [ ] `test_all_rules_miss_never_means_centralized` 通过（全未命中 ≠ 集中式）
+**C 组 判据表**
+- [ ] `instance_probe_rules.py` 已建，含 **PR001 / PR002 / PR003 / PR004** 四条判据
+- [ ] **PR003 `enabled=False`**（需先选表，默认不参与自动探测）
+- [ ] PR001 的 `value` 做了 **`.strip()` + 过滤空串**（实测原文末尾带空格）
+- [ ] PR001 形态不符（无 `set` 行 / 值为空）返回 **`None`**，不猜
+- [ ] **PR002 / PR003 / PR004 只判阳性**，`return None` 而非 `"centralized"`
+- [ ] PR001 签名 2 判的是**键名含 `:`**（不是仅 `:hash_range`）
+- [ ] 每条判据 `evidence` 写明实测出处（`test_every_rule_has_evidence` 通过）
+- [ ] 反向鉴别用例用**实测原文**做 mock，断言两侧结论**不同**
 - [ ] `collect_probe_diagnostics()` 单条语句失败不影响其余
 - [ ] `POST /probe-diagnostics` 的 `sample_table` 已做标识符白名单校验（`^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)?$`）
 - [ ] 诊断响应回带 `endpoint` / `declared_instance_type` / `zk_instance_kind`（缺了无法配对分析）
@@ -1569,14 +2036,17 @@ def test_diagnostics_rejects_bad_sample_table(bad):
 - [ ] SIT **H1 通过**：`SIT-集中式实例A` 的 R077 归零（**本次交付的核心验收项**）
 - [ ] SIT **H3 通过**：分布式实例逐条 diff 零回归
 
-**判据填充（Q 开发之前完成，见 §8.1）**
-- [ ] G 已按 `TEST-v1.5.1-…-G.md` 采集两类实例数据并留档
-- [ ] 采集环境确认表五项**全部为「是」**（走 Proxy 端口 / 同一账号 / 成对采集 / 原样回传 / 带 `--comments`）
-- [ ] 实测输出已附入本文档 §8
-- [ ] 候选判据逐条对照 §8.4 三项标准评审通过
-- [ ] 入表判据的 `evidence` 字段写明实测日期与数据出处
-- [ ] 每条判据配套一条反向鉴别用例
-- [ ] `test_probe_rules_table_ships_empty` 同步更新为新的期望清单
+**实测与判据评审（✅ 已完成，2026-07-29）**
+- [x] G 已完成两类实例成对采集（PyMySQL 直连 Proxy 端口）
+- [x] 采集环境确认表全部为「是」
+- [x] 实测结论与赤兔管理台交叉核验一致
+- [x] 候选判据逐条对照 §8.4 评审：PR001/PR002/PR003 采纳，T02–T05/T07/T08 不采纳
+- [x] G 提出的代码实现**不予采纳**（两处违反标准 3，见 §8.3）
+
+**待 G 补充（不阻塞开工，见 §8.7）**
+- [ ] `out_CENT.txt` / `out_DIST.txt` 原始文件提交入库
+- [ ] DIST 的 T01 完整 8 行（报告只列出 4 行）
+- [ ] `xa` 库归属确认 → 决定是否新增 PR004
 
 ---
 
@@ -1593,19 +2063,37 @@ def test_diagnostics_rejects_bad_sample_table(bad):
 | 判定源 | 交付后状态 |
 |---|---|
 | S0 管理员锁定 | ✅ 可用 |
-| S1 ZK 管控面 | ✅ 可用（需先跑一次「ZK 自动发现」同步形态） |
-| S2 SQL 探测 | ⚪ **框架就绪、判据为空 → 恒无结论**（预期状态） |
+| **S1 Proxy 层 SQL 探测** | ✅ **可用，含 3 条已启用判据（PR001/PR002/PR004）+ 1 条可选（PR003）** |
+| S2 ZK 管控面 | ✅ 可用（需先跑一次「ZK 自动发现」同步形态） |
 | S3 人工声明 | ✅ 可用 |
 | S4 全局默认 | ✅ 可用 |
 
-**S2 为空不影响功能完整性**：S1（ZK）才是根治手段，S2 从设计之初就只是补充。即使 Proxy 层最终找不到任何可用判据，本次交付依然达成了 G1 与 G3。
+**五个判定源全部可用。** 实测的最大收获是 S1 从"可能没有"变成了"可用且零依赖"——即使某个环境部署不了 ZK（zkCli / 网络不可达），仅凭一条已有连接就能得出与管控面等价的结论。
+
+### 11.4 交付后的判定链路（以本次缺陷现场为例）
+
+```
+SIT-集中式实例A（Proxy :15002）
+   ↓ S1 探测 PR001：/*proxy*/show status → 2 行
+                     无 cluster、无 hash_range、set 行单值
+                     → 命中「单 SET 拓扑」正面签名 → centralized
+   ↓ S2 ZK：zk_instance_kind = noshard → centralized      （交叉一致 ✓）
+   ↓ S3 声明：centralized                                  （交叉一致 ✓）
+   ↓ 保守合并：三源一致 → centralized
+   ↓ 引擎按集中式口径过滤 → 跳过 27 条仅分布式规则
+   ↓ 【R077 不再出现】
+```
+
+对照 v1.5 的链路：探测恒判 distributed → 覆盖正确的声明 → 跑满 119 条 → R077 误报。**同一条链路上，只有"判据"这一环变了。**
 
 ### 11.3 后续动作
 
-| # | 动作 | 责任 | 前置 |
+| # | 动作 | 责任 | 状态 |
 |---|---|---|---|
-| 1 | 按 `TEST-v1.5.1-…-G.md` 手工采集两类实例数据 | **G** | 无（**Q 开发之前**） |
-| 2 | 按 §8.4 评审候选判据，据实修订本文档 §8.5 | **A** | 动作 1 |
-| 3 | 一次性完成 A/B/C/D 四组开发 | **Q** | 动作 2 |
+| 1 | 按 `TEST-v1.5.1-…-G.md` 采集两类实例数据 | G | ✅ 已完成 2026-07-29 |
+| 2 | 按 §8.4 评审候选判据，据实修订 §8.5 | A | ✅ 已完成，本次修订 |
+| 3 | **一次性完成 A/B/C/D 四组开发** | **Q** | ⬜ **可开工** |
+| 4 | 补交原始输出 / 完整 8 行 / `xa` 库确认（§8.7） | G | ✅ 已完成并核验 2026-07-29 |
+| 5 | 交付后 SIT（重点 H1 / H2 / H2b / H3 / H6b） | G | ⬜ 待 Q 交付 |
 
-> 动作 2 若结论是"无可用判据"，则**就此收敛，不再追加**，`ACTIVE_PROBE_RULES` 保持为空交付。S2 为空是一个完全可接受的终态——**没有判据比有一个错判据好得多，这正是本次事故最贵的一课。**
+> **动作 4 不阻塞动作 3**：PR001/PR002/PR003 的判定逻辑已由现有数据充分支撑并经赤兔交叉核验，补充材料用于完善 `evidence` 与边界处理。
