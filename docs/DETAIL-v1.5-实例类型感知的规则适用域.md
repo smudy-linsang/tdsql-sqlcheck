@@ -24,7 +24,7 @@
 |---|---|---|---|---|
 | **一、模型** | 1.1 | `backend/models/__init__.py` | 新增 3 个枚举 | — |
 | | 1.2 | `backend/engine/rules/base.py` | `BaseRule` 新增 `instance_scope` | 1.1 |
-| | 1.3 | `rules/{distributed,ddl,dml,oracle_compat}.py` | 25 条标注 | 1.2 |
+| | 1.3 | `rules/{distributed,ddl,dml,oracle_compat}.py` | 27 条标注 + 4 条文本改写（§3.5） | 1.2 |
 | **二、事实** | 2.1 | `backend/schema/v4/040_instance_type_scope.sql` | 新建迁移 | — |
 | | 2.2 | `backend/services/database.py` | `_ensure_columns` 双保险 | 2.1 |
 | | 2.3 | `backend/services/tdsql_connector.py` | 新增 `probe_instance_type()` | — |
@@ -121,7 +121,7 @@ class BaseRule(ABC):
 
 **不改 `check()` 签名。** 规则内部不需要知道实例类型——它要么被调用（说明适用），要么根本不被调用。这是方案 D 相对方案 C 的核心优势，也是 INV-1 的保证。
 
-### 2.3 25 条规则标注
+### 2.3 27 条规则标注
 
 **施工方式**：在每个类的 `fix_suggestion` 之后加一行 `instance_scope = InstanceScope.DISTRIBUTED`，并在同类文件顶部 import 引入 `InstanceScope`。
 
@@ -145,15 +145,20 @@ class BaseRule(ABC):
 | 16 | R060 | `distributed.py:437` | `R060ExplainShardKeyCheck` | "建议对**分布式表**查询执行EXPLAIN查看是否命中单**SET**" |
 | 17 | **R077** | `distributed.py:464` | `R077CreateTableMustHaveShardKey` | "**TDSQL分布式实例**建表必须声明**分片键**(SHARDKEY)或**广播表**标记" ← **用户报告的现场** |
 | 18 | R092 | `oracle_compat.py:378` | `R092WithAsCte` | "**分布式实例**不支持WITH AS(CTE)；**集中式8.0**递归场景可评估 WITH RECURSIVE" |
-| 19 | R100 | `oracle_compat.py:558` | `R100DeleteTableAlias` | "**分布式实例**DELETE语句不支持对被删表设置别名" |
-| 20 | R111 | `oracle_compat.py:783` | `R111WindowFunction` | "**分布式实例**不支持窗口函数（row_number()/rank() 等 OVER()）" ← **危害最大：集中式 MySQL 8.0 完全支持** |
-| 21 | R112 | `oracle_compat.py:800` | `R112CursorUsage` | "TDSQL**分布式**不支持游标（DECLARE…CURSOR/FETCH）" |
-| 22 | R115 | `oracle_compat.py:851` | `R115PrimaryKeyLength` | "**分布式实例** update/delete…limit 依赖 **proxy** 内嵌 myisam 临时表" |
-| 23 | R116 | `oracle_compat.py:885` | `R116ShardKeySingleColumn` | "**分片键**只支持一个字段，不支持多字段联合**分片键**" |
-| 24 | R117 | `oracle_compat.py:907` | `R117ShardKeyType` | "**shardkey** 字段类型必须是 int/bigint/smallint/char/varchar" |
-| 25 | R118 | `oracle_compat.py:932` | `R118ShardKeyNotNull` | "**shardkey** 字段的值不能为 NULL" |
+| 19 | **R097** | `oracle_compat.py:~470` | `R097DefaultValueExpr` | "DEFAULT 值不支持类型转换/函数表达式（**Proxy** 报 ERROR 1064）"。**负责人拍板：TDSQL 底层 MySQL 均为 8.0，而 8.0.13+ 原生支持表达式默认值 → 该限制纯粹来自 Proxy，仅分布式适用** |
+| 20 | R100 | `oracle_compat.py:558` | `R100DeleteTableAlias` | "**分布式实例**DELETE语句不支持对被删表设置别名" |
+| 21 | R111 | `oracle_compat.py:783` | `R111WindowFunction` | "**分布式实例**不支持窗口函数（row_number()/rank() 等 OVER()）" ← **危害最大：集中式 MySQL 8.0 完全支持** |
+| 22 | R112 | `oracle_compat.py:800` | `R112CursorUsage` | "TDSQL**分布式**不支持游标（DECLARE…CURSOR/FETCH）" |
+| 23 | **R113** | `oracle_compat.py:~818` | `R113DropPartitionGap` | "DROP PARTITION 与**路由元数据**更新存在毫秒级间隙"。**负责人拍板：路由元数据确系 Proxy 概念，仅分布式适用** |
+| 24 | R115 | `oracle_compat.py:851` | `R115PrimaryKeyLength` | "**分布式实例** update/delete…limit 依赖 **proxy** 内嵌 myisam 临时表" |
+| 25 | R116 | `oracle_compat.py:885` | `R116ShardKeySingleColumn` | "**分片键**只支持一个字段，不支持多字段联合**分片键**" |
+| 26 | R117 | `oracle_compat.py:907` | `R117ShardKeyType` | "**shardkey** 字段类型必须是 int/bigint/smallint/char/varchar" |
+| 27 | R118 | `oracle_compat.py:932` | `R118ShardKeyNotNull` | "**shardkey** 字段的值不能为 NULL" |
 
-**其余 94 条一律不动**，继承默认值 `InstanceScope.ALL`。
+> R097 / R113 的行号为约值，施工时以 `rule_id = "R097"` / `"R113"` 定位为准。
+
+**其余 92 条一律不动 `instance_scope`**，继承默认值 `InstanceScope.ALL`。
+但其中 **R038 与 R114 需改写规则文本**，见 §3.5。
 
 ---
 
@@ -166,22 +171,22 @@ class BaseRule(ABC):
 | **J1** | **默认 ALL。** 只有规则文本（`__doc__`/`description`/`spec_source`/`fix_suggestion`/告警文案）**明确限定分布式**，才判 `DISTRIBUTED` |
 | **J2** | **边界一律归 ALL。** 判断依据是"错的方向哪个更危险"：多跑一条不适用规则 = 误报，看得见、可纠正；少跑一条适用规则 = **漏报，看不见、放行风险**。因此模棱两可时**必须偏向 ALL** |
 | **J3** | **`category` 不作为判定依据。** 它是规范章节归类，与适用性正交（见 §3.4 反例） |
-| **J4** | **存疑的单列「待复核」清单**，当前保守归 ALL，由 DBA 确认后再调整 |
+| **J4** | **存疑项须由负责人裁定，不得自行拍板。** 原 4 条存疑规则已于 2026-07-29 全部裁定，见 §3.5 |
 
 ### 3.2 判定结果汇总
 
 | 适用域 | 条数 | 说明 |
 |---|---|---|
-| `ALL`（通用） | **94** | 在两种实例上都有意义 |
-| `DISTRIBUTED`（仅分布式） | **25** | 见 §2.3 明细，逐条附证据 |
+| `ALL`（通用） | **92** | 在两种实例上都有意义 |
+| `DISTRIBUTED`（仅分布式） | **27** | 见 §2.3 明细，逐条附证据 |
 | `CENTRALIZED`（仅集中式） | **0** | 现行规范中不存在此类规则 |
 | **合计** | **119** | |
 
-**因此：分布式实例跑 119 条（与 v1.4 完全一致，INV-4 天然成立），集中式实例跑 94 条。**
+**因此：分布式实例跑 119 条（与 v1.4 完全一致，INV-4 天然成立），集中式实例跑 92 条。**
 
 ### 3.3 逐条判定表
 
-> 图例：`D` = DISTRIBUTED（仅分布式） · `A` = ALL（通用） · `※` = 待 DBA 复核
+> 图例：`D` = DISTRIBUTED（仅分布式） · `A` = ALL（通用） · `✎` = 归 A 但须改写规则文本（见 §3.5）
 
 | 规则 | category | 适用域 | 规则要点 |
 |---|---|---|---|
@@ -222,7 +227,7 @@ class BaseRule(ABC):
 | R035 | ddl | A | 同义字段类型一致 |
 | R036 | ddl | A | 建议含 create/update_time |
 | R037 | ddl | A | 建议逻辑删除 |
-| R038 | ddl | A ※ | 大表禁自增主键（`spec_source`="分布式规范"，但**描述本身未限定分布式**，且大表自增在集中式亦有隐患 → 保守归 A） |
+| R038 | ddl | A ✎ | 大表禁自增主键（**已拍板：集中式同样成立** → 归 A，但须改写规则文本，见 §3.5） |
 | R039 | security | A | 禁 INTO OUTFILE |
 | R040 | dml | A | 禁 DELAYED/LOW_PRIORITY |
 | R041 | dml | A | INSERT 须显式列名 |
@@ -281,7 +286,7 @@ class BaseRule(ABC):
 | R094 | oracle_compat | A | 禁 LISTAGG |
 | R095 | oracle_compat | A | 禁 MINUS |
 | R096 | oracle_compat | A | 禁 FULL JOIN |
-| R097 | oracle_compat | A ※ | DEFAULT 值禁函数表达式（文案提及 Proxy，但 MySQL 5.7 亦不支持 → 保守归 A） |
+| **R097** | oracle_compat | **D** | DEFAULT 值禁函数表达式（**已拍板：底层 MySQL 均为 8.0，8.0.13+ 原生支持表达式默认值 → 限制纯来自 Proxy**） |
 | R098 | oracle_compat | A | HASH 分区须整型 |
 | R099 | oracle_compat | A | 派生表须别名 |
 | **R100** | oracle_compat | **D** | DELETE 禁表别名 |
@@ -297,8 +302,8 @@ class BaseRule(ABC):
 | R110 | oracle_compat | A | 禁 USERENV() |
 | **R111** | oracle_compat | **D** | 禁窗口函数 ← **危害最大** |
 | **R112** | oracle_compat | **D** | 禁游标 |
-| R113 | oracle_compat | A ※ | DROP PARTITION 路由间隙（"路由元数据"偏 Proxy 语义 → 待复核） |
-| R114 | oracle_compat | A ※ | 深分页大偏移（分布式代价更高，但集中式同样是性能问题 → 保守归 A） |
+| **R113** | oracle_compat | **D** | DROP PARTITION 路由间隙（**已拍板：路由元数据确系 Proxy 概念**） |
+| R114 | oracle_compat | A ✎ | 深分页大偏移（**已拍板：集中式同样成立** → 归 A，但须改写规则文本，见 §3.5） |
 | **R115** | oracle_compat | **D** | update/delete…limit 主键长度限制 |
 | **R116** | oracle_compat | **D** | 分片键单字段 |
 | **R117** | oracle_compat | **D** | 分片键类型限制 |
@@ -307,28 +312,74 @@ class BaseRule(ABC):
 
 ### 3.4 关键反例：为什么 `category` 不能用作过滤依据
 
-若采用"跳过 `category == distributed`"这一最直觉的做法，将**漏掉 11 条**：
+若采用"跳过 `category == distributed`"这一最直觉的做法，将**漏掉 13 条**：
 
 | 漏掉的规则 | 现 category | 后果 |
 |---|---|---|
 | R023 / R024 | `ddl` | 集中式仍误报"CREATE TABLE…SELECT / TEMPORARY TABLE 不支持" |
 | R043 | `dml` | 集中式仍误报"禁止多表联表 UPDATE"（MySQL 完全支持） |
 | R092 | `oracle_compat` | 集中式 MySQL 8.0 的合法 CTE 被判 ERROR |
+| R097 | `oracle_compat` | 集中式 MySQL 8.0.13+ 的合法表达式默认值被判 ERROR |
 | **R111** | `oracle_compat` | **集中式 MySQL 8.0 的合法窗口函数被判 ERROR** |
-| R100 / R112 / R115 / R116 / R117 / R118 | `oracle_compat` | 各类分片键/proxy 相关误报 |
+| R100 / R112 / R113 / R115 / R116 / R117 / R118 | `oracle_compat` | 各类分片键 / proxy 路由相关误报 |
 
 **R111 最能说明问题**：开发在集中式实例上写了性能良好、语法合法的 `ROW_NUMBER() OVER(...)`，被系统判成 ERROR 并卡在门禁上，按提示"改写为分组+嵌套查询"，结果是**把好代码改坏**。这就是本条设计决策的分量。
 
-### 3.5 待 DBA 复核清单（4 条）
+### 3.5 4 条存疑规则的裁定与文本改写（负责人 2026-07-29 拍板）
 
-以下 4 条**当前一律保守归 `ALL`**（即行为与 v1.4 一致，不会漏报），列出供 DBA 确认。确认为分布式专属后，改标注 + 同步 §7.2 测试清单即可，无需改动任何逻辑。
+原设计列出 4 条存疑规则待 DBA 复核，现已全部裁定：
 
-| 规则 | 现判定 | 存疑点 | 若改判的影响 |
+| 规则 | 裁定 | 依据（负责人原话要点） | 施工动作 |
 |---|---|---|---|
-| R038 | A | `spec_source` 写"分布式规范"，但描述"大表不建议 AUTO_INCREMENT"在集中式同样成立 | 集中式少 1 条 WARNING |
-| R097 | A | 文案提"Proxy 报 ERROR 1064"，但 MySQL 5.7 本身也不支持表达式默认值 | 集中式少 1 条 ERROR |
-| R113 | A | "路由元数据"是 Proxy 概念 | 集中式少 1 条 INFO |
-| R114 | A | 明写"在分布式实例代价高"，但深分页在集中式同样是性能问题 | 集中式少 1 条 WARNING |
+| **R097** | → **DISTRIBUTED** | TDSQL 底层 MySQL 均为 8.0；MySQL **8.0.13+ 原生支持表达式默认值**，故该限制纯粹来自 Proxy | 加 `instance_scope = DISTRIBUTED` + 改写文本（下） |
+| **R113** | → **DISTRIBUTED** | "路由元数据"确系 Proxy 概念 | 加 `instance_scope = DISTRIBUTED` + 改写文本（下） |
+| **R038** | 维持 **ALL** | 大表禁自增主键在集中式同样成立 | **不改 `instance_scope`**，但改写文本去除分布式框定（下） |
+| **R114** | 维持 **ALL** | 深分页大偏移在集中式同样成立 | **不改 `instance_scope`**，但改写文本去除分布式框定（下） |
+
+> **为什么 R038/R114 判 ALL 却仍要改文本**：它们的现有文案把问题**框定为分布式特有**（R038 的 `spec_source` 写"分布式规范"；R114 的 description 与告警文案通篇讲"分布式实例代价高"）。集中式实例上这两条照常触发，使用者读到的却是一段与自己实例无关的解释——**结论对、理由错**，与巡检 C07 是同一类问题（§6.3）。判定与文案必须同时自洽。
+
+#### 逐条改写规格（施工时按此替换，逐字对照）
+
+**① R038 `R038NoAutoIncrementForLargeTable`（`ddl.py:548`）** — 维持 ALL
+
+| 字段 | 现值 | 改为 |
+|---|---|---|
+| `description` | `"预期数据量超千万的表不建议使用AUTO_INCREMENT主键"` | `"预期数据量超千万的表不建议使用AUTO_INCREMENT主键：自增锁在高并发写入下形成瓶颈，且分库分表/数据迁移/多源合并时主键易冲突"` |
+| `spec_source` | `"TDSQL数据库开发规范 - 分布式规范"` | `"TDSQL数据库开发规范 - 表设计规范"` |
+| `fix_suggestion` | `"大表建议使用业务主键或分布式ID生成器(如雪花算法)"` | `"大表建议使用业务主键或全局唯一ID生成器（雪花算法等）；分布式实例还需保证该主键包含分片键"` |
+| 告警 `suggestion`（`check()` 内） | `"大表建议使用业务主键或分布式ID生成器"` | `"大表建议使用业务主键或全局唯一ID生成器（雪花算法等）"` |
+
+`check()` 逻辑与告警 message **完全不动**。
+
+**② R114 `R114DeepPagination`（`oracle_compat.py:834`）** — 维持 ALL
+
+| 字段 | 现值 | 改为 |
+|---|---|---|
+| `description` | `"LIMIT大偏移分页在分布式实例代价高（proxy聚合各分片），请用索引有序性/键集翻页/条件初筛优化"` | `"LIMIT大偏移分页需扫描并丢弃前N行，代价随偏移量线性增长；分布式实例还需proxy跨分片聚合，代价更高。请用索引有序性/键集翻页/条件初筛优化"` |
+| 告警 message（`check()` 内） | `f"LIMIT偏移量{...}超过{...}，分布式实例深分页代价高"` | `f"LIMIT偏移量{parsed.limit_offset}超过{self.DEEP_PAGE_OFFSET}，深分页需扫描并丢弃前{parsed.limit_offset}行，代价高"` |
+
+`spec_source` / `fix_suggestion` / `DEEP_PAGE_OFFSET` / 判定逻辑**均不动**。
+
+**③ R097 `R097DefaultValueFunction`（`oracle_compat.py:472`）** — 改判 DISTRIBUTED
+
+| 字段 | 现值 | 改为 |
+|---|---|---|
+| `instance_scope` | （无） | `InstanceScope.DISTRIBUTED` |
+| `description` | `"TDSQL建表字段DEFAULT值不支持类型转换/函数表达式（Proxy报ERROR 1064），仅CURRENT_TIMESTAMP例外"` | `"分布式实例建表字段DEFAULT值不支持类型转换/函数表达式（Proxy报ERROR 1064），仅CURRENT_TIMESTAMP例外；集中式实例（MySQL 8.0.13+）原生支持表达式默认值，不受此限"` |
+
+`spec_source` / `fix_suggestion` / 判定逻辑**均不动**。
+
+**④ R113 `R113DropPartitionRisk`（`oracle_compat.py:817`）** — 改判 DISTRIBUTED
+
+| 字段 | 现值 | 改为 |
+|---|---|---|
+| `instance_scope` | （无） | `InstanceScope.DISTRIBUTED` |
+| `description` | `"高并发下DROP PARTITION与路由元数据更新存在毫秒级间隙，小概率报分区不存在；请逐表执行drop+analyze并配置重试"` | `"分布式实例高并发下DROP PARTITION与proxy路由元数据更新存在毫秒级间隙，小概率报分区不存在；请逐表执行drop+analyze并配置重试"` |
+| 告警 message（`check()` 内） | `"DROP PARTITION在高并发下可能与路由元数据更新存在间隙，建议逐表执行并配置重试"` | `"DROP PARTITION在高并发下可能与proxy路由元数据更新存在间隙，建议逐表执行并配置重试"` |
+
+`spec_source` / `fix_suggestion` / 判定逻辑**均不动**。
+
+> **重要**：以上 4 条只改**元数据字符串**，`check()` 的判定逻辑一律不动。因此**不会引入任何行为回归**——分布式实例上四条规则的触发条件与触发结果完全不变（R097/R113 在分布式上照常触发，只是描述文字更准确）。
 
 ---
 
@@ -390,7 +441,7 @@ class BaseRule(ABC):
 | 要点 | 说明 |
 |---|---|
 | **非对称投票** | 任一探针命中即判分布式；两个都"明确无分片能力"才判集中式。因为"探到分片能力"是**阳性证据**（可信），"没探到"可能只是权限不足（不可信） |
-| **`conclusive` 标志** | 两个探针**全部异常**（通常是连不上库）时返回 `None` 而非 `centralized`。若返回 `centralized`，一次网络故障就会让分布式实例被判成集中式 → 25 条规则静默失效。**这是本函数最关键的一行** |
+| **`conclusive` 标志** | 两个探针**全部异常**（通常是连不上库）时返回 `None` 而非 `centralized`。若返回 `centralized`，一次网络故障就会让分布式实例被判成集中式 → 27 条规则静默失效。**这是本函数最关键的一行** |
 | **探针2 查 TABLES 而非直接查视图** | 直接 `SELECT FROM TDSQL_SHARDING_RULES` 在集中式上会报表不存在（异常），无法区分"表不存在"与"没权限"。查 `information_schema.TABLES` 在两种实例上都能正常返回，语义清晰 |
 | **表存在即算分布式** | 即使 `TDSQL_SHARDING_RULES` 里一行数据都没有（新实例还没建分片表），视图存在本身就说明这是分布式实例 |
 | **不抛异常** | 全部 `try/except` 包裹，满足 INV-5 |
@@ -943,7 +994,7 @@ if ictx.instance_type == InstanceType.DISTRIBUTED:
 | `tests/test_instance_scope_rules.py` | 12 | 规则标注一致性、过滤正确性 |
 | `tests/test_instance_type_service.py` | 10 | 解析优先级、探测、缓存、异常回落 |
 | `tests/test_instance_scope_e2e.py` | 8 | 端到端：集中式无 R077、分布式零回归 |
-| `tests/test_scope_compat.py` | 5 | 存量兼容、NULL 语义、跨口径对比 |
+| `tests/test_scope_compat.py` | 5 | 存量兼容、NULL 语义、快照口径留痕 |
 
 ### 7.2 清单一致性测试（**最重要，锁定 §3 判定表**）
 
@@ -953,8 +1004,9 @@ if ictx.instance_type == InstanceType.DISTRIBUTED:
 DISTRIBUTED_ONLY = {
     "R020", "R021", "R022", "R023", "R024", "R025", "R043", "R048",
     "R053", "R054", "R055", "R056", "R057", "R058", "R059", "R060",
-    "R077", "R092", "R100", "R111", "R112", "R115", "R116", "R117", "R118",
-}   # 共 25 条，判定依据见 DETAIL-v1.5 §3.3
+    "R077", "R092", "R097", "R100", "R111", "R112", "R113",
+    "R115", "R116", "R117", "R118",
+}   # 共 27 条，判定依据见 DETAIL-v1.5 §3.3；R097/R113 由负责人 2026-07-29 裁定
 
 
 def test_distributed_only_list_is_exactly_as_designed():
@@ -981,7 +1033,7 @@ def test_rule_counts():
     assert len(ALL_RULE_CLASSES) == 119
     checker = RuleChecker()
     assert len(checker.get_enabled_rules(None, "distributed")) == 119
-    assert len(checker.get_enabled_rules(None, "centralized")) == 94
+    assert len(checker.get_enabled_rules(None, "centralized")) == 92
 
 
 def test_every_rule_has_valid_scope():
@@ -1061,7 +1113,7 @@ def test_both_probes_error_returns_none_not_centralized():
     """最关键的一条：两个探针都异常时必须返回 None。
 
     若此时返回 'centralized'，一次网络故障就会让分布式实例被判成集中式，
-    25 条分布式规则静默失效——这是最危险的失效模式。
+    27 条分布式规则静默失效——这是最危险的失效模式。
     """
     result, _ = broken_pool.probe_instance_type()
     assert result is None
@@ -1091,29 +1143,33 @@ def test_null_instance_type_means_unknown_scope():
     ...
 
 
-def test_cross_scope_compare_rejected():
-    with pytest.raises(HTTPException) as e:
-        compare(snapshot_distributed, snapshot_centralized)
-    assert e.value.status_code == 400
-    assert "口径" in e.value.detail
+def test_snapshot_records_instance_type():
+    """快照落口径留痕（只留痕，不参与对比校验）"""
+    snap = create_snapshot_for_centralized_scan()
+    assert snap["instance_type"] == "centralized"
 
 
-def test_null_scope_compare_allowed_with_warning():
-    resp = compare(snapshot_legacy_null, snapshot_centralized)
-    assert resp["scope_warning"]
+def test_compare_behavior_unchanged():
+    """本版本不做口径隔离：跨口径对比照常返回，不拒绝也不加警示。
+
+    负责人决策（2026-07-29）：试运行期无历史基线资产，该校验属过度设计。
+    留 scan_snapshots.instance_type 列即可，将来需要时零成本补上。
+    """
+    resp = compare(snapshot_distributed, snapshot_centralized)
+    assert "scope_warning" not in resp
 ```
 
 ### 7.6 真实环境验收（SIT）
 
 | # | 用例 | 步骤 | 预期 |
 |---|---|---|---|
-| S1 | **集中式实例元数据审核** | 对真实集中式实例执行在线元数据审核 | 报告中 R077 = 0；横幅显示"按【集中式】口径评估，已跳过 25 条" |
+| S1 | **集中式实例元数据审核** | 对真实集中式实例执行在线元数据审核 | 报告中 R077 = 0；横幅显示"按【集中式】口径评估，已跳过 27 条" |
 | S2 | **分布式实例零回归** | 同一分布式实例，v1.4.0.1 与 v1.5 各扫一次同一库 | 违规条目**逐条 diff 完全一致** |
 | S3 | 探测准确性 | 分别对分布式/集中式实例点「重新探测」 | 结论与实际一致，`source=probed` |
 | S4 | 冲突提示 | 把分布式实例故意改标为"集中式"，重新探测 | 冲突红标；审核仍按分布式执行（**扫描结果里 R077 仍在**） |
 | S5 | 门禁联动 | 集中式实例上原被 R077 卡住的变更 | 门禁放行 |
-| S6 | 跨口径对比 | 集中式快照 vs 分布式快照 | 400 + 明确原因 |
-| S7 | 存量基线对比 | v1.5 前快照 vs v1.5 后快照 | 允许，顶部橙色警示条；HTML 导出件也带警示 |
+| S6 | 快照口径留痕 | 集中式实例扫描后查 `scan_snapshots` | `instance_type = 'centralized'` |
+| S7 | 对比行为不变 | v1.5 前快照 vs v1.5 后快照 | 正常出对比报告（本版本不做口径隔离，见 §3.5 决策） |
 | S8 | 即时审核 | 集中式实例下审核一条无 WHERE 的 UPDATE | 有 R013/R014（通用），**无 DIST_001/DIST_002** |
 | S9 | 巡检文案 | 集中式实例元数据巡检 C07 | 建议文案不含"分布式"字样 |
 | S10 | 全量回归 | `pytest` | 全绿 |
@@ -1130,9 +1186,9 @@ def test_null_scope_compare_allowed_with_warning():
 | F4 | 文件上传 / 批量流式对话框 | 新增实例类型下拉框，默认选中全局默认值 + 说明文字 |
 | F5 | 批量流式结果渲染 | **识别并跳过 `type` 字段存在的帧**（`type=meta`）——不改会把元信息帧当成一条结果渲染出来 |
 | F6 | 规则管理页 | 新增「适用域」列（通用/仅分布式）；顶部可切换按实例类型查看，联动 `effective_total` |
-| F7 | 规则集配置页 | 显示 `effective_counts`："启用 119 条（分布式实例实跑 119 条 / 集中式实例实跑 94 条）" |
+| F7 | 规则集配置页 | 显示 `effective_counts`："启用 119 条（分布式实例实跑 119 条 / 集中式实例实跑 92 条）" |
 | F8 | 历史记录列表 | 新增「口径」列；`null` 显示灰色`未知` + tooltip |
-| F9 | 扫描对比页 | `scope_warning` 非空时顶部橙色警示条 |
+| ~~F9~~ | ~~扫描对比页~~ | **本版本不做**（负责人决策：不做口径隔离） |
 | F10 | 系统配置页 | 新增「默认实例类型」设置项（仅 admin 可见），提示语写"**最长 5 分钟生效**" |
 
 > **F5 是唯一的破坏性变更，必须与后端同版本上线。**
@@ -1145,7 +1201,9 @@ def test_null_scope_compare_allowed_with_warning():
 
 - [ ] `InstanceType` / `InstanceScope` / `TypeSource` 三个枚举已加
 - [ ] `BaseRule.instance_scope` 默认值是 `ALL`（**不是 DISTRIBUTED**）
-- [ ] 25 条规则已标注，且与 §3.3 判定表**逐条一致**
+- [ ] 27 条规则已标注，且与 §3.3 判定表**逐条一致**
+- [ ] §3.5 的 4 条规则文本改写已按逐字规格完成（R038/R114 只改文本不改 scope；R097/R113 改 scope + 文本）
+- [ ] R038/R097/R113/R114 的 `check()` 判定逻辑**一行未动**（只改元数据字符串）
 - [ ] `get_enabled_rules()` 是**唯一**的适用域过滤点（INV-1）
 - [ ] 规则集**无法**反向启用不适用规则（INV-2）
 - [ ] `probe_instance_type()` 两探针全异常时返回 `None`（**不是 `centralized`**）

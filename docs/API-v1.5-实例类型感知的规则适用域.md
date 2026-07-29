@@ -20,7 +20,7 @@
 | I2 | **A 类通道不接受调用方指定实例类型** | 有 `connection_id` 时，实例类型是**客观事实**，由服务端解析。请求体即使带了 `instance_type` 也**忽略**（不报错，但响应中 `instance_type_source` 会如实返回 `probed`/`declared`，调用方可自行发现被忽略了） |
 | I3 | **B 类通道接受显式声明** | 无 `connection_id` 的通道（上传/流式/GitLab/CLI），实例类型只能由调用方声明；未声明则取 `system_config.default_instance_type` |
 | I4 | **响应必须自证口径** | 凡产出审核结论的接口，响应中一律回带 `instance_type` / `instance_type_source` / `skipped_rules_count`。**不能让调用方猜自己拿到的是哪种口径的结论** |
-| I5 | **错误信息可执行** | 拒绝类错误（如跨口径对比）必须说明"为什么拒绝"和"该怎么办"，不能只回一句 `400 Bad Request` |
+| I5 | **错误信息可执行** | 拒绝类错误必须说明"为什么拒绝"和"该怎么办"，不能只回一句 `400 Bad Request` |
 
 ### 关于 I2 的必要性
 
@@ -37,7 +37,7 @@
 | 新增接口 | 3 | 实例类型探测、全局默认口径读、全局默认口径写 |
 | 响应体扩展（不改请求） | 6 | 元数据审核、即时审核、文件审核、带元数据审核、实例列表、实例详情 |
 | 请求+响应均扩展 | 4 | 文件上传审核、批量流式审核、GitLab 两个审核接口 |
-| 语义变更 | 2 | 规则列表（新增 `instance_scope` 字段 + 可选筛选）、扫描对比（新增口径校验） |
+| 语义变更 | 1 | 规则列表（新增 `instance_scope` 字段 + 可选筛选） |
 | **不变** | 其余全部 | 门禁、规则集、用户、慢SQL、大表治理等接口签名与语义均不变 |
 
 > **门禁接口为什么不变**：`gate_service.evaluate_for_instance()` 接收的是**已经过滤后**的 violations 列表。适用域过滤发生在引擎内部（唯一收口点），门禁自动拿到正确的计数，无需任何接口改动。这是选择方案 D 的直接收益。
@@ -181,8 +181,8 @@ POST /api/v1/audit/extract-and-audit
 
   "instance_type": "centralized",
   "instance_type_source": "probed",
-  "skipped_rules_count": 25,
-  "scope_notice": "本次按【集中式实例】口径评估，已跳过 25 条仅分布式实例适用的规则（如 R077 分片键检查）。",
+  "skipped_rules_count": 27,
+  "scope_notice": "本次按【集中式实例】口径评估，已跳过 27 条仅分布式实例适用的规则（如 R077 分片键检查）。",
   "instance_type_conflict": false
 }
 ```
@@ -192,7 +192,7 @@ POST /api/v1/audit/extract-and-audit
 | 实例类型 | v1.4.0.1 | v1.5 |
 |---|---|---|
 | 分布式 | 跑 119 条 | 跑 119 条（**逐条完全一致，零回归**） |
-| 集中式 | 跑 119 条 → **误报 R077 等 25 条** | 跑 94 条 → **不再误报** |
+| 集中式 | 跑 119 条 → **误报 R077 等 27 条** | 跑 92 条 → **不再误报** |
 
 ### 4.2 即时 SQL 审核
 
@@ -379,8 +379,8 @@ GET /api/v1/rules?instance_type=centralized
 {
   "total": 119,
   "instance_type": "centralized",
-  "effective_total": 94,
-  "skipped_total": 25,
+  "effective_total": 92,
+  "skipped_total": 27,
   "rules": [
     { "rule_id": "R077", "instance_scope": "distributed", "effective": false, "...": "..." },
     { "rule_id": "R012", "instance_scope": "all",         "effective": true,  "...": "..." }
@@ -411,51 +411,32 @@ GET /api/v1/rule-sets/{rule_set_id}
 
   "effective_counts": {
     "distributed": 119,
-    "centralized": 94
+    "centralized": 92
   }
 }
 ```
 
-**为什么必须加**：规则集页面显示"启用 119 条"是**全局口径**。集中式实例上实跑只有 94 条。不明示这个差异，使用者会疑惑"我明明启用了 119 条，为什么报告里跳过了 25 条"。
+**为什么必须加**：规则集页面显示"启用 119 条"是**全局口径**。集中式实例上实跑只有 92 条。不明示这个差异，使用者会疑惑"我明明启用了 119 条，为什么报告里跳过了 27 条"。
 
 **这不是规则集失效**——适用域是客观事实过滤，规则集是主观尺度，两者串联，**规则集不能反向打开一条不适用的规则**。
 
-### 6.4 扫描对比 —— 口径校验
+### 6.4 扫描对比 —— 本版本不改
 
 ```
 POST /api/v1/scan-compare/compare
+GET  /api/v1/scan-compare/compare/html
 ```
 
-**请求**：不变
+**请求与响应均不变，对比逻辑不变。**
 
-**新增校验逻辑（三态）**
+> **产品决策（2026-07-29，负责人拍板）：本版本不做口径隔离。**
+> 原设计拟增加跨口径拒绝（400）与存量快照警示条（`scope_warning`）。经评估，内网环境尚未正式上线、仍在试运行且高频迭代，**不存在需要保护的历史基线资产**，该校验属于过度设计，**整体移除**。
 
-| 基线口径 | 对比口径 | 行为 |
-|---|---|---|
-| 同值 | 同值 | ✅ 正常对比 |
-| `distributed` | `centralized`（或反之） | ❌ **400 拒绝** |
-| NULL（v1.5 前快照） | 任意 | ⚠️ 允许，响应带 `scope_warning` |
+**仍然要做的一件事**：`POST /api/v1/scan-compare/snapshots`（及扫描旁路创建快照的内部调用）落 `instance_type` 字段；`GET /snapshots/{id}` 响应中原样返回它。**只留痕，不参与任何判定。**
 
-**响应 400（跨口径）**
+理由见 `DB-v1.5` §3.3：列是**数据**（快照采集时刻的口径过期即无法还原），校验是**逻辑**（随时可补）。砍逻辑、留数据。
 
-```json
-{
-  "detail": "两个快照的评估口径不同（基线=分布式实例，对比=集中式实例），问题数不具可比性，无法生成对比报告。请选择同一实例类型的两次扫描进行对比。"
-}
-```
-
-**响应 200（含 NULL 侧）**
-
-```json
-{
-  "diff": { "...": "..." },
-  "scope_warning": "基线快照采集于 v1.5 之前，评估口径未知。本次问题数变化可能包含规则适用域调整因素，不代表真实整改成效，请结合明细逐条核对。"
-}
-```
-
-**前端要求**：`scope_warning` 非空时，在对比报告顶部渲染**橙色警示条**，且 HTML 导出（`GET /compare/html`）也必须包含该警示——导出件常被作为汇报材料，不能丢掉这个前提。
-
-**这条设计的意义**：不加这个校验，v1.5 上线当天所有集中式实例都会显示一次凭空的大幅"整改"。这与 v1.4 消灭的"换项目刷低问题数"是同一类伪命题。
+**风险自担项（写入发布说明）**：v1.5 上线当天，集中式实例的问题数会明显下降，**这不是整改成效**。
 
 ### 6.5 审核历史列表 —— 回显口径
 
@@ -471,7 +452,7 @@ GET /api/v1/audit/history
   "id": 1234,
   "instance_type": "centralized",
   "instance_type_source": "probed",
-  "skipped_rules_count": 25
+  "skipped_rules_count": 27
 }
 ```
 
@@ -552,8 +533,8 @@ GET /api/v1/audit/history
 | GET | `/api/v1/rules` | 🔀 新增字段 + 可选筛选 |
 | GET | `/api/v1/rules/categories` | 🔀 可选筛选 |
 | GET | `/api/v1/rule-sets/{id}` | 📤 响应扩展 |
-| POST | `/api/v1/scan-compare/compare` | 🔀 新增口径校验（可能 400） |
-| GET | `/api/v1/scan-compare/compare/html` | 📤 导出件含警示条 |
+| POST | `/api/v1/scan-compare/compare` | ⚪ 无变更（口径隔离本版本不做） |
+| GET | `/api/v1/scan-compare/compare/html` | ⚪ 无变更 |
 | GET | `/api/v1/audit/extracted-reports` | 📤 响应扩展 |
 | GET | `/api/v1/audit/history` | 📤 响应扩展 |
 | — | 门禁 / 规则集配置 / 用户 / 慢SQL / 大表治理 等 | ⚪ 无变更 |
