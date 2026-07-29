@@ -1078,7 +1078,7 @@ const app=createApp({
       if(visibleMenus.value.has('slow-tasks'))loadScanTasks();
       if(visibleMenus.value.has('slow-records'))loadSlowList();
       if(visibleMenus.value.has('projects'))loadProjects();
-      const menuOrder=['dashboard','sql-audit','file-audit','schema-extractor-audit','instances','slow-overview','slow-records','slow-tasks','bigtable','deep-diag','projects','rulesets','gate','inspection','sys-users','sys-roles','sys-perms','sys-auditlog','sys-retention','sys-info'];
+      const menuOrder=['dashboard','sql-audit','file-audit','schema-extractor-audit','instances','slow-overview','slow-records','slow-tasks','bigtable','deep-diag','projects','rulesets','gate','sys-users','sys-roles','sys-perms','sys-auditlog','sys-retention','sys-info'];
       if(!visibleMenus.value.has(currentPage.value)){
         for(const m of menuOrder){
           if(visibleMenus.value.has(m)){currentPage.value=m;break}

@@ -104,11 +104,10 @@
             <el-menu-item v-if="visibleMenus.has('bigtable')" index="bigtable">大表治理</el-menu-item>
           </el-sub-menu>
           <el-menu-item v-if="visibleMenus.has('deep-diag')" index="deep-diag"><el-icon><Cpu /></el-icon><span>深度诊断</span></el-menu-item>
-          <el-sub-menu v-if="visibleMenus.has('rulesets')||visibleMenus.has('inspection')" index="platform-group">
+          <el-sub-menu v-if="visibleMenus.has('rulesets')" index="platform-group">
             <template #title><el-icon><Setting /></el-icon><span>平台治理</span></template>
-            <!-- V1.4：项目管理/质量门禁菜单隐藏（项目降级为业务标签，门禁并入实例页） -->
+            <!-- V1.4：项目管理/质量门禁/巡检管理隐藏（项目降级为业务标签，门禁并入实例页） -->
             <el-menu-item v-if="visibleMenus.has('rulesets')" index="rulesets">评估规则集</el-menu-item>
-            <el-menu-item v-if="visibleMenus.has('inspection')" index="inspection">巡检管理</el-menu-item>
           </el-sub-menu>
           <el-sub-menu v-if="visibleMenus.has('sys-users')||visibleMenus.has('sys-roles')||visibleMenus.has('sys-perms')||visibleMenus.has('sys-retention')||visibleMenus.has('sys-auditlog')||visibleMenus.has('sys-info')" index="system-group">
             <template #title><el-icon><User /></el-icon><span>系统管理</span></template>
@@ -1916,39 +1915,8 @@
           <!-- ═══ 监控告警（隐藏） ═══ -->
           <!-- <div v-if="currentPage==='monitor'">...</div> -->
 
-          <!-- ═══ 巡检管理 ═══ -->
-          <div v-if="currentPage==='inspection'">
-            <div class="page-card">
-              <div class="card-head">
-                <div class="page-card-title mb0">巡检管理</div>
-                <el-button v-if="canManagePlatform" type="primary" size="small" @click="inspectionDialog.visible=true">+ 新建巡检</el-button>
-              </div>
-              <el-table :data="inspectionTasks" v-loading="inspectionLoading" stripe class="w-full">
-                <el-table-column prop="connection_id" label="实例" show-overflow-tooltip></el-table-column>
-                <el-table-column prop="inspection_type" label="类型" width="100"></el-table-column>
-                <el-table-column prop="status" label="状态" width="80"><template #default="{row}"><el-tag :type="row.status==='completed'?'success':row.status==='running'?'warning':'info'" size="small">{{ row.status }}</el-tag></template></el-table-column>
-                <el-table-column label="开始时间" width="140"><template #default="{row}">{{ formatTime(row.started_at) }}</template></el-table-column>
-                <el-table-column label="完成时间" width="140"><template #default="{row}">{{ formatTime(row.completed_at) }}</template></el-table-column>
-                <el-table-column label="操作" width="80" fixed="right"><template #default="{row}"><el-button link size="small" @click="viewInspectionResult(row)">查看结果</el-button></template></el-table-column>
-              </el-table>
-            </div>
-          </div>
-          <el-dialog v-model="inspectionDialog.visible" title="新建巡检" width="440px">
-            <el-form label-position="top">
-              <el-form-item label="目标实例"><el-select v-model="inspectionDialog.form.connection_id" filterable placeholder="选择实例" class="w-full"><el-option v-for="c in savedConnections" :key="c.id" :label="c.name+' ('+c.host+')'" :value="c.id"></el-option></el-select></el-form-item>
-              <el-form-item label="巡检类型"><el-select v-model="inspectionDialog.form.inspection_type" class="w-full"><el-option label="全面巡检" value="full"></el-option><el-option label="性能巡检" value="performance"></el-option><el-option label="安全巡检" value="security"></el-option></el-select></el-form-item>
-            </el-form>
-            <template #footer><el-button @click="inspectionDialog.visible=false">取消</el-button><el-button type="primary" :loading="inspectionDialog.loading" @click="createInspection">创建</el-button></template>
-          </el-dialog>
-          <el-drawer v-model="inspectionResultDrawer" title="巡检结果" size="50%">
-            <el-empty v-if="!inspectionResults.length" description="暂无巡检结果"></el-empty>
-            <el-table v-else :data="inspectionResults" stripe class="w-full">
-              <el-table-column prop="category" label="分类" width="100"></el-table-column>
-              <el-table-column prop="severity" label="级别" width="80"><template #default="{row}"><el-tag :type="sevTagType(row.severity)" size="small">{{ row.severity }}</el-tag></template></el-table-column>
-              <el-table-column prop="message" label="问题" show-overflow-tooltip></el-table-column>
-              <el-table-column prop="suggestion" label="建议" show-overflow-tooltip></el-table-column>
-            </el-table>
-          </el-drawer>
+          <!-- ═══ 巡检管理（隐藏） ═══ -->
+          <!-- <div v-if="currentPage==='inspection'">...</div> -->
 
           <!-- ═══ 用户管理 ═══ -->
           <div v-if="currentPage==='sys-users'">
