@@ -197,7 +197,7 @@ G 的第 1、2 步（端口对应 Proxy 网关；Proxy 响应了探针，`rows: 
 
 | # | 变更 | 解决什么 |
 |---|---|---|
-| **C1** | **失效探针立即摘除**：删掉 P1/P2 两个无鉴别力的判据，`probe_instance_type()` 在无有效判据时返回 `None`（无结论）而非 `distributed` | **立即止血**。探测不再覆盖声明 → 使用者勾的「集中式」生效 → R077 误报当场消失 |
+| **C1** | **失效探针摘除**：删掉两个无鉴别力的判据，`probe_instance_type()` 在无有效判据时返回 `None`（无结论）而非 `distributed` | **立即止血**。探测不再覆盖声明 → 使用者勾的「集中式」生效 → R077 误报当场消失 |
 | **C2** | **接入 ZK 权威源**：`tdsql_inventory.sh` 输出 `instance_kind` / `instance_id` / `proxy_list`，贯通至 `tdsql_connections` | 根治。类型来自管控面事实，不再依赖任何推断 |
 | **C3** | **冲突策略改为"取更保守者"**：任一来源判定为分布式即按分布式执行；并新增管理员锁定作为终审 | 缩小任何单点误判的影响面；给确定性场景一个可审计的终审通道 |
 
@@ -488,38 +488,157 @@ POST /api/v1/tdsql/discover
 
 v1.5 已有的 `declared_instance_type` / `detected_instance_type` / `instance_type_conflict` 等字段**保留不变**。
 
+### 6.6 探测诊断采集（新增，C 组）
+
+```
+POST /api/v1/tdsql/connections/{connection_id}/probe-diagnostics
+```
+
+**用途**：用**系统自身的连接**在目标实例上执行 §8.3 的采集清单，原样返回输出，供 G 做 Proxy 层判据实测。
+
+**权限**：`admin` / `dba`
+
+**请求体**
+
+```json
+{ "sample_table": "tdsql_check.t_order" }
+```
+
+| 字段 | 必填 | 说明 |
+|---|---|---|
+| `sample_table` | ❌ | 可选的样本表（建议给一张真实业务表）。用于取 `SHOW CREATE TABLE`，观察分布式实例的 DDL 是否带 `shardkey=` |
+
+**`sample_table` 安全校验（必做）**：仅允许 `^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)?$`，不匹配直接 400。该值会进入 `SHOW CREATE TABLE` 语句，**不能有任何拼接注入面**。
+
+**响应 200**
+
+```json
+{
+  "connection_id": "5ea70d74",
+  "instance_label": "SIT-集中式实例A",
+  "endpoint": "119.45.220.89:15002",
+  "declared_instance_type": "centralized",
+  "zk_instance_kind": "noshard",
+  "collected_at": "2026-07-29T12:05:41",
+  "diagnostics": {
+    "statements": {
+      "proxy_show_status":    {"ok": true, "sql": "/*proxy*/show status", "row_count": 2, "rows": [ ... ], "truncated": false},
+      "proxy_connectionpool": {"ok": false, "sql": "/*proxy*/show connectionpool", "reason": "..."},
+      "proxy_show_shard":     {"ok": false, "sql": "/*proxy*/show shard", "reason": "..."},
+      "proxy_show_sets":      {"ok": false, "sql": "/*proxy*/show sets", "reason": "..."},
+      "show_databases":       {"ok": true, "sql": "show databases", "row_count": 7, "rows": [ ... ], "truncated": false}
+    },
+    "sample_table_ddl": {"ok": true, "table": "tdsql_check.t_order", "rows": [ ... ]}
+  }
+}
+```
+
+**响应中必须回带 `endpoint` 与 `declared_instance_type` / `zk_instance_kind`**：实测比对的前提是知道"这份输出来自哪台、它到底是什么类型"。缺了这两项，采回来的数据无法配对分析。
+
+**前端（C.4）**：实例操作列新增「采集探测诊断」，结果以 JSON 展示并提供**下载按钮**——G 需要把两类实例的输出并排比对，能存成文件最省事。
+
 ---
 
 ## 7. 详细设计（照图施工）
 
 ### 7.0 改造清单（按依赖顺序）
 
-| 阶段 | # | 文件 | 动作 |
-|---|---|---|---|
-| **P0 止血** | 0.1 | `backend/services/tdsql_connector.py` | 重写 `probe_instance_type()`：摘除失效判据，返回无结论 |
-| | 0.2 | `backend/services/instance_type_service.py` | 冲突策略改保守取值 |
-| | 0.3 | `tests/test_instance_type_service.py` | 删除锁定错误规格的用例，补反向鉴别用例 |
-| **P1 权威源** | 1.1 | `backend/schema/v5/050_instance_type_authority.sql` | 新建迁移 |
-| | 1.2 | `backend/services/database.py` | `_ensure_columns` 双保险 |
-| | 1.3 | `deploy/tdsql_inventory.sh` | 输出 `instance_kind` / `instance_id` / `proxy_list` |
-| | 1.4 | `backend/services/zk_discovery_service.py` | 解析新列 + 回写实例形态 |
-| | 1.5 | `backend/services/instance_type_service.py` | 接入 S1 源 + S0 锁定 |
-| | 1.6 | `backend/api/tdsql_manage.py` | 探测接口改多源；新增锁定接口 |
-| | 1.7 | `backend/services/auth_service.py` | RBAC 校验（锁定接口 admin-only） |
-| | 1.8 | `frontend/index.html` · `static/js/app.js` | 类型来源徽标、锁定开关、多源明细 |
-| **P2 次源** | 2.1 | `backend/services/tdsql_connector.py` | Proxy 层判据（**待 §8 实测后再动工**） |
-| **收尾** | 3.1 | `backend/config.py` · `frontend/index.html` | 版本号 → `1.5.1.0` |
-| | 3.2 | `docs/DETAIL-v1.5-*.md` | 勘误：标注 §4.1 探测方案作废，指向本文档 |
+> **交付方式（负责人 2026-07-29 决定）：P0 / P1 / P2 一次性开发完成，单次交付，不分批上线。**
 
-> **P0 可独立上线**。它不依赖 ZK、不依赖新表列，只改两个函数，即可让 `SIT-集中式实例A` 的 R077 误报当场消失。建议 P0 先合先验，P1 随后。
+| 组 | # | 文件 | 动作 |
+|---|---|---|---|
+| **A 止血** | A.1 | `backend/services/tdsql_connector.py` | 重写 `probe_instance_type()`：摘除失效判据，返回无结论 |
+| | A.2 | `backend/services/instance_type_service.py` | 冲突策略改保守取值 |
+| | A.3 | `tests/test_instance_type_service.py` | 删除锁定错误规格的用例，补反向鉴别用例 |
+| **B 权威源** | B.1 | `backend/schema/v5/050_instance_type_authority.sql` | 新建迁移 |
+| | B.2 | `backend/services/database.py` | `_ensure_columns` 双保险 |
+| | B.3 | `deploy/tdsql_inventory.sh` | 输出 `instance_kind` / `instance_id` / `proxy_list` |
+| | B.4 | `backend/services/zk_discovery_service.py` | 解析新列 + 回写实例形态 |
+| | B.5 | `backend/services/instance_type_service.py` | 接入 S1 源 + S0 锁定 |
+| | B.6 | `backend/api/tdsql_manage.py` | 探测接口改多源；新增锁定接口 |
+| | B.7 | `backend/services/auth_service.py` | RBAC 校验（锁定接口 admin-only） |
+| | B.8 | `frontend/index.html` · `static/js/app.js` | 类型来源徽标、锁定开关、多源明细 |
+| **C 次源框架** | C.1 | `backend/services/instance_probe_rules.py` | **新建**：可插拔判据表（出厂为空 → 恒无结论） |
+| | C.2 | `backend/services/tdsql_connector.py` | `collect_probe_diagnostics()` 采集器 |
+| | C.3 | `backend/api/tdsql_manage.py` | **新增** `POST /connections/{id}/probe-diagnostics` |
+| | C.4 | `frontend/index.html` · `static/js/app.js` | 「采集探测诊断」按钮 + 结果导出 |
+| **D 收尾** | D.1 | `backend/config.py` · `frontend/index.html` | 版本号 → `1.5.1.0` |
+| | D.2 | `docs/DETAIL-v1.5-*.md` | 勘误：标注 §4.1 探测方案作废，指向本文档 |
+
+#### 关于 C 组：为什么 P2 能和 P0/P1 一起做完
+
+**存在一个顺序矛盾必须先解开**：P2 的内容本是"依据实测结果确定 Proxy 层判据"，而实测被安排在 Q 开发完成之后由 G 执行。按原计划，Q 开工时手上没有判据可写。
+
+**解法：把 P2 拆成「框架」与「判据」两半，Q 本次只做框架。**
+
+| 拆分 | 内容 | 责任 | 时点 |
+|---|---|---|---|
+| **C 组（本次交付）** | 判据**框架**：可插拔判据表 + 诊断采集端点。**出厂判据表为空 ⟹ S2 源恒返回"无结论"** | Q | 本次开发 |
+| **判据填充（后续）** | 依据实测输出，按 §8.4 标准评审后填入判据表 | A 评审 → Q 填表 | G 实测之后 |
+
+**这样拆的三个好处：**
+
+1. **C 组上线零行为变更**。判据表为空时 S2 恒无结论，与 A 组（摘除失效探针）的行为**完全一致**，因此 C 组可以放心地和 P0/P1 一起上线，不引入任何新风险。
+2. **把 G 的实测从"登机器手工敲"变成"点个按钮"**。`POST /probe-diagnostics` 让系统**用自己的连接、自己的账号、自己的驱动**去跑 §8.3 那批语句并原样返回。这一点很关键——手工用 mysql 客户端从后端 socket 采到的东西，和系统实际通过 Proxy 端口能看到的东西**未必相同**（本次事故就栽在这个差别上：`/*proxy*/show status` 直连后端 458 行、经 Proxy 2 行）。**采集环境必须与判定环境一致，否则实测结论不可迁移。**
+3. **判据后续以配置填入，不再改代码**。避免"每验证一条判据就动一次 `tdsql_connector.py`"。
+
+> **C 组的验收标准是"采得到数据"，不是"判得出类型"。** 判据为空、S2 恒无结论，是本次交付的**预期状态**，不是未完成。
 
 ---
 
-### 7.1 P0-1：重写 `probe_instance_type()`
+### 7.0.1 判据框架 — `backend/services/instance_probe_rules.py`（新建）
+
+```python
+"""SQL 层实例类型判据表（V1.5.1）
+
+出厂为空 —— 这是有意的，不是未完成。
+
+V1.5 的两个判据（/*proxy*/show status 非空、TDSQL_SHARDING_RULES 存在）
+经真实环境实测全部证伪，详见设计文档 §2。在取得经实测确认的新判据之前，
+本表保持为空，S2 源恒返回"无结论"，判定下沉至 ZK 权威源或人工声明。
+
+【新增判据的强制门槛】——三条全部满足才可入表，见设计文档 §8.4：
+  1) 两类实例上实测输出确有差异（不是"应该有差异"）；
+  2) 差异方向明确：命中即为分布式的【阳性证据】；
+  3) 未命中时不得判集中式，必须返回"无结论"下沉至下一源。
+
+新增判据必须同时补一条反向鉴别用例（对两类实例各跑一次、断言结论不同），
+仅断言"某类返回某值"无法发现常量函数 —— V1.5 正是这样漏掉的。
+"""
+from dataclasses import dataclass
+from typing import Callable, Optional
+
+
+@dataclass(frozen=True)
+class ProbeRule:
+    """一条 SQL 层判据。
+
+    Attributes:
+        rule_id:  判据标识，如 "PR001"
+        sql:      在目标实例上执行的语句
+        decide:   (rows) -> True 表示【阳性命中，判分布式】；
+                  返回 False 表示"本判据未命中"，**不等于集中式**
+        evidence: 判据依据（实测日期 + 数据出处），入表必填
+    """
+    rule_id: str
+    sql: str
+    decide: Callable[[list], bool]
+    evidence: str
+
+
+# 出厂为空。填充前请通读 §8.4 的采纳标准。
+ACTIVE_PROBE_RULES: list[ProbeRule] = []
+```
+
+`tdsql_connector.probe_instance_type()` 遍历该表：**任一判据阳性命中 → `distributed`；全部未命中或表为空 → `None`（无结论）**。**永远不会**因为"都没命中"就返回 `centralized`——这正是 §8.4 标准 3 的代码化。
+
+---
+
+### 7.1 A.1 / C.2：重写 `probe_instance_type()`
 
 **文件**：`backend/services/tdsql_connector.py:520`
 
-**全量替换**：
+**全量替换**（下方注释为事故记录，**必须原样保留**——它的作用是阻止后来者本着好意把这个函数"补全"回同样的错误）：
 
 ```python
     def probe_instance_type(self) -> tuple:
@@ -548,26 +667,112 @@ v1.5 已有的 `declared_instance_type` / `detected_instance_type` / `instance_t
         原理上都不可能成立。
 
         实例类型请改用管控面权威源（ZK，见 instance_type_service S1）。
-        Proxy 层是否存在可用判据尚待实测（设计文档 §8）；在实测结论落地前，
-        本方法一律返回"无结论"—— 宁可不给结论，绝不给错结论。
+
+        本方法改为遍历 instance_probe_rules.ACTIVE_PROBE_RULES 判据表：
+        任一判据【阳性命中】→ distributed；全部未命中或表为空 → None。
+        永远不会因为"都没命中"就返回 centralized —— 那是设计文档 §8.4
+        标准 3 明令禁止的，也正是本次事故的失效方向。
+
+        判据表出厂为空，故本方法当前恒返回 (None, ...)。Proxy 层判据待
+        G 用 POST /connections/{id}/probe-diagnostics 采集实测数据后，
+        按 §8.4 三项标准评审通过再入表。
 
         Returns:
-            (None, {"disabled": True, "reason": "..."})
+            (类型字符串 或 None, 明细 dict)
         """
-        return None, {
-            "disabled": True,
-            "reason": ("SQL 层探测已停用：经实测，TDSQL 后端数据节点上集中式实例"
-                       "与分布式分片无法区分，原判据 /*proxy*/show status 与 "
-                       "TDSQL_SHARDING_RULES 均无鉴别力。请使用 ZK 管控面判定。"),
-            "since": "v1.5.1",
-        }
+        from backend.services.instance_probe_rules import ACTIVE_PROBE_RULES
+
+        if not ACTIVE_PROBE_RULES:
+            return None, {
+                "disabled": True,
+                "reason": ("SQL 层探测暂无可用判据：经实测，TDSQL 后端数据节点上"
+                           "集中式实例与分布式分片无法区分，原判据 "
+                           "/*proxy*/show status 与 TDSQL_SHARDING_RULES 均无鉴别力。"
+                           "请使用 ZK 管控面判定，或由管理员锁定实例类型。"),
+                "since": "v1.5.1",
+            }
+
+        detail, hit = {}, None
+        for rule in ACTIVE_PROBE_RULES:
+            try:
+                rows = self._execute(rule.sql)
+                positive = bool(rule.decide(rows or []))
+                detail[rule.rule_id] = {"ok": True, "positive": positive}
+                if positive and hit is None:
+                    hit = rule.rule_id
+            except Exception as e:
+                # 判据执行失败仅记录，不参与判定（INV-5：绝不抛异常）
+                detail[rule.rule_id] = {"ok": False, "reason": str(e)[:200]}
+
+        if hit:
+            return "distributed", {"matched": hit, "rules": detail}
+        # 全部未命中 ≠ 集中式。返回无结论，下沉至 ZK / 声明。
+        return None, {"matched": None, "rules": detail}
 ```
 
-**为什么保留方法而不是删除**：`_probe_and_persist()` / `probe_now()` / 测试均在调用它。保留签名、返回"无结论"，改动面最小，且 P2 补上 Proxy 判据时只需替换方法体。方法内的长注释是**事故记录**，防止后人再次基于同样的错误假设"补全"它。
+**为什么保留方法而不是删除**：`_probe_and_persist()` / `probe_now()` / 测试均在调用它。保留签名、由判据表驱动，后续补判据只需改 `instance_probe_rules.py` 一个文件，**不再动连接器代码**。
+
+**方法内的长注释是事故记录，不得精简。** 它的唯一作用，是阻止后来者看到一个"看起来没实现"的函数、本着好意把 `/*proxy*/show status` 那套再写回去。
 
 ---
 
-### 7.2 P1-3：`tdsql_inventory.sh` 输出实例形态
+### 7.1.1 C.2：诊断采集器 `collect_probe_diagnostics()`
+
+**文件**：`backend/services/tdsql_connector.py`（紧邻 `probe_instance_type()` 新增）
+
+```python
+    # §8.3 采集清单。只读语句，逐条独立执行，单条失败不影响其余。
+    _DIAGNOSTIC_STATEMENTS = [
+        ("proxy_show_status",   "/*proxy*/show status"),
+        ("proxy_connectionpool", "/*proxy*/show connectionpool"),
+        ("proxy_show_shard",    "/*proxy*/show shard"),
+        ("proxy_show_sets",     "/*proxy*/show sets"),
+        ("show_databases",      "show databases"),
+    ]
+
+    def collect_probe_diagnostics(self, sample_table: str = "") -> dict:
+        """采集实例类型判据的候选证据（V1.5.1 C 组）。
+
+        用于让 G 通过系统自身的连接采集实测数据，而不是登机器手工敲。
+
+        这一点是硬要求，不是便利性考虑：手工从后端 socket 采到的输出，与
+        系统经 Proxy 端口能看到的输出【未必相同】—— 本次事故正是栽在这个
+        差别上（/*proxy*/show status 直连后端 458 行、经 Proxy 仅 2 行）。
+        采集环境必须与判定环境一致，否则实测结论不可迁移到生产判定。
+
+        只执行只读语句；单条失败仅记录，不中断整体采集。
+        """
+        out = {"statements": {}, "sample_table_ddl": None}
+        for key, sql in self._DIAGNOSTIC_STATEMENTS:
+            try:
+                rows = self._execute(sql)
+                out["statements"][key] = {
+                    "ok": True, "sql": sql,
+                    "row_count": len(rows or []),
+                    "rows": (rows or [])[:200],   # 截断防止响应体过大
+                    "truncated": len(rows or []) > 200,
+                }
+            except Exception as e:
+                out["statements"][key] = {"ok": False, "sql": sql,
+                                          "reason": str(e)[:500]}
+
+        # 表 DDL 是 §8.3 中先验最强的候选判据（分布式实例的表必带 shardkey=）
+        if sample_table:
+            try:
+                rows = self._execute(f"SHOW CREATE TABLE {sample_table}")
+                out["sample_table_ddl"] = {"ok": True, "table": sample_table,
+                                           "rows": rows}
+            except Exception as e:
+                out["sample_table_ddl"] = {"ok": False, "table": sample_table,
+                                           "reason": str(e)[:500]}
+        return out
+```
+
+> **`sample_table` 由调用方传入，不在此处自行拼接表名**——避免把用户输入直接拼进 SQL。API 层需对其做标识符白名单校验（见 §6.6）。
+
+---
+
+### 7.2 B.3：`tdsql_inventory.sh` 输出实例形态
 
 **文件**：`deploy/tdsql_inventory.sh`
 
@@ -665,7 +870,7 @@ def emit_rows(fp):
 
 ---
 
-### 7.3 P1-4：`zk_discovery_service.py` 解析并回写
+### 7.3 B.4：`zk_discovery_service.py` 解析并回写
 
 **文件**：`backend/services/zk_discovery_service.py`
 
@@ -804,7 +1009,7 @@ def emit_rows(fp):
 
 ---
 
-### 7.4 P1-5：`instance_type_service.py` 多源分级
+### 7.4 B.5：`instance_type_service.py` 多源分级
 
 **文件**：`backend/services/instance_type_service.py`
 
@@ -883,7 +1088,7 @@ class TypeSource(str, Enum):
         # ── S1 ZK 管控面 ──
         zk = self._KIND_TO_TYPE.get((saved.get("zk_instance_kind") or "").strip())
 
-        # ── S2 SQL 探测（V1.5.1 起恒为 None，保留链路供 P2 补判据）──
+        # ── S2 SQL 探测（判据表出厂为空 → 恒为 None，见 instance_probe_rules）──
         detected = None
         raw = saved.get("detected_instance_type")
         if raw in (InstanceType.DISTRIBUTED.value, InstanceType.CENTRALIZED.value):
@@ -968,7 +1173,7 @@ class TypeSource(str, Enum):
 
 ---
 
-### 7.5 P1-6：API 层
+### 7.5 B.6 / C.3：API 层
 
 **文件**：`backend/api/tdsql_manage.py`
 
@@ -1040,7 +1245,7 @@ def set_instance_type_lock(connection_id: str, payload: dict, http_request: Requ
 
 ---
 
-### 7.6 P1-8：前端
+### 7.6 B.8 / C.4：前端
 
 | # | 位置 | 改动 |
 |---|---|---|
@@ -1063,40 +1268,64 @@ def set_instance_type_lock(connection_id: str, payload: dict, http_request: Requ
 
 ---
 
-## 8. 待实测项：Proxy 层是否存在可用判据（P2）
+## 8. Proxy 层判据：实测与填充流程
 
-**在下列实测完成前，P2 不动工，S2 源恒返回"无结论"。**
+### 8.1 时序安排（负责人 2026-07-29 决定）
 
-### 8.1 采集方法
-
-用 mysql 客户端**连 Proxy 端口**（不是后端 socket），两类实例各跑一遍：
-
-```bash
-# 集中式实例
-mysql -h10.206.0.4 -P15002 -u<user> -p
-# 分布式实例
-mysql -h10.206.0.4 -P15005 -u<user> -p
+```
+Q 完成 A/B/C 三组开发  →  合入并部署
+        ↓
+G 用 POST /connections/{id}/probe-diagnostics 对两类实例各采一次
+        ↓
+A 按 §8.4 三项标准评审候选判据
+        ↓
+通过的判据填入 instance_probe_rules.ACTIVE_PROBE_RULES + 补反向鉴别用例
 ```
 
-### 8.2 采集清单
+**在判据填入之前，S2 源恒返回"无结论"，系统按 ZK 权威源 / 人工声明判定。这是完全可用的状态**——ZK 已能给出权威答案，S2 只是锦上添花的次级源。
+
+> **必须说清楚的一点**：即使 Proxy 层最终**找不到**任何可用判据（这完全有可能），本次交付的功能也是完整的——S1（ZK）才是根治手段，S2 从设计之初就只是补充。
+>
+> **不要为了"让探测能出结论"而降低 §8.4 的标准。** 那正是本次事故的成因：v1.5 就是因为想让探测有个结论，才把"能响应 proxy hint"这种无鉴别力的信号当成了判据。
+
+### 8.2 采集方法（G 执行）
+
+**用系统的诊断接口采，不要登机器手工敲。**
+
+```
+POST /api/v1/tdsql/connections/{connection_id}/probe-diagnostics
+Body: {"sample_table": "<该实例上一张真实业务表>"}
+```
+
+对 **`SIT-集中式实例A`** 与 **`SIT-分布式实例A`** 各调一次，两份响应下载留档。
+
+**为什么不能手工敲**：手工从后端 socket（`jmysql.sh 4002`）采到的输出，与系统经 Proxy 端口（`15002`）看到的输出**未必相同**。本次事故的核心证据之一正是这个差别——同一条 `/*proxy*/show status`，直连后端 458 行、经 Proxy 仅 2 行。
+
+> **采集环境必须与判定环境一致，否则实测结论不可迁移到生产判定。** 诊断接口用的是系统自己的连接池、账号与驱动：采到什么，生产判定时就能看到什么。
+
+### 8.3 采集清单（已固化在 `_DIAGNOSTIC_STATEMENTS`）
 
 | # | 语句 | 观察点 |
 |---|---|---|
-| 1 | `/*proxy*/show status;` | **完整输出**。G 报告经 Proxy 时仅 2 行——需确认是哪 2 行。现有 `discover_sets()` 正是指望从中解析 `Variable_name='set'` 的逗号分隔 SET 列表 |
-| 2 | `/*proxy*/show connectionpool;` | 是否暴露后端 SET 拓扑 |
-| 3 | `/*proxy*/show shard;` / `/*proxy*/show sets;` | 该版本是否支持这类命令 |
-| 4 | `show databases;` | 两类实例是否有系统库差异 |
-| 5 | `SHOW CREATE TABLE <任一业务表>;` | 分布式实例的表 DDL 是否带 `shardkey=` / 广播表标记 |
+| 1 | `/*proxy*/show status` | **完整输出**。G 此前报告经 Proxy 时仅 2 行——需确认是哪 2 行。现有 `discover_sets()` 正是指望从中解析 `Variable_name='set'` 的逗号分隔 SET 列表 |
+| 2 | `/*proxy*/show connectionpool` | 是否暴露后端 SET 拓扑 |
+| 3 | `/*proxy*/show shard` · `/*proxy*/show sets` | 该版本是否支持这类命令 |
+| 4 | `show databases` | 两类实例是否有系统库差异 |
+| 5 | `SHOW CREATE TABLE <业务表>` | 分布式实例的表 DDL 是否带 `shardkey=` / 广播表标记 |
 
-### 8.3 判据采纳标准（防止重蹈覆辙）
+### 8.4 判据采纳标准（防止重蹈覆辙）
 
-一条判据只有**同时满足**下列三条才可进入详细设计：
+一条判据只有**同时满足**下列三条，才可填入 `ACTIVE_PROBE_RULES`：
 
-1. **两类实例上实测输出确有差异**（不是"应该有差异"）；
+1. **两类实例上实测输出确有差异** —— 必须把两份真实输出写进 `evidence` 字段，**不接受"按文档应该有差异"**；
 2. 差异**方向明确**：命中即为分布式的**阳性证据**；
-3. 未命中时**不得**直接判集中式，必须返回"无结论"下沉至下一源。
+3. 未命中时**不得**判集中式，必须返回"无结论"下沉至下一源。
 
-> 候选中 **#5（表 DDL 含 `shardkey=`）** 先验最强：R077 规定分布式实例不允许建单表，故其每张表必带分片键或广播标记，而集中式实例永远没有。弱点是空库时无表可查——按标准 3，此时返回"无结论"即可，不构成风险。
+**外加一条硬性配套**：每新增一条判据，**必须同时补一条反向鉴别用例**（对两类实例各跑一次、断言结论**不同**）。仅断言"某类返回某值"的用例无法发现常量函数——v1.5 正是这样漏掉的。
+
+> **先验最强的候选是 #5（表 DDL 含 `shardkey=`）**：R077 规定分布式实例不允许建单表，故其每张表必带分片键或广播表标记，而集中式实例永远没有。弱点是空库时无表可查——按标准 3，此时返回"无结论"即可，不构成风险。
+>
+> **#1 要特别小心，不要重蹈"非空即分布式"的覆辙。** 即使经 Proxy 只返回 2 行，判据也必须落在**具体某一行的具体值**上（例如 `set` 行里 SET 的个数），而绝不能是"返回了几行"这类形态特征。
 
 ---
 
@@ -1210,11 +1439,65 @@ def test_sync_matches_any_proxy_of_instance():
     ...
 ```
 
+#### （5）判据框架（C 组）
+
+```python
+def test_probe_rules_table_ships_empty():
+    """出厂判据表必须为空 —— 这是本次交付的预期状态，不是未完成。
+
+    任何在未经 §8.4 评审的情况下往表里加判据的改动，本用例都会失败。
+    """
+    from backend.services.instance_probe_rules import ACTIVE_PROBE_RULES
+    assert ACTIVE_PROBE_RULES == [], (
+        "新增判据须先通过 §8.4 三项标准评审，并同步更新本用例与反向鉴别用例")
+
+
+def test_empty_rules_yield_no_conclusion():
+    """判据表为空时必须返回无结论，绝不能回退成某个默认类型"""
+    result, detail = any_pool.probe_instance_type()
+    assert result is None
+    assert detail.get("disabled") is True
+
+
+def test_all_rules_miss_never_means_centralized(monkeypatch):
+    """§8.4 标准 3 的代码化：全部判据未命中 ≠ 集中式。
+
+    这是本次事故的失效方向 —— 必须由用例钉死。
+    """
+    from backend.services import instance_probe_rules as m
+    monkeypatch.setattr(m, "ACTIVE_PROBE_RULES", [
+        m.ProbeRule("PRTEST", "select 1", lambda rows: False, "unit-test"),
+    ])
+    result, _ = any_pool.probe_instance_type()
+    assert result is None          # 不是 "centralized"
+
+
+def test_probe_rule_failure_does_not_raise():
+    """判据执行异常仅记录，不得抛出（INV-5）"""
+    result, detail = broken_pool.probe_instance_type()
+    assert result is None
+
+
+def test_diagnostics_collects_all_statements():
+    """诊断采集：单条语句失败不影响其余条目"""
+    out = pool_with_partial_support.collect_probe_diagnostics()
+    assert set(out["statements"]) >= {"proxy_show_status", "show_databases"}
+    assert any(v["ok"] for v in out["statements"].values())
+
+
+@pytest.mark.parametrize("bad", ["a;drop table t", "a b", "`x`", "a.b.c", "-- x"])
+def test_diagnostics_rejects_bad_sample_table(bad):
+    """sample_table 进入 SHOW CREATE TABLE，必须无任何拼接注入面"""
+    with pytest.raises(HTTPException) as e:
+        probe_diagnostics("conn_x", {"sample_table": bad})
+    assert e.value.status_code == 400
+```
+
 ### 9.3 真实环境验收（SIT）
 
 | # | 用例 | 步骤 | 预期 |
 |---|---|---|---|
-| **H1** | **缺陷现场复验（P0 核心）** | 对 `SIT-集中式实例A` 执行在线元数据审核 | 报告中 **R077 = 0**；横幅显示"按【集中式】口径评估，已跳过 27 条" |
+| **H1** | **缺陷现场复验（本次交付核心验收项）** | 对 `SIT-集中式实例A` 执行在线元数据审核 | 报告中 **R077 = 0**；横幅显示"按【集中式】口径评估，已跳过 27 条" |
 | H2 | 探测不再覆盖声明 | 点「探测类型」 | 生效类型 = 集中式，来源 = 实例声明；SQL 探测一栏显示"已停用"而非"失败" |
 | H3 | 分布式零回归 | 对 `SIT-分布式实例A` 扫描，与 v1.5.0.0 逐条 diff | **完全一致** |
 | H4 | ZK 形态同步 | 执行「ZK 自动发现」 | 集中式实例 `zk_instance_kind=noshard`、`zk_instance_id=set_1782130875_4`；分布式 `groupshard` / `group_1782132247_10`（与赤兔一致） |
@@ -1229,14 +1512,16 @@ def test_sync_matches_any_proxy_of_instance():
 
 ## 10. 施工检查清单
 
-**P0（可独立上线）**
-- [ ] `probe_instance_type()` 恒返回 `(None, {...})`，且方法内保留完整事故记录注释
+> **交付方式：A / B / C 三组一次性开发完成，单次交付。** 下列各组不分先后上线，但组内顺序按 §7.0 的依赖关系施工。
+
+**A 组 止血**
+- [ ] `probe_instance_type()` 由**判据表驱动**；表为空时返回 `(None, {"disabled": True, ...})`
+- [ ] 方法内的事故记录注释**完整保留**，未被精简
 - [ ] `_resolve_by_connection()` 冲突策略为**取更保守者**，不再"探测一律优先"
 - [ ] `test_probe_distributed_when_proxy_ok` **已删除**
 - [ ] 新增 `test_probe_must_not_be_a_constant_function` 反向鉴别用例
-- [ ] SIT **H1 通过**：`SIT-集中式实例A` 的 R077 归零
 
-**P1**
+**B 组 权威源**
 - [ ] 迁移 `v5/050_instance_type_authority.sql` 已建，注释均为整行 `--`，无行尾注释
 - [ ] `database.py::_ensure_columns` 已补 5 列双保险
 - [ ] `tdsql_inventory.sh` 新增 `--with-type`，新列**追加在末尾**，表头同步
@@ -1244,29 +1529,66 @@ def test_sync_matches_any_proxy_of_instance():
 - [ ] 未知 `kind` **不猜**，`instance_type=None` + 告警
 - [ ] `sync_instance_kinds()` 按 **proxy_list 全集**匹配，不是只比 CSV 选中项
 - [ ] `zk_discovery.py` 已调用同步，失败仅告警不影响发现结果
-- [ ] `candidates` 列表顺序未被重排（顺序即优先级）
+- [ ] `candidates` 列表顺序未被重排（**顺序即优先级**）
 - [ ] 锁定接口 admin-only：中间件 + 处理函数内显式校验**双保险**
 - [ ] 锁「集中式」强制填理由，且落 `operation_logs`
 - [ ] 前端 F3 多源明细弹窗已实现（不是单句结论）
+
+**C 组 次源框架**
+- [ ] `instance_probe_rules.py` 已建，`ACTIVE_PROBE_RULES` **出厂为空**
+- [ ] `test_probe_rules_table_ships_empty` 通过（钉死出厂状态）
+- [ ] `test_all_rules_miss_never_means_centralized` 通过（全未命中 ≠ 集中式）
+- [ ] `collect_probe_diagnostics()` 单条语句失败不影响其余
+- [ ] `POST /probe-diagnostics` 的 `sample_table` 已做标识符白名单校验（`^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)?$`）
+- [ ] 诊断响应回带 `endpoint` / `declared_instance_type` / `zk_instance_kind`（缺了无法配对分析）
+- [ ] 前端「采集探测诊断」按钮 + **结果下载**已实现
+
+**D 组 收尾**
 - [ ] 全部 SQL 使用 `?` 占位符，无手写 `%s`
 - [ ] 生效时延文案一律"**最长 5 分钟**"，全库检索无"即时生效"
 - [ ] 存量数据**无任何回填 UPDATE**
 - [ ] 版本号 → `1.5.1.0`（`backend/config.py` + `frontend/index.html` 标题与页脚）
 - [ ] `DETAIL-v1.5-*.md` §4.1 已加勘误标注，指向本文档
+- [ ] `pytest` 全绿
+- [ ] SIT **H1 通过**：`SIT-集中式实例A` 的 R077 归零（**本次交付的核心验收项**）
+- [ ] SIT **H3 通过**：分布式实例逐条 diff 零回归
 
-**P2（阻塞中）**
-- [ ] §8 实测数据已采集并附入本文档
-- [ ] 候选判据逐条对照 §8.3 三项标准评审通过
-- [ ] `test_probe_must_not_be_a_constant_function` 改为断言两侧结论相反
+**判据填充（本次交付范围之外，G 实测后执行）**
+- [ ] G 用 `POST /probe-diagnostics` 采集两类实例数据并留档
+- [ ] 实测输出已附入本文档 §8
+- [ ] 候选判据逐条对照 §8.4 三项标准评审通过
+- [ ] 入表判据的 `evidence` 字段写明实测日期与数据出处
+- [ ] 每条判据配套一条反向鉴别用例
+- [ ] `test_probe_rules_table_ships_empty` 同步更新为新的期望清单
 
 ---
 
-## 11. 交付与上线建议
+## 11. 交付说明
 
-| 阶段 | 内容 | 前置 | 建议 |
+### 11.1 交付方式
+
+**A / B / C 三组一次性开发完成，单次交付**（负责人 2026-07-29 决定）。编码由智能体 Q 执行。
+
+原设计建议 P0 先行独立上线，现按负责人决定合并为单次交付。**这不影响修复效果**——A 组（止血）的行为在合并交付后完全一致，`SIT-集中式实例A` 的 R077 同样归零；差别只在于 A 组不再单独经历一轮上线验证，因此 **SIT H1 是本次交付不可妥协的核心验收项**。
+
+### 11.2 交付后的状态
+
+| 判定源 | 交付后状态 |
+|---|---|
+| S0 管理员锁定 | ✅ 可用 |
+| S1 ZK 管控面 | ✅ 可用（需先跑一次「ZK 自动发现」同步形态） |
+| S2 SQL 探测 | ⚪ **框架就绪、判据为空 → 恒无结论**（预期状态） |
+| S3 人工声明 | ✅ 可用 |
+| S4 全局默认 | ✅ 可用 |
+
+**S2 为空不影响功能完整性**：S1（ZK）才是根治手段，S2 从设计之初就只是补充。即使 Proxy 层最终找不到任何可用判据，本次交付依然达成了 G1 与 G3。
+
+### 11.3 后续动作
+
+| # | 动作 | 责任 | 前置 |
 |---|---|---|---|
-| **P0** | 摘除失效探针 + 保守合并 | 无 | **立即施工、独立上线**。改动面 2 个函数，风险极低，直接消除 R077 误报 |
-| **P1** | ZK 权威源 + 管理员锁定 | P0 | P0 验证通过后接续 |
-| **P2** | Proxy 层判据 | §8 实测 | **阻塞中**，实测数据到位前不动工 |
+| 1 | 用 `POST /probe-diagnostics` 采集两类实例数据 | G | 本次交付部署完成 |
+| 2 | 按 §8.4 评审候选判据 | A | 动作 1 |
+| 3 | 判据填入 `ACTIVE_PROBE_RULES` + 补反向鉴别用例 | Q | 动作 2 通过 |
 
-> **P0 与 P1 分开上线的理由**：P0 是止血，越快越好且几乎无风险；P1 涉及 shell 脚本、数据库、前端多处联动，需要完整的 SIT。把两者绑在一起上线，等于让一个高确定性的修复去等一个需要充分验证的增强。
+> 动作 2 若结论是"无可用判据"，则**就此收敛，不再追加**。S2 保持为空是一个完全可接受的终态——**没有判据比有一个错判据好得多，这正是本次事故最贵的一课。**
