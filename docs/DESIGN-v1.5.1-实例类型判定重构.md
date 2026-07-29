@@ -9,8 +9,9 @@
 | 缺陷定级 | **P0 — v1.5 核心目标 G1 完全未达成** |
 | 责任归属 | **v1.5 设计缺陷（本人）**，非实现偏差 |
 | 前置文档 | `ARCHITECTURE-v1.5-*.md` · `DB-v1.5-*.md` · `API-v1.5-*.md` · `DETAIL-v1.5-*.md` |
-| 实测依据 | `TEST-v1.5.1-Proxy层实例类型判据实测方案-G.md`（方案） · `REPORT-v1.5.1-Proxy层实例类型判据实测结果-G.md`（结果） |
+| 实测依据 | `TEST-v1.5.1-…-G.md`（方案） · `REPORT-v1.5.1-…-G.md`（结果） · `raw_probe_out_CENT.txt` / `raw_probe_out_DIST.txt`（**原始输出**） |
 | 修订 | **2026-07-29 据 G 实测结果修订**：Proxy 层判据成立，SQL 探测由「无判据」升为**主判定源**；判据裁定见 §8 |
+| 修订 | **2026-07-29 据 G 补充材料再修订**：PR001 签名泛化为「键名含 `:`」；**新增 PR004**（`xa` 系统库）；核验见 §8.7 |
 
 > **本文档为什么不拆成四份**：v1.5 是新建能力，四份文档各自成体量；v1.5.1 是对其中**一个判定环节**的定点重构，代码面 6 个文件、数据库 4 列、接口 2 处。拆四份会让读者在文档间反复跳转去拼一条本来很短的链路。因此合为一份，内部仍按概要（§1–§4）/ 数据库（§5）/ 接口（§6）/ 详细（§7–§9）分节，详细设计部分保持照图施工粒度。
 
@@ -581,7 +582,7 @@ POST /api/v1/tdsql/connections/{connection_id}/probe-diagnostics
 | | B.6 | `backend/api/tdsql_manage.py` | 探测接口改多源；新增锁定接口 |
 | | B.7 | `backend/services/auth_service.py` | RBAC 校验（锁定接口 admin-only） |
 | | B.8 | `frontend/index.html` · `static/js/app.js` | 类型来源徽标、锁定开关、多源明细 |
-| **C 判据表** | C.1 | `backend/services/instance_probe_rules.py` | **新建**：判据表，含 PR001/PR002 已启用 + PR003 可选 |
+| **C 判据表** | C.1 | `backend/services/instance_probe_rules.py` | **新建**：判据表，PR001/PR002/PR004 已启用 + PR003 可选 |
 | | C.2 | `backend/services/tdsql_connector.py` | `collect_probe_diagnostics()` 采集器 |
 | | C.3 | `backend/api/tdsql_manage.py` | **新增** `POST /connections/{id}/probe-diagnostics` |
 | | C.4 | `frontend/index.html` · `static/js/app.js` | 「采集探测诊断」按钮 + 结果导出 |
@@ -687,8 +688,12 @@ def _decide_proxy_status(rows: list) -> Optional[str]:
     set_values = []
     for r in rows:
         name = _row_name(r)
-        # 签名 1/2：cluster 行 或 hash_range 行 —— 分布式的结构性阳性证据
-        if name == "cluster" or ":hash_range" in name:
+        # 签名 1：cluster 行 —— 分布式的结构性阳性证据
+        # 签名 2：键名含冒号 —— DIST 用 <set_id>:<属性> 命名空间式键名
+        #        （实测形态 :ip / :alias / :hash_range）；
+        #        CENT 用裸键名 <set_id>，不含冒号。
+        #        泛化为"含冒号"而非仅 :hash_range —— 更灵敏，且误判方向安全。
+        if name == "cluster" or ":" in name:
             return "distributed"
         if name == "set":
             set_values.append(_row_value(r))
@@ -749,6 +754,30 @@ def _decide_table_ddl(rows: list) -> Optional[str]:
     return None
 
 
+# ── PR004：xa 系统库存在性（辅助，仅阳性）────────────────────────────
+def _decide_xa_database(rows: list) -> Optional[str]:
+    """分布式实例存在 xa 系统库（跨 SET 全局自增 + 跨分片 2PC 协调）。
+
+    实测（2026-07-29）：
+      CENT: 7 库，无 xa
+      DIST: 8 库，含 xa（内含 auto_inc_table / gtid_log_t）
+      两侧 6 个系统库完全一致，差异有且仅有 xa。
+
+    【只判阳性，且这条尤其重要】
+    SHOW DATABASES 只返回当前账号【有权限看到】的库。权限更窄的账号在
+    真正的分布式实例上也可能看不到 xa。若反推"无 xa → 集中式"，等于让
+    账号权限决定审核口径 —— 换个账号 27 条规则就静默关了。
+    """
+    for r in rows or []:
+        if isinstance(r, dict):
+            vals = [str(v).strip().lower() for v in r.values()]
+        else:
+            vals = [str(r).strip().lower()]
+        if "xa" in vals:
+            return "distributed"
+    return None
+
+
 ACTIVE_PROBE_RULES: list[ProbeRule] = [
     ProbeRule(
         rule_id="PR001",
@@ -762,6 +791,14 @@ ACTIVE_PROBE_RULES: list[ProbeRule] = [
         sql="EXPLAIN SELECT 1",
         decide=_decide_explain_info,
         evidence="2026-07-29 实测，REPORT-v1.5.1 §1 判据2（仅阳性方向）",
+    ),
+    ProbeRule(
+        rule_id="PR004",
+        sql="SHOW DATABASES",
+        decide=_decide_xa_database,
+        evidence=("2026-07-29 实测 T06，raw_probe_out_{CENT,DIST}.txt；"
+                  "xa 库归属经 SHOW TABLES FROM xa 专项确认"
+                  "（auto_inc_table / gtid_log_t，均为分布式协调设施）"),
     ),
     ProbeRule(
         rule_id="PR003",
@@ -1451,6 +1488,7 @@ G 提出 3 项候选判据。**逐条对照 §8.4 三项标准**：
 | **PR001** T01 `/*proxy*/show status` 内容 | ✅ | ✅ | ⚠️ G 的写法违反 | **采纳（重写后）· 主判据** |
 | **PR002** T10 `EXPLAIN` 的 `info` 列 | ✅ | ✅ | ❌ G 的写法违反 | **采纳（仅阳性方向）· 辅助** |
 | **PR003** T11 `SHOW CREATE TABLE` 的 `shardkey=` | ✅ | ✅ | ❌ G 的写法未涉及 | **采纳（仅阳性方向）· 可选兜底** |
+| **PR004** T06 `xa` 系统库存在性 | ✅ | ✅ | — | **采纳（仅阳性方向）· 辅助**<br>G 首版评为"弱（业务库差异）"，经补充确认后改判 |
 
 **G 提出的代码实现不予采纳。** 原因见 §8.3。
 
@@ -1508,26 +1546,38 @@ G 在报告 §4 给出的 `probe_instance_type()` 实现有**两处会重演本�
 
 #### PR001 — `/*proxy*/show status` 拓扑签名（主判据）
 
-**实测原文**
+**实测原文**（`docs/raw_probe_out_{CENT,DIST}.txt` T01 段，**全量**）
 
 ```
 CENT (:15002)  —— 共 2 行
-  {"status_name": "set",                "value": "set_1782130875_4"}
-  {"status_name": "set_1782130875_4",   "value": "10.206.0.4:4002;s1@10.206.0.8:4002@100@IDC3@0"}
+  {"status_name": "set",              "value": "set_1782130875_4"}
+  {"status_name": "set_1782130875_4", "value": "10.206.0.4:4002;s1@10.206.0.8:4002@100@IDC3@0"}
 
-DIST (:15005)  —— 共 8 行（G 报告列出其中 4 行）
-  {"status_name": "cluster",                       "value": "group_1782132247_10"}
-  {"status_name": "set_1782132369_1:hash_range",   "value": "0---7"}
-  {"status_name": "set_1782132389_3:hash_range",   "value": "8---15"}
-  {"status_name": "set",                           "value": "set_1782132369_1,set_1782132389_3 "}
+DIST (:15005)  —— 共 8 行
+  {"status_name": "cluster",                     "value": "group_1782132247_10"}
+  {"status_name": "set_1782132369_1:ip",         "value": "10.206.0.8:4003;"}
+  {"status_name": "set_1782132369_1:alias",      "value": "s1"}
+  {"status_name": "set_1782132369_1:hash_range", "value": "0---7"}
+  {"status_name": "set_1782132389_3:ip",         "value": "10.206.0.13:4002;"}
+  {"status_name": "set_1782132389_3:alias",      "value": "s2"}
+  {"status_name": "set_1782132389_3:hash_range", "value": "8---15"}
+  {"status_name": "set",  "value": "set_1782132369_1,set_1782132389_3 "}
 ```
+
+> **补全 8 行后发现的结构性规律**（G 的首版报告只列了 4 行，未指出此点）：
+>
+> **DIST 用「命名空间」式键名 `<set_id>:<属性>`（`:ip` / `:alias` / `:hash_range`）；CENT 用裸键名 `<set_id>`，键名中不含冒号。**
+>
+> 这比"是否有 `hash_range`"更本质。据此把签名 2 从"含 `:hash_range`"**泛化为"键名含 `:`"**——更灵敏（`:ip` / `:alias` 单独出现也能命中），且误判方向安全（万一某版本集中式出现冒号键名，只会多判成分布式 = 多报，可见可纠）。
+>
+> **另一处交叉核验**：`:ip` 行的值与赤兔 DB监控截图完全吻合——`set_1782132369_1` → `10.206.0.8:4003`、`set_1782132389_3` → `10.206.0.13:4002`。**至此 8 行全部与管控面对上。**
 
 **判定逻辑**
 
 | 优先级 | 签名 | 结论 |
 |---|---|---|
 | 1 | 存在 `status_name == "cluster"` 的行 | **distributed** |
-| 2 | 任一 `status_name` 含 `":hash_range"` | **distributed** |
+| 2 | 任一 `status_name` **含 `":"`**（观测形态：`:ip` / `:alias` / `:hash_range`） | **distributed** |
 | 3 | `set` 行 value 按逗号切分后 **≥ 2 个非空 SET** | **distributed** |
 | 4 | `set` 行 value 恰好 **1 个非空 SET**，且无上述 1/2/3 | **centralized** |
 | 5 | 其余一切情况（无 `set` 行、value 为空、语句失败） | **无结论** |
@@ -1555,6 +1605,41 @@ DIST: {..., Extra: "No tables used",
 
 **严禁**由"无 `info`"推出集中式（§8.3 问题 3）。
 
+#### PR004 — `xa` 系统库存在性（辅助，仅阳性）
+
+**实测原文**（T06 `show databases`）
+
+```
+CENT (:15002) —— 7 个库
+  information_schema, mysql, performance_schema, query_rewrite,
+  sys, sysdb, tdsql_check2                        ← 无 xa
+
+DIST (:15005) —— 8 个库
+  information_schema, mysql, performance_schema, query_rewrite,
+  sys, sysdb, tdsql_check, xa                     ← 多出 xa
+```
+
+**`xa` 的归属已由 G 专项确认**（复测 `SHOW TABLES FROM xa`）：
+
+| 表 | 用途 |
+|---|---|
+| `auto_inc_table` | Proxy 跨 SET 维护**全局自增序列** |
+| `gtid_log_t` | Proxy 协调**跨分片 2PC 事务**与 GTID 跟踪 |
+
+**两者都是分布式架构独有的协调设施。** 集中式单 SET 实例不存在 2PC 协调器与跨分片自增，故无此库。
+
+> **本人独立核验**：两侧 6 个系统库（`information_schema` / `mysql` / `performance_schema` / `query_rewrite` / `sys` / `sysdb`）**完全一致**，业务库仅名称不同（`tdsql_check2` vs `tdsql_check`）。**差异有且仅有 `xa` 一项**，排除了"业务库差异"的解释——G 首版报告把它归为"弱（业务库差异）"是误判，本次已由其自行修正。
+
+**判定逻辑**：库列表含 `xa` → **distributed**；**其余一切情况 → 无结论**。
+
+> ### ⚠️ 为什么绝对不能反推"无 `xa` → 集中式"
+>
+> **`SHOW DATABASES` 只返回当前账号有权限看到的库。** 一个权限更窄的审核账号在**真正的分布式实例**上也可能看不到 `xa`。
+>
+> 若把"没看到 `xa`"当成集中式，等于**让账号权限决定审核口径**——换个账号，27 条规则就静默关了。这是本判据最危险的误用方式，比 PR002 的情形更隐蔽（PR002 至少不受权限影响）。
+>
+> **本项与 PR001 的 `centralized` 分支有本质区别**：PR001 命中的是"单 SET 拓扑"这一**结构性正面签名**（`show status` 由 Proxy 生成，不受账号权限裁剪）；而 `xa` 的缺席可能只是**看不见**，不是**不存在**。
+
 #### PR003 — 表 DDL 分片标记（可选兜底，仅阳性）
 
 **实测原文**
@@ -1576,25 +1661,51 @@ DIST: ... ENGINE=InnoDB AUTO_INCREMENT=25600001 DEFAULT CHARSET=utf8mb4
 | T02 `show connectionpool` · T03 `show shard` · T04 `show sets` | 两侧均 `Command is not supported` | **不采纳**，本版本 Proxy 不支持 |
 | T05 `show variables` | 两侧 199 项完全一致 | **不采纳** |
 | T07 / T08 information_schema | 两侧完全一致 | **不采纳**（与后端节点结论一致） |
-| **T06 `show databases`** | G 评为"弱（业务库差异）" | ⚠️ **不同意此评价，列为待确认** |
+| **T06 `show databases`** | 首版评为"弱（业务库差异）"，补充确认后改判 | ✅ **采纳为 PR004**（见 §8.5） |
 
-**关于 T06**：G 记录 DIST 比 CENT 多出 **`xa`** 库，并归因为"业务库差异"。
+**关于 T06（已闭环）**：G 首版把 DIST 多出的 **`xa`** 库归因为"业务库差异"，本人不同意并要求补充确认。**补充确认结果支持改判**：
 
-> **`xa` 不是业务库。** XA 是分布式事务协议，`xa` 极可能是 TDSQL 为**跨分片分布式事务**准备的系统库——而这正是分布式实例独有的能力（赤兔实例详情页对分布式实例显示 `分布式事务(xa_support): 开启分布式事务(1)`，集中式实例详情页无此项）。
->
-> 若属实，"存在 `xa` 库"是一条**结构性阳性判据**，成本极低（一条 `show databases`）。
->
-> **待确认**：需要 G 补充确认 `xa` 库的归属（是 TDSQL 系统库还是业务自建）。**确认前不入表**——这正是 §8.4 标准 1 的要求，不接受"看起来应该是"。
+- `SHOW TABLES FROM xa` → `auto_inc_table`（跨 SET 全局自增）、`gtid_log_t`（跨分片 2PC / GTID），**均为分布式架构独有的协调设施**；
+- 本人独立核验两侧库列表：**6 个系统库完全一致，业务库仅名称不同，差异有且仅有 `xa`**，排除"业务库差异"解释。
 
-### 8.7 需要 G 补充的材料
+**已采纳为 PR004（仅阳性方向）。**
 
-| # | 材料 | 原因 |
+> **这一条值得记下**：如果当初接受了"弱（业务库差异）"这个归纳而不去看原始清单，就会漏掉一条成本极低（一条 `show databases`）的有效判据。**归纳会丢信息，原始数据不会——这也是坚持要原文而非概括的价值所在。**
+
+### 8.7 G 补充材料（✅ 已于 2026-07-29 全部收到并核验）
+
+| # | 材料 | 落地位置 | 核验结果 |
+|---|---|---|---|
+| 1 | 原始输出文件 | `docs/raw_probe_out_CENT.txt`<br>`docs/raw_probe_out_DIST.txt` | ✅ 已入库，各判据 `evidence` 已引用 |
+| 2 | DIST 的 T01 完整 8 行 | 同上 T01 段 | ✅ 已补全，**并由此发现新规律**（见 §8.5 PR001） |
+| 3 | `xa` 库归属确认 | 报告 §2 专项分析 | ✅ 已确认，**采纳为 PR004** |
+
+#### 本人对补充材料的独立核验
+
+**（1）逐用例系统性 diff**（不依赖 G 的归纳，自行比对两个原始文件的全部 12 个用例）：
+
+| 结果 | 用例 |
+|---|---|
+| **有差异** | T00（会话上下文，预期）· **T01** · **T06** · **T10** · **T11** |
+| **逐字节相同** | T02 · T03 · T04 · T05 · T07 · T08 · T09 |
+
+**与 G 的结论一致，无遗漏项。**
+
+**（2）T01 全 8 行与赤兔管控台交叉核验**——补全的 4 行同样对得上：
+
+| 项 | 赤兔 DB监控（用户独立提供） | T01 原文 |
 |---|---|---|
-| 1 | **`out_CENT.txt` / `out_DIST.txt` 原始文件提交入库** | 报告称已存于 `scratch/`，但**未随提交入库**，本人无法核验。§8.5 各判据的 `evidence` 字段需引用原文出处 |
-| 2 | **DIST 的 T01 完整 8 行**（报告只列出 4 行） | 未列出的 4 行可能含额外签名；且 PR001 的边界处理需要看全 |
-| 3 | `xa` 库归属确认（见 §8.6） | 决定是否新增 PR004 |
+| `set_1782132369_1` 主机 | 【主】`10.206.0.8:4003` | `set_1782132369_1:ip` = `10.206.0.8:4003;` |
+| `set_1782132389_3` 主机 | 【主】`10.206.0.13:4002` | `set_1782132389_3:ip` = `10.206.0.13:4002;` |
 
-> 材料 1、2 **不阻塞 Q 开工**——PR001/PR002/PR003 的判定逻辑已由现有数据充分支撑，且经赤兔交叉核验。补充材料用于完善 `evidence` 与边界处理，可与开发并行。
+**8 行全部与管控面吻合。**
+
+**（3）补全数据带来的两项设计改进**（G 未指出）：
+
+- **PR001 签名 2 泛化**：DIST 用 `<set_id>:<属性>` 命名空间式键名，CENT 用裸键名——判据由"含 `:hash_range`"改为"键名含 `:`"，更灵敏且误判方向安全；
+- **新增 PR004**：`xa` 库判据（G 首版归为"弱"，补充确认后改判采纳）。
+
+**（4）一处顺带确认**：CENT 的表 DDL 中也出现 `AUTO_INCREMENT=55647`，**说明 `AUTO_INCREMENT` 不具鉴别力**。PR003 只匹配 `shardkey=`（不匹配 `AUTO_INCREMENT`）是正确的。
 
 ---
 
@@ -1622,13 +1733,23 @@ FAKE_STATUS_CENT = [
     {"status_name": "set_1782130875_4",
      "value": "10.206.0.4:4002;s1@10.206.0.8:4002@100@IDC3@0"},
 ]
-FAKE_STATUS_DIST = [
+FAKE_STATUS_DIST = [                      # 全 8 行，实测原样
     {"status_name": "cluster", "value": "group_1782132247_10"},
+    {"status_name": "set_1782132369_1:ip", "value": "10.206.0.8:4003;"},
+    {"status_name": "set_1782132369_1:alias", "value": "s1"},
     {"status_name": "set_1782132369_1:hash_range", "value": "0---7"},
+    {"status_name": "set_1782132389_3:ip", "value": "10.206.0.13:4002;"},
+    {"status_name": "set_1782132389_3:alias", "value": "s2"},
     {"status_name": "set_1782132389_3:hash_range", "value": "8---15"},
     # 注意末尾空格 —— 实测原样，用于验证 strip 处理
     {"status_name": "set", "value": "set_1782132369_1,set_1782132389_3 "},
 ]
+FAKE_DATABASES_CENT = [{"Database": d} for d in (
+    "information_schema", "mysql", "performance_schema",
+    "query_rewrite", "sys", "sysdb", "tdsql_check2")]
+FAKE_DATABASES_DIST = [{"Database": d} for d in (
+    "information_schema", "mysql", "performance_schema",
+    "query_rewrite", "sys", "sysdb", "tdsql_check", "xa")]
 
 
 def test_probe_must_not_be_a_constant_function():
@@ -1731,8 +1852,13 @@ def test_pr001_signature_priority():
     from backend.services.instance_probe_rules import _decide_proxy_status as d
     # 签名 1：cluster 行
     assert d([{"status_name": "cluster", "value": "group_x"}]) == "distributed"
-    # 签名 2：hash_range 行（即使没有 cluster 行）
+    # 签名 2：键名含冒号（即使没有 cluster 行）—— 三种实测形态都要覆盖
     assert d([{"status_name": "set_a:hash_range", "value": "0---7"}]) == "distributed"
+    assert d([{"status_name": "set_a:ip", "value": "10.0.0.1:4003;"}]) == "distributed"
+    assert d([{"status_name": "set_a:alias", "value": "s1"}]) == "distributed"
+    # 反例：CENT 的裸键名不含冒号，不得命中签名 2
+    #（值里的 10.206.0.4:4002 有冒号，但判据只看键名）
+    assert d(FAKE_STATUS_CENT) == "centralized"
     # 签名 3：多 SET
     assert d([{"status_name": "set", "value": "set_a,set_b"}]) == "distributed"
     # 签名 4：单 SET → 集中式正面签名
@@ -1766,6 +1892,24 @@ def test_pr002_only_positive():
                "info": "set_1782132369_1,EXPLAIN SELECT 1"}]) == "distributed"
     assert d([{"id": 1, "Extra": "No tables used"}]) is None    # 不是 "centralized"
     assert d([]) is None
+
+
+def test_pr004_only_positive():
+    """PR004 只判阳性：有 xa → 分布式；无 xa → 无结论（绝不是集中式）。
+
+    SHOW DATABASES 只返回账号有权限看到的库。若反推"无 xa → 集中式"，
+    等于让账号权限决定审核口径 —— 换个窄权限账号，27 条规则就静默关了。
+    """
+    from backend.services.instance_probe_rules import _decide_xa_database as d
+    assert d(FAKE_DATABASES_DIST) == "distributed"
+    assert d(FAKE_DATABASES_CENT) is None          # 不是 "centralized"
+    assert d([]) is None
+
+
+def test_pr004_reverse_discrimination():
+    """反向鉴别：两侧结论必须不同（§8.4 硬性配套）"""
+    from backend.services.instance_probe_rules import _decide_xa_database as d
+    assert d(FAKE_DATABASES_DIST) != d(FAKE_DATABASES_CENT)
 
 
 def test_pr003_only_positive():
@@ -1869,11 +2013,12 @@ def test_diagnostics_rejects_bad_sample_table(bad):
 - [ ] 前端 F3 多源明细弹窗已实现（不是单句结论）
 
 **C 组 判据表**
-- [ ] `instance_probe_rules.py` 已建，含 **PR001 / PR002 / PR003** 三条判据
+- [ ] `instance_probe_rules.py` 已建，含 **PR001 / PR002 / PR003 / PR004** 四条判据
 - [ ] **PR003 `enabled=False`**（需先选表，默认不参与自动探测）
 - [ ] PR001 的 `value` 做了 **`.strip()` + 过滤空串**（实测原文末尾带空格）
 - [ ] PR001 形态不符（无 `set` 行 / 值为空）返回 **`None`**，不猜
-- [ ] **PR002 / PR003 只判阳性**，`return None` 而非 `"centralized"`
+- [ ] **PR002 / PR003 / PR004 只判阳性**，`return None` 而非 `"centralized"`
+- [ ] PR001 签名 2 判的是**键名含 `:`**（不是仅 `:hash_range`）
 - [ ] 每条判据 `evidence` 写明实测出处（`test_every_rule_has_evidence` 通过）
 - [ ] 反向鉴别用例用**实测原文**做 mock，断言两侧结论**不同**
 - [ ] `collect_probe_diagnostics()` 单条语句失败不影响其余
@@ -1918,7 +2063,7 @@ def test_diagnostics_rejects_bad_sample_table(bad):
 | 判定源 | 交付后状态 |
 |---|---|
 | S0 管理员锁定 | ✅ 可用 |
-| **S1 Proxy 层 SQL 探测** | ✅ **可用，含 2 条已验证判据（PR001/PR002）+ 1 条可选（PR003）** |
+| **S1 Proxy 层 SQL 探测** | ✅ **可用，含 3 条已启用判据（PR001/PR002/PR004）+ 1 条可选（PR003）** |
 | S2 ZK 管控面 | ✅ 可用（需先跑一次「ZK 自动发现」同步形态） |
 | S3 人工声明 | ✅ 可用 |
 | S4 全局默认 | ✅ 可用 |
@@ -1948,7 +2093,7 @@ SIT-集中式实例A（Proxy :15002）
 | 1 | 按 `TEST-v1.5.1-…-G.md` 采集两类实例数据 | G | ✅ 已完成 2026-07-29 |
 | 2 | 按 §8.4 评审候选判据，据实修订 §8.5 | A | ✅ 已完成，本次修订 |
 | 3 | **一次性完成 A/B/C/D 四组开发** | **Q** | ⬜ **可开工** |
-| 4 | 补交原始输出 / 完整 8 行 / `xa` 库确认（§8.7） | G | ⬜ 与开发并行，不阻塞 |
+| 4 | 补交原始输出 / 完整 8 行 / `xa` 库确认（§8.7） | G | ✅ 已完成并核验 2026-07-29 |
 | 5 | 交付后 SIT（重点 H1 / H2 / H2b / H3 / H6b） | G | ⬜ 待 Q 交付 |
 
 > **动作 4 不阻塞动作 3**：PR001/PR002/PR003 的判定逻辑已由现有数据充分支撑并经赤兔交叉核验，补充材料用于完善 `evidence` 与边界处理。
