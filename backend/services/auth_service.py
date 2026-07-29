@@ -334,7 +334,7 @@ _PATH_TO_MENU = {
     "/api/v1/rules": "rules",
     "/api/v1/slow-queries": "slow-tasks",
     "/api/v1/tdsql/slow-queries": "slow-tasks",
-    "/api/v1/tdsql/scan-schedules": "slow-schedule",
+    "/api/v1/tdsql/scan-schedules": "slow-tasks",
     "/api/v1/slow-queries/analyze-explain": "explain",
     "/api/v1/tdsql/connections": "instances",
     "/api/v1/tdsql/discover": "instances",
