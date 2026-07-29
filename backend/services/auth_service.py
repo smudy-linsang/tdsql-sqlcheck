@@ -451,18 +451,14 @@ def check_permission(role: str, method: str, path: str) -> bool:
 
 # 全部菜单key清单
 ALL_MENU_KEYS = [
-    'dashboard', 'audit-sql', 'file-audit', 'schema-extractor-audit', 'rules',
+    'dashboard', 'audit-sql', 'file-audit', 'schema-extractor-audit',
     'slow-tasks', 'slow-records', 'slow-schedule', 'explain',
-    'instances', 'schema-check', 'bigtable', 'deep-diag',
+    'schema-check', 'bigtable', 'deep-diag',
     'deep-diag-cluster', 'deep-diag-daily', 'deep-diag-index', 'deep-diag-diff',
     'deep-diag-emergency', 'deep-diag-sqlstats', 'deep-diag-gateway', 'deep-diag-ppt',
     'deep-diag-toolkit',
-    # V1.4：项目管理/质量门禁菜单隐藏（项目降级为业务标签，门禁并入实例页）。
-    # 注意：仅从菜单键移除，_PATH_TO_MENU 的 /api/v1/projects、/api/v1/gate 映射必须保留，
-    # 否则这两个路径会落入"未映射默认放行"兜底分支，与 v1.3.2 的 R01 整改相悖。
-    'rulesets', 'monitor', 'inspection',
-    'sys-users', 'sys-retention', 'sys-auditlog', 'sys-info',
-    'sys-roles', 'sys-perms',
+    'instances', 'rules', 'rulesets', 'monitor', 'inspection',
+    'sys-users', 'sys-roles', 'sys-perms', 'sys-retention', 'sys-auditlog', 'sys-info',
     'scan-compare',
 ]
 
