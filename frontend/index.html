@@ -326,7 +326,7 @@
                     <template #default>
                       <div>{{ extractedResult.scope_notice }}</div>
                       <div v-if="extractedResult.instance_type_source==='default'" style="font-size:12px;margin-top:4px">口径由系统默认推定，请确认实例类型配置。</div>
-                      <div v-if="extractedResult.instance_type_conflict" style="font-size:12px;margin-top:4px;color:#dc2626">探测与声明不一致，审核按探测结果执行，请核实实例配置。</div>
+                      <div v-if="extractedResult.instance_type_conflict" style="font-size:12px;margin-top:4px;color:#dc2626">各判定源结论不一致，已按保守原则取「{{ (extractedResult.instance_type||'distributed')==='distributed'?'分布式':'集中式' }}」，请点「探测类型」查看多源明细并核实实例配置。</div>
                     </template>
                   </el-alert>
                   <el-row :gutter="16">
