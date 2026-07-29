@@ -1,0 +1,254 @@
+=== COLLECTING FOR [DIST (分布式)] (5ea70d74) ===
+
+===== T00 SELECT VERSION() AS version, DATABASE() AS cur_db, USER() AS cur_user, @@hostname AS hostname, @@port AS port =====
+[SUCCESS] Row count: 1
+{"version": "8.0.33-v24-txsql-22.4.1-20230926", "cur_db": "tdsql_check", "cur_user": "tdsql_check_user@61.178.32.66", "hostname": "VM-0-8-centos", "port": 4003}
+
+===== T01 /*proxy*/show status =====
+[SUCCESS] Row count: 8
+{"status_name": "cluster", "value": "group_1782132247_10"}
+{"status_name": "set_1782132369_1:ip", "value": "10.206.0.8:4003;"}
+{"status_name": "set_1782132369_1:alias", "value": "s1"}
+{"status_name": "set_1782132369_1:hash_range", "value": "0---7"}
+{"status_name": "set_1782132389_3:ip", "value": "10.206.0.13:4002;"}
+{"status_name": "set_1782132389_3:alias", "value": "s2"}
+{"status_name": "set_1782132389_3:hash_range", "value": "8---15"}
+{"status_name": "set", "value": "set_1782132369_1,set_1782132389_3 "}
+
+===== T02 /*proxy*/show connectionpool =====
+[ERROR] InternalError: (694, 'Proxy ERROR: Command is not supported:see /*proxy*/ help')
+
+===== T03 /*proxy*/show shard =====
+[ERROR] InternalError: (694, 'Proxy ERROR: Command is not supported:see /*proxy*/ help')
+
+===== T04 /*proxy*/show sets =====
+[ERROR] InternalError: (694, 'Proxy ERROR: Command is not supported:see /*proxy*/ help')
+
+===== T05 /*proxy*/show variables =====
+[SUCCESS] Row count: 199
+{"Name": "gateway.embedded_db.basic.async_job_queue_limit", "default": "1000", "desc": "the max number of async_job queue, drop table immediately if more than this", "mtr": "1", "range": "0 <= && <= 2147483647", "value": "1000"}
+{"Name": "gateway.embedded_db.basic.max_table_num", "default": "8000", "desc": "the max table number of embedded_db cache, drop table immediately if more than this", "mtr": "1", "range": "0 <= && <= 2147483647", "value": "8000"}
+{"Name": "gateway.embedded_db.basic.server_id", "default": "0", "desc": "embedded_db server_id", "mtr": "1", "range": "0 <= && <= 2147483647", "value": "0"}
+{"Name": "gateway.embedded_db.basic.storage_engine", "default": "0", "desc": "select the storage engine type for the embedded db, 0: engine=MyISAM, 1: engine=InnoDB", "mtr": "1", "range": "0,1", "value": "0"}
+{"Name": "gateway.embedded_db.basic.table_cache_size", "default": "64", "desc": "the max size(Kb) of per table cache, drop table if more than this", "mtr": "1", "range": "0 <= && <= 2147483647", "value": "1024"}
+{"Name": "gateway.embedded_db.basic.table_num", "default": "5000", "desc": "the cache table number of embedded_db, clean table if more than this", "mtr": "1", "range": "0 <= && <= 2147483647", "value": "5000"}
+{"Name": "gateway.flowcontrol.threshold.cpu", "default": "26", "desc": "The CPU threshold for enabling flowcontrol on set.", "mtr": "0", "range": "0 <= && <= 900", "value": "26"}
+{"Name": "gateway.flowcontrol.threshold.io", "default": "31", "desc": "The IO threshold for enabling flowcontrol on set.", "mtr": "0", "range": "0 <= && <= 600", "value": "31"}
+{"Name": "gateway.ha.basic.disconnect_stale_master", "default": "1", "desc": "Whether to disconnect stale master when set switches master", "mtr": "0", "range": "0 <= && <= 1", "value": "1"}
+{"Name": "gateway.ha.basic.get_shm_interval", "default": "1000", "desc": "the interval proxy get meta data from shm, unit : ms", "mtr": "0", "range": "0 <= && <= 2147483647", "value": "1000"}
+{"Name": "gateway.ha.basic.setrun_update_interval", "default": "1000", "desc": "the interval router refused to change shm, unit : ms", "mtr": "0", "range": "0 <= && <= 2147483647", "value": "1000"}
+{"Name": "gateway.join.basic.async_join_trigger", "default": "10000", "desc": "When product of the loaded table's rows exceeds the threshold, executed join in the background", "mtr": "1", "range": "1 <= && <= 2147483647", "value": "10000"}
+{"Name": "gateway.join.basic.curdate_disable_interval", "default": "60", "desc": "if enable_optimize_curdate==1, disable optimize when proxy's time in 00:00:00 +- interval second,max value is 24*60*60 seconds", "mtr": "1", "range": "0 <= && <= 86400", "value": "60"}
+{"Name": "gateway.join.basic.db_sync_embedded_val", "default": "", "desc": "The mysql variable sync to embedded mysql.", "mtr": "0", "range": "", "value": ""}
+{"Name": "gateway.join.basic.derived_merge", "default": "1", "desc": "Enable derived table pullup optimization", "mtr": "1", "range": "0,1", "value": "1"}
+{"Name": "gateway.join.basic.enable_column_cutoff", "default": "0", "desc": "Do not pulling columns not involved in SQL", "mtr": "1", "range": "0,1", "value": "0"}
+{"Name": "gateway.join.basic.enable_cs_introducer", "default": "0", "desc": "Add charset introdcer to the strings in pulling sql", "mtr": "1", "range": "0,1", "value": "0"}
+{"Name": "gateway.join.basic.enable_fast_filling", "default": "1", "desc": "Fill proxy's temporary table using fast api", "mtr": "1", "range": "0,1", "value": "1"}
+{"Name": "gateway.join.basic.enable_lock", "default": "0", "desc": "When executing complex sql with ‘for update’ statement that cannot be pushed down, whether to hold the lock when loading data", "mtr": "1", "range": "0,1", "value": "0"}
+{"Name": "gateway.join.basic.enable_materialize_subquery", "default": "0", "desc": "Enable subquery materialization optimization to reduce the amount of data loaded", "mtr": "1", "range": "0,1", "value": "0"}
+{"Name": "gateway.join.basic.enable_metacache", "default": "1", "desc": "Cache tables'meta for complex sql execution", "mtr": "1", "range": "0,1", "value": "1"}
+{"Name": "gateway.join.basic.enable_optimize_curdate", "default": "1", "desc": "subpartition with curdate function, can cutoff subpartition by get curdate value.0 is disable, 1 is enable but need to consider proxy's time same with db,2 is enable and do not consider same time with db", "mtr": "1", "range": "0,1,2", "value": "1"}
+{"Name": "gateway.join.basic.enable_optimize_date_func", "default": "1", "desc": "subpartition with some date function, can cutoff subpartition by str_to_date,makedate,from_days,date,adddate,subdate,date_add,date_sub0 is disable, 1 is enable", "mtr": "1", "range": "0,1", "value": "1"}
+{"Name": "gateway.join.basic.enable_optimize_using_global_index", "default": "1", "desc": "Enable optimization that try to use global index to pushdown join", "mtr": "1", "range": "0,1", "value": "1"}
+{"Name": "gateway.join.basic.enable_subpartition_join_optimize", "default": "0", "desc": "optimize subpartition join not subpartition table ", "mtr": "1", "range": "0,1", "value": "0"}
+{"Name": "gateway.join.basic.max_disk_size", "default": "1024", "desc": "The maximum space occupied by all proxy's temporary tables on the disk(GB)", "mtr": "0", "range": "0 <= && <= 2147483647", "value": "1024"}
+{"Name": "gateway.join.basic.max_pushdown_index_values", "default": "16", "desc": "The maximum number of values in pushdown condition 'index_column in (....)' when pulling data", "mtr": "1", "range": "0 <= && <= 2147483647", "value": "16"}
+{"Name": "gateway.join.basic.max_records_per_table", "default": "0", "desc": "Max number of records for proxy's temparory table", "mtr": "1", "range": "0 <= && <= 2147483647", "value": "0"}
+{"Name": "gateway.join.basic.max_table_size", "default": "1024", "desc": "The maximum space occupied by one proxy's temporary table on the disk(GB)", "mtr": "0", "range": "0 <= && <= 2147483647", "value": "1024"}
+{"Name": "gateway.join.basic.merge_limit_sql_number", "default": "4000", "desc": "The sql number insert into proxy's temporary table", "mtr": "0", "range": "0 <= && <= 2147483647", "value": "4000"}
+{"Name": "gateway.join.basic.optimize_pushdown_subpartition_orderby_limit", "default": "0", "desc": "optimize sub partition union order by limit", "mtr": "1", "range": "0,1", "value": "0"}
+{"Name": "gateway.join.basic.optimize_range_one_set", "default": "0", "desc": "try push down sql to db if only contains range and noshard allsets table", "mtr": "1", "range": "0,1", "value": "0"}
+{"Name": "gateway.join.basic.optimize_simple_derived_table", "default": "1", "desc": "optimize simple derived table", "mtr": "1", "range": "0,1", "value": "1"}
+{"Name": "gateway.join.basic.optimize_simple_join_equal_cond", "default": "0", "desc": "optimize join equal condition transformation for load data", "mtr": "1", "range": "0,1", "value": "0"}
+{"Name": "gateway.join.basic.optimize_simple_sub_partition", "default": "0", "desc": "optimize simple sub partition condition", "mtr": "1", "range": "0,1", "value": "0"}
+{"Name": "gateway.join.basic.optimize_simplejoin", "default": "1", "desc": "Before executing SQL by pulling data, try pushdown optimization again.", "mtr": "1", "range": "0,1", "value": "1"}
+{"Name": "gateway.join.basic.optimize_simpleunion", "default": "1", "desc": "Before executing SQL by pulling data, try pushdown union optimization again.", "mtr": "1", "range": "0,1", "value": "1"}
+{"Name": "gateway.join.basic.optimize_sub_partition_cond", "default": "0", "desc": "optimize sub partition sum where condition", "mtr": "1", "range": "0,1", "value": "0"}
+{"Name": "gateway.join.basic.optimize_sub_partition_count", "default": "0", "desc": "optimize sub partition count union all", "mtr": "1", "range": "0,1", "value": "0"}
+{"Name": "gateway.join.basic.pushdown_limit_to_simple_derivedtable", "default": "1", "desc": "pushdown limit to simple derived table", "mtr": "1", "range": "0,1", "value": "1"}
+{"Name": "gateway.join.basic.simplejoin_max_varchar_size", "default": "256", "desc": "When simplejoin temporary table column size exceeds the threshold(byte), change column type from varchar to text", "mtr": "1", "range": "1 <= && <= 65535", "value": "256"}
+{"Name": "gateway.join.basic.strict_consistency", "default": "1", "desc": "Execute join in one transaction", "mtr": "1", "range": "0,1", "value": "1"}
+{"Name": "gateway.join.basic.writeio_limit", "default": "0", "desc": "The max write bytes per second to proxy's temporary table", "mtr": "0", "range": "0 <= && <= 2147483647", "value": "0"}
+{"Name": "gateway.log.clean.interval", "default": "3", "desc": "Clean log interval, unit second", "mtr": "0", "range": "0 <= && <= 2147483647", "value": "3"}
+{"Name": "gateway.log.clean.multiple", "default": "2", "desc": "If the audit log function is abnormal, the size/time of the log should be multiple", "mtr": "0", "range": "0 <= && <= 2147483647", "value": "2"}
+{"Name": "gateway.log.clean.size", "default": "10", "desc": "If the total log size exceeds this threshold(GB), rm the oldest log file", "mtr": "0", "range": "0 <= && <= 2147483647", "value": "10"}
+{"Name": "gateway.log.clean.speed", "default": "32", "desc": "Delete log speed, unit M", "mtr": "0", "range": "1 <= && <= 2147483647", "value": "32"}
+{"Name": "gateway.log.clean.thresh", "default": "15", "desc": "If the total log size exceeds this threshold(GB), speed up log deletion", "mtr": "0", "range": "0 <= && <= 2147483647", "value": "15"}
+{"Name": "gateway.log.clean.time", "default": "14", "desc": "rm log file older than the current time(day)", "mtr": "0", "range": "0 <= && <= 2147483647", "value": "14"}
+{"Name": "gateway.log.clean.timeout", "default": "600", "desc": "The threshold for judging the write time of the audit log function, unit second", "mtr": "0", "range": "0 <= && <= 2147483647", "value": "600"}
+{"Name": "gateway.log.dbfw.log_level", "default": "1", "desc": "The database firewall log level", "mtr": "0", "range": "0,1,2,3,4", "value": "1"}
+{"Name": "gateway.log.interface.extra", "default": "0", "desc": "Record the SQL that sent to DB into the interface log", "mtr": "0", "range": "0,1", "value": "0"}
+{"Name": "gateway.log.interface.openflag", "default": "1", "desc": "The interface log open flag", "mtr": "0", "range": "0,1", "value": "1"}
+{"Name": "gateway.log.interface.sql_size", "default": "2048", "desc": "Maximum length of record sql, default 2048, min 1024, max INT MAX", "mtr": "0", "range": "1024 <= && <= 2147483647", "value": "2048"}
+{"Name": "gateway.log.interface.time", "default": "0", "desc": "The SQL execution time threshold(ms) that record execution trace into the interface log", "mtr": "0", "range": "0 <= && <= 2147483647", "value": "0"}
+{"Name": "gateway.log.interface.timeflag", "default": "0", "desc": "Whether execution trace which recorded in the interface log is enabled", "mtr": "0", "range": "0,1", "value": "0"}
+{"Name": "gateway.log.slow_sql.long_query_time", "default": "1000", "desc": "The threshold of execution time(ms) for slow queries.", "mtr": "0", "range": "0 <= && <= 2147483647", "value": "1000"}
+{"Name": "gateway.log.slow_sql.openflag", "default": "1", "desc": "The slow sql open flag", "mtr": "0", "range": "0,1", "value": "1"}
+{"Name": "gateway.log.slow_sql.report", "default": "1", "desc": "Control whether report slow log", "mtr": "0", "range": "0,1", "value": "1"}
+{"Name": "gateway.log.slow_sql.report_interval", "default": "5", "desc": "report slow log time interval", "mtr": "0", "range": "1 <= && <= 2147483647", "value": "5"}
+{"Name": "gateway.log.slow_sql.report_retry_time", "default": "3", "desc": "report slow log error max time", "mtr": "0", "range": "3 <= && <= 2147483647", "value": "3"}
+{"Name": "gateway.log.sql.offset", "default": "0", "desc": "The starting offset of SQL recorded in the SQL log, which is used to skip the query type in the header", "mtr": "0", "range": "0 <= && <= 2147483647", "value": "0"}
+{"Name": "gateway.log.sql.openflag", "default": "1", "desc": "The sql log open flag", "mtr": "0", "range": "0,1", "value": "1"}
+{"Name": "gateway.log.system.log_level", "default": "2", "desc": "The system log level", "mtr": "0", "range": "0,1,2,3,4", "value": "2"}
+{"Name": "gateway.mode.cache.size", "default": "10", "desc": "Max number of memory blocks for connection cache", "mtr": "1", "range": "0 <= && <= 2147483647", "value": "10"}
+{"Name": "gateway.mode.compatible.strict_consistent_collation", "default": "0", "desc": "Report error if the collation used by 'order/group by' on different set is inconsistent", "mtr": "1", "range": "0,1", "value": "0"}
+{"Name": "gateway.mode.compatible.update_limit", "default": "0", "desc": "Enable pushdown of 'update/delete ... limit' on one table to be compatible with the old version.", "mtr": "1", "range": "0,1", "value": "0"}
+{"Name": "gateway.mode.ddl.ddl_client_timeout_s", "default": "10", "desc": "query mysql timeout, unit second", "mtr": "0", "range": "0 <= && <= 2147483647", "value": "10"}
+{"Name": "gateway.mode.ddl.ddl_heart_beat_s", "default": "3", "desc": "heart beat interval, unit s", "mtr": "0", "range": "1 <= && <= 2147483647", "value": "3"}
+{"Name": "gateway.mode.ddl.ddl_job_switch", "default": "1", "desc": "open ddl job, 1: job 0: send to db", "mtr": "1", "range": "0,1", "value": "1"}
+{"Name": "gateway.mode.ddl.ddl_repeat_interval_ms", "default": "1000", "desc": "when ddl failed, retry repeat interval, unit ms", "mtr": "0", "range": "0 <= && <= 2147483647", "value": "1000"}
+{"Name": "gateway.mode.ddl.ddl_retry_repeat_number", "default": "60", "desc": "when ddl failed, retry repeat number", "mtr": "0", "range": "1 <= && <= 2147483647", "value": "60"}
+{"Name": "gateway.mode.ddl.ddl_support_broadcast", "default": "0", "desc": "ddl support broadcast, broad all proxies to flush route and metacache. 0:close, 1:async, 2:sync", "mtr": "0", "range": "0,1,2", "value": "0"}
+{"Name": "gateway.mode.ddl.ddl_support_rollback", "default": "1", "desc": "ddl support rollback, this only rollback create table ddl", "mtr": "0", "range": "0,1", "value": "1"}
+{"Name": "gateway.mode.ddl.ddl_task_clean_time", "default": "0", "desc": "ddl job clean time, clean finished ddl task older than the current time(day)", "mtr": "0", "range": "0 <= && <= 2147483647", "value": "0"}
+{"Name": "gateway.mode.ddl.ddl_task_over_s", "default": "60", "desc": "task over job time, unit s", "mtr": "0", "range": "1 <= && <= 2147483647", "value": "60"}
+{"Name": "gateway.mode.ddl.delay", "default": "100", "desc": "The time(ms) of delay return client after ddl query", "mtr": "1", "range": "0 <= && <= 2147483647", "value": "100"}
+{"Name": "gateway.mode.ddl.meta_data_from_zookeeper_no_table_exists", "default": "1", "desc": "Enable get route data from zookeeper", "mtr": "1", "range": "0,1", "value": "1"}
+{"Name": "gateway.mode.ddl.scan_ddl_interval_ms", "default": "1000", "desc": "scan ddl job interval, unit ms", "mtr": "0", "range": "100 <= && <= 2147483647", "value": "1000"}
+{"Name": "gateway.mode.epoll.event_threshold", "default": "100000", "desc": "The threshold of execution time(us) for epoll event logging.", "mtr": "1", "range": "0 <= && <= 2147483647", "value": "100000"}
+{"Name": "gateway.mode.epoll.reduce_event", "default": "0", "desc": "Control whether to optimize epoll events. 0:close, 1: open", "mtr": "1", "range": "0,1", "value": "0"}
+{"Name": "gateway.mode.error.ignore_unexpected_error", "default": "0", "desc": "When simple statements such as begin/set names report an error, whether to disconnect the client directly", "mtr": "1", "range": "0,1", "value": "0"}
+{"Name": "gateway.mode.global_index.enable_optimistic_commit", "default": "1", "desc": "Enable optimistic commit for dml statements of unique index", "mtr": "1", "range": "0,1", "value": "1"}
+{"Name": "gateway.mode.global_index.enable_optimistic_dml", "default": "1", "desc": "Enable optimistic dml using unique index", "mtr": "1", "range": "0,1", "value": "1"}
+{"Name": "gateway.mode.global_index.enable_select", "default": "1", "desc": "optimize select by global index", "mtr": "1", "range": "0,1", "value": "1"}
+{"Name": "gateway.mode.global_index.max_modified_rows", "default": "10000", "desc": "Max allowed modified rows of global index table", "mtr": "1", "range": "0 <= && <= 2147483647", "value": "10000"}
+{"Name": "gateway.mode.groupshard.partition_key_part_unique_key", "default": "0", "desc": "the sub range/list/global range table key must be part of unique key.", "mtr": "1", "range": "0,1", "value": "0"}
+{"Name": "gateway.mode.groupshard.ping_delay_interval", "default": "500", "desc": "The interval is ping_delay_interval and detection is ping_delay_number times, each time is greater than the ping_delay_timeout timeout, then disconnect the connect, default 500ms", "mtr": "0", "range": "0 <= && <= 2147483647", "value": "500"}
+{"Name": "gateway.mode.groupshard.ping_delay_number", "default": "3", "desc": "The interval is ping_delay_interval and detection is ping_delay_number times, each time is greater than the ping_delay_timeout timeout, then disconnect the connect, default 3", "mtr": "0", "range": "1 <= && <= 2147483647", "value": "3"}
+{"Name": "gateway.mode.groupshard.ping_delay_timeout", "default": "0", "desc": "The interval is ping_delay_interval and detection is ping_delay_number times, each time is greater than the ping_delay_timeout timeout, then disconnect the connect, default is 0, close this feature", "mtr": "0", "range": "0 <= && <= 2147483647", "value": "0"}
+{"Name": "gateway.mode.groupshard.reject_flush_table", "default": "0", "desc": "Reject to FLUSH TABLE in groupshard", "mtr": "1", "range": "0,1", "value": "0"}
+{"Name": "gateway.mode.groupshard.reject_risky_sql", "default": "0", "desc": "Reject risky SQL in groupshard", "mtr": "1", "range": "0,1", "value": "0"}
+{"Name": "gateway.mode.groupshard.strict", "default": "0", "desc": "Disable the proxy's restrictions on SQL push down and transactions", "mtr": "1", "range": "0,1,2", "value": "0"}
+{"Name": "gateway.mode.jemalloc.profiling", "default": "0", "desc": "Enable jemalloc profiling commands", "mtr": "1", "range": "0,1", "value": "0"}
+{"Name": "gateway.mode.multi_query.open", "default": "1", "desc": "Enable multi statements feature", "mtr": "1", "range": "0,1", "value": "1"}
+{"Name": "gateway.mode.online_ddl.open", "default": "0", "desc": "Enable online ddl, not supported yet", "mtr": "1", "range": "0,1", "value": "0"}
+{"Name": "gateway.mode.optimize.dirent_send", "default": "0", "desc": "shard table access single backend db, dirent send not combine on proxy", "mtr": "1", "range": "0,1", "value": "0"}
+{"Name": "gateway.mode.optimize.distinct_to_group_by", "default": "0", "desc": "use group by optimize distinct sql", "mtr": "1", "range": "0,1", "value": "0"}
+{"Name": "gateway.mode.optimize.force_index_optimize", "default": "1", "desc": "use force index(PRIMARY) optimize index failure in multi condition sql", "mtr": "1", "range": "0,1", "value": "1"}
+{"Name": "gateway.mode.optimize.noshard_user_val_pushdown", "default": "0", "desc": "push down sql with only noshard table and user var,if open, should promise preset user val when sql execute", "mtr": "1", "range": "0,1", "value": "0"}
+... (truncated 99 rows)
+
+===== T06 show databases =====
+[SUCCESS] Row count: 8
+{"Database": "information_schema"}
+{"Database": "mysql"}
+{"Database": "performance_schema"}
+{"Database": "query_rewrite"}
+{"Database": "sys"}
+{"Database": "sysdb"}
+{"Database": "tdsql_check"}
+{"Database": "xa"}
+
+===== T07 SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA='information_schema' AND (TABLE_NAME LIKE '%TDSQL%' OR TABLE_NAME LIKE '%SHARD%' OR TABLE_NAME LIKE '%PROXY%' OR TABLE_NAME LIKE '%SET%') ORDER BY TABLE_NAME =====
+[SUCCESS] Row count: 5
+{"TABLE_NAME": "CHARACTER_SETS"}
+{"TABLE_NAME": "COLLATION_CHARACTER_SET_APPLICABILITY"}
+{"TABLE_NAME": "INNODB_CMP_PER_INDEX_RESET"}
+{"TABLE_NAME": "INNODB_CMP_RESET"}
+{"TABLE_NAME": "INNODB_CMPMEM_RESET"}
+
+===== T08 SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA='information_schema' ORDER BY TABLE_NAME =====
+[SUCCESS] Row count: 80
+{"TABLE_NAME": "ADMINISTRABLE_ROLE_AUTHORIZATIONS"}
+{"TABLE_NAME": "APPLICABLE_ROLES"}
+{"TABLE_NAME": "CHARACTER_SETS"}
+{"TABLE_NAME": "CHECK_CONSTRAINTS"}
+{"TABLE_NAME": "COLLATION_CHARACTER_SET_APPLICABILITY"}
+{"TABLE_NAME": "COLLATIONS"}
+{"TABLE_NAME": "COLUMN_PRIVILEGES"}
+{"TABLE_NAME": "COLUMN_STATISTICS"}
+{"TABLE_NAME": "COLUMNS"}
+{"TABLE_NAME": "COLUMNS_EXTENSIONS"}
+{"TABLE_NAME": "ENABLED_ROLES"}
+{"TABLE_NAME": "ENGINES"}
+{"TABLE_NAME": "EVENTS"}
+{"TABLE_NAME": "FILES"}
+{"TABLE_NAME": "INNODB_BUFFER_PAGE"}
+{"TABLE_NAME": "INNODB_BUFFER_PAGE_LRU"}
+{"TABLE_NAME": "INNODB_BUFFER_POOL_STATS"}
+{"TABLE_NAME": "INNODB_CACHED_INDEXES"}
+{"TABLE_NAME": "INNODB_CMP"}
+{"TABLE_NAME": "INNODB_CMP_PER_INDEX"}
+{"TABLE_NAME": "INNODB_CMP_PER_INDEX_RESET"}
+{"TABLE_NAME": "INNODB_CMP_RESET"}
+{"TABLE_NAME": "INNODB_CMPMEM"}
+{"TABLE_NAME": "INNODB_CMPMEM_RESET"}
+{"TABLE_NAME": "INNODB_COLUMNS"}
+{"TABLE_NAME": "INNODB_DATAFILES"}
+{"TABLE_NAME": "INNODB_FIELDS"}
+{"TABLE_NAME": "INNODB_FOREIGN"}
+{"TABLE_NAME": "INNODB_FOREIGN_COLS"}
+{"TABLE_NAME": "INNODB_FT_BEING_DELETED"}
+{"TABLE_NAME": "INNODB_FT_CONFIG"}
+{"TABLE_NAME": "INNODB_FT_DEFAULT_STOPWORD"}
+{"TABLE_NAME": "INNODB_FT_DELETED"}
+{"TABLE_NAME": "INNODB_FT_INDEX_CACHE"}
+{"TABLE_NAME": "INNODB_FT_INDEX_TABLE"}
+{"TABLE_NAME": "INNODB_INDEXES"}
+{"TABLE_NAME": "INNODB_METRICS"}
+{"TABLE_NAME": "INNODB_SESSION_TEMP_TABLESPACES"}
+{"TABLE_NAME": "INNODB_TABLES"}
+{"TABLE_NAME": "INNODB_TABLESPACES"}
+{"TABLE_NAME": "INNODB_TABLESPACES_BRIEF"}
+{"TABLE_NAME": "INNODB_TABLESTATS"}
+{"TABLE_NAME": "INNODB_TEMP_TABLE_INFO"}
+{"TABLE_NAME": "INNODB_TRX"}
+{"TABLE_NAME": "INNODB_VIRTUAL"}
+{"TABLE_NAME": "KEY_COLUMN_USAGE"}
+{"TABLE_NAME": "KEYWORDS"}
+{"TABLE_NAME": "OPTIMIZER_TRACE"}
+{"TABLE_NAME": "PARAMETERS"}
+{"TABLE_NAME": "PARTITIONS"}
+{"TABLE_NAME": "PLUGINS"}
+{"TABLE_NAME": "PROCESSLIST"}
+{"TABLE_NAME": "PROFILING"}
+{"TABLE_NAME": "REFERENTIAL_CONSTRAINTS"}
+{"TABLE_NAME": "RESOURCE_GROUPS"}
+{"TABLE_NAME": "ROLE_COLUMN_GRANTS"}
+{"TABLE_NAME": "ROLE_ROUTINE_GRANTS"}
+{"TABLE_NAME": "ROLE_TABLE_GRANTS"}
+{"TABLE_NAME": "ROUTINES"}
+{"TABLE_NAME": "SCHEMA_PRIVILEGES"}
+{"TABLE_NAME": "SCHEMATA"}
+{"TABLE_NAME": "SCHEMATA_EXTENSIONS"}
+{"TABLE_NAME": "ST_GEOMETRY_COLUMNS"}
+{"TABLE_NAME": "ST_SPATIAL_REFERENCE_SYSTEMS"}
+{"TABLE_NAME": "ST_UNITS_OF_MEASURE"}
+{"TABLE_NAME": "STATISTICS"}
+{"TABLE_NAME": "TABLE_CONSTRAINTS"}
+{"TABLE_NAME": "TABLE_CONSTRAINTS_EXTENSIONS"}
+{"TABLE_NAME": "TABLE_PRIVILEGES"}
+{"TABLE_NAME": "TABLES"}
+{"TABLE_NAME": "TABLES_EXTENSIONS"}
+{"TABLE_NAME": "TABLESPACES"}
+{"TABLE_NAME": "TABLESPACES_EXTENSIONS"}
+{"TABLE_NAME": "TRIGGERS"}
+{"TABLE_NAME": "TXSQL_PLAN_CACHE_STAT"}
+{"TABLE_NAME": "USER_ATTRIBUTES"}
+{"TABLE_NAME": "USER_PRIVILEGES"}
+{"TABLE_NAME": "VIEW_ROUTINE_USAGE"}
+{"TABLE_NAME": "VIEW_TABLE_USAGE"}
+{"TABLE_NAME": "VIEWS"}
+
+===== T09 SELECT COUNT(*) AS plain_show_status_rows FROM information_schema.SESSION_STATUS =====
+[ERROR] OperationalError: (1109, "Unknown table 'SESSION_STATUS' in information_schema")
+
+===== T10 EXPLAIN SELECT 1 =====
+[SUCCESS] Row count: 1
+{"id": 1, "select_type": "SIMPLE", "table": null, "partitions": null, "type": null, "possible_keys": null, "key": null, "key_len": null, "ref": null, "rows": null, "filtered": null, "Extra": "No tables used", "info": "set_1782132369_1,EXPLAIN SELECT 1"}
+
+===== T11 SHOW TABLES & SHOW CREATE TABLE =====
+[SUCCESS] SHOW TABLES count: 11
+Tables: ['big_audit_trail', 'big_order_log', 't_account', 't_audit_log', 't_branch', 't_customer', 't_deposit', 't_dict', 't_loan', 't_product', 't_transaction']
+
+--- SHOW CREATE TABLE `big_audit_trail` ---
+{"Table": "big_audit_trail", "Create Table": "CREATE TABLE `big_audit_trail` (\n  `id` bigint NOT NULL AUTO_INCREMENT,\n  `trace_id` varchar(64) COLLATE utf8mb4_bin NOT NULL,\n  `operator` varchar(100) COLLATE utf8mb4_bin NOT NULL,\n  `module` varchar(80) COLLATE utf8mb4_bin DEFAULT NULL,\n  `action` varchar(50) COLLATE utf8mb4_bin DEFAULT NULL,\n  `target_type` varchar(50) COLLATE utf8mb4_bin DEFAULT NULL,\n  `target_id` varchar(64) COLLATE utf8mb4_bin DEFAULT NULL,\n  `detail` varchar(600) COLLATE utf8mb4_bin DEFAULT NULL,\n  `ip_address` varchar(45) COLLATE utf8mb4_bin DEFAULT NULL,\n  `user_agent` varchar(300) COLLATE utf8mb4_bin DEFAULT NULL,\n  `request_body` varchar(800) COLLATE utf8mb4_bin DEFAULT NULL,\n  `response_code` int DEFAULT NULL,\n  `duration_ms` int DEFAULT NULL,\n  `event_time` datetime NOT NULL,\n  PRIMARY KEY (`id`),\n  KEY `idx_trace` (`trace_id`),\n  KEY `idx_operator` (`operator`),\n  KEY `idx_event` (`event_time`)\n) ENGINE=InnoDB AUTO_INCREMENT=25600001 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin shardkey=id"}
+
+--- SHOW CREATE TABLE `big_order_log` ---
+{"Table": "big_order_log", "Create Table": "CREATE TABLE `big_order_log` (\n  `id` bigint NOT NULL AUTO_INCREMENT,\n  `order_no` varchar(64) COLLATE utf8mb4_bin NOT NULL,\n  `user_id` bigint NOT NULL,\n  `product_name` varchar(200) COLLATE utf8mb4_bin NOT NULL,\n  `category` varchar(100) COLLATE utf8mb4_bin DEFAULT NULL,\n  `amount` decimal(12,2) DEFAULT NULL,\n  `status` varchar(20) COLLATE utf8mb4_bin DEFAULT NULL,\n  `channel` varchar(50) COLLATE utf8mb4_bin DEFAULT NULL,\n  `region` varchar(50) COLLATE utf8mb4_bin DEFAULT NULL,\n  `remark` varchar(500) COLLATE utf8mb4_bin DEFAULT NULL,\n  `extra_info` varchar(800) COLLATE utf8mb4_bin DEFAULT NULL,\n  `create_time` datetime NOT NULL,\n  `update_time` datetime DEFAULT NULL,\n  PRIMARY KEY (`id`),\n  KEY `idx_user` (`user_id`),\n  KEY `idx_order` (`order_no`),\n  KEY `idx_create` (`create_time`)\n) ENGINE=InnoDB AUTO_INCREMENT=2800001 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin shardkey=id"}
+
+--- SHOW CREATE TABLE `t_account` ---
+{"Table": "t_account", "Create Table": "CREATE TABLE `t_account` (\n  `account_no` varchar(32) COLLATE utf8mb4_bin NOT NULL COMMENT '账户号码',\n  `cust_id` bigint NOT NULL COMMENT '客户ID',\n  `account_type` varchar(16) COLLATE utf8mb4_bin NOT NULL DEFAULT 'savings' COMMENT '账户类型: savings/checking/credit',\n  `balance` decimal(18,2) NOT NULL DEFAULT '0.00' COMMENT '账户余额',\n  `frozen_amount` decimal(18,2) NOT NULL DEFAULT '0.00' COMMENT '冻结金额',\n  `currency` varchar(8) COLLATE utf8mb4_bin NOT NULL DEFAULT 'CNY' COMMENT '币种',\n  `interest_rate` decimal(6,4) NOT NULL DEFAULT '0.0035' COMMENT '利率',\n  `open_date` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '开户日期',\n  `status` varchar(16) COLLATE utf8mb4_bin NOT NULL DEFAULT 'active' COMMENT '状态: active/frozen/closed',\n  PRIMARY KEY (`account_no`),\n  KEY `idx_cust_id` (`cust_id`),\n  KEY `idx_status` (`status`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin COMMENT='账户信息表' shardkey=account_no"}
+
+--- SHOW CREATE TABLE `t_audit_log` ---
+{"Table": "t_audit_log", "Create Table": "CREATE TABLE `t_audit_log` (\n  `log_id` bigint NOT NULL AUTO_INCREMENT COMMENT '日志ID',\n  `user_id` varchar(64) COLLATE utf8mb4_bin NOT NULL COMMENT '操作用户',\n  `operation` varchar(32) COLLATE utf8mb4_bin NOT NULL COMMENT '操作类型: login/query/modify/delete/approve/reject',\n  `target_type` varchar(32) COLLATE utf8mb4_bin NOT NULL COMMENT '操作对象类型: customer/account/loan/transaction/product',\n  `target_id` varchar(64) COLLATE utf8mb4_bin DEFAULT NULL COMMENT '操作对象ID',\n  `old_value` varchar(1024) COLLATE utf8mb4_bin DEFAULT NULL COMMENT '变更前值',\n  `new_value` varchar(1024) COLLATE utf8mb4_bin DEFAULT NULL COMMENT '变更后值',\n  `ip_address` varchar(64) COLLATE utf8mb4_bin DEFAULT NULL COMMENT '操作IP',\n  `operation_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '操作时间',\n  `result` varchar(16) COLLATE utf8mb4_bin NOT NULL DEFAULT 'success' COMMENT '操作结果: success/failure',\n  `detail` varchar(512) COLLATE utf8mb4_bin DEFAULT NULL COMMENT '详情',\n  PRIMARY KEY (`log_id`),\n  KEY `idx_user_id` (`user_id`),\n  KEY `idx_operation` (`operation`),\n  KEY `idx_operation_time` (`operation_time`),\n  KEY `idx_target` (`target_type`,`target_id`)\n) ENGINE=InnoDB AUTO_INCREMENT=49900 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin COMMENT='操作审计日志表' shardkey=log_id"}
