@@ -7,11 +7,11 @@ from abc import ABC, abstractmethod
 from typing import Optional
 
 from backend.engine.parser import ParsedSQL
-from backend.models import RuleCategory, Severity, Violation
+from backend.models import RuleCategory, Severity, Violation, InstanceScope
 
 
 class BaseRule(ABC):
-    """审核规则基类（V1.0）"""
+    """审核规则基类（V1.0；V1.5 新增 instance_scope）"""
 
     rule_id: str = ""               # 规则ID，如 "R001"
     category: RuleCategory = RuleCategory.DML  # 规则类别
@@ -20,6 +20,11 @@ class BaseRule(ABC):
     enabled: bool = True            # 是否启用
     spec_source: str = ""           # 规范来源（V1.0新增）
     fix_suggestion: str = ""        # 修复建议模板（V1.0新增）
+
+    # V1.5：实例类型适用域。默认 ALL 是保守取向——
+    # 漏标只会退化成 V1.4 的行为（可能误报，可见可纠），
+    # 错标成 DISTRIBUTED 则导致集中式实例静默漏报（不可见，危险）。
+    instance_scope: InstanceScope = InstanceScope.ALL
 
     @abstractmethod
     def check(self, parsed: ParsedSQL,

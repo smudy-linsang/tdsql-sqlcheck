@@ -29,7 +29,7 @@ _LIST_COLUMNS = """
     scan_started_at, scan_finished_at, time_window_start, time_window_end,
     object_total, issue_total, error_count, warning_count,
     fingerprint_algo, schema_version, truncated, truncated_count,
-    snapshot_size, source_kind, created_by, created_at, rule_set_id
+    snapshot_size, source_kind, created_by, created_at, rule_set_id, instance_type
 """
 
 
@@ -130,8 +130,9 @@ def create_snapshot(module: str, meta: dict, issues: list,
                scan_started_at, scan_finished_at, time_window_start, time_window_end,
                object_total, issue_total, error_count, warning_count,
                fingerprint_algo, schema_version, truncated, truncated_count,
-               snapshot_json, snapshot_size, source_kind, created_by, rule_set_id)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+               snapshot_json, snapshot_size, source_kind, created_by, rule_set_id,
+               instance_type)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             ON DUPLICATE KEY UPDATE
                connection_id=VALUES(connection_id),
                connection_name=VALUES(connection_name),
@@ -149,7 +150,8 @@ def create_snapshot(module: str, meta: dict, issues: list,
                truncated_count=VALUES(truncated_count),
                snapshot_json=VALUES(snapshot_json),
                snapshot_size=VALUES(snapshot_size),
-               rule_set_id=VALUES(rule_set_id)
+               rule_set_id=VALUES(rule_set_id),
+               instance_type=VALUES(instance_type)
         """, (
             module, str(meta.get("biz_ref_id", ""))[:64],
             meta.get("connection_id", "") or "",
@@ -168,6 +170,8 @@ def create_snapshot(module: str, meta: dict, issues: list,
             (meta.get("created_by", "") or "")[:64],
             # V1.4：生成本快照时生效的规则集（对比时校验同尺度）；NULL=V1.4 前尺度未知
             (meta.get("rule_set_id", "") or None),
+            # V1.5：采集时的实例类型口径（只留痕，本版本不参与对比校验）；NULL=V1.5 前快照
+            (meta.get("instance_type", "") or None),
         ))
         conn.commit()
         snap_id = getattr(cur, "lastrowid", None)

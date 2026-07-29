@@ -128,6 +128,9 @@ class SchemaInspector:
             "id": "C07",
             "name": "无主键的表",
             "severity": "ERROR",
+            # V1.5：无主键表在任何实例上都该治理，故适用域为 all（不跳过），
+            # 但理由必须分型——原文案写死"分布式架构"，在集中式实例上理由是错的。
+            "instance_scope": "all",
             "sql": (
                 "SELECT t.table_schema AS `数据库`, t.table_name AS `表名` "
                 "FROM information_schema.TABLES t "
@@ -140,7 +143,11 @@ class SchemaInspector:
                 ") "
                 "AND t.table_schema NOT IN ({sys})"
             ),
-            "suggestion": "TDSQL分布式架构要求所有表必须有主键，请添加主键列",
+            "suggestion": "无主键表存在数据一致性与复制风险，建议补充主键",
+            "suggestion_by_type": {
+                "distributed": "TDSQL分布式架构要求所有表必须有主键（分片键必须包含在主键中），请添加主键列",
+                "centralized": "无主键表无法保证行的唯一定位，且影响主从复制效率与在线DDL，请添加主键列",
+            },
         },
         {
             "id": "C08",
@@ -217,7 +224,7 @@ class SchemaInspector:
         },
     ]
 
-    def inspect(self, pool, database_filter: str = "") -> list[dict]:
+    def inspect(self, pool, database_filter: str = "", instance_type: str = "") -> list[dict]:
         """
         执行全部12项检查，返回检查结果列表。
 
@@ -238,11 +245,16 @@ class SchemaInspector:
         """
         results = []
         for check in self.CHECKS:
-            result = self._run_check(pool, check, database_filter)
+            # V1.5：按 instance_scope 过滤检查项（当前所有项均为 all，机制为后续新增分布式专属巡检项预留）
+            scope = check.get("instance_scope", "all")
+            if instance_type and scope != "all" and scope != instance_type:
+                continue
+            result = self._run_check(pool, check, database_filter, instance_type)
             results.append(result)
         return results
 
-    def _run_check(self, pool, check: dict, database_filter: str = "") -> dict:
+    def _run_check(self, pool, check: dict, database_filter: str = "",
+                   instance_type: str = "") -> dict:
         """执行单项检查"""
         sql = check["sql"].format(sys=SYSTEM_DBS)
 
@@ -264,11 +276,17 @@ class SchemaInspector:
                 f"TABLE_SCHEMA NOT IN ({SYSTEM_DBS}) AND TABLE_SCHEMA = '{database_filter}'"
             )
 
+        # V1.5：按实例类型选择文案（缺失回落通用 suggestion）
+        _suggestion = check["suggestion"]
+        _by_type = check.get("suggestion_by_type")
+        if instance_type and _by_type and instance_type in _by_type:
+            _suggestion = _by_type[instance_type]
+
         result = {
             "id": check["id"],
             "name": check["name"],
             "severity": check["severity"],
-            "suggestion": check["suggestion"],
+            "suggestion": _suggestion,
             "count": 0,
             "rows": [],
             "columns": [],

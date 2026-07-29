@@ -20,13 +20,14 @@ from typing import Optional
 
 from backend.engine.parser import ParsedSQL
 from backend.engine.rules.base import BaseRule
-from backend.models import RuleCategory, Severity, Violation
+from backend.models import RuleCategory, Severity, Violation, InstanceScope
 
 
 class R020ShardKeyInWhere(BaseRule):
     """R020: 分布式表查询必须包含分片键字段"""
 
     rule_id = "R020"
+    instance_scope = InstanceScope.DISTRIBUTED
     category = RuleCategory.DISTRIBUTED
     severity = Severity.WARNING
     description = "分布式表的SELECT/UPDATE/DELETE语句应在WHERE条件中包含分片键字段"
@@ -83,6 +84,7 @@ class R021ShardKeyUpdate(BaseRule):
     """R021: 禁止更新分片键字段"""
 
     rule_id = "R021"
+    instance_scope = InstanceScope.DISTRIBUTED
     category = RuleCategory.DISTRIBUTED
     severity = Severity.ERROR
     description = "禁止对分片键(shardkey)字段进行UPDATE操作"
@@ -139,6 +141,7 @@ class R022GlobalDeleteWithoutShardKey(BaseRule):
     """R022: 禁止不带分片键的全局DELETE/UPDATE"""
 
     rule_id = "R022"
+    instance_scope = InstanceScope.DISTRIBUTED
     category = RuleCategory.DISTRIBUTED
     severity = Severity.ERROR
     description = "分布式表禁止不带分片键的全局DELETE/UPDATE，防止跨所有SET执行"
@@ -192,6 +195,7 @@ class R022GlobalDeleteWithoutShardKey(BaseRule):
 class R053NoCrossShardJoin(BaseRule):
     """R053: 禁跨分片JOIN"""
     rule_id = "R053"
+    instance_scope = InstanceScope.DISTRIBUTED
     category = RuleCategory.DISTRIBUTED
     severity = Severity.ERROR
     description = "分布式表JOIN时必须在分片键上关联，避免跨SET广播JOIN"
@@ -228,6 +232,7 @@ class R053NoCrossShardJoin(BaseRule):
 class R054ShardKeyMustBePrimaryKey(BaseRule):
     """R054: 分片键应为主键一部分"""
     rule_id = "R054"
+    instance_scope = InstanceScope.DISTRIBUTED
     category = RuleCategory.DISTRIBUTED
     severity = Severity.WARNING
     description = "分片键必须包含在主键及所有唯一索引中（唯一索引不含分片键将无法创建）"
@@ -310,6 +315,7 @@ class R054ShardKeyMustBePrimaryKey(BaseRule):
 class R055NoGlobalIndexOnly(BaseRule):
     """R055: 禁纯全局索引"""
     rule_id = "R055"
+    instance_scope = InstanceScope.DISTRIBUTED
     category = RuleCategory.DISTRIBUTED
     severity = Severity.WARNING
     description = "分布式表不建议仅依赖全局索引，应优先使用本地索引+分片键路由"
@@ -333,6 +339,7 @@ class R055NoGlobalIndexOnly(BaseRule):
 class R056SuggestShardKeyInOrderBy(BaseRule):
     """R056: ORDER BY建议包含分片键"""
     rule_id = "R056"
+    instance_scope = InstanceScope.DISTRIBUTED
     category = RuleCategory.DISTRIBUTED
     severity = Severity.INFO
     description = "分布式表ORDER BY建议包含分片键，避免跨SET排序"
@@ -360,6 +367,7 @@ class R056SuggestShardKeyInOrderBy(BaseRule):
 class R057NoBulkInsertWithoutShardKey(BaseRule):
     """R057: 批量INSERT必须含分片键"""
     rule_id = "R057"
+    instance_scope = InstanceScope.DISTRIBUTED
     category = RuleCategory.DISTRIBUTED
     severity = Severity.ERROR
     description = "批量INSERT/REPLACE必须包含分片键字段，否则无法路由到正确SET"
@@ -385,6 +393,7 @@ class R057NoBulkInsertWithoutShardKey(BaseRule):
 class R058BatchUpdateLimit(BaseRule):
     """R058: 批量UPDATE/DELETE限制行数"""
     rule_id = "R058"
+    instance_scope = InstanceScope.DISTRIBUTED
     category = RuleCategory.DISTRIBUTED
     severity = Severity.WARNING
     description = "分布式表批量UPDATE/DELETE建议加LIMIT限制单次影响行数(≤1000)"
@@ -419,6 +428,7 @@ class R058BatchUpdateLimit(BaseRule):
 class R059NoDistributedTransaction(BaseRule):
     """R059: 禁分布式事务"""
     rule_id = "R059"
+    instance_scope = InstanceScope.DISTRIBUTED
     category = RuleCategory.DISTRIBUTED
     severity = Severity.WARNING
     description = "避免跨SET分布式事务，单事务应只操作同一分片数据"
@@ -437,6 +447,7 @@ class R059NoDistributedTransaction(BaseRule):
 class R060ExplainShardKeyCheck(BaseRule):
     """R060: 分布式EXPLAIN检查"""
     rule_id = "R060"
+    instance_scope = InstanceScope.DISTRIBUTED
     category = RuleCategory.DISTRIBUTED
     severity = Severity.INFO
     description = "建议对分布式表查询执行EXPLAIN查看是否命中单SET"
@@ -473,6 +484,7 @@ class R077CreateTableMustHaveShardKey(BaseRule):
     只有 R077 会触发；有元数据时两者均可能触发但消息不同不算冲突。
     """
     rule_id = "R077"
+    instance_scope = InstanceScope.DISTRIBUTED
     category = RuleCategory.DISTRIBUTED
     severity = Severity.ERROR
     description = (

@@ -44,6 +44,32 @@ class RuleCategory(str, Enum):
     ORACLE_COMPAT = "oracle_compat"
 
 
+class InstanceType(str, Enum):
+    """TDSQL 实例类型（客观事实，非配置项）。V1.5 新增。"""
+    DISTRIBUTED = "distributed"   # 分布式实例（含 Proxy + 多 SET）
+    CENTRALIZED = "centralized"   # 集中式实例（单机/主备，无分片）
+
+
+class InstanceScope(str, Enum):
+    """规则的实例类型适用域（V1.5 新增）。
+
+    与 RuleCategory 是正交维度：category 表达"属于规范的哪一章"，
+    instance_scope 表达"在哪种实例上物理有意义"。二者不可互相替代——
+    例如 R111（窗口函数）category=oracle_compat 但仅分布式适用。
+    """
+    ALL         = "all"           # 通用（默认值，保守取向）
+    DISTRIBUTED = "distributed"   # 仅分布式实例适用
+    CENTRALIZED = "centralized"   # 仅集中式实例适用（当前 0 条，为规范演进预留）
+
+
+class TypeSource(str, Enum):
+    """实例类型结论的来源，用于表达该结论的可信度（V1.5 新增）"""
+    PROBED   = "probed"     # 连库探测得出（最高可信）
+    DECLARED = "declared"   # 取自 tdsql_connections.is_distributed（人工声明）
+    REQUEST  = "request"    # 调用方在请求中显式声明（B类通道）
+    DEFAULT  = "default"    # 回落 system_config.default_instance_type
+
+
 # ═══════════════════════════════════════════════════════════════════
 # 基础审核模型
 # ═══════════════════════════════════════════════════════════════════
@@ -100,6 +126,11 @@ class AuditResponse(BaseModel):
     rule_set_name: str = Field("", description="V1.4：本次审核生效的规则集名称")
     deprecated_params: Optional[dict] = Field(
         None, description="V1.4：已废弃参数的提示（如 project_id 不再决定尺度）")
+    instance_type: str = Field("", description="V1.5：本次审核采用的实例类型口径")
+    instance_type_source: str = Field("", description="V1.5：口径来源 probed|declared|request|default")
+    instance_type_conflict: bool = Field(False, description="V1.5：探测与声明是否冲突")
+    skipped_rules_count: int = Field(0, description="V1.5：因实例类型不适用而跳过的规则条数")
+    scope_notice: str = Field("", description="V1.5：报告口径横幅文案")
 
 
 class FileAuditRequest(BaseModel):
@@ -119,6 +150,11 @@ class FileAuditResponse(BaseModel):
     rule_set_name: str = Field("", description="V1.4：本次审核生效的规则集名称")
     deprecated_params: Optional[dict] = Field(
         None, description="V1.4：已废弃参数的提示（如 project_id 不再决定尺度）")
+    instance_type: str = Field("", description="V1.5：本次审核采用的实例类型口径")
+    instance_type_source: str = Field("", description="V1.5：口径来源 probed|declared|request|default")
+    instance_type_conflict: bool = Field(False, description="V1.5：探测与声明是否冲突")
+    skipped_rules_count: int = Field(0, description="V1.5：因实例类型不适用而跳过的规则条数")
+    scope_notice: str = Field("", description="V1.5：报告口径横幅文案")
 
 
 # ═══════════════════════════════════════════════════════════════════

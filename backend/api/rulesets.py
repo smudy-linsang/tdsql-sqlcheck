@@ -90,6 +90,16 @@ def get_ruleset(rule_set_id: str):
     result = ruleset_service.get_ruleset(rule_set_id)
     if not result:
         raise HTTPException(status_code=404, detail="规则集不存在")
+    # V1.5：补充按实例类型的实跑条数（规则集页面显示"启用N条（分布式119/集中式92）"）
+    from backend.engine.checker import RuleChecker
+    checker = RuleChecker()
+    overrides = {it["rule_id"]: {"enabled": bool(it.get("enabled", True)),
+                                  "severity_override": it.get("severity_override")}
+                 for it in result.get("items", [])}
+    result["effective_counts"] = {
+        "distributed": len(checker.get_enabled_rules(overrides, "distributed")),
+        "centralized": len(checker.get_enabled_rules(overrides, "centralized")),
+    }
     return result
 
 

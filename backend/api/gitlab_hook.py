@@ -113,14 +113,18 @@ def _extract_sql_from_diff(diff_content: str, file_path: str) -> list:
     return results
 
 
-def _audit_sql_list(sql_items: list) -> tuple:
-    """批量审核SQL"""
+def _audit_sql_list(sql_items: list, instance_type: Optional[str] = None) -> tuple:
+    """批量审核SQL（V1.5：B类通道，instance_type 由调用方声明，未声明取全局默认）"""
+    from backend.services.instance_type_service import instance_type_service
+    ictx = instance_type_service.resolve("", instance_type)
+    it = ictx.instance_type.value
     results = []
     for item in sql_items:
         result = checker.audit_sql(
             sql=item.get("sql", ""),
             file_path=item.get("file", ""),
             line_number=item.get("line"),
+            instance_type=it,
         )
         results.append(result)
     summary = checker.compute_summary(results)
@@ -362,8 +366,8 @@ async def audit_diff(request: Request):
     if not sql_items:
         return {"message": "未检测到SQL变更", "file_path": file_path}
 
-    # 执行审核
-    results, summary = _audit_sql_list(sql_items)
+    # 执行审核（V1.5：B类通道，读可选 instance_type）
+    results, summary = _audit_sql_list(sql_items, body.get("instance_type"))
 
     formatted_results = []
     for r in results:
@@ -412,6 +416,10 @@ async def audit_repository(request: Request):
     if not files:
         raise HTTPException(status_code=400, detail="files列表不能为空")
 
+    # V1.5：B类通道，读可选 instance_type（未声明取全局默认）
+    from backend.services.instance_type_service import instance_type_service
+    _it = instance_type_service.resolve("", body.get("instance_type")).instance_type.value
+
     all_results = []
     file_summaries = []
 
@@ -422,7 +430,7 @@ async def audit_repository(request: Request):
         if not _is_sql_related_file(file_path):
             continue
 
-        results = checker.audit_file(content, file_path=file_path)
+        results = checker.audit_file(content, file_path=file_path, instance_type=_it)
         if results:
             summary = checker.compute_summary(results)
             file_summaries.append({

@@ -517,6 +517,53 @@ class TDSQLConnectionPool:
 
         return sets
 
+    def probe_instance_type(self) -> tuple:
+        """探测实例类型（V1.5）。返回 (类型 或 None, 探针明细)。
+
+        两个探针，任一命中"分布式"即判分布式；两个都明确指向"无分片能力"
+        才判集中式；全部异常则返回 None（无结论，由上层退回人工声明）。
+
+        重要：绝不抛异常。探测失败是正常业务分支（网络抖动、权限不足），
+        不是服务端错误——INV-5 要求任何探测异常都不能中断审核主流程。
+        """
+        detail = {"proxy_show_status": {}, "sharding_rules_table": {}}
+        votes_distributed = False
+        conclusive = False
+
+        # 探针1：/*proxy*/show status —— 仅 TDSQL Proxy 可执行，
+        # 集中式实例（直连 MySQL）会因无法识别该 hint 而报语法错误。
+        try:
+            rows = self._execute("/*proxy*/show status")
+            detail["proxy_show_status"] = {"ok": True, "rows": len(rows or [])}
+            if rows:
+                votes_distributed = True
+            conclusive = True
+        except Exception as e:
+            detail["proxy_show_status"] = {"ok": False, "reason": str(e)[:200]}
+
+        # 探针2：information_schema.TDSQL_SHARDING_RULES —— 仅分布式实例存在该视图。
+        # 注意：表存在但无数据，仍然说明这是分布式实例（只是还没建分片表）。
+        try:
+            rows = self._execute(
+                "SELECT COUNT(*) AS c FROM information_schema.TABLES "
+                "WHERE TABLE_SCHEMA='information_schema' "
+                "AND TABLE_NAME='TDSQL_SHARDING_RULES'")
+            exists = bool(rows) and int(
+                (rows[0].get("c") if isinstance(rows[0], dict) else rows[0][0]) or 0) > 0
+            detail["sharding_rules_table"] = {"ok": True, "exists": exists}
+            if exists:
+                votes_distributed = True
+            conclusive = True
+        except Exception as e:
+            detail["sharding_rules_table"] = {"ok": False, "reason": str(e)[:200]}
+
+        if not conclusive:
+            # 两个探针都异常 —— 很可能是连不上库，不能据此判定集中式。
+            # 这是本函数最关键的一行：若返回 centralized，一次网络故障就会让
+            # 分布式实例被判成集中式 → 27 条规则静默失效。
+            return None, detail
+        return ("distributed" if votes_distributed else "centralized"), detail
+
     @staticmethod
     def _build_set_hint(set_id: str = None) -> str:
         """构建 SET 路由 hint 前缀

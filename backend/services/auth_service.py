@@ -328,6 +328,9 @@ _PATH_TO_MENU = {
     "/api/v1/audit/file": "file-audit",
     "/api/v1/audit/upload": "file-audit",
     "/api/v1/audit/extract-and-audit": "schema-extractor-audit",
+    # V1.5：审核历史列表/删除。batch-delete 为 admin 独占（处理函数 _require_admin 兜底）
+    "/api/v1/audit/extracted-reports": "schema-extractor-audit",
+    "/api/v1/audit/file-reports": "file-audit",
     "/api/v1/rules": "rules",
     "/api/v1/slow-queries": "slow-tasks",
     "/api/v1/tdsql/slow-queries": "slow-tasks",
@@ -349,6 +352,9 @@ _PATH_TO_MENU = {
     "/api/v1/admin/logo": "sys-info",
     "/api/v1/auth/roles": "sys-roles",
     "/api/v1/auth/role-permissions": "sys-perms",
+    # V1.5：全局默认实例类型。GET 需全角色可访问（前端 B 类选择器），故映射到全员可见的
+    # dashboard 菜单；PUT 的真实权限（仅 admin）由处理函数内显式校验保障（双保险）。
+    "/api/v1/config": "dashboard",
     # 深度诊断子模块 API 映射
     "/api/v1/cluster-inspect": "deep-diag-cluster",
     "/api/v1/daily-inspect": "deep-diag-daily",

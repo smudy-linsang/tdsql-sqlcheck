@@ -280,7 +280,10 @@ def run_schema_check(request: SchemaCheckRequest, http_request: Request):
 
     try:
         inspector = SchemaInspector()
-        results = inspector.inspect(pool, request.database_filter)
+        # V1.5：解析实例类型（A类通道），巡检文案按实例类型分型
+        from backend.services.instance_type_service import instance_type_service
+        _it = instance_type_service.resolve(request.connection_id).instance_type.value
+        results = inspector.inspect(pool, request.database_filter, _it)
         summary = inspector.get_summary(results)
 
         # 将结果保存到数据库

@@ -395,6 +395,16 @@ class ConnectionRegistry:
                 d["max_error_count"] = gate_err if configured else 0
                 d["max_warning_count"] = gate_warn if configured else -1
                 d["gate_is_default"] = not configured
+                # V1.5 实例类型字段：声明(is_distributed) 与 探测(detected) 并列，冲突时前端红标
+                declared = "distributed" if int(d.get("is_distributed", 1) or 0) == 1 else "centralized"
+                detected = d.get("detected_instance_type") or None
+                if detected not in ("distributed", "centralized"):
+                    detected = None
+                d["declared_instance_type"] = declared
+                d["detected_instance_type"] = detected
+                d["effective_instance_type"] = detected or declared
+                d["instance_type_source"] = "probed" if detected else "declared"
+                d["instance_type_conflict"] = bool(detected and detected != declared)
                 result.append(d)
             return result
         finally:

@@ -8,7 +8,7 @@ from typing import Optional
 
 from backend.engine.parser import ParsedSQL
 from backend.engine.rules.base import BaseRule
-from backend.models import RuleCategory, Severity, Violation
+from backend.models import RuleCategory, Severity, Violation, InstanceScope
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -238,6 +238,7 @@ class R011TextBlobType(BaseRule):
 class R023NoCreateTableSelect(BaseRule):
     """R023: 禁CREATE TABLE...SELECT"""
     rule_id = "R023"
+    instance_scope = InstanceScope.DISTRIBUTED
     category = RuleCategory.DDL
     severity = Severity.ERROR
     description = "禁止使用CREATE TABLE ... SELECT语句，TDSQL分布式不支持"
@@ -256,6 +257,7 @@ class R023NoCreateTableSelect(BaseRule):
 class R024NoTemporaryTable(BaseRule):
     """R024: 禁临时表"""
     rule_id = "R024"
+    instance_scope = InstanceScope.DISTRIBUTED
     category = RuleCategory.DDL
     severity = Severity.ERROR
     description = "禁止使用CREATE TEMPORARY TABLE，分布式实例不支持"
@@ -274,6 +276,7 @@ class R024NoTemporaryTable(BaseRule):
 class R025NoAlterShardKey(BaseRule):
     """R025: 禁修改分片键"""
     rule_id = "R025"
+    instance_scope = InstanceScope.DISTRIBUTED
     category = RuleCategory.DISTRIBUTED
     severity = Severity.ERROR
     description = "禁止通过ALTER TABLE修改分片键字段"
@@ -550,10 +553,10 @@ class R038NoAutoIncrementForLargeTable(BaseRule):
     rule_id = "R038"
     category = RuleCategory.DDL
     severity = Severity.WARNING
-    description = "预期数据量超千万的表不建议使用AUTO_INCREMENT主键"
+    description = "预期数据量超千万的表不建议使用AUTO_INCREMENT主键：自增锁在高并发写入下形成瓶颈，且分库分表/数据迁移/多源合并时主键易冲突"
     enabled = True
-    spec_source = "TDSQL数据库开发规范 - 分布式规范"
-    fix_suggestion = "大表建议使用业务主键或分布式ID生成器(如雪花算法)"
+    spec_source = "TDSQL数据库开发规范 - 表设计规范"
+    fix_suggestion = "大表建议使用业务主键或全局唯一ID生成器（雪花算法等）；分布式实例还需保证该主键包含分片键"
 
     def check(self, parsed: ParsedSQL, table_metadata: Optional[dict] = None) -> Optional[Violation]:
         if not parsed.is_create_table:
@@ -567,6 +570,6 @@ class R038NoAutoIncrementForLargeTable(BaseRule):
                 if any(hint in table_name for hint in large_hints):
                     return self._make_violation(
                         f"表 '{parsed.tables[0]}' 疑似大表，不建议使用AUTO_INCREMENT主键",
-                        suggestion="大表建议使用业务主键或分布式ID生成器",
+                        suggestion="大表建议使用业务主键或全局唯一ID生成器（雪花算法等）",
                     )
         return None

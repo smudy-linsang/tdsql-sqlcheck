@@ -8,7 +8,7 @@ from typing import Optional
 
 from backend.engine.parser import ParsedSQL
 from backend.engine.rules.base import BaseRule
-from backend.models import RuleCategory, Severity, Violation
+from backend.models import RuleCategory, Severity, Violation, InstanceScope
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -255,6 +255,7 @@ class R042NoLoadData(BaseRule):
 class R043NoMultiTableUpdate(BaseRule):
     """R043: 禁联表更新"""
     rule_id = "R043"
+    instance_scope = InstanceScope.DISTRIBUTED
     category = RuleCategory.DML
     severity = Severity.ERROR
     description = "禁止使用多表联表UPDATE/DELETE"
@@ -342,6 +343,7 @@ class R047DeleteAllUseTruncate(BaseRule):
 class R048InsertMustIncludeShardKey(BaseRule):
     """R048: INSERT必须包含分片键"""
     rule_id = "R048"
+    instance_scope = InstanceScope.DISTRIBUTED
     category = RuleCategory.DISTRIBUTED
     severity = Severity.ERROR
     description = "分布式实例执行INSERT/REPLACE时，字段列表必须包含分片键"

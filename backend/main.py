@@ -44,6 +44,7 @@ from backend.api.sql_stats import router as sql_stats_router
 # V2.0 新增路由
 from backend.api.auth import router as auth_router
 from backend.api.rulesets import router as rulesets_router
+from backend.api.system_config import router as system_config_router
 from backend.api.admin import router as admin_router
 from backend.api.scan_compare import router as scan_compare_router
 from backend.middleware import (AuthMiddleware, BodySizeLimitMiddleware,
@@ -152,6 +153,7 @@ app.include_router(gitlab_router)           # GitLab集成
 app.include_router(tdsql_router)            # TDSQL管理
 app.include_router(rules_router)            # 规则管理
 app.include_router(rulesets_router)         # V2.0 规则集管理
+app.include_router(system_config_router)    # V1.5 系统配置（全局默认实例类型）
 app.include_router(project_router)          # 项目管理
 app.include_router(bigtable_router)         # 大表治理
 app.include_router(gate_router)             # 质量门禁

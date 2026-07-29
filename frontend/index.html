@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <!-- 主题预置：首帧前置 data-theme，避免深/浅切换闪烁；默认深色，localStorage 记忆 -->
   <script>(function(){try{var t=localStorage.getItem('tdsql-theme');if(t!=='light'&&t!=='dark')t='dark';document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','dark');}})();</script>
-  <title>TDSQL数据库SQL审核工具 V1.4.0.1</title>
+  <title>TDSQL数据库SQL审核工具 V1.5.0.0</title>
   <script src="/static/vendor/vue.global.prod.js"></script>
   <link rel="stylesheet" href="/static/vendor/element-plus.css">
   <script src="/static/vendor/element-plus.full.min.js"></script>
@@ -26,7 +26,7 @@
     </div>
     <div class="login-brand">
       <h1>TDSQL数据库SQL审核工具</h1>
-      <div class="version">V1.4.0.1 · Design by Linsang</div>
+      <div class="version">V1.5.0.0 · Design by Linsang</div>
     </div>
     <div class="login-form">
       <el-card>
@@ -320,6 +320,15 @@
 
                 <!-- 提取与审核结果双栏视图 -->
                 <div v-if="extractedResult.filename" class="mt-16">
+                  <!-- V1.5：报告口径横幅（自证按哪种实例类型评估、跳过多少条） -->
+                  <el-alert v-if="extractedResult.scope_notice" :title="extractedResult.scope_notice"
+                    :type="extractedResult.instance_type_conflict?'warning':'info'" show-icon :closable="false" class="mb-16">
+                    <template #default>
+                      <div>{{ extractedResult.scope_notice }}</div>
+                      <div v-if="extractedResult.instance_type_source==='default'" style="font-size:12px;margin-top:4px">口径由系统默认推定，请确认实例类型配置。</div>
+                      <div v-if="extractedResult.instance_type_conflict" style="font-size:12px;margin-top:4px;color:#dc2626">探测与声明不一致，审核按探测结果执行，请核实实例配置。</div>
+                    </template>
+                  </el-alert>
                   <el-row :gutter="16">
                     <!-- 左栏：导出的元数据 .sql 文件内容 -->
                     <el-col :span="12">
@@ -551,6 +560,7 @@
                     <el-table-column prop="rule_id" label="规则ID" width="80"></el-table-column>
                     <el-table-column prop="severity" label="级别" width="80"><template #default="{row}"><el-tag :type="sevTagType(row.severity)" size="small">{{ row.severity }}</el-tag></template></el-table-column>
                     <el-table-column prop="description" label="描述" show-overflow-tooltip></el-table-column>
+                    <el-table-column label="适用域" width="100"><template #default="{row}"><el-tag v-if="row.instance_scope==='distributed'" type="warning" size="small" effect="plain">仅分布式</el-tag><el-tag v-else-if="row.instance_scope==='centralized'" type="info" size="small" effect="plain">仅集中式</el-tag><el-tag v-else type="success" size="small" effect="plain">通用</el-tag></template></el-table-column>
                     <el-table-column label="状态" width="60"><template #default="{row}"><el-tag :type="row.enabled?'success':'info'" size="small">{{ row.enabled?'启用':'禁用' }}</el-tag></template></el-table-column>
                   </el-table>
                 </el-collapse-item>
@@ -922,7 +932,7 @@
                 <el-table-column prop="name" label="连接名" show-overflow-tooltip></el-table-column>
                 <el-table-column label="地址" width="200"><template #default="{row}">{{ row.host }}:{{ row.port }}{{ row.database?'/'+row.database:'' }}</template></el-table-column>
                 <el-table-column prop="username" label="用户名" width="100"></el-table-column>
-                <el-table-column label="类型" width="90"><template #default="{row}"><el-tag size="small" :type="row.is_distributed?'warning':'info'">{{ row.is_distributed?'分布式':'集中式' }}</el-tag></template></el-table-column>
+                <el-table-column label="类型" width="130"><template #default="{row}"><el-tag size="small" :type="(row.effective_instance_type||'distributed')==='distributed'?'warning':'info'">{{ (row.effective_instance_type||'distributed')==='distributed'?'分布式':'集中式' }}</el-tag><el-tooltip v-if="row.instance_type_conflict" :content="'声明为「'+(row.declared_instance_type==='distributed'?'分布式':'集中式')+'」，探测为「'+(row.detected_instance_type==='distributed'?'分布式':'集中式')+'」。审核按探测结果执行，请核实实例配置。'" placement="top"><span style="color:#dc2626;margin-left:4px;cursor:help">⚠</span></el-tooltip><el-tag v-if="row.instance_type_source==='probed'" size="small" type="success" effect="plain" style="margin-left:4px">探测</el-tag></template></el-table-column>
                 <el-table-column label="状态" width="80"><template #default="{row}"><span :style="{color:row.active?'#16a34a':'#94a3b8'}">●</span> {{ row.active?'已连接':'未连接' }}</template></el-table-column>
                 <el-table-column label="默认" width="60"><template #default="{row}"><el-tag v-if="row.is_default" type="primary" size="small">默认</el-tag></template></el-table-column>
                 <!-- V1.4：门禁阈值两列（gate_is_default 区分"已配置"与"走系统默认"） -->
@@ -942,6 +952,7 @@
                     <el-button link size="small" @click="connectInstance(row)" v-if="!row.active" :loading="row.connecting">连接</el-button>
                     <el-button link size="small" @click="setDefaultConn(row)" v-if="!row.is_default">设为默认</el-button>
                     <el-button link type="primary" size="small" @click="openEditConn(row)">编辑</el-button>
+                    <el-button link type="warning" size="small" @click="probeInstanceType(row)" v-if="canManageInstances">探测类型</el-button>
                     <el-button link type="danger" size="small" @click="deleteConn(row)">删除</el-button>
                   </template>
                 </el-table-column>

@@ -583,6 +583,28 @@ def _migrate_old_tables(conn):
         _add_column_if_not_exists(conn, "gate_audit_logs", "rule_set_id",
                                   "VARCHAR(64) DEFAULT NULL")
 
+    # ── V1.5 实例类型感知的规则适用域（与 v4/040 迁移脚本双保险）──
+    # 探测结果与人工声明分列存放：不覆写 is_distributed，区分"人说的"与"探到的"。
+    if "tdsql_connections" in table_names:
+        _add_column_if_not_exists(conn, "tdsql_connections", "detected_instance_type",
+                                  "VARCHAR(16) NULL DEFAULT NULL")
+        _add_column_if_not_exists(conn, "tdsql_connections", "instance_type_detected_at",
+                                  "DATETIME NULL DEFAULT NULL")
+        _add_column_if_not_exists(conn, "tdsql_connections", "instance_type_probe_error",
+                                  "VARCHAR(512) NOT NULL DEFAULT ''")
+    # 报告口径留痕：NULL 语义同 V1.4 rule_set_id（上线前记录，口径未知），严禁回填。
+    if "audit_history" in table_names:
+        _add_column_if_not_exists(conn, "audit_history", "instance_type",
+                                  "VARCHAR(16) NULL DEFAULT NULL")
+        _add_column_if_not_exists(conn, "audit_history", "instance_type_source",
+                                  "VARCHAR(16) NOT NULL DEFAULT ''")
+        _add_column_if_not_exists(conn, "audit_history", "skipped_rules_count",
+                                  "INT NOT NULL DEFAULT 0")
+    # 快照口径留痕（只留痕，本版本不参与对比校验）。
+    if "scan_snapshots" in table_names:
+        _add_column_if_not_exists(conn, "scan_snapshots", "instance_type",
+                                  "VARCHAR(16) NULL DEFAULT NULL")
+
     conn.commit()
 
 
@@ -1391,6 +1413,12 @@ def _init_default_data(conn):
     conn.cursor().execute("""
         INSERT IGNORE INTO system_config(config_key, config_value)
         VALUES ('active_rule_set_id', 'default')
+    """)
+
+    # V1.5：全局默认实例类型（B类通道兜底）。出厂 distributed＝跑全部规则＝宁可多报不可漏报。
+    conn.cursor().execute("""
+        INSERT IGNORE INTO system_config(config_key, config_value)
+        VALUES ('default_instance_type', 'distributed')
     """)
 
     # 默认告警规则

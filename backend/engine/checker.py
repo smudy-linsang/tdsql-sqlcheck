@@ -25,24 +25,46 @@ class RuleChecker:
         """加载全部119条规则"""
         return [cls() for cls in ALL_RULE_CLASSES]
 
-    def get_enabled_rules(self, rule_overrides: Optional[dict] = None) -> list[BaseRule]:
-        """
-        获取所有启用的规则。
+    def get_enabled_rules(self, rule_overrides: Optional[dict] = None,
+                          instance_type: Optional[str] = None) -> list[BaseRule]:
+        """获取本次实际生效的规则（V1.5：适用域过滤的唯一收口点，INV-1）。
+
+        两层过滤，串联，方向不对称：
+          1) 适用域过滤（V1.5，客观）：规则在该类型实例上物理上是否有意义
+          2) 规则集过滤（V1.4，主观）：管理员是否愿意查这条
+
+        INV-2：适用域只做减法。规则集可以关掉一条适用的规则，
+        但绝不能打开一条不适用的规则。
 
         Args:
-            rule_overrides: 规则集覆盖（V2.0），格式:
-                {rule_id: {"enabled": bool, "severity_override": str|None}}
-                None 表示全部规则按默认配置执行
+            rule_overrides: {rule_id: {"enabled": bool, "severity_override": str|None}}
+            instance_type: "distributed" | "centralized"；None 表示不做适用域过滤
+                           （仅用于 get_rules_info 等纯展示场景）
         """
-        if not rule_overrides:
-            return [r for r in self.rules if r.enabled]
         result = []
         for r in self.rules:
-            override = rule_overrides.get(r.rule_id)
+            # 1) 适用域（客观事实）
+            if instance_type is not None and not self._scope_match(r, instance_type):
+                continue
+            # 2) 规则集（主观尺度）
+            override = rule_overrides.get(r.rule_id) if rule_overrides else None
             enabled = override["enabled"] if override else r.enabled
             if enabled:
                 result.append(r)
         return result
+
+    @staticmethod
+    def _scope_match(rule: BaseRule, instance_type: str) -> bool:
+        """唯一判定式：适用域为 ALL，或与实例类型相等。"""
+        scope = getattr(rule, "instance_scope", None)
+        scope = getattr(scope, "value", scope) or "all"
+        return scope == "all" or scope == instance_type
+
+    def count_skipped_by_scope(self, instance_type: Optional[str]) -> int:
+        """统计因适用域不匹配而跳过的规则数，供报告横幅使用。"""
+        if instance_type is None:
+            return 0
+        return sum(1 for r in self.rules if not self._scope_match(r, instance_type))
 
     def get_rules_info(self) -> list[dict]:
         """
@@ -65,6 +87,8 @@ class RuleChecker:
                 "enabled": r.enabled,
                 "spec_source": getattr(r, 'spec_source', ''),
                 "fix_suggestion": getattr(r, 'fix_suggestion', ''),
+                # V1.5：规则固有属性，无条件返回（供规则管理页展示适用域列）
+                "instance_scope": getattr(getattr(r, 'instance_scope', None), 'value', 'all'),
             }
             for r in self.rules
         ]
@@ -85,12 +109,15 @@ class RuleChecker:
                 "rule_id": r.rule_id,
                 "severity": r.severity.value if hasattr(r.severity, 'value') else str(r.severity),
                 "description": r.description,
+                # V1.5：适用域（供规则管理页展示"通用/仅分布式"列）
+                "instance_scope": getattr(getattr(r, 'instance_scope', None), 'value', 'all'),
             })
         return categories
 
     def audit_sql(self, sql: str, file_path: str = "", line_number: Optional[int] = None,
                   table_metadata: Optional[dict] = None,
-                  rule_overrides: Optional[dict] = None) -> AuditResult:
+                  rule_overrides: Optional[dict] = None,
+                  instance_type: Optional[str] = None) -> AuditResult:
         """
         审核单条 SQL。
 
@@ -118,7 +145,7 @@ class RuleChecker:
                 line_number=line_number,
             ))
 
-        for rule in self.get_enabled_rules(rule_overrides):
+        for rule in self.get_enabled_rules(rule_overrides, instance_type):
             # DDL 规则只在 CREATE/ALTER/DROP 时检查
             if rule.category.value == "ddl" and not (parsed.is_create_table or parsed.is_alter_table or parsed.sql_type == "DROP"):
                 continue
@@ -156,7 +183,8 @@ class RuleChecker:
         )
 
     def audit_file(self, content: str, file_path: str = "",
-                   rule_overrides: Optional[dict] = None) -> list[AuditResult]:
+                   rule_overrides: Optional[dict] = None,
+                   instance_type: Optional[str] = None) -> list[AuditResult]:
         """
         审核文件内容（支持 MyBatis XML、纯 SQL 文件）。
 
@@ -175,14 +203,16 @@ class RuleChecker:
             sqls = self._extract_sql_from_mybatis(content)
             for sql_text, line_no in sqls:
                 result = self.audit_sql(sql_text, file_path=file_path, line_number=line_no,
-                                        rule_overrides=rule_overrides)
+                                        rule_overrides=rule_overrides,
+                                        instance_type=instance_type)
                 results.append(result)
         else:
             # 纯 SQL 文件：按分号分割
             sqls = self._split_sql_file(content)
             for sql_text, line_no in sqls:
                 result = self.audit_sql(sql_text, file_path=file_path, line_number=line_no,
-                                        rule_overrides=rule_overrides)
+                                        rule_overrides=rule_overrides,
+                                        instance_type=instance_type)
                 results.append(result)
 
         return results

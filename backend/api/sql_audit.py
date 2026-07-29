@@ -3,7 +3,7 @@ TDSQL SQL审核工具 - SQL审核 API
 
 提供 RESTful 接口用于 SQL 审核和审核报告导出。
 """
-from fastapi import APIRouter, UploadFile, File, HTTPException, Query, Request
+from fastapi import APIRouter, UploadFile, File, HTTPException, Query, Request, Form
 from fastapi.responses import StreamingResponse, HTMLResponse, Response
 from typing import Optional
 from urllib.parse import quote
@@ -66,6 +66,20 @@ def _deprecated_params(project_id: Optional[str]) -> Optional[dict]:
     return None
 
 
+def _scope_fields(ictx, skipped: int) -> dict:
+    """V1.5：由实例类型上下文生成响应口径字段（自证口径，I4）。"""
+    cn = "分布式" if ictx.instance_type.value == "distributed" else "集中式"
+    notice = (f"本次按【{cn}实例】口径评估，已跳过 {skipped} 条不适用于该实例类型的规则。"
+              if skipped else "")
+    return {
+        "instance_type": ictx.instance_type.value,
+        "instance_type_source": ictx.source.value,
+        "instance_type_conflict": ictx.conflict,
+        "skipped_rules_count": skipped,
+        "scope_notice": notice,
+    }
+
+
 def _audit_log(request: Request, operation_type: str, target_id: str, detail: str):
     """写操作审计日志；失败仅告警，不影响主流程"""
     try:
@@ -92,8 +106,8 @@ async def audit_sql(request: AuditRequest, http_request: Request):
     - **project_id**: 项目ID（可选，绑定项目的规则集与门禁）
     """
     try:
-        # V1.4：尺度全局化（project_id 不再决定尺度）；门禁按 connection_id 绑定的实例判定
-        result, gate_result = audit_service.audit_single_sql(
+        # V1.4：尺度全局化；V1.5：实例类型由解析器得出（A类探测优先）
+        result, gate_result, ictx = audit_service.audit_single_sql(
             request.sql,
             created_by=_operator(http_request),
             project_id=request.project_id or "",
@@ -101,6 +115,7 @@ async def audit_sql(request: AuditRequest, http_request: Request):
             connection_id=request.connection_id or "",
         )
         rs_id, rs_name = _active_scale()
+        skipped = audit_service.checker.count_skipped_by_scope(ictx.instance_type.value)
         return AuditResponse(
             passed=result.passed,
             violations=result.violations,
@@ -109,6 +124,7 @@ async def audit_sql(request: AuditRequest, http_request: Request):
             rule_set_id=rs_id,
             rule_set_name=rs_name,
             deprecated_params=_deprecated_params(request.project_id),
+            **_scope_fields(ictx, skipped),
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"SQL解析失败: {str(e)}")
@@ -124,8 +140,8 @@ async def audit_file(request: FileAuditRequest, http_request: Request):
     - **project_id**: 项目ID（可选，绑定项目的规则集与门禁）
     """
     try:
-        # V1.4：尺度全局化；门禁按 connection_id 绑定的实例判定
-        results, summary, gate_result = audit_service.audit_file_content(
+        # V1.4：尺度全局化；V1.5：实例类型由解析器得出
+        results, summary, gate_result, ictx = audit_service.audit_file_content(
             request.content, file_path=request.file_path,
             created_by=_operator(http_request),
             project_id=request.project_id or "",
@@ -133,21 +149,25 @@ async def audit_file(request: FileAuditRequest, http_request: Request):
             connection_id=request.connection_id or "",
         )
         rs_id, rs_name = _active_scale()
+        skipped = audit_service.checker.count_skipped_by_scope(ictx.instance_type.value)
         return FileAuditResponse(results=results, summary=summary,
                                  gate_result=gate_result,
                                  rule_set_id=rs_id,
                                  rule_set_name=rs_name,
-                                 deprecated_params=_deprecated_params(request.project_id))
+                                 deprecated_params=_deprecated_params(request.project_id),
+                                 **_scope_fields(ictx, skipped))
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"文件审核失败: {str(e)}")
 
 
 @router.post("/upload", response_model=FileAuditResponse, summary="上传文件审核")
-async def audit_upload(http_request: Request, file: UploadFile = File(...)):
+async def audit_upload(http_request: Request, file: UploadFile = File(...),
+                       instance_type: Optional[str] = Form(None)):
     """
     上传文件进行 SQL 审核。
 
     支持 .sql、.xml 文件格式。
+    V1.5：B类通道（无目标实例），instance_type 由调用方声明，未声明取全局默认。
     """
     if not file.filename:
         raise HTTPException(status_code=400, detail="文件名为空")
@@ -162,11 +182,14 @@ async def audit_upload(http_request: Request, file: UploadFile = File(...)):
     try:
         content = await file.read()
         text = content.decode("utf-8")
-        results, summary, _ = audit_service.audit_file_content(
+        results, summary, _, ictx = audit_service.audit_file_content(
             text, file_path=file.filename,
             created_by=_operator(http_request),
+            instance_type=instance_type,
         )
-        return FileAuditResponse(results=results, summary=summary)
+        skipped = audit_service.checker.count_skipped_by_scope(ictx.instance_type.value)
+        return FileAuditResponse(results=results, summary=summary,
+                                 **_scope_fields(ictx, skipped))
     except UnicodeDecodeError:
         raise HTTPException(status_code=400, detail="文件编码错误，请使用 UTF-8 编码")
     except Exception as e:
@@ -174,8 +197,14 @@ async def audit_upload(http_request: Request, file: UploadFile = File(...)):
 
 
 @router.post("/batch-stream", summary="大文件/多SQL流式 NDJSON 审核")
-async def audit_batch_stream(file: UploadFile = File(...)):
-    """支持大文件 SQL 的异步流式批处理审核 (NDJSON 格式)"""
+async def audit_batch_stream(file: UploadFile = File(...),
+                             instance_type: Optional[str] = Form(None),
+                             meta: int = Query(1)):
+    """支持大文件 SQL 的异步流式批处理审核 (NDJSON 格式)。
+
+    V1.5：B类通道，instance_type 由调用方声明（未声明取全局默认）；
+    首帧输出 type=meta 元信息帧，不识别的外部消费方可传 ?meta=0 关闭（默认开启）。
+    """
     from backend.services.database import split_sql_statements
     import json
     content = await file.read()
@@ -186,12 +215,25 @@ async def audit_batch_stream(file: UploadFile = File(...)):
 
     statements = split_sql_statements(text)
 
+    # V1.5：解析一次实例类型，随流传递（B类通道，无 connection_id）
+    ictx = audit_service._resolve_instance("", instance_type)
+    it = ictx.instance_type.value
+    skipped = audit_service.checker.count_skipped_by_scope(it)
+
     async def stream_generator():
+        # V1.5：NDJSON 首帧元信息（唯一破坏性变更，?meta=0 可关闭）
+        if meta != 0:
+            yield json.dumps({
+                "type": "meta",
+                "instance_type": it,
+                "instance_type_source": ictx.source.value,
+                "skipped_rules_count": skipped,
+            }, ensure_ascii=False) + "\n"
         for idx, stmt in enumerate(statements, 1):
             stmt_clean = stmt.strip()
             if not stmt_clean:
                 continue
-            res, _ = audit_service.audit_single_sql(stmt_clean)
+            res, _, _ = audit_service.audit_single_sql(stmt_clean, instance_type=it)
             item = {
                 "index": idx,
                 "passed": res.passed,
@@ -300,19 +342,20 @@ async def extract_and_audit(http_request: Request, payload: dict):
         filename = f"extracted_{target_db}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.sql"
 
         # 2. 调用文件审核引擎进行规则化全面评估
-        # V1.4：尺度取自全局生效规则集，记录当时用的哪把尺（可追溯）
+        # V1.4：尺度取自全局生效规则集；V1.5：传 connection_id（A类通道，自动解析实例类型）
         from backend.services.ruleset_service import ruleset_service as _rs_svc
         _rule_set_id = _rs_svc.get_active_rule_set_id()
-        results, summary, _ = audit_service.audit_file_content(
+        results, summary, _, ictx = audit_service.audit_file_content(
             full_extracted_sql,
             file_path=filename,
             created_by=_operator(http_request),
+            connection_id=connection_id,
             save_history=False
         )
+        _skipped = audit_service.checker.count_skipped_by_scope(ictx.instance_type.value)
 
         # 显式持久化落盘至 audit_history 表 (audit_type = 'extracted_schema')
-        # V1.3(D1): 补落 connection_id / db_name，支撑按实例筛选与对比
-        # V1.4: 补落 rule_set_id（尺度可追溯）
+        # V1.3(D1): 补落 connection_id / db_name；V1.4: rule_set_id；V1.5: 实例类型口径
         from backend.services.audit_service import _save_audit_history
         report_id = _save_audit_history(
             audit_type="extracted_schema",
@@ -323,6 +366,8 @@ async def extract_and_audit(http_request: Request, payload: dict):
             connection_id=connection_id,
             db_name=target_db,
             rule_set_id=_rule_set_id,
+            instance_ctx=ictx,
+            skipped_rules_count=_skipped,
         )
 
         # V1.3: 旁路生成对比快照（失败仅告警，不影响审核主流程）
@@ -342,6 +387,7 @@ async def extract_and_audit(http_request: Request, payload: dict):
                 "scan_finished_at": datetime.now().isoformat(),
                 "created_by": _operator(http_request),
                 "rule_set_id": _rule_set_id,
+                "instance_type": ictx.instance_type.value,
             }, _items, _obj_total)
         except Exception as e:
             logger.warning(f"生成元数据审核快照失败: {e}")
@@ -353,7 +399,9 @@ async def extract_and_audit(http_request: Request, payload: dict):
             "filename": filename,
             "extracted_sql": full_extracted_sql,
             "results": results,
-            "summary": summary
+            "summary": summary,
+            # V1.5：响应自证口径（改完这一处，用户报告的 R077 误报即消失）
+            **_scope_fields(ictx, _skipped),
         }
     except Exception as e:
         logger.error(f"反向拉取元数据失败: {e}")

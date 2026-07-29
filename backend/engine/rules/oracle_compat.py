@@ -15,7 +15,7 @@ from sqlglot import exp
 
 from backend.engine.parser import ParsedSQL
 from backend.engine.rules.base import BaseRule
-from backend.models import RuleCategory, Severity, Violation
+from backend.models import RuleCategory, Severity, Violation, InstanceScope
 
 # ═══════════════════════════════════════════════════════════════════
 # 模块级预编译正则（性能硬要求）
@@ -378,6 +378,7 @@ class R091MergeInto(BaseRule):
 class R092WithAsCte(BaseRule):
     """R092: WITH AS子查询不支持"""
     rule_id = "R092"
+    instance_scope = InstanceScope.DISTRIBUTED
     category = RuleCategory.ORACLE_COMPAT
     severity = Severity.ERROR
     description = "分布式实例不支持WITH AS(CTE)，请改写为子查询或JOIN；集中式8.0递归场景可评估WITH RECURSIVE"
@@ -472,9 +473,10 @@ class R096FullJoin(BaseRule):
 class R097DefaultValueFunction(BaseRule):
     """R097: 建表默认值禁用函数/类型转换"""
     rule_id = "R097"
+    instance_scope = InstanceScope.DISTRIBUTED
     category = RuleCategory.ORACLE_COMPAT
     severity = Severity.ERROR
-    description = "TDSQL建表字段DEFAULT值不支持类型转换/函数表达式（Proxy报ERROR 1064），仅CURRENT_TIMESTAMP例外"
+    description = "分布式实例建表字段DEFAULT值不支持类型转换/函数表达式（Proxy报ERROR 1064），仅CURRENT_TIMESTAMP例外；集中式实例（MySQL 8.0.13+）原生支持表达式默认值，不受此限"
     spec_source = "ORACLE迁移TDSQL改造适配方案 V1.5.1 - DEFAULT值限制"
     fix_suggestion = "如 data_dt char(8) default date_format(…)→改为 data_dt char(8) not null，默认值由应用层赋值"
     enabled = True
@@ -558,6 +560,7 @@ class R099DerivedTableAlias(BaseRule):
 class R100DeleteTableAlias(BaseRule):
     """R100: DELETE语句禁用表别名"""
     rule_id = "R100"
+    instance_scope = InstanceScope.DISTRIBUTED
     category = RuleCategory.ORACLE_COMPAT
     severity = Severity.ERROR
     description = "分布式实例DELETE语句不支持对被删表设置别名，请使用真实表名"
@@ -783,6 +786,7 @@ class R110UserEnv(BaseRule):
 class R111WindowFunction(BaseRule):
     """R111: 分布式不支持窗口函数"""
     rule_id = "R111"
+    instance_scope = InstanceScope.DISTRIBUTED
     category = RuleCategory.ORACLE_COMPAT
     severity = Severity.ERROR
     description = "分布式实例不支持窗口函数（row_number()/rank()等 OVER()），需改写为分组+嵌套查询或应用侧处理"
@@ -800,6 +804,7 @@ class R111WindowFunction(BaseRule):
 class R112CursorUsage(BaseRule):
     """R112: 分布式不支持游标"""
     rule_id = "R112"
+    instance_scope = InstanceScope.DISTRIBUTED
     category = RuleCategory.ORACLE_COMPAT
     severity = Severity.ERROR
     description = "TDSQL分布式不支持游标（DECLARE…CURSOR/FETCH），请改用键集翻页或流式查询"
@@ -817,9 +822,10 @@ class R112CursorUsage(BaseRule):
 class R113DropPartitionRisk(BaseRule):
     """R113: 删除分区高并发风险提示"""
     rule_id = "R113"
+    instance_scope = InstanceScope.DISTRIBUTED
     category = RuleCategory.ORACLE_COMPAT
     severity = Severity.INFO
-    description = "高并发下DROP PARTITION与路由元数据更新存在毫秒级间隙，小概率报分区不存在；请逐表执行drop+analyze并配置重试"
+    description = "分布式实例高并发下DROP PARTITION与proxy路由元数据更新存在毫秒级间隙，小概率报分区不存在；请逐表执行drop+analyze并配置重试"
     spec_source = "ORACLE迁移TDSQL改造适配方案 V1.5.1 - 删除分区注意事项"
     fix_suggestion = "将多表批量drop partition后统一analyze，改为逐表\"drop partition→analyze table\"循环"
     enabled = True
@@ -827,7 +833,7 @@ class R113DropPartitionRisk(BaseRule):
     def check(self, parsed: ParsedSQL, table_metadata: Optional[dict] = None) -> Optional[Violation]:
         text = clean_sql(parsed.raw_sql)
         if _RE_DROP_PARTITION.search(text):
-            return self._make_violation("DROP PARTITION在高并发下可能与路由元数据更新存在间隙，建议逐表执行并配置重试")
+            return self._make_violation("DROP PARTITION在高并发下可能与proxy路由元数据更新存在间隙，建议逐表执行并配置重试")
         return None
 
 
@@ -836,7 +842,7 @@ class R114DeepPagination(BaseRule):
     rule_id = "R114"
     category = RuleCategory.ORACLE_COMPAT
     severity = Severity.WARNING
-    description = "LIMIT大偏移分页在分布式实例代价高（proxy聚合各分片），请用索引有序性/键集翻页/条件初筛优化"
+    description = "LIMIT大偏移分页需扫描并丢弃前N行，代价随偏移量线性增长；分布式实例还需proxy跨分片聚合，代价更高。请用索引有序性/键集翻页/条件初筛优化"
     spec_source = "ORACLE迁移TDSQL改造适配方案 V1.5.1 - 分页问题"
     fix_suggestion = "强排序分页→利用索引有序性；不排序分页→随机选分片返回单页；叠加日期/分类条件缩减初筛量级；最优为键集翻页where col>lastval limit N"
     enabled = True
@@ -844,13 +850,14 @@ class R114DeepPagination(BaseRule):
 
     def check(self, parsed: ParsedSQL, table_metadata: Optional[dict] = None) -> Optional[Violation]:
         if parsed.limit_offset > self.DEEP_PAGE_OFFSET:
-            return self._make_violation(f"LIMIT偏移量{parsed.limit_offset}超过{self.DEEP_PAGE_OFFSET}，分布式实例深分页代价高")
+            return self._make_violation(f"LIMIT偏移量{parsed.limit_offset}超过{self.DEEP_PAGE_OFFSET}，深分页需扫描并丢弃前{parsed.limit_offset}行，代价高")
         return None
 
 
 class R115PrimaryKeyLength(BaseRule):
     """R115: 主键长度限制"""
     rule_id = "R115"
+    instance_scope = InstanceScope.DISTRIBUTED
     category = RuleCategory.ORACLE_COMPAT
     severity = Severity.WARNING
     description = "分布式实例update/delete…limit依赖proxy内嵌myisam临时表（索引限1000字节），utf8mb4下主键varchar长度须<250"
@@ -885,6 +892,7 @@ class R115PrimaryKeyLength(BaseRule):
 class R116ShardKeySingleColumn(BaseRule):
     """R116: 分片键仅支持单字段"""
     rule_id = "R116"
+    instance_scope = InstanceScope.DISTRIBUTED
     category = RuleCategory.ORACLE_COMPAT
     severity = Severity.ERROR
     description = "分片键只支持一个字段，不支持多字段联合分片键"
@@ -907,6 +915,7 @@ class R116ShardKeySingleColumn(BaseRule):
 class R117ShardKeyType(BaseRule):
     """R117: 分片键字段类型限制"""
     rule_id = "R117"
+    instance_scope = InstanceScope.DISTRIBUTED
     category = RuleCategory.ORACLE_COMPAT
     severity = Severity.ERROR
     description = "shardkey字段类型必须是int/bigint/smallint/char/varchar"
@@ -932,6 +941,7 @@ class R117ShardKeyType(BaseRule):
 class R118ShardKeyNotNull(BaseRule):
     """R118: 分片键必须NOT NULL"""
     rule_id = "R118"
+    instance_scope = InstanceScope.DISTRIBUTED
     category = RuleCategory.ORACLE_COMPAT
     severity = Severity.ERROR
     description = "shardkey字段的值不能为NULL，建表时必须显式NOT NULL约束"

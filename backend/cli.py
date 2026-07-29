@@ -30,10 +30,15 @@ def cli():
 @click.argument("sql")
 @click.option("--project", "-p", default="default", help="项目ID")
 @click.option("--gate", is_flag=True, help="启用质量门禁检查")
-def audit(sql, project, gate):
+@click.option("--instance-type", "-t", default=None,
+              help="实例类型 distributed/centralized（V1.5，默认读全局配置）")
+def audit(sql, project, gate, instance_type):
     """审核单条SQL语句"""
     checker = RuleChecker()
-    result = checker.audit_sql(sql)
+    # V1.5：CLI 为 B 类通道（无目标实例），未声明取全局默认
+    from backend.services.instance_type_service import instance_type_service
+    _it = instance_type_service.resolve("", instance_type).instance_type.value
+    result = checker.audit_sql(sql, instance_type=_it)
 
     click.echo(f"\n{'='*60}")
     click.echo(f"SQL审核结果")
@@ -67,13 +72,17 @@ def audit(sql, project, gate):
 @cli.command(name="audit-file")
 @click.argument("file_path", type=click.Path(exists=True))
 @click.option("--gate", is_flag=True, help="启用质量门禁检查")
-def audit_file(file_path, gate):
+@click.option("--instance-type", "-t", default=None,
+              help="实例类型 distributed/centralized（V1.5，默认读全局配置）")
+def audit_file(file_path, gate, instance_type):
     """审核SQL文件"""
     with open(file_path, "r", encoding="utf-8") as f:
         content = f.read()
 
     checker = RuleChecker()
-    results = checker.audit_file(content, file_path=file_path)
+    from backend.services.instance_type_service import instance_type_service
+    _it = instance_type_service.resolve("", instance_type).instance_type.value
+    results = checker.audit_file(content, file_path=file_path, instance_type=_it)
     summary = checker.compute_summary(results)
 
     click.echo(f"\n{'='*60}")

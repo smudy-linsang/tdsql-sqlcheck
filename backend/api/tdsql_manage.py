@@ -525,8 +525,15 @@ def audit_with_metadata(request: dict):
         # 执行审核（传入元数据增强规则检查）
         checker = RuleChecker()
 
+        # V1.5：解析实例类型（A类通道，探测优先），引擎按实例类型过滤适用域
+        from backend.services.instance_type_service import instance_type_service
+        ictx = instance_type_service.resolve(request.get("connection_id") or "")
+        it = ictx.instance_type.value
+
         # 传递真实元数据给审核引擎
-        result = checker.audit_sql(sql, table_metadata=table_metadata)
+        result = checker.audit_sql(sql, table_metadata=table_metadata, instance_type=it)
+        skipped = checker.count_skipped_by_scope(it)
+        cn = "分布式" if it == "distributed" else "集中式"
 
         return {
             "sql": sql,
@@ -543,6 +550,13 @@ def audit_with_metadata(request: dict):
                     }
                     for v in result.violations
                 ],
+                # V1.5：口径自证
+                "instance_type": it,
+                "instance_type_source": ictx.source.value,
+                "instance_type_conflict": ictx.conflict,
+                "skipped_rules_count": skipped,
+                "scope_notice": (f"本次按【{cn}实例】口径评估，已跳过 {skipped} 条不适用规则。"
+                                 if skipped else ""),
             },
         }
     except Exception as e:
@@ -714,6 +728,9 @@ def save_connection(request: TDSQLConnectRequest, http_request: Request):
         monitor_db=request.monitor_db,
         operator=_operator(http_request),
     )
+    # V1.5：实例配置变更后失效类型解析缓存，本进程立即生效
+    from backend.services.instance_type_service import instance_type_service
+    instance_type_service.invalidate(conn_id)
     return {
         "message": "连接配置已保存",
         "id": conn_id,
@@ -748,11 +765,32 @@ def update_connection(conn_id: str, request: TDSQLConnectRequest, http_request: 
         conn_id=conn_id,
         operator=_operator(http_request),
     )
+    # V1.5：实例配置变更后失效类型解析缓存
+    from backend.services.instance_type_service import instance_type_service
+    instance_type_service.invalidate(conn_id)
     return {
         "message": "连接配置已更新",
         "id": conn_id,
         "name": request.name or f"{request.host}:{request.port}",
     }
+
+
+@router.post("/connections/{conn_id}/probe-instance-type", summary="探测实例类型（V1.5）")
+def probe_instance_type(conn_id: str, http_request: Request):
+    """对指定实例执行一次实例类型探测，刷新 detected_instance_type。
+
+    权限：admin / dba（写实例元数据，等同实例管理操作）。
+    探测失败不返回 5xx——网络抖动/权限不足是正常业务分支，此时退回声明值。
+    """
+    if getattr(http_request.state, "role", "") not in ("admin", "dba"):
+        raise HTTPException(status_code=403,
+                            detail={"detail": "仅管理员/DBA 可探测实例类型", "code": "E403"})
+    saved = registry.get_saved(conn_id)
+    if not saved:
+        raise HTTPException(status_code=404,
+                            detail={"detail": f"实例不存在: {conn_id}", "code": "E5012"})
+    from backend.services.instance_type_service import instance_type_service
+    return instance_type_service.probe_now(conn_id)
 
 
 @router.post("/connections/{conn_id}/monitor-probe", summary="测试 monitordb 连通性")
