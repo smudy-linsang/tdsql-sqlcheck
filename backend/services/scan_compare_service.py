@@ -20,6 +20,10 @@ logger = logging.getLogger(__name__)
 # CHANGED 判定阈值（可按需调整）
 COMPARE_SLOW_DELTA_PCT = 30.0    # 慢SQL 平均耗时变化幅度
 COMPARE_SIZE_DELTA_PCT = 30.0    # 大表体量增长幅度
+# V1.5.2 上线检查度量变化幅度阈值。取 20%（低于慢SQL/大表的 30%）：
+# 索引数、字段数是离散小整数——5→6 就是 20%，属于值得关注的结构变化；
+# 用 30% 会让 5→6 被忽略。
+COMPARE_LAUNCH_DELTA_PCT = 20.0
 
 _SEV_ORDER = {"ERROR": 0, "WARNING": 1, "INFO": 2}
 _SEV_RANK = {"INFO": 0, "WARNING": 1, "ERROR": 2}
@@ -125,13 +129,30 @@ def validate_pair(snapshot_ids, module: str = "") -> tuple[dict, dict, list]:
             f"两次扫描的评估尺度不同（{r1} vs {r2}），问题数变化不可比，已拒绝对比",
             status=409)
 
+    # 8. 上线检查：检查范围必须一致（V1.5.2）
+    # 全部数据库 vs 单库的两次结果若允许对比，未覆盖库的问题项会全部
+    # 显示为"已解决"—— 一次凭空的大规模整改。这个错误方向不报错、
+    # 不异常，只会让人对着假报告做决策，故必须拦截（规约 R-15）。
+    if s1.get("module") == "launch_check":
+        d1 = (s1.get("db_name") or "").strip()
+        d2 = (s2.get("db_name") or "").strip()
+        if d1 != d2:
+            _lbl = lambda d: d or "全部数据库"
+            raise CompareError(
+                "E4008",
+                f"两次上线检查的范围不同（{_lbl(d1)} vs {_lbl(d2)}），"
+                f"问题数变化不可比，已拒绝对比。请选择检查范围相同的两次结果。",
+                status=409)
+
     # 基准判定：时间早的为 base，与勾选顺序无关
     base, target = sorted([s1, s2], key=lambda s: (s.get("scan_finished_at") or "", s.get("id")))
 
     warnings = []
     # 7b. 存量快照宽容处理：任一尺度为 NULL（V1.4 前产生）不拒绝，仅警告。
     # 若一律拒绝，全部存量快照立即不可对比，等于废掉 V1.3 刚交付的能力。
-    if not r1 or not r2:
+    # V1.5.2：launch_check 不走规则集，其快照 rule_set_id 恒为 NULL，
+    # 若不跳过会每次都误报"产生于 V1.4 之前"——该警告对本模块无意义。
+    if (not r1 or not r2) and s1.get("module") != "launch_check":
         warnings.append(
             "其中一次扫描产生于 V1.4 之前，评估尺度未知，整改率仅供参考")
     # 7. 慢SQL 时间窗口一致性（不拦截，仅提示）
@@ -210,6 +231,34 @@ def detect_change(module: str, ob: dict, ot: dict):
                             "old": round(old_gb, 2), "new": round(new_gb, 2),
                             "pct": round(pct, 1),
                             "direction": "UP" if pct > 0 else "DOWN"})
+
+    elif module == "launch_check":
+        # V1.5.2 上线检查。度量与属性的定义见 snapshot_extractors/launch_check.py
+        # 的 _CHECK_SPEC（设计文档 §7.2 判定表）。
+        # 度量类：索引数/字段数/表数量/字符数 变化超阈值 → GROWTH
+        for field in ("索引数", "字段数", "表数量", "字符数"):
+            ob_v, ot_v = ab.get(field), at.get(field)
+            if ob_v is None or ot_v is None:
+                continue
+            try:
+                old_n, new_n = float(ob_v), float(ot_v)
+            except (TypeError, ValueError):
+                continue
+            pct = _pct_change(old_n, new_n)
+            if pct is not None and abs(pct) >= COMPARE_LAUNCH_DELTA_PCT:
+                changes.append({"type": "GROWTH", "field": field,
+                                "old": old_n, "new": new_n,
+                                "pct": round(pct, 1),
+                                "direction": "UP" if pct > 0 else "DOWN"})
+
+        # 属性类：类型/排序规则/当前注释 变化 → ATTR
+        for field in ("类型", "排序规则", "当前注释"):
+            ob_v, ot_v = ab.get(field), at.get(field)
+            if ob_v is None and ot_v is None:
+                continue
+            if str(ob_v or "") != str(ot_v or ""):
+                changes.append({"type": "ATTR", "field": field,
+                                "old": ob_v, "new": ot_v, "direction": ""})
 
     if not changes:
         return None

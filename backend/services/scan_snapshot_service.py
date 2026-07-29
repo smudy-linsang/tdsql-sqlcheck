@@ -17,7 +17,9 @@ from backend.services.snapshot_extractors.base import IssueItem, FINGERPRINT_ALG
 
 logger = logging.getLogger(__name__)
 
-MODULES = ("schema_audit", "slow_scan", "bigtable")
+# V1.5.2 新增 launch_check（上线检查）。三命名空间对应关系：
+# 前端路由 schema-check ←→ inspection_type='schema_check' ←→ 快照 module='launch_check'
+MODULES = ("schema_audit", "slow_scan", "bigtable", "launch_check")
 SNAPSHOT_MAX_ISSUES = 20000
 SNAPSHOT_SCHEMA_VERSION = 1
 
@@ -417,6 +419,13 @@ _REBUILDERS = {
 
 def rebuild_snapshots(module: str, limit: int = 200, overwrite: bool = False) -> dict:
     """从源表回填历史快照，返回 {scanned, created, skipped, failed}"""
+    if module == "launch_check":
+        # V1.5.2：必须显式拒绝，不能静默返回空结果——静默返回会让人以为
+        # "回填过了只是没历史数据"，从而误信后续对比结论（设计文档 §4.4）。
+        raise ValueError(
+            "上线检查不支持存量回填：历史明细每项仅保留前 100 行且已压平为文本，"
+            "回填出的快照与实时快照不可比，会在对比中把未回填的问题项误显示为"
+            "「已解决」。请以本次上线之后的检查结果为对比基线。")
     if module not in MODULES:
         raise ValueError(f"不支持的模块: {module}")
     limit = max(1, min(int(limit or 200), 1000))

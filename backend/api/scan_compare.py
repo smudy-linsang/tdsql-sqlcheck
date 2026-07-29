@@ -25,6 +25,10 @@ _MODULE_MENU = {
     "schema_audit": "schema-extractor-audit",
     "slow_scan": "slow-tasks",
     "bigtable": "bigtable",
+    # V1.5.2 上线检查。设计文档 §6.1 称对比 API"零改动"，但本白名单同时
+    # 承担 module 合法性校验与模块级越权校验，不登记则 launch_check
+    # 会被 _check_module 直接 400 拒绝 —— 此处是必要的落地补齐。
+    "launch_check": "schema-check",
 }
 
 
@@ -50,7 +54,7 @@ def _check_module(module: str) -> str:
     且平台既有先例（daily_inspect.compare 对 connection_id）也是 400 + 明确提示。
     """
     if not module:
-        raise _err("E4006", "必须指定 module（schema_audit / slow_scan / bigtable）")
+        raise _err("E4006", "必须指定 module（schema_audit / slow_scan / bigtable / launch_check）")
     if module not in _MODULE_MENU:
         raise _err("E4006", f"不支持的模块类型: {module}")
     return module
@@ -220,6 +224,14 @@ def rebuild_snapshots(request: Request, payload: dict):
         raise _err("E4031", "仅管理员或DBA可执行存量回填", status=403)
     module = _check_module((payload or {}).get("module") or "")
     _check_module_perm(request, module)
+    # V1.5.2：上线检查不支持回填，专用错误码 E4009（与通用参数错误 E4006 区分）。
+    # service 层 rebuild_snapshots 同样会拒绝（双保险），此处提前拦截以保证错误码语义。
+    if module == "launch_check":
+        raise _err(
+            "E4009",
+            "上线检查不支持存量回填：历史明细每项仅保留前 100 行且已压平为文本，"
+            "回填出的快照与实时快照不可比，会在对比中把未回填的问题项误显示为"
+            "「已解决」。请以本次上线之后的检查结果为对比基线。")
     limit = (payload or {}).get("limit") or 200
     overwrite = bool((payload or {}).get("overwrite", False))
 

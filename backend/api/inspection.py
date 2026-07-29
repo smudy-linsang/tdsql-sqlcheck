@@ -1,12 +1,18 @@
 """
 TDSQL SQL审核工具 - 巡检与报告 API 路由 (V1.0)
 """
+import logging
+
 from fastapi import APIRouter, HTTPException, Request
 from typing import Optional
 from datetime import datetime
 
 from backend.models import InspectionResultInfo, ApiResponse, SchemaCheckRequest
 from backend.services.inspection_service import InspectionService
+
+# V1.5.2：必须先于快照旁路存在——v1.3 在 sql_audit.py 栽过一次：
+# 快照失败时 logger 未定义抛 NameError，把已完成的审核结果整个吞掉返回 500。
+logger = logging.getLogger("tdsql.inspection")
 
 router = APIRouter(prefix="/api/v1/inspection", tags=["巡检管理"])
 _service = InspectionService()
@@ -264,7 +270,7 @@ def save_result(task_id: int, result: InspectionResultInfo):
 
 @router.post("/schema-check", response_model=ApiResponse)
 def run_schema_check(request: SchemaCheckRequest, http_request: Request):
-    """执行数据库上线前Schema检查（12项）"""
+    """执行数据库上线前Schema检查（12项）；V1.5.2 旁路落对比快照"""
     from backend.services.connection_registry import registry, ConnectionNotFoundError
     from backend.engine.schema_inspector import SchemaInspector
 
@@ -275,6 +281,7 @@ def run_schema_check(request: SchemaCheckRequest, http_request: Request):
         raise HTTPException(status_code=400, detail="未找到指定实例连接，请先在实例管理中连接实例")
 
     # 创建巡检任务
+    _started_at = datetime.now().isoformat()
     task_id = _service.create_task(request.connection_id, "schema_check")
     _service.update_task_status(task_id, "running")
 
@@ -305,10 +312,43 @@ def run_schema_check(request: SchemaCheckRequest, http_request: Request):
                     ))
 
         _service.update_task_status(task_id, "completed")
+
+        # ── V1.5.2：旁路创建对比快照（失败仅告警，绝不影响检查主流程）──
+        # safe_create_snapshot 本身已吞异常，外层 try 是对【抽取器】异常的
+        # 兜底——抽取器在 safe_create_snapshot 之外执行，两层都要有。
+        snapshot_id, snapshot_error = None, ""
+        try:
+            from backend.services.snapshot_extractors.launch_check import extract as _lc_extract
+            from backend.services import scan_snapshot_service as _snap
+            from backend.services.connection_registry import registry as _reg
+
+            # 用【内存中完整的 results】，不是上面写库时截断到 100 行的副本——
+            # 用截断副本会让快照静默丢项，下次对比时那些项显示为"已解决"。
+            _items, _obj_total = _lc_extract(results, request.database_filter or "")
+            _conn_info = _reg.get_saved(request.connection_id) or {}
+            _scope_label = request.database_filter or "全部数据库"
+
+            snapshot_id = _snap.safe_create_snapshot("launch_check", {
+                "biz_ref_id": str(task_id),
+                "connection_id": request.connection_id,
+                "connection_name": _conn_info.get("name", ""),
+                # db_name 即检查范围，参与对比的可比性校验（E4008）；空串=全部数据库
+                "db_name": request.database_filter or "",
+                "scan_label": f"上线检查 · {_scope_label}",
+                "scan_started_at": _started_at,
+                "scan_finished_at": datetime.now().isoformat(),
+            }, _items, object_total=_obj_total)
+        except Exception as e:
+            snapshot_error = str(e)[:200]
+            logger.warning("上线检查快照创建失败（不影响检查结果）task_id=%s: %s",
+                           task_id, e)
+
         return ApiResponse(data={
             "task_id": task_id,
             "summary": summary,
             "results": results,
+            "snapshot_id": snapshot_id,
+            "snapshot_error": snapshot_error,
         })
     except Exception as e:
         _service.update_task_status(task_id, "failed", str(e))

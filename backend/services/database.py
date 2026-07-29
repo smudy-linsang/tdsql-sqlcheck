@@ -1465,6 +1465,9 @@ def _init_default_data(conn):
         # V1.3: 扫描结果对比，快照与留档统一 365 天（领导决策 2026-07-26）
         ("scan_snapshots", 365),
         ("scan_compare_reports", 365),
+        # V1.5.2: 上线检查明细（与 v6/060 迁移双保险，R-04）。
+        # inspection_results 经外键级联清理，不单独登记。
+        ("inspection_tasks", 180),
     ]
     for table, days in retention_defaults:
         conn.cursor().execute("""

@@ -27,6 +27,10 @@ CLEANABLE_TABLES = {
     # V1.3 扫描结果纵向对比
     "scan_snapshots": "created_at",
     "scan_compare_reports": "created_at",
+    # V1.5.2 上线检查。只登记 inspection_tasks：inspection_results 有
+    # ON DELETE CASCADE 外键，随任务级联清理；若单独登记并按其自身
+    # created_at 清理，会留下"任务还在、明细被删一半"的残缺记录。
+    "inspection_tasks": "created_at",
 }
 
 
