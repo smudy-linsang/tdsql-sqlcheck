@@ -9,6 +9,7 @@ V2.0 变更:
 - 连接配置持久化从明文JSON文件迁移到 SQLite（密码Fernet加密）
 - 慢SQL扫描抽取到 scan_service（限流 + 脱敏），支持后台异步执行
 """
+import re
 import time
 from typing import Optional
 
@@ -775,12 +776,15 @@ def update_connection(conn_id: str, request: TDSQLConnectRequest, http_request: 
     }
 
 
-@router.post("/connections/{conn_id}/probe-instance-type", summary="探测实例类型（V1.5）")
+@router.post("/connections/{conn_id}/probe-instance-type", summary="探测实例类型（V1.5.1 多源判定）")
 def probe_instance_type(conn_id: str, http_request: Request):
-    """对指定实例执行一次实例类型探测，刷新 detected_instance_type。
+    """对指定实例执行一次实例类型判定，返回多源明细（V1.5.1）。
+
+    不再只跑 SQL 探针：依次尝试 锁定/ZK/探测/声明 全部判定源，
+    逐源返回 available / value / reason，并给出最终生效结论与下一步建议。
 
     权限：admin / dba（写实例元数据，等同实例管理操作）。
-    探测失败不返回 5xx——网络抖动/权限不足是正常业务分支，此时退回声明值。
+    探测失败不返回 5xx——网络抖动/权限不足是正常业务分支，此时下沉至声明值。
     """
     if getattr(http_request.state, "role", "") not in ("admin", "dba"):
         raise HTTPException(status_code=403,
@@ -791,6 +795,112 @@ def probe_instance_type(conn_id: str, http_request: Request):
                             detail={"detail": f"实例不存在: {conn_id}", "code": "E5012"})
     from backend.services.instance_type_service import instance_type_service
     return instance_type_service.probe_now(conn_id)
+
+
+@router.put("/connections/{conn_id}/instance-type-lock",
+            summary="管理员锁定/解锁实例类型（V1.5.1）")
+def set_instance_type_lock(conn_id: str, payload: dict, http_request: Request):
+    """V1.5.1：管理员终审实例类型，优先级高于一切自动判定源。
+
+    锁成 centralized 会关掉 27 条仅分布式适用的规则，是唯一可能造成
+    静默漏报的操作，因此强制填写理由并落审计日志。
+
+    权限：仅 admin。中间件已覆盖 instances 菜单，但 instances 可能同时授予
+    dba，故处理函数内显式校验不可省略（双保险，与 v1.3 _require_admin 同款）。
+    """
+    if getattr(http_request.state, "role", "") != "admin":
+        raise HTTPException(status_code=403,
+                            detail={"detail": "仅系统管理员可锁定实例类型", "code": "E403"})
+    saved = registry.get_saved(conn_id)
+    if not saved:
+        raise HTTPException(status_code=404,
+                            detail={"detail": f"实例不存在: {conn_id}", "code": "E5012"})
+
+    locked = bool(payload.get("locked"))
+    itype = (payload.get("instance_type") or "").strip()
+    reason = (payload.get("reason") or "").strip()
+
+    if locked:
+        if itype not in ("distributed", "centralized"):
+            raise HTTPException(status_code=400,
+                                detail="instance_type 仅支持 distributed 或 centralized")
+        # 锁 distributed 是保守方向（多跑规则）；锁 centralized 会关规则，必须留下人为决策记录
+        if itype == "centralized" and not reason:
+            raise HTTPException(
+                status_code=400,
+                detail="锁定为「集中式」将跳过 27 条仅分布式适用的规则，请填写锁定理由")
+
+    from backend.services.instance_type_service import instance_type_service
+    instance_type_service.set_lock(conn_id, locked, itype if locked else None)
+
+    # 审计：加锁/解锁均写 operation_logs
+    try:
+        from backend.services.database import log_operation
+        log_operation(operator=_operator(http_request),
+                      operation_type="instance_type_lock",
+                      target_type="tdsql_connection", target_id=conn_id,
+                      detail=f"locked={locked} value={itype} reason={reason}")
+    except Exception as e:
+        import logging
+        logging.getLogger("tdsql.api").warning(f"锁定操作审计日志写入失败: {e}")
+
+    _cn = {"distributed": "分布式", "centralized": "集中式"}
+    return {
+        "success": True,
+        "connection_id": conn_id,
+        "locked": locked,
+        "instance_type": itype if locked else "",
+        "message": ((f"已锁定实例类型为「{_cn.get(itype, itype)}」。"
+                     + (f"该实例后续审核将跳过 27 条仅分布式适用的规则。"
+                        if itype == "centralized" else "")
+                     + "配置最长 5 分钟后在全部服务进程生效。") if locked
+                    else "已解除实例类型锁定，恢复按自动判定源解析。配置最长 5 分钟后在全部服务进程生效。"),
+    }
+
+
+_SAMPLE_TABLE_RE = re.compile(r"^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)?$")
+
+
+@router.post("/connections/{conn_id}/probe-diagnostics",
+             summary="采集实例类型探测诊断数据（V1.5.1）")
+def probe_diagnostics(conn_id: str, payload: dict, http_request: Request):
+    """用系统自身的连接在目标实例上执行设计文档 §8.3 的采集清单，
+    原样返回输出，供判据实测/复测（换 TDSQL 版本、换现场时一键重采）。
+
+    采集环境 = 判定环境是硬约束的工程化保证：手工从后端 socket 采到的
+    输出与系统经 Proxy 端口能看到的未必相同（本次事故正栽在此）。
+
+    权限：admin / dba。
+    """
+    if getattr(http_request.state, "role", "") not in ("admin", "dba"):
+        raise HTTPException(status_code=403,
+                            detail={"detail": "仅管理员/DBA 可采集探测诊断", "code": "E403"})
+    saved = registry.get_saved(conn_id)
+    if not saved:
+        raise HTTPException(status_code=404,
+                            detail={"detail": f"实例不存在: {conn_id}", "code": "E5012"})
+
+    sample_table = (payload.get("sample_table") or "").strip()
+    # 白名单校验：该值会进入 SHOW CREATE TABLE 语句，不能有任何拼接注入面
+    if sample_table and not _SAMPLE_TABLE_RE.match(sample_table):
+        raise HTTPException(status_code=400,
+                            detail="sample_table 仅允许字母数字下划线，可选 db.table 格式")
+
+    pool = _get_pool(conn_id)
+    diagnostics = pool.collect_probe_diagnostics(sample_table)
+
+    from datetime import datetime
+    declared = "distributed" if int(saved.get("is_distributed", 1) or 0) == 1 else "centralized"
+    # 必须回带 endpoint 与类型上下文：缺了这两项，采回的数据无法配对分析
+    return {
+        "connection_id": conn_id,
+        "instance_label": saved.get("name") or "",
+        "endpoint": f"{saved.get('host')}:{saved.get('port')}",
+        "declared_instance_type": declared,
+        "zk_instance_kind": saved.get("zk_instance_kind") or None,
+        "collected_at": datetime.now().isoformat(timespec="seconds"),
+        "diagnostics": diagnostics,
+    }
 
 
 @router.post("/connections/{conn_id}/monitor-probe", summary="测试 monitordb 连通性")

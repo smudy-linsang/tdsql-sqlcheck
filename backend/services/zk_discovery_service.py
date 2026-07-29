@@ -70,7 +70,12 @@ class ZKDiscoveryService:
                     "password": "mock_password_set1",
                     "database": default_database,
                     "status_code": "0",
-                    "status_text": "运营中"
+                    "status_text": "运营中",
+                    # V1.5.1 Mock 形态字段（仅供 Windows/开发环境前端联调）
+                    "instance_kind": "groupshard",
+                    "instance_id": "group_mock_1",
+                    "instance_type": "distributed",
+                    "proxy_list": "127.0.0.1:15005",
                 },
                 {
                     "service_name": "TDSQL-Set-2(交易库)",
@@ -80,7 +85,11 @@ class ZKDiscoveryService:
                     "password": "mock_password_set2",
                     "database": default_database,
                     "status_code": "0",
-                    "status_text": "运营中"
+                    "status_text": "运营中",
+                    "instance_kind": "noshard",
+                    "instance_id": "set_mock_2",
+                    "instance_type": "centralized",
+                    "proxy_list": "127.0.0.1:15006",
                 },
                 {
                     "service_name": "TDSQL-Set-3(已隔离)",
@@ -90,7 +99,11 @@ class ZKDiscoveryService:
                     "password": "mock_password_set3",
                     "database": default_database,
                     "status_code": "1",
-                    "status_text": "已隔离"
+                    "status_text": "已隔离",
+                    "instance_kind": "",
+                    "instance_id": "",
+                    "instance_type": None,
+                    "proxy_list": "",
                 }
             ]
 
@@ -105,6 +118,7 @@ class ZKDiscoveryService:
             "--proxy-mode", proxy_mode,
             "--default-database", default_database,
             "--with-status",
+            "--with-type",      # V1.5.1：取实例形态（规则适用域判定的权威源）
             "-q"  # 开启静默只输出 CSV
         ]
 
@@ -123,37 +137,118 @@ class ZKDiscoveryService:
             logger.error(f"zk_inventory 运行异常: {e}")
             raise RuntimeError(f"实例发现运行异常: {e}")
 
+    # kind → 本系统业务语义的映射。存原始 kind、映射在代码里做，
+    # 便于与赤兔/ZK 对账；TDSQL 将来若增加形态，只改这张表。
+    _KIND_TO_TYPE = {
+        "noshard":    "centralized",   # 单 SET 实例 = 集中式
+        "groupshard": "distributed",   # group 下多 SET = 分布式
+    }
+
     def parse_csv(self, csv_content: str) -> list[dict]:
-        """解析发现导出的 CSV 数据"""
+        """解析发现导出的 CSV。
+
+        列布局（新列一律追加在末尾，保证旧消费方按前 N 列取值不受影响）：
+            base            : service_name,host,port,user,password,database          (6)
+            +--with-status  : ,status_code,status_text                               (8)
+            +--with-type    : ,instance_kind,instance_id,proxy_list                  (11)
+
+        V1.5.1：instance_kind 是实例类型判定的权威依据。
+        脚本内部一直有这个字段，此前未导出。
+        """
         results = []
         f = io.StringIO(csv_content.strip())
         for row in csv.reader(f):
             if not row or row[0].startswith("#"):
                 continue
-            # CSV 格式 (with-status): service_name,host,port,user,password,database,status_code,status_text
+            if len(row) < 6:
+                continue
+
+            item = {
+                "service_name": row[0],
+                "host": row[1],
+                "port": int(row[2]) if row[2].isdigit() else 15001,
+                "user": row[3],
+                "password": row[4],
+                "database": row[5],
+                "status_code": "0",
+                "status_text": "运营中",
+            }
+            # 状态列（--with-status）
             if len(row) >= 8:
-                results.append({
-                    "service_name": row[0],
-                    "host": row[1],
-                    "port": int(row[2]) if row[2].isdigit() else 15001,
-                    "user": row[3],
-                    "password": row[4],
-                    "database": row[5],
-                    "status_code": row[6],
-                    "status_text": row[7]
-                })
-            elif len(row) >= 6:
-                results.append({
-                    "service_name": row[0],
-                    "host": row[1],
-                    "port": int(row[2]) if row[2].isdigit() else 15001,
-                    "user": row[3],
-                    "password": row[4],
-                    "database": row[5],
-                    "status_code": "0",
-                    "status_text": "运营中"
-                })
+                item["status_code"] = row[6]
+                item["status_text"] = row[7]
+            # 形态列（--with-type）
+            if len(row) >= 11:
+                kind = (row[8] or "").strip()
+                item["instance_kind"] = kind
+                item["instance_id"] = (row[9] or "").strip()
+                item["proxy_list"] = (row[10] or "").strip()
+                item["instance_type"] = self._KIND_TO_TYPE.get(kind)
+                if kind and item["instance_type"] is None:
+                    # 未知形态不得静默映射成某一类——凭假设给结论正是
+                    # 本次事故的成因。不给结论 + 告警，判定下沉至声明值。
+                    logger.warning(
+                        f"ZK 返回未知实例形态 kind={kind!r} "
+                        f"(instance_id={item['instance_id']})，本条不参与类型判定")
+            results.append(item)
         return results
+
+    def sync_instance_kinds(self, discovered: list[dict]) -> int:
+        """把 ZK 发现的实例形态回写到已注册实例（V1.5.1）。
+
+        匹配规则：已注册实例的 host:port ∈ 该 ZK 实例的 proxy_list 全集。
+        不用"等于 CSV 里的 host:port"—— 脚本按 --proxy-mode random 随机选一个
+        网关输出，而系统里登记的可能是同实例的另一个网关
+        （如 10.206.0.8:15002 vs 10.206.0.4:15002），只比选中项会漏配。
+
+        Returns: 成功同步的实例数
+        """
+        from datetime import datetime
+        from backend.services.database import _get_connection, ensure_db
+
+        # 构建 "host:port" → (kind, instance_id) 索引
+        index = {}
+        for d in discovered:
+            kind = d.get("instance_kind")
+            if not kind:
+                continue
+            endpoints = [e.strip() for e in (d.get("proxy_list") or "").split(";") if e.strip()]
+            # proxy_list 为空时退回 CSV 里选中的那一个
+            if not endpoints:
+                endpoints = [f"{d.get('host')}:{d.get('port')}"]
+            for ep in endpoints:
+                index[ep] = (kind, d.get("instance_id") or "")
+
+        if not index:
+            return 0
+
+        synced = 0
+        ensure_db()
+        conn = _get_connection()
+        try:
+            rows = conn.execute(
+                "SELECT id, host, port FROM tdsql_connections").fetchall()
+            now = datetime.now().isoformat()
+            for r in rows:
+                r = dict(r)
+                hit = index.get(f"{r.get('host')}:{r.get('port')}")
+                if not hit:
+                    continue
+                kind, inst_id = hit
+                conn.execute(
+                    "UPDATE tdsql_connections SET zk_instance_kind = ?, "
+                    "zk_instance_id = ?, zk_synced_at = ? WHERE id = ?",
+                    (kind, inst_id, now, r["id"]))
+                synced += 1
+            conn.commit()
+        finally:
+            conn.close()
+
+        if synced:
+            from backend.services.instance_type_service import instance_type_service
+            instance_type_service.invalidate()   # 全量失效，本进程立即生效
+            logger.info(f"ZK 实例形态已同步 {synced} 个实例")
+        return synced
 
     def register_discovered(self, connection_id: str, inst: dict) -> str:
         """

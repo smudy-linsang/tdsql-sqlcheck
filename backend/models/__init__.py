@@ -63,8 +63,10 @@ class InstanceScope(str, Enum):
 
 
 class TypeSource(str, Enum):
-    """实例类型结论的来源，用于表达该结论的可信度（V1.5 新增）"""
-    PROBED   = "probed"     # 连库探测得出（最高可信）
+    """实例类型结论的来源，用于表达该结论的可信度（V1.5 新增，V1.5.1 扩展多源分级）"""
+    LOCKED   = "locked"     # V1.5.1 管理员锁定（终审，最高优先级）
+    ZK       = "zk"         # V1.5.1 ZK 管控面（权威源，noshard/groupshard）
+    PROBED   = "probed"     # 连库探测得出（V1.5.1 起由判据表驱动，仅阳性可信）
     DECLARED = "declared"   # 取自 tdsql_connections.is_distributed（人工声明）
     REQUEST  = "request"    # 调用方在请求中显式声明（B类通道）
     DEFAULT  = "default"    # 回落 system_config.default_instance_type

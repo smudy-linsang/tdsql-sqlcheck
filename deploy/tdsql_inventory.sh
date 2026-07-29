@@ -14,6 +14,11 @@
 # 启用 --with-status 时输出 8 列 (附加状态信息):
 #   service_name,host,port,user,password,database,status_code,status_text
 #
+# 启用 --with-type 时在末尾再追加 3 列 (V1.5.1，实例形态权威依据):
+#   ...,instance_kind,instance_id,proxy_list
+#   instance_kind: noshard=集中式 / groupshard=分布式
+#   proxy_list:    该实例全部网关 host:port，';' 分隔
+#
 # 依赖:
 #   - bash 4.x
 #   - zkCli.sh (默认 /data/application/zookeeper/bin/zkCli.sh)
@@ -28,6 +33,7 @@
 #   ./tdsql_inventory.sh --output /tmp/db_config.auto   # 输出到文件
 #   ./tdsql_inventory.sh --status-filter 0              # 只要运营中实例
 #   ./tdsql_inventory.sh --with-status                  # 附加状态列
+#   ./tdsql_inventory.sh --with-type                    # 附加实例形态列
 #   ./tdsql_inventory.sh --proxy-mode random            # 随机选 proxy (默认)
 #   ./tdsql_inventory.sh --proxy-mode first             # 总是取第一个 proxy
 #   ./tdsql_inventory.sh --default-database ALL         # 设置默认 database
@@ -107,6 +113,7 @@ DEFAULT_ZKCLI_PATH="/data/application/zookeeper/bin/zkCli.sh"
 OUTPUT_FILE=""
 STATUS_FILTER="0"          # 默认只输出 status=0 (运营中)；可逗号分隔多个；填 "all" 表示不过滤
 WITH_STATUS=0              # 是否在 CSV 末尾追加 status_code,status_text 两列
+WITH_TYPE=0                # 是否在 CSV 末尾追加 instance_kind,instance_id,proxy_list 三列
 PROXY_MODE="random"        # random / first
 DEFAULT_DATABASE="ALL"
 ENV_CONF=""
@@ -127,6 +134,7 @@ ${SCRIPT_NAME} v${VERSION} — TDSQL 实例清单自动发现工具
       --status-filter LIST   只输出指定状态码的实例（默认: 0=运营中）
                               逗号分隔多个，如 "0,1"；填 "all" 不过滤
       --with-status          CSV 末尾追加 status_code,status_text 两列
+      --with-type            CSV 末尾追加 instance_kind,instance_id,proxy_list 三列
       --proxy-mode MODE      proxy 选择策略: random(默认) / first
       --default-database DB  database 列默认值 (默认 ALL)
   -e, --env-conf FILE        指定 tdsql_env.conf 文件路径
@@ -146,6 +154,10 @@ ${SCRIPT_NAME} v${VERSION} — TDSQL 实例清单自动发现工具
     service_name,host,port,user,password,database
   --with-status 时 8 列:
     service_name,host,port,user,password,database,status_code,status_text
+  --with-type 时再追加 3 列 (新列一律追加在末尾，不影响按前 N 列取值的消费方):
+    ...,instance_kind,instance_id,proxy_list
+    instance_kind: noshard=集中式 / groupshard=分布式（V1.5.1 规则适用域权威依据）
+    proxy_list:    该实例全部网关 host:port，';' 分隔
 
 实例运行状态码 (来自 setrun.status):
    0 运营中     1 已隔离     2 未初始化   -1 删除中
@@ -166,6 +178,7 @@ while [[ $# -gt 0 ]]; do
         -o|--output)            OUTPUT_FILE="$2"; shift 2 ;;
         --status-filter)        STATUS_FILTER="$2"; shift 2 ;;
         --with-status)          WITH_STATUS=1; shift ;;
+        --with-type)            WITH_TYPE=1; shift ;;
         --proxy-mode)           PROXY_MODE="$2"; shift 2 ;;
         --default-database)     DEFAULT_DATABASE="$2"; shift 2 ;;
         -e|--env-conf)          ENV_CONF="$2"; shift 2 ;;
@@ -529,6 +542,7 @@ SETRUN_RAW = """${_setrun_raw}"""
 
 # 配置参数
 WITH_STATUS = ${WITH_STATUS} == 1
+WITH_TYPE = ${WITH_TYPE} == 1
 STATUS_FILTER = "${STATUS_FILTER}".strip()
 PROXY_MODE = "${PROXY_MODE}".strip()
 DEFAULT_DATABASE = """${DEFAULT_DATABASE}""".strip() or "ALL"
@@ -795,6 +809,19 @@ with open(INVENTORY_FILE, "r", encoding="utf-8") as f:
                    str(status_code), status_text(status_code)]
         else:
             row = [service_name, host, port, user, password, DEFAULT_DATABASE]
+
+        # V1.5.1：实例形态是审核规则适用域判定的权威依据。
+        # kind 与 instance_id 在上方已从 inventory_records 解出，
+        # 此前被丢弃在此处 —— 权威事实算出来了却没送出去，正是 V1.5 误判的根因之一。
+        # proxy_list 输出该实例【全部】网关，而非上面随机选中的那一个：
+        # 系统中登记的实例可能配的是同实例的另一个网关（如 10.206.0.8:15002
+        # 而非 10.206.0.4:15002），只按选中项匹配会漏配。
+        # 分隔用 ';' 而非 ','：避免与 CSV 列分隔符冲突，原始文件保持无引号可 grep。
+        if WITH_TYPE:
+            _endpoints = sorted(set(n.rpartition("_")[0] + ":" + n.rpartition("_")[2]
+                                    for n in proxy_names))
+            row += [kind, instance_id, ";".join(_endpoints)]
+
         rows.append(row)
 
 if skipped_status:
@@ -814,9 +841,12 @@ def csv_escape(field):
 
 def emit_rows(fp):
     if WITH_STATUS:
-        fp.write("# service_name,host,port,user,password,database,status_code,status_text\n")
+        header = "# service_name,host,port,user,password,database,status_code,status_text"
     else:
-        fp.write("# service_name,host,port,user,password,database\n")
+        header = "# service_name,host,port,user,password,database"
+    if WITH_TYPE:
+        header += ",instance_kind,instance_id,proxy_list"
+    fp.write(header + "\n")
     fp.write("# 自动生成于: " + os.popen("date '+%Y-%m-%d %H:%M:%S'").read())
     fp.write("# 来源: tdsql_inventory.sh (ZK 自动发现)\n")
     fp.write("\n")

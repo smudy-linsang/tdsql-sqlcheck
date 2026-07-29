@@ -395,16 +395,41 @@ class ConnectionRegistry:
                 d["max_error_count"] = gate_err if configured else 0
                 d["max_warning_count"] = gate_warn if configured else -1
                 d["gate_is_default"] = not configured
-                # V1.5 实例类型字段：声明(is_distributed) 与 探测(detected) 并列，冲突时前端红标
+                # V1.5.1 实例类型字段：多源分级（锁定 > ZK > 探测/声明保守合并），
+                # 与 instance_type_service._resolve_by_connection 同一口径，
+                # 列表直接渲染不为每行另发解析请求。
                 declared = "distributed" if int(d.get("is_distributed", 1) or 0) == 1 else "centralized"
                 detected = d.get("detected_instance_type") or None
                 if detected not in ("distributed", "centralized"):
                     detected = None
+                zk_kind = (d.get("zk_instance_kind") or "").strip()
+                zk_type = {"noshard": "centralized",
+                           "groupshard": "distributed"}.get(zk_kind)
+                locked_flag = int(d.get("instance_type_locked", 0) or 0) == 1
+                locked_value = (d.get("instance_type_locked_value") or "").strip()
+                if locked_value not in ("distributed", "centralized"):
+                    locked_value = ""
+
                 d["declared_instance_type"] = declared
                 d["detected_instance_type"] = detected
-                d["effective_instance_type"] = detected or declared
-                d["instance_type_source"] = "probed" if detected else "declared"
-                d["instance_type_conflict"] = bool(detected and detected != declared)
+                d["zk_instance_type"] = zk_type
+                d["instance_type_locked"] = locked_flag
+                d["instance_type_locked_value"] = locked_value
+
+                if locked_flag and locked_value:
+                    effective, source = locked_value, "locked"
+                    conflict = False
+                else:
+                    # 保守合并：任一可用源说分布式即分布式（顺序即优先级）
+                    candidates = [("zk", zk_type), ("probed", detected),
+                                  ("declared", declared)]
+                    available = [(s, v) for s, v in candidates if v is not None]
+                    dist = [(s, v) for s, v in available if v == "distributed"]
+                    source, effective = dist[0] if dist else available[0]
+                    conflict = len({v for _, v in available}) > 1
+                d["effective_instance_type"] = effective
+                d["instance_type_source"] = source
+                d["instance_type_conflict"] = conflict
                 result.append(d)
             return result
         finally:

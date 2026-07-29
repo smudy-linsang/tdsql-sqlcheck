@@ -592,6 +592,19 @@ def _migrate_old_tables(conn):
                                   "DATETIME NULL DEFAULT NULL")
         _add_column_if_not_exists(conn, "tdsql_connections", "instance_type_probe_error",
                                   "VARCHAR(512) NOT NULL DEFAULT ''")
+        # ── V1.5.1 多源分级判定（与 v5/050 迁移脚本双保险）──
+        # S1 ZK 管控面权威源：存原始形态 noshard/groupshard，映射在代码里做
+        _add_column_if_not_exists(conn, "tdsql_connections", "zk_instance_kind",
+                                  "VARCHAR(16) NULL DEFAULT NULL")
+        _add_column_if_not_exists(conn, "tdsql_connections", "zk_instance_id",
+                                  "VARCHAR(64) NOT NULL DEFAULT ''")
+        _add_column_if_not_exists(conn, "tdsql_connections", "zk_synced_at",
+                                  "DATETIME NULL DEFAULT NULL")
+        # S0 管理员锁定：拆两列，解锁后保留上次锁定值便于回显
+        _add_column_if_not_exists(conn, "tdsql_connections", "instance_type_locked",
+                                  "TINYINT NOT NULL DEFAULT 0")
+        _add_column_if_not_exists(conn, "tdsql_connections", "instance_type_locked_value",
+                                  "VARCHAR(16) NOT NULL DEFAULT ''")
     # 报告口径留痕：NULL 语义同 V1.4 rule_set_id（上线前记录，口径未知），严禁回填。
     if "audit_history" in table_names:
         _add_column_if_not_exists(conn, "audit_history", "instance_type",

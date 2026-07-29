@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <!-- 主题预置：首帧前置 data-theme，避免深/浅切换闪烁；默认深色，localStorage 记忆 -->
   <script>(function(){try{var t=localStorage.getItem('tdsql-theme');if(t!=='light'&&t!=='dark')t='dark';document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','dark');}})();</script>
-  <title>TDSQL数据库SQL审核工具 V1.5.0.0</title>
+  <title>TDSQL数据库SQL审核工具 V1.5.1.0</title>
   <script src="/static/vendor/vue.global.prod.js"></script>
   <link rel="stylesheet" href="/static/vendor/element-plus.css">
   <script src="/static/vendor/element-plus.full.min.js"></script>
@@ -26,7 +26,7 @@
     </div>
     <div class="login-brand">
       <h1>TDSQL数据库SQL审核工具</h1>
-      <div class="version">V1.5.0.0 · Design by Linsang</div>
+      <div class="version">V1.5.1.0 · Design by Linsang</div>
     </div>
     <div class="login-form">
       <el-card>
@@ -933,7 +933,7 @@
                 <el-table-column prop="name" label="连接名" show-overflow-tooltip></el-table-column>
                 <el-table-column label="地址" width="200"><template #default="{row}">{{ row.host }}:{{ row.port }}{{ row.database?'/'+row.database:'' }}</template></el-table-column>
                 <el-table-column prop="username" label="用户名" width="100"></el-table-column>
-                <el-table-column label="类型" width="130"><template #default="{row}"><el-tag size="small" :type="(row.effective_instance_type||'distributed')==='distributed'?'warning':'info'">{{ (row.effective_instance_type||'distributed')==='distributed'?'分布式':'集中式' }}</el-tag><el-tooltip v-if="row.instance_type_conflict" :content="'声明为「'+(row.declared_instance_type==='distributed'?'分布式':'集中式')+'」，探测为「'+(row.detected_instance_type==='distributed'?'分布式':'集中式')+'」。审核按探测结果执行，请核实实例配置。'" placement="top"><span style="color:#dc2626;margin-left:4px;cursor:help">⚠</span></el-tooltip><el-tag v-if="row.instance_type_source==='probed'" size="small" type="success" effect="plain" style="margin-left:4px">探测</el-tag></template></el-table-column>
+                <el-table-column label="类型" width="150"><template #default="{row}"><el-tag size="small" :type="(row.effective_instance_type||'distributed')==='distributed'?'warning':'info'" :effect="row.instance_type_source==='declared'?'plain':'dark'">{{ ((row.effective_instance_type||'distributed')==='distributed'?'分布式':'集中式')+'·'+instSourceCn(row.instance_type_source) }}</el-tag><el-tooltip v-if="row.instance_type_conflict" :content="'各源结论不一致：声明='+instTypeCn(row.declared_instance_type)+'，ZK='+instTypeCn(row.zk_instance_type)+'，探测='+instTypeCn(row.detected_instance_type)+'。已按保守原则取分布式，请点「探测类型」查看多源明细并核实。'" placement="top"><span style="color:#dc2626;margin-left:4px;cursor:help">⚠</span></el-tooltip><el-tooltip v-if="row.instance_type_source==='declared'&&!row.zk_instance_type&&!row.detected_instance_type" content="仅有人工声明，未经权威源确认。建议执行「ZK 自动发现」同步管控面形态。" placement="top"><span style="color:#94a3b8;margin-left:4px;cursor:help">?</span></el-tooltip></template></el-table-column>
                 <el-table-column label="状态" width="80"><template #default="{row}"><span :style="{color:row.active?'#16a34a':'#94a3b8'}">●</span> {{ row.active?'已连接':'未连接' }}</template></el-table-column>
                 <el-table-column label="默认" width="60"><template #default="{row}"><el-tag v-if="row.is_default" type="primary" size="small">默认</el-tag></template></el-table-column>
                 <!-- V1.4：门禁阈值两列（gate_is_default 区分"已配置"与"走系统默认"） -->
@@ -948,12 +948,14 @@
                     <span :class="row.gate_is_default?'t-secondary':''">{{ row.max_warning_count===-1?'不限':row.max_warning_count }}</span>
                   </template>
                 </el-table-column>
-                <el-table-column label="操作" width="280" fixed="right">
+                <el-table-column label="操作" width="360" fixed="right">
                   <template #default="{row}">
                     <el-button link size="small" @click="connectInstance(row)" v-if="!row.active" :loading="row.connecting">连接</el-button>
                     <el-button link size="small" @click="setDefaultConn(row)" v-if="!row.is_default">设为默认</el-button>
                     <el-button link type="primary" size="small" @click="openEditConn(row)">编辑</el-button>
                     <el-button link type="warning" size="small" @click="probeInstanceType(row)" v-if="canManageInstances">探测类型</el-button>
+                    <el-button link :type="row.instance_type_locked?'success':'info'" size="small" @click="openLockDialog(row)" v-if="isAdmin">{{ row.instance_type_locked?'已锁定':'锁定类型' }}</el-button>
+                    <el-button link size="small" @click="openDiagDialog(row)" v-if="canManageInstances">探测诊断</el-button>
                     <el-button link type="danger" size="small" @click="deleteConn(row)">删除</el-button>
                   </template>
                 </el-table-column>
@@ -971,6 +973,17 @@
               <el-form-item label="密码"><el-input v-model="connForm.password" type="password" show-password></el-input></el-form-item>
               <el-form-item label="默认库"><el-input v-model="connForm.database"></el-input></el-form-item>
               <el-form-item label="描述"><el-input v-model="connForm.description" type="textarea" :rows="2" placeholder="可选，描述信息"></el-input></el-form-item>
+              <!-- V1.5.1 F5：ZK 管控面信息（只读，仅编辑态展示） -->
+              <el-form-item v-if="connEditMode&&connZkInfo.zk_instance_kind" label="ZK 管控面信息">
+                <div style="font-size:12px;line-height:1.9;color:#64748b">
+                  实例形态：{{ connZkInfo.zk_instance_kind }}（{{ connZkInfo.zk_instance_kind==='noshard'?'集中式':(connZkInfo.zk_instance_kind==='groupshard'?'分布式':'未知') }}）<br>
+                  实例标识：{{ connZkInfo.zk_instance_id||'—' }}<br>
+                  ZK 同步于：{{ connZkInfo.zk_synced_at||'—' }}
+                </div>
+              </el-form-item>
+              <el-form-item v-else-if="connEditMode" label="ZK 管控面信息">
+                <div style="font-size:12px;color:#94a3b8">尚未同步。执行「从 ZK 自动发现」可获取权威实例形态。</div>
+              </el-form-item>
               <el-collapse style="margin-bottom:18px">
                 <el-collapse-item title="MonitorDB 监控库配置 (可选)" name="monitor">
                   <div style="font-size:12px;color:#94a3b8;margin-bottom:8px">用于自动发现、全网慢SQL采集与大屏运维汇报。留空则使用业务主连接地址和账号，仅端口默认为 15001。</div>
@@ -2124,6 +2137,7 @@
       <el-table-column prop="service_name" label="实例名称"></el-table-column>
       <el-table-column label="连接地址"><template #default="{row}">{{row.host}}:{{row.port}}</template></el-table-column>
       <el-table-column prop="user" label="用户名" width="120"></el-table-column>
+      <el-table-column label="实例形态" width="100"><template #default="{row}"><el-tag v-if="row.instance_type==='distributed'" size="small" type="warning">分布式</el-tag><el-tag v-else-if="row.instance_type==='centralized'" size="small" type="info">集中式</el-tag><span v-else style="color:#94a3b8">未知</span></template></el-table-column>
       <el-table-column prop="status_text" label="状态" width="100"><template #default="{row}"><el-tag size="small" :type="row.status_code==='0'?'success':'danger'">{{row.status_text}}</el-tag></template></el-table-column>
     </el-table>
     
@@ -2133,6 +2147,44 @@
         <el-button size="small" type="primary" :disabled="zkSelected.length===0" :loading="zkRegistering" @click="registerZkInstances">导入已选</el-button>
       </span>
     </template>
+  </el-dialog>
+
+  <!-- V1.5.1 管理员锁定实例类型对话框（仅 admin） -->
+  <el-dialog v-model="lockDialog.visible" :title="'锁定实例类型 — '+(lockDialog.row?lockDialog.row.name:'')" width="480px">
+    <el-alert type="warning" :closable="false" style="margin-bottom:12px"
+      title="锁定是终审配置，优先于 ZK/探测/声明一切自动判定源，并落审计日志。锁为「集中式」将跳过 27 条仅分布式适用的规则，请谨慎。"></el-alert>
+    <el-form label-position="top">
+      <el-form-item label="操作">
+        <el-radio-group v-model="lockDialog.locked">
+          <el-radio :value="true">加锁</el-radio>
+          <el-radio :value="false" :disabled="!(lockDialog.row&&lockDialog.row.instance_type_locked)">解锁</el-radio>
+        </el-radio-group>
+      </el-form-item>
+      <el-form-item label="锁定类型" v-if="lockDialog.locked">
+        <el-radio-group v-model="lockDialog.instance_type">
+          <el-radio value="distributed">分布式（保守，跑全部规则）</el-radio>
+          <el-radio value="centralized">集中式（跳过 27 条仅分布式规则）</el-radio>
+        </el-radio-group>
+      </el-form-item>
+      <el-form-item v-if="lockDialog.locked&&lockDialog.instance_type==='centralized'" label="锁定理由（必填，落审计日志）">
+        <el-input v-model="lockDialog.reason" type="textarea" :rows="2" placeholder="如：赤兔确认为非分布式实例 set_xxxx"></el-input>
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button size="small" @click="lockDialog.visible=false">取消</el-button>
+      <el-button size="small" type="primary" :loading="lockDialog.saving" @click="submitLock">确定</el-button>
+    </template>
+  </el-dialog>
+
+  <!-- V1.5.1 探测诊断采集对话框（采集环境=判定环境，供判据实测/复测） -->
+  <el-dialog v-model="diagDialog.visible" :title="'采集探测诊断 — '+(diagDialog.row?diagDialog.row.name:'')" width="760px">
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+      <el-input v-model="diagDialog.sampleTable" size="small" style="width:280px" placeholder="可选样本表（db.table，取 DDL 看 shardkey）"></el-input>
+      <el-button size="small" type="primary" :loading="diagDialog.loading" @click="runDiagnostics">开始采集</el-button>
+      <el-button size="small" :disabled="!diagDialog.data" @click="downloadDiagnostics">下载 JSON</el-button>
+    </div>
+    <pre v-if="diagDialog.data" style="max-height:420px;overflow:auto;background:#0f172a;color:#e2e8f0;padding:12px;border-radius:8px;font-size:12px">{{ JSON.stringify(diagDialog.data,null,2) }}</pre>
+    <el-empty v-else description="用系统自身的连接执行只读采集清单（/*proxy*/show status、EXPLAIN、show databases 等），采集环境与判定环境一致，结果可下载用于判据比对。" :image-size="60"></el-empty>
   </el-dialog>
 
   <!-- G11 网关日志报告详情抽屉 -->
