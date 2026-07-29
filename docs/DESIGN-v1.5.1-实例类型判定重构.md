@@ -8,6 +8,7 @@
 | 编制 | 智能体 A（质量/架构） |
 | 缺陷定级 | **P0 — v1.5 核心目标 G1 完全未达成** |
 | 责任归属 | **v1.5 设计缺陷（本人）**，非实现偏差 |
+| 施工规约 | **`GUIDE-团队施工规约.md`（唯一出处，施工前通读）** —— 本次尤其相关：R-06/**R-13**（存量数据）、**R-11~R-16**（判据、探测与失效方向） |
 | 前置文档 | `ARCHITECTURE-v1.5-*.md` · `DB-v1.5-*.md` · `API-v1.5-*.md` · `DETAIL-v1.5-*.md` |
 | 实测依据 | `TEST-v1.5.1-…-G.md`（方案） · `REPORT-v1.5.1-…-G.md`（结果） · `raw_probe_out_CENT.txt` / `raw_probe_out_DIST.txt`（**原始输出**） |
 | 修订 | **2026-07-29 据 G 实测结果修订**：Proxy 层判据成立，SQL 探测由「无判据」升为**主判定源**；判据裁定见 §8 |
@@ -321,9 +322,16 @@ ALTER TABLE tdsql_connections
 
 `tdsql_connections` 是低基数配置表（数十~数百行），全部访问路径为主键查单行或全表列表。新增列均为展示与判定用，不进 WHERE。
 
-**（4）存量数据不回填**
+**（4）新增列不回填，但已被证伪的存量值必须作废**
 
-升级后所有实例 `zk_instance_kind = NULL`（未同步），判定自动下沉至 S2/S3。首次运行「ZK 自动发现」或点击「探测类型」后填充。**不做任何 UPDATE 回填**——回填就意味着凭猜测写入权威字段，是本次事故的同类错误。
+这是两件方向相反的事，**初版设计只写了前者，漏了后者**（v1.5.1 验收时由 Q 发现并补上，见 §5.6）。
+
+| | 做法 | 理由 |
+|---|---|---|
+| **新增的 ZK 列** | **不回填**，保持 `NULL` | 回填等于凭猜测写入权威字段，与本次事故同源。判定自动下沉至 S1/S3，首次「ZK 自动发现」或「探测类型」后填充 |
+| **v1.5 写入的 `detected_instance_type`** | **必须一次性作废置 NULL** | 该批数据由已被实测证伪的恒真探测产生，全部无鉴别力。**留着会挡在新逻辑前面** |
+
+> **两者不矛盾**：禁止的是"往权威字段**写入**猜测值"；作废是把已知错误的数据**清除**，让判定如实下沉回未知。方向恰好相反——前者是伪造确定性，后者是交还不确定性。
 
 ### 5.5 迁移脚本
 
@@ -358,10 +366,48 @@ ALTER TABLE tdsql_connections
     ADD COLUMN instance_type_locked_value VARCHAR(16) NOT NULL DEFAULT ''
         COMMENT '锁定值 distributed|centralized';
 
--- ── 存量数据迁移：不需要，且明令禁止 ──
+-- ── E-3 作废 V1.5 被证伪的探测存量（一次性）──
+-- V1.5 的探测经实测为常量函数（对任何可连实例恒写 distributed，见 §2.4），
+-- 存量 detected_instance_type 全部无鉴别力。若不作废，解析器读到该字段有值
+-- 即直接采用、不再重新探测，集中式实例的声明依旧被压制，G1 仍不达成。
+-- 这不是"凭猜测回填"（明令禁止的是往权威字段写猜测值）——这是清除已被
+-- 实测证伪的数据，将判定如实下沉至声明值，等待 ZK 同步或重新探测。
+UPDATE tdsql_connections
+   SET detected_instance_type = NULL,
+       instance_type_detected_at = NULL,
+       instance_type_probe_error = 'v1.5 探测判据经实测证伪，结果已作废（v1.5.1 迁移）'
+ WHERE detected_instance_type IS NOT NULL;
+
+-- ── 存量数据迁移（ZK 列）：不需要，且明令禁止 ──
 -- zk_instance_kind 保持 NULL，判定自动下沉至声明值。
 -- 任何回填都是凭猜测写入权威字段，与本次事故同源。
 ```
+
+### 5.6 E-3 补记：一个只在升级路径暴露的缺陷
+
+> **本节记录初版设计的一处遗漏。** E-3 不在初版设计中，由 Q 在开发时发现并补上；本人在 v1.5.1.0 验收时独立推演确认其为**必要条件**，非锦上添花。
+
+**缺口**：初版 §5.4 只写了"新增列不回填"，未处理 v1.5 那个恒真探测**已经写进 `detected_instance_type` 的存量脏数据**。
+
+**后果**：解析器的读取逻辑是——
+
+```python
+raw = saved.get("detected_instance_type")
+if raw in (DISTRIBUTED.value, CENTRALIZED.value):
+    detected = InstanceType(raw)          # ← 直接采用，永不重新探测
+else:
+    detected, _ = self._probe_and_persist(connection_id)
+```
+
+v1.5 已给**每一台可连实例**写入 `'distributed'`。升级后该值命中 `if` 分支，**新探测逻辑永不执行** → 集中式实例仍被判分布式 → 保守合并取分布式 → 跑满 119 条 → **R077 依旧误报**。
+
+> **净效果：全新接入的实例一切正常，而所有存量实例——包括用户最初报告缺陷的那一台——G1 仍不达成。**
+
+**为什么全量测试发现不了**：全新环境里 `detected_instance_type` 本就是 NULL，走的是 `else` 分支，新逻辑正常执行、测试全绿。**这个缺陷只在"有 v1.5 存量数据"的升级路径上暴露。**
+
+**提炼出的通用规约**（已写入 `docs/GUIDE-团队施工规约.md` R-13）：
+
+> 凡改变某个字段的**生成逻辑**，必须同步评估该字段的**存量值**是否仍然有效；若旧逻辑已被证伪，存量值**必须作废**。
 
 > 施工时同步在 `backend/services/database.py::_ensure_columns()` 中用 `_add_column_if_not_exists()` 补一份等价声明（本项目 v1.2/v1.3 已有的双保险惯例，见 `database.py:502-510`）。
 
