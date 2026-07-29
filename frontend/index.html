@@ -104,11 +104,10 @@
             <el-menu-item v-if="visibleMenus.has('bigtable')" index="bigtable">大表治理</el-menu-item>
           </el-sub-menu>
           <el-menu-item v-if="visibleMenus.has('deep-diag')" index="deep-diag"><el-icon><Cpu /></el-icon><span>深度诊断</span></el-menu-item>
-          <el-sub-menu v-if="visibleMenus.has('rulesets')||visibleMenus.has('monitor')||visibleMenus.has('inspection')" index="platform-group">
+          <el-sub-menu v-if="visibleMenus.has('rulesets')||visibleMenus.has('inspection')" index="platform-group">
             <template #title><el-icon><Setting /></el-icon><span>平台治理</span></template>
             <!-- V1.4：项目管理/质量门禁菜单隐藏（项目降级为业务标签，门禁并入实例页） -->
             <el-menu-item v-if="visibleMenus.has('rulesets')" index="rulesets">评估规则集</el-menu-item>
-            <el-menu-item v-if="visibleMenus.has('monitor')" index="monitor">监控告警</el-menu-item>
             <el-menu-item v-if="visibleMenus.has('inspection')" index="inspection">巡检管理</el-menu-item>
           </el-sub-menu>
           <el-sub-menu v-if="visibleMenus.has('sys-users')||visibleMenus.has('sys-roles')||visibleMenus.has('sys-perms')||visibleMenus.has('sys-retention')||visibleMenus.has('sys-auditlog')||visibleMenus.has('sys-info')" index="system-group">
@@ -1914,45 +1913,8 @@
             <template #footer><el-button @click="gateCustom.visible=false">取消</el-button><el-button type="primary" @click="saveGateCustom">保存</el-button></template>
           </el-dialog>
 
-          <!-- ═══ 监控告警 ═══ -->
-          <div v-if="currentPage==='monitor'">
-            <el-tabs v-model="monitorTab">
-              <el-tab-pane label="活跃告警" name="alerts">
-                <div class="page-card">
-                  <el-table :data="monitorAlerts" v-loading="monitorLoading" stripe class="w-full">
-                    <el-table-column prop="metric" label="指标" show-overflow-tooltip></el-table-column>
-                    <el-table-column prop="value" label="当前值" width="80"></el-table-column>
-                    <el-table-column prop="level" label="级别" width="80"><template #default="{row}"><el-tag :type="sevTagType(row.level)" size="small">{{ row.level }}</el-tag></template></el-table-column>
-                    <el-table-column prop="message" label="消息" show-overflow-tooltip></el-table-column>
-                    <el-table-column label="时间" width="140"><template #default="{row}">{{ formatTime(row.created_at) }}</template></el-table-column>
-                    <el-table-column label="操作" width="80" fixed="right"><template #default="{row}"><el-button link size="small" @click="acknowledgeAlert(row)">确认</el-button></template></el-table-column>
-                  </el-table>
-                </div>
-              </el-tab-pane>
-              <el-tab-pane label="告警规则" name="rules">
-                <div class="page-card">
-                  <div class="flex-end mb-12">
-                    <el-button type="primary" size="small" @click="monitorRuleDialog.visible=true">+ 新建告警规则</el-button>
-                  </div>
-                  <el-table :data="monitorRules" stripe class="w-full">
-                    <el-table-column label="指标" show-overflow-tooltip><template #default="{row}">{{ metricLabel(row.metric_name) }}</template></el-table-column>
-                    <el-table-column prop="warning_threshold" label="警告阈值" width="100"></el-table-column>
-                    <el-table-column prop="urgent_threshold" label="紧急阈值" width="100"></el-table-column>
-                    <el-table-column prop="enabled" label="启用" width="60"><template #default="{row}"><el-tag :type="row.enabled?'success':'info'" size="small">{{ row.enabled?'是':'否' }}</el-tag></template></el-table-column>
-                  </el-table>
-                </div>
-              </el-tab-pane>
-            </el-tabs>
-          </div>
-          <el-dialog v-model="monitorRuleDialog.visible" title="新建告警规则" width="440px">
-            <el-form label-position="top">
-              <el-form-item label="指标名"><el-input v-model="monitorRuleDialog.form.metric_name" placeholder="如：cpu_usage"></el-input></el-form-item>
-              <el-form-item label="警告阈值"><el-input-number v-model="monitorRuleDialog.form.warning_threshold" :min="0"></el-input-number></el-form-item>
-              <el-form-item label="紧急阈值"><el-input-number v-model="monitorRuleDialog.form.urgent_threshold" :min="0"></el-input-number></el-form-item>
-              <el-form-item label="检查间隔(秒)"><el-input-number v-model="monitorRuleDialog.form.check_interval_sec" :min="10"></el-input-number></el-form-item>
-            </el-form>
-            <template #footer><el-button @click="monitorRuleDialog.visible=false">取消</el-button><el-button type="primary" :loading="monitorRuleDialog.loading" @click="createMonitorRule">保存</el-button></template>
-          </el-dialog>
+          <!-- ═══ 监控告警（隐藏） ═══ -->
+          <!-- <div v-if="currentPage==='monitor'">...</div> -->
 
           <!-- ═══ 巡检管理 ═══ -->
           <div v-if="currentPage==='inspection'">
