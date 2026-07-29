@@ -526,7 +526,7 @@ def audit_with_metadata(request: dict):
         # 执行审核（传入元数据增强规则检查）
         checker = RuleChecker()
 
-        # V1.5：解析实例类型（A类通道，探测优先），引擎按实例类型过滤适用域
+        # V1.5.1：解析实例类型（A类通道，多源分级+保守合并），引擎按实例类型过滤适用域
         from backend.services.instance_type_service import instance_type_service
         ictx = instance_type_service.resolve(request.get("connection_id") or "")
         it = ictx.instance_type.value

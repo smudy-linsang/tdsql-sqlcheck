@@ -180,7 +180,7 @@ class AuditService:
 
         V1.4：尺度取自全局生效规则集（project_id 不再决定尺度，仅兼容保留）；
         门禁按 connection_id 绑定的实例判定。
-        V1.5：实例类型由解析器得出（A类探测优先，B类取 requested/全局默认），
+        V1.5.1：实例类型由解析器多源分级得出（A类按 锁定>探测>ZK>声明 保守合并，
         引擎按实例类型过滤适用域。
 
         Returns:

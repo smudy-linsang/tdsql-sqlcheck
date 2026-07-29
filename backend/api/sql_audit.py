@@ -106,7 +106,7 @@ async def audit_sql(request: AuditRequest, http_request: Request):
     - **project_id**: 项目ID（可选，绑定项目的规则集与门禁）
     """
     try:
-        # V1.4：尺度全局化；V1.5：实例类型由解析器得出（A类探测优先）
+        # V1.4：尺度全局化；V1.5.1：实例类型由解析器多源分级得出（A类保守合并）
         result, gate_result, ictx = audit_service.audit_single_sql(
             request.sql,
             created_by=_operator(http_request),
