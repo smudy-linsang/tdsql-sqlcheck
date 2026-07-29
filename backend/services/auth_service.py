@@ -376,7 +376,7 @@ _PATH_TO_MENU = {
     "/api/v1/tdsql/test-connection": "instances",
     "/api/v1/tdsql/disconnect": "instances",
     "/api/v1/tdsql/audit": "audit-sql",
-    "/api/v1/tdsql/scheduler": "slow-schedule",
+    "/api/v1/tdsql/scheduler": "slow-tasks",
     "/api/v1/audit/batch-stream": "file-audit",
     "/api/v1/audit/extracted-reports": "schema-extractor-audit",
     "/api/v1/gitlab/audit": "file-audit",
@@ -449,17 +449,16 @@ def check_permission(role: str, method: str, path: str) -> bool:
 # V3.0: 角色管理 + 权限矩阵
 # ══════════════════════════════════════════════════════════════════
 
-# 全部菜单key清单
+# 全部实际展示的菜单key清单（仅包含在前端侧边栏菜单展示的功能项）
 ALL_MENU_KEYS = [
     'dashboard', 'audit-sql', 'file-audit', 'schema-extractor-audit',
-    'slow-tasks', 'slow-records', 'slow-schedule', 'explain',
+    'slow-tasks', 'slow-records', 'explain',
     'schema-check', 'bigtable', 'deep-diag',
     'deep-diag-cluster', 'deep-diag-daily', 'deep-diag-index', 'deep-diag-diff',
     'deep-diag-emergency', 'deep-diag-sqlstats', 'deep-diag-gateway', 'deep-diag-ppt',
     'deep-diag-toolkit',
-    'instances', 'rules', 'rulesets', 'monitor', 'inspection',
+    'instances', 'rules', 'rulesets',
     'sys-users', 'sys-roles', 'sys-perms', 'sys-retention', 'sys-auditlog', 'sys-info',
-    'scan-compare',
 ]
 
 # 菜单中文标签
