@@ -96,16 +96,16 @@
             <el-menu-item v-if="visibleMenus.has('slow-records')" index="slow-records">慢SQL记录</el-menu-item>
             <el-menu-item v-if="visibleMenus.has('explain')" index="explain">EXPLAIN分析</el-menu-item>
           </el-sub-menu>
-          <el-sub-menu v-if="visibleMenus.has('instances')||visibleMenus.has('schema-check')||visibleMenus.has('bigtable')" index="instance-group">
+          <el-sub-menu v-if="visibleMenus.has('schema-check')||visibleMenus.has('bigtable')" index="instance-group">
             <template #title><el-icon><Coin /></el-icon><span>实例与体检</span></template>
-            <el-menu-item v-if="visibleMenus.has('instances')" index="instances">实例管理</el-menu-item>
             <el-menu-item v-if="visibleMenus.has('schema-check')" index="schema-check">上线检查</el-menu-item>
             <el-menu-item v-if="visibleMenus.has('bigtable')" index="bigtable">大表治理</el-menu-item>
           </el-sub-menu>
           <el-menu-item v-if="visibleMenus.has('deep-diag')" index="deep-diag"><el-icon><Cpu /></el-icon><span>深度诊断</span></el-menu-item>
-          <el-sub-menu v-if="visibleMenus.has('rulesets')||visibleMenus.has('rules')" index="platform-group">
+          <el-sub-menu v-if="visibleMenus.has('instances')||visibleMenus.has('rulesets')||visibleMenus.has('rules')" index="platform-group">
             <template #title><el-icon><Setting /></el-icon><span>平台治理</span></template>
             <!-- V1.4：项目管理/质量门禁/巡检管理隐藏（项目降级为业务标签，门禁并入实例页） -->
+            <el-menu-item v-if="visibleMenus.has('instances')" index="instances">实例管理</el-menu-item>
             <el-menu-item v-if="visibleMenus.has('rules')" index="rules">审核规则库</el-menu-item>
             <el-menu-item v-if="visibleMenus.has('rulesets')" index="rulesets">评估规则集</el-menu-item>
           </el-sub-menu>
