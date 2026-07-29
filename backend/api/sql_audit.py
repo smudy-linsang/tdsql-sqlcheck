@@ -440,7 +440,8 @@ async def get_extracted_reports(limit: int = Query(20, ge=1, le=200), offset: in
         rows = conn.execute(f"""
             SELECT h.id, h.audit_type, h.source, h.total_sql, h.passed, h.failed,
                    h.error_count, h.warning_count, h.pass_rate, h.created_by, h.created_at,
-                   h.connection_id, h.db_name, COALESCE(c.name, '') AS connection_name
+                   h.connection_id, h.db_name, COALESCE(c.name, '') AS connection_name,
+                   h.instance_type, h.instance_type_source, h.skipped_rules_count
             FROM audit_history h
             LEFT JOIN tdsql_connections c ON c.id = h.connection_id
             WHERE {cond}

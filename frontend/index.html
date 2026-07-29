@@ -401,6 +401,7 @@
                     <el-table-column prop="source" label="提取生成的 SQL 文件" show-overflow-tooltip></el-table-column>
                     <el-table-column label="实例" width="150" show-overflow-tooltip><template #default="{row}">{{ row.connection_name || row.connection_id || '未知实例' }}</template></el-table-column>
                     <el-table-column prop="db_name" label="库名" width="120" show-overflow-tooltip></el-table-column>
+                    <el-table-column label="口径" width="100"><template #default="{row}"><el-tag v-if="row.instance_type==='distributed'" type="warning" size="small" effect="plain">分布式</el-tag><el-tag v-else-if="row.instance_type==='centralized'" type="info" size="small" effect="plain">集中式</el-tag><el-tooltip v-else content="该报告产生于 v1.5 之前，当时系统未区分实例类型，可能包含不适用于本实例的规则告警。" placement="top"><el-tag type="info" size="small" effect="plain">未知</el-tag></el-tooltip></template></el-table-column>
                     <el-table-column prop="created_by" label="审核人" width="100"></el-table-column>
                     <el-table-column prop="total_sql" label="对象数" width="70"></el-table-column>
                     <el-table-column label="通过/失败" width="100"><template #default="{row}"><span class="t-success">{{ row.passed }}</span> / <span class="t-danger">{{ row.failed }}</span></template></el-table-column>
