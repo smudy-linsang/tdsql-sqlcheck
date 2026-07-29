@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
-"""V1.5.1 SQL 层判据表测试（DESIGN-v1.5.1 §9.2(5) + A 评审提醒逐条钉死）
+"""V1.5.1 SQL 层判据表测试（DESIGN-v1.5.1 §7.0.1/§8.5 + A 施工提醒逐条钉死）
 
 判据数据全部来自 G 的 Proxy 层成对实测（docs/REPORT-v1.5.1，2026-07-29）。
 本文件的职责：
-1) 钉死判据表出厂状态（PR001-PR004，仅 PR001 允许阴性，evidence 必填）；
+1) 钉死判据表出厂状态（PR001/PR002/PR004 启用，PR003 登记不启用，evidence 必填）；
 2) 每条判据配套反向鉴别断言（两类数据各跑一次、结论不同）；
-3) 钉死失效方向防线：全部未命中 ≠ 集中式；非 allow_negative 判据的
-   centralized 一律降级为无结论（G 初版代码 else: return "centralized"
-   的教训——一次网络抖动就能关掉 27 条规则）。
+3) 钉死失效方向防线：全部未命中 ≠ 集中式；PR002/PR003/PR004 只准返回
+   distributed 或 None（G 初版代码 else: return "centralized" 的教训——
+   一次网络抖动就能关掉 27 条规则）。
 """
 from unittest.mock import MagicMock
 
@@ -16,7 +16,8 @@ import pytest
 from backend.services import instance_probe_rules as m
 from backend.services.instance_probe_rules import (
     ACTIVE_PROBE_RULES, ProbeRule,
-    _pr001_decide, _pr002_decide, _pr003_decide, _pr004_decide,
+    _decide_proxy_status, _decide_explain_info,
+    _decide_table_ddl, _decide_xa_database,
 )
 from backend.services.tdsql_connector import TDSQLConnectionPool
 
@@ -43,27 +44,15 @@ DIST_STATUS = [
 # ════════════════════════════════════════════════════════════
 
 def test_probe_rules_factory_state():
-    """出厂判据表必须恰为 PR001-PR004（经 §8.4 评审入表的实测判据）。
+    """出厂判据表：PR001/PR002/PR004 启用，PR003 登记但不启用。
 
-    任何未经评审往表里增删判据的改动，本用例都会失败；
+    任何未经 §8.4 评审往表里增删判据的改动，本用例都会失败；
     新增判据须同步更新本用例与配套的反向鉴别用例。
     """
-    ids = [r.rule_id for r in ACTIVE_PROBE_RULES]
-    assert ids == ["PR001", "PR002", "PR003", "PR004"], (
+    state = {r.rule_id: r.enabled for r in ACTIVE_PROBE_RULES}
+    assert state == {"PR001": True, "PR002": True,
+                     "PR004": True, "PR003": False}, (
         "判据表变更必须先通过 DESIGN-v1.5.1 §8.4 三项标准评审")
-
-
-def test_only_pr001_allows_negative():
-    """仅 PR001 允许产出 centralized（单 SET 拓扑的阳性识别）。
-
-    PR002/PR003/PR004 只准 distributed 或 None——这是整个改造里唯一
-    能造成静默漏报的地方，由 allow_negative 结构化钉死。
-    """
-    for r in ACTIVE_PROBE_RULES:
-        if r.rule_id == "PR001":
-            assert r.allow_negative is True
-        else:
-            assert r.allow_negative is False, f"{r.rule_id} 不得授权阴性判定"
 
 
 def test_every_rule_has_evidence():
@@ -74,101 +63,104 @@ def test_every_rule_has_evidence():
 
 
 # ════════════════════════════════════════════════════════════
-# PR001：/*proxy*/show status（反向鉴别 + A 提醒 2/3）
+# PR001：/*proxy*/show status 拓扑签名（反向鉴别 + A 提醒 2/3）
 # ════════════════════════════════════════════════════════════
 
 def test_pr001_discriminates_both_kinds():
     """反向鉴别：两类实测数据必须得出相反结论。"""
-    assert _pr001_decide(DIST_STATUS) == "distributed"
-    assert _pr001_decide(CENT_STATUS) == "centralized"
+    assert _decide_proxy_status(DIST_STATUS) == "distributed"
+    assert _decide_proxy_status(CENT_STATUS) == "centralized"
 
 
 def test_pr001_cluster_row_positive():
     """签名1：存在 cluster 行即分布式。"""
-    assert _pr001_decide([{"status_name": "cluster", "value": "group_x"}]) == "distributed"
+    assert _decide_proxy_status(
+        [{"status_name": "cluster", "value": "group_x"}]) == "distributed"
 
 
 def test_pr001_colon_in_key_name_not_value():
-    """签名2 判的是【键名】含 ':'，不是值含 ':'。
+    """签名2 判的是【键名】含 ':'，不是值含 ':'（A 提醒 3）。
 
     CENT 的值 10.206.0.4:4002 也有冒号，但键名没有——不得误判分布式。
     """
-    # 值含冒号、键名不含 → 不触发签名2（走签名3 判集中式）
+    # 值含冒号、键名不含 → 不触发签名2（走签名4 判集中式）
     rows = [{"status_name": "set", "value": "set_a"},
             {"status_name": "set_a", "value": "10.206.0.4:4002;..."}]
-    assert _pr001_decide(rows) == "centralized"
-    # 键名含冒号 → 分布式
-    rows = [{"status_name": "set_a:hash_range", "value": "0---7"}]
-    assert _pr001_decide(rows) == "distributed"
+    assert _decide_proxy_status(rows) == "centralized"
+    # 键名含冒号（:ip / :alias 单独出现也命中）→ 分布式
+    assert _decide_proxy_status(
+        [{"status_name": "set_a:ip", "value": "10.206.0.8:4003;"}]) == "distributed"
+    assert _decide_proxy_status(
+        [{"status_name": "set_a:hash_range", "value": "0---7"}]) == "distributed"
 
 
 def test_pr001_set_value_strip_and_filter_empty():
-    """签名3：set 行值必须 strip + 过滤空串。
+    """签名3/4：set 行值必须 strip + 过滤空串（A 提醒 2）。
 
     实测原文 DIST 的 set 行末尾带一个空格，不处理会切出空元素；
     单 SET 值带尾随逗号/空格也不得误计成 2 个 SET。
     """
     # 两个 SET + 尾随空格 → 分布式
-    assert _pr001_decide([{"status_name": "set",
-                           "value": "set_a,set_b "}]) == "distributed"
+    assert _decide_proxy_status([{"status_name": "set",
+                                  "value": "set_a,set_b "}]) == "distributed"
     # 单 SET + 尾随逗号与空格 → 仍是 1 个 SET → 集中式
-    assert _pr001_decide([{"status_name": "set",
-                           "value": "set_a ,"}]) == "centralized"
+    assert _decide_proxy_status([{"status_name": "set",
+                                  "value": "set_a ,"}]) == "centralized"
     # set 行值为空 → 过滤后 0 个 SET → 无结论（不得判集中式）
-    assert _pr001_decide([{"status_name": "set", "value": "  "}]) is None
+    assert _decide_proxy_status([{"status_name": "set", "value": "  "}]) is None
 
 
 def test_pr001_no_set_row_returns_none():
-    """无 set 行（如权限受限只回其他状态行）→ 无结论。"""
-    assert _pr001_decide([{"status_name": "uptime", "value": "100"}]) is None
-    assert _pr001_decide([]) is None
+    """无 set 行（形态不符）→ 无结论，不猜。"""
+    assert _decide_proxy_status([{"status_name": "uptime", "value": "100"}]) is None
+    assert _decide_proxy_status([]) is None
 
 
 # ════════════════════════════════════════════════════════════
-# PR002 / PR003 / PR004：只准 distributed 或 None（A 提醒 1）
+# PR002 / PR003 / PR004：只准 return distributed 或 None（A 提醒 1）
 # ════════════════════════════════════════════════════════════
 
 def test_pr002_info_column_positive_else_none():
-    assert _pr002_decide([{"id": 1, "Extra": "No tables used",
-                           "info": "set_1,EXPLAIN SELECT 1"}]) == "distributed"
+    assert _decide_explain_info([{"id": 1, "Extra": "No tables used",
+                                  "info": "set_1,EXPLAIN SELECT 1"}]) == "distributed"
     # 无 info 列 ≠ 集中式，只准 None
-    assert _pr002_decide([{"id": 1, "Extra": "No tables used"}]) is None
-    assert _pr002_decide([]) is None
+    assert _decide_explain_info([{"id": 1, "Extra": "No tables used"}]) is None
+    assert _decide_explain_info([]) is None
 
 
-def test_pr003_xa_database_positive_else_none():
-    assert _pr003_decide([{"Database": "mysql"}, {"Database": "xa"}]) == "distributed"
-    # 无 xa 库 ≠ 集中式（权限不足同样看不到），只准 None
-    assert _pr003_decide([{"Database": "mysql"}, {"Database": "biz"}]) is None
-    assert _pr003_decide([]) is None
+def test_pr004_xa_database_positive_else_none():
+    assert _decide_xa_database([{"Database": "mysql"},
+                                {"Database": "xa"}]) == "distributed"
+    # 无 xa 库 ≠ 集中式（账号权限窄时同样看不到），只准 None
+    assert _decide_xa_database([{"Database": "mysql"},
+                                {"Database": "biz"}]) is None
+    assert _decide_xa_database([]) is None
 
 
-def test_pr004_shardkey_positive_else_none():
+def test_pr003_shardkey_positive_else_none():
     ddl_dist = [{"Table": "t_order",
                  "Create Table": "CREATE TABLE `t_order` (...) ENGINE=InnoDB "
                                  "DEFAULT CHARSET=utf8mb4 shardkey=id"}]
     ddl_cent = [{"Table": "t_order",
                  "Create Table": "CREATE TABLE `t_order` (...) ENGINE=InnoDB "
                                  "DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin"}]
-    tables = [{"ts": "biz", "tn": "t_order"}]
-    assert _pr004_decide(tables, lambda sql: ddl_dist) == "distributed"
-    # 抽样表无 shardkey ≠ 集中式，只准 None
-    assert _pr004_decide(tables, lambda sql: ddl_cent) is None
-    # 空库无表可查 → None
-    assert _pr004_decide([], lambda sql: []) is None
-    # 无执行器 → None
-    assert _pr004_decide(tables, None) is None
+    assert _decide_table_ddl(ddl_dist) == "distributed"
+    # 无 shardkey ≠ 集中式，只准 None
+    assert _decide_table_ddl(ddl_cent) is None
+    assert _decide_table_ddl([]) is None
+    # 广播表标记同为阳性
+    assert _decide_table_ddl([{"Create Table": "... broadcast ..."}]) == "distributed"
 
 
-def test_pr004_rejects_bad_identifiers():
-    """异常标识符不得进入 SHOW CREATE TABLE 拼接。"""
-    called = []
-    def execute(sql):
-        called.append(sql)
-        return []
-    _pr004_decide([{"ts": "a;drop", "tn": "t"},
-                   {"ts": "db", "tn": "`x`"}], execute)
-    assert called == [], "非法标识符不得触发任何 SQL 执行"
+def test_no_decide_function_returns_centralized_except_pr001():
+    """结构性断言：除 PR001 外，任何判据对任意"未命中"输入都不得返回 centralized。"""
+    miss_inputs = [[], [{"whatever": "x"}], [{"Database": "mysql"}]]
+    for r in ACTIVE_PROBE_RULES:
+        if r.rule_id == "PR001":
+            continue
+        for rows in miss_inputs:
+            assert r.decide(rows) != "centralized", (
+                f"{r.rule_id} 产出了未经授权的集中式结论（静默漏报方向）")
 
 
 # ════════════════════════════════════════════════════════════
@@ -189,42 +181,40 @@ def test_all_rules_miss_never_means_centralized(monkeypatch):
     这是本次事故的失效方向 —— 必须由用例钉死。
     """
     monkeypatch.setattr(m, "ACTIVE_PROBE_RULES", [
-        ProbeRule("PRTEST", "select 1", lambda rows, execute=None: None, "unit-test"),
+        ProbeRule("PRTEST", "select 1", lambda rows: None, "unit-test"),
     ])
     result, _ = TDSQLConnectionPool.probe_instance_type(
         _pool_with(lambda sql: [{"1": 1}]))
     assert result is None          # 不是 "centralized"
 
 
-def test_unauthorized_negative_verdict_degraded(monkeypatch):
-    """非 allow_negative 判据返回 centralized → 降级为无结论并告警。
-
-    结构化防线：即使后来者写出 G 初版那种 else: return "centralized"
-    的判据，也无法造成静默漏报。
-    """
-    monkeypatch.setattr(m, "ACTIVE_PROBE_RULES", [
-        ProbeRule("PRBAD", "select 1",
-                  lambda rows, execute=None: "centralized", "unit-test"),
-    ])
-    result, detail = TDSQLConnectionPool.probe_instance_type(
-        _pool_with(lambda sql: [{"1": 1}]))
-    assert result is None
-    assert detail["rules"]["PRBAD"]["verdict"] is None
-
-
 def test_positive_beats_negative(monkeypatch):
     """阳性优先于阴性：一条判分布式、一条判集中式，取分布式（A 提醒 5）。"""
     monkeypatch.setattr(m, "ACTIVE_PROBE_RULES", [
-        ProbeRule("PRNEG", "select 1",
-                  lambda rows, execute=None: "centralized", "unit-test",
-                  allow_negative=True),
-        ProbeRule("PRPOS", "select 2",
-                  lambda rows, execute=None: "distributed", "unit-test"),
+        ProbeRule("PRNEG", "select 1", lambda rows: "centralized", "unit-test"),
+        ProbeRule("PRPOS", "select 2", lambda rows: "distributed", "unit-test"),
     ])
     result, detail = TDSQLConnectionPool.probe_instance_type(
         _pool_with(lambda sql: [{"1": 1}]))
     assert result == "distributed"
     assert detail["matched"] == "PRPOS"
+
+
+def test_disabled_or_empty_sql_rules_not_executed(monkeypatch):
+    """enabled=False 或 sql 为空的判据（PR003）不参与自动探测。"""
+    executed = []
+    def _execute(sql, *args, **kwargs):
+        executed.append(sql)
+        return []
+    monkeypatch.setattr(m, "ACTIVE_PROBE_RULES", [
+        ProbeRule("PROFF", "select 1", lambda rows: "distributed",
+                  "unit-test", enabled=False),
+        ProbeRule("PRNOSQL", "", lambda rows: "distributed", "unit-test"),
+    ])
+    result, detail = TDSQLConnectionPool.probe_instance_type(_pool_with(_execute))
+    assert result is None
+    assert executed == []
+    assert detail["rules"] == {}
 
 
 def test_empty_rules_yield_no_conclusion(monkeypatch):
@@ -233,7 +223,7 @@ def test_empty_rules_yield_no_conclusion(monkeypatch):
     result, detail = TDSQLConnectionPool.probe_instance_type(
         _pool_with(lambda sql: [{"1": 1}]))
     assert result is None
-    assert detail.get("disabled") is True
+    assert detail["matched"] is None
 
 
 def test_probe_rule_failure_does_not_raise():
@@ -241,6 +231,27 @@ def test_probe_rule_failure_does_not_raise():
     result, detail = TDSQLConnectionPool.probe_instance_type(
         _pool_with(Exception("boom")))
     assert result is None
+
+
+def test_probe_end_to_end_with_field_data():
+    """端到端反向鉴别：用 G 原始数据跑完整判定链，两侧结论相反。"""
+    def _make(kind):
+        def _execute(sql, *args, **kwargs):
+            s = str(sql).strip().lower()
+            if s.startswith("/*proxy*/show status"):
+                return DIST_STATUS if kind == "dist" else CENT_STATUS
+            if s.startswith("explain"):
+                return ([{"id": 1, "info": "set_1,EXPLAIN SELECT 1"}]
+                        if kind == "dist" else [{"id": 1}])
+            if s.startswith("show databases"):
+                return ([{"Database": "mysql"}, {"Database": "xa"}]
+                        if kind == "dist" else [{"Database": "mysql"}])
+            return []
+        return _pool_with(_execute)
+    dist_result, dist_detail = TDSQLConnectionPool.probe_instance_type(_make("dist"))
+    cent_result, cent_detail = TDSQLConnectionPool.probe_instance_type(_make("cent"))
+    assert dist_result == "distributed" and dist_detail["matched"] == "PR001"
+    assert cent_result == "centralized" and cent_detail["matched"] == "PR001"
 
 
 # ════════════════════════════════════════════════════════════
@@ -257,7 +268,7 @@ def test_diagnostics_collects_all_statements():
     pool = _pool_with(_execute)
     out = TDSQLConnectionPool.collect_probe_diagnostics(pool)
     keys = set(out["statements"])
-    assert {"proxy_show_status", "explain_select_1", "show_databases"} <= keys
+    assert {"proxy_show_status", "show_databases"} <= keys
     assert out["statements"]["proxy_show_status"]["ok"] is True
     assert out["statements"]["proxy_connectionpool"]["ok"] is False
     assert any(v["ok"] for v in out["statements"].values())

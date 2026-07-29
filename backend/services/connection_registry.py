@@ -395,9 +395,9 @@ class ConnectionRegistry:
                 d["max_error_count"] = gate_err if configured else 0
                 d["max_warning_count"] = gate_warn if configured else -1
                 d["gate_is_default"] = not configured
-                # V1.5.1 实例类型字段：多源分级（锁定 > ZK > 探测/声明保守合并），
+                # V1.5.1 实例类型字段：多源分级（锁定 > 探测/ZK/声明保守合并），
                 # 与 instance_type_service._resolve_by_connection 同一口径，
-                # 列表直接渲染不为每行另发解析请求。
+                # 列表直接渲染不为每行另发解析请求（仅读落库值，不发起探测）。
                 declared = "distributed" if int(d.get("is_distributed", 1) or 0) == 1 else "centralized"
                 detected = d.get("detected_instance_type") or None
                 if detected not in ("distributed", "centralized"):
@@ -421,7 +421,7 @@ class ConnectionRegistry:
                     conflict = False
                 else:
                     # 保守合并：任一可用源说分布式即分布式（顺序即优先级）
-                    candidates = [("zk", zk_type), ("probed", detected),
+                    candidates = [("probed", detected), ("zk", zk_type),
                                   ("declared", declared)]
                     available = [(s, v) for s, v in candidates if v is not None]
                     dist = [(s, v) for s, v in available if v == "distributed"]

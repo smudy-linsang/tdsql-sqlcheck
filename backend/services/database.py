@@ -593,7 +593,7 @@ def _migrate_old_tables(conn):
         _add_column_if_not_exists(conn, "tdsql_connections", "instance_type_probe_error",
                                   "VARCHAR(512) NOT NULL DEFAULT ''")
         # ── V1.5.1 多源分级判定（与 v5/050 迁移脚本双保险）──
-        # S1 ZK 管控面权威源：存原始形态 noshard/groupshard，映射在代码里做
+        # ZK 管控面源：存原始形态 noshard/groupshard，映射在代码里做
         _add_column_if_not_exists(conn, "tdsql_connections", "zk_instance_kind",
                                   "VARCHAR(16) NULL DEFAULT NULL")
         _add_column_if_not_exists(conn, "tdsql_connections", "zk_instance_id",

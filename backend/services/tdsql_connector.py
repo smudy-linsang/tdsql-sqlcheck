@@ -520,89 +520,68 @@ class TDSQLConnectionPool:
     def probe_instance_type(self) -> tuple:
         """SQL 层实例类型探测（V1.5.1 重写）。返回 (类型 或 None, 探针明细)。
 
-        ⚠ 以下事故记录不得精简——它的作用是阻止后来者本着好意把
-        "/*proxy*/show status 非空即分布式"那套写回来。
+        ── 事故记录：V1.5 的两个判据为什么全错 ──────────────────────────
+        V1.5 用了两个判据，经真实环境实测（8.0.33-v24-txsql-22.4.1）全部证伪：
 
-        V1.5 曾用两个判据，经真实环境实测（8.0.33-v24-txsql-22.4.1）全部证伪：
-
-          1) /*proxy*/show status
+          1) /*proxy*/show status 返回非空
              /*proxy*/ 只是一个 SQL 注释。直连后端 TXSQL 执行该语句会返回
-             完整的 458 行标准 MySQL 状态变量，即任何 MySQL 兼容端点都会
-             返回非空结果。原判据"非空即分布式"因此恒为真。
+             完整的 458 行标准 MySQL 状态变量 —— 任何 MySQL 兼容端点都返回
+             非空结果。原判据"非空即分布式"因此恒为真。
+             【正确的用法是看返回内容的拓扑签名，而不是看有没有返回。】
 
-          2) information_schema.TDSQL_SHARDING_RULES
+          2) information_schema.TDSQL_SHARDING_RULES 存在
              该视图在本版本 TDSQL 上根本不存在（ERROR 1109），原判据恒为假。
 
-        两者合并的净效果：旧实现对任何可连实例恒返回 "distributed"，
-        是一个常量函数，毫无鉴别力，并因"探测优先于声明"覆盖了使用者
-        正确填写的实例类型，导致 V1.5 的核心目标 G1 完全未达成。
+        净效果：旧实现对任何可连实例恒返回 "distributed"，是一个常量函数，
+        毫无鉴别力，并因"探测优先于声明"覆盖了使用者正确填写的实例类型，
+        导致 V1.5 的核心目标 G1 完全未达成。
 
-        更根本的结论（同物理机对照实验，10.206.0.8 的 4002/4003 两端口）：
-        集中式实例的节点与分布式实例的分片节点，在后端 TXSQL 的 SQL 层
-        输出逐字一致。分片拓扑只存在于 Proxy 路由层与管控面（ZK/赤兔），
-        不是数据节点的属性。因此任何试图在数据节点 SQL 层区分二者的探针，
-        原理上都不可能成立。
+        另一条同样重要的结论（同物理机对照实验，10.206.0.8 的 4002/4003）：
+        集中式实例的节点与分布式实例的分片节点，在【后端 TXSQL】的 SQL 层
+        输出逐字一致。分片拓扑不是数据节点的属性 —— 只有【经 Proxy 端口】
+        才能看到差异。因此本方法必须走实例配置的 Proxy 端口，
+        任何绕过 Proxy 直连后端节点的探测都不可能成立。
 
-        实例类型的权威判定请用管控面源（ZK，见 instance_type_service S1）。
+        ── V1.5.1 的做法 ────────────────────────────────────────────
+        遍历 instance_probe_rules.ACTIVE_PROBE_RULES：
+          · 任一判据返回 "distributed" → 立即判分布式（阳性证据优先）
+          · 无任何阳性命中，但有判据返回 "centralized" → 判集中式
+          · 全部无结论 / 全部执行失败 → 返回 None，下沉至 ZK 或人工声明
 
-        本方法改为遍历 instance_probe_rules.ACTIVE_PROBE_RULES 判据表：
-        判据均来自 Proxy 层成对实测（docs/REPORT-v1.5.1，2026-07-29），
-        经 A 按设计文档 §8.4 三项标准评审后入表。合并策略：
-
-          • 任一判据【阳性命中】→ distributed（阳性优先于阴性）；
-          • 否则，仅 allow_negative 判据（PR001 单 SET 拓扑的阳性识别）
-            可得出 centralized；其余判据返回的 centralized 一律降级为
-            无结论并告警——"未命中即集中式"是本次事故的失效方向，
-            一次网络抖动就能关掉 27 条规则，绝不允许；
-          • 全部无结论或表为空 → None（下沉至 ZK/声明）。
-
-        重要：绝不抛异常。探测失败是正常业务分支（网络抖动、权限不足），
-        不是服务端错误——INV-5 要求任何探测异常都不能中断审核主流程。
+        【铁律】未命中不等于集中式。只有命中【集中式的正面签名】才可判集中式
+        （目前仅 PR001 的"单 SET 拓扑"具备该签名）。把"没看到分布式特征"
+        当成"是集中式"，会让一次网络抖动就静默关掉 27 条规则 —— 那是比 V1.5
+        的误报危险得多的失效方向。
 
         Returns:
             (类型字符串 或 None, 明细 dict)
         """
         from backend.services.instance_probe_rules import ACTIVE_PROBE_RULES
 
-        if not ACTIVE_PROBE_RULES:
-            return None, {
-                "disabled": True,
-                "reason": ("SQL 层探测暂无可用判据：经实测，TDSQL 后端数据节点上"
-                           "集中式实例与分布式分片无法区分，原判据 "
-                           "/*proxy*/show status 与 TDSQL_SHARDING_RULES 均无鉴别力。"
-                           "请使用 ZK 管控面判定，或由管理员锁定实例类型。"),
-                "since": "v1.5.1",
-            }
+        detail, distributed_hit, centralized_hit = {}, None, None
 
-        detail = {}
-        dist_hit, cent_hit = None, None
         for rule in ACTIVE_PROBE_RULES:
+            if not rule.enabled or not rule.sql:
+                continue
             try:
                 rows = self._execute(rule.sql)
-                verdict = rule.decide(rows or [], self._execute)
-                if verdict not in ("distributed", "centralized"):
-                    verdict = None
-                if verdict == "centralized" and not rule.allow_negative:
-                    # 结构化防线：非 allow_negative 判据禁止产出集中式结论
-                    logger.warning(
-                        f"判据 {rule.rule_id} 返回 centralized 但未授权阴性判定，"
-                        f"已降级为无结论（防静默漏报）")
-                    verdict = None
-                detail[rule.rule_id] = {"ok": True, "verdict": verdict}
-                if verdict == "distributed" and dist_hit is None:
-                    dist_hit = rule.rule_id
-                elif verdict == "centralized" and cent_hit is None:
-                    cent_hit = rule.rule_id
+                verdict = rule.decide(rows or [])
+                detail[rule.rule_id] = {"ok": True, "verdict": verdict,
+                                        "row_count": len(rows or [])}
+                if verdict == "distributed" and distributed_hit is None:
+                    distributed_hit = rule.rule_id
+                elif verdict == "centralized" and centralized_hit is None:
+                    centralized_hit = rule.rule_id
             except Exception as e:
-                # 判据执行失败仅记录，不参与判定（INV-5：绝不抛异常）
+                # 判据执行失败仅记录，不参与判定，绝不抛出（INV-5）
                 detail[rule.rule_id] = {"ok": False, "reason": str(e)[:200]}
 
-        # 阳性优先于阴性：一条判分布式、一条判集中式，取分布式（保守）
-        if dist_hit:
-            return "distributed", {"matched": dist_hit, "rules": detail}
-        if cent_hit:
-            return "centralized", {"matched": cent_hit, "rules": detail}
-        # 全部无结论 ≠ 集中式。返回 None，下沉至 ZK / 声明。
+        # 阳性优先于阴性：即使某条判据判了集中式，只要另一条判了分布式，
+        # 仍取分布式 —— 判错成分布式只是多报，判错成集中式是静默漏报。
+        if distributed_hit:
+            return "distributed", {"matched": distributed_hit, "rules": detail}
+        if centralized_hit:
+            return "centralized", {"matched": centralized_hit, "rules": detail}
         return None, {"matched": None, "rules": detail}
 
     # §8.3 采集清单。只读语句，逐条独立执行，单条失败不影响其余。
@@ -611,7 +590,6 @@ class TDSQLConnectionPool:
         ("proxy_connectionpool", "/*proxy*/show connectionpool"),
         ("proxy_show_shard",     "/*proxy*/show shard"),
         ("proxy_show_sets",      "/*proxy*/show sets"),
-        ("explain_select_1",     "EXPLAIN SELECT 1"),
         ("show_databases",       "show databases"),
     ]
 

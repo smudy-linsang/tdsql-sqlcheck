@@ -97,7 +97,7 @@ class InstanceTypeService:
         """解析一次扫描的实例类型上下文。
 
         优先级（V1.5.1 多源分级）：
-          A类（有 connection_id）：锁定 > ZK > 探测/声明保守合并 —— 忽略 requested
+          A类（有 connection_id）：锁定 > 探测/ZK/声明保守合并 —— 忽略 requested
           B类（无 connection_id）：requested > 全局默认    —— 由调用方声明
 
         INV-2：A 类下 requested 被有意忽略。若允许调用方指定，
@@ -122,7 +122,7 @@ class InstanceTypeService:
     def _resolve_by_connection(self, connection_id: str) -> InstanceContext:
         """多源分级解析（V1.5.1）。
 
-        优先级：S0 管理员锁定 > S1 ZK 管控面 > S2 SQL探测 > S3 人工声明
+        优先级：S0 管理员锁定 > S1 Proxy层SQL探测 > S2 ZK管控面 > S3 人工声明
 
         除 S0 外，各源之间采用【取更保守者】合并：任一可用源判定为分布式，
         即按分布式执行。理由是两个方向的误判后果严重不对称——
@@ -156,17 +156,20 @@ class InstanceTypeService:
                 _cache[connection_id] = (now, connection_id, ctx)
             return ctx
 
-        # ── S1 ZK 管控面（落库缓存，扫描链路不实时访问 ZK）──
-        zk = self._KIND_TO_TYPE.get((saved.get("zk_instance_kind") or "").strip())
-
-        # ── S2 SQL 探测（判据表驱动，仅读落库值，不在解析链路上发起探测）──
+        # ── S1 Proxy 层 SQL 探测（PR001/PR002/PR004，见 instance_probe_rules）──
+        # 排在 ZK 之前：读的是同一个底层事实，但实时、且无外部依赖（§4.1）
         detected = None
         raw = saved.get("detected_instance_type")
         if raw in (InstanceType.DISTRIBUTED.value, InstanceType.CENTRALIZED.value):
             detected = InstanceType(raw)
+        else:
+            detected, _ = self._probe_and_persist(connection_id)
+
+        # ── S2 ZK 管控面（交叉校验 + 探测失败/实例不可达时兜底）──
+        zk = self._KIND_TO_TYPE.get((saved.get("zk_instance_kind") or "").strip())
 
         # ── 保守合并（candidates 顺序即优先级，不得重排）──
-        candidates = [(TypeSource.ZK, zk), (TypeSource.PROBED, detected),
+        candidates = [(TypeSource.PROBED, detected), (TypeSource.ZK, zk),
                       (TypeSource.DECLARED, declared)]
         available = [(s, v) for s, v in candidates if v is not None]
 
@@ -184,8 +187,8 @@ class InstanceTypeService:
         if conflict:
             logger.warning(
                 f"实例 {connection_id} 类型判定存在分歧："
-                f"ZK={zk.value if zk else '无'}，"
                 f"探测={detected.value if detected else '无'}，"
+                f"ZK={zk.value if zk else '无'}，"
                 f"声明={declared.value}。按保守原则采用 {val.value}"
                 f"（来源 {src.value}）。")
 
@@ -272,18 +275,18 @@ class InstanceTypeService:
                 "available": ctx.source == TypeSource.LOCKED,
                 "value": ctx.locked.value if ctx.locked else None,
             },
+            "probe": {
+                "available": detected is not None,
+                "value": detected,
+                "reason": probe_reason,
+                "detail": probe_detail,
+            },
             "zk": {
                 "available": ctx.zk is not None or bool(zk_kind),
                 "value": ctx.zk.value if ctx.zk else None,
                 "kind": zk_kind or None,
                 "reason": ("" if zk_kind else
                            "尚未执行 ZK 自动发现，或该实例未在 ZK 清单中匹配到"),
-            },
-            "probe": {
-                "available": detected is not None,
-                "value": detected,
-                "reason": probe_reason,
-                "detail": probe_detail,
             },
             "declared": {"available": True, "value": declared.value},
         }

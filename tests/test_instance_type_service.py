@@ -144,13 +144,17 @@ def test_a_class_ignores_requested_type():
         assert ctx.instance_type == InstanceType.CENTRALIZED, "A 类通道必须忽略 requested"
 
 
+_NO_PROBE = patch.object(InstanceTypeService, "_probe_and_persist",
+                         return_value=(None, {}))
+
+
 def test_disabled_probe_does_not_override_declaration():
     """P0 核心（缺陷现场复现）：无探测结论时，使用者声明的「集中式」必须生效。
 
     复现缺陷现场：SIT-集中式实例A 声明 centralized，
     V1.5 下被恒真探测覆盖成 distributed，R077 照报。
     """
-    with patch(_REG) as reg:
+    with patch(_REG) as reg, _NO_PROBE:
         reg.get_saved.return_value = {"is_distributed": 0,
                                       "detected_instance_type": None}
         ctx = instance_type_service.resolve("conn_declared_centralized")
@@ -162,7 +166,7 @@ def test_disabled_probe_does_not_override_declaration():
 def test_r077_gone_for_declared_centralized_instance():
     """端到端：声明为集中式的实例，审核不得出现 R077。"""
     from backend.engine.checker import RuleChecker
-    with patch(_REG) as reg:
+    with patch(_REG) as reg, _NO_PROBE:
         reg.get_saved.return_value = {"is_distributed": 0,
                                       "detected_instance_type": None}
         ctx = instance_type_service.resolve("conn_declared_centralized2")
@@ -187,7 +191,7 @@ def test_r077_gone_for_declared_centralized_instance():
 ])
 def test_conservative_merge(zk_kind, detected, is_distributed, expect):
     """任一源说分布式即按分布式：判成集中式是不可见的失效方向。"""
-    with patch(_REG) as reg:
+    with patch(_REG) as reg, _NO_PROBE:
         reg.get_saved.return_value = {"is_distributed": is_distributed,
                                       "detected_instance_type": detected,
                                       "zk_instance_kind": zk_kind}
@@ -208,14 +212,26 @@ def test_probe_wins_when_conservative():
 
 
 def test_zk_source_reported_when_zk_available():
-    """ZK 可用且结论为分布式时，source 标注为优先级最高的 zk。"""
-    with patch(_REG) as reg:
+    """探测无结论、ZK 可用且结论为分布式时，source 标注为 zk。"""
+    with patch(_REG) as reg, _NO_PROBE:
         reg.get_saved.return_value = {"is_distributed": 1,
-                                      "detected_instance_type": "distributed",
+                                      "detected_instance_type": None,
                                       "zk_instance_kind": "groupshard"}
         ctx = instance_type_service.resolve("conn_zk_dist")
         assert ctx.instance_type == InstanceType.DISTRIBUTED
         assert ctx.source == TypeSource.ZK
+        assert ctx.conflict is False
+
+
+def test_probed_source_ranks_before_zk():
+    """S1 探测与 S2 ZK 同时可用且均为分布式时，source 标注为优先级更高的 probed。"""
+    with patch(_REG) as reg:
+        reg.get_saved.return_value = {"is_distributed": 1,
+                                      "detected_instance_type": "distributed",
+                                      "zk_instance_kind": "groupshard"}
+        ctx = instance_type_service.resolve("conn_probe_first")
+        assert ctx.instance_type == InstanceType.DISTRIBUTED
+        assert ctx.source == TypeSource.PROBED
         assert ctx.conflict is False
 
 
@@ -234,7 +250,7 @@ def test_lock_overrides_everything():
 
 def test_unlocked_ignores_locked_value():
     """解锁后 locked_value 仅作回显保留，不参与判定。"""
-    with patch(_REG) as reg:
+    with patch(_REG) as reg, _NO_PROBE:
         reg.get_saved.return_value = {"is_distributed": 1,
                                       "detected_instance_type": None,
                                       "instance_type_locked": 0,
@@ -246,7 +262,7 @@ def test_unlocked_ignores_locked_value():
 
 def test_unknown_zk_kind_not_guessed():
     """未知 ZK 形态不得静默映射成某一类——那是本次事故的同类错误。"""
-    with patch(_REG) as reg:
+    with patch(_REG) as reg, _NO_PROBE:
         reg.get_saved.return_value = {"is_distributed": 0,
                                       "detected_instance_type": None,
                                       "zk_instance_kind": "brand_new_kind"}
