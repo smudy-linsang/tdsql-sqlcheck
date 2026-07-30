@@ -337,6 +337,7 @@ def run_schema_check(request: SchemaCheckRequest, http_request: Request):
                 "scan_label": f"上线检查 · {_scope_label}",
                 "scan_started_at": _started_at,
                 "scan_finished_at": datetime.now().isoformat(),
+                "created_by": getattr(http_request.state, "username", "") or "system",
             }, _items, object_total=_obj_total)
         except Exception as e:
             snapshot_error = str(e)[:200]

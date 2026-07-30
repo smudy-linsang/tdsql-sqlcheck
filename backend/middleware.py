@@ -123,7 +123,7 @@ _QUERY_TOKEN_PATHS = frozenset({
     "/api/v1/scan-compare/compare/html",
 })
 _QUERY_TOKEN_SUFFIXES = ("/html", "/sql", "/export")
-_QUERY_TOKEN_PREFIXES = ("/api/v1/audit/", "/api/v1/slow-queries/")
+_QUERY_TOKEN_PREFIXES = ("/api/v1/audit/", "/api/v1/slow-queries/", "/api/v1/scan-compare/")
 
 
 def _allows_query_token(path: str) -> bool:

@@ -445,8 +445,14 @@
                     <el-table-column prop="db_name" label="库名" width="130"></el-table-column>
                     <el-table-column prop="object_total" label="对象数" width="80"></el-table-column>
                     <el-table-column label="问题数" width="150"><template #default="{row}"><span class="t-danger">{{ row.error_count }}</span> / <span class="t-warning">{{ row.warning_count }}</span> <span class="t-secondary">（共 {{ row.issue_total }}）</span></template></el-table-column>
-                    <el-table-column prop="created_by" label="执行人" width="90"></el-table-column>
+                    <el-table-column label="执行人" width="100"><template #default="{row}">{{ row.created_by || 'system' }}</template></el-table-column>
                     <el-table-column label="来源" width="80"><template #default="{row}"><el-tag size="small" :type="row.source_kind==='rebuild'?'info':'success'">{{ row.source_kind==='rebuild'?'回填':'实时' }}</el-tag></template></el-table-column>
+                    <el-table-column label="操作" width="160" fixed="right">
+                      <template #default="{row}">
+                        <el-button type="primary" link size="small" @click="openSnapshotDetail(row)">查看结果</el-button>
+                        <el-button type="success" link size="small" @click="downloadSnapshotHtml(row)">下载报告</el-button>
+                      </template>
+                    </el-table-column>
                   </el-table>
                   <el-pagination v-if="cmpState.total>cmpState.pageSize" small layout="total,prev,pager,next" :total="cmpState.total" :page-size="cmpState.pageSize" v-model:current-page="cmpState.page" @current-change="loadSnapshots('schema_audit')" class="pager"></el-pagination>
                 </div>
@@ -628,8 +634,14 @@
                     <el-table-column prop="db_name" label="库名" width="130"></el-table-column>
                     <el-table-column prop="object_total" label="对象数" width="80"></el-table-column>
                     <el-table-column label="问题数" width="150"><template #default="{row}"><span class="t-danger">{{ row.error_count }}</span> / <span class="t-warning">{{ row.warning_count }}</span> <span class="t-secondary">（共 {{ row.issue_total }}）</span></template></el-table-column>
-                    <el-table-column prop="created_by" label="执行人" width="90"></el-table-column>
+                    <el-table-column label="执行人" width="100"><template #default="{row}">{{ row.created_by || 'system' }}</template></el-table-column>
                     <el-table-column label="来源" width="80"><template #default="{row}"><el-tag size="small" :type="row.source_kind==='rebuild'?'info':'success'">{{ row.source_kind==='rebuild'?'回填':'实时' }}</el-tag></template></el-table-column>
+                    <el-table-column label="操作" width="160" fixed="right">
+                      <template #default="{row}">
+                        <el-button type="primary" link size="small" @click="openSnapshotDetail(row)">查看结果</el-button>
+                        <el-button type="success" link size="small" @click="downloadSnapshotHtml(row)">下载报告</el-button>
+                      </template>
+                    </el-table-column>
                   </el-table>
                   <el-pagination v-if="cmpState.total>cmpState.pageSize" small layout="total,prev,pager,next" :total="cmpState.total" :page-size="cmpState.pageSize" v-model:current-page="cmpState.page" @current-change="loadSnapshots('slow_scan')" class="pager"></el-pagination>
                 </div>
@@ -1099,8 +1111,14 @@
                     <el-table-column label="检查范围" width="130"><template #default="{row}">{{ row.db_name || '全部数据库' }}</template></el-table-column>
                     <el-table-column prop="object_total" label="对象数" width="80"></el-table-column>
                     <el-table-column label="问题数" width="150"><template #default="{row}"><span class="t-danger">{{ row.error_count }}</span> / <span class="t-warning">{{ row.warning_count }}</span> <span class="t-secondary">（共 {{ row.issue_total }}）</span></template></el-table-column>
-                    <el-table-column prop="created_by" label="执行人" width="90"></el-table-column>
+                    <el-table-column label="执行人" width="100"><template #default="{row}">{{ row.created_by || 'system' }}</template></el-table-column>
                     <el-table-column label="来源" width="80"><template #default="{row}"><el-tag size="small" :type="row.source_kind==='rebuild'?'info':'success'">{{ row.source_kind==='rebuild'?'回填':'实时' }}</el-tag></template></el-table-column>
+                    <el-table-column label="操作" width="160" fixed="right">
+                      <template #default="{row}">
+                        <el-button type="primary" link size="small" @click="openSnapshotDetail(row)">查看结果</el-button>
+                        <el-button type="success" link size="small" @click="downloadSnapshotHtml(row)">下载报告</el-button>
+                      </template>
+                    </el-table-column>
                   </el-table>
                   <el-pagination v-if="cmpState.total>cmpState.pageSize" small layout="total,prev,pager,next" :total="cmpState.total" :page-size="cmpState.pageSize" v-model:current-page="cmpState.page" @current-change="loadSnapshots('launch_check')" class="pager"></el-pagination>
                 </div>
@@ -2380,6 +2398,58 @@
   <el-drawer v-model="gatewayDetailVisible" title="网关日志分析报告" size="80%">
     <div v-html="gatewayHtml" style="padding: 10px; overflow: auto; height: 100%"></div>
   </el-drawer>
+
+  <!-- 扫描/体检单次快照明细对话框 -->
+  <el-dialog v-model="snapshotDetailDialog.visible" title="单次扫描历史明细" width="1000px">
+    <div v-loading="snapshotDetailDialog.loading">
+      <div v-if="snapshotDetailDialog.snapshot">
+        <div style="display:flex; justify-content:space-between; align-items:center; background:var(--bg-secondary); padding:12px 16px; border-radius:6px; margin-bottom:16px">
+          <div>
+            <div style="font-weight:600; font-size:14px; margin-bottom:4px">
+              {{ snapshotDetailDialog.snapshot.scan_label || snapshotDetailDialog.snapshot.connection_name }}
+            </div>
+            <div style="font-size:12px; color:var(--text-secondary)">
+              实例：{{ snapshotDetailDialog.snapshot.connection_name || snapshotDetailDialog.snapshot.connection_id }} &nbsp;|&nbsp;
+              范围：{{ snapshotDetailDialog.snapshot.db_name || '全部数据库' }} &nbsp;|&nbsp;
+              执行人：{{ snapshotDetailDialog.snapshot.created_by || 'system' }} &nbsp;|&nbsp;
+              时间：{{ formatTime(snapshotDetailDialog.snapshot.scan_finished_at || snapshotDetailDialog.snapshot.created_at) }}
+            </div>
+          </div>
+          <div>
+            <el-button type="success" size="small" @click="downloadSnapshotHtml(snapshotDetailDialog.snapshot)">下载 HTML 报告</el-button>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:12px; align-items:center; margin-bottom:12px">
+          <el-input v-model="snapshotDetailDialog.search" placeholder="筛选对象/问题描述/检查项..." size="small" clearable style="width:240px"></el-input>
+          <el-select v-model="snapshotDetailDialog.severityFilter" placeholder="严重级别" size="small" clearable style="width:120px">
+            <el-option label="ERROR" value="ERROR"></el-option>
+            <el-option label="WARNING" value="WARNING"></el-option>
+            <el-option label="INFO" value="INFO"></el-option>
+          </el-select>
+          <div style="font-size:12px; color:var(--text-secondary); margin-left:auto">
+            包含 {{ (snapshotDetailDialog.snapshot.issues || []).length }} 项问题（对象数: {{ snapshotDetailDialog.snapshot.stats?.object_total || snapshotDetailDialog.snapshot.object_total || 0 }}）
+          </div>
+        </div>
+
+        <el-table :data="filteredSnapshotIssues" stripe border size="small" style="max-height:480px; overflow:auto">
+          <el-table-column label="级别" width="90" align="center">
+            <template #default="{row}">
+              <el-tag :type="sevTagType(row.severity)" size="small">{{ row.severity || 'INFO' }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="issue_type" label="检查项" width="90" align="center"></el-table-column>
+          <el-table-column prop="object_name" label="目标对象" width="200" show-overflow-tooltip></el-table-column>
+          <el-table-column label="详细说明" min-width="260" show-overflow-tooltip>
+            <template #default="{row}">
+              {{ row.detail || row.title }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="suggestion" label="处置建议" min-width="200" show-overflow-tooltip></el-table-column>
+        </el-table>
+      </div>
+    </div>
+  </el-dialog>
 </div>
 <script src="/static/js/app.js"></script>
 </body>

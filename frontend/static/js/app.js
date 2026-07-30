@@ -1250,9 +1250,49 @@ const app=createApp({
     watch(deepTab,(v)=>{if(v==='gateway_log')loadGatewayReports();if(v==='ppt_report')loadPptDashboard();if(v==='toolkit')loadToolkitScripts()});
     watch(deepConnId,(v)=>{if(v){if(deepTab.value==='gateway_log')loadGatewayReports();if(deepTab.value==='ppt_report')loadPptDashboard()}});
     watch(currentProjectId,(v)=>{if(v)loadGateRules();else gateRules.value=null});
+    // ═══ V1.5.2 单次快照明细查看与 HTML 报告导出 ═══
+    const snapshotDetailDialog=reactive({visible:false,loading:false,snapshot:null,search:'',severityFilter:''});
+    const filteredSnapshotIssues=computed(()=>{
+      const snap=snapshotDetailDialog.snapshot;
+      if(!snap||!snap.issues) return [];
+      let list=snap.issues;
+      if(snapshotDetailDialog.severityFilter){
+        list=list.filter(i=>(i.severity||'').toUpperCase()===snapshotDetailDialog.severityFilter.toUpperCase());
+      }
+      if(snapshotDetailDialog.search){
+        const q=snapshotDetailDialog.search.toLowerCase();
+        list=list.filter(i=>(i.title||'').toLowerCase().includes(q)||(i.object_name||'').toLowerCase().includes(q)||(i.detail||'').toLowerCase().includes(q));
+      }
+      return list;
+    });
+    const openSnapshotDetail=async(row)=>{
+      snapshotDetailDialog.visible=true;
+      snapshotDetailDialog.loading=true;
+      snapshotDetailDialog.snapshot=null;
+      snapshotDetailDialog.search='';
+      snapshotDetailDialog.severityFilter='';
+      try{
+        const resp=await apiFetch(`${API_BASE}/api/v1/scan-compare/snapshots/${row.id}?with_issues=true`);
+        if(resp.ok){
+          snapshotDetailDialog.snapshot=await resp.json();
+        }else{
+          ElementPlus.ElMessage.error("获取快照明细失败");
+        }
+      }catch(e){
+        ElementPlus.ElMessage.error("加载失败: "+e.message);
+      }finally{
+        snapshotDetailDialog.loading=false;
+      }
+    };
+    const downloadSnapshotHtml=(row)=>{
+      const t=authState.token;
+      window.open(`${API_BASE}/api/v1/scan-compare/snapshots/${row.id}/html?access_token=${encodeURIComponent(t)}`,'_blank');
+    };
+
     return{currentPage,sidebarCollapsed,theme,toggleTheme,
       cmpState,cmpTableRef,loadSnapshots,cmpQuery,cmpResetFilters,onSnapshotSelect,
       runCompare,exportCompareHtml,saveCompareReport,loadCompareReports,viewSavedCompareReport,downloadSavedCompareReportHtml,deleteSavedCompareReport,cmpFmtChange,
+      snapshotDetailDialog,filteredSnapshotIssues,openSnapshotDetail,downloadSnapshotHtml,
       authState,loginForm,loginLoading,loginError,pwdDialog,savedConnections,currentConnectionId,projects,currentProjectId,activeAlerts,metadataEnhanced,statsLoading,stats,ruleHits,trendChartRef,kpiCards,sqlInput,auditing,auditResult,auditProjectId,fileAuditTab,fileAuditResult,fileReports,fileReportsLoading,fileReportsTotal,fileReportsPage,selectedFileReportIds,fileReportsDeleting,fileReportsTableRef,onFileReportsSelect,batchDeleteFileReports,deleteSingleFileReport,slowTasksTab,onSlowTasksTabChange,bigtableTab,onBigtableTabChange,rulesList,rulesByCategory,ruleSearch,expandedCategories,filteredCategories,slowList,slowListLoading,slowFilters,slowPage,scanTasks,scanTaskTotal,scanTaskCurrentPage,scanTaskLoading,selectedTaskIds,batchDeleting,clearingOrphan,scanDrawer,scanTimeWindow,scanTaskForm,slowDetailDrawer,slowDetail,explainMode,explainSqlInput,explainInput,explainConnId,analyzingExplain,explainResult,tdsqlStatus,connDrawer,connForm,connEditMode,connTestResult,connTesting,connLoading,usersList,usersLoading,usersTotal,usersPage,usersPageSize,userKeyword,userQuery,userDialog,resetDialog,scanSchedules,scanScheduleLoading,scheduleDrawer,scheduleForm,healthLoading,healthResult,healthCheckType,healthDbName,schemaCheckConnId,schemaCheckScope,schemaCheckResults,schemaCheckSummary,schemaCheckLoading,schemaCheckTab,onSchemaCheckTabChange,extractedAuditConnId,extractedDbName,extractedScope,extractAuditing,extractedResult,runExtractAndAudit,downloadExtractedSql,bigtableLoading,bigtableData,bigtableRef,partitionDetail,partitionLoading,projectsList,projectsLoading,projectDialog,rulesets,rulesetsLoading,gateRules,gateStrategies,gateLoading,monitorAlerts,monitorRules,monitorLoading,monitorTab,inspectionTasks,inspectionLoading,auditLogs,auditLogsLoading,auditLogsTotal,auditLogsPage,retentionPolicies,retentionLoading,sysInfo,sysInfoLoading,roleLabel,canManagePlatform,isAdmin,canManageInstances,canViewAuditLog,canViewSysInfo,canViewProjects,canViewMonitor,canViewSchedule,canViewBigtable,breadcrumbItems,formatTime,sevTagType,statusLabel,sourceLabel,categoryOrder,doLogin,doLogout,changePassword,onUserCommand,onMenuSelect,onConnectionSwitch,onProjectSwitch,auditSql,loadExample,onFileChange,loadFileReports,downloadFileReport,loadRules,loadSlowList,resetSlowFilter,openSlowDetail,setSlowStatus,exportSlowReport,downloadScanReport,goSlowDetail,goExplainFromSlow,loadScanTasks,onTaskSelectChange,deleteScanTask,batchDeleteScanTasks,startScanTask,viewTaskSlowQueries,clearOrphanRecords,analyzeExplainBySql,analyzeExplain,loadSavedConnections,testConn,saveConn,openEditConn,openNewConn,deleteConn,probeInstanceType,instTypeCn,instSourceCn,lockDialog,openLockDialog,submitLock,diagDialog,openDiagDialog,runDiagnostics,downloadDiagnostics,connZkInfo,setDefaultConn,connectInstance,loadUsers,createUser,openResetPwd,resetUserPwd,unlockUser,toggleUserStatus,deleteUser,loadAll,renderTrendChart,loadProjects,loadActiveAlerts,loadScanSchedules,createScanSchedule,deleteScanSchedule,toggleScheduleEnabled,runHealthCheck,runSchemaCheck,exportSchemaCheckReport,loadBigtable,bigtableRowKey,partitionBoundaryLabel,bigtableRowClass,togglePartitions,onBigtableExpand,loadTablePartitions,loadProjectsList,createProject,deleteProject,toggleProjectStatus,loadRulesets,loadGateRules,loadGateStrategies,applyGateStrategy,loadMonitorAlerts,acknowledgeAlert,loadMonitorRules,loadInspectionTasks,loadAuditLogs,loadRetention,runRetentionCleanup,loadSysInfo,bigtableCollecting,collectBigtable,rulesetDialog,createRuleset,deleteRuleset,activateRuleset,gateCustom,openGateCustom,saveGateCustom,monitorRuleDialog,createMonitorRule,inspectionDialog,createInspection,inspectionResultDrawer,inspectionResults,viewInspectionResult,retentionDialog,openRetentionEdit,saveRetention,retentionEditMode,logoUrl,loadLogo,onLogoUpload,resetLogo,toggleSysConfig,auditFilter,resetAuditFilter,tableNameLabel,metricLabel,rolesList,rolesLoading,roleDialog,deleteRole,openRoleEdit,saveRole,roleLabelFn,permsMatrixData,permsMenuList,permsLoading,loadPerms,onPermChange,deepConnId,deepRightConnId,deepDb,deepTab,deepLoading,deepResult,runClusterInspect,runIndexAudit,runSchemaDiff,runEmergency,runSqlStats,visibleMenus,zkDialogVisible,zkForm,zkScanning,zkDiscovered,zkSelected,zkRegistering,openZkDiscovery,runZkDiscovery,handleZkSelection,registerZkInstances,gatewayLoading,gatewayReports,gatewayHtml,gatewayDetailVisible,loadGatewayReports,viewGatewayReport,onGatewayUpload,pptLoading,pptDashboard,loadPptDashboard,generatePptReport,toolkitLoading,toolkitScripts,loadToolkitScripts,downloadToolkitScript,extractedTab,extractedReports,extractedReportsLoading,loadExtractedReports,downloadExtractedHtmlReport,downloadExtractedSqlFile,extractedReportsTotal,extractedReportsPage,extractedPageSize,extractedFilters,extractedTableRef,selectedExtractedIds,extractedPurgeSnapshots,extractedDeleting,canDeleteExtractedReports,extractedQuery,extractedResetFilters,extractedPickOlderThan,onExtractedSelect,batchDeleteExtractedReports,dailyInspectDates,dailyInspectThreshold,dailyCompareResult,dailyInstSearch,dailyInstSigOnly,dailySrvSearch,dailySrvSigOnly,dailyInspectChartData,dailyInspectChartMetric,dailyInspectChartNode,dailyInspectChartNodes,dailyTrendChartRef,filteredDailyInstDiffs,filteredDailySrvDiffs,runDailyInspect,compareDailyInspect,renderDailyTrendChart,exportDailyHtmlReport,activeEmergencyNames,emergencyNameLabel,rulesetDrawer,rulesetConfigItems,openRulesetConfig,rulesetCategories,rulesetCategoryCounts,filteredRulesetItems,modifiedOverrideCount,disabledCount,setFilteredRulesEnabled,resetFilteredRulesOverrides,saveRulesetConfig,dailyInstNodeSelect,dailyInstPage,dailyInstPageSize,dailySrvIpSelect,dailySrvPage,dailySrvPageSize,dailyInstNodeList,dailySrvIpList,pagedDailyInstDiffs,pagedDailySrvDiffs};
   }
 });

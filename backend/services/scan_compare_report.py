@@ -252,3 +252,81 @@ def render_compare_html(result: dict) -> str:
 </div>
 </body>
 </html>"""
+
+
+def render_single_snapshot_html(snap: dict) -> str:
+    """渲染单个扫描/体检快照的独立 HTML 报告"""
+    snap = snap or {}
+    meta_module = snap.get("module", "")
+    module_label = _MODULE_LABELS.get(meta_module, "上线检查" if meta_module == "launch_check" else meta_module)
+    conn_name = snap.get("connection_name") or snap.get("connection_id") or "未知实例"
+    db_name = snap.get("db_name") or "全部数据库"
+    created_by = snap.get("created_by") or "system"
+    finished_at = _fmt_time(snap.get("scan_finished_at") or snap.get("created_at"))
+    
+    stats = snap.get("stats") or {}
+    object_total = snap.get("object_total", 0)
+    issue_total = snap.get("issue_total", 0)
+    error_count = snap.get("error_count", 0)
+    warning_count = snap.get("warning_count", 0)
+    info_count = issue_total - error_count - warning_count
+    if info_count < 0:
+        info_count = 0
+
+    issues = snap.get("issues") or []
+
+    def _issue_row(it):
+        it = it or {}
+        sev = it.get("severity") or "INFO"
+        title = it.get("title") or f"[{it.get('issue_type','')}] {it.get('object_name','')}"
+        return (
+            f"<td>{_sev_badge(sev)}</td>"
+            f"<td><b>{_e(it.get('issue_type', '-'))}</b></td>"
+            f"<td>{_e(it.get('object_name', '-'))}</td>"
+            f"<td>{_e(it.get('detail', title))}</td>"
+            f"<td>{_e(it.get('suggestion', '-'))}</td>"
+        )
+
+    kpi_html = (
+        f'<div class="kpi"><div class="num">{object_total}</div><div class="lbl">检查对象数</div></div>'
+        f'<div class="kpi"><div class="num">{issue_total}</div><div class="lbl">问题总数</div></div>'
+        f'<div class="kpi"><div class="num t-red">{error_count}</div><div class="lbl">ERROR (错误)</div></div>'
+        f'<div class="kpi"><div class="num t-amber">{warning_count}</div><div class="lbl">WARNING (警告)</div></div>'
+        f'<div class="kpi"><div class="num t-blue">{info_count}</div><div class="lbl">INFO (提示)</div></div>'
+    )
+
+    issues_table = _rows_table(
+        issues,
+        ["级别", "检查项", "目标对象", "详细说明", "处置建议"],
+        _issue_row,
+        empty_text="未查出任何不合规问题项"
+    )
+
+    return f"""<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TDSQL 扫描快照报告 - {_e(module_label)} (#{_e(snap.get('id', ''))})</title>
+<style>{_CSS}</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>TDSQL 扫描快照报告 · {_e(module_label)}</h1>
+  <div class="meta">
+    实例：<b>{_e(conn_name)}</b> &nbsp;|&nbsp; 
+    检查范围：<b>{_e(db_name)}</b> &nbsp;|&nbsp; 
+    执行人：<b>{_e(created_by)}</b> &nbsp;|&nbsp; 
+    完成时间：<b>{_e(finished_at)}</b>
+  </div>
+  <div class="kpis">{kpi_html}</div>
+  <h2>问题明细列表 <span class="cnt">（共 {len(issues)} 项）</span></h2>
+  {issues_table}
+  <footer>
+    <span>生成时间：{_e(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))}</span>
+    <span>TDSQL SQL审核平台 · 扫描快照报告</span>
+  </footer>
+</div>
+</body>
+</html>"""
+

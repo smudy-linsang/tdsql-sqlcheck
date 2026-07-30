@@ -155,6 +155,27 @@ def get_snapshot(snapshot_id: int, request: Request, with_issues: bool = False):
     return resp
 
 
+@router.get("/snapshots/{snapshot_id}/html", summary="下载单次扫描快照HTML报告")
+def get_snapshot_html(snapshot_id: int, request: Request):
+    snap = snapshot_service.get_snapshot(snapshot_id, with_issues=True)
+    if not snap:
+        raise _err("E4004", "快照不存在或已被数据保留策略清理", status=404)
+    _check_module_perm(request, snap.get("module") or "")
+
+    from backend.services.scan_compare_report import render_single_snapshot_html
+    html_content = render_single_snapshot_html(snap)
+
+    _audit(request, "export_snapshot_html", str(snapshot_id),
+           f"module={snap.get('module')}")
+
+    filename = f"Snapshot_Report_{snap.get('module', 'scan')}_{snapshot_id}.html"
+    return Response(
+        content=html_content,
+        media_type="text/html; charset=utf-8",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+
 # ── 3. 两次扫描结果比对（核心）──
 
 @router.post("/compare", summary="两次扫描结果比对")
