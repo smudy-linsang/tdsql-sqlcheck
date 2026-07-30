@@ -1379,9 +1379,8 @@
                     <el-table-column label="留档时间" width="150">
                       <template #default="{row}">{{ formatTime(row.created_at) }}</template>
                     </el-table-column>
-                    <el-table-column label="操作" width="200" fixed="right">
+                    <el-table-column label="操作" width="160" fixed="right">
                       <template #default="{row}">
-                        <el-button type="primary" link size="small" @click="viewSavedCompareReport(row)">查看对比</el-button>
                         <el-button type="success" link size="small" @click="downloadSavedCompareReportHtml(row)">下载HTML</el-button>
                         <el-button v-if="isAdmin" type="danger" link size="small" @click="deleteSavedCompareReport(row)">删除</el-button>
                       </template>
@@ -1389,58 +1388,7 @@
                   </el-table>
                   <el-pagination v-if="cmpState.reportsTotal>cmpState.reportsPageSize" small layout="total,prev,pager,next" :total="cmpState.reportsTotal" :page-size="cmpState.reportsPageSize" v-model:current-page="cmpState.reportsPage" @current-change="loadCompareReports('bigtable')" class="pager"></el-pagination>
                 </div>
-                <!-- 点击查看对比载入的对比结果视图 -->
-                <div class="page-card" v-if="cmpState.visible && cmpState.result && bigtableTab==='reports'">
-                  <div class="card-head">
-                    <div class="page-card-title mb0">留档报告详细对比：{{ formatTime(cmpState.result.base.scan_finished_at) }} → {{ formatTime(cmpState.result.target.scan_finished_at) }}</div>
-                    <div class="flex-gap8">
-                      <el-button type="success" size="small" @click="exportCompareHtml">导出对比报告</el-button>
-                    </div>
-                  </div>
-                  <el-alert v-for="w in (cmpState.result.warnings||[])" :key="w" :title="w" type="warning" show-icon :closable="false" class="mb-8"></el-alert>
-                  <el-row :gutter="12" class="mb-16">
-                    <el-col :span="4"><div class="kpi-card"><div class="kpi-num">{{ cmpState.result.summary.base_total }}</div><div class="kpi-label">之前问题数</div></div></el-col>
-                    <el-col :span="4"><div class="kpi-card"><div class="kpi-num">{{ cmpState.result.summary.target_total }}</div><div class="kpi-label">现在问题数</div></div></el-col>
-                    <el-col :span="4"><div class="kpi-card"><div class="kpi-num t-success">{{ cmpState.result.summary.fixed_count }}</div><div class="kpi-label">{{ cmpState.result.labels.fixed }}</div></div></el-col>
-                    <el-col :span="4"><div class="kpi-card"><div class="kpi-num t-danger">{{ cmpState.result.summary.new_count }}</div><div class="kpi-label">{{ cmpState.result.labels.new }}</div></div></el-col>
-                    <el-col :span="4"><div class="kpi-card"><div class="kpi-num t-warning">{{ cmpState.result.summary.remain_count }}</div><div class="kpi-label">{{ cmpState.result.labels.remain }}</div></div></el-col>
-                    <el-col :span="4"><div class="kpi-card"><div class="kpi-num">{{ cmpState.result.summary.fix_rate }}%</div><div class="kpi-label">整改率</div></div></el-col>
-                  </el-row>
-                  <el-tabs>
-                    <el-tab-pane :label="cmpState.result.labels.fixed + '(' + cmpState.result.summary.fixed_count + ')'">
-                      <el-table :data="cmpState.result.fixed" stripe size="small" class="w-full" empty-text="无">
-                        <el-table-column prop="object_name" label="对象" show-overflow-tooltip></el-table-column>
-                        <el-table-column prop="issue_type" label="问题类型" width="140"></el-table-column>
-                        <el-table-column label="级别" width="90"><template #default="{row}"><el-tag :type="sevTagType(row.severity)" size="small">{{ row.severity }}</el-tag></template></el-table-column>
-                        <el-table-column prop="title" label="描述" show-overflow-tooltip></el-table-column>
-                      </el-table>
-                    </el-tab-pane>
-                    <el-tab-pane :label="cmpState.result.labels.new + '(' + cmpState.result.summary.new_count + ')'">
-                      <el-table :data="cmpState.result.new" stripe size="small" class="w-full" empty-text="无">
-                        <el-table-column prop="object_name" label="对象" show-overflow-tooltip></el-table-column>
-                        <el-table-column prop="issue_type" label="问题类型" width="140"></el-table-column>
-                        <el-table-column label="级别" width="90"><template #default="{row}"><el-tag :type="sevTagType(row.severity)" size="small">{{ row.severity }}</el-tag></template></el-table-column>
-                        <el-table-column prop="title" label="描述" show-overflow-tooltip></el-table-column>
-                      </el-table>
-                    </el-tab-pane>
-                    <el-tab-pane :label="cmpState.result.labels.remain + '(' + cmpState.result.summary.remain_count + ')'">
-                      <el-table :data="cmpState.result.remain" stripe size="small" class="w-full" empty-text="无">
-                        <el-table-column prop="object_name" label="对象" show-overflow-tooltip></el-table-column>
-                        <el-table-column prop="issue_type" label="问题类型" width="140"></el-table-column>
-                        <el-table-column label="级别" width="90"><template #default="{row}"><el-tag :type="sevTagType(row.severity)" size="small">{{ row.severity }}</el-tag></template></el-table-column>
-                        <el-table-column prop="title" label="描述" show-overflow-tooltip></el-table-column>
-                      </el-table>
-                    </el-tab-pane>
-                    <el-tab-pane :label="'变化(' + cmpState.result.summary.changed_count + ')'">
-                      <el-table :data="cmpState.result.changed" stripe size="small" class="w-full" empty-text="无显著变化">
-                        <el-table-column prop="object_name" label="对象" show-overflow-tooltip></el-table-column>
-                        <el-table-column label="变化项" width="170"><template #default="{row}">{{ (row.change||{}).type }} / {{ (row.change||{}).field }}</template></el-table-column>
-                        <el-table-column label="变化前 → 变化后" width="220"><template #default="{row}">{{ cmpFmtChange(row.change) }}</template></el-table-column>
-                        <el-table-column prop="title" label="描述" show-overflow-tooltip></el-table-column>
-                      </el-table>
-                    </el-tab-pane>
-                  </el-tabs>
-                </div>
+              </el-tab-pane>
               </el-tab-pane>
             </el-tabs>
           </div>
