@@ -243,8 +243,16 @@ def list_snapshots(module: str = "", connection_id: str = "", db_name: str = "",
         conn.close()
     # V1.4：补充尺度名称（rule_set_id 为 NULL 的存量快照名称为空）
     name_map = _rule_set_name_map([it.get("rule_set_id") for it in items])
+    from backend.services.connection_registry import registry
     for it in items:
         it["rule_set_name"] = name_map.get(it.get("rule_set_id"), "")
+        if not it.get("db_name") and it.get("connection_id"):
+            try:
+                c_info = registry.get_saved(it["connection_id"]) or {}
+                if c_info.get("database"):
+                    it["db_name"] = c_info["database"]
+            except Exception:
+                pass
     return {"total": total, "items": items}
 
 
@@ -261,6 +269,14 @@ def get_snapshot(snapshot_id: int, with_issues: bool = True):
         return None
 
     item = _row_to_item(row)
+    if not item.get("db_name") and item.get("connection_id"):
+        try:
+            from backend.services.connection_registry import registry
+            c_info = registry.get_saved(item["connection_id"]) or {}
+            if c_info.get("database"):
+                item["db_name"] = c_info["database"]
+        except Exception:
+            pass
     raw = item.pop("snapshot_json", None)
     # V1.4：补充尺度名称
     item["rule_set_name"] = _rule_set_name_map([item.get("rule_set_id")]).get(
@@ -367,10 +383,11 @@ def _rebuild_bigtable(conn, limit: int, overwrite: bool) -> dict:
 
     rows = conn.execute("""
         SELECT bi.connection_id, bi.inspection_date, COUNT(*) AS cnt,
-               COALESCE(c.name, '') AS connection_name
+               COALESCE(c.name, '') AS connection_name,
+               COALESCE(c.database, '') AS db_name
         FROM bigtable_inventory bi
         LEFT JOIN tdsql_connections c ON c.id = bi.connection_id
-        GROUP BY bi.connection_id, bi.inspection_date, c.name
+        GROUP BY bi.connection_id, bi.inspection_date, c.name, c.database
         ORDER BY bi.inspection_date DESC LIMIT ?
     """, (limit,)).fetchall()
 
@@ -390,7 +407,7 @@ def _rebuild_bigtable(conn, limit: int, overwrite: bool) -> dict:
                 "biz_ref_id": biz_ref,
                 "connection_id": conn_id,
                 "connection_name": d.get("connection_name") or "",
-                "db_name": "",
+                "db_name": d.get("db_name") or "",
                 "scan_label": f"大表盘点 {date}",
                 "scan_started_at": None,
                 "scan_finished_at": f"{date} 00:00:00" if date else "",

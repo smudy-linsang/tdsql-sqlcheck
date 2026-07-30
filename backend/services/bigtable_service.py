@@ -59,9 +59,11 @@ class BigTableService:
             from backend.services.ruleset_service import ruleset_service as _rs_svc
 
             items, obj_total = bt_extract(connection_id, inspection_date)
-            conn_name = ""
+            conn_name, db_name = "", ""
             try:
-                conn_name = (registry.get_saved(connection_id) or {}).get("name", "")
+                c_info = registry.get_saved(connection_id) or {}
+                conn_name = c_info.get("name", "")
+                db_name = c_info.get("database", "")
             except Exception:
                 pass
             finished = datetime.now()
@@ -69,7 +71,7 @@ class BigTableService:
                 "biz_ref_id": f"{connection_id}:{inspection_date}:{finished.strftime('%H%M%S')}",
                 "connection_id": connection_id,
                 "connection_name": conn_name,
-                "db_name": "",
+                "db_name": db_name,
                 "scan_label": f"大表盘点 {inspection_date} {finished.strftime('%H:%M:%S')}",
                 "scan_started_at": started_at.isoformat(),
                 "scan_finished_at": finished.isoformat(),

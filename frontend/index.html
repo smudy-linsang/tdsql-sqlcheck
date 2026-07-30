@@ -442,7 +442,7 @@
                     <el-table-column type="selection" width="40"></el-table-column>
                     <el-table-column label="扫描时间" width="160"><template #default="{row}">{{ formatTime(row.scan_finished_at) }}</template></el-table-column>
                     <el-table-column label="实例" show-overflow-tooltip><template #default="{row}">{{ row.connection_name || row.connection_id || '未知实例' }}</template></el-table-column>
-                    <el-table-column label="库名" width="130"><template #default="{row}">{{ row.db_name || '全部数据库' }}</template></el-table-column>
+                    <el-table-column label="库名" width="130"><template #default="{row}">{{ row.db_name || '-' }}</template></el-table-column>
                     <el-table-column prop="object_total" label="对象数" width="80"></el-table-column>
                     <el-table-column label="问题数" width="150"><template #default="{row}"><span class="t-danger">{{ row.error_count }}</span> / <span class="t-warning">{{ row.warning_count }}</span> <span class="t-secondary">（共 {{ row.issue_total }}）</span></template></el-table-column>
                     <el-table-column label="执行人" width="100"><template #default="{row}">{{ row.created_by || 'system' }}</template></el-table-column>
@@ -631,7 +631,7 @@
                     <el-table-column type="selection" width="40"></el-table-column>
                     <el-table-column label="扫描时间" width="160"><template #default="{row}">{{ formatTime(row.scan_finished_at) }}</template></el-table-column>
                     <el-table-column label="实例" show-overflow-tooltip><template #default="{row}">{{ row.connection_name || row.connection_id || '未知实例' }}</template></el-table-column>
-                    <el-table-column label="库名" width="130"><template #default="{row}">{{ row.db_name || '全部数据库' }}</template></el-table-column>
+                    <el-table-column label="库名" width="130"><template #default="{row}">{{ row.db_name || '-' }}</template></el-table-column>
                     <el-table-column prop="object_total" label="对象数" width="80"></el-table-column>
                     <el-table-column label="问题数" width="150"><template #default="{row}"><span class="t-danger">{{ row.error_count }}</span> / <span class="t-warning">{{ row.warning_count }}</span> <span class="t-secondary">（共 {{ row.issue_total }}）</span></template></el-table-column>
                     <el-table-column label="执行人" width="100"><template #default="{row}">{{ row.created_by || 'system' }}</template></el-table-column>
@@ -1056,7 +1056,7 @@
                     <el-table-column type="selection" width="40"></el-table-column>
                     <el-table-column label="检查时间" width="160"><template #default="{row}">{{ formatTime(row.scan_finished_at) }}</template></el-table-column>
                     <el-table-column label="实例" show-overflow-tooltip><template #default="{row}">{{ row.connection_name || row.connection_id || '未知实例' }}</template></el-table-column>
-                    <el-table-column label="检查范围" width="130"><template #default="{row}">{{ row.db_name || '全部数据库' }}</template></el-table-column>
+                    <el-table-column label="检查范围" width="130"><template #default="{row}">{{ row.db_name || '-' }}</template></el-table-column>
                     <el-table-column prop="object_total" label="对象数" width="80"></el-table-column>
                     <el-table-column label="问题数" width="150"><template #default="{row}"><span class="t-danger">{{ row.error_count }}</span> / <span class="t-warning">{{ row.warning_count }}</span> <span class="t-secondary">（共 {{ row.issue_total }}）</span></template></el-table-column>
                     <el-table-column label="执行人" width="100"><template #default="{row}">{{ row.created_by || 'system' }}</template></el-table-column>
@@ -1277,7 +1277,7 @@
                     <el-table-column type="selection" width="40"></el-table-column>
                     <el-table-column label="扫描时间" width="160"><template #default="{row}">{{ formatTime(row.scan_finished_at) }}</template></el-table-column>
                     <el-table-column label="实例" show-overflow-tooltip><template #default="{row}">{{ row.connection_name || row.connection_id || '未知实例' }}</template></el-table-column>
-                    <el-table-column label="库名" width="130"><template #default="{row}">{{ row.db_name || '全部数据库' }}</template></el-table-column>
+                    <el-table-column label="库名" width="130"><template #default="{row}">{{ row.db_name || '-' }}</template></el-table-column>
                     <el-table-column prop="object_total" label="对象数" width="80"></el-table-column>
                     <el-table-column label="问题数" width="150"><template #default="{row}"><span class="t-danger">{{ row.error_count }}</span> / <span class="t-warning">{{ row.warning_count }}</span> <span class="t-secondary">（共 {{ row.issue_total }}）</span></template></el-table-column>
                     <el-table-column label="执行人" width="100"><template #default="{row}">{{ row.created_by || 'system' }}</template></el-table-column>
