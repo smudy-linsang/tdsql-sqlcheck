@@ -135,8 +135,9 @@ class RuleChecker:
         parsed = self.parser.parse(sql)
         violations: list[Violation] = []
 
-        # 语法解析报错或结构不全时直接报 ERROR
-        if parsed.parse_error:
+        # 语法解析报错或结构不全时直接报 ERROR（排除存储过程/触发器/视图等特有过程体语法）
+        is_proc_or_trigger = bool(re.search(r"\bcreate\s+(?:or\s+replace\s+)?(?:definer\s*=\s*\S+\s+)?(view|procedure|function|trigger)\b", sql, re.IGNORECASE))
+        if parsed.parse_error and not is_proc_or_trigger:
             violations.append(Violation(
                 rule_id="E999_SYNTAX_ERROR",
                 category=RuleCategory.DDL if ("CREATE" in sql.upper() or "ALTER" in sql.upper()) else RuleCategory.DML,
@@ -145,9 +146,10 @@ class RuleChecker:
                 line_number=line_number,
             ))
 
+        is_ddl_sql = (parsed.is_create_table or parsed.is_alter_table or parsed.sql_type in ("CREATE", "ALTER", "DROP", "TRUNCATE", "RENAME") or any(k in sql.upper() for k in ("CREATE", "ALTER", "DROP", "TRUNCATE", "RENAME")))
         for rule in self.get_enabled_rules(rule_overrides, instance_type):
-            # DDL 规则只在 CREATE/ALTER/DROP 时检查
-            if rule.category.value == "ddl" and not (parsed.is_create_table or parsed.is_alter_table or parsed.sql_type == "DROP"):
+            # DDL 规则只在 DDL 语句时检查
+            if rule.category.value == "ddl" and not is_ddl_sql:
                 continue
             try:
                 violation = rule.check(parsed, table_metadata=table_metadata)

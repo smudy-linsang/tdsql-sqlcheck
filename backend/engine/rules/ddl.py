@@ -373,12 +373,16 @@ class R029ColumnMustHaveComment(BaseRule):
     def check(self, parsed: ParsedSQL, table_metadata: Optional[dict] = None) -> Optional[Violation]:
         if not parsed.is_create_table:
             return None
+        missing_cols = []
         for col in parsed.columns:
             col_name = col.get("name", "")
             if col_name and col_name not in parsed.column_comments:
-                return self._make_violation(
-                    f"字段 '{col_name}' 缺少COMMENT注释",
-                )
+                missing_cols.append(col_name)
+        if missing_cols:
+            cols_str = ", ".join(f"'{c}'" for c in missing_cols)
+            return self._make_violation(
+                f"字段 {cols_str} 缺少COMMENT注释",
+            )
         return None
 
 
@@ -393,11 +397,11 @@ class R030NoViewProcTrigger(BaseRule):
     fix_suggestion = "请在应用层实现相应逻辑"
 
     def check(self, parsed: ParsedSQL, table_metadata: Optional[dict] = None) -> Optional[Violation]:
-        raw_lower = parsed.raw_sql.lower().strip()
-        if re.match(r"\bcreate\s+(or\s+replace\s+)?(view|procedure|function|trigger)\b", raw_lower):
-            obj_type = "视图/存储过程/触发器/自定义函数"
+        clean_sql = re.sub(r"--[^\n]*", "", parsed.raw_sql)
+        clean_sql = re.sub(r"/\*.*?\*/", "", clean_sql, flags=re.DOTALL).lower().strip()
+        if re.search(r"\bcreate\s+(?:or\s+replace\s+)?(?:definer\s*=\s*\S+\s+)?(view|procedure|function|trigger)\b", clean_sql):
             return self._make_violation(
-                f"禁止创建{obj_type}，TDSQL分布式架构下不推荐使用",
+                "禁止创建视图/存储过程/触发器/自定义函数，TDSQL分布式架构下不推荐使用",
             )
         return None
 
@@ -413,8 +417,9 @@ class R031NoCustomFunction(BaseRule):
     fix_suggestion = "请在应用层实现函数逻辑"
 
     def check(self, parsed: ParsedSQL, table_metadata: Optional[dict] = None) -> Optional[Violation]:
-        raw_lower = parsed.raw_sql.lower().strip()
-        if re.match(r"\bcreate\s+(or\s+replace\s+)?function\b", raw_lower):
+        clean_sql = re.sub(r"--[^\n]*", "", parsed.raw_sql)
+        clean_sql = re.sub(r"/\*.*?\*/", "", clean_sql, flags=re.DOTALL).lower().strip()
+        if re.search(r"\bcreate\s+(?:or\s+replace\s+)?(?:definer\s*=\s*\S+\s+)?function\b", clean_sql):
             return self._make_violation("禁止创建自定义函数，请在应用层实现")
         return None
 

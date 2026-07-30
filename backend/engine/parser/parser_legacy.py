@@ -114,6 +114,14 @@ class SQLParser:
         except (SqlglotError, Exception) as e:
             parsed.parse_error = str(e)
             parsed.sql_type = self._detect_sql_type_regex(sql_clean)
+            # 正则回退提取表名（防止含中划线等语法不合规表名在解析报错时漏检）
+            tbl_match = re.search(r'\b(?:create\s+table|alter\s+table|drop\s+table|truncate\s+table|from|into|update)\s+(?:if\s+(?:not\s+)?exists\s+)?([`\'"]?[a-zA-Z0-9_\-]+[`\'"]?)', sql_clean, re.IGNORECASE)
+            if tbl_match:
+                tb_name = tbl_match.group(1).strip("`\"' ")
+                if tb_name and tb_name.lower() not in ("table", "if", "exists"):
+                    parsed.tables.append(tb_name)
+                    if "create table" in sql_clean.lower():
+                        parsed.is_create_table = True
             return parsed
 
         # 确定 SQL 类型
@@ -138,9 +146,17 @@ class SQLParser:
         # 通用解析
         self._parse_common(ast, parsed)
 
-        # 提取表名（如果各类型解析未提取到）
-        if not parsed.tables:
+        # 提取表名（如果各类型解析未提取到，或为 sqlglot Command 降级节点）
+        if not parsed.tables or isinstance(ast, exp.Command):
             parsed.tables = self._extract_tables(ast)
+            if not parsed.tables:
+                tbl_match = re.search(r'\b(?:create\s+table|alter\s+table|drop\s+table|truncate\s+table|from|into|update)\s+(?:if\s+(?:not\s+)?exists\s+)?([`\'"]?[a-zA-Z0-9_\-]+[`\'"]?)', sql_clean, re.IGNORECASE)
+                if tbl_match:
+                    tb_name = tbl_match.group(1).strip("`\"' ")
+                    if tb_name and tb_name.lower() not in ("table", "if", "exists"):
+                        parsed.tables.append(tb_name)
+                        if "create table" in sql_clean.lower():
+                            parsed.is_create_table = True
 
         return parsed
 

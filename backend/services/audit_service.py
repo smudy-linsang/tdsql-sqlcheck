@@ -45,7 +45,7 @@ def _save_audit_history(audit_type: str, source: str, results: list[AuditResult]
         conn = _get_connection()
         try:
             results_json = json.dumps([{
-                "sql": r.sql[:500],
+                "sql": r.sql,
                 "sql_type": r.sql_type,
                 "passed": r.passed,
                 "file_path": r.file_path,

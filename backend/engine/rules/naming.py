@@ -68,17 +68,18 @@ class R001NamingLength(BaseRule):
 
 
 class R002ReservedKeywords(BaseRule):
-    """R002: 表名不能使用 TDSQL 关键字"""
+    """R002: 表名与列名不能使用 TDSQL/MySQL 关键字"""
 
     rule_id = "R002"
     category = RuleCategory.NAMING
     severity = Severity.ERROR
-    description = "表名不能使用 TDSQL/MySQL 保留关键字"
+    description = "库名、表名和列名不能使用 TDSQL/MySQL 保留关键字"
     enabled = True
     spec_source = "TDSQL数据库开发规范 - 命名规范"
-    fix_suggestion = "请为表名添加业务前缀或后缀，如: t_order, order_tbl"
+    fix_suggestion = "请为表名/列名添加业务前缀或后缀，如: t_order, col_key"
 
     def check(self, parsed: ParsedSQL, table_metadata: Optional[dict] = None) -> Optional[Violation]:
+        # 1. 检查表名
         for table in parsed.tables:
             parts = table.split(".")
             for part in parts:
@@ -90,4 +91,18 @@ class R002ReservedKeywords(BaseRule):
                         f"表名 '{name}' 是 TDSQL/MySQL 保留关键字，禁止使用",
                         suggestion=f"建议为表名添加前缀或后缀，如: t_{name}, {name}_tbl",
                     )
+
+        # 2. 检查列名
+        reserved_cols = []
+        for col in parsed.columns:
+            col_name = col.get("name", "").strip("`\"' ").lower()
+            if col_name and col_name in TDSQL_RESERVED_KEYWORDS:
+                reserved_cols.append(col_name)
+
+        if reserved_cols:
+            cols_str = ", ".join(f"'{c}'" for c in reserved_cols)
+            return self._make_violation(
+                f"列名 {cols_str} 是 TDSQL/MySQL 保留关键字，禁止使用",
+                suggestion=f"建议给关键字列名增加含义说明前缀，如: col_{reserved_cols[0]}, {reserved_cols[0]}_val",
+            )
         return None

@@ -60,6 +60,8 @@ class R071TransactionMustCommit(BaseRule):
     def check(self, parsed: ParsedSQL, table_metadata: Optional[dict] = None) -> Optional[Violation]:
         # 静态检测：单条SQL中如果同时有BEGIN但无COMMIT/ROLLBACK
         raw_lower = parsed.raw_sql.lower()
+        if re.search(r"\bcreate\s+(?:or\s+replace\s+)?(?:definer\s*=\s*\S+\s+)?(view|procedure|function|trigger)\b", raw_lower):
+            return None
         if ("begin" in raw_lower or "start transaction" in raw_lower):
             if "commit" not in raw_lower and "rollback" not in raw_lower:
                 return self._make_violation(
