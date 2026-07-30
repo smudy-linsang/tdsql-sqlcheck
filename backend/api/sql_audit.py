@@ -818,6 +818,9 @@ async def export_file_report_html(report_id: int):
         pass_rate = float(report.get("pass_rate") or 0)
         rate_class = "pass" if pass_rate >= 80 else "warn" if pass_rate >= 50 else "fail"
 
+        itype = report.get("instance_type") or ""
+        inst_type_cn = "集中式规则" if itype == "centralized" else ("分布式规则" if itype == "distributed" else "分布式规则")
+
         html_parts = []
         html_parts.append(f"""<!DOCTYPE html>
 <html lang="zh-CN"><head><meta charset="UTF-8">
@@ -856,6 +859,7 @@ body {{ font-family:"Microsoft YaHei","Segoe UI",Arial,sans-serif; background:#f
 <div class="meta">
 <div class="meta-item"><span class="label">审核人:</span><span class="value">{report.get('created_by') or '匿名'}</span></div>
 <div class="meta-item"><span class="label">文件名:</span><span class="value">{report.get('source', '-')}</span></div>
+<div class="meta-item"><span class="label">规则架构:</span><span class="value" style="color:#2563eb">{inst_type_cn}</span></div>
 <div class="meta-item"><span class="label">审核时间:</span><span class="value">{time_display}</span></div>
 <div class="meta-item"><span class="label">报告ID:</span><span class="value">#{report.get('id')}</span></div>
 </div>
