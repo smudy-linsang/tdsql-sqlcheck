@@ -343,7 +343,7 @@ _PATH_TO_MENU = {
     "/api/v1/rulesets": "rulesets",
     "/api/v1/gate": "gate",
     "/api/v1/monitor": "monitor",
-    "/api/v1/inspection": "inspection",
+    "/api/v1/inspection": "schema-check",
     "/api/v1/auth/users": "sys-users",
     "/api/v1/admin/retention": "sys-retention",
     "/api/v1/admin/operation-logs": "sys-auditlog",
@@ -366,7 +366,7 @@ _PATH_TO_MENU = {
     "/api/v1/ppt-report": "deep-diag-ppt",
     "/api/v1/toolkit": "deep-diag-toolkit",
     # V1.3 扫描结果纵向对比（接口层另按 module 二次校验模块自身权限）
-    "/api/v1/scan-compare": "scan-compare",
+    "/api/v1/scan-compare": ("schema-check", "schema-extractor-audit", "slow-tasks", "bigtable"),
     # ── R01：补齐此前未登记、靠"未映射默认放行"兜底的写端点 ──
     # 兜底放行意味着新端点忘登记就对所有登录角色敞开（fail-open）。
     # 这里把它们全部显式登记，使兜底分支不再覆盖任何实际端点；
@@ -431,6 +431,8 @@ def check_permission(role: str, method: str, path: str) -> bool:
                 menu_key = _PATH_TO_MENU[prefix]
                 try:
                     visible = get_visible_menus(role)
+                    if isinstance(menu_key, (tuple, list, set)):
+                        return any(m in visible for m in menu_key)
                     return menu_key in visible
                 except Exception:
                     return False
