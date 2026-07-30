@@ -146,8 +146,10 @@ class SQLParser:
         # 通用解析
         self._parse_common(ast, parsed)
 
-        # 提取表名（如果各类型解析未提取到，或为 sqlglot Command 降级节点）
-        if not parsed.tables or isinstance(ast, exp.Command):
+        # 提取表名及 DDL 属性（如果各类型解析未提取到，或为 sqlglot Command 降级节点）
+        if not parsed.tables or isinstance(ast, exp.Command) or parsed.sql_type == "UNKNOWN":
+            if parsed.sql_type == "UNKNOWN":
+                parsed.sql_type = self._detect_sql_type_regex(sql_clean)
             parsed.tables = self._extract_tables(ast)
             if not parsed.tables:
                 tbl_match = re.search(r'\b(?:create\s+table|alter\s+table|drop\s+table|truncate\s+table|from|into|update)\s+(?:if\s+(?:not\s+)?exists\s+)?([`\'"]?[a-zA-Z0-9_\-]+[`\'"]?)', sql_clean, re.IGNORECASE)
@@ -155,8 +157,7 @@ class SQLParser:
                     tb_name = tbl_match.group(1).strip("`\"' ")
                     if tb_name and tb_name.lower() not in ("table", "if", "exists"):
                         parsed.tables.append(tb_name)
-                        if "create table" in sql_clean.lower():
-                            parsed.is_create_table = True
+            self._regex_fallback_create_table_props(sql_clean, parsed)
 
         return parsed
 
@@ -258,14 +259,50 @@ class SQLParser:
 
     def _detect_sql_type_regex(self, sql: str) -> str:
         """正则检测SQL类型（解析失败时的回退方案）"""
-        sql_upper = sql.upper().strip()
+        clean_sql = re.sub(r'--[^\n]*', '', sql)
+        clean_sql = re.sub(r'/\*.*?\*/', '', clean_sql, flags=re.DOTALL).strip()
+        sql_upper = clean_sql.upper()
+        if "CREATE TABLE" in sql_upper:
+            return "CREATE TABLE"
+        if "CREATE PROCEDURE" in sql_upper:
+            return "CREATE PROCEDURE"
+        if "CREATE TRIGGER" in sql_upper:
+            return "CREATE TRIGGER"
+        if "CREATE VIEW" in sql_upper:
+            return "CREATE VIEW"
+        if "CREATE FUNCTION" in sql_upper:
+            return "CREATE FUNCTION"
         for keyword in ("SELECT", "INSERT", "REPLACE", "UPDATE", "DELETE",
                         "CREATE", "ALTER", "DROP", "LOAD", "HANDLER", "FLUSH",
                         "LOCK", "UNLOCK", "BEGIN", "START", "COMMIT", "ROLLBACK",
                         "GRANT", "REVOKE", "TRUNCATE"):
-            if sql_upper.startswith(keyword):
+            if sql_upper.startswith(keyword) or f"\n{keyword}" in sql_upper or f" {keyword} " in sql_upper:
                 return keyword
         return "UNKNOWN"
+
+    def _regex_fallback_create_table_props(self, sql: str, parsed: ParsedSQL):
+        """当 AST 解析失败或回退时，通过正则预防护航 DDL 关键属性（主键/引擎/字符集/注释）"""
+        clean = re.sub(r'--[^\n]*', '', sql)
+        clean = re.sub(r'/\*.*?\*/', '', clean, flags=re.DOTALL).strip()
+        clean_lower = clean.lower()
+        if "create table" in clean_lower:
+            parsed.is_create_table = True
+            if parsed.sql_type == "UNKNOWN":
+                parsed.sql_type = "CREATE TABLE"
+            # 提取主键
+            if re.search(r'\bprimary\s+key\b', clean, re.IGNORECASE):
+                parsed.has_primary_key = True
+            # 提取引擎
+            eng_m = re.search(r'\bengine\s*=\s*([a-zA-Z0-9_]+)\b', clean, re.IGNORECASE)
+            if eng_m:
+                parsed.engine = eng_m.group(1)
+            # 提取字符集
+            cs_m = re.search(r'\b(?:default\s+)?charset\s*=\s*([a-zA-Z0-9_]+)\b', clean, re.IGNORECASE)
+            if cs_m:
+                parsed.charset = cs_m.group(1)
+            # 提取表级注释
+            if re.search(r'\bcomment\s*=\s*[\'"]', clean, re.IGNORECASE):
+                parsed.has_table_comment = True
 
     def _get_sql_type(self, ast) -> str:
         """从AST获取SQL类型"""
