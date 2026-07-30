@@ -255,17 +255,17 @@ class R042NoLoadData(BaseRule):
 class R043NoMultiTableUpdate(BaseRule):
     """R043: 禁联表更新"""
     rule_id = "R043"
-    instance_scope = InstanceScope.DISTRIBUTED
+    instance_scope = InstanceScope.ALL
     category = RuleCategory.DML
     severity = Severity.ERROR
     description = "禁止使用多表联表UPDATE/DELETE"
     enabled = True
-    spec_source = "TDSQL数据库开发规范 - DML规范【分布式】"
+    spec_source = "TDSQL数据库开发规范 - DML规范"
     fix_suggestion = "请拆分为单表操作，在应用层维护数据一致性"
 
     def check(self, parsed: ParsedSQL, table_metadata: Optional[dict] = None) -> Optional[Violation]:
         if parsed.is_multi_table_update:
-            return self._make_violation("禁止使用多表联表UPDATE，分布式环境下可能导致跨SET操作")
+            return self._make_violation("禁止使用多表联表UPDATE/DELETE，可能导致锁范围扩大与复制延迟")
         return None
 
 
