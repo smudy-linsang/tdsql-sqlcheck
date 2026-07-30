@@ -1301,7 +1301,8 @@ const app=createApp({
           loadSnapshots(row.module||cmpState.module);
         }else{
           const err=await resp.json().catch(()=>({}));
-          ElementPlus.ElMessage.error('删除失败: '+(err.detail||err.message||'未知错误'));
+          const msg=(err.detail&&err.detail.detail)||(typeof err.detail==='string'?err.detail:'')||err.message||'未知错误';
+          ElementPlus.ElMessage.error('删除失败: '+msg);
         }
       }catch(e){
         if(e!=='cancel'){

@@ -451,7 +451,7 @@
                       <template #default="{row}">
                         <el-button type="primary" link size="small" @click="openSnapshotDetail(row)">查看结果</el-button>
                         <el-button type="success" link size="small" @click="downloadSnapshotHtml(row)">下载报告</el-button>
-                        <el-button v-if="isAdmin||canManagePlatform" type="danger" link size="small" @click="deleteSnapshot(row)">删除</el-button>
+                        <el-button v-if="isAdmin" type="danger" link size="small" @click="deleteSnapshot(row)">删除</el-button>
                       </template>
                     </el-table-column>
                   </el-table>
@@ -546,7 +546,7 @@
                     <el-table-column label="操作" width="160" fixed="right">
                       <template #default="{row}">
                         <el-button type="success" link size="small" @click="downloadSavedCompareReportHtml(row)">下载HTML</el-button>
-                        <el-button v-if="canManagePlatform" type="danger" link size="small" @click="deleteSavedCompareReport(row)">删除</el-button>
+                        <el-button v-if="isAdmin" type="danger" link size="small" @click="deleteSavedCompareReport(row)">删除</el-button>
                       </template>
                     </el-table-column>
                   </el-table>
@@ -640,7 +640,7 @@
                       <template #default="{row}">
                         <el-button type="primary" link size="small" @click="openSnapshotDetail(row)">查看结果</el-button>
                         <el-button type="success" link size="small" @click="downloadSnapshotHtml(row)">下载报告</el-button>
-                        <el-button v-if="isAdmin||canManagePlatform" type="danger" link size="small" @click="deleteSnapshot(row)">删除</el-button>
+                        <el-button v-if="isAdmin" type="danger" link size="small" @click="deleteSnapshot(row)">删除</el-button>
                       </template>
                     </el-table-column>
                   </el-table>
@@ -736,7 +736,7 @@
                     <el-table-column label="操作" width="160" fixed="right">
                       <template #default="{row}">
                         <el-button type="success" link size="small" @click="downloadSavedCompareReportHtml(row)">下载HTML</el-button>
-                        <el-button v-if="canManagePlatform" type="danger" link size="small" @click="deleteSavedCompareReport(row)">删除</el-button>
+                        <el-button v-if="isAdmin" type="danger" link size="small" @click="deleteSavedCompareReport(row)">删除</el-button>
                       </template>
                     </el-table-column>
                   </el-table>
@@ -1065,7 +1065,7 @@
                       <template #default="{row}">
                         <el-button type="primary" link size="small" @click="openSnapshotDetail(row)">查看结果</el-button>
                         <el-button type="success" link size="small" @click="downloadSnapshotHtml(row)">下载报告</el-button>
-                        <el-button v-if="isAdmin||canManagePlatform" type="danger" link size="small" @click="deleteSnapshot(row)">删除</el-button>
+                        <el-button v-if="isAdmin" type="danger" link size="small" @click="deleteSnapshot(row)">删除</el-button>
                       </template>
                     </el-table-column>
                   </el-table>
@@ -1161,7 +1161,7 @@
                     <el-table-column label="操作" width="160" fixed="right">
                       <template #default="{row}">
                         <el-button type="success" link size="small" @click="downloadSavedCompareReportHtml(row)">下载HTML</el-button>
-                        <el-button v-if="canManagePlatform" type="danger" link size="small" @click="deleteSavedCompareReport(row)">删除</el-button>
+                        <el-button v-if="isAdmin" type="danger" link size="small" @click="deleteSavedCompareReport(row)">删除</el-button>
                       </template>
                     </el-table-column>
                   </el-table>
@@ -1286,7 +1286,7 @@
                       <template #default="{row}">
                         <el-button type="primary" link size="small" @click="openSnapshotDetail(row)">查看结果</el-button>
                         <el-button type="success" link size="small" @click="downloadSnapshotHtml(row)">下载报告</el-button>
-                        <el-button v-if="isAdmin||canManagePlatform" type="danger" link size="small" @click="deleteSnapshot(row)">删除</el-button>
+                        <el-button v-if="isAdmin" type="danger" link size="small" @click="deleteSnapshot(row)">删除</el-button>
                       </template>
                     </el-table-column>
                   </el-table>
@@ -1383,7 +1383,7 @@
                       <template #default="{row}">
                         <el-button type="primary" link size="small" @click="viewSavedCompareReport(row)">查看对比</el-button>
                         <el-button type="success" link size="small" @click="downloadSavedCompareReportHtml(row)">下载HTML</el-button>
-                        <el-button v-if="canManagePlatform" type="danger" link size="small" @click="deleteSavedCompareReport(row)">删除</el-button>
+                        <el-button v-if="isAdmin" type="danger" link size="small" @click="deleteSavedCompareReport(row)">删除</el-button>
                       </template>
                     </el-table-column>
                   </el-table>
