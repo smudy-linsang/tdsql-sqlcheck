@@ -21,6 +21,7 @@ _MODULE_LABELS = {
     "schema_audit": "在线元数据审核",
     "slow_scan": "慢SQL扫描任务",
     "bigtable": "大表治理",
+    "launch_check": "上线检查",
 }
 
 _CSS = """
@@ -235,7 +236,6 @@ def render_compare_html(result: dict) -> str:
   <h1>TDSQL 扫描结果对比报告 · {_e(module_label)}</h1>
   <div class="meta">
     实例：<b>{conn_line}</b><br>
-    评估尺度：<b>{scale_line}</b><br>
     基准：<b>{_e(_fmt_time(base.get('scan_finished_at')))}</b>
     <span class="arrow">&nbsp;→&nbsp;</span>
     目标：<b>{_e(_fmt_time(target.get('scan_finished_at')))}</b>
