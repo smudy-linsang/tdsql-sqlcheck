@@ -192,7 +192,16 @@
           <!-- ═══ 即时审核 ═══ -->
           <div v-if="currentPage==='audit-sql'">
             <div class="page-card">
-              <div class="page-card-title">即时SQL审核</div>
+              <div class="flex-between align-center mb-16">
+                <div class="page-card-title mb-0">即时SQL审核</div>
+                <div class="flex-align-center gap-8">
+                  <span class="t-secondary text-sm">规则适用架构：</span>
+                  <el-radio-group v-model="instantAuditInstType" size="small">
+                    <el-radio-button value="distributed">分布式规则</el-radio-button>
+                    <el-radio-button value="centralized">集中式规则</el-radio-button>
+                  </el-radio-group>
+                </div>
+              </div>
               <el-input v-model="sqlInput" type="textarea" :autosize="{minRows:6}" placeholder="粘贴SQL语句，Ctrl+Enter 快速审核" class="mono-input mb-16" @keydown.ctrl.enter="auditSql" @keydown.meta.enter="auditSql"></el-input>
               <div class="flex-gap">
                 <el-button type="primary" :loading="auditing" @click="auditSql">开始审核</el-button>
@@ -213,6 +222,8 @@
               <el-alert :title="auditResult.passed ? '审核通过' : `发现 ${auditResult.violations.length} 项违规`" :type="auditResult.passed?'success':'error'" show-icon :closable="false" class="mb-16">
                 <template #default>
                   <span>SQL类型: {{ auditResult.sql_type }}</span>
+                  <span class="ml-16">适用架构: <el-tag size="small" type="info">{{ auditResult.instance_type === 'centralized' ? '集中式' : '分布式' }}</el-tag></span>
+                  <span v-if="auditResult.skipped_rules_count" class="ml-16 t-secondary text-xs">（集中式审核：已排除 {{ auditResult.skipped_rules_count }} 条分布式规则）</span>
                   <span v-if="auditResult.gate_result" class="ml-16">门禁: <el-tag :type="auditResult.gate_result.passed?'success':'danger'" size="small">{{ auditResult.gate_result.passed?'通过':'阻断' }}</el-tag></span>
                 </template>
               </el-alert>
@@ -233,7 +244,16 @@
             <el-tabs v-model="fileAuditTab">
               <el-tab-pane label="文件上传" name="upload">
                 <div class="page-card">
-                  <div class="page-card-title">上传文件审核</div>
+                  <div class="flex-between align-center mb-16">
+                    <div class="page-card-title mb-0">上传文件审核</div>
+                    <div class="flex-align-center gap-8">
+                      <span class="t-secondary text-sm">规则适用架构：</span>
+                      <el-radio-group v-model="fileAuditInstType" size="small">
+                        <el-radio-button value="distributed">分布式规则</el-radio-button>
+                        <el-radio-button value="centralized">集中式规则</el-radio-button>
+                      </el-radio-group>
+                    </div>
+                  </div>
                   <el-upload drag accept=".sql,.xml" :auto-upload="false" :on-change="onFileChange" :show-file-list="false">
                     <el-icon class="upload-icon"><UploadFilled /></el-icon>
                     <div class="mt-8">拖拽文件到此处或<em>点击上传</em></div>
@@ -242,11 +262,14 @@
                 </div>
                 <div v-if="fileAuditResult" class="page-card">
                   <div class="page-card-title">审核结果</div>
-                  <el-descriptions :column="4" border class="mb-16">
+                  <el-descriptions :column="5" border class="mb-16">
                     <el-descriptions-item label="SQL总数">{{ fileAuditResult.summary?.total_sql }}</el-descriptions-item>
                     <el-descriptions-item label="通过">{{ fileAuditResult.summary?.passed }}</el-descriptions-item>
                     <el-descriptions-item label="未通过">{{ fileAuditResult.summary?.failed }}</el-descriptions-item>
                     <el-descriptions-item label="通过率">{{ fileAuditResult.summary?.pass_rate?.toFixed(1) }}%</el-descriptions-item>
+                    <el-descriptions-item label="规则架构">
+                      <el-tag size="small" type="info">{{ fileAuditResult.instance_type === 'centralized' ? '集中式' : '分布式' }}</el-tag>
+                    </el-descriptions-item>
                   </el-descriptions>
                   <el-collapse>
                     <el-collapse-item v-for="(r,idx) in fileAuditResult.results" :key="idx" :name="idx">

@@ -116,6 +116,7 @@ class AuditRequest(BaseModel):
     project_id: Optional[str] = Field(None, description="项目ID")
     connection_id: Optional[str] = Field(None, description="TDSQL连接ID")
     enable_metadata: bool = Field(False, description="是否启用元数据增强")
+    instance_type: Optional[str] = Field(None, description="实例类型：distributed | centralized")
 
 
 class AuditResponse(BaseModel):
@@ -141,6 +142,7 @@ class FileAuditRequest(BaseModel):
     file_path: str = Field("", description="文件路径")
     project_id: Optional[str] = Field(None, description="项目ID")
     connection_id: Optional[str] = Field(None, description="TDSQL连接ID")
+    instance_type: Optional[str] = Field(None, description="实例类型：distributed | centralized")
 
 
 class FileAuditResponse(BaseModel):

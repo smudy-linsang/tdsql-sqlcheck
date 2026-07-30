@@ -113,6 +113,7 @@ async def audit_sql(request: AuditRequest, http_request: Request):
             project_id=request.project_id or "",
             evaluate_gate=bool(request.connection_id),
             connection_id=request.connection_id or "",
+            instance_type=request.instance_type,
         )
         rs_id, rs_name = _active_scale()
         skipped = audit_service.checker.count_skipped_by_scope(ictx.instance_type.value)
@@ -147,6 +148,7 @@ async def audit_file(request: FileAuditRequest, http_request: Request):
             project_id=request.project_id or "",
             evaluate_gate=bool(request.connection_id),
             connection_id=request.connection_id or "",
+            instance_type=request.instance_type,
         )
         rs_id, rs_name = _active_scale()
         skipped = audit_service.checker.count_skipped_by_scope(ictx.instance_type.value)
