@@ -97,7 +97,7 @@
             <el-menu-item v-if="visibleMenus.has('explain')" index="explain">EXPLAIN分析</el-menu-item>
           </el-sub-menu>
           <el-sub-menu v-if="visibleMenus.has('schema-check')||visibleMenus.has('bigtable')" index="instance-group">
-            <template #title><el-icon><Coin /></el-icon><span>实例与体检</span></template>
+            <template #title><el-icon><Coin /></el-icon><span>实例体检</span></template>
             <el-menu-item v-if="visibleMenus.has('schema-check')" index="schema-check">上线检查</el-menu-item>
             <el-menu-item v-if="visibleMenus.has('bigtable')" index="bigtable">大表治理</el-menu-item>
           </el-sub-menu>
