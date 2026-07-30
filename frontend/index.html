@@ -447,10 +447,11 @@
                     <el-table-column label="问题数" width="150"><template #default="{row}"><span class="t-danger">{{ row.error_count }}</span> / <span class="t-warning">{{ row.warning_count }}</span> <span class="t-secondary">（共 {{ row.issue_total }}）</span></template></el-table-column>
                     <el-table-column label="执行人" width="100"><template #default="{row}">{{ row.created_by || 'system' }}</template></el-table-column>
                     <el-table-column label="来源" width="80"><template #default="{row}"><el-tag size="small" :type="row.source_kind==='rebuild'?'info':'success'">{{ row.source_kind==='rebuild'?'回填':'实时' }}</el-tag></template></el-table-column>
-                    <el-table-column label="操作" width="160" fixed="right">
+                    <el-table-column label="操作" width="200" fixed="right">
                       <template #default="{row}">
                         <el-button type="primary" link size="small" @click="openSnapshotDetail(row)">查看结果</el-button>
                         <el-button type="success" link size="small" @click="downloadSnapshotHtml(row)">下载报告</el-button>
+                        <el-button v-if="isAdmin||canManagePlatform" type="danger" link size="small" @click="deleteSnapshot(row)">删除</el-button>
                       </template>
                     </el-table-column>
                   </el-table>
@@ -635,10 +636,11 @@
                     <el-table-column label="问题数" width="150"><template #default="{row}"><span class="t-danger">{{ row.error_count }}</span> / <span class="t-warning">{{ row.warning_count }}</span> <span class="t-secondary">（共 {{ row.issue_total }}）</span></template></el-table-column>
                     <el-table-column label="执行人" width="100"><template #default="{row}">{{ row.created_by || 'system' }}</template></el-table-column>
                     <el-table-column label="来源" width="80"><template #default="{row}"><el-tag size="small" :type="row.source_kind==='rebuild'?'info':'success'">{{ row.source_kind==='rebuild'?'回填':'实时' }}</el-tag></template></el-table-column>
-                    <el-table-column label="操作" width="160" fixed="right">
+                    <el-table-column label="操作" width="200" fixed="right">
                       <template #default="{row}">
                         <el-button type="primary" link size="small" @click="openSnapshotDetail(row)">查看结果</el-button>
                         <el-button type="success" link size="small" @click="downloadSnapshotHtml(row)">下载报告</el-button>
+                        <el-button v-if="isAdmin||canManagePlatform" type="danger" link size="small" @click="deleteSnapshot(row)">删除</el-button>
                       </template>
                     </el-table-column>
                   </el-table>
@@ -1059,10 +1061,11 @@
                     <el-table-column label="问题数" width="150"><template #default="{row}"><span class="t-danger">{{ row.error_count }}</span> / <span class="t-warning">{{ row.warning_count }}</span> <span class="t-secondary">（共 {{ row.issue_total }}）</span></template></el-table-column>
                     <el-table-column label="执行人" width="100"><template #default="{row}">{{ row.created_by || 'system' }}</template></el-table-column>
                     <el-table-column label="来源" width="80"><template #default="{row}"><el-tag size="small" :type="row.source_kind==='rebuild'?'info':'success'">{{ row.source_kind==='rebuild'?'回填':'实时' }}</el-tag></template></el-table-column>
-                    <el-table-column label="操作" width="160" fixed="right">
+                    <el-table-column label="操作" width="200" fixed="right">
                       <template #default="{row}">
                         <el-button type="primary" link size="small" @click="openSnapshotDetail(row)">查看结果</el-button>
                         <el-button type="success" link size="small" @click="downloadSnapshotHtml(row)">下载报告</el-button>
+                        <el-button v-if="isAdmin||canManagePlatform" type="danger" link size="small" @click="deleteSnapshot(row)">删除</el-button>
                       </template>
                     </el-table-column>
                   </el-table>
@@ -1277,8 +1280,15 @@
                     <el-table-column prop="db_name" label="库名" width="130"></el-table-column>
                     <el-table-column prop="object_total" label="对象数" width="80"></el-table-column>
                     <el-table-column label="问题数" width="150"><template #default="{row}"><span class="t-danger">{{ row.error_count }}</span> / <span class="t-warning">{{ row.warning_count }}</span> <span class="t-secondary">（共 {{ row.issue_total }}）</span></template></el-table-column>
-                    <el-table-column prop="created_by" label="执行人" width="90"></el-table-column>
+                    <el-table-column label="执行人" width="100"><template #default="{row}">{{ row.created_by || 'system' }}</template></el-table-column>
                     <el-table-column label="来源" width="80"><template #default="{row}"><el-tag size="small" :type="row.source_kind==='rebuild'?'info':'success'">{{ row.source_kind==='rebuild'?'回填':'实时' }}</el-tag></template></el-table-column>
+                    <el-table-column label="操作" width="200" fixed="right">
+                      <template #default="{row}">
+                        <el-button type="primary" link size="small" @click="openSnapshotDetail(row)">查看结果</el-button>
+                        <el-button type="success" link size="small" @click="downloadSnapshotHtml(row)">下载报告</el-button>
+                        <el-button v-if="isAdmin||canManagePlatform" type="danger" link size="small" @click="deleteSnapshot(row)">删除</el-button>
+                      </template>
+                    </el-table-column>
                   </el-table>
                   <el-pagination v-if="cmpState.total>cmpState.pageSize" small layout="total,prev,pager,next" :total="cmpState.total" :page-size="cmpState.pageSize" v-model:current-page="cmpState.page" @current-change="loadSnapshots('bigtable')" class="pager"></el-pagination>
                 </div>

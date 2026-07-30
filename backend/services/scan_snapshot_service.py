@@ -439,3 +439,20 @@ def rebuild_snapshots(module: str, limit: int = 200, overwrite: bool = False) ->
     stat["message"] = (f"回填完成：新建 {stat['created']}，跳过 {stat['skipped']}，"
                        f"失败 {stat['failed']}")
     return stat
+
+
+def delete_snapshot(snapshot_id: int) -> bool:
+    """删除指定快照记录"""
+    ensure_db()
+    conn = _get_connection()
+    try:
+        cur = conn.execute("DELETE FROM scan_snapshots WHERE id = ?", (snapshot_id,))
+        conn.commit()
+        return (cur.rowcount or 0) > 0
+    except Exception as e:
+        conn.rollback()
+        logger.error("删除快照失败 snapshot_id=%s: %s", snapshot_id, e)
+        raise e
+    finally:
+        conn.close()
+

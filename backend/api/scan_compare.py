@@ -176,6 +176,26 @@ def get_snapshot_html(snapshot_id: int, request: Request):
     )
 
 
+@router.delete("/snapshots/{snapshot_id}", summary="删除扫描/体检快照（仅 admin）")
+def delete_snapshot_endpoint(snapshot_id: int, request: Request):
+    snap = snapshot_service.get_snapshot(snapshot_id)
+    if not snap:
+        raise _err("E4004", "快照不存在或已被清理", status=404)
+    module = snap.get("module") or ""
+    _check_module_perm(request, module)
+
+    role = getattr(request.state, "role", "user")
+    if role != "admin":
+        raise _err("E4003", "权限不足：只有管理员可删除扫描历史快照", status=403)
+
+    ok = snapshot_service.delete_snapshot(snapshot_id)
+    if not ok:
+        raise _err("E5001", "删除快照失败", status=500)
+
+    _audit(request, "delete_snapshot", str(snapshot_id), f"module={module}")
+    return {"message": "快照已删除", "id": snapshot_id}
+
+
 # ── 3. 两次扫描结果比对（核心）──
 
 @router.post("/compare", summary="两次扫描结果比对")
