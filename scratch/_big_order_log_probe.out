@@ -1,0 +1,48 @@
+﻿tdsql_check 库的表:
+  - big_audit_trail
+  - big_order_log
+  - t_account
+  - t_audit_log
+  - t_branch
+  - t_customer
+  - t_deposit
+  - t_dict
+  - t_loan
+  - t_product
+  - t_transaction
+
+big_order_log 表结构:
+  ('id', 'bigint', 'NO', 'PRI', None, 'auto_increment')
+  ('order_no', 'varchar(64)', 'NO', 'MUL', None, '')
+  ('user_id', 'bigint', 'NO', 'MUL', None, '')
+  ('product_name', 'varchar(200)', 'NO', '', None, '')
+  ('category', 'varchar(100)', 'YES', '', None, '')
+  ('amount', 'decimal(12,2)', 'YES', '', None, '')
+  ('status', 'varchar(20)', 'YES', '', None, '')
+  ('channel', 'varchar(50)', 'YES', '', None, '')
+  ('region', 'varchar(50)', 'YES', '', None, '')
+  ('remark', 'varchar(500)', 'YES', '', None, '')
+  ('extra_info', 'varchar(800)', 'YES', '', None, '')
+  ('create_time', 'datetime', 'NO', 'MUL', None, '')
+  ('update_time', 'datetime', 'YES', '', None, '')
+
+big_order_log 完整 DDL:
+CREATE TABLE `big_order_log` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `order_no` varchar(64) COLLATE utf8mb4_bin NOT NULL,
+  `user_id` bigint NOT NULL,
+  `product_name` varchar(200) COLLATE utf8mb4_bin NOT NULL,
+  `category` varchar(100) COLLATE utf8mb4_bin DEFAULT NULL,
+  `amount` decimal(12,2) DEFAULT NULL,
+  `status` varchar(20) COLLATE utf8mb4_bin DEFAULT NULL,
+  `channel` varchar(50) COLLATE utf8mb4_bin DEFAULT NULL,
+  `region` varchar(50) COLLATE utf8mb4_bin DEFAULT NULL,
+  `remark` varchar(500) COLLATE utf8mb4_bin DEFAULT NULL,
+  `extra_info` varchar(800) COLLATE utf8mb4_bin DEFAULT NULL,
+  `create_time` datetime NOT NULL,
+  `update_time` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_user` (`user_id`),
+  KEY `idx_order` (`order_no`),
+  KEY `idx_create` (`create_time`)
+) ENGINE=InnoDB AUTO_INCREMENT=2800001 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin shardkey=id

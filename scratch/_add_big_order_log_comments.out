@@ -1,0 +1,50 @@
+﻿原表共 13 个字段:
+  id             bigint                 null=NO  default=None extra=auto_increment
+  order_no       varchar(64)            null=NO  default=None extra=
+  user_id        bigint                 null=NO  default=None extra=
+  product_name   varchar(200)           null=NO  default=None extra=
+  category       varchar(100)           null=YES default=None extra=
+  amount         decimal(12,2)          null=YES default=None extra=
+  status         varchar(20)            null=YES default=None extra=
+  channel        varchar(50)            null=YES default=None extra=
+  region         varchar(50)            null=YES default=None extra=
+  remark         varchar(500)           null=YES default=None extra=
+  extra_info     varchar(800)           null=YES default=None extra=
+  create_time    datetime               null=NO  default=None extra=
+  update_time    datetime               null=YES default=None extra=
+
+生成的 SQL:
+ALTER TABLE `big_order_log` COMMENT = '大订单日志表',
+  MODIFY COLUMN `order_no` varchar(64) COLLATE utf8mb4_bin NOT NULL COMMENT '订单号',
+  MODIFY COLUMN `user_id` bigint NOT NULL COMMENT '用户ID',
+  MODIFY COLUMN `product_name` varchar(200) COLLATE utf8mb4_bin NOT NULL COMMENT '商品名称',
+  MODIFY COLUMN `category` varchar(100) COLLATE utf8mb4_bin NULL COMMENT '商品分类',
+  MODIFY COLUMN `amount` decimal(12,2) NULL COMMENT '订单金额(元)',
+  MODIFY COLUMN `status` varchar(20) COLLATE utf8mb4_bin NULL COMMENT '订单状态',
+  MODIFY COLUMN `channel` varchar(50) COLLATE utf8mb4_bin NULL COMMENT '下单渠道',
+  MODIFY COLUMN `region` varchar(50) COLLATE utf8mb4_bin NULL COMMENT '下单区域',
+  MODIFY COLUMN `remark` varchar(500) COLLATE utf8mb4_bin NULL COMMENT '订单备注',
+  MODIFY COLUMN `extra_info` varchar(800) COLLATE utf8mb4_bin NULL COMMENT '扩展信息',
+  MODIFY COLUMN `create_time` datetime NOT NULL COMMENT '创建时间',
+  MODIFY COLUMN `update_time` datetime NULL COMMENT '更新时间'
+
+开始执行 ALTER...
+✓ ALTER 成功
+✓ commit 成功
+
+验证 (查 information_schema):
+  id             = 
+  order_no       = 订单号
+  user_id        = 用户ID
+  product_name   = 商品名称
+  category       = 商品分类
+  amount         = 订单金额(元)
+  status         = 订单状态
+  channel        = 下单渠道
+  region         = 下单区域
+  remark         = 订单备注
+  extra_info     = 扩展信息
+  create_time    = 创建时间
+  update_time    = 更新时间
+  --- 表注释 ---
+  TABLE_COMMENT = 大订单日志表

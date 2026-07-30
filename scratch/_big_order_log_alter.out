@@ -1,0 +1,10 @@
+﻿python :   File "<string>", line 5
+所在位置 行:1 字符: 175
++ ... L_SQLCHECK\TDSQL-SQLCheck; $env:PYTHONIOENCODING='utf-8'; python -c "
++                                                               ~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (  File "<string>", line 5:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+    sql = '''ALTER TABLE big_order_log
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+SyntaxError: (unicode error) 'unicodeescape' codec can't decode bytes in position 263-264: truncated \uXXXX escape

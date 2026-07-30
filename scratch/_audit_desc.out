@@ -1,0 +1,37 @@
+﻿big_audit_trail 字段:
+  ('id', 'bigint', 'NO', None, 'auto_increment')
+  ('trace_id', 'varchar(64)', 'NO', None, '')
+  ('operator', 'varchar(100)', 'NO', None, '')
+  ('module', 'varchar(80)', 'YES', None, '')
+  ('action', 'varchar(50)', 'YES', None, '')
+  ('target_type', 'varchar(50)', 'YES', None, '')
+  ('target_id', 'varchar(64)', 'YES', None, '')
+  ('detail', 'varchar(600)', 'YES', None, '')
+  ('ip_address', 'varchar(45)', 'YES', None, '')
+  ('user_agent', 'varchar(300)', 'YES', None, '')
+  ('request_body', 'varchar(800)', 'YES', None, '')
+  ('response_code', 'int', 'YES', None, '')
+  ('duration_ms', 'int', 'YES', None, '')
+  ('event_time', 'datetime', 'NO', None, '')
+
+完整 DDL:
+CREATE TABLE `big_audit_trail` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `trace_id` varchar(64) COLLATE utf8mb4_bin NOT NULL,
+  `operator` varchar(100) COLLATE utf8mb4_bin NOT NULL,
+  `module` varchar(80) COLLATE utf8mb4_bin DEFAULT NULL,
+  `action` varchar(50) COLLATE utf8mb4_bin DEFAULT NULL,
+  `target_type` varchar(50) COLLATE utf8mb4_bin DEFAULT NULL,
+  `target_id` varchar(64) COLLATE utf8mb4_bin DEFAULT NULL,
+  `detail` varchar(600) COLLATE utf8mb4_bin DEFAULT NULL,
+  `ip_address` varchar(45) COLLATE utf8mb4_bin DEFAULT NULL,
+  `user_agent` varchar(300) COLLATE utf8mb4_bin DEFAULT NULL,
+  `request_body` varchar(800) COLLATE utf8mb4_bin DEFAULT NULL,
+  `response_code` int DEFAULT NULL,
+  `duration_ms` int DEFAULT NULL,
+  `event_time` datetime NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_trace` (`trace_id`),
+  KEY `idx_operator` (`operator`),
+  KEY `idx_event` (`event_time`)
+) ENGINE=InnoDB AUTO_INCREMENT=25600001 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin shardkey=id

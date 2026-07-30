@@ -1,0 +1,53 @@
+﻿big_audit_trail 共有 14 个字段:
+  id             bigint                         null=NO  default=None extra=auto_increment
+  trace_id       varchar(64)                    null=NO  default=None extra=
+  operator       varchar(100)                   null=NO  default=None extra=
+  module         varchar(80)                    null=YES default=None extra=
+  action         varchar(50)                    null=YES default=None extra=
+  target_type    varchar(50)                    null=YES default=None extra=
+  target_id      varchar(64)                    null=YES default=None extra=
+  detail         varchar(600)                   null=YES default=None extra=
+  ip_address     varchar(45)                    null=YES default=None extra=
+  user_agent     varchar(300)                   null=YES default=None extra=
+  request_body   varchar(800)                   null=YES default=None extra=
+  response_code  int                            null=YES default=None extra=
+  duration_ms    int                            null=YES default=None extra=
+  event_time     datetime                       null=NO  default=None extra=
+
+生成的 SQL:
+ALTER TABLE `big_audit_trail` COMMENT = '审计大表(分片键 id)',
+  MODIFY COLUMN `trace_id` varchar(64) COLLATE utf8mb4_bin NOT NULL COMMENT '链路追踪ID',
+  MODIFY COLUMN `operator` varchar(100) COLLATE utf8mb4_bin NOT NULL COMMENT '操作人',
+  MODIFY COLUMN `module` varchar(80) COLLATE utf8mb4_bin NULL COMMENT '操作模块',
+  MODIFY COLUMN `action` varchar(50) COLLATE utf8mb4_bin NULL COMMENT '操作类型',
+  MODIFY COLUMN `target_type` varchar(50) COLLATE utf8mb4_bin NULL COMMENT '操作对象类型',
+  MODIFY COLUMN `target_id` varchar(64) COLLATE utf8mb4_bin NULL COMMENT '操作对象ID',
+  MODIFY COLUMN `detail` varchar(600) COLLATE utf8mb4_bin NULL COMMENT '操作详情',
+  MODIFY COLUMN `ip_address` varchar(45) COLLATE utf8mb4_bin NULL COMMENT '客户端IP地址',
+  MODIFY COLUMN `user_agent` varchar(300) COLLATE utf8mb4_bin NULL COMMENT '客户端User-Agent',
+  MODIFY COLUMN `request_body` varchar(800) COLLATE utf8mb4_bin NULL COMMENT '请求体摘要',
+  MODIFY COLUMN `response_code` int NULL COMMENT '响应码',
+  MODIFY COLUMN `duration_ms` int NULL COMMENT '处理耗时(毫秒)',
+  MODIFY COLUMN `event_time` datetime NOT NULL COMMENT '事件发生时间'
+
+开始执行 ALTER...
+✓ ALTER 成功
+✓ commit 成功
+
+验证 (查 information_schema):
+  id                 = 
+  trace_id           = 链路追踪ID
+  operator           = 操作人
+  module             = 操作模块
+  action             = 操作类型
+  target_type        = 操作对象类型
+  target_id          = 操作对象ID
+  detail             = 操作详情
+  ip_address         = 客户端IP地址
+  user_agent         = 客户端User-Agent
+  request_body       = 请求体摘要
+  response_code      = 响应码
+  duration_ms        = 处理耗时(毫秒)
+  event_time         = 事件发生时间
+  --- 表注释 ---
+  TABLE_COMMENT = 审计大表(分片键 id)
