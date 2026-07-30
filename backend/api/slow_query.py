@@ -378,10 +378,13 @@ body {{ font-family:"Microsoft YaHei","Segoe UI",Arial,sans-serif; background:#f
 .sql-item .sh {{ display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }}
 .sql-text {{ font-family:Consolas,Courier New,monospace; font-size:13px; background:#f5f7fa; padding:8px 12px; border-radius:4px; margin:8px 0; white-space:pre-wrap; word-break:break-all; }}
 .badge {{ display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600; }}
-.badge.ERROR {{ background:#fde8e8; color:#f56c6c; }} .badge.CRITICAL {{ background:#fde8e8; color:#f56c6c; }} .badge.WARNING {{ background:#fdf6e8; color:#e6a23c; }} .badge.INFO {{ background:#e8f4fd; color:#409eff; }}
+.badge.ERROR {{ background:#fde8e8; color:#f56c6c; }} .badge.CRITICAL {{ background:#fde8e8; color:#f56c6c; }} .badge.WARNING {{ background:#fdf6e8; color:#e6a23c; }} .badge.INFO {{ background:#f4f4f5; color:#909399; }}
 .stats-row {{ display:flex; gap:16px; flex-wrap:wrap; margin:4px 0; }}
 .stats-row span {{ font-size:13px; color:#606266; }}
-.viol {{ margin:6px 0; padding:8px 12px; border-left:3px solid #f56c6c; background:#fef0f0; border-radius:0 4px 4px 0; font-size:13px; }}
+.viol {{ margin:6px 0; padding:8px 12px; border-left:3px solid #909399; background:#f4f4f5; border-radius:0 4px 4px 0; font-size:13px; }}
+.viol.error {{ border-left-color:#f56c6c; background:#fef0f0; }}
+.viol.warn {{ border-left-color:#e6a23c; background:#fdf6ec; }}
+.viol.info {{ border-left-color:#909399; background:#f4f4f5; }}
 .footer {{ padding:16px 32px; text-align:center; font-size:12px; color:#909399; border-top:1px solid #ebeef5; }}
 .no-data {{ padding:32px; text-align:center; color:#909399; }}
 </style></head><body>
@@ -400,7 +403,7 @@ body {{ font-family:"Microsoft YaHei","Segoe UI",Arial,sans-serif; background:#f
 <div class="sc total"><div class="num">{len(slow_queries)}</div><div class="lbl">慢SQL总数</div></div>
 <div class="sc crit"><div class="num" style="color:#f56c6c">{sev_stats.get('ERROR', 0) + sev_stats.get('CRITICAL', 0)}</div><div class="lbl">ERROR</div></div>
 <div class="sc warn"><div class="num" style="color:#e6a23c">{sev_stats.get('WARNING', 0)}</div><div class="lbl">WARNING</div></div>
-<div class="sc info"><div class="num" style="color:#409eff">{sev_stats.get('INFO', 0)}</div><div class="lbl">INFO</div></div>
+<div class="sc info"><div class="num" style="color:#909399">{sev_stats.get('INFO', 0)}</div><div class="lbl">INFO</div></div>
 </div>
 <div class="stitle">逐条慢SQL详情（共 {len(slow_queries)} 条）</div>""")
 
@@ -425,11 +428,13 @@ body {{ font-family:"Microsoft YaHei","Segoe UI",Arial,sans-serif; background:#f
                     html_parts.append(f'<div style="font-size:13px;color:#606266;margin:4px 0">问题类型: {problem}</div>')
                 html_parts.append(f'<div class="sql-text">{sql_text}</div>')
                 for a in analyses:
+                    a_sev = str(a.get("severity", sq.get("severity", "INFO"))).upper()
+                    sev_class = "error" if a_sev in ("ERROR", "CRITICAL") else ("warn" if a_sev in ("WARNING", "WARN") else "info")
                     a_type = a.get("problem_type", a.get("type", ""))
                     a_msg = a.get("evidence", a.get("message", ""))
                     a_cause = a.get("root_cause", "")
                     a_sug = a.get("suggestion", "")
-                    html_parts.append(f'<div class="viol"><strong>{a_type}</strong>:{a_msg}')
+                    html_parts.append(f'<div class="viol {sev_class}"><strong>{a_type}</strong>:{a_msg}')
                     if a_cause:
                         html_parts.append(f'<br>根因: {a_cause}')
                     if a_sug:

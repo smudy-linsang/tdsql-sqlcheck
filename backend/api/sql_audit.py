@@ -597,8 +597,10 @@ async def export_extracted_report_html(report_id: int):
         .kpi-grid {{ display: flex; gap: 15px; margin-bottom: 25px; }}
         .kpi-card {{ flex: 1; background: #f8fafc; padding: 15px; border-radius: 6px; text-align: center; border: 1px solid #e2e8f0; }}
         .kpi-num {{ font-size: 22px; font-weight: bold; margin-bottom: 4px; }}
-        .v-card {{ border: 1px solid #fee2e2; background: #fff5f5; padding: 10px 15px; border-radius: 6px; margin: 8px 0; font-size: 13px; }}
-        .v-card.warning {{ border-color: #fef3c7; background: #fffbeb; }}
+        .v-card {{ padding: 10px 15px; border-radius: 6px; margin: 8px 0; font-size: 13px; border: 1px solid #e5e7eb; border-left: 4px solid #9ca3af; background: #f3f4f6; }}
+        .v-card.error {{ border-color: #fee2e2; border-left-color: #ef4444; background: #fef2f2; }}
+        .v-card.warning {{ border-color: #fef3c7; border-left-color: #f59e0b; background: #fffbeb; }}
+        .v-card.info {{ border-color: #e5e7eb; border-left-color: #9ca3af; background: #f3f4f6; }}
         .sql-box {{ background: #0f1e34; color: #e2e8f0; padding: 12px; border-radius: 6px; font-family: monospace; font-size: 13px; overflow-x: auto; white-space: pre-wrap; }}
     </style>
 </head>
@@ -624,10 +626,11 @@ async def export_extracted_report_html(report_id: int):
             <div class="sql-box">{res.get('sql', '')}</div>
 """
             for v in res.get("violations", []):
-                sev_cls = "warning" if v.get("severity") == "WARNING" else "error"
+                sev_u = str(v.get("severity", "WARNING")).upper()
+                sev_cls = "error" if sev_u in ("ERROR", "FATAL", "CRITICAL") else ("warning" if sev_u in ("WARNING", "WARN") else "info")
                 html_content += f"""
             <div class="v-card {sev_cls}">
-                <b>[{v.get('rule_id')}] [{v.get('severity')}]</b> {v.get('message')}<br>
+                <b>[{v.get('rule_id')}] [{sev_u}]</b> {v.get('message')}<br>
                 💡 <b>修复建议：</b>{v.get('suggestion', '无')}
             </div>
 """
@@ -848,10 +851,16 @@ body {{ font-family:"Microsoft YaHei","Segoe UI",Arial,sans-serif; background:#f
 .sql-item .sh {{ display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }}
 .sql-text {{ font-family:Consolas,Courier New,monospace; font-size:13px; background:#f5f7fa; padding:8px 12px; border-radius:4px; margin:8px 0; white-space:pre-wrap; word-break:break-all; }}
 .badge {{ display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600; }}
-.badge.ERROR {{ background:#fde8e8; color:#f56c6c; }} .badge.WARNING {{ background:#fdf6e8; color:#e6a23c; }} .badge.PASS {{ background:#e8f7e8; color:#67c23a; }}
-.viol {{ margin:6px 0; padding:8px 12px; border-left:3px solid #f56c6c; background:#fef0f0; border-radius:0 4px 4px 0; font-size:13px; }}
+.badge.ERROR {{ background:#fde8e8; color:#f56c6c; }} .badge.WARNING {{ background:#fdf6e8; color:#e6a23c; }} .badge.INFO {{ background:#f4f4f5; color:#909399; }} .badge.PASS {{ background:#e8f7e8; color:#67c23a; }}
+.viol {{ margin:6px 0; padding:8px 12px; border-left:3px solid #909399; background:#f4f4f5; border-radius:0 4px 4px 0; font-size:13px; }}
+.viol.error {{ border-left-color:#f56c6c; background:#fef0f0; }}
 .viol.warn {{ border-left-color:#e6a23c; background:#fdf6ec; }}
-.viol .vr {{ font-weight:600; }} .viol .vm {{ color:#606266; margin:2px 0; }} .viol .vs {{ color:#67c23a; font-size:12px; }}
+.viol.info {{ border-left-color:#909399; background:#f4f4f5; }}
+.viol .vr {{ font-weight:600; color:#303133; }}
+.viol.error .vr {{ color:#f56c6c; }}
+.viol.warn .vr {{ color:#e6a23c; }}
+.viol.info .vr {{ color:#606266; }}
+.viol .vm {{ color:#606266; margin:2px 0; }} .viol .vs {{ color:#67c23a; font-size:12px; }}
 .footer {{ padding:16px 32px; text-align:center; font-size:12px; color:#909399; border-top:1px solid #ebeef5; }}
 .no-data {{ padding:32px; text-align:center; color:#909399; }}
 </style></head><body>
@@ -887,8 +896,8 @@ body {{ font-family:"Microsoft YaHei","Segoe UI",Arial,sans-serif; background:#f
                 line_info = f" | 行号: {line_no}" if line_no else ""
                 html_parts.append(f'<div class="sql-item"><div class="sh"><span><strong>#{i}</strong> {sql_type}{line_info}</span>{status_badge}</div><div class="sql-text">{sql_text}</div>')
                 for v in violations:
-                    sev = v.get("severity", "WARNING")
-                    sev_class = "warn" if sev == "WARNING" else ""
+                    sev = str(v.get("severity", "WARNING")).upper()
+                    sev_class = "error" if sev in ("ERROR", "FATAL", "CRITICAL") else ("warn" if sev in ("WARNING", "WARN") else "info")
                     rule_id = v.get("rule_id", "")
                     msg = v.get("message", "")
                     sug = v.get("suggestion", "")
