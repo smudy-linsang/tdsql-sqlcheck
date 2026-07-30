@@ -7,6 +7,7 @@ from fastapi import APIRouter, UploadFile, File, HTTPException, Query, Request, 
 from fastapi.responses import StreamingResponse, HTMLResponse, Response
 from typing import Optional
 from urllib.parse import quote
+import html
 import json
 import logging
 from datetime import datetime
@@ -896,12 +897,12 @@ body {{ font-family:"Microsoft YaHei","Segoe UI",Arial,sans-serif; background:#f
                 html_parts.append('</div>')
 
         html_parts.append(f'<div class="footer">TDSQL SQL审核平台 V2.0 | 报告生成时间: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")} | 报告ID: #{report.get("id")}</div></div></body></html>')
-        html = "\n".join(html_parts)
+        html_content = "\n".join(html_parts)
 
         filename = f"TDSQL审核报告_{report.get('source', 'file')}_{time_display[:10]}.html"
         encoded_filename = quote(filename)
         return HTMLResponse(
-            content=html,
+            content=html_content,
             headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"}
         )
     except HTTPException:
