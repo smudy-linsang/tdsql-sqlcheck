@@ -176,8 +176,12 @@ class SQLParser:
             parsed.has_into_outfile = True
 
         # 检测 LOAD DATA / LOAD XML
-        if sql_lower.strip().startswith(("load data", "load xml")):
+        clean_no_comment = re.sub(r'--[^\n]*', '', sql_lower)
+        clean_no_comment = re.sub(r'/\*.*?\*/', '', clean_no_comment, flags=re.DOTALL).strip()
+        if clean_no_comment.startswith(("load data", "load xml")) or bool(re.search(r'\bload\s+(?:data|xml)\b', clean_no_comment)):
             parsed.has_load_data = True
+            if parsed.sql_type == "UNKNOWN":
+                parsed.sql_type = "LOAD"
 
         # 检测 HANDLER ... OPEN/READ/CLOSE
         if re.match(r"\bhandler\b", sql_lower):
@@ -243,8 +247,13 @@ class SQLParser:
         if re.match(r"\bcreate\s+(temporary\s+)?table\b.*\b(as\s+)?select\b", sql_lower):
             parsed.is_create_table_select = True
 
-        # 检测联表更新
-        if sql_lower.startswith("update") and "," in sql_lower.split(" set ")[0].replace("update ", ""):
+        # 检测联表更新 / 联表删除
+        clean_sql_no_comm = re.sub(r'--[^\n]*', '', sql_lower)
+        clean_sql_no_comm = re.sub(r'/\*.*?\*/', '', clean_sql_no_comm, flags=re.DOTALL).strip()
+        if re.search(r"\bupdate\s+.*?\bjoin\b", clean_sql_no_comm, re.DOTALL) or \
+           re.search(r"\bupdate\s+[^set]+,", clean_sql_no_comm, re.DOTALL) or \
+           re.search(r"\bdelete\s+.*?\bjoin\b", clean_sql_no_comm, re.DOTALL) or \
+           re.search(r"\bdelete\s+[a-zA-Z0-9_`\s,]+from\b", clean_sql_no_comm, re.DOTALL):
             parsed.is_multi_table_update = True
 
         # 检测 INDEX HINT (USE INDEX / FORCE INDEX / IGNORE INDEX)

@@ -135,9 +135,10 @@ class RuleChecker:
         parsed = self.parser.parse(sql)
         violations: list[Violation] = []
 
-        # 语法解析报错或结构不全时直接报 ERROR（排除存储过程/触发器/视图等特有过程体语法）
+        # 语法解析报错或结构不全时直接报 ERROR（排除存储过程/触发器/视图及 LOAD DATA 特殊语法）
         is_proc_or_trigger = bool(re.search(r"\bcreate\s+(?:or\s+replace\s+)?(?:definer\s*=\s*\S+\s+)?(view|procedure|function|trigger)\b", sql, re.IGNORECASE))
-        if parsed.parse_error and not is_proc_or_trigger:
+        is_load_stmt = parsed.has_load_data or bool(re.search(r"\bload\s+(?:data|xml)\b", sql, re.IGNORECASE))
+        if parsed.parse_error and not is_proc_or_trigger and not is_load_stmt:
             violations.append(Violation(
                 rule_id="E999_SYNTAX_ERROR",
                 category=RuleCategory.DDL if ("CREATE" in sql.upper() or "ALTER" in sql.upper()) else RuleCategory.DML,

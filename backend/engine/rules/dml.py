@@ -433,16 +433,26 @@ class R052NoImplicitTypeCast(BaseRule):
     fix_suggestion = "请确保WHERE条件等号两侧类型一致"
 
     def check(self, parsed: ParsedSQL, table_metadata: Optional[dict] = None) -> Optional[Violation]:
-        # 静态检测：WHERE中字符串字段与数字比较（简化版）
         if not parsed.has_where or not parsed.where_clause:
             return None
         where_text = parsed.where_clause
-        # 检测形如 varchar_col = 123 的模式（字段名=数字）
-        if re.search(r"[a-zA-Z_]\w*\s*=\s*\d+\s*(?!['])", where_text):
-            # 如果字段名看起来是varchar类型（包含name/code/title等关键词）
-            match = re.search(r"([a-zA-Z_]\w*(?:name|code|title|status|type|key|id_str))\s*=\s*\d+", where_text, re.IGNORECASE)
-            if match:
-                return self._make_violation(
-                    f"WHERE条件中字段 '{match.group(1)}' 疑似存在隐式类型转换，可能导致索引失效",
-                )
+
+        # 模式1：数值列（id/balance/amount/price/status/type/count等）与引号包围的数字字符串比较 (e.g. cust_id = '1' 或 balance = '50000')
+        m1 = re.search(r"\b([a-zA-Z0-9_`]+)\s*=\s*['\"](\d+(?:\.\d+)?)['\"]", where_text, re.IGNORECASE)
+        if m1:
+            col_name = m1.group(1).strip("`\"' ")
+            val = m1.group(2)
+            return self._make_violation(
+                f"WHERE条件中字段 '{col_name}' 与字符串字面量 '{val}' 比较，存在隐式类型转换风险，可能导致索引失效",
+            )
+
+        # 模式2：字符列（name/code/title/phone/card/no等）与未加引号的纯数字比较 (e.g. card_no = 622202)
+        m2 = re.search(r"\b([a-zA-Z0-9_`]*(?:name|code|title|phone|card|str|txt|comment|desc))\s*=\s*(\d+(?:\.\d+)?)\b", where_text, re.IGNORECASE)
+        if m2:
+            col_name = m2.group(1).strip("`\"' ")
+            val = m2.group(2)
+            return self._make_violation(
+                f"WHERE条件中字符字段 '{col_name}' 与数字字面量 {val} 比较，存在隐式类型转换风险，可能导致索引失效",
+            )
+
         return None
