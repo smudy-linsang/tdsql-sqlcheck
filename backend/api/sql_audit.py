@@ -723,21 +723,57 @@ async def export_audit_report(report_id: int):
 # ============ 文件审核报告 ============
 
 @router.get("/file-reports", summary="获取文件审核报告列表")
-async def list_file_reports(limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0)):
-    """获取文件审核历史记录列表"""
+async def list_file_reports(
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    keyword: Optional[str] = Query(None, description="按文件名/提交人/报告ID模糊搜索"),
+    instance_type: Optional[str] = Query(None, description="按架构类型(distributed/centralized)过滤"),
+    status: Optional[str] = Query(None, description="按结果状态(passed/failed)过滤"),
+    start_date: Optional[str] = Query(None, description="起始日期 YYYY-MM-DD"),
+    end_date: Optional[str] = Query(None, description="截至日期 YYYY-MM-DD"),
+):
+    """获取文件审核历史记录列表（支持多维度组合筛选）"""
     ensure_db()
     conn = _get_connection()
     try:
+        where_clauses = ["audit_type = 'file'"]
+        params = []
+
+        if keyword and keyword.strip():
+            kw = f"%{keyword.strip()}%"
+            where_clauses.append("(source LIKE ? OR created_by LIKE ? OR CAST(id AS TEXT) LIKE ?)")
+            params.extend([kw, kw, kw])
+
+        if instance_type and instance_type.strip():
+            where_clauses.append("instance_type = ?")
+            params.append(instance_type.strip())
+
+        if status == "passed":
+            where_clauses.append("failed = 0")
+        elif status == "failed":
+            where_clauses.append("failed > 0")
+
+        if start_date and start_date.strip():
+            where_clauses.append("created_at >= ?")
+            params.append(start_date.strip() + " 00:00:00")
+
+        if end_date and end_date.strip():
+            where_clauses.append("created_at <= ?")
+            params.append(end_date.strip() + " 23:59:59")
+
+        where_sql = " WHERE " + " AND ".join(where_clauses)
+
         total = conn.execute(
-            "SELECT COUNT(*) AS cnt FROM audit_history WHERE audit_type = 'file'"
+            f"SELECT COUNT(*) AS cnt FROM audit_history {where_sql}",
+            params
         ).fetchone()["cnt"]
-        rows = conn.execute(
-            """SELECT id, source, total_sql, passed, failed, error_count, warning_count,
-                      pass_rate, created_by, created_at, gate_passed, instance_type
-               FROM audit_history WHERE audit_type = 'file'
-               ORDER BY created_at DESC LIMIT ? OFFSET ?""",
-            (limit, offset),
-        ).fetchall()
+
+        query_sql = f"""SELECT id, source, total_sql, passed, failed, error_count, warning_count,
+                              pass_rate, created_by, created_at, gate_passed, instance_type
+                       FROM audit_history {where_sql}
+                       ORDER BY created_at DESC LIMIT ? OFFSET ?"""
+
+        rows = conn.execute(query_sql, params + [limit, offset]).fetchall()
         return {"items": [dict(r) for r in rows], "total": total}
     finally:
         conn.close()

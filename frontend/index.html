@@ -296,6 +296,25 @@
                       <el-button size="small" @click="loadFileReports">刷新</el-button>
                     </div>
                   </div>
+                  <!-- 组合筛选工具栏 -->
+                  <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:16px;background:var(--bg-subtle,rgba(255,255,255,0.03));padding:12px 14px;border-radius:8px;border:1px solid var(--border-color,#334155)">
+                    <el-input v-model="fileReportFilters.keyword" placeholder="搜索文件名 / 审核人 / 报告ID..." style="width:230px" size="small" clearable @keyup.enter="loadFileReports" @clear="loadFileReports">
+                      <template #prefix><el-icon><Search /></el-icon></template>
+                    </el-input>
+                    <el-select v-model="fileReportFilters.instance_type" placeholder="规则架构" style="width:120px" size="small" clearable @change="loadFileReports">
+                      <el-option label="全部架构" value=""></el-option>
+                      <el-option label="分布式" value="distributed"></el-option>
+                      <el-option label="集中式" value="centralized"></el-option>
+                    </el-select>
+                    <el-select v-model="fileReportFilters.status" placeholder="审核结果" style="width:120px" size="small" clearable @change="loadFileReports">
+                      <el-option label="全部结果" value=""></el-option>
+                      <el-option label="全量通过" value="passed"></el-option>
+                      <el-option label="存在违规" value="failed"></el-option>
+                    </el-select>
+                    <el-date-picker v-model="fileReportFilters.date_range" type="daterange" range-separator="至" start-placeholder="开始日期" end-placeholder="结束日期" format="YYYY-MM-DD" value-format="YYYY-MM-DD" size="small" style="width:240px" @change="loadFileReports"></el-date-picker>
+                    <el-button type="primary" size="small" @click="loadFileReports">查询</el-button>
+                    <el-button size="small" @click="resetFileReportFilters">重置</el-button>
+                  </div>
                   <el-table ref="fileReportsTableRef" :data="fileReports" v-loading="fileReportsLoading" stripe class="w-full" row-key="id" @selection-change="onFileReportsSelect">
                     <el-table-column v-if="canManagePlatform" type="selection" width="40" reserve-selection></el-table-column>
                     <el-table-column prop="source" label="文件名" show-overflow-tooltip></el-table-column>
