@@ -879,7 +879,7 @@ body {{ font-family:"Microsoft YaHei","Segoe UI",Arial,sans-serif; background:#f
             for i, r in enumerate(results, 1):
                 passed = r.get("passed", False)
                 violations = r.get("violations", [])
-                sql_text = r.get("sql", "")[:300]
+                sql_text = html.escape(r.get("sql", ""))
                 sql_type = r.get("sql_type", "")
                 line_no = r.get("line_number", "")
                 status_badge = '<span class="badge PASS">通过</span>' if passed else f'<span class="badge ERROR">{len(violations)}项违规</span>'

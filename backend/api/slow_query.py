@@ -409,8 +409,8 @@ body {{ font-family:"Microsoft YaHei","Segoe UI",Arial,sans-serif; background:#f
         else:
             for i, sq in enumerate(slow_queries, 1):
                 sev = sq.get("severity", "INFO")
-                fingerprint = (sq.get("fingerprint") or "")[:500]
-                sql_text = (sq.get("sql_text") or "")[:500]
+                fingerprint = html.escape(sq.get("fingerprint") or "")
+                sql_text = html.escape(sq.get("sql_text") or "")
                 avg_time = sq.get("avg_time_ms", 0)
                 exec_count = sq.get("exec_count", 0)
                 rows_examined = sq.get("rows_examined", 0)
