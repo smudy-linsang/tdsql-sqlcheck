@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  ============================================================================
+  文件审核测试物料（MyBatis XML）：客户 Mapper
+  覆盖规则：R012,R016,R051,R076 及动态标签清洗验证
+  说明：审核引擎从 <select/insert/update/delete> 标签提取 SQL，清洗动态标签
+        （where/set/if/foreach 等）与 #{} 占位符后逐条审核。每个语句块上方用
+        XML 注释标注 @rules 期望（与 .sql 物料同一 harness 校验）。
+  ============================================================================
+-->
+<mapper namespace="com.demo.mapper.CustomerMapper">
+
+    <!-- @case: XML_R012_01 -->
+    <!-- @rules: R012 -->
+    <!-- @note: SELECT * 未指定字段 -->
+    <select id="selectAll" resultType="Customer">
+        SELECT * FROM t_customer WHERE cust_id = #{custId}
+    </select>
+
+    <!-- @case: XML_R051_01 -->
+    <!-- @rules: R051 -->
+    <!-- @note: 无 WHERE 条件的 SELECT，全表扫描 -->
+    <select id="listAll" resultType="Customer">
+        SELECT cust_id, cust_name FROM t_customer
+    </select>
+
+    <!-- @case: XML_R016_01 -->
+    <!-- @rules: R016 -->
+    <!-- @note: WHERE 条件对字段使用函数，索引失效 -->
+    <select id="selectByDate" resultType="Customer">
+        SELECT cust_id, cust_name FROM t_customer
+        WHERE DATE_FORMAT(create_time, '%Y%m%d') = #{dateStr}
+    </select>
+
+    <!-- @case: XML_R076_01 -->
+    <!-- @rules: R016,R076 -->
+    <!-- @note: ${} 动态拼接（SQL 注入风险）；ORDER BY 拼接列名同时含函数共触发 R016 -->
+    <select id="selectDynamic" resultType="Customer">
+        SELECT cust_id, cust_name FROM t_customer
+        WHERE cust_name LIKE CONCAT('%', #{kw}, '%')
+        ORDER BY ${orderColumn}
+    </select>
+
+    <!-- @case: XML_DYNAMIC_CLEAN_01 -->
+    <!-- @rules: R051 -->
+    <!-- @note: 动态 where/if 标签清洗后为无 WHERE 的 SELECT（触发 R051），验证清洗逻辑 -->
+    <select id="selectByCond" resultType="Customer">
+        SELECT cust_id, cust_name, cust_level FROM t_customer
+        <where>
+            <if test="custLevel != null">
+                AND cust_level = #{custLevel}
+            </if>
+            <if test="custName != null">
+                AND cust_name = #{custName}
+            </if>
+        </where>
+    </select>
+
+    <!-- @case: XML_R013_01 -->
+    <!-- @rules: R013,R014,R070 -->
+    <!-- @note: 不带 WHERE 的 UPDATE（set 标签清洗后仍无 WHERE） -->
+    <update id="updateAllLevel">
+        UPDATE t_customer
+        <set>
+            cust_level = #{custLevel}
+        </set>
+    </update>
+
+    <!-- @case: XML_FOREACH_01 -->
+    <!-- @rules: -->
+    <!-- @note: foreach 清洗后为 IN 查询（元素少不触发 R050），期望零违规 -->
+    <select id="selectByIds" resultType="Customer">
+        SELECT cust_id, cust_name FROM t_customer
+        WHERE cust_id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+
+    <!-- @case: XML_R014_DELETE_01 -->
+    <!-- @rules: R013,R014,R047,R070 -->
+    <!-- @note: 不带 WHERE 的 DELETE，全表删除（R047 建议 TRUNCATE） -->
+    <delete id="deleteAll">
+        DELETE FROM t_audit_log
+    </delete>
+
+</mapper>
