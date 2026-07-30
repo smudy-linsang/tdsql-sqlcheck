@@ -729,7 +729,7 @@ async def list_file_reports(limit: int = Query(50, ge=1, le=200), offset: int = 
         ).fetchone()["cnt"]
         rows = conn.execute(
             """SELECT id, source, total_sql, passed, failed, error_count, warning_count,
-                      pass_rate, created_by, created_at, gate_passed
+                      pass_rate, created_by, created_at, gate_passed, instance_type
                FROM audit_history WHERE audit_type = 'file'
                ORDER BY created_at DESC LIMIT ? OFFSET ?""",
             (limit, offset),
