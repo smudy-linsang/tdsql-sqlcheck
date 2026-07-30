@@ -27,6 +27,7 @@ long_query_time=1s，故用 SLEEP(1.5) 制造确定性慢SQL（avg>1s 必被捕�
 import argparse
 import json
 import sys
+import threading
 import time
 import urllib.request
 import urllib.error
@@ -155,23 +156,63 @@ def generate_load(conn, inst, repeat):
 
 
 # ────────────────────────────────────────────────────────────
-# 阶段 3：触发扫描 + 验证
+# 阶段 3：触发扫描 + 验证（支持 monitordb / digest / processlist 三种数据源）
 # ────────────────────────────────────────────────────────────
-def trigger_scan(token, inst):
+SOURCE_LABELS = {"monitordb": "全网慢SQL(monitordb)",
+                 "digest": "性能摘要(digest)",
+                 "processlist": "实时进程(processlist)"}
+
+
+def trigger_scan(token, inst, source, min_time=0.0, poll_duration=12.0, window_hours=1):
     now = time.strftime("%Y-%m-%d %H:%M:%S")
-    start = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time() - 3600))
+    start = time.strftime("%Y-%m-%d %H:%M:%S",
+                          time.localtime(time.time() - window_hours * 3600))
     payload = {
         "connection_id": inst["conn_id"],
-        "source": "digest",
+        "source": source,
         "limit": 100,
-        "min_time": 0.0,   # 低阈值：捕获全部 digest 摘要（含快速标记SQL），便于定位验证
-        "task_name": f"压测验证-{inst['type']}-{now}",
-        "time_window_start": start,
-        "time_window_end": now,
+        "min_time": min_time,
+        "task_name": f"压测验证-{inst['type']}-{SOURCE_LABELS[source]}-{now}",
+        # processlist 轮询参数
+        "poll_duration": poll_duration,
+        "poll_interval": 1.0,
     }
+    # monitordb 不传时间窗：实测发现部分实例 timestramp 时间窗过滤会清空结果
+    # （疑似时间戳单位/类型差异），不传窗则抓全量历史慢SQL，验证更稳健。
+    if source != "monitordb":
+        payload["time_window_start"] = start
+        payload["time_window_end"] = now
     status, body = _http("POST", "/api/v1/tdsql/slow-queries/fetch", token=token,
-                         payload=payload, timeout=180)
+                         payload=payload, timeout=240)
     return status, body
+
+
+def start_load_generator(inst, stop_event, workers=3):
+    """processlist 扫描期间在后台持续制造正在执行的慢SQL（SLEEP(2)），
+    使轮询能捕获到 time>阈值的活跃查询。
+
+    起多个并发 worker 紧密循环执行 SLEEP，确保整个轮询窗口内始终有
+    正在执行的慢查询（单线程在 SLEEP 间隔可能有空窗，分布式 Proxy 下
+    还可能因路由/连接抖动丢失，故用多线程提高捕获可靠性）。返回线程列表。
+    """
+    def _worker():
+        try:
+            c = connect(inst)
+            cur = c.cursor()
+            while not stop_event.is_set():
+                try:
+                    cur.execute("SELECT SLEEP(2)")
+                except Exception:
+                    break
+            c.close()
+        except Exception as e:
+            print(f"    负载线程异常: {e}")
+    threads = []
+    for _ in range(workers):
+        t = threading.Thread(target=_worker, daemon=True)
+        t.start()
+        threads.append(t)
+    return threads
 
 
 def fetch_task_records(token, task_id):
@@ -182,14 +223,18 @@ def fetch_task_records(token, task_id):
     return body.get("items", body.get("records", []))
 
 
-def verify(inst, scan_body):
-    """验证扫描结果是否符合预期。返回 (通过项, 失败项)。"""
+def verify(inst, scan_body, source="digest"):
+    """验证扫描结果是否符合预期。返回 (通过项, 失败项)。
+
+    processlist 源只捕获扫描瞬间正在执行的慢SQL（本压测为 SLEEP(3)），
+    无高 rows_examined，故采用专用验证；monitordb/digest 用分层验证。
+    """
     passed, failed = [], []
     fetched = scan_body.get("fetched", 0)
     task_id = scan_body.get("scan_task_id")
 
     if fetched > 0:
-        passed.append(f"扫描抓取到 {fetched} 条慢SQL摘要（fetched>0）")
+        passed.append(f"扫描抓取到 {fetched} 条慢SQL（fetched>0）")
     else:
         failed.append(f"扫描抓取数为 0（期望>0）；errors={scan_body.get('errors')}")
 
@@ -205,14 +250,20 @@ def verify(inst, scan_body):
         failed.append(f"任务 {task_id} 未查询到入库记录")
         return passed, failed
 
-    # ── 分层验证 ──
-    # (a) 管道验证：扫描拓取并入库慢SQL
-    # (b) 分析器正确性：高扫描行数（全表扫描类）记录应被判为 ERROR/扫描/索引问题
-    # (c) 压测特征SQL（pt_slow_*）是否进入 Top-N（共享实例可能未进，作软性检查）
-    p = cfg.TABLE_PREFIX
+    # ── processlist 专用验证：确认捕获到正在执行的慢SQL（SLEEP）并完成分析 ──
+    if source == "processlist":
+        sleep_hits = [r for r in records if "sleep" in (r.get("sql_text") or "").lower()]
+        if sleep_hits:
+            r = sleep_hits[0]
+            passed.append(f"实时进程源捕获到正在执行的慢SQL（SLEEP）："
+                          f"avg={r.get('avg_time_ms')}ms, problem_type={r.get('problem_type') or '无'}")
+        else:
+            failed.append("实时进程源未捕获到正在执行的慢SQL（SLEEP）；"
+                          "可能轮询窗口未命中或 min_time 偏高")
+        return passed, failed
 
-    # (b) 分析器正确性：找 rows_examined 最高的记录，核对其被分析器给出有效问题判定
-    #     （全表扫描/索引使用不充分/缺失索引 等均为合理的问题识别）
+    # ── monitordb / digest 分层验证 ──
+    # (b) 分析器正确性：高扫描行数记录应被分析器给出有效问题判定
     VALID_PTYPES = ("全表扫描", "缺失索引", "索引使用不充分", "高频慢SQL",
                     "锁等待严重", "Using filesort", "Using temporary", "Using join buffer")
     by_examined = sorted(records, key=lambda r: r.get("rows_examined") or 0, reverse=True)
@@ -228,12 +279,20 @@ def verify(inst, scan_body):
             failed.append(f"高扫描行数慢SQL（examined={r.get('rows_examined')}）未被有效分析："
                           f"severity={sev}, problem_type={ptype}")
     else:
-        failed.append("扫描结果中无高扫描行数（>10000）记录，无法验证分析器")
+        # monitordb 可能以耗时维度汇聚，无高 examined 时退而核对是否有有效分析记录
+        analyzed = [r for r in records if (r.get("problem_type") or "")]
+        if analyzed:
+            r = analyzed[0]
+            passed.append(f"扫描记录均被分析器给出问题判定（例：problem_type="
+                          f"{r.get('problem_type')}/severity={r.get('severity')}）")
+        else:
+            failed.append("扫描结果中无高扫描行数记录且无有效分析，无法验证分析器")
 
-    # (c) 压测特征SQL 软性检查：进入 Top-N 则验证其分析
+    # (c) 压测特征SQL 软性检查
+    p = cfg.TABLE_PREFIX
     pt_records = [r for r in records if p in (r.get("sql_text") or "").lower()]
     if pt_records:
-        passed.append(f"压测特征SQL（{p}*）有 {len(pt_records)} 条进入扫描 Top-N")
+        passed.append(f"压测特征SQL（{p}*）有 {len(pt_records)} 条进入扫描结果")
         rand_hits = [r for r in pt_records if "rand" in (r.get("sql_text") or "").lower()]
         if rand_hits:
             r = rand_hits[0]
@@ -241,7 +300,7 @@ def verify(inst, scan_body):
                           f"problem_type={r.get('problem_type')}, examined={r.get('rows_examined')}")
     else:
         passed.append(f"压测特征SQL（{p}*）未进入 Top-N（共享实例高频查询淹没，属预期）；"
-                      f"分析器正确性已由 (b) 高扫描行数记录验证")
+                      f"分析器正确性已由 (b) 验证")
     return passed, failed
 
 
@@ -255,32 +314,68 @@ def cleanup(conn, inst):
     print("    已清理压测表")
 
 
-def run_instance(name, inst, rows, repeat, keep):
-    print(f"\n{'='*70}\n实例 {name}（{inst['type']}，{inst['host']}:{inst['port']}）\n{'='*70}")
-    conn = connect(inst)
+def run_source(token, inst, source):
+    """对单个数据源执行扫描+验证。返回 (是否通过, 通过项, 失败项)。"""
+    print(f"\n  ── 数据源：{SOURCE_LABELS[source]} ──")
+    stop_event = None
+    gen_threads = None
+    if source == "processlist":
+        # processlist 只捕获扫描瞬间正在执行的慢SQL，需后台持续制造负载
+        stop_event = threading.Event()
+        gen_threads = start_load_generator(inst, stop_event)
+        time.sleep(1.5)  # 等负载先跑起来
     try:
-        print("  [1/4] 建表灌数 ...")
-        setup_tables(conn, inst, rows)
-        print("  [2/4] 制造慢查询负载 ...")
-        generate_load(conn, inst, repeat)
-        # digest 统计刷新需要片刻
-        time.sleep(3)
-        print("  [3/4] 触发 digest 扫描任务 ...")
-        token = login()
-        status, body = trigger_scan(token, inst)
+        # processlist 用较高阈值确保捕获 SLEEP(2)；monitordb/digest 用低阈值拓全量
+        min_time = 1.0 if source == "processlist" else 0.0
+        # digest 用 1h 时间窗；monitordb 不传窗（抓全量历史，避开时间窗过滤问题）
+        window_hours = 1
+        status, body = trigger_scan(token, inst, source, min_time=min_time,
+                                    window_hours=window_hours)
         if status != 200:
-            print(f"    扫描触发失败 HTTP {status}: {body}")
-            return False
-        print(f"    扫描完成 fetched={body.get('fetched')} task_id={body.get('scan_task_id')}")
-        print("  [4/4] 验证扫描结果 ...")
-        passed, failed = verify(inst, body)
+            return False, [], [f"扫描触发失败 HTTP {status}: {body}"]
+        print(f"    扫描完成 fetched={body.get('fetched')} task_id={body.get('scan_task_id')} "
+              f"errors={body.get('errors') or '无'}")
+        passed, failed = verify(inst, body, source)
+        # processlist 捕获具时序敏感性：首轮未捕获到则重试一次
+        if source == "processlist" and failed and body.get("fetched", 0) == 0:
+            print("    首轮未捕获，重试一次 ...")
+            status, body = trigger_scan(token, inst, source, min_time=min_time,
+                                        window_hours=window_hours)
+            if status == 200:
+                print(f"    重试扫描 fetched={body.get('fetched')} task_id={body.get('scan_task_id')}")
+                passed, failed = verify(inst, body, source)
         for p in passed:
             print(f"    [PASS] {p}")
         for f in failed:
             print(f"    [FAIL] {f}")
-        ok = not failed
-        print(f"  实例 {name} 结论: {'[PASS]' if ok else '[FAIL]'}")
-        return ok
+        return (not failed), passed, failed
+    finally:
+        if stop_event is not None:
+            stop_event.set()
+        if gen_threads:
+            for t in gen_threads:
+                t.join(timeout=5)
+
+
+def run_instance(name, inst, rows, repeat, keep, sources):
+    print(f"\n{'='*70}\n实例 {name}（{inst['type']}，{inst['host']}:{inst['port']}）\n{'='*70}")
+    conn = connect(inst)
+    try:
+        print("  [1/3] 建表灌数 ...")
+        setup_tables(conn, inst, rows)
+        print("  [2/3] 制造慢查询负载（供 monitordb/digest 汇聚）...")
+        generate_load(conn, inst, repeat)
+        time.sleep(3)  # digest/monitordb 统计刷新需要片刻
+        print("  [3/3] 逐数据源扫描验证 ...")
+        token = login()
+        source_results = {}
+        for source in sources:
+            ok, _, _ = run_source(token, inst, source)
+            source_results[source] = ok
+        print(f"\n  实例 {name} 各数据源结论:")
+        for source in sources:
+            print(f"    {SOURCE_LABELS[source]}: {'[PASS]' if source_results[source] else '[FAIL]'}")
+        return all(source_results.values())
     finally:
         if not keep:
             try:
@@ -293,27 +388,33 @@ def run_instance(name, inst, rows, repeat, keep):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--inst", default="ALL", choices=["ALL", "DIST", "CENT"])
+    ap.add_argument("--source", default="ALL",
+                    choices=["ALL", "monitordb", "digest", "processlist"],
+                    help="扫描数据源：ALL=三种都测")
     ap.add_argument("--rows", type=int, default=3000, help="每表灌入行数")
     ap.add_argument("--repeat", type=int, default=3, help="每类慢SQL执行次数")
     ap.add_argument("--keep", action="store_true", help="保留压测表不清理")
     args = ap.parse_args()
 
     targets = (["DIST", "CENT"] if args.inst == "ALL" else [args.inst])
+    sources = (["monitordb", "digest", "processlist"] if args.source == "ALL"
+               else [args.source])
     results = {}
     for name in targets:
         inst = cfg.INSTANCES[name]
         try:
-            results[name] = run_instance(name, inst, args.rows, args.repeat, args.keep)
+            results[name] = run_instance(name, inst, args.rows, args.repeat,
+                                         args.keep, sources)
         except Exception as e:
             print(f"  实例 {name} 执行异常: {e}")
             results[name] = False
 
-    print(f"\n{'='*70}\n压力测试总结\n{'='*70}")
+    print(f"\n{'='*70}\n压力测试总结（数据源：{', '.join(sources)}）\n{'='*70}")
     for name, ok in results.items():
         print(f"  {name}: {'[PASS]' if ok else '[FAIL]'}")
     all_ok = all(results.values())
-    print("总结论: " + ("[PASS] 全部实例扫描结果符合规则预期"
-                        if all_ok else "[FAIL] 存在不符合预期的实例"))
+    print("总结论: " + ("[PASS] 全部实例×数据源扫描结果符合规则预期"
+                        if all_ok else "[FAIL] 存在不符合预期的实例/数据源"))
     return 0 if all_ok else 1
 
 

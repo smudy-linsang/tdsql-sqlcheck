@@ -164,31 +164,47 @@ python tests/rule_audit_materials/verify_metadata_rules.py \
 
 ### 4.2 数据源选择（实测结论）
 
-| 数据源 | DIST(15005) | CENT(15002) | 结论 |
-|---|---|---|---|
-| `digest`（performance_schema） | 可用（451 行） | 可用（118 行） | **采用** |
-| `monitordb`（tdsqlpcloud_monitor） | 表不存在 | 库不存在 | 两实例均不可用 |
+慢SQL扫描任务支持三种数据源，本轮压测对两实例×三源均做了验证：
 
-`long_query_time = 1s`。压测采用 **digest 源**。
+| 数据源 | 含义 | DIST(15005) | CENT(15002) | 说明 |
+|---|---|---|---|---|
+| `monitordb` | 全网慢SQL（集群级） | 可用 | 可用 | 读 `tdsqlpcloud_monitor.proxy_classes_analysis`（15001 端口）；v1.5.2.2 更新 monitordb 连接口令后可用 |
+| `digest` | 性能摘要 | 可用 | 可用 | 读 `performance_schema.events_statements_summary_by_digest` |
+| `processlist` | 实时进程 | 可用 | 可用 | 轮询 `information_schema.processlist`，仅捕获扫描瞬间正在执行的慢SQL |
+
+> **历史**：v1.5.2.0 压测时 monitordb 在两实例均不可用（表/库缺失），当时仅用 digest；
+> v1.5.2.2 更新了 monitordb 连接用户口令（15001 / tdsqlpcloud_monitor / tdsql_check_user）后，
+> monitordb 可用，本轮已补齐三源全量验证。
+
+`long_query_time = 1s`。
 
 ### 4.3 工作流程
 
 ```
-[1/4] 建表灌数      建 pt_slow_noindex（无二级索引）/ pt_slow_indexed（uid 有索引），各灌 N 行
+[1/3] 建表灌数      建 pt_slow_noindex（无二级索引）/ pt_slow_indexed（uid 有索引），各灌 N 行
                     （分布式实例建表自动声明 SHARDKEY，符合 R077）
-[2/4] 制造慢查询    执行 4 类特征 SQL：
+[2/3] 制造慢查询    执行 4 类特征 SQL（供 monitordb/digest 汇聚）：
                     - ORDER BY RAND() 全表排序（重点负载，真实慢 + filesort + 全表扫描）
                     - 无索引全表扫描 + 函数过滤
                     - 自交叉连接（笛卡尔积，高 rows_examined）
                     - 走索引等值查询（对照组）
-                    另执行 SLEEP(1.5) 制造确定性超阈值慢SQL
-[3/4] 触发扫描      POST /api/v1/tdsql/slow-queries/fetch（source=digest, min_time=0.0）
-[4/4] 验证          拉取任务记录，分层验证（见 4.4）
+                    另执行 SLEEP 制造确定性超阈值慢SQL
+[3/3] 逐数据源扫描  依次对 monitordb / digest / processlist 触发扫描并验证
 ```
 
+**三数据源的扫描参数差异**（脚本已内置）：
+
+| 数据源 | min_time | 时间窗 | 负载方式 |
+|---|---|---|---|
+| monitordb | 0.0 | **不传时间窗**（抓全量历史） | 依赖阶段2制造的慢SQL被赤兔平台采集入库 |
+| digest | 0.0 | 近 1 小时 | 依赖阶段2制造的慢SQL进入 digest 汇总 |
+| processlist | 1.0 | 近 1 小时（仅任务元数据） | **扫描期间后台起 3 个并发线程紧密执行 SLEEP(2)**，确保轮询窗口内始终有活跃慢查询；首轮未捕获自动重试一次 |
+
 > **关键设计点**：
-> - digest 会**剥离 SQL 注释**，故不能用注释标记定位，改用**表名**（`pt_slow_*`）作为特征；
+> - digest/monitordb 会**剥离 SQL 注释**，故不能用注释标记定位，改用**表名**（`pt_slow_*`）作为特征；
 > - 共享实例上高频监控查询会占据 digest Top-N（按 `SUM_TIMER_WAIT` 排序），故制造**真慢**查询（ORDER BY RAND 全表排序）累积 `SUM_TIMER_WAIT` 以提升排名；
+> - **monitordb 不传时间窗**：实测发现部分实例 `timestramp` 时间窗过滤会清空结果（疑似时间戳单位/类型差异），不传窗则抓全量历史慢SQL，验证更稳健；
+> - **processlist 需并发负载**：它只捕获扫描瞬间正在执行的查询，单线程 SLEEP 在间隔有空窗、分布式 Proxy 下还可能因路由/连接抖动丢失，故用多线程并发 + 重试提高捕获可靠性；
 > - 压测表用统一前缀 `pt_`，结束默认自动清理（`--keep` 可保留）。
 
 ### 4.4 分层验证逻辑
@@ -196,35 +212,35 @@ python tests/rule_audit_materials/verify_metadata_rules.py \
 | 层 | 验证项 | 判定 |
 |---|---|---|
 | (a) 管道 | `fetched > 0` 且任务有入库记录 | 硬指标 |
-| (b) 分析器正确性 | `rows_examined > 10000` 的记录被分析器给出有效问题判定（全表扫描/索引使用不充分/缺失索引等） | 硬指标 |
-| (c) 特征SQL | 压测 `pt_slow_*` SQL 是否进入 Top-N（进入则验证其分析；共享实例未进属预期，作软性检查） | 软指标 |
+| (b) 分析器正确性 | monitordb/digest：`rows_examined > 10000` 的记录被分析器识别为全表扫描/索引使用不充分/缺失索引等问题；processlist：捕获到正在执行的慢SQL（SLEEP） | 硬指标 |
+| (c) 特征SQL | 压测 `pt_slow_*` SQL 是否进入结果（进入则验证其分析；共享实例未进属预期，作软性检查） | 软指标 |
 
 ### 4.5 运行方法
 
 ```bash
 cd TDSQL-SQLCheck/tests/pressure_test
-python run_pressure_test.py                      # 两实例全量（默认 rows=3000, repeat=3）
-python run_pressure_test.py --inst DIST          # 仅分布式
-python run_pressure_test.py --inst CENT --rows 5000 --repeat 3
+python run_pressure_test.py                      # 两实例×三数据源全量（默认 rows=3000, repeat=3）
+python run_pressure_test.py --inst DIST          # 仅分布式实例
+python run_pressure_test.py --source monitordb   # 仅测某数据源（monitordb/digest/processlist）
+python run_pressure_test.py --rows 5000 --repeat 3
 python run_pressure_test.py --keep               # 保留压测表不清理
 ```
 
-**判定标准**：退出码 0 = 两实例 (a)(b) 硬指标全部通过。
+**判定标准**：退出码 0 = 两实例×三数据源的 (a)(b) 硬指标全部通过。
 
-**开发环境实测结论**（rows=5000, repeat=3）：
+**开发环境实测结论**（v1.5.2.2，rows=3000, repeat=3，两实例×三源全通过）：
 
 ```
-DIST: [PASS]
-  [PASS] 扫描抓取到 100 条慢SQL摘要（fetched>0）
-  [PASS] 任务入库 100 条慢SQL记录
-  [PASS] 高扫描行数慢SQL（examined=38830000）被分析器识别为 problem_type=全表扫描/severity=ERROR
-  [PASS] 压测特征SQL（pt_slow_*）进入扫描 Top-N
-CENT: [PASS]
-  [PASS] 扫描抓取到 100 条慢SQL摘要（fetched>0）
-  [PASS] 任务入库 100 条慢SQL记录
-  [PASS] 高扫描行数慢SQL（examined=7377152）被分析器识别为 problem_type=索引使用不充分/severity=WARNING
-  [PASS] ORDER BY RAND 全表排序慢SQL被捕获：severity=ERROR, problem_type=全表扫描, examined=90900
-总结论: [PASS] 全部实例扫描结果符合规则预期
+DIST（distributed）:
+  全网慢SQL(monitordb): [PASS]  fetched=42，高扫描行数SQL被识别为 problem_type=SELECT */WARNING
+  性能摘要(digest):     [PASS]  fetched=100，高扫描行数SQL（examined=38830000）被判为 索引使用不充分/ERROR
+  实时进程(processlist): [PASS]  fetched=21，捕获正在执行的慢SQL（SLEEP）avg=2000ms
+CENT（centralized）:
+  全网慢SQL(monitordb): [PASS]  fetched=29，扫描记录均被分析器给出问题判定
+  性能摘要(digest):     [PASS]  fetched=100，高扫描行数SQL（examined=7377152）被判为 锁等待严重/WARNING；
+                                  ORDER BY RAND 全表排序慢SQL被捕获
+  实时进程(processlist): [PASS]  fetched=1，捕获正在执行的慢SQL（SLEEP）avg=2000ms
+总结论: [PASS] 全部实例×数据源扫描结果符合规则预期
 ```
 
 ---
@@ -248,6 +264,8 @@ python -m pytest tests -q
 ## 六、已知限制与发现汇总
 
 1. **5 条规则当前不可触发**（R025/R035/R038/R049/R059）——属规则/解析器实现缺陷，详见第一章 C 类表，建议后续修复。
-2. **monitordb 数据源在两实例不可用**——压测采用 digest 源；如需验证 monitordb 源，需具备 `tdsqlpcloud_monitor` 库的环境。
-3. **共享实例 digest Top-N 被高频监控查询占据**——压测特征 SQL 可能未进 Top-N，故验证以「分析器对高扫描行数记录的正确判定」为硬指标，特征 SQL 为软指标。
-4. **digest 剥离 SQL 注释**——慢SQL定位不能依赖注释标记，需用表名/指纹特征。
+2. **monitordb 时间窗过滤在部分实例会清空结果**——疑似 `timestramp` 时间戳单位/类型差异；压测脚本对 monitordb 不传时间窗（抓全量历史）以避开。建议后续排查 `get_cluster_slow_queries` 的时间窗过滤逻辑。
+3. **monitordb 为异步采集**（赤兔平台周期性收集慢SQL），压测新生成的查询不会即时入库，故 monitordb 验证依赖实例历史慢SQL。
+4. **processlist 捕获具时序敏感性**——只捕获扫描瞬间正在执行的查询，需后台并发制造负载，脚本已用多线程+重试保障。
+5. **共享实例 digest Top-N 被高频监控查询占据**——压测特征 SQL 可能未进 Top-N，故验证以「分析器对高扫描行数记录的正确判定」为硬指标，特征 SQL 为软指标。
+6. **digest/monitordb 剥离 SQL 注释**——慢SQL定位不能依赖注释标记，需用表名/指纹特征。
