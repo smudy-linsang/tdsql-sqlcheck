@@ -314,28 +314,84 @@ class RuleChecker:
 
     def _split_sql_file(self, content: str) -> list[tuple[str, int]]:
         """
-        将 SQL 文件按分号及 SQL Object 注释标志智能分割为多条 SQL。
+        智能拆分 SQL 脚本文件为多条独立的 SQL 语句。
+        1. 动态支持 DELIMITER // 或 DELIMITER $$ 等自定义分隔符。
+        2. 智能识别存储过程/函数/触发器中的 BEGIN...END 块与内部分号，防止语句被错误截断。
+        3. 自动剥离全局横幅头注释（如 -- ===），保留单条 SQL 的紧邻注释及完整代码。
+        4. 精确记录每条 SQL 语句在源文件中的起始行号。
         返回 [(sql, line_number), ...]
         """
-        results = []
-        # 防粘连：如果丢失分号，通过 -- SQL Object: 或 -- Table: 做智能分界
-        pre_split = re.split(r"(?=\n\s*--\s*(?:SQL Object:|Table:|View:))", content)
-        current_line = 1
-
-        for block in pre_split:
-            statements = block.split(";")
-            for stmt in statements:
-                stmt_stripped = stmt.strip()
-                if not stmt_stripped:
-                    current_line += stmt.count("\n") + (1 if ";" in stmt else 0)
-                    continue
-                # 跳过纯注释语句（去掉注释后为空）
-                cleaned = re.sub(r"--[^\n]*", "", stmt_stripped)
-                cleaned = re.sub(r"/\*.*?\*/", "", cleaned, flags=re.DOTALL)
-                cleaned = cleaned.strip()
-                if not cleaned:
-                    current_line += stmt.count("\n") + (1 if ";" in stmt else 0)
-                    continue
-                results.append((stmt_stripped, current_line))
-                current_line += stmt.count("\n") + (1 if ";" in stmt else 0)
-        return results
+        statements = []
+        current_delimiter = ';'
+        lines = content.splitlines(keepends=True)
+        current_stmt = []
+        line_no = 1
+        stmt_start_line = 1
+        
+        in_begin_block = False
+        
+        for l in lines:
+            stripped_line = l.strip()
+            
+            # 1. 检查 DELIMITER 切换指令
+            delim_match = re.match(r'^DELIMITER\s+(\S+)', stripped_line, re.IGNORECASE)
+            if delim_match:
+                current_delimiter = delim_match.group(1)
+                line_no += 1
+                continue
+                
+            current_stmt.append(l)
+            stmt_text = "".join(current_stmt)
+            check_text = stmt_text.rstrip()
+            
+            # 2. 检查 BEGIN ... END 块状态（防止无 DELIMITER 声明或复杂过程体内的分号被错误切断）
+            upper_text = re.sub(r'--[^\n]*', '', check_text)
+            upper_text = re.sub(r'/\*.*?\*/', '', upper_text, flags=re.DOTALL).upper()
+            
+            if any(kw in upper_text for kw in ('CREATE PROCEDURE', 'CREATE TRIGGER', 'CREATE FUNCTION', 'CREATE EVENT')):
+                if 'BEGIN' in upper_text and not 'END' in upper_text.split('BEGIN')[-1]:
+                    in_begin_block = True
+                elif 'END' in upper_text:
+                    in_begin_block = False
+            else:
+                in_begin_block = False
+                
+            # 3. 检查语句是否达到当前分隔符（非 BEGIN 块内）
+            if check_text.endswith(current_delimiter) and not in_begin_block:
+                raw_sql = check_text[:-len(current_delimiter)].strip()
+                
+                cleaned = re.sub(r'--[^\n]*', '', raw_sql)
+                cleaned = re.sub(r'/\*.*?\*/', '', cleaned, flags=re.DOTALL).strip()
+                
+                if cleaned:
+                    # 过滤头部横幅注释（-- ===），保留每条语句真正的紧邻注释
+                    lines_in_sql = raw_sql.splitlines()
+                    first_code_idx = 0
+                    for idx, sl in enumerate(lines_in_sql):
+                        s_tr = sl.strip()
+                        if s_tr and not s_tr.startswith('--') and not s_tr.startswith('/*'):
+                            if idx > 0:
+                                prev_comment = lines_in_sql[idx-1].strip()
+                                if prev_comment.startswith('--') and '====' not in prev_comment:
+                                    first_code_idx = idx - 1
+                                else:
+                                    first_code_idx = idx
+                            else:
+                                first_code_idx = idx
+                            break
+                    trimmed_sql = '\n'.join(lines_in_sql[first_code_idx:]).strip()
+                    statements.append((trimmed_sql, stmt_start_line))
+                    
+                current_stmt = []
+                stmt_start_line = line_no + 1
+                
+            line_no += 1
+            
+        if current_stmt:
+            raw_sql = "".join(current_stmt).strip()
+            cleaned = re.sub(r'--[^\n]*', '', raw_sql)
+            cleaned = re.sub(r'/\*.*?\*/', '', cleaned, flags=re.DOTALL).strip()
+            if cleaned:
+                statements.append((raw_sql, stmt_start_line))
+                
+        return statements
