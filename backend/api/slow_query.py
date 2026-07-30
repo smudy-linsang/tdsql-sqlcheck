@@ -126,11 +126,12 @@ def get_statistics():
 
 @router.get("/scan-tasks", summary="获取扫描任务列表")
 def list_scan_tasks(limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0),
-                    connection_id: str = "", db_name: str = "",
+                    connection_id: str = "", db_name: str = "", keyword: str = "",
                     date_from: str = "", date_to: str = ""):
-    """获取慢SQL扫描任务列表（V1.3(D4): 支持按实例/库名/时间范围筛选）"""
+    """获取慢SQL扫描任务列表（支持按实例/库名/关键字/时间范围筛选）"""
     return service.get_scan_tasks(limit=limit, offset=offset,
                                   connection_id=connection_id, db_name=db_name,
+                                  keyword=keyword,
                                   date_from=date_from, date_to=date_to)
 
 

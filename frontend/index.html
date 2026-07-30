@@ -651,6 +651,20 @@
                       <el-button v-if="selectedTaskIds.size>0" type="danger" size="small" :loading="batchDeleting" @click="batchDeleteScanTasks">删除选中({{ selectedTaskIds.size }})</el-button>
                     </div>
                   </div>
+                  <!-- 慢SQL扫描任务多维筛选工具栏 -->
+                  <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:16px;background:var(--bg-subtle,rgba(255,255,255,0.03));padding:12px 14px;border-radius:8px;border:1px solid var(--border-color,#334155)">
+                    <el-select v-model="scanTaskFilters.connection_id" placeholder="数据库实例" clearable filterable size="small" style="width:200px" @change="scanTaskQuery">
+                      <el-option v-for="c in savedConnections" :key="c.id" :value="c.id" :label="c.name"></el-option>
+                    </el-select>
+                    <el-input v-model="scanTaskFilters.db_name" placeholder="目标库名" clearable size="small" style="width:140px" @keyup.enter="scanTaskQuery" @clear="scanTaskQuery"></el-input>
+                    <el-input v-model="scanTaskFilters.keyword" placeholder="搜索任务名称 / 创建人 / ID..." clearable size="small" style="width:220px" @keyup.enter="scanTaskQuery" @clear="scanTaskQuery">
+                      <template #prefix><el-icon><Search /></el-icon></template>
+                    </el-input>
+                    <el-date-picker v-model="scanTaskFilters.date_from" type="date" value-format="YYYY-MM-DD" placeholder="开始日期" size="small" style="width:140px" @change="scanTaskQuery"></el-date-picker>
+                    <el-date-picker v-model="scanTaskFilters.date_to" type="date" value-format="YYYY-MM-DD" placeholder="结束日期" size="small" style="width:140px" @change="scanTaskQuery"></el-date-picker>
+                    <el-button type="primary" size="small" @click="scanTaskQuery">查询</el-button>
+                    <el-button size="small" @click="resetScanTaskFilters">重置</el-button>
+                  </div>
                   <el-table :data="scanTasks" v-loading="scanTaskLoading" stripe class="w-full" @selection-change="onTaskSelectChange">
                     <el-table-column type="selection" width="40"></el-table-column>
                     <el-table-column prop="task_name" label="任务名" show-overflow-tooltip></el-table-column>

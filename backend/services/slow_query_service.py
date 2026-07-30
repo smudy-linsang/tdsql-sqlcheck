@@ -430,27 +430,28 @@ class SlowQueryService:
 
     def get_scan_tasks(self, limit: int = 50, offset: int = 0,
                        connection_id: str = "", db_name: str = "",
+                       keyword: str = "",
                        date_from: str = "", date_to: str = "") -> dict:
-        """获取扫描任务列表
-
-        V1.3(D4): 支持按实例/库名/时间范围筛选（值全部参数化，禁止拼接）。
-        connection_name 表中已有，随 SELECT * 返回，前端展示"实例"列即可。
-        """
+        """获取扫描任务列表（支持按实例/库名/关键字/时间范围筛选）"""
         conn = _get_connection()
         try:
             where, args = [], []
-            if connection_id:
+            if connection_id and connection_id.strip():
                 where.append("connection_id = ?")
-                args.append(connection_id)
-            if db_name:
-                where.append("db_name = ?")
-                args.append(db_name)
-            if date_from:
+                args.append(connection_id.strip())
+            if db_name and db_name.strip():
+                where.append("db_name LIKE ?")
+                args.append(f"%{db_name.strip()}%")
+            if keyword and keyword.strip():
+                kw = f"%{keyword.strip()}%"
+                where.append("(task_name LIKE ? OR created_by LIKE ? OR connection_name LIKE ? OR CAST(id AS TEXT) LIKE ?)")
+                args.extend([kw, kw, kw, kw])
+            if date_from and date_from.strip():
                 where.append("DATE(created_at) >= ?")
-                args.append(date_from)
-            if date_to:
+                args.append(date_from.strip())
+            if date_to and date_to.strip():
                 where.append("DATE(created_at) <= ?")
-                args.append(date_to)
+                args.append(date_to.strip())
             cond = (" WHERE " + " AND ".join(where)) if where else ""
 
             total = conn.execute(
