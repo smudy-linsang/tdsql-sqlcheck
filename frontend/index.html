@@ -771,6 +771,20 @@
                     <div class="page-card-title mb0">慢SQL扫描历史对比留档报告</div>
                     <el-button size="small" @click="loadCompareReports('slow_scan')">刷新</el-button>
                   </div>
+                  <!-- 对比留档报告筛选工具栏 -->
+                  <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:16px;background:var(--bg-subtle,rgba(255,255,255,0.03));padding:12px 14px;border-radius:8px;border:1px solid var(--border-color,#334155)">
+                    <el-select v-model="cmpState.reportFilters.connection_id" placeholder="数据库实例" clearable filterable size="small" style="width:200px" @change="cmpReportQuery('slow_scan')">
+                      <el-option v-for="c in savedConnections" :key="c.id" :value="c.id" :label="c.name"></el-option>
+                    </el-select>
+                    <el-input v-model="cmpState.reportFilters.db_name" placeholder="目标库名" clearable size="small" style="width:140px" @keyup.enter="cmpReportQuery('slow_scan')" @clear="cmpReportQuery('slow_scan')"></el-input>
+                    <el-input v-model="cmpState.reportFilters.keyword" placeholder="搜索报告标题 / 留档人..." clearable size="small" style="width:220px" @keyup.enter="cmpReportQuery('slow_scan')" @clear="cmpReportQuery('slow_scan')">
+                      <template #prefix><el-icon><Search /></el-icon></template>
+                    </el-input>
+                    <el-date-picker v-model="cmpState.reportFilters.date_from" type="date" value-format="YYYY-MM-DD" placeholder="开始日期" size="small" style="width:140px" @change="cmpReportQuery('slow_scan')"></el-date-picker>
+                    <el-date-picker v-model="cmpState.reportFilters.date_to" type="date" value-format="YYYY-MM-DD" placeholder="结束日期" size="small" style="width:140px" @change="cmpReportQuery('slow_scan')"></el-date-picker>
+                    <el-button type="primary" size="small" @click="cmpReportQuery('slow_scan')">查询</el-button>
+                    <el-button size="small" @click="cmpReportResetFilters('slow_scan')">重置</el-button>
+                  </div>
                   <el-table :data="cmpState.reports" v-loading="cmpState.reportsLoading" stripe size="small" class="w-full" empty-text="暂无留档对比报告">
                     <el-table-column prop="title" label="报告名称" show-overflow-tooltip></el-table-column>
                     <el-table-column label="实例/库名" width="200" show-overflow-tooltip>
@@ -1196,6 +1210,20 @@
                     <div class="page-card-title mb0">上线检查扫描历史对比留档报告</div>
                     <el-button size="small" @click="loadCompareReports('launch_check')">刷新</el-button>
                   </div>
+                  <!-- 对比留档报告筛选工具栏 -->
+                  <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:16px;background:var(--bg-subtle,rgba(255,255,255,0.03));padding:12px 14px;border-radius:8px;border:1px solid var(--border-color,#334155)">
+                    <el-select v-model="cmpState.reportFilters.connection_id" placeholder="数据库实例" clearable filterable size="small" style="width:200px" @change="cmpReportQuery('launch_check')">
+                      <el-option v-for="c in savedConnections" :key="c.id" :value="c.id" :label="c.name"></el-option>
+                    </el-select>
+                    <el-input v-model="cmpState.reportFilters.db_name" placeholder="目标库名" clearable size="small" style="width:140px" @keyup.enter="cmpReportQuery('launch_check')" @clear="cmpReportQuery('launch_check')"></el-input>
+                    <el-input v-model="cmpState.reportFilters.keyword" placeholder="搜索报告标题 / 留档人..." clearable size="small" style="width:220px" @keyup.enter="cmpReportQuery('launch_check')" @clear="cmpReportQuery('launch_check')">
+                      <template #prefix><el-icon><Search /></el-icon></template>
+                    </el-input>
+                    <el-date-picker v-model="cmpState.reportFilters.date_from" type="date" value-format="YYYY-MM-DD" placeholder="开始日期" size="small" style="width:140px" @change="cmpReportQuery('launch_check')"></el-date-picker>
+                    <el-date-picker v-model="cmpState.reportFilters.date_to" type="date" value-format="YYYY-MM-DD" placeholder="结束日期" size="small" style="width:140px" @change="cmpReportQuery('launch_check')"></el-date-picker>
+                    <el-button type="primary" size="small" @click="cmpReportQuery('launch_check')">查询</el-button>
+                    <el-button size="small" @click="cmpReportResetFilters('launch_check')">重置</el-button>
+                  </div>
                   <el-table :data="cmpState.reports" v-loading="cmpState.reportsLoading" stripe size="small" class="w-full" empty-text="暂无留档对比报告">
                     <el-table-column prop="title" label="报告名称" show-overflow-tooltip></el-table-column>
                     <el-table-column label="实例/检查范围" width="200" show-overflow-tooltip>
@@ -1416,6 +1444,20 @@
                   <div class="card-head">
                     <div class="page-card-title mb0">大表治理扫描历史对比留档报告</div>
                     <el-button size="small" @click="loadCompareReports('bigtable')">刷新</el-button>
+                  </div>
+                  <!-- 对比留档报告筛选工具栏 -->
+                  <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:16px;background:var(--bg-subtle,rgba(255,255,255,0.03));padding:12px 14px;border-radius:8px;border:1px solid var(--border-color,#334155)">
+                    <el-select v-model="cmpState.reportFilters.connection_id" placeholder="数据库实例" clearable filterable size="small" style="width:200px" @change="cmpReportQuery('bigtable')">
+                      <el-option v-for="c in savedConnections" :key="c.id" :value="c.id" :label="c.name"></el-option>
+                    </el-select>
+                    <el-input v-model="cmpState.reportFilters.db_name" placeholder="目标库名" clearable size="small" style="width:140px" @keyup.enter="cmpReportQuery('bigtable')" @clear="cmpReportQuery('bigtable')"></el-input>
+                    <el-input v-model="cmpState.reportFilters.keyword" placeholder="搜索报告标题 / 留档人..." clearable size="small" style="width:220px" @keyup.enter="cmpReportQuery('bigtable')" @clear="cmpReportQuery('bigtable')">
+                      <template #prefix><el-icon><Search /></el-icon></template>
+                    </el-input>
+                    <el-date-picker v-model="cmpState.reportFilters.date_from" type="date" value-format="YYYY-MM-DD" placeholder="开始日期" size="small" style="width:140px" @change="cmpReportQuery('bigtable')"></el-date-picker>
+                    <el-date-picker v-model="cmpState.reportFilters.date_to" type="date" value-format="YYYY-MM-DD" placeholder="结束日期" size="small" style="width:140px" @change="cmpReportQuery('bigtable')"></el-date-picker>
+                    <el-button type="primary" size="small" @click="cmpReportQuery('bigtable')">查询</el-button>
+                    <el-button size="small" @click="cmpReportResetFilters('bigtable')">重置</el-button>
                   </div>
                   <el-table :data="cmpState.reports" v-loading="cmpState.reportsLoading" stripe size="small" class="w-full" empty-text="暂无留档对比报告">
                     <el-table-column prop="title" label="报告名称" show-overflow-tooltip></el-table-column>
