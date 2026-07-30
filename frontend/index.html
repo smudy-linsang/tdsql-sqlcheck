@@ -1046,7 +1046,7 @@
                     <el-select v-model="cmpState.filters.connection_id" placeholder="数据库实例" clearable filterable size="small" class="w-220">
                       <el-option v-for="c in savedConnections" :key="c.id" :value="c.id" :label="c.name"></el-option>
                     </el-select>
-                    <el-input v-model="cmpState.filters.db_name" placeholder="检查范围(库名)" clearable size="small" class="w-140"></el-input>
+                    <el-input v-model="cmpState.filters.db_name" placeholder="库名" clearable size="small" class="w-140"></el-input>
                     <el-date-picker v-model="cmpState.filters.date_from" type="date" value-format="YYYY-MM-DD" placeholder="开始日期" size="small"></el-date-picker>
                     <el-date-picker v-model="cmpState.filters.date_to" type="date" value-format="YYYY-MM-DD" placeholder="结束日期" size="small"></el-date-picker>
                     <el-button type="primary" size="small" @click="cmpQuery('launch_check')">查询</el-button>
@@ -1056,7 +1056,7 @@
                     <el-table-column type="selection" width="40"></el-table-column>
                     <el-table-column label="检查时间" width="160"><template #default="{row}">{{ formatTime(row.scan_finished_at) }}</template></el-table-column>
                     <el-table-column label="实例" show-overflow-tooltip><template #default="{row}">{{ row.connection_name || row.connection_id || '未知实例' }}</template></el-table-column>
-                    <el-table-column label="检查范围" width="130"><template #default="{row}">{{ row.db_name || '-' }}</template></el-table-column>
+                    <el-table-column label="库名" width="130"><template #default="{row}">{{ row.db_name || '-' }}</template></el-table-column>
                     <el-table-column prop="object_total" label="对象数" width="80"></el-table-column>
                     <el-table-column label="问题数" width="150"><template #default="{row}"><span class="t-danger">{{ row.error_count }}</span> / <span class="t-warning">{{ row.warning_count }}</span> <span class="t-secondary">（共 {{ row.issue_total }}）</span></template></el-table-column>
                     <el-table-column label="执行人" width="100"><template #default="{row}">{{ row.created_by || 'system' }}</template></el-table-column>
