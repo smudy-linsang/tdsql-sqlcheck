@@ -291,6 +291,7 @@ def rebuild_snapshots(request: Request, payload: dict):
 
 @router.get("/reports", summary="对比报告留档列表")
 def list_reports(request: Request, module: str = "", connection_id: str = "",
+                 db_name: str = "", keyword: str = "", date_from: str = "", date_to: str = "",
                  limit: int = Query(20, ge=1, le=200), offset: int = Query(0, ge=0)):
     if module:
         _check_module_perm(request, module)
@@ -302,9 +303,23 @@ def list_reports(request: Request, module: str = "", connection_id: str = "",
     if module:
         where.append("module = ?")
         args.append(module)
-    if connection_id:
+    if connection_id and connection_id.strip():
         where.append("connection_id = ?")
-        args.append(connection_id)
+        args.append(connection_id.strip())
+    if db_name and db_name.strip():
+        where.append("db_name LIKE ?")
+        args.append(f"%{db_name.strip()}%")
+    if keyword and keyword.strip():
+        kw = f"%{keyword.strip()}%"
+        where.append("(title LIKE ? OR created_by LIKE ? OR connection_name LIKE ? OR CAST(id AS TEXT) LIKE ?)")
+        args.extend([kw, kw, kw, kw])
+    if date_from and date_from.strip():
+        where.append("created_at >= ?")
+        args.append(date_from.strip() + " 00:00:00")
+    if date_to and date_to.strip():
+        where.append("created_at <= ?")
+        args.append(date_to.strip() + " 23:59:59")
+
     cond = (" WHERE " + " AND ".join(where)) if where else ""
 
     conn = _get_connection()

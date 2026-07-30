@@ -567,6 +567,20 @@
                     <div class="page-card-title mb0">在线元数据对比留档报告</div>
                     <el-button size="small" @click="loadCompareReports('schema_audit')">刷新</el-button>
                   </div>
+                  <!-- 对比留档报告筛选工具栏 -->
+                  <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:16px;background:var(--bg-subtle,rgba(255,255,255,0.03));padding:12px 14px;border-radius:8px;border:1px solid var(--border-color,#334155)">
+                    <el-select v-model="cmpState.reportFilters.connection_id" placeholder="数据库实例" clearable filterable size="small" style="width:200px" @change="cmpReportQuery('schema_audit')">
+                      <el-option v-for="c in savedConnections" :key="c.id" :value="c.id" :label="c.name"></el-option>
+                    </el-select>
+                    <el-input v-model="cmpState.reportFilters.db_name" placeholder="目标库名" clearable size="small" style="width:140px" @keyup.enter="cmpReportQuery('schema_audit')" @clear="cmpReportQuery('schema_audit')"></el-input>
+                    <el-input v-model="cmpState.reportFilters.keyword" placeholder="搜索报告标题 / 留档人..." clearable size="small" style="width:220px" @keyup.enter="cmpReportQuery('schema_audit')" @clear="cmpReportQuery('schema_audit')">
+                      <template #prefix><el-icon><Search /></el-icon></template>
+                    </el-input>
+                    <el-date-picker v-model="cmpState.reportFilters.date_from" type="date" value-format="YYYY-MM-DD" placeholder="开始日期" size="small" style="width:140px" @change="cmpReportQuery('schema_audit')"></el-date-picker>
+                    <el-date-picker v-model="cmpState.reportFilters.date_to" type="date" value-format="YYYY-MM-DD" placeholder="结束日期" size="small" style="width:140px" @change="cmpReportQuery('schema_audit')"></el-date-picker>
+                    <el-button type="primary" size="small" @click="cmpReportQuery('schema_audit')">查询</el-button>
+                    <el-button size="small" @click="cmpReportResetFilters('schema_audit')">重置</el-button>
+                  </div>
                   <el-table :data="cmpState.reports" v-loading="cmpState.reportsLoading" stripe size="small" class="w-full" empty-text="暂无留档对比报告">
                     <el-table-column prop="title" label="报告名称" show-overflow-tooltip></el-table-column>
                     <el-table-column label="实例/库名" width="200" show-overflow-tooltip>
