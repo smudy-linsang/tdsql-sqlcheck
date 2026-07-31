@@ -202,7 +202,7 @@ def safe_create_snapshot(module: str, meta: dict, issues: list,
 
 
 def list_snapshots(module: str = "", connection_id: str = "", db_name: str = "",
-                   date_from: str = "", date_to: str = "",
+                   date_from: str = "", date_to: str = "", data_source: str = "",
                    limit: int = 20, offset: int = 0) -> dict:
     """快照列表查询（不含 snapshot_json）"""
     ensure_db()
@@ -227,6 +227,13 @@ def list_snapshots(module: str = "", connection_id: str = "", db_name: str = "",
     if date_to:
         where.append("DATE(scan_finished_at) <= ?")
         args.append(date_to)
+    if module == "slow_scan" and data_source:
+        where.append("""biz_ref_id IN (
+            SELECT CAST(id AS CHAR) FROM scan_tasks WHERE source = ?
+            UNION
+            SELECT id FROM scan_tasks WHERE source = ?
+        )""")
+        args.extend([data_source, data_source])
     cond = (" WHERE " + " AND ".join(where)) if where else ""
 
     conn = _get_connection()
@@ -241,6 +248,23 @@ def list_snapshots(module: str = "", connection_id: str = "", db_name: str = "",
         items = [_row_to_item(r) for r in rows or []]
     finally:
         conn.close()
+
+    # 补充数据源字段（slow_scan 从 scan_tasks.source 充实）
+    slow_ref_ids = [int(it["biz_ref_id"]) for it in items if it.get("module") == "slow_scan" and str(it.get("biz_ref_id", "")).isdigit()]
+    task_sources = {}
+    if slow_ref_ids:
+        c_conn = _get_connection()
+        try:
+            ph = ",".join(["?"] * len(slow_ref_ids))
+            t_rows = c_conn.execute(f"SELECT id, source FROM scan_tasks WHERE id IN ({ph})", slow_ref_ids).fetchall()
+            task_sources = {str(r["id"]): r["source"] for r in t_rows if r["source"]}
+        except Exception as e:
+            logger.warning(f"查询 scan_tasks.source 失败: {e}")
+        finally:
+            c_conn.close()
+
+    src_labels = {"monitordb": "全网慢SQL", "digest": "性能摘要", "processlist": "实时进程"}
+
     # V1.4：补充尺度名称（rule_set_id 为 NULL 的存量快照名称为空）
     name_map = _rule_set_name_map([it.get("rule_set_id") for it in items])
     from backend.services.connection_registry import registry
@@ -253,6 +277,25 @@ def list_snapshots(module: str = "", connection_id: str = "", db_name: str = "",
                     it["db_name"] = c_info["database"]
             except Exception:
                 pass
+        
+        # 填充 data_source 和 data_source_label
+        if it.get("module") == "slow_scan":
+            src = task_sources.get(str(it.get("biz_ref_id")), "")
+            if not src:
+                lbl = it.get("scan_label") or ""
+                if "digest" in lbl or "摘要" in lbl:
+                    src = "digest"
+                elif "processlist" in lbl or "实时" in lbl:
+                    src = "processlist"
+                else:
+                    src = "monitordb"
+            it["data_source"] = src
+            it["data_source_label"] = src_labels.get(src, src)
+        else:
+            m = it.get("module", "")
+            it["data_source"] = m
+            it["data_source_label"] = {"schema_audit": "库表结构", "bigtable": "大表盘点", "launch_check": "上线检查"}.get(m, "默认")
+
     return {"total": total, "items": items}
 
 

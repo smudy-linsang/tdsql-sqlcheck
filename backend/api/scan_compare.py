@@ -106,18 +106,19 @@ def _raise_compare_error(e: CompareError):
 
 # ── 1. 快照列表 ──
 
-@router.get("/snapshots", summary="扫描快照列表（按实例/库名/时间筛选）")
+@router.get("/snapshots", summary="扫描快照列表（按实例/库名/时间/数据源筛选）")
 def list_snapshots(request: Request, module: str = "", connection_id: str = "",
                    db_name: str = "", date_from: str = "", date_to: str = "",
+                   data_source: str = "",
                    limit: int = Query(20, ge=1, le=200), offset: int = Query(0, ge=0)):
     # module 设为可选参数 + 手动校验，缺失时返回 400 E4006 而非 FastAPI 默认 422
     module = _check_module(module)
     _check_module_perm(request, module)
     data = snapshot_service.list_snapshots(
         module=module, connection_id=connection_id, db_name=db_name,
-        date_from=date_from, date_to=date_to, limit=limit, offset=offset)
+        date_from=date_from, date_to=date_to, data_source=data_source, limit=limit, offset=offset)
     _audit(request, "view_snapshots", "",
-           f"module={module};conn={connection_id};db={db_name};range={date_from}~{date_to}")
+           f"module={module};conn={connection_id};db={db_name};source={data_source};range={date_from}~{date_to}")
     return data
 
 

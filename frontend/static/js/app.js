@@ -32,7 +32,7 @@ const app=createApp({
     applyTheme();
     // ═══ V1.3 扫描结果纵向对比（三模块共用，独立命名域避免污染既有状态）═══
     const cmpState=reactive({
-      module:'', filters:{connection_id:'',db_name:'',date_from:'',date_to:''},
+      module:'', filters:{connection_id:'',db_name:'',date_from:'',date_to:'',data_source:''},
       reportFilters:{connection_id:'',db_name:'',keyword:'',date_from:'',date_to:''},
       list:[], total:0, page:1, pageSize:10, loading:false,
       selected:[], result:null, comparing:false, visible:false, saving:false,
@@ -1138,6 +1138,7 @@ const app=createApp({
         const f=cmpState.filters;
         const qs=new URLSearchParams({module:cmpState.module,connection_id:f.connection_id||'',
           db_name:f.db_name||'',date_from:f.date_from||'',date_to:f.date_to||'',
+          data_source:f.data_source||'',
           limit:cmpState.pageSize,offset:(cmpState.page-1)*cmpState.pageSize});
         const resp=await apiFetch(`${API_BASE}/api/v1/scan-compare/snapshots?${qs}`);
         if(!resp.ok){cmpState.list=[];cmpState.total=0;return}
@@ -1147,8 +1148,8 @@ const app=createApp({
       finally{cmpState.loading=false}
     };
     const cmpQuery=(module)=>{cmpState.page=1;cmpState.selected=[];cmpResetResult();loadSnapshots(module)};
-    const cmpResetFilters=(module)=>{cmpState.filters={connection_id:'',db_name:'',date_from:'',date_to:''};cmpQuery(module)};
-    // 限选两个：超选提示并自动取消最新一条
+    const cmpResetFilters=(module)=>{cmpState.filters={connection_id:'',db_name:'',date_from:'',date_to:'',data_source:''};cmpQuery(module)};
+    // 限选两个：相同实例与相同数据源校验，超选或不匹配自动提示并取消最新勾选
     const onSnapshotSelect=(rows)=>{
       if(rows.length>2){
         ElementPlus.ElMessage.warning('最多只能选择两次扫描结果进行对比');
@@ -1156,10 +1157,46 @@ const app=createApp({
         nextTick(()=>{try{cmpTableRef.value&&cmpTableRef.value.toggleRowSelection(extra,false)}catch(e){}});
         return;
       }
+      if(rows.length===2){
+        const [r1,r2]=rows;
+        const c1=r1.connection_id||r1.connection_name||'';
+        const c2=r2.connection_id||r2.connection_name||'';
+        if(c1&&c2&&c1!==c2){
+          ElementPlus.ElMessage.warning(`实例不一致：仅支持相同实例的历史扫描进行对比（${r1.connection_name||c1} vs ${r2.connection_name||c2}）`);
+          const extra=rows[rows.length-1];
+          nextTick(()=>{try{cmpTableRef.value&&cmpTableRef.value.toggleRowSelection(extra,false)}catch(e){}});
+          return;
+        }
+        const s1=r1.data_source||r1.module||'';
+        const s2=r2.data_source||r2.module||'';
+        if(s1&&s2&&s1!==s2){
+          const l1=r1.data_source_label||s1;
+          const l2=r2.data_source_label||s2;
+          ElementPlus.ElMessage.warning(`数据源不一致：仅支持相同数据源的历史扫描进行对比（${l1} vs ${l2}）`);
+          const extra=rows[rows.length-1];
+          nextTick(()=>{try{cmpTableRef.value&&cmpTableRef.value.toggleRowSelection(extra,false)}catch(e){}});
+          return;
+        }
+      }
       cmpState.selected=rows;
     };
     const runCompare=async()=>{
       if(cmpState.selected.length!==2){ElementPlus.ElMessage.warning('请选择两次扫描结果进行对比');return}
+      const [r1,r2]=cmpState.selected;
+      const c1=r1.connection_id||r1.connection_name||'';
+      const c2=r2.connection_id||r2.connection_name||'';
+      if(c1&&c2&&c1!==c2){
+        ElementPlus.ElMessage.warning(`实例不一致（${r1.connection_name||c1} vs ${r2.connection_name||c2}），无法对比`);
+        return;
+      }
+      const s1=r1.data_source||r1.module||'';
+      const s2=r2.data_source||r2.module||'';
+      if(s1&&s2&&s1!==s2){
+        const l1=r1.data_source_label||s1;
+        const l2=r2.data_source_label||s2;
+        ElementPlus.ElMessage.warning(`数据源不一致（${l1} vs ${l2}），无法对比`);
+        return;
+      }
       cmpState.comparing=true;
       try{
         const resp=await apiFetch(`${API_BASE}/api/v1/scan-compare/compare`,{method:'POST',

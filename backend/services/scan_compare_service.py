@@ -144,6 +144,35 @@ def validate_pair(snapshot_ids, module: str = "") -> tuple[dict, dict, list]:
                 f"问题数变化不可比，已拒绝对比。请选择检查范围相同的两次结果。",
                 status=409)
 
+    # 9. 慢SQL扫描：数据源必须一致（monitordb / digest / processlist）
+    if s1.get("module") == "slow_scan":
+        def _get_src(s):
+            b_id = str(s.get("biz_ref_id", ""))
+            if b_id.isdigit():
+                try:
+                    conn = snapshot_service._get_connection()
+                    row = conn.execute("SELECT source FROM scan_tasks WHERE id = ?", (int(b_id),)).fetchone()
+                    conn.close()
+                    if row and row["source"]:
+                        return row["source"]
+                except Exception:
+                    pass
+            lbl = s.get("scan_label") or ""
+            if "digest" in lbl or "摘要" in lbl:
+                return "digest"
+            if "processlist" in lbl or "实时" in lbl:
+                return "processlist"
+            return "monitordb"
+
+        src1, src2 = _get_src(s1), _get_src(s2)
+        if src1 != src2:
+            src_names = {"monitordb": "全网慢SQL", "digest": "性能摘要", "processlist": "实时进程"}
+            l1, l2 = src_names.get(src1, src1), src_names.get(src2, src2)
+            raise CompareError(
+                "E4009",
+                f"两次扫描的数据源不同（{l1} vs {l2}），不同数据源的历史数据不可对比",
+                status=400)
+
     # 基准判定：时间早的为 base，与勾选顺序无关
     base, target = sorted([s1, s2], key=lambda s: (s.get("scan_finished_at") or "", s.get("id")))
 
