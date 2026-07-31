@@ -74,6 +74,11 @@ def login():
 # 阶段 1：建表灌数
 # ────────────────────────────────────────────────────────────
 def connect(inst):
+    if not inst["password"]:
+        raise RuntimeError(
+            "Missing pressure-test credentials. Set SQLCHECK_PRESSURE_DIST_PASSWORD "
+            "and SQLCHECK_PRESSURE_CENT_PASSWORD before running this script."
+        )
     return pymysql.connect(host=inst["host"], port=inst["port"], user=inst["user"],
                            password=inst["password"], database=inst["database"],
                            connect_timeout=10, charset="utf8mb4", autocommit=True)
