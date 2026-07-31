@@ -53,6 +53,8 @@ Thumbs.db
 
 # Debug/temp scripts
 _debug_*.py
+scratch/
+tests/pressure_test/_*
 
 # Qoder IDE
 .qoder/
