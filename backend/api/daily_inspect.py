@@ -1,5 +1,6 @@
 """M3 · G4 每日巡检 + 趋势与对比分析 API"""
 import asyncio
+import secrets
 from fastapi import APIRouter, HTTPException, Response, Query
 from pydantic import BaseModel, Field
 from typing import Optional, List as TypedList
@@ -8,6 +9,22 @@ from backend.services import daily_inspect_service as svc
 from backend.services.connection_registry import registry, ConnectionNotFoundError
 
 router = APIRouter(prefix="/api/v1/daily-inspect", tags=["每日巡检与趋势"])
+
+# 比对大屏是含内联 <script> 的独立 HTML 报告。全局 CSP 只放行 index.html 主题
+# 脚本的固定哈希，会拦截本报告的内联脚本导致页面空白；故按请求生成 nonce，
+# 注入 <script nonce=...> 并配套下发 CSP——既放行本报告脚本，又保持对注入脚本的拦截。
+# 保留 'unsafe-eval'：与全局 CSP 一致（本页为原生 JS，不依赖 eval，保留为与基线一致）。
+_REPORT_CSP = (
+    "default-src 'self'; "
+    "script-src 'self' 'unsafe-eval' 'unsafe-inline' 'nonce-{nonce}'; "
+    "style-src 'self' 'unsafe-inline'; "
+    "img-src 'self' data: blob:; "
+    "font-src 'self' data:; "
+    "connect-src 'self'; "
+    "frame-ancestors 'none'; "
+    "base-uri 'self'; "
+    "form-action 'self'"
+)
 
 
 class DailyRequest(BaseModel):
@@ -86,7 +103,11 @@ def compare_html(connection_id: str = "",
         return Response(content="<h3>错误: 对比日期数不能小于2个</h3>", media_type="text/html")
 
     try:
-        html_content = svc.generate_comparison_html_report(connection_id, date_list, threshold_multiplier)
-        return Response(content=html_content, media_type="text/html")
+        nonce = secrets.token_urlsafe(16)
+        html_content = svc.generate_comparison_html_report(
+            connection_id, date_list, threshold_multiplier, script_nonce=nonce)
+        return Response(
+            content=html_content, media_type="text/html",
+            headers={"Content-Security-Policy": _REPORT_CSP.format(nonce=nonce)})
     except Exception as e:
         return Response(content=f"<h3>比对报告生成失败: {e}</h3>", media_type="text/html")

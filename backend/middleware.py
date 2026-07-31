@@ -15,7 +15,7 @@ import uuid
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, Response
 
 from backend import config
 from backend.services import metrics_service
@@ -160,6 +160,12 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
         payload = verify_token(token)
         if not payload:
+            if path.endswith("/html"):
+                return Response(
+                    content="<div style='font-family:sans-serif;padding:40px;text-align:center;'><h2>⚠️ 登录凭证已失效或无效</h2><p style='color:#666'>请返回主系统界面重新登录后，再次点击“导出HTML比对大屏”。</p></div>",
+                    media_type="text/html; charset=utf-8",
+                    status_code=401
+                )
             return JSONResponse(
                 status_code=401,
                 content={"code": 401, "message": "未认证或令牌已过期，请重新登录"})
@@ -167,6 +173,12 @@ class AuthMiddleware(BaseHTTPMiddleware):
         username = payload.get("sub", "")
         user = auth_service.get_user(username)
         if not user or user.get("status") != "active":
+            if path.endswith("/html"):
+                return Response(
+                    content="<div style='font-family:sans-serif;padding:40px;text-align:center;'><h2>⚠️ 账户不存在或已被禁用</h2></div>",
+                    media_type="text/html; charset=utf-8",
+                    status_code=401
+                )
             return JSONResponse(
                 status_code=401,
                 content={"code": 401, "message": "账户不存在或已禁用"})
@@ -175,6 +187,12 @@ class AuthMiddleware(BaseHTTPMiddleware):
         # 放在此处而非 verify_token 内，是因为 user 已在上一步取到（带短TTL缓存），
         # 避免为每个请求额外增加一次元数据库查询。
         if int(payload.get("tv", 0)) != int(user.get("token_version", 0) or 0):
+            if path.endswith("/html"):
+                return Response(
+                    content="<div style='font-family:sans-serif;padding:40px;text-align:center;'><h2>⚠️ 会话已失效</h2><p style='color:#666'>请重新登录后再次生成报告。</p></div>",
+                    media_type="text/html; charset=utf-8",
+                    status_code=401
+                )
             return JSONResponse(
                 status_code=401,
                 content={"code": 401, "message": "会话已失效，请重新登录"})
