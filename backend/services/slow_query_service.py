@@ -308,11 +308,16 @@ class SlowQueryService:
             processed_sql = re.sub(r"\bLIMIT\s+\?", "LIMIT 100", processed_sql, flags=re.IGNORECASE)
             # 2. 替换 BETWEEN ? AND ?
             processed_sql = re.sub(r"\bBETWEEN\s+\?\s+AND\s+\?", "BETWEEN 1 AND 100", processed_sql, flags=re.IGNORECASE)
-            # 3. 替换表达式/函数连接处的 ? (如 length(a)?length(b) -> length(a) + length(b))
-            processed_sql = re.sub(r"(?<=\)|\w)\s*\?\s*(?=\w|\()", " + ", processed_sql)
-            # 4. 替换比较/赋值/参数列表处的 ?
+            # 3. 移除 SQL 子句关键字（FROM/WHERE/GROUP/HAVING/ORDER/LIMIT等）前或闭括号后冗余的 ?
+            clause_keywords = r"\b(?:FROM|WHERE|GROUP|HAVING|ORDER|LIMIT|SET|JOIN|ON|UNION|INTO|VALUES)\b"
+            processed_sql = re.sub(r"\?\s*(?=" + clause_keywords + r")", "", processed_sql, flags=re.IGNORECASE)
+            # 4. 替换表达式/函数连接处的 ? (如 length(a)?length(b) 或 )?length(b) -> + )
+            processed_sql = re.sub(r"(?<=\)|\w)\s*\?\s*(?=(?:(?!" + clause_keywords + r")\w|\())", " + ", processed_sql, flags=re.IGNORECASE)
+            # 5. 替换比较/赋值/参数列表处的 ?
             processed_sql = re.sub(r"(?<=[=><,(\s])\?(?=[,)\s]|$)", "'1'", processed_sql)
-            # 5. 兜底替换任何未引用的 ?
+            # 6. 清理紧跟在 ) 后未匹配到的冗余 ?
+            processed_sql = re.sub(r"(?<=\))\s*\?\s*", " ", processed_sql)
+            # 7. 兜底替换任何非引号包裹的剩余 ?
             processed_sql = re.sub(r"(?<!['\"])\?(?!['\"])", "'1'", processed_sql)
 
         # 执行 EXPLAIN
