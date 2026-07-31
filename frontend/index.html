@@ -938,7 +938,7 @@
           <el-drawer v-model="slowDetailDrawer" title="慢SQL详情" size="50%">
             <template v-if="slowDetail">
               <el-descriptions :column="2" border class="mb-16">
-                <el-descriptions-item label="SQL指纹"><span class="sql-block">{{ slowDetail.fingerprint }}</span></el-descriptions-item>
+                <el-descriptions-item label="SQL指纹" :span="2"><div class="sql-block">{{ slowDetail.fingerprint }}</div></el-descriptions-item>
                 <el-descriptions-item label="级别"><el-tag :type="sevTagType(slowDetail.severity)" size="small">{{ slowDetail.severity }}</el-tag></el-descriptions-item>
                 <el-descriptions-item label="平均耗时">{{ slowDetail.avg_time_ms }} ms</el-descriptions-item>
                 <el-descriptions-item label="执行次数">{{ slowDetail.exec_count }}</el-descriptions-item>

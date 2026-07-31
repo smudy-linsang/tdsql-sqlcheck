@@ -294,12 +294,23 @@ class SlowQueryService:
         # 注册连接（如果尚未活跃则自动建连）
         pool = registry.register(connection_id, cfg, validate=True)
 
-        # 预处理SQL：将 ? 占位符替换为示例值（EXPLAIN不支持参数占位符）
-        # ? 在指纹SQL中代表参数值位置，EXPLAIN只需要执行计划，值不影响结果
+        # 预处理SQL：将 ? 占位符归一化为合法可执行 SQL（EXPLAIN 不支持参数占位符）
         processed_sql = sql.strip().rstrip(';')
+        if processed_sql.upper().startswith("EXPLAIN "):
+            processed_sql = processed_sql[8:].strip()
         if '?' in processed_sql:
-            # 将独立的 ? 替换为 '1'（引号包裹，兼容字符串和数字上下文）
-            processed_sql = re.sub(r"(?<!['\"\w])\?(?!['\"\w])", "'1'", processed_sql)
+            # 1. 替换 LIMIT / OFFSET 中的 ? 为合法数值
+            processed_sql = re.sub(r"\bLIMIT\s+\?\s*,\s*\?", "LIMIT 0, 100", processed_sql, flags=re.IGNORECASE)
+            processed_sql = re.sub(r"\bLIMIT\s+\?\s+OFFSET\s+\?", "LIMIT 100 OFFSET 0", processed_sql, flags=re.IGNORECASE)
+            processed_sql = re.sub(r"\bLIMIT\s+\?", "LIMIT 100", processed_sql, flags=re.IGNORECASE)
+            # 2. 替换 BETWEEN ? AND ?
+            processed_sql = re.sub(r"\bBETWEEN\s+\?\s+AND\s+\?", "BETWEEN 1 AND 100", processed_sql, flags=re.IGNORECASE)
+            # 3. 替换表达式/函数连接处的 ? (如 length(a)?length(b) -> length(a) + length(b))
+            processed_sql = re.sub(r"(?<=\)|\w)\s*\?\s*(?=\w|\()", " + ", processed_sql)
+            # 4. 替换比较/赋值/参数列表处的 ?
+            processed_sql = re.sub(r"(?<=[=><,(\s])\?(?=[,)\s]|$)", "'1'", processed_sql)
+            # 5. 兜底替换任何未引用的 ?
+            processed_sql = re.sub(r"(?<!['\"])\?(?!['\"])", "'1'", processed_sql)
 
         # 执行 EXPLAIN
         explain_sql = f"EXPLAIN {processed_sql}"
