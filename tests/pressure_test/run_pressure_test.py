@@ -233,6 +233,14 @@ def verify(inst, scan_body, source="digest"):
     fetched = scan_body.get("fetched", 0)
     task_id = scan_body.get("scan_task_id")
 
+    # errors 通道自证：v1.5.2.3 起 monitordb 空结果诊断经该通道透出。
+    # 非空即打印，使同类问题当场自证；有 errors 视为不通过（健康扫描应为空）。
+    errors = scan_body.get("errors") or []
+    if errors:
+        for e in errors:
+            print(f"    [INFO] 扫描返回 errors: {e}")
+        failed.append(f"扫描返回非空 errors（共 {len(errors)} 条，已打印）")
+
     if fetched > 0:
         passed.append(f"扫描抓取到 {fetched} 条慢SQL（fetched>0）")
     else:
