@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import os
 """压力测试目标实例配置
 
 两个云上 TDSQL 实例（开发环境）。凭据仅用于开发/测试环境压测，
@@ -9,7 +10,6 @@
 API_BASE = "http://127.0.0.1:8000"
 API_USER = "admin"
 API_PASSWORD = "Admin@1234"
-
 # 已在实例管理注册的连接 ID（用于触发扫描任务）
 DIST_CONN_ID = "5ea70d74"   # SIT-分布式实例A
 CENT_CONN_ID = "f9ebc77a"   # SIT-集中式实例A
@@ -21,7 +21,7 @@ INSTANCES = {
         "host": "119.45.220.89",
         "port": 15005,
         "user": "tdsql_check_user",
-        "password": "Abcd@!#1234",
+        "password": os.getenv("SQLCHECK_PRESSURE_DIST_PASSWORD"),
         "database": "tdsql_check",
         "type": "distributed",
     },
@@ -30,7 +30,7 @@ INSTANCES = {
         "host": "119.45.220.89",
         "port": 15002,
         "user": "tdsql_check_user",
-        "password": "Abcd1234@!#",
+        "password": os.getenv("SQLCHECK_PRESSURE_CENT_PASSWORD"),
         "database": "tdsql_check2",
         "type": "centralized",
     },
