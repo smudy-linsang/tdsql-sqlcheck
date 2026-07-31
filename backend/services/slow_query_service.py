@@ -330,9 +330,13 @@ class SlowQueryService:
         processed_sql = re.sub(r",\s*`?\w+`?\s*\.?\s*$", "", processed_sql)
         processed_sql = processed_sql.rstrip(',').strip()
 
-        # 7. 清除内置函数与左括号之间的多余空格及误加的反引号 (例: `NOW` ( ) -> NOW(), `CONNECTION_ID` ( ) -> CONNECTION_ID(), LEFT ( -> LEFT( )
+        # 7. 零参数系统内置函数补全 (例: SYSTEM_USER, USER, DATABASE, VERSION 当它们单独出现且非反引号包裹时，自动转为函数调用 SYSTEM_USER())
+        zero_arg_funcs = r"\b(SYSTEM_USER|SESSION_USER|USER|DATABASE|VERSION|CONNECTION_ID)\b"
+        processed_sql = re.sub(zero_arg_funcs + r"\s*(?!\(|\`)", r"\1()", processed_sql, flags=re.IGNORECASE)
+
+        # 8. 清除内置函数与左括号之间的多余空格及误加的反引号 (例: `NOW` ( ) -> NOW(), `CONNECTION_ID` ( ) -> CONNECTION_ID(), LEFT ( -> LEFT( )
         builtin_funcs = r"\b(COUNT|SUM|AVG|MIN|MAX|LENGTH|CHAR_LENGTH|COALESCE|CONCAT|SUBSTR|SUBSTRING|SUBSTRING_INDEX|DATE_FORMAT|IFNULL|NULLIF|ROUND|CEIL|FLOOR|ABS|IF|NOW|CONNECTION_ID|TIMESTAMPDIFF|DATEDIFF|DATE_ADD|DATE_SUB|LEFT|RIGHT|TRIM|LTRIM|RTRIM|LOWER|UPPER|DATABASE|USER|SYSTEM_USER|SESSION_USER|VERSION)\b"
-        processed_sql = re.sub(r"`" + builtin_funcs + r"`", r"\1", processed_sql, flags=re.IGNORECASE)
+        processed_sql = re.sub(r"`(" + builtin_funcs + r")`\s*\(", r"\1(", processed_sql, flags=re.IGNORECASE)
         processed_sql = re.sub(builtin_funcs + r"\s+\(", r"\1(", processed_sql, flags=re.IGNORECASE)
 
         if '?' in processed_sql:
