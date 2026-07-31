@@ -261,14 +261,14 @@
 :root[data-theme="dark"]::-webkit-scrollbar-track, :root[data-theme="dark"] ::-webkit-scrollbar-track { background: var(--bg-main); }
 :root[data-theme="dark"]::-webkit-scrollbar-thumb, :root[data-theme="dark"] ::-webkit-scrollbar-thumb { background: #24365f; border-radius: 4px; }
 :root[data-theme="dark"]::-webkit-scrollbar-thumb:hover, :root[data-theme="dark"] ::-webkit-scrollbar-thumb:hover { background: var(--c-accent); }
-/* ── 12. 高密度：整体略收紧留白，信息密度↑（银行运维风） ── */
-:root[data-theme="dark"] .page-content { padding: 14px 16px; }
-:root[data-theme="dark"] .page-card { padding: 14px 16px; margin-bottom: 12px; }
-:root[data-theme="dark"] .page-card-title { font-size: 15px; margin-bottom: 12px; }
-:root[data-theme="dark"] .breadcrumb-bar { padding: 8px 16px; }
-:root[data-theme="dark"] .el-table th.el-table__cell, :root[data-theme="dark"] .el-table td.el-table__cell { padding-top: 6px; padding-bottom: 6px; }
-:root[data-theme="dark"] .el-table { font-size: 12.5px; }
-:root[data-theme="dark"] .el-descriptions__cell { padding: 8px 11px !important; }
+/* ── 12. 统一高密度布局间架（深/浅双主题使用完全一致的间距与字号，无抖动撕裂感） ── */
+.page-content { padding: 14px 16px; }
+.page-card { padding: 14px 16px; margin-bottom: 12px; }
+.page-card-title { font-size: 15px; margin-bottom: 12px; }
+.breadcrumb-bar { padding: 8px 16px; }
+.el-table th.el-table__cell, .el-table td.el-table__cell { padding-top: 6px; padding-bottom: 6px; }
+.el-table { font-size: 12.5px; }
+.el-descriptions__cell { padding: 8px 11px !important; }
 
 /* ── 13. 主题切换（登录页浮动开关）深色配色 ── */
 :root[data-theme="dark"] .login-theme-toggle { background: rgba(56,189,248,.10); border-color: rgba(56,189,248,.30); color: var(--text-sky); }
