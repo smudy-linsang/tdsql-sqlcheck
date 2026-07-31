@@ -117,6 +117,12 @@ def _do_scan(pool, connection_id: str, source: str, limit: int, min_time: float,
                 time_start=time_window_start or None,
                 time_end=time_window_end or None,
                 database=db_name or None)
+            # 时间窗查空时把诊断透给前端：空结果与"这段时间没有慢SQL"外观完全
+            # 相同，不加解释使用者会得出错误结论（timestramp 是采集时刻，
+            # 受赤兔采集周期影响，详见 get_cluster_slow_queries）。
+            _diag = getattr(pool, "_last_window_diagnosis", "")
+            if not raw_queries and _diag:
+                errors.append({"source": "monitordb", "error": _diag})
         elif source == "digest":
             # 注意: TDSQL Proxy的performance_schema不支持FIRST_SEEN/LAST_SEEN时间过滤，
             # 时间窗口仅作为扫描任务元数据记录，不传入SQL查询。

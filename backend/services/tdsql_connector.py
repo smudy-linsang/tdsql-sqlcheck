@@ -1019,10 +1019,11 @@ class TDSQLConnectionPool:
               AND {db_col} IS NOT NULL
         """
         params = []
+        window_applied = False       # 是否真正应用了时间窗（空结果诊断用）
         if "timestramp" in cols:
             ts_type = col_types.get("timestramp", "")
             is_numeric_ts = any(t in ts_type for t in ("int", "bigint", "double", "decimal", "float"))
-            
+
             if is_numeric_ts:
                 # 探测数值时间戳是秒还是毫秒
                 is_ms = False
@@ -1032,43 +1033,63 @@ class TDSQLConnectionPool:
                         f"SELECT timestramp FROM {db}.proxy_classes_analysis "
                         f"WHERE timestramp IS NOT NULL LIMIT 1"
                     )
-                    if sample and sample[0]["timestramp"]:
+                    # 用 is not None：值为 0 时旧写法会被判假，误按秒处理
+                    if sample and sample[0].get("timestramp") is not None:
                         val = float(sample[0]["timestramp"])
                         if val > 5000000000:  # 大于2128年的秒数，大概率为毫秒级别时间戳
                             is_ms = True
                 except Exception as ex:
                     logger.debug(f"探测timestramp数值单位失败: {ex}")
-                
+
                 from datetime import datetime
+
+                def _to_epoch(text):
+                    """时间文本 → epoch。解析失败返回 None（调用方跳过该侧过滤）。
+
+                    【不得回退成把原始字符串塞给数值列比较】——
+                    MySQL 会把 '2026-07-29 10:00:00' 隐式转成前导整数 2026，
+                    于是 `timestramp < 2026` 匹配零行，结果被静默清空且不报错。
+                    宁可不过滤（多取一些）也不能悄悄返回空集。
+                    """
+                    for f in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S",
+                              "%Y-%m-%d %H:%M", "%Y-%m-%d"):
+                        try:
+                            ts = int(datetime.strptime(text, f).timestamp())
+                            return ts * 1000 if is_ms else ts
+                        except ValueError:
+                            continue
+                    return None
+
                 if time_start:
-                    try:
-                        dt = datetime.strptime(time_start, "%Y-%m-%d %H:%M:%S")
-                        ts = int(dt.timestamp())
-                        if is_ms:
-                            ts *= 1000
+                    ts = _to_epoch(time_start)
+                    if ts is None:
+                        logger.warning(
+                            "monitordb 时间窗起点无法解析(%r)，本次不按起点过滤；"
+                            "期望格式 YYYY-MM-DD HH:MM:SS", time_start)
+                    else:
                         sql += " AND timestramp >= %s"
                         params.append(ts)
-                    except Exception:
-                        sql += " AND timestramp >= %s"
-                        params.append(time_start)
+                        window_applied = True
                 if time_end:
-                    try:
-                        dt = datetime.strptime(time_end, "%Y-%m-%d %H:%M:%S")
-                        ts = int(dt.timestamp())
-                        if is_ms:
-                            ts *= 1000
+                    ts = _to_epoch(time_end)
+                    if ts is None:
+                        logger.warning(
+                            "monitordb 时间窗终点无法解析(%r)，本次不按终点过滤；"
+                            "期望格式 YYYY-MM-DD HH:MM:SS", time_end)
+                    else:
                         sql += " AND timestramp < %s"
                         params.append(ts)
-                    except Exception:
-                        sql += " AND timestramp < %s"
-                        params.append(time_end)
+                        window_applied = True
             else:
+                # timestamp/datetime 列：直接传日期时间字符串，由 MySQL 按会话时区解析
                 if time_start:
                     sql += " AND timestramp >= %s"
                     params.append(time_start)
+                    window_applied = True
                 if time_end:
                     sql += " AND timestramp < %s"
                     params.append(time_end)
+                    window_applied = True
         if database:
             sql += f" AND {db_col} = %s"
             params.append(database)
@@ -1102,6 +1123,20 @@ class TDSQLConnectionPool:
         params.append(int(limit))
 
         rows = self._monitor_execute(sql, tuple(params))
+
+        # 空结果 + 用了时间窗 → 做一次诊断，把"为什么空"讲清楚。
+        # timestramp 是【采集时刻】而非执行时刻（见本方法 docstring 与
+        # docs/TDSQL性能诊断平台升级_详细设计说明书.md §31）：赤兔采集器周期性
+        # 汇聚慢SQL入库，刚跑完的慢SQL要等下一个采集周期才会出现。用户选"近1小时"
+        # 时若采集延迟大于窗口，结果就是空 —— 而空结果看起来和"这段时间没有慢SQL"
+        # 完全一样。不给解释，使用者会得出错误结论。
+        self._last_window_diagnosis = ""
+        if not rows and window_applied:
+            self._last_window_diagnosis = self._diagnose_empty_window(
+                db_col, database, time_start, time_end)
+            if self._last_window_diagnosis:
+                logger.warning("monitordb 时间窗查询无结果：%s", self._last_window_diagnosis)
+
         # 归一化 fingerprint 文本仅用于展示（去空格/去末尾分号/括号归一），不改变去重
         for r in rows:
             ft = r.get("DIGEST_TEXT")
@@ -1109,6 +1144,42 @@ class TDSQLConnectionPool:
                 r["DIGEST_TEXT"] = self._normalize_fingerprint(ft)
             r["no_index_count"] = 0  # monitordb 无此维度，占位保持键一致
         return rows
+
+    def _diagnose_empty_window(self, db_col: str, database: str = None,
+                               time_start: str = None, time_end: str = None) -> str:
+        """时间窗查询为空时，探测 monitordb 实际有数据的采集时刻范围。
+
+        返回一句可执行的说明；探测本身失败则返回空串（诊断绝不能反过来
+        影响扫描主流程）。
+        """
+        db = self.config.monitor_db or "tdsqlpcloud_monitor"
+        try:
+            sql = (f"SELECT COUNT(*) AS total, MIN(timestramp) AS min_ts, "
+                   f"MAX(timestramp) AS max_ts "
+                   f"FROM {db}.proxy_classes_analysis "
+                   f"WHERE {db_col} IS NOT NULL")
+            args = []
+            if database:
+                sql += f" AND {db_col} = %s"
+                args.append(database)
+            r = self._monitor_execute(sql, tuple(args))
+            if not r:
+                return ""
+            d = r[0]
+            total = int(d.get("total") or 0)
+            if total == 0:
+                scope = f"库 {database} " if database else ""
+                return (f"monitordb 中{scope}尚无任何慢SQL采集记录，"
+                        f"与所选时间窗无关；请确认赤兔采集器已开启并已完成首次采集。")
+            return (f"所选时间窗（{time_start} ~ {time_end}）内无采集记录；"
+                    f"该库现有 {total} 条记录，采集时刻范围为 "
+                    f"{d.get('min_ts')} ~ {d.get('max_ts')}。"
+                    f"注意时间窗过滤的是【采集时刻】而非SQL执行时刻，"
+                    f"赤兔采集器有汇聚周期，刚执行的慢SQL需等下一轮采集才会入库——"
+                    f"请放宽时间窗或改用 digest 数据源。")
+        except Exception as e:
+            logger.debug("monitordb 空窗诊断失败: %s", e)
+            return ""
 
     @staticmethod
     def _normalize_fingerprint(s: str) -> str:
