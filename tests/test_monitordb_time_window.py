@@ -14,6 +14,9 @@
 
 本文件锁定修复后的行为。
 """
+import pathlib
+import re
+
 import pytest
 
 from backend.services.tdsql_connector import TDSQLConnectionPool
@@ -185,3 +188,42 @@ def test_diagnosis_failure_does_not_break_scan():
                                       time_start=WINDOW[0], time_end=WINDOW[1])
     assert rows == []
     assert p._last_window_diagnosis == ""
+
+
+# ── UI 事前提示（L-04）─────────────────────────────────────────
+#
+# 空结果诊断是【事后】解释，只在查空时才出现；三种数据源的时间窗语义都不是
+# "这段时间执行的慢SQL"，不写在界面上使用者根本无从知道。这里锁定事前提示
+# 存在，防止后续重构把它删掉又退回到"看到 0 条就以为没有慢SQL"。
+
+_INDEX_HTML = pathlib.Path(__file__).resolve().parents[1] / "frontend" / "index.html"
+
+
+def _scan_drawer_html() -> str:
+    html = _INDEX_HTML.read_text(encoding="utf-8")
+    start = html.index('title="新建扫描任务"')
+    end = html.index("</el-drawer>", start)
+    return html[start:end]
+
+
+def test_time_window_has_per_source_note():
+    """三种数据源各有一条常驻说明，且互斥渲染（v-if/v-else-if/v-else）"""
+    drawer = _scan_drawer_html()
+    assert "form-note" in drawer, "时间窗口缺少常驻说明"
+    note = drawer[drawer.index("form-note"):drawer.index("</el-form-item>", drawer.index("form-note"))]
+    assert "采集时刻" in note, "monitordb 未说明过滤的是采集时刻"
+    assert re.search(r"v-if=\"scanTaskForm\.source==='monitordb'\"", note)
+    assert re.search(r"v-else-if=\"scanTaskForm\.source==='digest'\"", note)
+    assert "v-else>" in note, "processlist 分支缺失（三条说明会同时显示）"
+
+
+def test_time_window_tooltip_covers_all_three_sources():
+    """tooltip 详解必须三种源都讲到，且点明各自真正过滤的东西"""
+    drawer = _scan_drawer_html()
+    assert "tip-block" in drawer, "时间窗口缺少 tooltip 详解"
+    tip = drawer[drawer.index("tip-block"):drawer.index("</el-tooltip>", drawer.index("tip-block"))]
+    for kw in ("monitordb", "digest", "processlist",
+               "采集入库的时刻",      # monitordb：采集时刻而非执行时刻
+               "不参与查询过滤",      # digest：窗口只是任务元数据
+               "轮询时长"):           # processlist：范围由轮询参数决定
+        assert kw in tip, f"tooltip 缺少关键说明: {kw}"
