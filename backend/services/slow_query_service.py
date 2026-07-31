@@ -345,14 +345,20 @@ class SlowQueryService:
             processed_sql = re.sub(r"\bBETWEEN\s+\?\s+AND\s+\?", "BETWEEN 1 AND 100", processed_sql, flags=re.IGNORECASE)
             # 11. 移除 SQL 子句关键字（FROM/WHERE/GROUP/HAVING/ORDER/LIMIT等）前或闭括号后冗余的 ?
             clause_keywords = r"\b(?:FROM|WHERE|GROUP|HAVING|ORDER|LIMIT|SET|JOIN|ON|UNION|INTO|VALUES)\b"
-            processed_sql = re.sub(r"\?\s*(?=" + clause_keywords + r")", "", processed_sql, flags=re.IGNORECASE)
-            # 12. 替换表达式/函数/括号连接处的 ? (如 length(a)?length(b) 或 )?length(b) 或 ) ? ? -> + )
+            # 11. 替换紧跟在比较/算术/二元运算符（如 =, >, <, >=, <=, !=, <>, /, *, +, -, LIKE）后的 ? 为字面量 '1'
+            processed_sql = re.sub(r"(?<=[=><\/\|\*\+\-\%\,])\s*\?\s*", " '1' ", processed_sql)
+            # 12. 仅当 ? 前面是闭括号 ) 且后面紧跟 SQL 子句关键字（如 ORDER BY / GROUP BY / FROM）时，剥离冗余 ?
+            processed_sql = re.sub(r"(?<=\))\s*\?\s*(?=" + clause_keywords + r")", "", processed_sql, flags=re.IGNORECASE)
+            # 13. 替换连续出现的问号 (如 ? ? 或 ? ? ?) 为带运算符的表达式 (如 ? + ?)
+            while re.search(r"\?\s+\?", processed_sql):
+                processed_sql = re.sub(r"\?\s+\?", "? + ?", processed_sql)
+            # 14. 替换表达式/函数/括号连接处的 ? (如 length(a)?length(b) 或 )?length(b) 或 ) ? ? -> + )
             processed_sql = re.sub(r"(?<=\)|\w)\s*\?\s*(?=(?:(?!" + clause_keywords + r")[\w\(\?]))", " + ", processed_sql, flags=re.IGNORECASE)
-            # 13. 替换比较/赋值/参数列表/运算符后的 ?
+            # 15. 替换比较/赋值/参数列表/运算符后的 ?
             processed_sql = re.sub(r"(?<=[=><,(\s\+])\?(?=[,)\s\+]|$)", "'1'", processed_sql)
-            # 14. 清理紧跟在 ) 后未匹配到的冗余 ?
+            # 16. 清理紧跟在 ) 后未匹配到的冗余 ?
             processed_sql = re.sub(r"(?<=\))\s*\?\s*", " ", processed_sql)
-            # 15. 兜底替换任何非引号包裹的剩余 ?
+            # 17. 兜底替换任何非引号包裹的剩余 ?
             processed_sql = re.sub(r"(?<!['\"])\?(?!['\"])", "'1'", processed_sql)
 
         # 16. 平衡未匹配的括号 (修复因摘要截断造成的括号数量不匹配)
