@@ -368,24 +368,29 @@ def init_db():
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         """)
 
-        # 检查是否需要迁移旧版表
-        _migrate_old_tables(conn)
-
         # 创建所有表（IF NOT EXISTS确保幂等）
         _create_all_tables(conn)
+
+        # v1.2 增量 Schema 迁移文件加载。
+        # 必须先于 _migrate_old_tables：scan_snapshots 等表只由 v2+ 脚本创建，
+        # 若补列先跑，这些表的增量列（如 rule_set_id）在首次启动会被守卫跳过。
+        try:
+            from backend.schema.migrator import migrator
+            migrator.run_migrations()
+        except Exception as me:
+            logger.warning(f"Schema 增量迁移执行提示: {me}")
+
+        # 旧版表增量补列：必须在建表与脚本迁移之后。
+        # v1.5.2.4 P1-02：原先放在建表之前，全新安装时 table_names 快照为空，
+        # 所有 `if "<表>" in table_names` 守卫为假，6 列被整体跳过，
+        # 首次登录改密即 500（Unknown column 'token_version'）。
+        _migrate_old_tables(conn)
 
         # 初始化默认数据
         _init_default_data(conn)
 
         conn.commit()
         logger.info("数据库初始化完成 (V2.0, MySQL)")
-
-        # v1.2 增量 Schema 迁移文件加载
-        try:
-            from backend.schema.migrator import migrator
-            migrator.run_migrations()
-        except Exception as me:
-            logger.warning(f"Schema 增量迁移执行提示: {me}")
     except Exception as e:
         logger.error(f"数据库初始化失败: {e}")
         raise
@@ -737,11 +742,14 @@ def _create_all_tables(conn):
             top_violations      TEXT,
             results_summary     TEXT,
             created_by          VARCHAR(64) DEFAULT '',
+            db_name             VARCHAR(128) DEFAULT '',
+            rule_set_id         VARCHAR(64) DEFAULT NULL,
             created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
             INDEX idx_audit_type (audit_type),
             INDEX idx_audit_project (project_id),
             INDEX idx_audit_created (created_at),
-            INDEX idx_audit_gate (gate_passed)
+            INDEX idx_audit_gate (gate_passed),
+            INDEX idx_audit_conn (connection_id, created_at)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""",
 
         # T03. audit_results
@@ -830,6 +838,8 @@ def _create_all_tables(conn):
             warning_count       INT DEFAULT 0,
             blocked_by          TEXT,
             detail              TEXT,
+            connection_id       VARCHAR(64) DEFAULT NULL,
+            rule_set_id         VARCHAR(64) DEFAULT NULL,
             created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (audit_history_id) REFERENCES audit_history(id) ON DELETE SET NULL,
             INDEX idx_gate_project (project_id),
@@ -1122,6 +1132,7 @@ def _create_all_tables(conn):
             salt                  TEXT NOT NULL,
             status                VARCHAR(16) DEFAULT 'active',
             must_change_password  INT DEFAULT 0,
+            token_version         INT NOT NULL DEFAULT 0,
             failed_attempts       INT DEFAULT 0,
             locked_until          VARCHAR(32) DEFAULT NULL,
             last_login_at         VARCHAR(32) DEFAULT NULL,
