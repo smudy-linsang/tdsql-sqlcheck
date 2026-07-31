@@ -40,6 +40,9 @@ _FORBIDDEN_PATTERNS = [
     # monitordb 云测口令：赋值正则只能抓 password= 形式，元组传参会绕过，
     # 故必须以特征匹配兜底（第三方复测在 scratch/_mavis_checksql_probe4.py 实证）
     (re.compile(r"Abcd@!#"), "monitordb 云测口令（已泄露，须由 DBA 轮换）"),
+    # 云测集中式实例口令与上一条前缀不同、原特征抓不到（v1.5.2.4 P1-05：
+    # 守卫覆盖面窄于泄露面），补尾部特征兜底
+    (re.compile(r"1234@!#"), "云测集中式实例口令（已泄露，须由 DBA 轮换）"),
 ]
 
 
