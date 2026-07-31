@@ -261,13 +261,14 @@ class SlowQueryService:
             } for a in report.analyses],
         }
 
-    def analyze_explain_by_sql(self, sql: str, connection_id: str) -> dict:
+    def analyze_explain_by_sql(self, sql: str, connection_id: str, db_name: Optional[str] = None) -> dict:
         """
         直接传入SQL语句，连接目标数据库执行EXPLAIN并分析。
 
         Args:
             sql: 要分析的SQL语句（如 SELECT * FROM t WHERE id=1）
             connection_id: 已保存的TDSQL连接ID
+            db_name: 选填的数据库名
 
         Returns:
             分析报告（含原始EXPLAIN结果）
@@ -281,13 +282,15 @@ class SlowQueryService:
         if not saved:
             raise ValueError(f"连接配置不存在: {connection_id}")
 
+        target_db = db_name or saved["database"] or ""
+
         # 构建连接配置
         cfg = TDSQLConnectionConfig(
             host=saved["host"],
             port=saved["port"],
             user=saved["username"],
             password=decrypt_password(saved["password_encrypted"]),
-            database=saved["database"] or "",
+            database=target_db,
             charset=saved["charset"] or "utf8mb4",
         )
 
@@ -316,6 +319,11 @@ class SlowQueryService:
         explain_sql = f"EXPLAIN {processed_sql}"
         with pool.get_connection() as conn:
             with conn.cursor() as cursor:
+                if target_db:
+                    try:
+                        cursor.execute(f"USE `{target_db}`")
+                    except Exception as ex:
+                        logger.warning(f"切换目标数据库 {target_db} 失败: {ex}")
                 cursor.execute(explain_sql)
                 columns = [desc[0] for desc in cursor.description]
                 rows = cursor.fetchall()
