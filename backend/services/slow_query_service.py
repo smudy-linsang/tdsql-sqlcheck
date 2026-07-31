@@ -302,10 +302,16 @@ class SlowQueryService:
         if processed_sql.upper().startswith("EXPLAIN "):
             processed_sql = processed_sql[8:].strip()
 
-        # 1. 移除 C 风格注释 (例: /* , ... */ 或 /* ... */)
+        # 1. 替换 MySQL 8.0 内部数据字典私有函数调用 (例: `internal_dd_char_length` (...)) 为安全常量 1
+        processed_sql = re.sub(r"`?\binternal_dd_\w+`?\s*\([^\)]*\)", "1", processed_sql, flags=re.IGNORECASE)
+
+        # 2. 剥离 COLLATE 内部字符集排序规则 (例: COLLATE `utf8_tolower_ci`)
+        processed_sql = re.sub(r"\bCOLLATE\s+`?\w+`?", "", processed_sql, flags=re.IGNORECASE)
+
+        # 3. 移除 C 风格注释 (例: /* , ... */ 或 /* ... */)
         processed_sql = re.sub(r"/\*.*?\*/", "", processed_sql, flags=re.DOTALL)
 
-        # 2. 处理 INSERT INTO table (col1, col2...) VALUES (...) 形式的摘要 SQL
+        # 4. 处理 INSERT INTO table (col1, col2...) VALUES (...) 形式的摘要 SQL
         match_insert = re.search(r"INSERT\s+INTO\s+([^\(]+)\((.*?)\)\s+VALUES\s*\(\s*\.\.\.\s*\)", processed_sql, flags=re.IGNORECASE | re.DOTALL)
         if match_insert:
             cols_part = match_insert.group(2)
@@ -314,35 +320,63 @@ class SlowQueryService:
             dummy_vals = ", ".join(["'1'"] * col_count)
             processed_sql = re.sub(r"\bVALUES\s*\(\s*\.\.\.\s*\)", f"VALUES ({dummy_vals})", processed_sql, flags=re.IGNORECASE)
 
-        # 3. 兜底替换任何剩余的 (...) 或 (...) 内部的 ... 
+        # 5. 替换函数参数中/表达式中的省略号 `, ...` 或 `, ... )` 或 `...`
+        processed_sql = re.sub(r",\s*\.\.\.", ", '1'", processed_sql)
         processed_sql = re.sub(r"\(\s*\.\.\.\s*\)", "('1')", processed_sql)
         processed_sql = re.sub(r"\b\.\.\.\b", "'1'", processed_sql)
         processed_sql = re.sub(r"\.\.\.", "", processed_sql)
 
-        # 4. 修复内置函数与左括号之间的多余空格 (例: COUNT (?) -> COUNT(?), SUM ( -> SUM()
-        funcs = r"\b(COUNT|SUM|AVG|MIN|MAX|LENGTH|COALESCE|CONCAT|SUBSTR|SUBSTRING|DATE_FORMAT|IFNULL|NULLIF|ROUND|CEIL|FLOOR|ABS)\s+\("
+        # 6. 修复末尾被截断的悬空标识符与标点 (如 `, col .` 或 `, col` 或 `,`)
+        processed_sql = re.sub(r",\s*`?\w+`?\s*\.?\s*$", "", processed_sql)
+        processed_sql = processed_sql.rstrip(',').strip()
+
+        # 7. 修复内置函数与左括号之间的多余空格 (例: COUNT (?) -> COUNT(?), SUM ( -> SUM()
+        funcs = r"\b(COUNT|SUM|AVG|MIN|MAX|LENGTH|CHAR_LENGTH|COALESCE|CONCAT|SUBSTR|SUBSTRING|SUBSTRING_INDEX|DATE_FORMAT|IFNULL|NULLIF|ROUND|CEIL|FLOOR|ABS|IF)\s+\("
         processed_sql = re.sub(funcs, r"\1(", processed_sql, flags=re.IGNORECASE)
 
         if '?' in processed_sql:
-            # 5. 替换 COUNT(?) 为 COUNT(*)
+            # 8. 替换 COUNT(?) 为 COUNT(*)
             processed_sql = re.sub(r"\bCOUNT\s*\(\s*\?\s*\)", "COUNT(*)", processed_sql, flags=re.IGNORECASE)
-            # 6. 替换 LIMIT / OFFSET 中的 ? 为合法数值
+            # 9. 替换 LIMIT / OFFSET 中的 ? 为合法数值
             processed_sql = re.sub(r"\bLIMIT\s+\?\s*,\s*\?", "LIMIT 0, 100", processed_sql, flags=re.IGNORECASE)
             processed_sql = re.sub(r"\bLIMIT\s+\?\s+OFFSET\s+\?", "LIMIT 100 OFFSET 0", processed_sql, flags=re.IGNORECASE)
             processed_sql = re.sub(r"\bLIMIT\s+\?", "LIMIT 100", processed_sql, flags=re.IGNORECASE)
-            # 7. 替换 BETWEEN ? AND ?
+            # 10. 替换 BETWEEN ? AND ?
             processed_sql = re.sub(r"\bBETWEEN\s+\?\s+AND\s+\?", "BETWEEN 1 AND 100", processed_sql, flags=re.IGNORECASE)
-            # 8. 移除 SQL 子句关键字（FROM/WHERE/GROUP/HAVING/ORDER/LIMIT等）前或闭括号后冗余的 ?
+            # 11. 移除 SQL 子句关键字（FROM/WHERE/GROUP/HAVING/ORDER/LIMIT等）前或闭括号后冗余的 ?
             clause_keywords = r"\b(?:FROM|WHERE|GROUP|HAVING|ORDER|LIMIT|SET|JOIN|ON|UNION|INTO|VALUES)\b"
             processed_sql = re.sub(r"\?\s*(?=" + clause_keywords + r")", "", processed_sql, flags=re.IGNORECASE)
-            # 9. 替换表达式/函数/括号连接处的 ? (如 length(a)?length(b) 或 )?length(b) 或 ) ? ? -> + )
+            # 12. 替换表达式/函数/括号连接处的 ? (如 length(a)?length(b) 或 )?length(b) 或 ) ? ? -> + )
             processed_sql = re.sub(r"(?<=\)|\w)\s*\?\s*(?=(?:(?!" + clause_keywords + r")[\w\(\?]))", " + ", processed_sql, flags=re.IGNORECASE)
-            # 10. 替换比较/赋值/参数列表/运算符后的 ?
+            # 13. 替换比较/赋值/参数列表/运算符后的 ?
             processed_sql = re.sub(r"(?<=[=><,(\s\+])\?(?=[,)\s\+]|$)", "'1'", processed_sql)
-            # 11. 清理紧跟在 ) 后未匹配到的冗余 ?
+            # 14. 清理紧跟在 ) 后未匹配到的冗余 ?
             processed_sql = re.sub(r"(?<=\))\s*\?\s*", " ", processed_sql)
-            # 12. 兜底替换任何非引号包裹的剩余 ?
+            # 15. 兜底替换任何非引号包裹的剩余 ?
             processed_sql = re.sub(r"(?<!['\"])\?(?!['\"])", "'1'", processed_sql)
+
+        # 16. 平衡未匹配的括号 (修复因摘要截断造成的括号数量不匹配)
+        tokens = re.split(r"([()])", processed_sql)
+        depth = 0
+        clean_tokens = []
+        for tok in tokens:
+            if tok == '(':
+                depth += 1
+                clean_tokens.append(tok)
+            elif tok == ')':
+                if depth > 0:
+                    depth -= 1
+                    clean_tokens.append(tok)
+            else:
+                clean_tokens.append(tok)
+        clean_tokens.extend([')'] * depth)
+        processed_sql = "".join(clean_tokens)
+
+        # 17. 针对截断缺失 FROM 的 SELECT 表达式子句，自动补全 FROM DUAL 且清洗虚拟表限定词
+        if processed_sql.upper().startswith("SELECT") and not re.search(r"\bFROM\b", processed_sql, flags=re.IGNORECASE):
+            processed_sql = re.sub(r"`?\w+`?\s*\.\s*`?\w+`?", "'1'", processed_sql)
+            processed_sql = processed_sql.rstrip(',')
+            processed_sql = f"{processed_sql} FROM DUAL"
 
         # 执行 EXPLAIN
         explain_sql = f"EXPLAIN {processed_sql}"
