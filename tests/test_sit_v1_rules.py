@@ -134,6 +134,25 @@ class TestNewDMLAndSecurityRules:
         rule_ids, _ = audit(sql)
         assert "R043" in rule_ids
 
+    def test_r043_join_style_update(self):
+        """R043: JOIN 写法的联表 UPDATE 同样命中"""
+        sql = "UPDATE t_order o JOIN t_user u ON o.cust_id = u.id SET o.status = 1"
+        rule_ids, _ = audit(sql)
+        assert "R043" in rule_ids
+
+    def test_r043_negative_comma_in_set_value(self):
+        """R043 反向: 单表 UPDATE，SET 值里带逗号——不得误报（P2-03 鉴别用例）"""
+        sql = "UPDATE t_user SET name = 'a,b' WHERE id = 1"
+        rule_ids, _ = audit(sql)
+        assert "R043" not in rule_ids
+
+    def test_r043_negative_join_in_set_subquery(self):
+        """R043 反向: 单表 UPDATE，SET 子查询含 JOIN——不得误报（P2-03 鉴别用例）"""
+        sql = ("UPDATE t_user u SET u.total = "
+               "(SELECT COUNT(*) FROM t_a a JOIN t_b b ON a.id = b.id) WHERE u.id = 1")
+        rule_ids, _ = audit(sql)
+        assert "R043" not in rule_ids
+
     def test_r044_use_index_hint(self):
         """R044: 禁止USE INDEX/FORCE INDEX"""
         sql = "SELECT * FROM t_user USE INDEX (idx_name) WHERE id = 1"

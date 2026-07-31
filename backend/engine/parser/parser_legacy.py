@@ -250,8 +250,14 @@ class SQLParser:
         # 检测联表更新 / 联表删除
         clean_sql_no_comm = re.sub(r'--[^\n]*', '', sql_lower)
         clean_sql_no_comm = re.sub(r'/\*.*?\*/', '', clean_sql_no_comm, flags=re.DOTALL).strip()
-        if re.search(r"\bupdate\s+.*?\bjoin\b", clean_sql_no_comm, re.DOTALL) or \
-           re.search(r"\bupdate\s+[^set]+,", clean_sql_no_comm, re.DOTALL) or \
+        # UPDATE：取 UPDATE 与 SET 之间的目标表段，段内含逗号或 JOIN 即联表。
+        # 旧写法 [^set]+ 是否定"字符"组（排除字母 s/e/t），并非排除单词 SET——
+        # 对 t_xxx 等含 s/e/t 的表名恒不匹配，导致逗号式联表 UPDATE 静默漏报（P2-03）。
+        # 同时旧 JOIN 分支会把 SET 子句里子查询的 JOIN 误判进来，限定目标段后一并修正。
+        m_upd = re.search(r"\bupdate\b(.*?)\bset\b", clean_sql_no_comm, re.DOTALL)
+        upd_multi = bool(m_upd and ("," in m_upd.group(1)
+                                    or re.search(r"\bjoin\b", m_upd.group(1))))
+        if upd_multi or \
            re.search(r"\bdelete\s+.*?\bjoin\b", clean_sql_no_comm, re.DOTALL) or \
            re.search(r"\bdelete\s+[a-zA-Z0-9_`\s,]+from\b", clean_sql_no_comm, re.DOTALL):
             parsed.is_multi_table_update = True
