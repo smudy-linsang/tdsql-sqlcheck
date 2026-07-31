@@ -312,13 +312,14 @@ class SlowQueryService:
         processed_sql = re.sub(r"/\*.*?\*/", "", processed_sql, flags=re.DOTALL)
 
         # 4. 处理 INSERT INTO table (col1, col2...) VALUES (...) 形式的摘要 SQL
-        match_insert = re.search(r"INSERT\s+INTO\s+([^\(]+)\((.*?)\)\s+VALUES\s*\(\s*\.\.\.\s*\)", processed_sql, flags=re.IGNORECASE | re.DOTALL)
+        match_insert = re.search(r"INSERT\s+INTO\s+([^\(]+)\((.*?)\)\s+VALUES\s*\(.*?\)", processed_sql, flags=re.IGNORECASE | re.DOTALL)
         if match_insert:
+            table_part = match_insert.group(1).strip()
             cols_part = match_insert.group(2)
             cols = [c.strip() for c in cols_part.split(',') if c.strip() and c.strip() != '...']
             col_count = max(len(cols), 1)
             dummy_vals = ", ".join(["'1'"] * col_count)
-            processed_sql = re.sub(r"\bVALUES\s*\(\s*\.\.\.\s*\)", f"VALUES ({dummy_vals})", processed_sql, flags=re.IGNORECASE)
+            processed_sql = f"INSERT INTO {table_part} ({', '.join(cols)}) VALUES ({dummy_vals})"
 
         # 5. 替换函数参数中/表达式中的省略号 `, ...` 或 `, ... )` 或 `...`
         processed_sql = re.sub(r",\s*\.\.\.", ", '1'", processed_sql)
@@ -398,9 +399,24 @@ class SlowQueryService:
                         cursor.execute(f"USE `{target_db}`")
                     except Exception as ex:
                         logger.warning(f"切换目标数据库 {target_db} 失败: {ex}")
-                cursor.execute(explain_sql)
-                columns = [desc[0] for desc in cursor.description]
-                rows = cursor.fetchall()
+                try:
+                    cursor.execute(explain_sql)
+                    columns = [desc[0] for desc in cursor.description]
+                    rows = cursor.fetchall()
+                except Exception as ex:
+                    err_str = str(ex)
+                    if "INSERT" in explain_sql.upper() and ("Get auto num failed" in err_str or "Proxy ERROR" in err_str):
+                        match_tbl = re.search(r"INSERT\s+INTO\s+([^\(\s]+)", processed_sql, flags=re.IGNORECASE)
+                        if match_tbl:
+                            tbl_name = match_tbl.group(1).strip()
+                            fallback_sql = f"EXPLAIN SELECT 1 FROM {tbl_name} LIMIT 1"
+                            cursor.execute(fallback_sql)
+                            columns = [desc[0] for desc in cursor.description]
+                            rows = cursor.fetchall()
+                        else:
+                            raise ex
+                    else:
+                        raise ex
 
         # 转换为分析器所需的字典列表格式（DictCursor已返回字典）
         explain_data = []
