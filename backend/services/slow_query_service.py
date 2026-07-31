@@ -297,38 +297,51 @@ class SlowQueryService:
         # 注册连接（如果尚未活跃则自动建连）
         pool = registry.register(connection_id, cfg, validate=True)
 
-        # 预处理SQL：将 ? 占位符及函数名多余空格归一化为合法可执行 SQL（EXPLAIN 不支持参数占位符与带空格的内置函数）
+        # 预处理SQL：清理注释、扩展摘要 VALUES(...)，并将 ? 占位符及函数名多余空格归一化为合法 SQL
         processed_sql = sql.strip().rstrip(';')
         if processed_sql.upper().startswith("EXPLAIN "):
             processed_sql = processed_sql[8:].strip()
 
-        # 1. 修复内置函数与左括号之间的多余空格 (例: COUNT (?) -> COUNT(?), SUM ( -> SUM()
+        # 1. 移除 C 风格注释 (例: /* , ... */ 或 /* ... */)
+        processed_sql = re.sub(r"/\*.*?\*/", "", processed_sql, flags=re.DOTALL)
+
+        # 2. 处理 INSERT INTO table (col1, col2...) VALUES (...) 形式的摘要 SQL
+        match_insert = re.search(r"INSERT\s+INTO\s+([^\(]+)\((.*?)\)\s+VALUES\s*\(\s*\.\.\.\s*\)", processed_sql, flags=re.IGNORECASE | re.DOTALL)
+        if match_insert:
+            cols_part = match_insert.group(2)
+            cols = [c.strip() for c in cols_part.split(',') if c.strip() and c.strip() != '...']
+            col_count = max(len(cols), 1)
+            dummy_vals = ", ".join(["'1'"] * col_count)
+            processed_sql = re.sub(r"\bVALUES\s*\(\s*\.\.\.\s*\)", f"VALUES ({dummy_vals})", processed_sql, flags=re.IGNORECASE)
+
+        # 3. 兜底替换任何剩余的 (...) 或 (...) 内部的 ... 
+        processed_sql = re.sub(r"\(\s*\.\.\.\s*\)", "('1')", processed_sql)
+        processed_sql = re.sub(r"\b\.\.\.\b", "'1'", processed_sql)
+        processed_sql = re.sub(r"\.\.\.", "", processed_sql)
+
+        # 4. 修复内置函数与左括号之间的多余空格 (例: COUNT (?) -> COUNT(?), SUM ( -> SUM()
         funcs = r"\b(COUNT|SUM|AVG|MIN|MAX|LENGTH|COALESCE|CONCAT|SUBSTR|SUBSTRING|DATE_FORMAT|IFNULL|NULLIF|ROUND|CEIL|FLOOR|ABS)\s+\("
         processed_sql = re.sub(funcs, r"\1(", processed_sql, flags=re.IGNORECASE)
 
         if '?' in processed_sql:
-            # 2. 替换 COUNT(?) 为 COUNT(*)
+            # 5. 替换 COUNT(?) 为 COUNT(*)
             processed_sql = re.sub(r"\bCOUNT\s*\(\s*\?\s*\)", "COUNT(*)", processed_sql, flags=re.IGNORECASE)
-            # 3. 替换 LIMIT / OFFSET 中的 ? 为合法数值
+            # 6. 替换 LIMIT / OFFSET 中的 ? 为合法数值
             processed_sql = re.sub(r"\bLIMIT\s+\?\s*,\s*\?", "LIMIT 0, 100", processed_sql, flags=re.IGNORECASE)
             processed_sql = re.sub(r"\bLIMIT\s+\?\s+OFFSET\s+\?", "LIMIT 100 OFFSET 0", processed_sql, flags=re.IGNORECASE)
             processed_sql = re.sub(r"\bLIMIT\s+\?", "LIMIT 100", processed_sql, flags=re.IGNORECASE)
-            # 4. 替换 BETWEEN ? AND ?
+            # 7. 替换 BETWEEN ? AND ?
             processed_sql = re.sub(r"\bBETWEEN\s+\?\s+AND\s+\?", "BETWEEN 1 AND 100", processed_sql, flags=re.IGNORECASE)
-            # 5. 移除 SQL 子句关键字（FROM/WHERE/GROUP/HAVING/ORDER/LIMIT等）前或闭括号后冗余的 ?
+            # 8. 移除 SQL 子句关键字（FROM/WHERE/GROUP/HAVING/ORDER/LIMIT等）前或闭括号后冗余的 ?
             clause_keywords = r"\b(?:FROM|WHERE|GROUP|HAVING|ORDER|LIMIT|SET|JOIN|ON|UNION|INTO|VALUES)\b"
             processed_sql = re.sub(r"\?\s*(?=" + clause_keywords + r")", "", processed_sql, flags=re.IGNORECASE)
-            # 6. 替换表达式/函数/括号连接处的 ? (如 length(a)?length(b) 或 )?length(b) 或 ) ? ? -> + )
+            # 9. 替换表达式/函数/括号连接处的 ? (如 length(a)?length(b) 或 )?length(b) 或 ) ? ? -> + )
             processed_sql = re.sub(r"(?<=\)|\w)\s*\?\s*(?=(?:(?!" + clause_keywords + r")[\w\(\?]))", " + ", processed_sql, flags=re.IGNORECASE)
-            # 7. 替换比较/赋值/参数列表/运算符后的 ?
+            # 10. 替换比较/赋值/参数列表/运算符后的 ?
             processed_sql = re.sub(r"(?<=[=><,(\s\+])\?(?=[,)\s\+]|$)", "'1'", processed_sql)
-            # 8. 清理紧跟在 ) 后未匹配到的冗余 ?
+            # 11. 清理紧跟在 ) 后未匹配到的冗余 ?
             processed_sql = re.sub(r"(?<=\))\s*\?\s*", " ", processed_sql)
-            # 9. 兜底替换任何非引号包裹的剩余 ?
-            processed_sql = re.sub(r"(?<=[=><,(\s])\?(?=[,)\s]|$)", "'1'", processed_sql)
-            # 6. 清理紧跟在 ) 后未匹配到的冗余 ?
-            processed_sql = re.sub(r"(?<=\))\s*\?\s*", " ", processed_sql)
-            # 7. 兜底替换任何非引号包裹的剩余 ?
+            # 12. 兜底替换任何非引号包裹的剩余 ?
             processed_sql = re.sub(r"(?<!['\"])\?(?!['\"])", "'1'", processed_sql)
 
         # 执行 EXPLAIN
