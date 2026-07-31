@@ -342,7 +342,22 @@ class RuleChecker:
                 current_delimiter = delim_match.group(1)
                 line_no += 1
                 continue
-                
+
+            # 1.5 本系统抽取器为每条语句写入 `-- SQL Object:` 标记行
+            #（见 backend/api/sql_audit.py）。上一条语句若因上游截断缺失
+            # 分隔符，仅凭分隔符无法断开，会把下一条语句整体吞并、致其
+            # 漏审（P2-04）——故将标记行视为隐式语句边界。
+            if re.match(r'^--\s*SQL\s+Object\s*:', stripped_line, re.IGNORECASE) \
+                    and not in_begin_block:
+                pending = "".join(current_stmt).strip()
+                cleaned_pending = re.sub(r'--[^\n]*', '', pending)
+                cleaned_pending = re.sub(r'/\*.*?\*/', '', cleaned_pending,
+                                         flags=re.DOTALL).strip()
+                if cleaned_pending:   # 仅当积累了真实代码才断开；纯注释归属下一条
+                    statements.append((pending, stmt_start_line))
+                    current_stmt = []
+                    stmt_start_line = line_no
+
             current_stmt.append(l)
             stmt_text = "".join(current_stmt)
             check_text = stmt_text.rstrip()

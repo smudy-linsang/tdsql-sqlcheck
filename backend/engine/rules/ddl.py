@@ -523,6 +523,10 @@ class R036SuggestTimestampColumns(BaseRule):
     def check(self, parsed: ParsedSQL, table_metadata: Optional[dict] = None) -> Optional[Violation]:
         if not parsed.is_create_table:
             return None
+        # 列信息缺失（如 TDSQL BROADCAST 等方言语法致 sqlglot 降级为 Command）时
+        # 无判定依据，不做建议——避免对实际含 create_time/update_time 的表误报
+        if not parsed.columns:
+            return None
         col_names = {c.get("name", "").lower() for c in parsed.columns}
         if "create_time" not in col_names or "update_time" not in col_names:
             return self._make_violation(
@@ -543,6 +547,9 @@ class R037SuggestLogicalDelete(BaseRule):
 
     def check(self, parsed: ParsedSQL, table_metadata: Optional[dict] = None) -> Optional[Violation]:
         if not parsed.is_create_table:
+            return None
+        # 列信息缺失时无判定依据，不做建议（同 R036，避免解析降级时误报）
+        if not parsed.columns:
             return None
         col_names = {c.get("name", "").lower() for c in parsed.columns}
         delete_flags = {"is_deleted", "is_del", "deleted", "del_flag", "status"}
