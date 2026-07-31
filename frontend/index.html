@@ -528,7 +528,7 @@
                       <el-table :data="cmpState.result.fixed" stripe size="small" class="w-full" empty-text="无">
                         <el-table-column prop="object_name" label="对象" show-overflow-tooltip></el-table-column>
                         <el-table-column prop="issue_type" label="问题类型" width="140"></el-table-column>
-                        <el-table-column label="级别" width="90"><template #default="{row}"><el-tag :type="sevTagType(row.severity)" size="small">{{ row.severity }}</el-tag></template></el-table-column>
+                        <el-table-column label="级别" width="105"><template #default="{row}"><el-tag :type="sevTagType(row.severity)" size="small">{{ row.severity }}</el-tag></template></el-table-column>
                         <el-table-column prop="title" label="描述" show-overflow-tooltip></el-table-column>
                       </el-table>
                     </el-tab-pane>
@@ -536,7 +536,7 @@
                       <el-table :data="cmpState.result.new" stripe size="small" class="w-full" empty-text="无">
                         <el-table-column prop="object_name" label="对象" show-overflow-tooltip></el-table-column>
                         <el-table-column prop="issue_type" label="问题类型" width="140"></el-table-column>
-                        <el-table-column label="级别" width="90"><template #default="{row}"><el-tag :type="sevTagType(row.severity)" size="small">{{ row.severity }}</el-tag></template></el-table-column>
+                        <el-table-column label="级别" width="105"><template #default="{row}"><el-tag :type="sevTagType(row.severity)" size="small">{{ row.severity }}</el-tag></template></el-table-column>
                         <el-table-column prop="title" label="描述" show-overflow-tooltip></el-table-column>
                       </el-table>
                     </el-tab-pane>
@@ -544,7 +544,7 @@
                       <el-table :data="cmpState.result.remain" stripe size="small" class="w-full" empty-text="无">
                         <el-table-column prop="object_name" label="对象" show-overflow-tooltip></el-table-column>
                         <el-table-column prop="issue_type" label="问题类型" width="140"></el-table-column>
-                        <el-table-column label="级别" width="90"><template #default="{row}"><el-tag :type="sevTagType(row.severity)" size="small">{{ row.severity }}</el-tag></template></el-table-column>
+                        <el-table-column label="级别" width="105"><template #default="{row}"><el-tag :type="sevTagType(row.severity)" size="small">{{ row.severity }}</el-tag></template></el-table-column>
                         <el-table-column prop="title" label="描述" show-overflow-tooltip></el-table-column>
                       </el-table>
                     </el-tab-pane>
@@ -915,7 +915,7 @@
                 <el-button v-if="canManagePlatform" type="danger" plain size="small" :loading="clearingOrphan" @click="clearOrphanRecords" class="ml-auto">清理无任务关联记录</el-button>
               </div>
               <el-table :data="slowList" v-loading="slowListLoading" stripe class="w-full" @row-click="r=>openSlowDetail(r)">
-                <el-table-column prop="severity" label="级别" width="80"><template #default="{row}"><el-tag :type="sevTagType(row.severity)" size="small">{{ row.severity }}</el-tag></template></el-table-column>
+                <el-table-column prop="severity" label="级别" width="105"><template #default="{row}"><el-tag :type="sevTagType(row.severity)" size="small">{{ row.severity }}</el-tag></template></el-table-column>
                 <el-table-column prop="fingerprint" label="SQL指纹" show-overflow-tooltip></el-table-column>
                 <el-table-column prop="avg_time_ms" label="平均耗时(ms)" width="120" sortable></el-table-column>
                 <el-table-column prop="exec_count" label="执行次数" width="90" sortable></el-table-column>
