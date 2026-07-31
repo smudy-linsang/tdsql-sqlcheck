@@ -58,6 +58,12 @@ class ExplainBySqlRequest(BaseModel):
     connection_id: str = Field(..., description="已保存的TDSQL连接ID")
     db_name: Optional[str] = Field(None, description="选填的数据库名")
 
+
+class StatusUpdateRequest(BaseModel):
+    """状态更新请求"""
+    status: str = Field(..., description="新状态: pending/optimized/ignored")
+
+
 # ============ API路由 ============
 
 @router.post("", summary="添加慢SQL记录并自动分析")
