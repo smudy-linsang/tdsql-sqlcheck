@@ -78,6 +78,19 @@ AVAIL=$(df -m /opt 2>/dev/null | awk 'NR==2{print $4}')
 [[ "${AVAIL:-0}" -ge 2048 ]] && ok "/opt 可用空间 ${AVAIL}MB" || warn "/opt 可用空间不足2GB(${AVAIL:-?}MB)"
 command -v chronyc >/dev/null 2>&1 && chronyc tracking >/dev/null 2>&1 && ok "chrony 时钟同步正常" || warn "时钟同步未确认（审计日志时间戳依赖NTP）"
 
+# 7. 后端可导入性（拦截导入期错误，如误删请求模型；规约 R-17）
+PYIMP="${PYOK:-}"
+[[ -z "$PYIMP" && -x "${PKG_ROOT}/python/bin/python3" ]] && PYIMP="${PKG_ROOT}/python/bin/python3"
+if [[ -n "$PYIMP" ]]; then
+  if (cd "${PKG_ROOT}" && "$PYIMP" -c "import backend.main" >/dev/null 2>&1); then
+    ok "backend.main 可导入"
+  else
+    bad "backend.main 导入失败，禁止部署（运行 $PYIMP -c 'import backend.main' 查看堆栈）"
+  fi
+else
+  warn "无可用 python3，跳过后端导入检查"
+fi
+
 echo "════ 预检结果: PASS=${PASS} WARN=${WARN} FAIL=${FAILC} ════"
 [[ "$FAILC" -eq 0 ]] || exit 1
 exit 0
