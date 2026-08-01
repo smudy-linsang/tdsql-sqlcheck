@@ -86,6 +86,12 @@ class TestUATFrontendStructure:
         assert "usesCollectionWindow=scanTaskForm.source==='monitordb'" in html_content
         assert "if(usesCollectionWindow){body.time_window_start" in html_content
 
+    def test_app_script_is_versioned_to_avoid_mixed_frontend_assets(self):
+        """UAT-1c2: 页面升级后必须绕过旧 app.js 缓存，防止新页面搭配旧校验逻辑。"""
+        base = Path(__file__).parent.parent
+        index_content = (base / "frontend" / "index.html").read_text(encoding="utf-8")
+        assert re.search(r'<script src="/static/js/app\.js\?v=[^"]+"></script>', index_content)
+
     def test_processlist_source_option_exists(self, html_content):
         """UAT-1d: 数据源包含实时进程"""
         assert "实时进程" in html_content or "processlist" in html_content
