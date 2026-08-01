@@ -1176,7 +1176,7 @@ class TDSQLConnectionPool:
                     f"{d.get('min_ts')} ~ {d.get('max_ts')}。"
                     f"注意时间窗过滤的是【采集时刻】而非SQL执行时刻，"
                     f"赤兔采集器有汇聚周期，刚执行的慢SQL需等下一轮采集才会入库——"
-                    f"请放宽时间窗或改用 digest 数据源。")
+                    f"请放宽时间窗。")
         except Exception as e:
             logger.debug("monitordb 空窗诊断失败: %s", e)
             return ""
