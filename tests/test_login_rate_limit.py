@@ -46,6 +46,29 @@ def _write_failures(ip, n):
                       "口令错误", ip)
 
 
+def test_operation_log_truncates_schema_bounded_fields():
+    """长路由不能让异步操作审计以数据库字段超长失败。"""
+    ip = "203.0.113.79"
+    operation_type = "POST /api/v1/tdsql/connections/" + "x" * 100
+    target_id = "/api/v1/tdsql/connections/" + "y" * 200
+    _clear(ip)
+    try:
+        log_operation("operator", operation_type, "api", target_id, "", ip)
+        conn = _get_connection()
+        try:
+            row = conn.execute(
+                "SELECT operation_type, target_id FROM operation_logs "
+                "WHERE ip_address = ? ORDER BY id DESC LIMIT 1", (ip,)
+            ).fetchone()
+            assert row is not None
+            assert row["operation_type"] == operation_type[:64]
+            assert row["target_id"] == target_id[:128]
+        finally:
+            conn.close()
+    finally:
+        _clear(ip)
+
+
 def test_counts_failures_written_by_another_process():
     """核心：本进程内存计数为空，仅凭共享表中的失败即应触发限流"""
     limit = config.login_ip_fail_limit()
