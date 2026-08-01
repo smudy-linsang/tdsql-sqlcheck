@@ -311,6 +311,7 @@ def _friendly_error(e: Exception) -> str:
 @router.get("/scan-tasks/{task_id}/html", summary="下载扫描任务HTML报告")
 async def export_scan_task_html(task_id: int):
     """生成并下载指定扫描任务的HTML报告"""
+    import html
     import json
     from datetime import datetime
     from urllib.parse import quote
@@ -444,12 +445,12 @@ body {{ font-family:"Microsoft YaHei","Segoe UI",Arial,sans-serif; background:#f
                 html_parts.append('</div>')
 
         html_parts.append(f'<div class="footer">TDSQL SQL审核平台 V3.0 | 报告生成时间: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")} | 任务ID: #{task.get("id")}</div></div></body></html>')
-        html = "\n".join(html_parts)
+        html_content = "\n".join(html_parts)
 
         filename = f"TDSQL慢SQL扫描报告_{task.get('task_name', 'task')}_{time_display[:10]}.html"
         encoded_filename = quote(filename)
         return HTMLResponse(
-            content=html,
+            content=html_content,
             headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"}
         )
     except HTTPException:

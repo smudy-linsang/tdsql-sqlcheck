@@ -117,6 +117,32 @@ class TestSITDigest:
         assert task_detail["total_fetched"] == 3
         assert task_detail["total_analyzed"] == 3
 
+    def test_html_report_download_with_slow_queries(self, client):
+        """有抓取记录时，HTML 报告应可下载且转义 SQL 中的 HTML 字符。"""
+        from backend.api import tdsql_manage
+
+        tdsql_manage._pool = _make_mock_pool(digest_data=[
+            {"DIGEST_TEXT": "SELECT * FROM orders WHERE note = '<script>'", "SCHEMA_NAME": "db1",
+             "COUNT_STAR": 3, "total_seconds": 6.0, "avg_seconds": 2.0, "max_seconds": 3.0,
+             "SUM_ROWS_EXAMINED": 120, "SUM_ROWS_SENT": 3,
+             "FIRST_SEEN": "2026-06-17 08:00:00", "LAST_SEEN": "2026-06-17 09:00:00"},
+        ])
+
+        scan = client.post("/api/v1/tdsql/slow-queries/fetch", json={
+            "source": "digest", "limit": 10, "min_time": 0.1,
+            "time_window_start": "2026-06-17 00:00:00",
+            "time_window_end": "2026-06-17 23:59:59",
+        })
+        assert scan.status_code == 200
+
+        report = client.get(
+            f"/api/v1/slow-queries/scan-tasks/{scan.json()['scan_task_id']}/html"
+        )
+        assert report.status_code == 200
+        assert report.headers["content-type"].startswith("text/html")
+        assert "attachment;" in report.headers["content-disposition"]
+        assert "&lt;script&gt;" in report.text
+
     def test_digest_multiple_scans(self, client):
         """SIT-1b: 多次扫描产生独立任务"""
         from backend.api import tdsql_manage
