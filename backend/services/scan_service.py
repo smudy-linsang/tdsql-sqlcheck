@@ -30,11 +30,11 @@ def run_scan(connection_id: Optional[str] = None, source: str = "monitordb",
 
     Args:
         connection_id: 目标连接ID（空则使用默认/即席连接）
-        source: monitordb(全网慢SQL,推荐) / digest(性能摘要) / processlist(实时进程轮询)
+        source: monitordb(按采集时刻筛选) / digest(当前累计性能摘要快照) / processlist(实时进程快照)
         limit: 抓取条数上限
         min_time: 最小耗时阈值(秒)
         task_name: 自定义任务名
-        time_window_start/end: 时间窗口（digest模式必填，作为任务元数据）
+        time_window_start/end: 采集时间窗口，仅 monitordb 有效
         poll_duration/poll_interval: processlist轮询参数
         operator: 操作用户（审计）
         pool: 显式指定连接池（可选，供测试注入/V1.0兼容路径使用）
@@ -50,20 +50,21 @@ def run_scan(connection_id: Optional[str] = None, source: str = "monitordb",
     from backend.engine.slow_analyzer import SlowQueryRecord
     from backend.services.slow_query_service import SlowQueryService
 
-    # 校验顺序与V1.0保持一致: 连接(400) → 数据源(400) → 时间窗口(422)
+    # 校验顺序：连接(400) → 数据源(400) → 时间窗口(422)
     if pool is None:
         pool = registry.get(connection_id)
 
     if source not in VALID_SOURCES:
         raise ValueError(
             f"不支持的数据源: {source}。TDSQL分布式实例支持: "
-            f"monitordb(集群级慢SQL,推荐)、digest(性能摘要分析)、processlist(实时进程快照)。"
+            f"monitordb(集群级慢SQL)、digest(当前累计性能摘要快照)、processlist(实时进程快照)。"
             f"注意: mysql.slow_log在TDSQL分布式架构下不可用（数据由Proxy层管理）")
 
-    if source == "digest" and (not time_window_start or not time_window_end):
-        raise ValueError("时间窗口开始和结束时间为必填项，请指定扫描时间范围（记录为任务元数据）")
-
-    if time_window_start and time_window_end and time_window_start > time_window_end:
+    # digest 是累计摘要、processlist 是实时快照，两者均不存在可供历史筛选的时间窗。
+    # 忽略旧客户端继续提交的日期，避免把任务标签误解为 SQL 执行时间范围。
+    if source in ("digest", "processlist"):
+        time_window_start, time_window_end = "", ""
+    elif time_window_start and time_window_end and time_window_start > time_window_end:
         raise ValueError("时间窗口开始时间不能晚于结束时间")
 
     conn_key = connection_id or "default"
@@ -89,8 +90,8 @@ def _do_scan(pool, connection_id: str, source: str, limit: int, min_time: float,
     conn_name = f"{pool.config.host}:{pool.config.port}"
     scan_started_at = datetime.now().isoformat()   # V1.3: 快照 scan_started_at
 
-    # 创建扫描任务（任务名自动包含时间段）
-    source_labels = {"digest": "性能摘要分析", "processlist": "实时进程快照",
+    # 创建扫描任务（仅 monitordb 的任务名包含采集时间段）
+    source_labels = {"digest": "性能摘要快照", "processlist": "实时进程快照",
                      "monitordb": "集群级慢SQL(monitordb)"}
     time_range_str = ""
     if time_window_start and time_window_end:
@@ -124,8 +125,7 @@ def _do_scan(pool, connection_id: str, source: str, limit: int, min_time: float,
             if not raw_queries and _diag:
                 errors.append({"source": "monitordb", "error": _diag})
         elif source == "digest":
-            # 注意: TDSQL Proxy的performance_schema不支持FIRST_SEEN/LAST_SEEN时间过滤，
-            # 时间窗口仅作为扫描任务元数据记录，不传入SQL查询。
+            # performance_schema 的 digest 为累计摘要快照，不能按历史执行时间筛选。
             raw_queries = pool.get_slow_queries_from_digest(
                 limit=limit, min_time=min_time)
         else:

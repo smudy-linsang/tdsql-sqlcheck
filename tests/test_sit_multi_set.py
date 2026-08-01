@@ -130,8 +130,6 @@ class TestSITDigest:
 
         scan = client.post("/api/v1/tdsql/slow-queries/fetch", json={
             "source": "digest", "limit": 10, "min_time": 0.1,
-            "time_window_start": "2026-06-17 00:00:00",
-            "time_window_end": "2026-06-17 23:59:59",
         })
         assert scan.status_code == 200
 
@@ -142,6 +140,10 @@ class TestSITDigest:
         assert report.headers["content-type"].startswith("text/html")
         assert "attachment;" in report.headers["content-disposition"]
         assert "&lt;script&gt;" in report.text
+        assert "性能摘要快照报告" in report.text
+        assert "快照时刻" in report.text
+        assert "当前累计性能摘要快照" in report.text
+        assert "时间窗口" not in report.text
 
     def test_digest_multiple_scans(self, client):
         """SIT-1b: 多次扫描产生独立任务"""
@@ -305,15 +307,19 @@ class TestSITBoundaryCases:
         data = resp.json()
         assert data["fetched"] == 50
 
-    def test_missing_time_window(self, client):
-        """SIT-4d: digest缺少时间窗口时返回422"""
+    def test_digest_without_time_window_creates_snapshot_task(self, client):
+        """SIT-4d: digest 不接收历史时间窗，直接创建当前累计快照任务。"""
         from backend.api import tdsql_manage
         tdsql_manage._pool = _make_mock_pool()
 
         resp = client.post("/api/v1/tdsql/slow-queries/fetch", json={
             "source": "digest", "limit": 10, "min_time": 0.1,
         })
-        assert resp.status_code == 422
+        assert resp.status_code == 200
+        task = client.get(f"/api/v1/slow-queries/scan-tasks/{resp.json()['scan_task_id']}").json()
+        assert task["time_window_start"] == ""
+        assert task["time_window_end"] == ""
+        assert "[" not in task["task_name"]
 
     def test_cross_set_analysis_no_data(self, client):
         """SIT-4e: 跨SET分析 - 无SET数据时返回提示"""

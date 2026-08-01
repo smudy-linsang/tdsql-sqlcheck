@@ -859,22 +859,24 @@
               <el-form-item label="数据源">
                 <el-radio-group v-model="scanTaskForm.source">
                   <el-radio value="monitordb">全网慢SQL(monitordb,推荐)</el-radio>
-                  <el-radio value="digest">性能摘要(digest)</el-radio>
+                  <el-radio value="digest">性能摘要（当前累计快照）</el-radio>
                   <el-radio value="processlist">实时进程(processlist)</el-radio>
                 </el-radio-group>
               </el-form-item>
-              <!-- 时间窗口的含义随数据源而变，三种源各不相同且都不是"这段时间执行的慢SQL"。
-                   不说明会让人把空结果误读成"这段时间没有慢SQL"，故加常驻提示 + 详解 tooltip。 -->
-              <el-form-item>
+              <el-alert v-if="scanTaskForm.source==='digest'" title="当前累计性能摘要快照" type="info" :closable="false" show-icon>
+                <template #default>该数据源展示 performance_schema 自统计重置以来的累计 SQL 摘要；不支持按 SQL 执行日期或历史时间范围筛选。</template>
+              </el-alert>
+              <el-alert v-else-if="scanTaskForm.source==='processlist'" title="实时进程快照" type="info" :closable="false" show-icon>
+                <template #default>该数据源仅捕获本次轮询期间正在执行的语句；不支持历史时间范围筛选。</template>
+              </el-alert>
+              <el-form-item v-else>
                 <template #label>
-                  <span>时间窗口</span>
+                  <span>采集时间窗口</span>
                   <el-tooltip placement="right" :show-after="100">
                     <template #content>
                       <div class="tip-block">
-                        <div class="tip-title">时间窗口的含义随数据源而变</div>
-                        <p><b>全网慢SQL(monitordb)</b>：过滤的是慢SQL<b>被采集入库的时刻</b>，不是SQL的执行时刻。赤兔采集器按周期汇聚慢SQL入库，刚执行完的慢SQL要等下一轮采集才会落库——所以「近1小时」有可能查不到刚刚制造的慢SQL。查空时系统会给出该库实际的采集时刻范围供比对。</p>
-                        <p><b>性能摘要(digest)</b>：必填，但<b>不参与查询过滤</b>。TDSQL Proxy 不支持按 FIRST_SEEN/LAST_SEEN 过滤，该窗口仅作为扫描任务的元数据留档；实际抓取的是 performance_schema 中<b>累计至今</b>的摘要统计。</p>
-                        <p><b>实时进程(processlist)</b>：<b>不使用</b>该窗口。只能捕获轮询那一刻正在执行的语句，实际覆盖范围由「轮询参数」里的轮询时长决定。</p>
+                        <div class="tip-title">monitordb 的时间筛选口径</div>
+                        <p>过滤的是慢SQL<b>被采集入库的时刻</b>，不是 SQL 的执行时刻。赤兔采集器按周期汇聚慢SQL入库，刚执行完的慢SQL要等下一轮采集才会入库；查空时系统会给出实际的采集时刻范围供比对。</p>
                       </div>
                     </template>
                     <span class="help-mark">?</span>
@@ -882,9 +884,7 @@
                 </template>
                 <el-date-picker v-model="scanTimeWindow" type="datetimerange" range-separator="至" start-placeholder="开始" end-placeholder="结束" format="YYYY-MM-DD HH:mm" value-format="YYYY-MM-DD HH:mm:ss" class="w-full"></el-date-picker>
                 <div class="hint form-note mt-4">
-                  <template v-if="scanTaskForm.source==='monitordb'">过滤的是<b>采集时刻</b>，非SQL执行时刻；赤兔采集器有汇聚周期，刚执行的慢SQL需等下一轮采集才会入库。</template>
-                  <template v-else-if="scanTaskForm.source==='digest'">本数据源<b>不按时间过滤</b>，窗口仅作为任务元数据留档；抓取的是累计至今的摘要统计。</template>
-                  <template v-else>本数据源<b>不使用</b>时间窗口，实际覆盖范围由「轮询参数」里的轮询时长决定。</template>
+                  过滤的是<b>采集时刻</b>，非 SQL 执行时刻；赤兔采集器有汇聚周期，刚执行的慢SQL需等下一轮采集才会入库。
                 </div>
               </el-form-item>
               <el-form-item label="耗时阈值(秒)"><el-input-number v-model="scanTaskForm.min_time" :min="0" :step="0.1"></el-input-number></el-form-item>
