@@ -347,7 +347,31 @@ async def export_scan_task_html(task_id: int):
 
         created_at = str(task.get("created_at", ""))
         time_display = created_at[:19].replace("T", " ") if created_at else ""
-        source_label = {"digest": "性能摘要", "processlist": "实时进程", "manual": "手动录入"}.get(task.get("source", ""), task.get("source", ""))
+        source = task.get("source", "")
+        is_digest = source == "digest"
+        is_processlist = source == "processlist"
+        source_label = {
+            "digest": "性能摘要（当前累计快照）",
+            "monitordb": "全网慢SQL（按采集时刻筛选）",
+            "processlist": "实时进程快照",
+            "manual": "手动录入",
+        }.get(source, source)
+        report_title = "性能摘要快照报告" if is_digest else "慢SQL扫描报告"
+        report_subtitle = ("TDSQL SQL Audit Platform / Performance Digest Snapshot Report"
+                           if is_digest else "TDSQL SQL Audit Platform / Slow Query Scan Report")
+        time_label = "快照时刻" if (is_digest or is_processlist) else "扫描时间"
+        result_label = "性能摘要条目" if is_digest else "慢SQL总数"
+        detail_title = "逐条性能摘要详情" if is_digest else "逐条慢SQL详情"
+        if is_digest:
+            scope_meta = ('<div class="meta-item"><span class="label">统计口径:</span>'
+                          '<span class="value">当前累计性能摘要快照（不按 SQL 执行时间范围筛选）</span></div>')
+        elif is_processlist:
+            scope_meta = ('<div class="meta-item"><span class="label">统计口径:</span>'
+                          '<span class="value">扫描轮询期间的实时进程快照（非历史时间范围）</span></div>')
+        else:
+            scope_meta = (f'<div class="meta-item"><span class="label">采集时间窗口:</span>'
+                          f'<span class="value">{task.get("time_window_start", "-")} ~ '
+                          f'{task.get("time_window_end", "-")}</span></div>')
 
         # 严重级别统计
         sev_stats = {}
@@ -359,7 +383,7 @@ async def export_scan_task_html(task_id: int):
         html_parts.append(f"""<!DOCTYPE html>
 <html lang="zh-CN"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TDSQL慢SQL扫描报告 - {task.get('task_name', '')}</title>
+<title>TDSQL{report_title} - {task.get('task_name', '')}</title>
 <style>
 * {{ margin:0; padding:0; box-sizing:border-box; }}
 body {{ font-family:"Microsoft YaHei","Segoe UI",Arial,sans-serif; background:#f0f2f5; color:#303030; padding:20px; }}
@@ -391,23 +415,23 @@ body {{ font-family:"Microsoft YaHei","Segoe UI",Arial,sans-serif; background:#f
 .no-data {{ padding:32px; text-align:center; color:#909399; }}
 </style></head><body>
 <div class="container">
-<div class="header"><h1>TDSQL SQL审核平台 - 慢SQL扫描报告</h1><div class="sub">TDSQL SQL Audit Platform / Slow Query Scan Report</div></div>
+<div class="header"><h1>TDSQL SQL审核平台 - {report_title}</h1><div class="sub">{report_subtitle}</div></div>
 <div class="meta">
 <div class="meta-item"><span class="label">任务名称:</span><span class="value">{task.get('task_name', '-')}</span></div>
 <div class="meta-item"><span class="label">数据源:</span><span class="value">{source_label}</span></div>
 <div class="meta-item"><span class="label">操作人:</span><span class="value">{task.get('created_by', '匿名')}</span></div>
-<div class="meta-item"><span class="label">扫描时间:</span><span class="value">{time_display}</span></div>
+<div class="meta-item"><span class="label">{time_label}:</span><span class="value">{time_display}</span></div>
 <div class="meta-item"><span class="label">实例:</span><span class="value">{task.get('connection_name', '-')}</span></div>
-<div class="meta-item"><span class="label">时间窗口:</span><span class="value">{task.get('time_window_start', '-')} ~ {task.get('time_window_end', '-')}</span></div>
+{scope_meta}
 <div class="meta-item"><span class="label">报告ID:</span><span class="value">#{task.get('id')}</span></div>
 </div>
 <div class="summary">
-<div class="sc total"><div class="num">{len(slow_queries)}</div><div class="lbl">慢SQL总数</div></div>
+<div class="sc total"><div class="num">{len(slow_queries)}</div><div class="lbl">{result_label}</div></div>
 <div class="sc crit"><div class="num" style="color:#f56c6c">{sev_stats.get('ERROR', 0) + sev_stats.get('CRITICAL', 0)}</div><div class="lbl">ERROR</div></div>
 <div class="sc warn"><div class="num" style="color:#e6a23c">{sev_stats.get('WARNING', 0)}</div><div class="lbl">WARNING</div></div>
 <div class="sc info"><div class="num" style="color:#909399">{sev_stats.get('INFO', 0)}</div><div class="lbl">INFO</div></div>
 </div>
-<div class="stitle">逐条慢SQL详情（共 {len(slow_queries)} 条）</div>""")
+<div class="stitle">{detail_title}（共 {len(slow_queries)} 条）</div>""")
 
         if not slow_queries:
             html_parts.append('<div class="no-data">本次扫描未抓取到慢SQL记录</div>')
@@ -447,7 +471,8 @@ body {{ font-family:"Microsoft YaHei","Segoe UI",Arial,sans-serif; background:#f
         html_parts.append(f'<div class="footer">TDSQL SQL审核平台 V3.0 | 报告生成时间: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")} | 任务ID: #{task.get("id")}</div></div></body></html>')
         html_content = "\n".join(html_parts)
 
-        filename = f"TDSQL慢SQL扫描报告_{task.get('task_name', 'task')}_{time_display[:10]}.html"
+        filename_prefix = "TDSQL性能摘要快照报告" if is_digest else "TDSQL慢SQL扫描报告"
+        filename = f"{filename_prefix}_{task.get('task_name', 'task')}_{time_display[:10]}.html"
         encoded_filename = quote(filename)
         return HTMLResponse(
             content=html_content,

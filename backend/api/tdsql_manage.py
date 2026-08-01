@@ -47,13 +47,13 @@ class TDSQLConnectRequest(BaseModel):
 
 class SlowQueryFetchRequest(BaseModel):
     """慢SQL抓取请求"""
-    source: str = Field("monitordb", description="数据源: monitordb(集群级慢SQL,推荐)/digest(性能摘要)/processlist(实时进程轮询)")
+    source: str = Field("monitordb", description="数据源: monitordb(按采集时刻筛选)/digest(当前累计性能摘要快照)/processlist(实时进程快照)")
     connection_id: str = Field("", description="目标连接ID（空则使用当前/默认连接）")
     limit: int = Field(50, description="抓取条数上限")
     min_time: float = Field(0.1, description="最小耗时阈值(秒)，digest模式按平均耗时过滤，processlist按当前执行时间过滤")
     task_name: str = Field("", description="自定义扫描任务名称")
-    time_window_start: str = Field("", description="时间窗口开始 (YYYY-MM-DD HH:MM:SS)")
-    time_window_end: str = Field("", description="时间窗口结束 (YYYY-MM-DD HH:MM:SS)")
+    time_window_start: str = Field("", description="采集时间窗口开始，仅 monitordb 有效 (YYYY-MM-DD HH:MM:SS)")
+    time_window_end: str = Field("", description="采集时间窗口结束，仅 monitordb 有效 (YYYY-MM-DD HH:MM:SS)")
     poll_duration: float = Field(10.0, description="processlist轮询持续时间(秒)，仅processlist模式有效，默认10秒")
     poll_interval: float = Field(1.0, description="processlist轮询间隔(秒)，仅processlist模式有效，默认1秒")
 
@@ -406,7 +406,7 @@ def fetch_slow_queries(request: SlowQueryFetchRequest, http_request: Request):
             pool=_pool if (_pool is not None and not request.connection_id) else None,
         )
     except ValueError as e:
-        # digest时间窗口缺失 → 422 (兼容V1.0行为)，其他参数错误 → 400
+        # 时间窗口参数错误 → 422，其他参数错误 → 400
         status = 422 if "时间窗口" in str(e) else 400
         raise HTTPException(status_code=status, detail=str(e))
     except ScanBusyError as e:

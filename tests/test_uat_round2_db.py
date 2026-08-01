@@ -348,24 +348,24 @@ class TestUAT47_SlowQueryFetch:
         assert resp.status_code == 400
 
     @pytest.mark.skipif(not MYSQL_AVAILABLE, reason=SKIP_REASON)
-    def test_uat47_04a_no_time_window(self, connected_client):
-        """测试缺少时间窗口返回422"""
+    def test_uat47_04a_digest_without_time_window(self, connected_client):
+        """性能摘要是当前累计快照，不应要求历史时间窗口。"""
         resp = connected_client.post("/api/v1/tdsql/slow-queries/fetch", json={
             "source": "digest",
             "limit": 10,
         })
-        assert resp.status_code == 422
+        assert resp.status_code == 200
 
     @pytest.mark.skipif(not MYSQL_AVAILABLE, reason=SKIP_REASON)
-    def test_uat47_04b_time_window_reversed(self, connected_client):
-        """测试时间窗口开始大于结束返回422"""
+    def test_uat47_04b_digest_ignores_legacy_time_window(self, connected_client):
+        """旧客户端传入的性能摘要时间窗必须被忽略。"""
         resp = connected_client.post("/api/v1/tdsql/slow-queries/fetch", json={
             "source": "digest",
             "limit": 10,
             "time_window_start": "2026-06-17 12:00:00",
             "time_window_end": "2026-06-17 08:00:00",
         })
-        assert resp.status_code == 422
+        assert resp.status_code == 200
 
     @pytest.mark.skipif(not MYSQL_AVAILABLE, reason=SKIP_REASON)
     def test_uat47_05_slow_query_config(self, connected_client):

@@ -79,6 +79,13 @@ class TestUATFrontendStructure:
         assert "性能摘要" in html_content
         assert "digest" in html_content
 
+    def test_digest_is_current_snapshot_without_time_range(self, html_content):
+        """UAT-1c1: 性能摘要必须明确为当前快照，且前端不得提交历史时间窗。"""
+        assert "性能摘要（当前累计快照）" in html_content
+        assert "当前累计性能摘要快照" in html_content
+        assert "usesCollectionWindow=scanTaskForm.source==='monitordb'" in html_content
+        assert "if(usesCollectionWindow){body.time_window_start" in html_content
+
     def test_processlist_source_option_exists(self, html_content):
         """UAT-1d: 数据源包含实时进程"""
         assert "实时进程" in html_content or "processlist" in html_content
