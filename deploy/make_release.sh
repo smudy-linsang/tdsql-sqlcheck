@@ -9,13 +9,21 @@
 #   ./deploy/make_release.sh --arch aarch64 --py 39   # 目标机使用 python3.9
 #   加 --with-python 会额外内置便携 CPython（目标机无 python3.9+ 时使用）
 # ============================================================================
-VERSION="1.4.0.1"
+# 版本号从仓库根 VERSION 文件读取，不得再硬编码。
+# 曾硬编码为 1.4.0.1 而产品已到 1.5.2.4，包内 VERSION 被覆盖成旧值，
+# verify_deploy.sh 读该文件与 /health 实报版本比对不上，部署最后一步 exit 1。
+_REL_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+VERSION="$(tr -d ' \r\n' < "${_REL_ROOT}/VERSION" 2>/dev/null)"
+[[ -n "${VERSION}" ]] || { echo "错误: 读不到 ${_REL_ROOT}/VERSION，无法确定版本号"; exit 1; }
 ARCH="x86_64"; PYTAG="311"; WITH_PYTHON="no"
 while [[ $# -gt 0 ]]; do case "$1" in
   --arch) ARCH="$2"; shift 2;;
+  --py) PYTAG="$2"; shift 2;;
+  --version) VERSION="$2"; shift 2;;
   --with-python) WITH_PYTHON="yes"; shift;;
   *) shift;;
 esac; done
+[[ "$PYTAG" =~ ^3[0-9]{1,2}$ ]] || { echo "--py 仅支持 39/310/311 等形如 3NN 的值，收到: ${PYTAG}"; exit 1; }
 [[ "$ARCH" == "x86_64" || "$ARCH" == "aarch64" ]] || { echo "--arch 仅支持 x86_64/aarch64"; exit 1; }
 [[ "$WITH_PYTHON" == "yes" ]] && { echo "警告: 内置 CPython 将大幅增加发布包体积"; }
 

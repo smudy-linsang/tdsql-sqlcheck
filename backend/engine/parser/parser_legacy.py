@@ -257,9 +257,22 @@ class SQLParser:
         m_upd = re.search(r"\bupdate\b(.*?)\bset\b", clean_sql_no_comm, re.DOTALL)
         upd_multi = bool(m_upd and ("," in m_upd.group(1)
                                     or re.search(r"\bjoin\b", m_upd.group(1))))
-        if upd_multi or \
-           re.search(r"\bdelete\s+.*?\bjoin\b", clean_sql_no_comm, re.DOTALL) or \
-           re.search(r"\bdelete\s+[a-zA-Z0-9_`\s,]+from\b", clean_sql_no_comm, re.DOTALL):
+        # DELETE：同样只看目标段（DELETE 到第一个 WHERE 之间），理由与 UPDATE 一致。
+        # 旧写法 `\bdelete\s+.*?\bjoin\b` 满句扫，会把 WHERE 子查询里的 JOIN
+        # 误判成联表 DELETE —— `DELETE FROM t WHERE id IN (SELECT .. JOIN ..)`
+        # 是合法单表删除，却命中 ERROR 级 R043，并被质量门禁（ERROR 阈值默认 0）
+        # 挡住合法变更。该误报为 v1.2.0.9 之后引入，升级会带给内网。
+        m_del = re.search(r"\bdelete\b(.*?)(?:\bwhere\b|$)", clean_sql_no_comm, re.DOTALL)
+        del_seg = m_del.group(1) if m_del else ""
+        del_multi = bool(del_seg and (
+            re.search(r"\bjoin\b", del_seg)                         # DELETE a FROM t1 JOIN t2
+            or re.search(r"\busing\b", del_seg)                     # DELETE FROM t1,t2 USING ...
+            # DELETE a, b FROM ...：FROM 之前必须先出现【标识符】。
+            # 不能写成 [\w`\s,]+ —— 空白也在字符组里，` from t` 的前导空格
+            # 自身即可满足 +，会把普通单表 DELETE FROM 全部误判成联表。
+            or re.search(r"^\s*[a-zA-Z0-9_`][a-zA-Z0-9_`\s,]*\bfrom\b", del_seg)
+        ))
+        if upd_multi or del_multi:
             parsed.is_multi_table_update = True
 
         # 检测 INDEX HINT (USE INDEX / FORCE INDEX / IGNORE INDEX)

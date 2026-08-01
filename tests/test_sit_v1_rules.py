@@ -153,6 +153,50 @@ class TestNewDMLAndSecurityRules:
         rule_ids, _ = audit(sql)
         assert "R043" not in rule_ids
 
+    # ── R043 DELETE 侧（A 准出质检补充：UPDATE 侧收敛后 DELETE 侧仍满句扫）──
+    # 旧写法 `\bdelete\s+.*?\bjoin\b` 不限范围，WHERE 子查询里的 JOIN 会被
+    # 误判成联表 DELETE。R043 是 ERROR 级、门禁 ERROR 阈值默认 0，误报会直接
+    # 挡住合法变更；且该误报为 v1.2.0.9 之后引入，升级会带给内网。
+
+    def test_r043_delete_join_style(self):
+        """R043: JOIN 写法的联表 DELETE 应命中"""
+        sql = "DELETE a FROM t_order a JOIN t_user b ON a.cust_id = b.id"
+        assert "R043" in audit(sql)[0]
+
+    def test_r043_delete_alias_list_style(self):
+        """R043: 别名列表写法的联表 DELETE 应命中"""
+        sql = "DELETE a, b FROM t_a a, t_b b WHERE a.id = b.id"
+        assert "R043" in audit(sql)[0]
+
+    def test_r043_delete_using_style(self):
+        """R043: USING 写法的联表 DELETE 应命中"""
+        sql = "DELETE FROM t_a, t_b USING t_a JOIN t_b ON t_a.id = t_b.id"
+        assert "R043" in audit(sql)[0]
+
+    def test_r043_negative_plain_single_table_delete(self):
+        """R043 反向: 普通单表 DELETE 不得误报"""
+        assert "R043" not in audit("DELETE FROM t_order WHERE id = 1")[0]
+
+    def test_r043_negative_join_in_where_subquery(self):
+        """R043 反向: 单表 DELETE，WHERE 子查询含 JOIN——不得误报
+
+        这是准出质检发现的残留误报：合法的
+        `DELETE FROM t WHERE id IN (SELECT .. JOIN ..)` 被判为联表 DELETE。
+        """
+        sql = ("DELETE FROM t_a WHERE id IN "
+               "(SELECT id FROM t_b JOIN t_c ON t_b.k = t_c.k)")
+        assert "R043" not in audit(sql)[0]
+
+    def test_r043_negative_exists_subquery_join(self):
+        """R043 反向: 单表 DELETE，WHERE EXISTS 子查询含 JOIN——不得误报"""
+        sql = ("DELETE FROM t_a WHERE EXISTS "
+               "(SELECT 1 FROM t_b JOIN t_c ON t_b.k = t_c.k)")
+        assert "R043" not in audit(sql)[0]
+
+    def test_r043_negative_delete_with_limit(self):
+        """R043 反向: 单表 DELETE + ORDER BY/LIMIT（无 WHERE）不得误报"""
+        assert "R043" not in audit("DELETE FROM t_a ORDER BY id LIMIT 10")[0]
+
     def test_r044_use_index_hint(self):
         """R044: 禁止USE INDEX/FORCE INDEX"""
         sql = "SELECT * FROM t_user USE INDEX (idx_name) WHERE id = 1"
