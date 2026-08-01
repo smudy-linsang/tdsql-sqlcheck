@@ -285,6 +285,17 @@ def _run_retention_cleanup():
         logger.error("[保留清理] 执行异常: %s", e, exc_info=True)
 
 
+def _run_due_raw_slowlogs():
+    """原始慢日志到期源检查（复用全局 leader 租约，源内再取得源级租约）。"""
+    if not _try_acquire_lease():
+        return
+    try:
+        from backend.services.raw_slowlog_service import raw_slowlog_service
+        raw_slowlog_service.run_due_sources()
+    except Exception as e:
+        logger.error("[原始慢日志] 到期采集检查异常: %s", e, exc_info=True)
+
+
 # ══════════════════════════════════════════════════════════════════
 # 调度器生命周期
 # ══════════════════════════════════════════════════════════════════
@@ -342,6 +353,15 @@ def start_scheduler() -> Optional[BackgroundScheduler]:
         trigger=IntervalTrigger(minutes=1),
         id="scan_schedules",
         name="按连接扫描计划检查",
+        replace_existing=True,
+    )
+
+    # V1.5.3: 源自行配置轮询周期；调度器固定 30 秒检查到期源。
+    _scheduler.add_job(
+        _run_due_raw_slowlogs,
+        trigger=IntervalTrigger(seconds=30),
+        id="raw_slowlog_sources",
+        name="原始慢日志采集源检查",
         replace_existing=True,
     )
 

@@ -31,6 +31,9 @@ CLEANABLE_TABLES = {
     # ON DELETE CASCADE 外键，随任务级联清理；若单独登记并按其自身
     # created_at 清理，会留下"任务还在、明细被删一半"的残缺记录。
     "inspection_tasks": "created_at",
+    # V1.5.3: 两张原始慢日志表由专用的逐批处理器清理，不能进入下方通用大 DELETE。
+    "slow_log_events": "event_time",
+    "slow_log_collection_runs": "started_at",
 }
 
 
@@ -93,11 +96,17 @@ class RetentionService:
                 if not time_col:
                     continue
                 try:
-                    cursor = conn.execute(
-                        f"DELETE FROM {table} WHERE {time_col} < DATE_SUB(NOW(), INTERVAL ? DAY)",
-                        (int(days),))
-                    if cursor.rowcount > 0:
-                        deleted[table] = cursor.rowcount
+                    if table in {"slow_log_events", "slow_log_collection_runs"}:
+                        # 每批独立提交，避免逐条事件表在一个大事务中持锁/膨胀。
+                        from backend.services.raw_slowlog_service import RawSlowLogService
+                        count = RawSlowLogService.cleanup_retention(table, int(days))
+                    else:
+                        cursor = conn.execute(
+                            f"DELETE FROM {table} WHERE {time_col} < DATE_SUB(NOW(), INTERVAL ? DAY)",
+                            (int(days),))
+                        count = cursor.rowcount
+                    if count > 0:
+                        deleted[table] = count
                 except Exception as e:
                     logger.warning("清理表 %s 失败: %s", table, e)
             conn.commit()

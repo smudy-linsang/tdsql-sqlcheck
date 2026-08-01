@@ -47,6 +47,7 @@ from backend.api.rulesets import router as rulesets_router
 from backend.api.system_config import router as system_config_router
 from backend.api.admin import router as admin_router
 from backend.api.scan_compare import router as scan_compare_router
+from backend.api.raw_slowlog import router as raw_slowlog_router
 from backend.middleware import (AuthMiddleware, BodySizeLimitMiddleware,
                                 RequestContextMiddleware)
 
@@ -171,6 +172,7 @@ app.include_router(gateway_log_router)      # G11 网关日志
 app.include_router(ppt_report_router)       # G12 PPT 生成与大屏
 app.include_router(toolkit_router)          # G13 运维工具箱
 app.include_router(scan_compare_router)     # V1.3 扫描结果纵向对比
+app.include_router(raw_slowlog_router)      # V1.5.3 原始慢日志采集（独立模块）
 
 # 前端静态资源（V2.0: 本地化vendor资产，纯内网可用）
 STATIC_DIR = FRONTEND_DIR / "static"

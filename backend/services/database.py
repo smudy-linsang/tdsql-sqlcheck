@@ -1479,6 +1479,9 @@ def _init_default_data(conn):
         # V1.5.2: 上线检查明细（与 v6/060 迁移双保险，R-04）。
         # inspection_results 经外键级联清理，不单独登记。
         ("inspection_tasks", 180),
+        # V1.5.3: 原始逐条事件量高于聚合慢 SQL，迁移 v7 也会 INSERT IGNORE 此策略。
+        ("slow_log_events", 30),
+        ("slow_log_collection_runs", 90),
     ]
     for table, days in retention_defaults:
         conn.cursor().execute("""
@@ -1502,7 +1505,7 @@ def _init_default_data(conn):
     # V3.0: 初始化角色权限矩阵（全菜单默认可见=1）
     all_menus = [
         'dashboard', 'audit-sql', 'file-audit', 'schema-extractor-audit', 'rules',
-        'slow-tasks', 'slow-records', 'slow-schedule', 'explain',
+        'slow-tasks', 'slow-records', 'slow-raw-log', 'slow-schedule', 'explain',
         'instances', 'schema-check', 'bigtable', 'deep-diag',
         'deep-diag-cluster', 'deep-diag-daily', 'deep-diag-index', 'deep-diag-diff',
         'deep-diag-emergency', 'deep-diag-sqlstats', 'deep-diag-gateway', 'deep-diag-ppt',

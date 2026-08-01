@@ -17,6 +17,7 @@ from backend.engine.slow_analyzer import (
 
 
 from backend.services.database import _get_connection, ensure_db
+from backend.services.sql_masking import SQLMaskingError, mask_sql_literals
 
 
 class SlowQueryService:
@@ -50,11 +51,12 @@ class SlowQueryService:
         stored_sql = record.sql_text
         stored_fingerprint = record.fingerprint
         if config.data_masking_enabled():
-            from backend.engine.fingerprint import FingerprintEngine
-            engine = FingerprintEngine()
-            stored_sql = engine.normalize_for_display(record.sql_text)
-            stored_fingerprint = engine.normalize_for_display(record.fingerprint) \
-                if record.fingerprint else stored_sql
+            # 与原始慢日志/网关分析共享同一规则；无法确定字面量边界时宁可拒绝入库。
+            try:
+                stored_sql = mask_sql_literals(record.sql_text)
+                stored_fingerprint = mask_sql_literals(record.fingerprint) if record.fingerprint else stored_sql
+            except SQLMaskingError as exc:
+                raise ValueError("SQL 脱敏失败，拒绝保存可能含敏感字面量的文本") from exc
 
         conn = _get_connection()
         try:

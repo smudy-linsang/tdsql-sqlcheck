@@ -654,19 +654,15 @@ def parse_sys_instance(filepath, max_lines=10000):
 
 
 def normalize_sql(sql_text):
-    """将SQL中的具体值替换为占位符，提取SQL模式"""
+    """统一委托平台 SQL 脱敏规则；异常日志文本不以原文降级。"""
     if not sql_text:
         return ""
-    s = sql_text[:200]
-    # URL 解码
-    s = s.replace("%3D", "=").replace("%0A", " ").replace("%20", " ")
-    # 替换数字
-    s = re.sub(r"(?<![a-zA-Z_])\d+(?:\.\d+)?", "?", s)
-    # 替换字符串
-    s = re.sub(r"'[^']*'", "'?'", s)
-    # 压缩空白
-    s = re.sub(r"\s+", " ", s).strip()
-    return s[:120]
+    from backend.services.sql_masking import SQLMaskingError, mask_sql_literals
+    s = sql_text[:200].replace("%3D", "=").replace("%0A", " ").replace("%20", " ")
+    try:
+        return mask_sql_literals(s)[:120]
+    except SQLMaskingError:
+        return ""
 
 
 # ============================================================

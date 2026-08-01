@@ -4,10 +4,10 @@
 
 | 项 | 内容 |
 |---|---|
-| 版本 | v1.5.3.0（设计基线） |
-| 基线 | `main` @ `9dea791`（含 A 对初版 `33947f9` 的设计评审） |
+| 版本 | v1.5.3.0（实施后设计基线） |
+| 基线 | `main` @ `68954e5`（含 A 对初版 `33947f9` 的设计评审） |
 | 文档类型 | **概要设计 + 详细设计 + 接口设计 + 数据库设计** |
-| 状态 | 待实施；外部日志格式和目录须按 §16 的实测门禁确认后才能启用采集 |
+| 状态 | 已完成开发自测；外部日志格式、账号和目录仍须按 §16 的实测门禁确认后才能启用采集 |
 | 编制日期 | 2026-08-02 |
 | 施工规约 | [`GUIDE-团队施工规约.md`](GUIDE-团队施工规约.md)，尤其是 R-02~R-05、R-08~R-10、R-11~R-17 |
 | 关联模块 | `慢SQL治理`；新增子模块，**不复用**现有“扫描任务 / 慢SQL记录 / 网关日志分析报告”的数据表和路由 |
@@ -55,7 +55,7 @@
 | 范围 | 本版本结论 |
 |---|---|
 | Proxy / Gateway 原始慢日志的定时、增量、去重采集 | ✅ 实现 |
-| 按日志记录时间的逐条检索、导出、趋势汇总 | ✅ 实现 |
+| 按日志记录时间的逐条检索、筛选、导出 | ✅ 实现 |
 | 开发人员从事件进入既有 EXPLAIN 分析 | ✅ 提供跳转上下文；仍使用既有安全校验 |
 | 自动从 ZK、赤兔或数据库猜测日志主机和目录 | ❌ 不做；主机、端口、路径均由管理员配置 |
 | 解析未实测的 `interf` / `slow_sql` 格式 | ❌ 不假设；先走 §16 格式验收门禁 |
@@ -891,51 +891,52 @@ GET /api/v1/raw-slowlogs/events?
 
 ### 8.2 协议帧
 
-标准输入为一行 UTF-8 JSON；标准输出为 NDJSON。单个字段不可跨行，块内容 Base64 编码。协议版本固定为 `1`，导出器还必须返回自身语义版本；客户端只接受 `protocol_version=1` 且 `exporter_version` 落在声明兼容范围内的响应。
+标准输入为一行 UTF-8 JSON；标准输出为 NDJSON。单个字段不可跨行，块内容 Base64 编码。当前固定协议标识为 `raw_slowlog_exporter_v1`，导出器版本为语义版本字符串；请求、Probe 响应与每一个 chunk 必须回显该协议标识和受控 `source_key`。应用收到任一不匹配、空响应、非 NDJSON 或超出 `max_bytes` 的数据，均失败关闭且不推进游标。
 
 Probe 请求：
 
 ```json
-{"version":1,"action":"probe","remote_source_key":"sit_proxy_a_slowlog"}
+{"op":"probe","protocol":"raw_slowlog_exporter_v1","source_key":"sit_proxy_a_slowlog"}
 ```
 
 Pull 请求：
 
 ```json
 {
-  "version": 1,
-  "action": "pull",
-  "remote_source_key": "sit_proxy_a_slowlog",
-  "max_batch_bytes": 8388608,
-  "files": [
+  "op": "pull",
+  "protocol": "raw_slowlog_exporter_v1",
+  "source_key": "sit_proxy_a_slowlog",
+  "max_bytes": 8388608,
+  "initial_position": "tail",
+  "initial_lookback_seconds": 300,
+  "timezone": "Asia/Shanghai",
+  "cursors": [
     {
       "file_identity":"<known-id>",
       "generation":0,
       "offset":2048,
       "anchor_start_offset":1984,
-      "anchor_length":64,
-      "anchor_sha256":"<sha256-of-bytes-before-offset>"
+      "anchor_length":64
     }
   ]
 }
 ```
 
-清单帧：
+Probe 响应：
 
 ```json
 {
-  "type": "manifest",
-  "protocol_version": 1,
-  "exporter_version": "1.0.0",
-  "remote_source_key": "sit_proxy_a_slowlog",
+  "type": "probe",
+  "protocol": "raw_slowlog_exporter_v1",
+  "version": "1.5.3.0",
+  "source_key": "sit_proxy_a_slowlog",
   "storage_identity": "<stable-filesystem-id>",
   "files": [
     {
       "file_identity": "<device:inode-or-equivalent>",
       "file_label": "<safe-basename>",
-      "size": 1048576,
-      "mtime_epoch_ms": 0,
-      "generation_hint": 0
+      "file_size": 1048576,
+      "modified_at": "2026-08-02T10:00:00Z"
     }
   ]
 }
@@ -946,22 +947,21 @@ Pull 请求：
 ```json
 {
   "type": "chunk",
+  "protocol": "raw_slowlog_exporter_v1",
+  "source_key": "sit_proxy_a_slowlog",
   "file_identity": "<device:inode-or-equivalent>",
-  "generation": 0,
-  "start_offset": 2048,
-  "end_offset": 4096,
-  "sha256": "<sha256-of-decoded-bytes>",
+  "file_label": "<safe-basename>",
+  "file_size": 1048576,
+  "offset": 2048,
+  "next_offset": 4096,
+  "eof": false,
+  "pre_anchor_base64": "<bytes-at-known-anchor>",
+  "post_anchor_base64": "<up-to-64-bytes-ending-at-next_offset>",
   "data_base64": "<base64>"
 }
 ```
 
-结束帧：
-
-```json
-{"type":"eof","status":"ok","server_time":"2026-08-02T10:00:00+08:00"}
-```
-
-当请求带锚点时，导出器必须先回传 `type=anchor` 帧，内容为对应 `file_identity`、`anchor_start_offset`、`anchor_length` 和实际 `anchor_sha256`；客户端比对后才接受后续 chunk。客户端必须验证：协议/导出器版本、`remote_source_key`、Base64 长度、解码后 SHA-256、偏移连续性、锚点、最大字节数、文件身份及存储身份归属。任意一项失败即本节点本次失败，游标不推进。
+每个 chunk 的 `eof` 表示该文件本次读至尾部；导出器在未传入 cursor 的 `tail` 初始接入中仍必须返回 `post_anchor_base64`，平台据此建立可校验的初始尾部游标。`lookback` 初始接入由导出器按 `# Time` 和请求时区定位首条落入窗口的记录；未找到时安全地建立尾部游标。客户端必须验证：协议/源标识、Base64、偏移连续性、锚点、最大字节数、文件身份及存储身份归属。任意一项失败即本节点本次失败，游标不推进。
 
 ### 8.3 轮转与截断算法
 
@@ -973,21 +973,21 @@ Pull 请求：
 
 ### 8.4 远端导出器交付、安装与兼容
 
-导出器是本设计的正式交付物：`tdsql-slowlog-exporter`。它采用 **Go 1.22 标准库**实现，构建为 `CGO_ENABLED=0` 的 Linux 单文件静态二进制，目标产物为 `linux-amd64` 与 `linux-arm64`（发布脚本的 `x86_64 → amd64`、`aarch64 → arm64` 映射必须显式测试）；目标 Proxy/Gateway 主机不需要 Python、Go、pip 或任何第三方运行时。它不是常驻服务，只在受限 SSH 会话的 ForceCommand 中被调用。
+导出器是本设计的正式交付物：`raw_slowlog_exporter`。它采用 **Go 1.22 标准库**实现，构建为 `CGO_ENABLED=0` 的 Linux 单文件静态二进制，目标产物为 `raw_slowlog_exporter-linux-amd64` 与 `raw_slowlog_exporter-linux-arm64`（发布脚本的 `x86_64 → amd64`、`aarch64 → arm64` 映射必须显式测试）；目标 Proxy/Gateway 主机不需要 Python、Go、pip 或任何第三方运行时。它不是常驻服务，只在受限 SSH 会话的 ForceCommand 中被调用。
 
 | 事项 | 施工规定 |
 |---|---|
 | 源码与构建 | 新增 `deploy/raw_slowlog_exporter/` 源码及 `deploy/build_raw_slowlog_exporter.sh`；构建脚本固定 Go 版本、`GOOS=linux`、`GOARCH`、`CGO_ENABLED=0`，生成 SHA-256 manifest |
-| 发布包 | `deploy/make_release.sh` 必须先构建或验证两种架构产物，再将**当前目标架构**的二进制、manifest、样例白名单配置与安装手册复制到发布包 `deploy/raw-slowlog-exporter/`；找不到匹配产物即失败，不得 `|| true` |
-| 协议协商 | 导出器所有响应带 `protocol_version`、`exporter_version`；v1 客户端只接受协议 1 和 `>=1.0.0,<2.0.0`，不兼容报 `E4224 EXPORTER_VERSION_INCOMPATIBLE`，不能降级猜测 |
-| 安装 | 由目标主机的受控变更流程执行 `install -o root -g tdsql_log_reader -m 0750` 至 `/usr/local/libexec/tdsql-slowlog-exporter`；白名单配置为 root 所有、`0640`，账户仅可读取；`authorized_keys` 强制命令只指向该绝对路径 |
+| 发布包 | `deploy/make_release.sh` 为**当前目标架构**构建二进制、SHA-256 文件、样例白名单配置与安装手册，并复制到发布包 `deploy/raw_slowlog_exporter/`；找不到 Go 工具链或匹配产物即失败，不得 `|| true` |
+| 协议协商 | Probe 与 chunk 带 `protocol=raw_slowlog_exporter_v1`，Probe 另带 `version=1.x.y.z`；客户端拒绝协议、源键或主版本不兼容的响应，不能降级猜测 |
+| 安装 | 由目标主机的受控变更流程执行 `install -o root -g tdsql_log_reader -m 0750` 至 `/usr/local/libexec/raw_slowlog_exporter`；白名单配置为 `root:tdsql_log_reader`、`0640`，账户仅可读；`authorized_keys` 强制命令只指向该绝对路径 |
 | 升级 | 每台节点先校验 SHA-256、执行本地 `--version` 和一次 probe，再原子替换；先灰度一个节点，probe 成功再滚动其余节点 |
 | 回滚 | 保留上一版受校验二进制和配置；发生协议/格式异常时原子切回上一版，平台源保持禁用或降级，随后重新 probe |
 
 ForceCommand 示例仅表达限制形态，公钥和真实路径由受控部署产生：
 
 ```text
-restrict,command="/usr/local/libexec/tdsql-slowlog-exporter --stdio --config-dir /etc/tdsql-sqlcheck/slowlog-exporter.d" <public-key>
+restrict,command="/usr/local/libexec/raw_slowlog_exporter --stdio --config /etc/tdsql-sqlcheck/raw-slowlog-exporter.json" <public-key>
 ```
 
 发布包可以携带导出器，**不得**由 CheckSQL 自动上传或替换目标主机二进制；安装、升级和回滚是 Proxy/Gateway 主机的独立变更，必须留存其版本与 probe 证据。

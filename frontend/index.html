@@ -90,10 +90,11 @@
             <el-menu-item v-if="visibleMenus.has('file-audit')" index="file-audit">文件审核</el-menu-item>
             <el-menu-item v-if="visibleMenus.has('schema-extractor-audit')" index="schema-extractor-audit">在线元数据审核</el-menu-item>
           </el-sub-menu>
-          <el-sub-menu v-if="visibleMenus.has('slow-tasks')||visibleMenus.has('slow-records')||visibleMenus.has('explain')" index="slow-group">
+          <el-sub-menu v-if="visibleMenus.has('slow-tasks')||visibleMenus.has('slow-records')||visibleMenus.has('slow-raw-log')||visibleMenus.has('explain')" index="slow-group">
             <template #title><el-icon><Timer /></el-icon><span>慢SQL治理</span></template>
             <el-menu-item v-if="visibleMenus.has('slow-tasks')" index="slow-tasks">扫描任务</el-menu-item>
             <el-menu-item v-if="visibleMenus.has('slow-records')" index="slow-records">慢SQL记录</el-menu-item>
+            <el-menu-item v-if="visibleMenus.has('slow-raw-log')" index="slow-raw-log">原始慢日志</el-menu-item>
             <el-menu-item v-if="visibleMenus.has('explain')" index="explain">EXPLAIN分析</el-menu-item>
           </el-sub-menu>
           <el-sub-menu v-if="visibleMenus.has('schema-check')||visibleMenus.has('bigtable')" index="instance-group">
@@ -958,6 +959,93 @@
               </div>
               <el-button type="primary" plain class="mt-16" @click="goExplainFromSlow(slowDetail)">去 EXPLAIN 分析</el-button>
             </template>
+          </el-drawer>
+
+          <!-- ═══ V1.5.3 原始慢日志（独立数据源，时间=Proxy慢日志记录时间） ═══ -->
+          <div v-if="currentPage==='slow-raw-log'">
+            <el-tabs v-model="rawSlowTab">
+              <el-tab-pane label="原始慢日志事件" name="events">
+                <div class="page-card">
+                  <div class="filter-bar">
+                    <el-select v-model="rawFilters.source_id" placeholder="采集源" clearable size="small" class="w-200"><el-option v-for="s in rawSources" :key="s.id" :label="s.display_name" :value="s.id"></el-option></el-select>
+                    <el-input v-model="rawFilters.db_name" placeholder="数据库" clearable size="small" class="w-140"></el-input>
+                    <el-date-picker v-model="rawFilters.time_range" type="datetimerange" value-format="YYYY-MM-DD HH:mm:ss" range-separator="至" start-placeholder="日志记录时间开始" end-placeholder="日志记录时间结束" size="small"></el-date-picker>
+                    <el-input-number v-model="rawFilters.min_query_time_ms" :min="0" :precision="1" placeholder="最小耗时(ms)" size="small" class="w-150"></el-input-number>
+                    <el-button type="primary" size="small" @click="loadRawEvents">筛选</el-button>
+                    <el-button size="small" @click="resetRawFilters">重置</el-button>
+                    <el-button size="small" class="ml-auto" @click="downloadRawEvents('csv')">导出脱敏 CSV</el-button><el-button size="small" @click="downloadRawEvents('html')">导出 HTML 报告</el-button>
+                  </div>
+                  <el-alert type="info" :closable="false" class="mb-12" title="时间字段为 Proxy 慢日志记录时间（通常为 SQL 完成后写入日志的时间），不是采集时间或 SQL 开始时间。SQL 仅显示统一脱敏后的模板。"></el-alert>
+                  <el-table :data="rawEvents" v-loading="rawEventsLoading" stripe class="w-full">
+                    <el-table-column prop="event_time" label="日志记录时间" width="175"></el-table-column>
+                    <el-table-column prop="db_name" label="库" width="130"></el-table-column>
+                    <el-table-column prop="source_node_id" label="节点" width="85"></el-table-column>
+                    <el-table-column label="耗时(ms)" width="110"><template #default="{row}">{{ (row.query_time_us/1000).toFixed(3) }}</template></el-table-column>
+                    <el-table-column prop="rows_examined" label="扫描行" width="95"></el-table-column>
+                    <el-table-column prop="sql_fingerprint" label="完整模板指纹" width="150" show-overflow-tooltip></el-table-column>
+                    <el-table-column prop="sql_template" label="脱敏SQL模板" min-width="280" show-overflow-tooltip></el-table-column>
+                    <el-table-column label="截断" width="70"><template #default="{row}"><el-tag v-if="row.sql_template_truncated" type="warning" size="small">是</el-tag><span v-else>否</span></template></el-table-column>
+                    <el-table-column label="操作" width="105"><template #default="{row}"><el-button v-if="!row.sql_template_truncated" link size="small" @click="goExplainFromSlow(row)">在 EXPLAIN 打开</el-button></template></el-table-column>
+                  </el-table>
+                  <div class="table-foot">共 {{ rawEventsTotal }} 条；页面最多显示 200 条，导出最多 10,000 条。</div>
+                </div>
+              </el-tab-pane>
+              <el-tab-pane label="采集运行" name="runs">
+                <div class="page-card">
+                  <div class="card-head"><div class="page-card-title mb0">采集运行审计</div><el-button size="small" @click="loadRawRuns">刷新</el-button></div>
+                  <el-table :data="rawRuns" v-loading="rawRunsLoading" stripe class="w-full">
+                    <el-table-column prop="id" label="运行ID" width="85"></el-table-column>
+                    <el-table-column prop="trigger_type" label="触发方式" width="90"></el-table-column>
+                    <el-table-column prop="status" label="状态" width="100"><template #default="{row}"><el-tag :type="row.status==='succeeded'?'success':row.status==='failed'?'danger':'warning'" size="small">{{ row.status }}</el-tag></template></el-table-column>
+                    <el-table-column prop="started_at" label="开始时间" width="175"></el-table-column>
+                    <el-table-column prop="nodes_success" label="成功节点" width="100"><template #default="{row}">{{ row.nodes_success }}/{{ row.nodes_total }}</template></el-table-column>
+                    <el-table-column prop="events_inserted" label="新增事件" width="100"></el-table-column>
+                    <el-table-column prop="events_duplicate" label="重复忽略" width="100"></el-table-column>
+                    <el-table-column prop="incomplete_tail_count" label="未完整尾块" width="110"></el-table-column>
+                    <el-table-column prop="error_detail" label="摘要" show-overflow-tooltip></el-table-column>
+                  </el-table>
+                </div>
+              </el-tab-pane>
+              <el-tab-pane label="采集源" name="sources">
+                <div class="page-card">
+                  <div class="card-head"><div><div class="page-card-title mb0">采集源配置与健康状态</div><div class="muted">新建后默认停用；必须通过 Probe 才能由管理员启用。</div></div><div class="flex-gap8"><el-button size="small" @click="loadRawSources">刷新</el-button><el-button v-if="isAdmin" type="primary" size="small" @click="openRawSourceCreate">新建采集源</el-button></div></div>
+                  <el-table :data="rawSources" v-loading="rawSourcesLoading" stripe class="w-full">
+                    <el-table-column prop="display_name" label="采集源" min-width="180"></el-table-column>
+                    <el-table-column prop="connection_id" label="关联实例" width="160" show-overflow-tooltip></el-table-column>
+                    <el-table-column prop="transport" label="传输" width="135"></el-table-column>
+                    <el-table-column prop="nodes_enabled" label="启用节点" width="100"><template #default="{row}">{{ row.nodes_enabled }}/{{ row.node_count }}</template></el-table-column>
+                    <el-table-column prop="last_success_at" label="最近成功" width="165"></el-table-column>
+                    <el-table-column label="状态" width="105"><template #default="{row}"><el-tag :type="row.health_status==='healthy'?'success':row.health_status==='disabled'?'info':'warning'" size="small">{{ row.health_status||'unknown' }}</el-tag></template></el-table-column>
+                    <el-table-column label="操作" width="270" fixed="right"><template #default="{row}"><el-button v-if="canManagePlatform" link size="small" @click="probeRawSource(row)">Probe</el-button><el-button v-if="canManagePlatform&&row.enabled" link size="small" @click="collectRawSource(row)">立即采集</el-button><el-button v-if="isAdmin" link size="small" @click="openRawSourceEdit(row)">编辑</el-button><el-button v-if="isAdmin" :type="row.enabled?'danger':'success'" link size="small" @click="toggleRawSource(row)">{{ row.enabled?'停用':'启用' }}</el-button></template></el-table-column>
+                  </el-table>
+                </div>
+              </el-tab-pane>
+            </el-tabs>
+          </div>
+
+          <el-drawer v-model="rawSourceDrawer" :title="rawSourceEditMode?'编辑原始慢日志采集源（保存后自动停用）':'新建原始慢日志采集源'" size="720px">
+            <el-alert type="warning" :closable="false" class="mb-16" title="仅填写经审批的内网主机、只读日志路径声明及凭据引用名；口令、私钥内容不得输入本页面。启用前必须执行 Probe。"></el-alert>
+            <el-form label-width="130px" size="small">
+              <el-form-item label="源键"><el-input v-model="rawSourceForm.source_key" :disabled="rawSourceEditMode" placeholder="如 sit_proxy_slowlog"></el-input></el-form-item>
+              <el-form-item label="关联实例ID"><el-input v-model="rawSourceForm.connection_id"></el-input></el-form-item>
+              <el-form-item label="展示名称"><el-input v-model="rawSourceForm.display_name"></el-input></el-form-item>
+              <el-form-item label="时区"><el-input v-model="rawSourceForm.timezone"></el-input></el-form-item>
+              <el-form-item label="私钥引用"><el-input v-model="rawSourceForm.credential_ref" placeholder="部署机 Secret 文件引用名"></el-input></el-form-item>
+              <el-form-item label="known_hosts 引用"><el-input v-model="rawSourceForm.known_hosts_ref" placeholder="部署机 known_hosts 文件引用名"></el-input></el-form-item>
+              <el-form-item label="轮询 / 超时"><el-input-number v-model="rawSourceForm.poll_interval_seconds" :min="30"></el-input-number><span class="form-tip"> 秒；单次预算 </span><el-input-number v-model="rawSourceForm.max_run_seconds" :min="5"></el-input-number><span class="form-tip"> 秒</span></el-form-item>
+              <el-form-item label="慢SQL阈值"><el-input-number v-model="rawSourceForm.min_query_time_ms" :min="0"></el-input-number><span class="form-tip"> ms</span></el-form-item>
+              <div class="page-card-title">节点（日志主机）</div>
+              <div v-for="(node,index) in rawSourceForm.nodes" :key="index" class="page-card mb-12">
+                <div class="card-head"><span>节点 {{ index+1 }}</span><el-button v-if="rawSourceForm.nodes.length>1" link type="danger" size="small" @click="removeRawNode(index)">移除</el-button></div>
+                <el-form-item label="节点键"><el-input v-model="node.node_key"></el-input></el-form-item><el-form-item label="节点名称"><el-input v-model="node.display_name"></el-input></el-form-item>
+                <el-form-item label="SSH 主机 / 端口"><el-input v-model="node.ssh_host" class="w-300"></el-input><el-input-number v-model="node.ssh_port" :min="1" :max="65535" class="ml-8"></el-input-number></el-form-item>
+                <el-form-item label="主机密钥别名"><el-input v-model="node.host_key_alias"></el-input></el-form-item><el-form-item label="远端源键"><el-input v-model="node.remote_source_key"></el-input></el-form-item>
+                <el-form-item label="日志路径声明"><el-input v-model="node.declared_path_template" placeholder="经审批的路径模板（不会由客户端传给远端）"></el-input></el-form-item>
+                <el-form-item label="解析器"><el-input v-model="node.parser_profile" :disabled="true"></el-input></el-form-item>
+              </div>
+              <el-button plain size="small" @click="addRawNode">增加节点</el-button>
+            </el-form>
+            <template #footer><el-button @click="rawSourceDrawer=false">取消</el-button><el-button type="primary" :loading="rawSourceSaving" @click="saveRawSource">保存配置</el-button></template>
           </el-drawer>
 
           <!-- ═══ 扫描计划（暂时隐藏） ═══ -->
@@ -2449,6 +2537,6 @@
   </el-dialog>
 </div>
 <!-- 版本参数确保页面结构与应用逻辑同步更新，避免浏览器沿用旧版 app.js。 -->
-<script src="/static/js/app.js?v=20260802.1"></script>
+<script src="/static/js/app.js?v=20260802.2"></script>
 </body>
 </html>

@@ -36,6 +36,10 @@ if [[ "$WITH_PYTHON" == "yes" && "$PY_EXPLICIT" == "yes" && "$PYTAG" != "$BUNDLE
   exit 1
 fi
 [[ "$ARCH" == "x86_64" || "$ARCH" == "aarch64" ]] || { echo "--arch 仅支持 x86_64/aarch64"; exit 1; }
+case "$ARCH" in
+  x86_64) EXPORTER_GOARCH="amd64";;
+  aarch64) EXPORTER_GOARCH="arm64";;
+esac
 [[ "$WITH_PYTHON" == "yes" ]] && { echo "警告: 内置 CPython 将大幅增加发布包体积"; }
 
 echo "════ 打包 TDSQL SQL审核工具 v${VERSION} (${ARCH}) ════"
@@ -52,6 +56,13 @@ cp -a "${ROOT}/frontend" "${STAGE}/${PKG}/"
 cp -a "${ROOT}/requirements.txt" "${STAGE}/${PKG}/"
 cp -a "${ROOT}/deploy/"*.sh "${ROOT}/deploy/"*.service "${ROOT}/deploy/env.template" \
       "${ROOT}/deploy/nginx-sqlcheck.conf" "${ROOT}/deploy/README.md" "${STAGE}/${PKG}/deploy/" 2>/dev/null || true
+# 原始慢日志导出器是受限 SSH 协议的另一端；发布包必须携带已构建的同架构二进制及哈希。
+cp -a "${ROOT}/deploy/raw_slowlog_exporter" "${STAGE}/${PKG}/deploy/"
+command -v go >/dev/null 2>&1 || { echo "错误: 构建原始慢日志导出器需要 Go 工具链"; exit 1; }
+RAW_SLOWLOG_EXPORTER_OUT_DIR="${STAGE}/${PKG}/deploy/raw_slowlog_exporter/bin" \
+  bash "${ROOT}/deploy/build_raw_slowlog_exporter.sh" "${EXPORTER_GOARCH}"
+[[ -x "${STAGE}/${PKG}/deploy/raw_slowlog_exporter/bin/raw_slowlog_exporter-linux-${EXPORTER_GOARCH}" ]] \
+  || { echo "错误: 原始慢日志导出器构建产物缺失"; exit 1; }
 # 文档随包（部署/运维/上线清单）
 mkdir -p "${STAGE}/${PKG}/docs"
 cp ${ROOT}/docs/*.md "${STAGE}/${PKG}/docs/" 2>/dev/null || true

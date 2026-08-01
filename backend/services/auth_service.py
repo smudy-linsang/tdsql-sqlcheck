@@ -336,6 +336,8 @@ _PATH_TO_MENU = {
     "/api/v1/tdsql/slow-queries": "slow-tasks",
     "/api/v1/tdsql/scan-schedules": "slow-tasks",
     "/api/v1/slow-queries/analyze-explain": "explain",
+    # V1.5.3: 原始慢日志独立于既有扫描任务，配置/运行控制在路由层再作角色双校验。
+    "/api/v1/raw-slowlogs": "slow-raw-log",
     "/api/v1/tdsql/connections": "instances",
     "/api/v1/tdsql/discover": "instances",
     "/api/v1/bigtable": "bigtable",
@@ -454,7 +456,7 @@ def check_permission(role: str, method: str, path: str) -> bool:
 # 全部实际展示的菜单key清单（仅包含在前端侧边栏菜单展示的功能项）
 ALL_MENU_KEYS = [
     'dashboard', 'audit-sql', 'file-audit', 'schema-extractor-audit',
-    'slow-tasks', 'slow-records', 'explain',
+    'slow-tasks', 'slow-records', 'slow-raw-log', 'explain',
     'schema-check', 'bigtable', 'deep-diag',
     'deep-diag-cluster', 'deep-diag-daily', 'deep-diag-index', 'deep-diag-diff',
     'deep-diag-emergency', 'deep-diag-sqlstats', 'deep-diag-gateway', 'deep-diag-ppt',
@@ -466,7 +468,7 @@ ALL_MENU_KEYS = [
 # 菜单中文标签
 MENU_LABELS = {
     'dashboard': '治理概览', 'audit-sql': '即时审核', 'file-audit': '文件审核', 'schema-extractor-audit': '在线元数据审核',
-    'rules': '审核规则库', 'slow-tasks': '扫描任务', 'slow-records': '慢SQL记录',
+    'rules': '审核规则库', 'slow-tasks': '扫描任务', 'slow-records': '慢SQL记录', 'slow-raw-log': '原始慢日志',
     'slow-schedule': '扫描计划', 'explain': 'EXPLAIN分析', 'instances': '实例管理',
     'schema-check': '上线检查', 'bigtable': '大表治理', 'deep-diag': '深度诊断',
     'deep-diag-cluster': '深度诊断-集群巡检', 'deep-diag-daily': '深度诊断-日常巡检与对比报告',

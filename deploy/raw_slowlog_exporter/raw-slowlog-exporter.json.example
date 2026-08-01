@@ -1,0 +1,8 @@
+{
+  "sources": {
+    "replace_with_source_key": {
+      "paths": ["/replace/with/approved/slow-log/*.log"],
+      "storage_identity": "replace-with-approved-storage-identity"
+    }
+  }
+}

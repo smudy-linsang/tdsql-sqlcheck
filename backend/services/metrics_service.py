@@ -21,6 +21,7 @@ from backend import config
 
 _lock = threading.Lock()
 _counters: dict[tuple[str, tuple], float] = defaultdict(float)
+_gauges: dict[tuple[str, tuple], float] = {}
 _start_time = time.time()
 
 # 路径归组：避免高基数标签（/api/v1/slow-queries/123 → /api/v1/slow-queries/{id}）
@@ -46,6 +47,13 @@ def inc(name: str, labels: dict = None, value: float = 1.0):
     key = (name, tuple(sorted((labels or {}).items())))
     with _lock:
         _counters[key] += value
+
+
+def set_gauge(name: str, value: float, labels: dict = None):
+    """设置瞬时指标值（例如原始慢日志未读字节）。"""
+    key = (name, tuple(sorted((labels or {}).items())))
+    with _lock:
+        _gauges[key] = value
 
 
 def observe_request(method: str, path: str, status: int, duration_seconds: float):
@@ -78,11 +86,22 @@ def render_prometheus() -> str:
 
     with _lock:
         snapshot = dict(_counters)
+        gauges = dict(_gauges)
     seen_names = set()
     for (name, labels), value in sorted(snapshot.items()):
         if name not in seen_names:
             lines.append(f"# TYPE {name} counter")
             seen_names.add(name)
+        if labels:
+            label_str = ",".join(f'{k}="{v}"' for k, v in labels)
+            lines.append(f"{name}{{{label_str}}} {value:g}")
+        else:
+            lines.append(f"{name} {value:g}")
+    seen_gauges = set()
+    for (name, labels), value in sorted(gauges.items()):
+        if name not in seen_gauges:
+            lines.append(f"# TYPE {name} gauge")
+            seen_gauges.add(name)
         if labels:
             label_str = ",".join(f'{k}="{v}"' for k, v in labels)
             lines.append(f"{name}{{{label_str}}} {value:g}")
@@ -95,3 +114,4 @@ def reset():
     """清空指标（测试用）"""
     with _lock:
         _counters.clear()
+        _gauges.clear()

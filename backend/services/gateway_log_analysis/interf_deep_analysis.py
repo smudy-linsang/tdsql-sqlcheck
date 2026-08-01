@@ -278,24 +278,14 @@ def normalize_sql(sql_text):
     """
     if not sql_text:
         return ""
+    from backend.services.sql_masking import SQLMaskingError, mask_sql_literals
     s = sql_text[:800]
-    # URL 解码
     s = s.replace("%3D", "=").replace("%0A", " ").replace("%20", " ").replace("%2C", ",")
     s = s.replace("%27", "'").replace("%28", "(").replace("%29", ")")
-    # 去掉 SQL 注释块（如 /* SQL-01: ... */、TDSQL 透传注释 /*sets:allsets*/ 等）
-    s = re.sub(r"/\*.*?\*/", "", s)
-    # 替换 IN 列表
-    s = re.sub(r"IN\s*\([^)]+\)", "IN (?)", s, flags=re.IGNORECASE)
-    # 替换字符串值（单引号包裹的内容）
-    s = re.sub(r"'[^']*'", "'?'", s)
-    # 替换数字值 — 关键改进:
-    #   - 不替换标识符中的数字（字母/下划线后面紧跟的数字，如 fld_01, data_750）
-    #   - 只替换独立的数字（不紧跟在字母/下划线/数字后面，也不紧跟字母/下划线）
-    #   - 使用负向回顾 + 负向前瞻确保数字不是标识符的一部分
-    s = re.sub(r"(?<![a-zA-Z0-9_])\d+(?:\.\d+)?(?![a-zA-Z_])", "?", s)
-    # 压缩空白
-    s = re.sub(r"\s+", " ", s).strip()
-    return s[:500]
+    try:
+        return mask_sql_literals(s)[:500]
+    except SQLMaskingError:
+        return ""
 
 
 def extract_tables_from_sql(sql_text):

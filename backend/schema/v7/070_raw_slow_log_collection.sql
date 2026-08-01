@@ -1,0 +1,155 @@
+-- v1.5.3: 原始慢日志采集（独立于 slow_queries / scan_tasks）
+CREATE TABLE IF NOT EXISTS slow_log_sources (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    source_key VARCHAR(64) NOT NULL,
+    connection_id VARCHAR(64) NOT NULL,
+    display_name VARCHAR(128) NOT NULL,
+    transport VARCHAR(32) NOT NULL DEFAULT 'ssh_exporter_v1',
+    timezone VARCHAR(64) NOT NULL DEFAULT 'Asia/Shanghai',
+    poll_interval_seconds INT NOT NULL DEFAULT 60,
+    max_batch_bytes INT NOT NULL DEFAULT 8388608,
+    max_events_per_batch INT NOT NULL DEFAULT 2000,
+    max_run_seconds INT NOT NULL DEFAULT 25,
+    lag_alert_seconds INT NOT NULL DEFAULT 600,
+    initial_position VARCHAR(16) NOT NULL DEFAULT 'tail',
+    initial_lookback_seconds INT NOT NULL DEFAULT 300,
+    min_query_time_ms BIGINT NOT NULL DEFAULT 1000,
+    credential_ref VARCHAR(64) NOT NULL DEFAULT '',
+    known_hosts_ref VARCHAR(64) NOT NULL DEFAULT '',
+    enabled TINYINT NOT NULL DEFAULT 0,
+    last_success_at DATETIME NULL DEFAULT NULL,
+    last_backlog_bytes BIGINT NOT NULL DEFAULT 0,
+    last_lag_seconds BIGINT NULL DEFAULT NULL,
+    last_error_code VARCHAR(64) NOT NULL DEFAULT '',
+    last_error_detail VARCHAR(512) NOT NULL DEFAULT '',
+    lease_holder VARCHAR(128) NOT NULL DEFAULT '',
+    lease_expires_at DATETIME NULL DEFAULT NULL,
+    created_by VARCHAR(64) NOT NULL DEFAULT '',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_sls_source_key (source_key),
+    KEY idx_sls_connection (connection_id),
+    KEY idx_sls_due (enabled, last_success_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS slow_log_source_nodes (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    source_id BIGINT NOT NULL,
+    node_key VARCHAR(64) NOT NULL,
+    display_name VARCHAR(128) NOT NULL,
+    ssh_host VARCHAR(255) NOT NULL,
+    ssh_port INT NOT NULL DEFAULT 22,
+    host_key_alias VARCHAR(128) NOT NULL,
+    ssh_host_key_fingerprint VARCHAR(128) NOT NULL DEFAULT '',
+    remote_source_key VARCHAR(64) NOT NULL,
+    declared_path_template TEXT NOT NULL,
+    parser_profile VARCHAR(64) NOT NULL,
+    enabled TINYINT NOT NULL DEFAULT 0,
+    last_probe_at DATETIME NULL DEFAULT NULL,
+    last_probe_status VARCHAR(32) NOT NULL DEFAULT 'never',
+    last_probe_detail VARCHAR(512) NOT NULL DEFAULT '',
+    last_success_at DATETIME NULL DEFAULT NULL,
+    last_error_code VARCHAR(64) NOT NULL DEFAULT '',
+    last_error_detail VARCHAR(512) NOT NULL DEFAULT '',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_slsn_source_node (source_id, node_key),
+    KEY idx_slsn_source_enabled (source_id, enabled)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS slow_log_cursors (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    source_node_id BIGINT NOT NULL,
+    file_identity VARCHAR(256) NOT NULL,
+    generation INT NOT NULL DEFAULT 0,
+    file_label VARCHAR(512) NOT NULL DEFAULT '',
+    cursor_offset BIGINT NOT NULL DEFAULT 0,
+    last_file_size BIGINT NOT NULL DEFAULT 0,
+    anchor_start_offset BIGINT NOT NULL DEFAULT 0,
+    anchor_length INT NOT NULL DEFAULT 0,
+    anchor_sha256 CHAR(64) NOT NULL DEFAULT '',
+    last_event_time DATETIME(6) NULL DEFAULT NULL,
+    status VARCHAR(32) NOT NULL DEFAULT 'active',
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_slc_file_generation (source_node_id, file_identity, generation),
+    KEY idx_slc_node_status (source_node_id, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS slow_log_events (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    source_id BIGINT NOT NULL,
+    source_node_id BIGINT NOT NULL,
+    origin_file_identity VARCHAR(256) NOT NULL,
+    origin_generation INT NOT NULL DEFAULT 0,
+    origin_offset_start BIGINT NOT NULL,
+    origin_offset_end BIGINT NOT NULL,
+    event_time DATETIME(6) NOT NULL,
+    event_time_source VARCHAR(32) NOT NULL DEFAULT 'proxy_log_time',
+    db_name VARCHAR(256) NOT NULL DEFAULT '',
+    client_user VARCHAR(512) NOT NULL DEFAULT '',
+    client_host VARCHAR(512) NOT NULL DEFAULT '',
+    backend_host VARCHAR(512) NOT NULL DEFAULT '',
+    thread_id VARCHAR(128) NOT NULL DEFAULT '',
+    query_time_us BIGINT NOT NULL DEFAULT 0,
+    lock_time_us BIGINT NOT NULL DEFAULT 0,
+    rows_sent BIGINT NOT NULL DEFAULT 0,
+    rows_examined BIGINT NOT NULL DEFAULT 0,
+    statement_type VARCHAR(16) NOT NULL DEFAULT 'OTHER',
+    sql_fingerprint CHAR(64) NOT NULL,
+    sql_template TEXT NOT NULL,
+    sql_template_truncated TINYINT NOT NULL DEFAULT 0,
+    sql_template_original_bytes INT NOT NULL DEFAULT 0,
+    parse_version VARCHAR(32) NOT NULL,
+    extra_json TEXT NOT NULL,
+    collected_at DATETIME(6) NOT NULL,
+    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    UNIQUE KEY uq_sle_origin (source_node_id, origin_file_identity, origin_generation, origin_offset_start),
+    KEY idx_sle_source_time (source_id, event_time),
+    KEY idx_sle_node_time (source_node_id, event_time),
+    KEY idx_sle_fingerprint_time (sql_fingerprint, event_time),
+    KEY idx_sle_db_time (db_name, event_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS slow_log_node_probe_files (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    source_node_id BIGINT NOT NULL,
+    ssh_host_key_fingerprint VARCHAR(128) NOT NULL,
+    storage_identity VARCHAR(256) NOT NULL DEFAULT '',
+    file_identity VARCHAR(256) NOT NULL,
+    file_label VARCHAR(512) NOT NULL DEFAULT '',
+    observed_at DATETIME(6) NOT NULL,
+    UNIQUE KEY uq_slnpf_node_file (source_node_id, file_identity),
+    KEY idx_slnpf_host_file (ssh_host_key_fingerprint, file_identity),
+    KEY idx_slnpf_storage_file (storage_identity, file_identity)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS slow_log_collection_runs (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    source_id BIGINT NOT NULL,
+    trigger_type VARCHAR(16) NOT NULL,
+    requested_by VARCHAR(64) NOT NULL DEFAULT '',
+    status VARCHAR(32) NOT NULL DEFAULT 'running',
+    started_at DATETIME(6) NOT NULL,
+    finished_at DATETIME(6) NULL DEFAULT NULL,
+    nodes_total INT NOT NULL DEFAULT 0,
+    nodes_success INT NOT NULL DEFAULT 0,
+    files_seen BIGINT NOT NULL DEFAULT 0,
+    bytes_read BIGINT NOT NULL DEFAULT 0,
+    blocks_parsed BIGINT NOT NULL DEFAULT 0,
+    events_inserted BIGINT NOT NULL DEFAULT 0,
+    events_duplicate BIGINT NOT NULL DEFAULT 0,
+    events_filtered BIGINT NOT NULL DEFAULT 0,
+    incomplete_tail_count BIGINT NOT NULL DEFAULT 0,
+    parse_error_count BIGINT NOT NULL DEFAULT 0,
+    error_code VARCHAR(64) NOT NULL DEFAULT '',
+    error_detail TEXT NOT NULL,
+    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    KEY idx_slcr_source_started (source_id, started_at),
+    KEY idx_slcr_status_started (status, started_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT IGNORE INTO retention_policies(table_name, retention_days, enabled)
+VALUES ('slow_log_events', 30, 1);
+
+INSERT IGNORE INTO retention_policies(table_name, retention_days, enabled)
+VALUES ('slow_log_collection_runs', 90, 1);

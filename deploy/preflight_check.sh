@@ -74,6 +74,16 @@ fi
 
 # 6. systemd / 磁盘 / 时钟
 command -v systemctl >/dev/null 2>&1 && ok "systemd 可用" || bad "无 systemd"
+if command -v ssh >/dev/null 2>&1 && command -v ssh-keygen >/dev/null 2>&1 && ssh -G localhost >/dev/null 2>&1; then
+  SSHV="$(ssh -V 2>&1 | head -1)"
+  if [[ "$SSHV" =~ OpenSSH_([0-9]+\.[0-9]+) ]] && [[ "$(printf '7.4\n%s\n' "${BASH_REMATCH[1]}" | sort -V | head -1)" == "7.4" ]]; then
+    ok "OpenSSH client: ${SSHV}（严格主机密钥校验配置可用）"
+  else
+    bad "OpenSSH 版本不满足 >=7.4: ${SSHV}"
+  fi
+else
+  bad "缺少 OpenSSH client/ssh-keygen，或 ssh -G 不支持（原始慢日志采集前置条件）"
+fi
 AVAIL=$(df -m /opt 2>/dev/null | awk 'NR==2{print $4}')
 [[ "${AVAIL:-0}" -ge 2048 ]] && ok "/opt 可用空间 ${AVAIL}MB" || warn "/opt 可用空间不足2GB(${AVAIL:-?}MB)"
 command -v chronyc >/dev/null 2>&1 && chronyc tracking >/dev/null 2>&1 && ok "chrony 时钟同步正常" || warn "时钟同步未确认（审计日志时间戳依赖NTP）"
