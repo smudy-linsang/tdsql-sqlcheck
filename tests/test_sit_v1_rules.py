@@ -197,6 +197,33 @@ class TestNewDMLAndSecurityRules:
         """R043 反向: 单表 DELETE + ORDER BY/LIMIT（无 WHERE）不得误报"""
         assert "R043" not in audit("DELETE FROM t_a ORDER BY id LIMIT 10")[0]
 
+    # ── DELETE 修饰词（O 复核发现的残留误报）──
+    # `DELETE LOW_PRIORITY FROM t` 的目标段是 ` low_priority from t`，
+    # 形态与 `DELETE a FROM t` 一模一样，会被"别名列表"正则判成联表删除。
+
+    @pytest.mark.parametrize("sql", [
+        "DELETE LOW_PRIORITY FROM t_a WHERE id = 1",
+        "DELETE QUICK FROM t_a WHERE id = 1",
+        "DELETE IGNORE FROM t_a WHERE id = 1",
+        "DELETE LOW_PRIORITY QUICK IGNORE FROM t_a WHERE id = 1",
+    ])
+    def test_r043_negative_delete_modifiers(self, sql):
+        """R043 反向: DELETE 的合法修饰词不得被当成别名而误报"""
+        assert "R043" not in audit(sql)[0]
+
+    @pytest.mark.parametrize("sql", [
+        "DELETE LOW_PRIORITY a, b FROM t_a a, t_b b WHERE a.id = b.id",
+        "DELETE QUICK a FROM t_a a JOIN t_b b ON a.id = b.id",
+        "DELETE IGNORE FROM t_a, t_b USING t_a JOIN t_b ON t_a.id = t_b.id",
+    ])
+    def test_r043_modifiers_do_not_mask_real_multi_table(self, sql):
+        """R043 正向: 剥掉修饰词后，真正的联表 DELETE 仍须命中（防止剥过头）"""
+        assert "R043" in audit(sql)[0]
+
+    def test_r043_negative_table_named_like_modifier(self):
+        """R043 反向: 表名恰好叫 low_priority 时不得被误剥、误判"""
+        assert "R043" not in audit("DELETE FROM low_priority WHERE id = 1")[0]
+
     def test_r044_use_index_hint(self):
         """R044: 禁止USE INDEX/FORCE INDEX"""
         sql = "SELECT * FROM t_user USE INDEX (idx_name) WHERE id = 1"

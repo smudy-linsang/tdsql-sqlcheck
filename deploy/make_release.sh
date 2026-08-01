@@ -15,15 +15,26 @@
 _REL_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VERSION="$(tr -d ' \r\n' < "${_REL_ROOT}/VERSION" 2>/dev/null)"
 [[ -n "${VERSION}" ]] || { echo "错误: 读不到 ${_REL_ROOT}/VERSION，无法确定版本号"; exit 1; }
-ARCH="x86_64"; PYTAG="311"; WITH_PYTHON="no"
+ARCH="x86_64"; PYTAG="311"; WITH_PYTHON="no"; PY_EXPLICIT="no"
+# 内置便携 Python 的版本（python-build-standalone），wheels 的 ABI 必须与它一致
+BUNDLED_PY_VER="3.11.11"; BUNDLED_PYTAG="311"
 while [[ $# -gt 0 ]]; do case "$1" in
   --arch) ARCH="$2"; shift 2;;
-  --py) PYTAG="$2"; shift 2;;
+  --py) PYTAG="$2"; PY_EXPLICIT="yes"; shift 2;;
   --version) VERSION="$2"; shift 2;;
   --with-python) WITH_PYTHON="yes"; shift;;
   *) shift;;
 esac; done
 [[ "$PYTAG" =~ ^3[0-9]{1,2}$ ]] || { echo "--py 仅支持 39/310/311 等形如 3NN 的值，收到: ${PYTAG}"; exit 1; }
+# --with-python 时目标机跑的就是内置的这个解释器，wheels 必须按它的 ABI 下载。
+# 否则会出现「下 cp39 的轮子、却内置 3.11 运行时」，目标机离线装依赖必因 ABI
+# 不匹配失败，而打包阶段毫无提示。二者不一致时直接拒绝，不做静默纠正。
+if [[ "$WITH_PYTHON" == "yes" && "$PY_EXPLICIT" == "yes" && "$PYTAG" != "$BUNDLED_PYTAG" ]]; then
+  echo "错误: --with-python 会内置 CPython ${BUNDLED_PY_VER}（cp${BUNDLED_PYTAG}），"
+  echo "      与 --py ${PYTAG} 冲突——目标机将用内置解释器运行，cp${PYTAG} 的 wheels 装不上。"
+  echo "      请二选一: 去掉 --py（按 cp${BUNDLED_PYTAG} 打包），或去掉 --with-python（目标机自备 python3.${PYTAG#3}）。"
+  exit 1
+fi
 [[ "$ARCH" == "x86_64" || "$ARCH" == "aarch64" ]] || { echo "--arch 仅支持 x86_64/aarch64"; exit 1; }
 [[ "$WITH_PYTHON" == "yes" ]] && { echo "警告: 内置 CPython 将大幅增加发布包体积"; }
 
@@ -60,16 +71,22 @@ python3 -m pip download pip setuptools wheel -d "${STAGE}/${PKG}/wheels" \
 
 echo "[3/5] 便携 Python: ${WITH_PYTHON}"
 if [[ "${WITH_PYTHON}" == "yes" ]]; then
-  # python-build-standalone 便携版（indygreg），目标: cpython-3.11 + ${ARCH}
-  PBS_TAG="20250115"; PBS_VER="3.11.11"
+  # python-build-standalone 便携版（indygreg），版本须与 BUNDLED_PY_VER 一致
+  PBS_TAG="20250115"; PBS_VER="${BUNDLED_PY_VER}"
   case "$ARCH" in
     x86_64)  TRIPLE="x86_64-unknown-linux-gnu";;
     aarch64) TRIPLE="aarch64-unknown-linux-gnu";;
   esac
   URL="https://github.com/indygreg/python-build-standalone/releases/download/${PBS_TAG}/cpython-${PBS_VER}+${PBS_TAG}-${TRIPLE}-install_only.tar.gz"
   echo "  下载 ${URL}"
-  curl -fL "${URL}" -o "${STAGE}/python.tar.gz"
-  tar -xzf "${STAGE}/python.tar.gz" -C "${STAGE}/${PKG}/"   # 解出 python/ 目录
+  # 本脚本没有 set -e：下载/解包失败若不显式拦，会打出一个「声称内置 Python
+  # 但实际没有」的包，目标机装到一半才发现。故此处失败即中止。
+  curl -fL "${URL}" -o "${STAGE}/python.tar.gz" \
+    || { echo "错误: 便携 Python 下载失败 (${URL})，已中止打包"; exit 1; }
+  tar -xzf "${STAGE}/python.tar.gz" -C "${STAGE}/${PKG}/" \
+    || { echo "错误: 便携 Python 解包失败，已中止打包"; exit 1; }
+  [[ -x "${STAGE}/${PKG}/python/bin/python3" ]] \
+    || { echo "错误: 内置 Python 解包后不可执行，已中止打包"; exit 1; }
   rm -f "${STAGE}/python.tar.gz"
 fi
 

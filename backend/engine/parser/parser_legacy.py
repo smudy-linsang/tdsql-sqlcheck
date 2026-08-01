@@ -264,6 +264,11 @@ class SQLParser:
         # 挡住合法变更。该误报为 v1.2.0.9 之后引入，升级会带给内网。
         m_del = re.search(r"\bdelete\b(.*?)(?:\bwhere\b|$)", clean_sql_no_comm, re.DOTALL)
         del_seg = m_del.group(1) if m_del else ""
+        # 先剥掉 DELETE 的合法修饰词，否则它们会被下面的"别名列表"正则当成别名：
+        # `DELETE LOW_PRIORITY FROM t` 的目标段是 ` low_priority from t`，
+        # 形态与 `DELETE a FROM t` 完全一致，会把单表删除误判成联表（O 复核发现）。
+        # 只剥段首连续出现的修饰词，不碰后面的表名（表名可以叫 low_priority）。
+        del_seg = re.sub(r"^\s*(?:(?:low_priority|quick|ignore)\s+)+", " ", del_seg)
         del_multi = bool(del_seg and (
             re.search(r"\bjoin\b", del_seg)                         # DELETE a FROM t1 JOIN t2
             or re.search(r"\busing\b", del_seg)                     # DELETE FROM t1,t2 USING ...
