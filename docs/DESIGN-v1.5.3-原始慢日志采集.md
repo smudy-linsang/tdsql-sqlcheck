@@ -5,12 +5,13 @@
 | 项 | 内容 |
 |---|---|
 | 版本 | v1.5.3.0（设计基线） |
-| 基线 | `main` @ `1d1d282` |
+| 基线 | `main` @ `9dea791`（含 A 对初版 `33947f9` 的设计评审） |
 | 文档类型 | **概要设计 + 详细设计 + 接口设计 + 数据库设计** |
 | 状态 | 待实施；外部日志格式和目录须按 §16 的实测门禁确认后才能启用采集 |
 | 编制日期 | 2026-08-02 |
 | 施工规约 | [`GUIDE-团队施工规约.md`](GUIDE-团队施工规约.md)，尤其是 R-02~R-05、R-08~R-10、R-11~R-17 |
 | 关联模块 | `慢SQL治理`；新增子模块，**不复用**现有“扫描任务 / 慢SQL记录 / 网关日志分析报告”的数据表和路由 |
+| 修订 | 2026-08-02：接收 `REVIEW-v1.5.3-原始慢日志采集设计评审_A.md` 的 B1~B3、C1~C4 及 §4 小项；修订内容见 §4.9 |
 
 ---
 
@@ -28,7 +29,7 @@
 
 > **以 Proxy 慢日志中的一条完整日志块为一条事件，按日志记录时间检索，而不是按采集时间或累计摘要时间检索。**
 
-实现主路径为 **CheckSQL 部署机主动经内网 SSH 只读拉取 Proxy / Gateway 主机日志**。不依赖赤兔未公开 Web 接口；不向 TDSQL 写入数据；不开放公网 SSH；不使用 root、口令认证、`sshpass`、SCP 上传脚本或任意远程 Shell。
+实现主路径为 **CheckSQL 部署机主动经内网 SSH 只读拉取 Proxy / Gateway 主机日志**。客户端固定使用经部署前置门禁验证的 OpenSSH CLI，远端使用静态单文件导出器；不依赖赤兔未公开 Web 接口；不向 TDSQL 写入数据；不开放公网 SSH；不使用 root、口令认证、`sshpass`、SCP 上传脚本或任意远程 Shell。
 
 赤兔是否存在本版本私有的、受支持的日志 API，尚无可验证的官方接口契约。本版本为未来的官方 API / Elasticsearch 适配器预留 `transport` 扩展点，但**只实现 `ssh_exporter_v1`**；不得逆向调用赤兔页面的内部 HTTP 请求作为生产接口。
 
@@ -155,9 +156,11 @@ CheckSQL 数据库：node_key + remote_source_key + declared_path_template
 
 ### D3：SSH 采用受限导出器协议，不使用普通 Shell/SCP
 
-远端账户名固定建议为 `tdsql_log_reader`，公钥在目标主机上使用 `restrict` / `no-pty` / 禁止端口转发等限制，并以 `ForceCommand` 指向单一导出器。导出器只实现 `probe` 和 `pull` 两种 JSON 请求，拒绝原始 SSH 命令。
+远端账户名固定建议为 `tdsql_log_reader`，公钥在目标主机上使用 `restrict` / `no-pty` / 禁止端口转发等限制，并以 `ForceCommand` 指向单一导出器。CheckSQL 端以 `subprocess.Popen(argv, shell=False)` 调用 OpenSSH CLI，参数由固定模板与经正则验证的配置组成；导出器只实现 `probe` 和 `pull` 两种 JSON 请求，拒绝原始 SSH 命令。
 
 禁止项：root 账户、口令认证、`sshpass`、`scp` 上传脚本、`sudo` 任意命令、`bash -c` 拼接、关闭 `StrictHostKeyChecking`。
+
+选择 OpenSSH CLI 而非新增 Python SSH 库的原因是本项目离线发布支持 `x86_64` / `aarch64` 和多 Python ABI；不引入 Paramiko/AsyncSSH 及其可能含原生扩展的传递闭包。OpenSSH 客户端是**明确的操作系统依赖**，不是隐含假设；详见 §8.1 与 §8.4 的交付门禁。
 
 ### D4：游标按文件身份和字节偏移推进，保证至少一次读取、恰好一次入库
 
@@ -167,7 +170,7 @@ CheckSQL 数据库：node_key + remote_source_key + declared_path_template
 origin = (source_node_id, file_identity, generation, record_start_offset)
 ```
 
-该组合在 `slow_log_events` 上唯一。每次在同一数据库事务中：先 `INSERT IGNORE` 事件，再更新该文件游标。网络中断或进程重启最多重读数据，唯一键保证不会重复入库。
+该组合在 `slow_log_events` 上唯一。每次在同一数据库事务中：先 `INSERT IGNORE` 事件，再更新该文件游标。网络中断或进程重启最多重读数据，唯一键保证不会重复入库。游标还保存“末尾锚点”哈希；续读前必须验证该偏移前的原始字节仍未改变，防止 copytruncate 后在一个轮询周期内快速重新长回而从错误中段续读。
 
 ### D5：最后一条不完整块绝不推进游标
 
@@ -177,15 +180,38 @@ origin = (source_node_id, file_identity, generation, record_start_offset)
 
 采集内容只在内存中存在到“解析并脱敏完成”为止。持久化字段为 `sql_template`、`sql_fingerprint` 和受控结构化指标；不保存原始字节块、连接私钥、业务参数值或完整日志文件。
 
-脱敏实现必须复用/扩展既有 SQL 脱敏规则，并新增测试覆盖字符串、数值、十六进制、日期、UUID、JSON 和注释中的敏感值。脱敏失败时该事件进入运行错误计数，默认不落库，不能以明文降级。
+新增唯一规范实现 `backend/services/sql_masking.py`：`mask_sql_literals()`、`fingerprint_masked_sql()` 和 `truncate_masked_sql_for_storage()`。既有 `slow_query_service.py` 的 `FingerprintEngine.normalize_for_display()` 和两份网关日志 `normalize_sql()` 必须改为调用该公共实现，禁止再产生第四份规则。
+
+指纹必须基于**完整脱敏 SQL**计算 SHA-256，绝不能先截断再哈希；持久化展示文本默认最多 8 KiB，超过时保存前缀并写 `sql_template_truncated=1`、`sql_template_original_bytes`。页面和导出必须显式显示“SQL 模板已截断”。`TEXT` 的 64 KiB 是数据库类型上限，不是业务侧可无限使用的展示上限。脱敏失败时该事件进入运行错误计数，默认不落库，不能以明文降级。
 
 ### D7：调度在 CheckSQL 服务内运行，复用已有多副本租约
 
-新增任务纳入现有 APScheduler，而不是依赖某台运维主机手工 crontab。调度器先取得既有 `scheduler_lease`，再按 `slow_log_sources.lease_*` 取得源级租约；因此多 worker、多容器副本或异常接管时不会同时采同一源。
+新增任务纳入现有 APScheduler，而不是依赖某台运维主机手工 crontab。调度器先取得既有 `scheduler_lease`，再按 `slow_log_sources.lease_*` 取得源级租约；因此多 worker、多容器副本或异常接管时不会同时采同一源。单次运行在 `max_run_seconds` 预算内连续读取多批，直到追平或预算耗尽；不能把 `max_events_per_batch` 错当成每轮绝对上限而永久积压。
 
 ### D8：未证实的日志格式不得进入生产解析器
 
 现有解析器可作为候选复用，但“文件名叫 `interf`”不等于“它是 MySQL 风格 Proxy 慢日志”。每一个 `parser_profile` 必须在 §16 的实测门禁中证明其字段和时间口径；未通过时源状态只能为 `invalid_format`，不可启用定时采集。
+
+### D9：跨节点重复在启用前机械拒绝
+
+Probe 必须记录远端 SSH 主机密钥指纹、存储身份和文件身份。启用节点前，服务端检查同一源中是否已有启用节点出现相同 `(ssh_host_key_fingerprint, file_identity)`，或相同 `(storage_identity, file_identity)`；命中即拒绝启用，要求管理员消除重复配置。第二组用于发现共享存储/NFS 场景，不能只依赖人工勾对。
+
+### D10：逐条事件采用短保留期 + 可控分批清理
+
+逐条执行事件的量级不能套用聚合 `slow_queries` 的 180 天策略。本版默认保留 30 天，事件表按 `event_time` 建组合索引，使用独立事务、有限批次的 `DELETE ... LIMIT` 清理；不在首版强行引入会破坏现有唯一去重键的 MySQL 分区约束。容量超出 §13 的“典型档”时，必须先评估专门的冷热分层/分区演进，不得静默上调保留期。
+
+### 4.9 评审意见采纳记录
+
+| 评审项 | 处理 | 落点 |
+|---|---|---|
+| B1 离线 SSH 依赖 | 接收；改为 OpenSSH CLI，无新增 Python SSH 依赖；新增部署门禁 | D3、§8.1、§8.4、§15 |
+| B2 导出器无交付物 | 接收；确定静态 Go 单文件、版本协商、随包分发、安装/升级/回滚 | §8.4、§11、§15 |
+| B3 容量/保留不可用 | 接收；30 天默认、容量三档、独立事务分批删、容量准入 | D10、§13、§15 |
+| C1 copytruncate 快速回长 | 接收；游标锚点哈希和协议校验 | D4、§6、§8.2、§8.3、U17 |
+| C2 脱敏/指纹不统一 | 接收；新增公共脱敏模块、完整模板哈希、截断标记 | D6、§6、§9、U19 |
+| C3 跨节点重复 | 接收；Probe 文件身份表和启用前冲突拒绝 | D9、§6、§9、U18 |
+| C4 吞吐追赶不可见 | 接收；批次与运行预算分离、积压指标/告警 | D7、§9、§13、U20 |
+| §4 小项 | 接收 | §6.3、U16 |
 
 ---
 
@@ -213,7 +239,9 @@ origin = (source_node_id, file_identity, generation, record_start_offset)
 | `timezone` | `Asia/Shanghai` | IANA 时区；解析 `# Time` 使用它 |
 | `poll_interval_seconds` | `60` | 30~600 秒；默认 60 |
 | `max_batch_bytes` | `8388608` | 64 KiB~16 MiB；默认 8 MiB / 节点 / 次 |
-| `max_events_per_run` | `2000` | 1~10000；默认 2000 |
+| `max_events_per_batch` | `2000` | 1~10000；一次协议批次的事件上限，不是整轮上限 |
+| `max_run_seconds` | `25` | 5~120 秒；本轮连续追赶的时间预算 |
+| `lag_alert_seconds` | `600` | 60~3600 秒；未读积压超过此阈值须标红并告警 |
 | `initial_position` | `tail` | `tail` / `lookback`；首次上线默认 `tail` |
 | `initial_lookback_seconds` | `300` | 仅 `lookback` 有效，60~86400 秒 |
 | `min_query_time_ms` | `1000` | 0~3600000；平台二次筛选，不改变远端日志生成阈值 |
@@ -230,6 +258,7 @@ origin = (source_node_id, file_identity, generation, record_start_offset)
 | `ssh_host` | `<FQDN-or-private-IP>` | 管理员配置；非管理员 API 仅返回掩码 |
 | `ssh_port` | `22` | 1~65535；必须是内网可达端口 |
 | `host_key_alias` | `proxy-a.sit` | `known_hosts` 匹配别名，禁止接受新指纹 |
+| `ssh_host_key_fingerprint` | `SHA256:<base64>` | Probe 后由严格 SSH 握手写入；管理员不能手填伪造 |
 | `remote_source_key` | `sit_proxy_a_slowlog` | 远端白名单项名称；不能是路径或命令 |
 | `declared_path_template` | `/absolute/log/dir/slow_sql_instance_<port>*` | 管理员填写的审计/展示路径；必须绝对路径，且不参与 SSH 参数拼接 |
 | `parser_profile` | `tdsql_mysql_slowlog_v1` | 通过格式门禁后才能选择 |
@@ -259,6 +288,7 @@ SLOWLOG_SECRETS_DIR=/run/secrets/tdsql-sqlcheck/slowlog
 SLOWLOG_SSH_CONNECT_TIMEOUT_SECONDS=10
 SLOWLOG_SSH_COMMAND_TIMEOUT_SECONDS=45
 SLOWLOG_MAX_CONCURRENT_NODES=3
+SLOWLOG_OPENSSH_MIN_VERSION=7.4
 ```
 
 解析规则：
@@ -286,6 +316,7 @@ known_hosts     = ${SLOWLOG_SECRETS_DIR}/known_hosts/tdsql_proxy_hosts_v1
   "parser_profile": "tdsql_mysql_slowlog_v1",
   "max_chunk_bytes": 8388608,
   "max_files": 8,
+  "storage_identity": "<stable-filesystem-id>",
   "read_only": true
 }
 ```
@@ -293,7 +324,7 @@ known_hosts     = ${SLOWLOG_SECRETS_DIR}/known_hosts/tdsql_proxy_hosts_v1
 约束：
 
 1. `allowed_path_globs` 必须为绝对路径，且管理员只为真实慢日志目录配置；不允许 `..`、换行、控制字符或根目录通配。
-2. 导出器返回文件身份、文件显示名、大小、mtime 和块数据；不返回其他目录条目，不接受客户端指定的 glob。
+2. 导出器返回文件身份、存储身份、文件显示名、大小、mtime 和块数据；不返回其他目录条目，不接受客户端指定的 glob。`storage_identity` 必须来自目标主机的稳定文件系统标识或由运维在共享存储配置中显式统一，供跨节点重复检测使用；为空的 Probe 直接失败，不能启用。
 3. 平台节点的 `declared_path_template` 与远端 `allowed_path_globs` 至少有一项规范化匹配；不匹配时 probe 失败并禁止启用。
 4. 导出器运行账户对日志仅有读取权限；CheckSQL 客户端没有目标主机普通 Shell。
 
@@ -327,6 +358,7 @@ slow_log_sources
                          N ─────── 1 slow_log_source_nodes
 slow_log_source_nodes
         1 ─────── N slow_log_cursors
+        1 ─────── N slow_log_node_probe_files
 ```
 
 不为 `connection_id` 建外键：既有连接登记支持删除/替换，强外键会阻塞现有生命周期。源删除采用“先停用、后显式清理”的受控流程，不在本版本提供级联物理删除按钮。
@@ -344,12 +376,13 @@ slow_log_source_nodes
 | `transport` | VARCHAR(32) | 本版固定 `ssh_exporter_v1` |
 | `timezone` | VARCHAR(64) | 日志时间解析时区 |
 | `poll_interval_seconds` | INT | 周期 |
-| `max_batch_bytes` / `max_events_per_run` | INT | 单次流量保护 |
+| `max_batch_bytes` / `max_events_per_batch` | INT | 单次协议批次流量保护 |
+| `max_run_seconds` / `lag_alert_seconds` | INT | 追赶预算与可见性告警阈值 |
 | `initial_position` / `initial_lookback_seconds` | VARCHAR / INT | 首次接入策略 |
 | `min_query_time_ms` | BIGINT | 平台二次阈值 |
 | `credential_ref` / `known_hosts_ref` | VARCHAR(64) | 秘密引用名，不存秘密 |
 | `enabled` | TINYINT | 是否允许调度 |
-| `last_success_at` / `last_error_*` | DATETIME / VARCHAR | 运行健康摘要 |
+| `last_success_at` / `last_backlog_bytes` / `last_lag_seconds` / `last_error_*` | DATETIME / BIGINT / VARCHAR | 运行健康摘要与积压 |
 | `lease_holder` / `lease_expires_at` | VARCHAR / DATETIME | 源级互斥 |
 | `created_by` / `created_at` / `updated_at` | 审计字段 | 变更留痕 |
 
@@ -363,6 +396,7 @@ slow_log_source_nodes
 | `display_name` | VARCHAR(128) | 节点展示名 |
 | `ssh_host` / `ssh_port` | VARCHAR / INT | 仅管理员可见的连接信息 |
 | `host_key_alias` | VARCHAR(128) | 严格主机密钥验证别名 |
+| `ssh_host_key_fingerprint` | VARCHAR(128) | Probe 严格握手得到的主机密钥指纹 |
 | `remote_source_key` | VARCHAR(64) | 远端受限白名单键 |
 | `declared_path_template` | TEXT | 审计路径；不得拼入命令 |
 | `parser_profile` | VARCHAR(64) | 已验收的解析器版本 |
@@ -380,6 +414,7 @@ slow_log_source_nodes
 | `file_label` | VARCHAR(512) | 仅展示用文件名/安全相对标识 |
 | `cursor_offset` | BIGINT | 最后一条已提交完整块的末尾偏移 |
 | `last_file_size` | BIGINT | 轮转与截断判定 |
+| `anchor_start_offset` / `anchor_length` / `anchor_sha256` | BIGINT / INT / CHAR(64) | 游标末尾原始字节锚点；续读前必须验证 |
 | `last_event_time` | DATETIME(6) NULL | 可选诊断，不参与去重 |
 | `status` | VARCHAR(32) | `active` / `rotated` / `truncated` / `error` |
 
@@ -400,8 +435,9 @@ slow_log_source_nodes
 | `query_time_us` / `lock_time_us` | BIGINT | 微秒；防止浮点比较误差 |
 | `rows_sent` / `rows_examined` | BIGINT | 原始计数 |
 | `statement_type` | VARCHAR(16) | `SELECT` / `INSERT` / `UPDATE` / `DELETE` / `OTHER` |
-| `sql_fingerprint` | CHAR(64) | 脱敏模板 SHA-256 |
-| `sql_template` | TEXT | 仅脱敏 SQL 模板 |
+| `sql_fingerprint` | CHAR(64) | **完整脱敏 SQL** SHA-256，先哈希后截断 |
+| `sql_template` | TEXT | 至多 8 KiB 的脱敏 SQL 模板 |
+| `sql_template_truncated` / `sql_template_original_bytes` | TINYINT / INT | 截断可见性；原始指的是完整脱敏文本，非明文 SQL |
 | `parse_version` | VARCHAR(32) | 如 `tdsql_mysql_slowlog_v1` |
 | `extra_json` | TEXT | 有限白名单附加字段的 JSON 文本，不存原始块 |
 | `collected_at` / `created_at` | DATETIME(6) | 采集和入库时间 |
@@ -424,9 +460,25 @@ slow_log_source_nodes
 | `incomplete_tail_count` / `parse_error_count` | BIGINT | 数据质量统计 |
 | `error_code` / `error_detail` | VARCHAR / TEXT | 已脱敏错误，不含 SQL / 密钥 |
 
+> `sql_template`、`extra_json`、`error_detail` 为 `TEXT NOT NULL`，MySQL 不允许给 TEXT 设置 DEFAULT；所有 INSERT 必须显式传入非 NULL 值（空值用 `''`），这是施工时必须覆盖的严格模式用例。
+
+#### T6 `slow_log_node_probe_files`：启用前重复文件防护证据
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `id` | BIGINT PK | 自增主键 |
+| `source_node_id` | BIGINT | Probe 所属节点 |
+| `ssh_host_key_fingerprint` | VARCHAR(128) | 严格握手取得的主机身份 |
+| `storage_identity` | VARCHAR(256) | 导出器返回的稳定存储身份 |
+| `file_identity` | VARCHAR(256) | 导出器返回的文件身份 |
+| `file_label` | VARCHAR(512) | 仅安全展示名 |
+| `observed_at` | DATETIME(6) | 最近一次 probe 发现时间 |
+
+索引：`(ssh_host_key_fingerprint, file_identity)` 与 `(storage_identity, file_identity)`。启用节点前以这两组键和其他**已启用**节点比对；任一冲突即拒绝启用。
+
 ### 6.3 迁移脚本（施工蓝图）
 
-新增文件：`backend/schema/v7/070_raw_slow_log_collection.sql`。只允许纯增量 `CREATE TABLE IF NOT EXISTS` 和 `INSERT IGNORE`，遵守施工规约 R-02、R-03。
+新增文件：`backend/schema/v7/070_raw_slow_log_collection.sql`。只允许纯增量 `CREATE TABLE IF NOT EXISTS` 和 `INSERT IGNORE`，遵守施工规约 R-02、R-03。`INSERT retention_policies` 依赖当前确定的初始化顺序 `_create_all_tables → run_migrations → _migrate_old_tables → _init_default_data`：其中 `retention_policies` 已由 `_create_all_tables` 创建。U16 必须锁定此顺序，未来调整时不能无声破坏迁移。
 
 ```sql
 CREATE TABLE IF NOT EXISTS slow_log_sources (
@@ -438,7 +490,9 @@ CREATE TABLE IF NOT EXISTS slow_log_sources (
     timezone VARCHAR(64) NOT NULL DEFAULT 'Asia/Shanghai',
     poll_interval_seconds INT NOT NULL DEFAULT 60,
     max_batch_bytes INT NOT NULL DEFAULT 8388608,
-    max_events_per_run INT NOT NULL DEFAULT 2000,
+    max_events_per_batch INT NOT NULL DEFAULT 2000,
+    max_run_seconds INT NOT NULL DEFAULT 25,
+    lag_alert_seconds INT NOT NULL DEFAULT 600,
     initial_position VARCHAR(16) NOT NULL DEFAULT 'tail',
     initial_lookback_seconds INT NOT NULL DEFAULT 300,
     min_query_time_ms BIGINT NOT NULL DEFAULT 1000,
@@ -446,6 +500,8 @@ CREATE TABLE IF NOT EXISTS slow_log_sources (
     known_hosts_ref VARCHAR(64) NOT NULL DEFAULT '',
     enabled TINYINT NOT NULL DEFAULT 0,
     last_success_at DATETIME NULL DEFAULT NULL,
+    last_backlog_bytes BIGINT NOT NULL DEFAULT 0,
+    last_lag_seconds BIGINT NULL DEFAULT NULL,
     last_error_code VARCHAR(64) NOT NULL DEFAULT '',
     last_error_detail VARCHAR(512) NOT NULL DEFAULT '',
     lease_holder VARCHAR(128) NOT NULL DEFAULT '',
@@ -466,6 +522,7 @@ CREATE TABLE IF NOT EXISTS slow_log_source_nodes (
     ssh_host VARCHAR(255) NOT NULL,
     ssh_port INT NOT NULL DEFAULT 22,
     host_key_alias VARCHAR(128) NOT NULL,
+    ssh_host_key_fingerprint VARCHAR(128) NOT NULL DEFAULT '',
     remote_source_key VARCHAR(64) NOT NULL,
     declared_path_template TEXT NOT NULL,
     parser_profile VARCHAR(64) NOT NULL,
@@ -490,6 +547,9 @@ CREATE TABLE IF NOT EXISTS slow_log_cursors (
     file_label VARCHAR(512) NOT NULL DEFAULT '',
     cursor_offset BIGINT NOT NULL DEFAULT 0,
     last_file_size BIGINT NOT NULL DEFAULT 0,
+    anchor_start_offset BIGINT NOT NULL DEFAULT 0,
+    anchor_length INT NOT NULL DEFAULT 0,
+    anchor_sha256 CHAR(64) NOT NULL DEFAULT '',
     last_event_time DATETIME(6) NULL DEFAULT NULL,
     status VARCHAR(32) NOT NULL DEFAULT 'active',
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -519,6 +579,8 @@ CREATE TABLE IF NOT EXISTS slow_log_events (
     statement_type VARCHAR(16) NOT NULL DEFAULT 'OTHER',
     sql_fingerprint CHAR(64) NOT NULL,
     sql_template TEXT NOT NULL,
+    sql_template_truncated TINYINT NOT NULL DEFAULT 0,
+    sql_template_original_bytes INT NOT NULL DEFAULT 0,
     parse_version VARCHAR(32) NOT NULL,
     extra_json TEXT NOT NULL,
     collected_at DATETIME(6) NOT NULL,
@@ -528,6 +590,19 @@ CREATE TABLE IF NOT EXISTS slow_log_events (
     KEY idx_sle_node_time (source_node_id, event_time),
     KEY idx_sle_fingerprint_time (sql_fingerprint, event_time),
     KEY idx_sle_db_time (db_name, event_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS slow_log_node_probe_files (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    source_node_id BIGINT NOT NULL,
+    ssh_host_key_fingerprint VARCHAR(128) NOT NULL,
+    storage_identity VARCHAR(256) NOT NULL DEFAULT '',
+    file_identity VARCHAR(256) NOT NULL,
+    file_label VARCHAR(512) NOT NULL DEFAULT '',
+    observed_at DATETIME(6) NOT NULL,
+    UNIQUE KEY uq_slnpf_node_file (source_node_id, file_identity),
+    KEY idx_slnpf_host_file (ssh_host_key_fingerprint, file_identity),
+    KEY idx_slnpf_storage_file (storage_identity, file_identity)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS slow_log_collection_runs (
@@ -556,7 +631,7 @@ CREATE TABLE IF NOT EXISTS slow_log_collection_runs (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 INSERT IGNORE INTO retention_policies(table_name, retention_days, enabled)
-VALUES ('slow_log_events', 180, 1);
+VALUES ('slow_log_events', 30, 1);
 
 INSERT IGNORE INTO retention_policies(table_name, retention_days, enabled)
 VALUES ('slow_log_collection_runs', 90, 1);
@@ -564,7 +639,7 @@ VALUES ('slow_log_collection_runs', 90, 1);
 
 配套修改：
 
-1. `retention_service.CLEANABLE_TABLES` 增加 `slow_log_events: event_time` 和 `slow_log_collection_runs: started_at`。按业务事件时间清事件，不能按采集入库时间混淆口径。
+1. `retention_service` 重构为“策略注册表 + 清理处理器”：既有小表保持当前通用删除器；`slow_log_events` / `slow_log_collection_runs` 注册 `RawSlowLogRetentionHandler`。处理器按 `event_time` / `started_at` 各自连接、每批 5,000 行、每批独立提交，单轮最多 20 批；绝不放进当前“同一连接、单次大 DELETE、最后统一 commit”的通用路径。保留策略仍统一存于 `retention_policies`。
 2. `database._init_default_data()` 的 `all_menus` 增加 `slow-raw-log`，并为存量角色执行显式补齐；不能依赖“默认全可见”。
 3. 由于新增均为建表/初始化，不需要在 `_migrate_old_tables()` 添加列双保险；不得借此修改既有 `slow_queries` / `scan_tasks` 表。
 
@@ -630,7 +705,9 @@ Content-Type: application/json
   "timezone": "Asia/Shanghai",
   "poll_interval_seconds": 60,
   "max_batch_bytes": 8388608,
-  "max_events_per_run": 2000,
+  "max_events_per_batch": 2000,
+  "max_run_seconds": 25,
+  "lag_alert_seconds": 600,
   "initial_position": "tail",
   "initial_lookback_seconds": 300,
   "min_query_time_ms": 1000,
@@ -680,10 +757,12 @@ Probe 必须做到：验证私钥可读、严格主机密钥匹配、强制命�
       "node_key": "proxy_a",
       "status": "passed",
       "format_signature": {
-        "time_header": true,
-        "query_time_header": true,
-        "sql_block_boundary": true,
-        "timezone": "Asia/Shanghai"
+      "time_header": true,
+      "query_time_header": true,
+      "sql_block_boundary": true,
+      "timezone": "Asia/Shanghai",
+      "protocol_version": 1,
+      "exporter_version": "1.0.0"
       }
     }
   ],
@@ -763,7 +842,9 @@ GET /api/v1/raw-slowlogs/events?
       "rows_examined": 12034,
       "statement_type": "SELECT",
       "sql_fingerprint": "<sha256>",
-      "sql_template": "SELECT * FROM order_detail WHERE id = ?"
+      "sql_template": "SELECT * FROM order_detail WHERE id = ?",
+      "sql_template_truncated": false,
+      "sql_template_original_bytes": 45
     }
   ],
   "total": 1,
@@ -785,6 +866,7 @@ GET /api/v1/raw-slowlogs/events?
 | `E4221` | 422 | 私钥/known_hosts 引用不存在或权限错误 | 否，修复部署 |
 | `E4222` | 422 | 远端 source key / 路径白名单不匹配 | 否，修复配置 |
 | `E4223` | 422 | 日志格式未通过门禁 | 否，新增解析器或修复格式 |
+| `E4224` | 422 | 导出器协议或版本不兼容 | 否，按 §8.4 升级/回滚 |
 | `E5021` | 502 | SSH 主机指纹、连接或协议失败 | 是，视故障 |
 | `E5022` | 502 | 导出器返回非法清单/块校验失败 | 否，调查远端 |
 
@@ -796,17 +878,20 @@ GET /api/v1/raw-slowlogs/events?
 
 | 项 | 规定 |
 |---|---|
-| 客户端库 | Python SSH 客户端；必须显式加载 `known_hosts_ref` |
-| 主机验证 | 严格验证；未知或变化指纹立即失败，不允许自动接受 |
+| 客户端实现 | **OpenSSH CLI >= 7.4**，由 `subprocess.Popen(argv, shell=False)` 调用；无 Python SSH 库 |
+| 固定选项 | `BatchMode=yes`、`IdentitiesOnly=yes`、`StrictHostKeyChecking=yes`、`UserKnownHostsFile=<ref>`、`GlobalKnownHostsFile=/dev/null`、`PasswordAuthentication=no`、`KbdInteractiveAuthentication=no`、`RequestTTY=no` |
+| 主机验证 | 严格验证；未知或变化指纹立即失败，不允许自动接受；Probe 从指定 known_hosts 解析并记录 SHA-256 主机指纹 |
 | 认证 | 仅私钥；私钥来自部署 Secret |
 | 账户 | `tdsql_log_reader`，无交互 Shell 能力 |
 | 命令 | SSH 账户以强制命令启动导出器；客户端不追加任何用户输入命令 |
 | 网络 | CheckSQL 私网源地址至 Proxy/Gateway SSH 端口的最小放行；不开放公网 |
 | 限流 | 每源每周期串行；全局并发节点数受 `SLOWLOG_MAX_CONCURRENT_NODES` 限制 |
 
+应用容器镜像须显式安装 `openssh-client`；非容器部署的 `deploy/preflight_check.sh` 须检查 `ssh -V`、固定选项支持及 `ssh-keygen` 可用性。若任一正式交付平台不具备合格客户端，发布前置检查失败，不能降级为 Python 库或关闭主机验证。
+
 ### 8.2 协议帧
 
-标准输入为一行 UTF-8 JSON；标准输出为 NDJSON。单个字段不可跨行，块内容 Base64 编码。协议版本固定为 `1`。
+标准输入为一行 UTF-8 JSON；标准输出为 NDJSON。单个字段不可跨行，块内容 Base64 编码。协议版本固定为 `1`，导出器还必须返回自身语义版本；客户端只接受 `protocol_version=1` 且 `exporter_version` 落在声明兼容范围内的响应。
 
 Probe 请求：
 
@@ -823,7 +908,14 @@ Pull 请求：
   "remote_source_key": "sit_proxy_a_slowlog",
   "max_batch_bytes": 8388608,
   "files": [
-    {"file_identity":"<known-id>","generation":0,"offset":2048}
+    {
+      "file_identity":"<known-id>",
+      "generation":0,
+      "offset":2048,
+      "anchor_start_offset":1984,
+      "anchor_length":64,
+      "anchor_sha256":"<sha256-of-bytes-before-offset>"
+    }
   ]
 }
 ```
@@ -833,7 +925,10 @@ Pull 请求：
 ```json
 {
   "type": "manifest",
+  "protocol_version": 1,
+  "exporter_version": "1.0.0",
   "remote_source_key": "sit_proxy_a_slowlog",
+  "storage_identity": "<stable-filesystem-id>",
   "files": [
     {
       "file_identity": "<device:inode-or-equivalent>",
@@ -866,15 +961,36 @@ Pull 请求：
 {"type":"eof","status":"ok","server_time":"2026-08-02T10:00:00+08:00"}
 ```
 
-客户端必须验证：协议版本、`remote_source_key`、Base64 长度、解码后 SHA-256、偏移连续性、最大字节数、文件身份归属。任意一项失败即本节点本次失败，游标不推进。
+当请求带锚点时，导出器必须先回传 `type=anchor` 帧，内容为对应 `file_identity`、`anchor_start_offset`、`anchor_length` 和实际 `anchor_sha256`；客户端比对后才接受后续 chunk。客户端必须验证：协议/导出器版本、`remote_source_key`、Base64 长度、解码后 SHA-256、偏移连续性、锚点、最大字节数、文件身份及存储身份归属。任意一项失败即本节点本次失败，游标不推进。
 
 ### 8.3 轮转与截断算法
 
-1. 导出器清单中出现新 `file_identity`：为该文件新建游标，按 `initial_position` 决定从尾部或回溯位置读取。
-2. 已知身份的文件 `size >= cursor_offset`：从游标读取新增字节。
-3. 已知身份的文件 `size < cursor_offset`：认定 copytruncate；将旧游标标为 `truncated`，新建同身份 `generation + 1` 游标，从 0 读取。
+1. 导出器清单中出现新 `file_identity`：为该文件新建游标，按 `initial_position` 决定从尾部或回溯位置读取；即使首次取“当前尾部”，也要同时读取并保存尾部锚点，不能留下无校验的初始游标。
+2. 已知身份的文件 `size >= cursor_offset`：先验证该游标保存的末尾 64 字节锚点，再从游标读取新增字节。
+3. `size < cursor_offset` **或锚点不匹配**：均认定 copytruncate / 内容替换；将旧游标标为 `truncated`，新建同身份 `generation + 1` 游标，从 0 读取。即使截断后在一个轮询周期内迅速写回超过旧偏移，锚点不匹配仍能发现。
 4. 重命名轮转会产生新身份；旧文件仍在白名单清单内时继续读取到末尾，不能因文件名变化漏数据。
-5. 只有完整块的 `origin_offset_end` 才能推进游标；不完整尾块下一周期重读。
+5. 每次完整块提交后计算“末尾 `min(64, cursor_offset)` 字节”的 SHA-256，连同起点和长度存入游标；只有完整块的 `origin_offset_end` 才能推进游标，不完整尾块下一周期重读。
+
+### 8.4 远端导出器交付、安装与兼容
+
+导出器是本设计的正式交付物：`tdsql-slowlog-exporter`。它采用 **Go 1.22 标准库**实现，构建为 `CGO_ENABLED=0` 的 Linux 单文件静态二进制，目标产物为 `linux-amd64` 与 `linux-arm64`（发布脚本的 `x86_64 → amd64`、`aarch64 → arm64` 映射必须显式测试）；目标 Proxy/Gateway 主机不需要 Python、Go、pip 或任何第三方运行时。它不是常驻服务，只在受限 SSH 会话的 ForceCommand 中被调用。
+
+| 事项 | 施工规定 |
+|---|---|
+| 源码与构建 | 新增 `deploy/raw_slowlog_exporter/` 源码及 `deploy/build_raw_slowlog_exporter.sh`；构建脚本固定 Go 版本、`GOOS=linux`、`GOARCH`、`CGO_ENABLED=0`，生成 SHA-256 manifest |
+| 发布包 | `deploy/make_release.sh` 必须先构建或验证两种架构产物，再将**当前目标架构**的二进制、manifest、样例白名单配置与安装手册复制到发布包 `deploy/raw-slowlog-exporter/`；找不到匹配产物即失败，不得 `|| true` |
+| 协议协商 | 导出器所有响应带 `protocol_version`、`exporter_version`；v1 客户端只接受协议 1 和 `>=1.0.0,<2.0.0`，不兼容报 `E4224 EXPORTER_VERSION_INCOMPATIBLE`，不能降级猜测 |
+| 安装 | 由目标主机的受控变更流程执行 `install -o root -g tdsql_log_reader -m 0750` 至 `/usr/local/libexec/tdsql-slowlog-exporter`；白名单配置为 root 所有、`0640`，账户仅可读取；`authorized_keys` 强制命令只指向该绝对路径 |
+| 升级 | 每台节点先校验 SHA-256、执行本地 `--version` 和一次 probe，再原子替换；先灰度一个节点，probe 成功再滚动其余节点 |
+| 回滚 | 保留上一版受校验二进制和配置；发生协议/格式异常时原子切回上一版，平台源保持禁用或降级，随后重新 probe |
+
+ForceCommand 示例仅表达限制形态，公钥和真实路径由受控部署产生：
+
+```text
+restrict,command="/usr/local/libexec/tdsql-slowlog-exporter --stdio --config-dir /etc/tdsql-sqlcheck/slowlog-exporter.d" <public-key>
+```
+
+发布包可以携带导出器，**不得**由 CheckSQL 自动上传或替换目标主机二进制；安装、升级和回滚是 Proxy/Gateway 主机的独立变更，必须留存其版本与 probe 证据。
 
 ---
 
@@ -887,12 +1003,14 @@ Pull 请求：
   → 检查 Secret 引用在部署机存在、权限正确
   → 对每个节点严格 SSH 连接
   → 调用受限导出器 probe
-  → 校验远端 source key、路径摘要、文件清单、格式签名
+  → 校验远端 source key、协议/导出器版本、路径摘要、存储身份、文件清单、格式签名
+  → 从 pinned known_hosts 记录 SSH 主机密钥指纹；写 slow_log_node_probe_files
+  → 与其他已启用节点按 (host fingerprint, file identity) / (storage identity, file identity) 检查冲突
   → 写 slow_log_collection_runs(trigger=probe)
   → 节点全部 passed 才允许管理员启用源
 ```
 
-任何节点失败时，源保持禁用；页面显示节点级脱敏原因。不存在“部分节点自动启用”的隐式行为，避免集群某个 Proxy 漏采而仍显示整体健康。
+任何节点失败或存在文件冲突时，源保持禁用；页面显示节点级脱敏原因和冲突节点 key。不存在“部分节点自动启用”的隐式行为，避免集群某个 Proxy 漏采而仍显示整体健康。
 
 ### 9.2 定时采集
 
@@ -902,12 +1020,13 @@ APScheduler 每 30 秒 tick
   → 查 enabled=1 且到期的 slow_log_sources
   → 针对每个源 CAS 获取 source lease（5 分钟）
   → 创建 running run
-  → 顺序处理 enabled 节点：manifest → chunk → 完整块 → parse/mask → transaction
+  → 在 max_run_seconds 预算内，顺序处理 enabled 节点并连续拉批：manifest → anchor → chunk → 完整块 → parse/mask → transaction
+  → 每批更新未读字节；未追平则继续下一批，预算耗尽才结束本轮
   → 更新每个节点健康及源摘要
   → 完成 run，释放 source lease
 ```
 
-到期判断使用 `last_success_at + poll_interval_seconds <= now`；失败源的最短重试间隔固定 60 秒，防止不可达主机每 30 秒刷日志。单源运行超过 5 分钟时在每个节点完成后续租；续租失败立即停止后续节点，当前已提交事务保持有效。
+到期判断使用 `last_success_at + poll_interval_seconds <= now`；失败源的最短重试间隔固定 60 秒，防止不可达主机每 30 秒刷日志。`max_events_per_batch=2000` 只是单批上限，单源实际吞吐由批次大小、网络和 `max_run_seconds` 决定；运行末尾记录 `last_backlog_bytes`，若连续未清零或首个未读完整块时间落后超过 `lag_alert_seconds`，源置 `degraded` 并触发告警。单源运行超过 5 分钟时在每个节点完成后续租；续租失败立即停止后续节点，当前已提交事务保持有效。
 
 ### 9.3 事件解析与事务提交
 
@@ -918,11 +1037,11 @@ APScheduler 每 30 秒 tick
   → 最后半块保留，不提交、不推进
   → parser_profile 提取字段
   → 时间解析（source.timezone）
-  → SQL 脱敏 + SHA-256 指纹 + SQL 类型
+  → 完整 SQL 脱敏 → 完整脱敏文本 SHA-256 指纹 → 8 KiB 展示截断标记 + SQL 类型
   → query_time_us >= source.min_query_time_ms * 1000 ?
   → BEGIN
        INSERT IGNORE slow_log_events (... origin unique key ...)
-       UPDATE/INSERT slow_log_cursors (cursor_offset=完整块末尾)
+       UPDATE/INSERT slow_log_cursors (cursor_offset=完整块末尾, anchor=末尾64字节哈希)
      COMMIT
 ```
 
@@ -930,7 +1049,7 @@ APScheduler 每 30 秒 tick
 
 ### 9.4 与既有 EXPLAIN 的衔接
 
-事件详情页提供“在 EXPLAIN 分析中打开”按钮，仅传递：
+事件详情页仅在 `sql_template_truncated=0` 时提供“在 EXPLAIN 分析中打开”按钮，传递：
 
 ```json
 {
@@ -940,7 +1059,7 @@ APScheduler 每 30 秒 tick
 }
 ```
 
-按钮复用既有 EXPLAIN 安全校验；不自动在生产/测试库执行 SQL，不读取未脱敏原文。对于 DML，沿用既有“安全改写/拒绝”的 EXPLAIN 策略。
+按钮复用既有 EXPLAIN 安全校验；不自动在生产/测试库执行 SQL，不读取未脱敏原文。对于 DML，沿用既有“安全改写/拒绝”的 EXPLAIN 策略。SQL 模板已截断的事件只允许查看指纹和指标，不允许把不完整 SQL 送进 EXPLAIN。
 
 ---
 
@@ -956,7 +1075,7 @@ APScheduler 每 30 秒 tick
 | 采集运行 | 全部登录角色 | 源健康、最近运行、节点成功/失败、滞后时间、错误摘要 |
 | 采集源配置 | admin | 源/节点表单、路径一致性、Probe、启停；dba 仅看掩码状态，不显示编辑入口 |
 
-事件列表固定列：日志记录时间、实例、节点、数据库、SQL 类型、耗时、锁等待、扫描行、SQL 模板、指纹、操作。列表顶端固定显示时间口径提示，不能省略。
+事件列表固定列：日志记录时间、实例、节点、数据库、SQL 类型、耗时、锁等待、扫描行、SQL 模板、指纹、操作。`sql_template_truncated=1` 时 SQL 模板列显示“已截断（原脱敏文本 N 字节）”，详情与导出同样显示，且 EXPLAIN 操作禁用。列表顶端固定显示时间口径提示，不能省略。
 
 ### 10.2 表单交互约束
 
@@ -984,13 +1103,14 @@ TDSQL 原始慢日志事件报告
 
 | 文件 | 变更 |
 |---|---|
-| `backend/schema/v7/070_raw_slow_log_collection.sql` | 新增 5 张表和两项保留策略 |
+| `backend/schema/v7/070_raw_slow_log_collection.sql` | 新增 6 张表和两项保留策略 |
 | `backend/services/database.py` | 初始化菜单权限；不修改既有慢 SQL 表语义 |
-| `backend/services/retention_service.py` | 登记两张新增可清理表与正确时间列 |
+| `backend/services/retention_service.py` | 策略注册表分派；逐条事件走独立批量清理处理器 |
 | `backend/services/raw_slowlog_models.py` | 新增 Pydantic/内部数据类、枚举、字段校验 |
 | `backend/services/raw_slowlog_repository.py` | 源、节点、游标、事件、运行事务 |
-| `backend/services/raw_slowlog_parser.py` | 完整块切分、`tdsql_mysql_slowlog_v1`、脱敏适配 |
-| `backend/services/raw_slowlog_ssh.py` | 严格 SSH / NDJSON 协议；无 Shell 拼接 |
+| `backend/services/sql_masking.py` | 唯一 SQL 脱敏、完整文本指纹与展示截断实现；收敛既有三份规则 |
+| `backend/services/raw_slowlog_parser.py` | 完整块切分、`tdsql_mysql_slowlog_v1`、偏移/锚点与脱敏适配 |
+| `backend/services/raw_slowlog_ssh.py` | OpenSSH CLI / NDJSON 协议；固定 argv、`shell=False` |
 | `backend/services/raw_slowlog_service.py` | Probe、采集、租约、状态汇总 |
 | `backend/services/scheduler.py` | 注册源到期调度任务，复用 leader lease |
 | `backend/api/raw_slowlog.py` | §7 全部接口及显式 RBAC |
@@ -998,6 +1118,9 @@ TDSQL 原始慢日志事件报告
 | `backend/main.py` | 注册新 Router |
 | `frontend/index.html` | “慢SQL治理 / 原始慢日志”菜单与页面模板 |
 | `frontend/static/js/app.js` | 独立状态、筛选、运行轮询、配置/权限渲染 |
+| `Dockerfile` / `deploy/preflight_check.sh` | 安装并验证 OpenSSH client；不新增 Python SSH wheel |
+| `deploy/raw_slowlog_exporter/` / `deploy/build_raw_slowlog_exporter.sh` | 静态 Go 导出器、交叉构建、版本/哈希 manifest |
+| `deploy/make_release.sh` | 按交付架构带上导出器、安装说明和哈希；产物缺失即失败 |
 | `tests/test_raw_slowlog_*.py` | 单元、契约、迁移、安全和回归测试 |
 
 解析器可以提取既有 `parse_slow_sql_blocks` 的**无状态字段解析逻辑**，但不能直接调用其“把最后一块无条件视作完整”的行为。新增解析器必须返回：
@@ -1054,14 +1177,36 @@ raw_slowlog_events_export
 
 | 表 | 默认保留 | 依据 |
 |---|---:|---|
-| `slow_log_events` | 180 天 | 与既有慢 SQL 运行数据基线一致；按 `event_time` 清理 |
+| `slow_log_events` | **30 天** | 逐条执行事件，量级远高于聚合 `slow_queries`；按 `event_time` 清理 |
 | `slow_log_collection_runs` | 90 天 | 保留足够的调度和故障审计；按 `started_at` 清理 |
 | `slow_log_cursors` | 不自动清理 | 运行连续性所需；仅停用源的受控清理流程处理 |
 | 源/节点配置 | 不自动清理 | 配置审计所需；使用停用替代删除 |
 
-`retention_policies` 可调整，但最低 7 天沿用现有系统约束。设置较短保留期前，前端须显示“会按日志记录时间删除事件”的明确告警。
+`retention_policies` 可调整，但最低 7 天沿用现有系统约束。设置较短保留期前，前端须显示“会按日志记录时间删除事件”的明确告警。`slow_log_events` / `slow_log_collection_runs` 的清理器每张表单独连接：每批 `DELETE ... LIMIT 5000` 后立即提交，单轮最多 20 批；任一表失败不回滚或阻塞其他表。首版不使用 MySQL RANGE 分区，因为分区唯一键必须包含分区键，会改变本设计以 origin 为核心的去重约束；当规模超过 §13.2 典型档时，必须以专项设计处理分区/冷热分层，不能直接 ALTER 上线表。
 
-### 13.2 指标与健康定义
+### 13.2 容量预算与准入阈值
+
+以下为**单个采集源**的规划预算，不是对真实环境的猜测。估算假设是平均每条事件（脱敏 SQL 模板、行记录、4 个二级索引和 InnoDB 余量）按约 **2 KiB** 计；`sql_template` 的业务保存上限固定为 8 KiB，超长模板会截断并可见。
+
+| 档位 | 每源每天事件数 | 30 天行数 | 预计数据+索引空间 | 处理要求 |
+|---|---:|---:|---:|---|
+| 保守 | 10,000 | 300,000 | 约 0.6 GiB | 默认配置可准入 |
+| 典型 | 100,000 | 3,000,000 | 约 5.6 GiB | 准入前确认元数据库剩余空间至少 3 倍预算 |
+| 高峰 | 1,000,000 | 30,000,000 | 约 56 GiB | 禁止直接启用；先完成容量专项（冷热分层/分区/独立存储） |
+
+空间公式：`event_count_per_day × retention_days × 2 KiB`。实际上线前必须用至少 24 小时 probe/受控采集结果测得平均 `sql_template_original_bytes`、索引大小和事件速率，更新该估算；不能以 `max_events_per_batch` 代替真实速率。
+
+### 13.3 积压追赶、指标与健康定义
+
+`max_events_per_batch=2000` 是单个协议批次限制，若每 60 秒只跑一批则理论上限约为 33 事件/秒，必然可能落后。因此运行器在 `max_run_seconds` 内连续拉批：无积压时一批即结束；存在积压时持续读取，直至所有启用节点的 `backlog_bytes=0` 或预算耗尽。下一次到期优先继续有积压的源。
+
+当满足任一条件，必须记录告警并把页面源状态置为 `degraded`：
+
+1. `last_backlog_bytes > 0` 连续 3 次运行，且趋势上升；
+2. 首个未读完整块的 `event_time` 落后当前时间超过 `lag_alert_seconds`（默认 600 秒）；
+3. 运行因预算耗尽而结束且存在未读字节。
+
+仅“很久没有新慢日志”不算积压，不能因为空闲实例误报故障；积压判断依据是未读字节和首个未读完整块，而不是最后一条已入库事件的时间。
 
 新增指标：
 
@@ -1070,6 +1215,8 @@ raw_slowlog_runs_total{status}
 raw_slowlog_events_inserted_total{source_key}
 raw_slowlog_parse_errors_total{source_key,node_key}
 raw_slowlog_source_lag_seconds{source_key}
+raw_slowlog_backlog_bytes{source_key,node_key}
+raw_slowlog_run_budget_exhausted_total{source_key}
 raw_slowlog_ssh_failures_total{reason}
 ```
 
@@ -1078,7 +1225,7 @@ raw_slowlog_ssh_failures_total{reason}
 | 状态 | 条件 |
 |---|---|
 | `healthy` | 全部启用节点成功，且最新成功时间未超过 `max(3 × poll_interval, 5 分钟)` |
-| `degraded` | 最近运行部分节点失败，或延迟超阈值 |
+| `degraded` | 最近运行部分节点失败，或 §13.3 的积压/滞后阈值命中 |
 | `failed` | 连续 3 次运行全部失败 |
 | `disabled` | 管理员未启用 |
 | `invalid_format` | Probe 或格式门禁未通过 |
@@ -1104,13 +1251,20 @@ raw_slowlog_ssh_failures_total{reason}
 
 ## 15. 实施顺序（照图施工）
 
+### 阶段 0：施工前置门禁（未通过不得写业务代码或建 v7 表）
+
+1. **离线发布门禁**：确认 `requirements.txt` 无新增 Python SSH 库；对每个实际交付的 `(arch, pytag)` 执行现有 `deploy/make_release.sh --arch <x86_64|aarch64> --py <tag>`，其 `pip download --only-binary` 必须全量成功。Docker 交付还须为实际架构构建镜像，确认其中 `ssh` 与 `ssh-keygen` 可执行。
+2. **OpenSSH 门禁**：在正式 CheckSQL 部署形态执行 `ssh -V`、`ssh -G <test-host>`，确认版本不低于 7.4 且支持 §8.1 固定选项；缺少 `openssh-client` 必须通过受控系统包/镜像变更补齐，不能临时 pip 安装替代。
+3. **导出器门禁**：用 Go 1.22 构建 `linux-amd64`、`linux-arm64` 静态产物，分别校验 `--version`、协议 v1 fake exporter 测试和 SHA-256 manifest；`make_release.sh` 对缺失/错误架构产物必须失败。
+4. **容量门禁**：根据 §13.2 选择保留期和容量档；高峰档或超过典型档的接入必须先有单独的冷热分层/分区设计评审，不能先建表后补救。
+
 ### 阶段 A：离线可测核心
 
-1. 建 `v7/070` 迁移，执行空库和升级库迁移测试。
+1. 建 `v7/070` 迁移，执行空库和升级库迁移测试；U16 必须断言 `retention_policies` 在迁移 INSERT 前已存在。
 2. 建模型、仓储和服务骨架；事件/游标保存必须先有事务与唯一键测试。
-3. 从既有解析器提取字段匹配逻辑，新建带字节偏移的完整块解析器。
-4. 完成 SQL 脱敏失败即拒绝入库的测试。
-5. 实现 SSH 客户端的 fake exporter 测试服务器；先测协议、主机密钥和输入校验，不接真实环境。
+3. 从既有解析器提取字段匹配逻辑，先建 `sql_masking.py` 并把三份既有规则收敛；新建带字节偏移、锚点和完整块语义的解析器。
+4. 完成 SQL 脱敏失败即拒绝入库、完整脱敏文本指纹、展示截断可见的测试。
+5. 实现 OpenSSH CLI 调用的 fake exporter 测试服务器；先测协议、主机密钥、锚点、输入校验和不使用 Shell，不接真实环境。
 
 ### 阶段 B：平台接口与页面
 
@@ -1152,7 +1306,11 @@ raw_slowlog_ssh_failures_total{reason}
 | U13 | API | non-admin 读取源 | 地址、路径、引用全部掩码 |
 | U14 | 调度 | 双副本同时 tick | 每源仅一个 run 取得租约 |
 | U15 | 报告 | 一节点失败 | 报告显示覆盖不完整，不能显示零事件结论 |
-| U16 | 迁移 | 存量 v1.5.2.5 升级 | 迁移成功，既有表/数据不变 |
+| U16 | 迁移 | 存量 v1.5.2.5 升级及初始化顺序 | `retention_policies` 先存在；迁移成功，既有表/数据不变 |
+| U17 | 轮转 | copytruncate 后一周期内写回超过旧偏移 | 锚点不匹配，强制新 generation，从 0 读取 |
+| U18 | Probe/配置 | 两个启用节点声明同一主机/存储的同一文件 | 启用被拒，返回冲突节点 key，无事件重复写入 |
+| U19 | 脱敏 | 超过 64 KiB 的 SQL | 完整脱敏文本参与指纹；仅存 8 KiB；截断标记在 API/页面/导出可见 |
+| U20 | 调度 | 输入速率连续超过单批上限 | 运行在预算内连续拉批；积压持续时告警、页面标红、不得静默落后 |
 
 ### 16.2 真实环境格式门禁（R-11）
 
@@ -1162,8 +1320,8 @@ raw_slowlog_ssh_failures_total{reason}
 2. 用只读导出器读取对应日志文件的脱敏样本，证明存在可解析的完整块边界。
 3. 证明 `# Time` 与该 SQL 的日志记录时间相符，并明确时区；不得只看文件 mtime。
 4. 证明 `Query_time` 单位、`Rows_examined`、库名和用户字段在目标 TDSQL 版本中实际存在或记录为缺失。
-5. 在日志轮转后重复读取，证明文件身份/截断行为。
-6. 同一实例存在多个 Proxy 时，在每个 Proxy 产生受控样本，确认“从哪个节点采集、是否会重复”这一事实。
+5. 在日志轮转后重复读取，包含“copytruncate 后快速写回超过旧偏移”的锚点校验，证明不会从新文件中段错读。
+6. 同一实例存在多个 Proxy 时，在每个 Proxy 产生受控样本；Probe 必须记录主机/存储/文件身份，并证明重复节点会被启用前机械拒绝。
 7. Probe / 收集的连接入口、账户、SSH 端口必须就是 CheckSQL 正式部署时的入口（R-14），不能用管理员临时 root 会话替代。
 
 验收材料只保存字段存在性、偏移、时间差和脱敏模板；不把真实原始日志、主机地址或凭据提交到 GitHub。
@@ -1174,9 +1332,11 @@ raw_slowlog_ssh_failures_total{reason}
 |---|---|
 | 安全 | 不使用 root/密码/SCP；主机指纹校验和 ForceCommand 实测拒绝非法命令 |
 | 完整性 | 受控样本逐条落库；重跑零重复；轮转无漏读 |
+| 数据保真 | 超长脱敏 SQL 指纹稳定、截断标记可见；禁止对截断 SQL 执行 EXPLAIN |
 | 时间 | 事件页面/报告时间与 Proxy 日志 `# Time` 一致；不出现“执行开始时间”误标 |
 | 隔离 | `slow_queries`、`scan_tasks`、`gateway_log_reports` 无新增写入 |
 | 故障 | 单节点失败时整体报告明确提示覆盖不完整 |
+| 吞吐 | 高于单批上限时能连续追赶；积压超阈值告警且页面标红 |
 | 可运维 | 可从运行记录定位源、节点、错误码、最后成功时间；不泄露秘密 |
 
 ---
