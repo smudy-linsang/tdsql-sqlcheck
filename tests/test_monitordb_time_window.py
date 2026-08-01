@@ -148,6 +148,7 @@ def test_empty_window_produces_diagnosis():
     msg = p._last_window_diagnosis
     assert "2026-07-29 09:30:00" in msg, "未给出实际采集时刻范围"
     assert "采集时刻" in msg, "未说明过滤的是采集时刻而非执行时刻"
+    assert "digest" not in msg.lower(), "monitordb 空窗提示不应引导切换数据源"
 
 
 def test_empty_table_diagnosis_distinguishes_from_window_miss():
