@@ -1627,7 +1627,16 @@ def init_rule_configs(conn=None):
 def log_operation(operator: str, operation_type: str, target_type: str = "",
                   target_id: str = "", detail: str = "", ip_address: str = "",
                   user_agent: str = ""):
-    """记录操作审计日志"""
+    """记录操作审计日志。
+
+    Web 路径会被写入 ``operation_type`` / ``target_id``。路由参数较长时，
+    必须在此处收敛到表结构上限，避免后台审计任务因 DataError 异常退出。
+    """
+    operator = str(operator or "")[:64]
+    operation_type = str(operation_type or "")[:64]
+    target_type = str(target_type or "")[:64]
+    target_id = str(target_id or "")[:128]
+    ip_address = str(ip_address or "")[:64]
     conn = _get_connection()
     try:
         conn.cursor().execute("""

@@ -161,7 +161,8 @@ def connect_from_config(config_path: Optional[str] = None):
 @router.get("/test-connection", summary="测试TDSQL连接")
 @router.post("/test-connection", summary="测试TDSQL连接")
 def test_connection(host: Optional[str] = None, port: int = 3306,
-                          user: Optional[str] = None, password: Optional[str] = None,
+                          user: Optional[str] = None, username: Optional[str] = None,
+                          password: Optional[str] = None,
                           database: Optional[str] = None,
                           monitor_host: Optional[str] = None, monitor_port: int = 15001,
                           monitor_user: Optional[str] = None, monitor_password: Optional[str] = None,
@@ -174,6 +175,9 @@ def test_connection(host: Optional[str] = None, port: int = 3306,
     """
     try:
         from backend.services.tdsql_connector import TDSQLConnectionPool, TDSQLConnectionConfig
+
+        # 与保存连接接口保持字段一致；user 保留为既有调用方的兼容别名。
+        user = user or username
 
         # 优先使用传入参数，其次使用配置
         if host and user:
