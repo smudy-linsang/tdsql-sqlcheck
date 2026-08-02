@@ -12,7 +12,6 @@
 # ============================================================================
 set -euo pipefail
 
-VERSION="1.2.0.0"
 INSTALL_DIR="/opt/tdsql-sqlcheck"
 PORT="8000"
 RUN_USER="sqlcheck"
@@ -30,6 +29,10 @@ done
 
 log()  { echo -e "\033[32m[INSTALL]\033[0m $*"; }
 fail() { echo -e "\033[31m[FAILED]\033[0m $*"; exit 1; }
+
+# 发布版本必须由发布包根目录的 VERSION 文件确定，避免安装目录与包版本漂移。
+VERSION="$(tr -d ' \r\n' < "${PKG_ROOT}/VERSION" 2>/dev/null || true)"
+[[ -n "${VERSION}" ]] || fail "读不到 ${PKG_ROOT}/VERSION，无法确定发布版本"
 
 # ── 0. 预检 ─────────────────────────────────────────────────────────────
 log "步骤0: 环境预检"

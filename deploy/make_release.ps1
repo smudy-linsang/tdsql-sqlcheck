@@ -3,11 +3,16 @@
 # 产出: dist/tdsql-sqlcheck-v1.2.0.5-linux-x86_64.tar.gz + .sha256
 # ============================================================================
 $ErrorActionPreference = "Stop"
-$VERSION = "1.4.0.1"
 $ARCH = "x86_64"
 $PYTAG = "311"
 $ROOT = Split-Path -Parent $PSScriptRoot
 if (-not $ROOT) { $ROOT = (Get-Location).Path }
+$VERSION_FILE = Join-Path $ROOT "VERSION"
+if (-not (Test-Path -LiteralPath $VERSION_FILE)) { throw "错误: 读不到 $VERSION_FILE，无法确定版本号" }
+$VERSION = (Get-Content -LiteralPath $VERSION_FILE -Raw).Trim()
+if ([string]::IsNullOrWhiteSpace($VERSION) -or $VERSION -notmatch '^\d+\.\d+\.\d+\.\d+$') {
+    throw "错误: VERSION 文件中的版本号无效: '$VERSION'"
+}
 
 # 离线环境提示
 Write-Host "============================================================================" -ForegroundColor Cyan

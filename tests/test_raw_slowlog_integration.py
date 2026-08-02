@@ -26,7 +26,7 @@ class FakeExporterClient:
 
     def request(self, node, source, payload, timeout_seconds):
         if payload["op"] == "probe":
-            return [{"type": "probe", "protocol": "raw_slowlog_exporter_v1", "version": "1.5.3.0",
+            return [{"type": "probe", "protocol": "raw_slowlog_exporter_v1", "version": "1.6.0.0",
                      "source_key": node["remote_source_key"], "storage_identity": "test-storage-a",
                      "format_signature": {"parser_profile": "tdsql_mysql_slowlog_v1", "time_header": True, "query_time_header": True},
                      "files": [{"file_identity": "dev:1:ino:2", "file_label": "slow.log", "file_size": len(_LOG)}]}]

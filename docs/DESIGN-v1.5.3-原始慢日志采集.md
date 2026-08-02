@@ -928,7 +928,7 @@ Probe 响应：
 {
   "type": "probe",
   "protocol": "raw_slowlog_exporter_v1",
-  "version": "1.5.3.0",
+  "version": "1.6.0.0",
   "source_key": "sit_proxy_a_slowlog",
   "storage_identity": "<stable-filesystem-id>",
   "files": [

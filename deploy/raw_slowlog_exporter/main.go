@@ -18,7 +18,7 @@ import (
 )
 
 const protocol = "raw_slowlog_exporter_v1"
-const version = "1.5.3.0"
+const version = "1.6.0.0"
 
 type sourceConfig struct {
 	Paths           []string `json:"paths"`
