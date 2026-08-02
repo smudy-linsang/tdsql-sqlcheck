@@ -499,8 +499,8 @@ class TestFetchSlowQueries:
         assert len(data["errors"]) == 1
         assert "Connection timeout" in data["errors"][0]["error"]
 
-    def test_fetch_digest_requires_time_window(self, client):
-        """测试digest模式要求时间窗口"""
+    def test_fetch_digest_returns_snapshot_without_time_window(self, client):
+        """digest 返回当前累计性能摘要快照，不要求历史时间窗口。"""
         from backend.api import tdsql_manage
 
         resp = client.post("/api/v1/tdsql/slow-queries/fetch", json={
@@ -508,7 +508,7 @@ class TestFetchSlowQueries:
             "limit": 10,
             "min_time": 0.1,
         })
-        assert resp.status_code == 422
+        assert resp.status_code == 200
 
 
 # ── 7. SlowQueryRecord set_id字段测试 ──────────────────

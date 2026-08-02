@@ -15,7 +15,6 @@
 本文件锁定修复后的行为。
 """
 import pathlib
-import re
 
 import pytest
 
@@ -207,24 +206,20 @@ def _scan_drawer_html() -> str:
     return html[start:end]
 
 
-def test_time_window_has_per_source_note():
-    """三种数据源各有一条常驻说明，且互斥渲染（v-if/v-else-if/v-else）"""
+def test_monitordb_time_window_has_collection_timestamp_note():
+    """monitordb 的时间窗必须明确按采集时刻而非 SQL 执行时刻筛选。"""
     drawer = _scan_drawer_html()
     assert "form-note" in drawer, "时间窗口缺少常驻说明"
     note = drawer[drawer.index("form-note"):drawer.index("</el-form-item>", drawer.index("form-note"))]
     assert "采集时刻" in note, "monitordb 未说明过滤的是采集时刻"
-    assert re.search(r"v-if=\"scanTaskForm\.source==='monitordb'\"", note)
-    assert re.search(r"v-else-if=\"scanTaskForm\.source==='digest'\"", note)
-    assert "v-else>" in note, "processlist 分支缺失（三条说明会同时显示）"
 
 
-def test_time_window_tooltip_covers_all_three_sources():
-    """tooltip 详解必须三种源都讲到，且点明各自真正过滤的东西"""
+def test_data_source_descriptions_cover_all_time_semantics():
+    """三种数据源须在各自的页面说明中给出正确的时间语义。"""
     drawer = _scan_drawer_html()
-    assert "tip-block" in drawer, "时间窗口缺少 tooltip 详解"
-    tip = drawer[drawer.index("tip-block"):drawer.index("</el-tooltip>", drawer.index("tip-block"))]
-    for kw in ("monitordb", "digest", "processlist",
-               "采集入库的时刻",      # monitordb：采集时刻而非执行时刻
-               "不参与查询过滤",      # digest：窗口只是任务元数据
-               "轮询时长"):           # processlist：范围由轮询参数决定
-        assert kw in tip, f"tooltip 缺少关键说明: {kw}"
+    for text in (
+        "过滤的是<b>采集时刻</b>，非 SQL 执行时刻",
+        "不支持按 SQL 执行日期或历史时间范围筛选",
+        "仅捕获本次轮询期间正在执行的语句",
+    ):
+        assert text in drawer, f"数据源时间语义说明缺失: {text}"
