@@ -109,6 +109,7 @@ def _do_scan(pool, connection_id: str, source: str, limit: int, min_time: float,
 
     results = []
     errors = []
+    raw_queries = []
     try:
         if source == "monitordb":
             # 集群级慢SQL：读 tdsqlpcloud_monitor.proxy_classes_analysis，
@@ -146,85 +147,94 @@ def _do_scan(pool, connection_id: str, source: str, limit: int, min_time: float,
         except Exception as e:
             errors.append({"source": "enrich", "error": str(e)})
 
-    for raw in raw_queries:
-        sql_text = raw.get("DIGEST_TEXT") or raw.get("info") or raw.get("sql_text", "")
-        if not sql_text:
-            continue
-        if isinstance(sql_text, bytes):
-            sql_text = sql_text.decode("utf-8", errors="replace")
-        db_val = raw.get("SCHEMA_NAME") or raw.get("db", "") or db_name
-        if isinstance(db_val, bytes):
-            db_val = db_val.decode("utf-8", errors="replace")
+    try:
+        for row_index, raw in enumerate(raw_queries):
+            try:
+                sql_text = raw.get("DIGEST_TEXT") or raw.get("info") or raw.get("sql_text", "")
+                if not sql_text:
+                    continue
+                if isinstance(sql_text, bytes):
+                    sql_text = sql_text.decode("utf-8", errors="replace")
+                db_val = raw.get("SCHEMA_NAME") or raw.get("db", "") or db_name
+                if isinstance(db_val, bytes):
+                    db_val = db_val.decode("utf-8", errors="replace")
 
-        # 处理时间字段
-        query_time_val = raw.get("query_time") or raw.get("time")
-        if query_time_val is not None:
-            if hasattr(query_time_val, "total_seconds"):
-                qt_sec = query_time_val.total_seconds()
-            else:
-                qt_sec = float(query_time_val)
-            total_ms = avg_ms = max_ms = qt_sec * 1000
-        else:
-            total_ms = float(raw.get("total_seconds", 0) or 0) * 1000
-            avg_ms = float(raw.get("avg_seconds", 0) or 0) * 1000
-            max_ms = float(raw.get("max_seconds", 0) or 0) * 1000
+                # 处理时间字段
+                query_time_val = raw.get("query_time") or raw.get("time")
+                if query_time_val is not None:
+                    if hasattr(query_time_val, "total_seconds"):
+                        qt_sec = query_time_val.total_seconds()
+                    else:
+                        qt_sec = float(query_time_val)
+                    total_ms = avg_ms = max_ms = qt_sec * 1000
+                else:
+                    total_ms = float(raw.get("total_seconds", 0) or 0) * 1000
+                    avg_ms = float(raw.get("avg_seconds", 0) or 0) * 1000
+                    max_ms = float(raw.get("max_seconds", 0) or 0) * 1000
 
-        lock_time_ms = float(raw.get("lock_time_seconds", 0) or 0) * 1000
+                lock_time_ms = float(raw.get("lock_time_seconds", 0) or 0) * 1000
 
-        # 执行者信息（monitordb/processlist有具体用户/IP，digest模式为聚合无此维度）
-        client_user = raw.get("client_user") or raw.get("user", "") or ""
-        client_host = raw.get("client_host") or raw.get("host", "") or ""
-        if isinstance(client_user, bytes):
-            client_user = client_user.decode("utf-8", errors="replace")
-        if isinstance(client_host, bytes):
-            client_host = client_host.decode("utf-8", errors="replace")
+                # 执行者信息（monitordb/processlist有具体用户/IP，digest模式为聚合无此维度）
+                client_user = raw.get("client_user") or raw.get("user", "") or ""
+                client_host = raw.get("client_host") or raw.get("host", "") or ""
+                if isinstance(client_user, bytes):
+                    client_user = client_user.decode("utf-8", errors="replace")
+                if isinstance(client_host, bytes):
+                    client_host = client_host.decode("utf-8", errors="replace")
 
-        # 防御性截断，防止极端情况下超出数据库列容量限制
-        client_user = str(client_user)[:4000]
-        client_host = str(client_host)[:4000]
+                # 防御性截断，防止极端情况下超出数据库列容量限制
+                client_user = str(client_user)[:4000]
+                client_host = str(client_host)[:4000]
 
-        first_seen_val = str(raw["FIRST_SEEN"]) if raw.get("FIRST_SEEN") else ""
-        last_seen_val = str(raw["LAST_SEEN"]) if raw.get("LAST_SEEN") else ""
+                first_seen_val = str(raw["FIRST_SEEN"]) if raw.get("FIRST_SEEN") else ""
+                last_seen_val = str(raw["LAST_SEEN"]) if raw.get("LAST_SEEN") else ""
 
-        record = SlowQueryRecord(
-            fingerprint=raw.get("DIGEST_TEXT", sql_text),
-            sql_text=sql_text,
-            db_name=db_val,
-            set_id=(raw.get("set_ids", "") or "")[:250],  # 分布式逐SET合并时记录命中的SET及次数
-            client_user=client_user,
-            client_host=client_host,
-            exec_count=raw.get("exec_count") or raw.get("COUNT_STAR", 0) or 0,
-            total_time_ms=total_ms,
-            avg_time_ms=avg_ms,
-            max_time_ms=max_ms,
-            lock_time_ms=lock_time_ms,
-            rows_examined=raw.get("rows_examined") or raw.get("SUM_ROWS_EXAMINED", 0) or 0,
-            rows_sent=raw.get("rows_sent") or raw.get("SUM_ROWS_SENT", 0) or 0,
-            rows_affected=int(raw.get("rows_affected", 0) or 0),
-            first_seen=first_seen_val,
-            last_seen=last_seen_val,
-            # G2 增强字段（enrich_rows 已回填到 raw；未增强则为空）
-            explain_plan=raw.get("explain_plan", "") or "",
-            explain_issues=raw.get("explain_issues", "") or "",
-            involved_tables=raw.get("involved_tables", "") or "",
-            table_stats=raw.get("table_stats", "") or "",
-            table_schema_ddl=raw.get("table_schema_ddl", "") or "",
-            index_details=raw.get("index_details", "") or "",
-            redundant_indexes=raw.get("redundant_indexes", "") or "",
-            stats_update_info=raw.get("stats_update_info", "") or "",
-            stats_expired=raw.get("stats_expired", "") or "",
-            scan_efficiency=raw.get("scan_efficiency", "") or "",
-        )
+                record = SlowQueryRecord(
+                    fingerprint=raw.get("DIGEST_TEXT", sql_text),
+                    sql_text=sql_text,
+                    db_name=db_val,
+                    set_id=(raw.get("set_ids", "") or "")[:250],  # 分布式逐SET合并时记录命中的SET及次数
+                    client_user=client_user,
+                    client_host=client_host,
+                    exec_count=raw.get("exec_count") or raw.get("COUNT_STAR", 0) or 0,
+                    total_time_ms=total_ms,
+                    avg_time_ms=avg_ms,
+                    max_time_ms=max_ms,
+                    lock_time_ms=lock_time_ms,
+                    rows_examined=raw.get("rows_examined") or raw.get("SUM_ROWS_EXAMINED", 0) or 0,
+                    rows_sent=raw.get("rows_sent") or raw.get("SUM_ROWS_SENT", 0) or 0,
+                    rows_affected=int(raw.get("rows_affected", 0) or 0),
+                    first_seen=first_seen_val,
+                    last_seen=last_seen_val,
+                    # G2 增强字段（enrich_rows 已回填到 raw；未增强则为空）
+                    explain_plan=raw.get("explain_plan", "") or "",
+                    explain_issues=raw.get("explain_issues", "") or "",
+                    involved_tables=raw.get("involved_tables", "") or "",
+                    table_stats=raw.get("table_stats", "") or "",
+                    table_schema_ddl=raw.get("table_schema_ddl", "") or "",
+                    index_details=raw.get("index_details", "") or "",
+                    redundant_indexes=raw.get("redundant_indexes", "") or "",
+                    stats_update_info=raw.get("stats_update_info", "") or "",
+                    stats_expired=raw.get("stats_expired", "") or "",
+                    scan_efficiency=raw.get("scan_efficiency", "") or "",
+                )
 
-        result = service.add_slow_query(
-            record, scan_task_id=task_id, connection_id=connection_id)
-        results.append(result)
-
-    status_val = "failed" if errors else "completed"
-    service.complete_scan_task(
-        task_id, total_fetched=len(results), total_analyzed=len(results), status=status_val)
-    metrics_service.inc("tdsql_scan_tasks_total",
-                        {"status": status_val})
+                result = service.add_slow_query(
+                    record, scan_task_id=task_id, connection_id=connection_id)
+                results.append(result)
+            except Exception as e:
+                # 单条记录不合法（例如截断 SQL 导致脱敏无法确认边界）时，
+                # 不能遗留 running 任务，更不能丢弃后续有效记录。
+                logger.warning("慢SQL记录持久化失败: task=%s row=%s error=%s",
+                               task_id, row_index, e)
+                errors.append({"source": source, "stage": "persist",
+                               "row_index": row_index, "error": str(e)})
+    finally:
+        status_val = "failed" if errors else "completed"
+        service.complete_scan_task(
+            task_id, total_fetched=len(raw_queries), total_analyzed=len(results), status=status_val)
+        metrics_service.inc("tdsql_scan_tasks_total",
+                            {"status": status_val})
     if operator:
         logger.info("扫描完成: operator=%s conn=%s source=%s fetched=%d",
                     operator, connection_id or "default", source, len(results))

@@ -279,8 +279,7 @@ def normalize_sql(sql_text):
     if not sql_text:
         return ""
     from backend.services.sql_masking import SQLMaskingError, mask_sql_literals
-    s = sql_text[:800]
-    s = s.replace("%3D", "=").replace("%0A", " ").replace("%20", " ").replace("%2C", ",")
+    s = sql_text.replace("%3D", "=").replace("%0A", " ").replace("%20", " ").replace("%2C", ",")
     s = s.replace("%27", "'").replace("%28", "(").replace("%29", ")")
     try:
         return mask_sql_literals(s)[:500]
