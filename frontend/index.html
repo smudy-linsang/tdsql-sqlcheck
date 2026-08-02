@@ -2414,11 +2414,9 @@
 
   <!-- G10 ZK 自动发现对话框 -->
   <el-dialog v-model="zkDialogVisible" title="从 ZooKeeper 自动发现实例" width="800px">
+    <el-alert type="info" :closable="false" style="margin-bottom:12px"
+      title="ZK 地址、认证、根路径和内外网地址映射由部署端安全配置统一管理。扫描失败将明确提示，不会返回模拟实例。"></el-alert>
     <el-form :inline="true" size="small">
-      <el-form-item label="ZK地址"><el-input v-model="zkForm.zk_server" style="width:160px"></el-input></el-form-item>
-      <el-form-item label="ZK用户"><el-input v-model="zkForm.zk_auth_user" style="width:110px"></el-input></el-form-item>
-      <el-form-item label="ZK密码"><el-input v-model="zkForm.zk_auth_password" type="password" style="width:110px" show-password></el-input></el-form-item>
-      <el-form-item label="ZK根路径"><el-input v-model="zkForm.zk_root" style="width:110px"></el-input></el-form-item>
       <el-form-item>
         <el-button type="primary" :loading="zkScanning" @click="runZkDiscovery">开始扫描</el-button>
       </el-form-item>

@@ -1,17 +1,23 @@
-"""G10 ZK 实例自动发现服务
+"""G10 ZK 实例自动发现服务。
 
-调用 deploy/tdsql_inventory.sh 脚本，从 ZooKeeper 的 /tdsqlzk 节点自动发现所有 TDSQL 实例，
-并对无法连接或本地沙箱环境提供优雅的 Mock/回退机制，确保内网 Q 智能体 UAT 测试正常。
+真实发现失败必须显式失败，绝不能以 Mock 结果伪装为真实集群清单。Mock 仅用于经部署
+配置显式启用的开发联调，且调用方必须识别其来源并禁止写入实例形态权威源。
 """
 import csv
 import io
 import logging
 import os
-import shutil
 import subprocess
 from pathlib import Path
 
 logger = logging.getLogger("tdsql.zk_discovery")
+
+
+class ZKDiscoveryUnavailableError(RuntimeError):
+    """真实 ZK 发现的前置条件或执行过程不可用。
+
+    API 层将此类异常映射为 503；错误文本不得包含认证口令、命令行或脚本原始输出。
+    """
 
 
 class ZKDiscoveryService:
@@ -19,19 +25,67 @@ class ZKDiscoveryService:
 
     @staticmethod
     def is_zk_port_open(server_addr: str) -> bool:
-        """快速探测 ZK 端口是否打开"""
+        """快速探测 ZK connect string 中任一节点是否可达。"""
         import socket
-        try:
-            host, port = server_addr.split(":")
-            port = int(port)
-        except ValueError:
-            return False
+        for endpoint in ZKDiscoveryService._split_servers(server_addr):
+            try:
+                host, port_text = endpoint.strip().rsplit(":", 1)
+                port = int(port_text)
+                if not host or not 1 <= port <= 65535:
+                    continue
+            except (AttributeError, ValueError):
+                continue
+            try:
+                with socket.create_connection((host, port), timeout=2):
+                    return True
+            except OSError:
+                continue
+        return False
 
-        try:
-            with socket.create_connection((host, port), timeout=2):
-                return True
-        except Exception:
-            return False
+    @staticmethod
+    def _split_servers(server_addr: str) -> list[str]:
+        """Parse the comma-separated ZK candidates in deployment configuration."""
+        return [endpoint.strip() for endpoint in str(server_addr or "").split(",") if endpoint.strip()]
+
+    @staticmethod
+    def is_real_discovery_runtime_supported() -> bool:
+        """真实发现依赖 Linux 上的 bash 与 zkCli.sh。"""
+        return os.name != "nt"
+
+    @staticmethod
+    def apply_endpoint_mapping(results: list[dict], host_mapping: dict[str, str] | None) -> list[dict]:
+        """将 ZK 内网网关地址映射为 CheckSQL 实际可连接的地址。
+
+        映射只替换 host，端口保持不变；同时处理主连接地址和 proxy_list，保证后续
+        ``sync_instance_kinds`` 能与登记在公网/NAT 地址上的实例匹配。
+        """
+        mapping = {
+            str(source).strip(): str(target).strip()
+            for source, target in (host_mapping or {}).items()
+            if str(source).strip() and str(target).strip()
+        }
+        if not mapping:
+            return results
+
+        def map_endpoint(endpoint: str) -> str:
+            text = str(endpoint or "").strip()
+            try:
+                host, port = text.rsplit(":", 1)
+            except ValueError:
+                return text
+            return f"{mapping.get(host, host)}:{port}"
+
+        mapped_results = []
+        for result in results:
+            item = dict(result)
+            item["host"] = mapping.get(str(item.get("host", "")), item.get("host", ""))
+            proxy_list = str(item.get("proxy_list", "") or "")
+            if proxy_list:
+                item["proxy_list"] = ";".join(
+                    map_endpoint(endpoint) for endpoint in proxy_list.split(";") if endpoint.strip()
+                )
+            mapped_results.append(item)
+        return mapped_results
 
     def discover(
         self,
@@ -47,56 +101,50 @@ class ZKDiscoveryService:
         """
         开始自动发现 TDSQL 实例。
 
-        在 Linux 且 ZK 可达时真实运行；其余情况（Windows / ZK 不通）回退为 Mock 列表。
+        默认只执行真实发现。若运行环境、客户端、网络或脚本不可用，抛出
+        :class:`ZKDiscoveryUnavailableError`，由 API 返回 503。Mock 必须由调用方显式
+        指定，且返回结果带 ``is_mock=true``。
         """
-        # 1) 判断是否强制 Mock 或处于 Windows/无 ZKCLI 环境
         script_path = Path(__file__).parent.parent.parent / "deploy" / "tdsql_inventory.sh"
-        use_mock = force_mock or os.name == "nt" or not script_path.exists()
-
-        if not use_mock:
-            # 2) 探测 ZK 端口是否可用，不可用也降级为 Mock
-            if not self.is_zk_port_open(zk_server):
-                logger.warning(f"ZooKeeper {zk_server} 端口不可达，使用 Mock 列表")
-                use_mock = True
-
-        if use_mock:
-            logger.info("采用 Mock 实例发现列表返回")
+        if force_mock:
+            logger.warning("ZK discovery is running in explicitly enabled Mock mode")
             return [
                 {
-                    "service_name": "TDSQL-Set-1(合约库)",
-                    "host": "127.0.0.1",
+                    "service_name": "Mock-TDSQL-Set-1",
+                    "host": "192.0.2.10",
                     "port": 15005,
-                    "user": "tdsqlsys_normal",
-                    "password": "mock_password_set1",
+                    "user": "mock_user",
+                    "password": "mock_password",
                     "database": default_database,
                     "status_code": "0",
                     "status_text": "运营中",
-                    # V1.5.1 Mock 形态字段（仅供 Windows/开发环境前端联调）
                     "instance_kind": "groupshard",
                     "instance_id": "group_mock_1",
                     "instance_type": "distributed",
-                    "proxy_list": "127.0.0.1:15005",
+                    "proxy_list": "192.0.2.10:15005",
+                    "is_mock": True,
                 },
                 {
-                    "service_name": "TDSQL-Set-2(交易库)",
-                    "host": "127.0.0.1",
+                    "service_name": "Mock-TDSQL-Set-2",
+                    "host": "192.0.2.11",
                     "port": 15006,
-                    "user": "tdsqlsys_normal",
-                    "password": "mock_password_set2",
+                    "user": "mock_user",
+                    "password": "mock_password",
                     "database": default_database,
                     "status_code": "0",
                     "status_text": "运营中",
                     "instance_kind": "noshard",
                     "instance_id": "set_mock_2",
                     "instance_type": "centralized",
-                    "proxy_list": "127.0.0.1:15006",
+                    "proxy_list": "192.0.2.11:15006",
+                    "is_mock": True,
                 },
                 {
-                    "service_name": "TDSQL-Set-3(已隔离)",
-                    "host": "127.0.0.1",
+                    "service_name": "Mock-TDSQL-Set-3",
+                    "host": "192.0.2.12",
                     "port": 15007,
-                    "user": "tdsqlsys_normal",
-                    "password": "mock_password_set3",
+                    "user": "mock_user",
+                    "password": "mock_password",
                     "database": default_database,
                     "status_code": "1",
                     "status_text": "已隔离",
@@ -104,15 +152,49 @@ class ZKDiscoveryService:
                     "instance_id": "",
                     "instance_type": None,
                     "proxy_list": "",
+                    "is_mock": True,
                 }
             ]
 
-        # 3) 真实物理执行
+        candidates = self._split_servers(zk_server)
+        if len(candidates) > 1:
+            # Do not pass a comma connect string to the inventory script: deployed
+            # ZK client versions have shown incompatible behaviour with it. Probe
+            # each member independently and return only a real successful result.
+            for candidate in candidates:
+                try:
+                    return self.discover(
+                        zk_server=candidate,
+                        zk_auth_user=zk_auth_user,
+                        zk_auth_password=zk_auth_password,
+                        zk_root=zk_root,
+                        zkcli_path=zkcli_path,
+                        proxy_mode=proxy_mode,
+                        default_database=default_database,
+                    )
+                except ZKDiscoveryUnavailableError:
+                    logger.warning("ZK candidate failed; trying next candidate: %s", candidate)
+            raise ZKDiscoveryUnavailableError("所有 ZooKeeper 节点均无法完成真实实例发现")
+
+        if not self.is_real_discovery_runtime_supported():
+            raise ZKDiscoveryUnavailableError("真实 ZK 发现需要 Linux 运行环境；当前未启用 Mock")
+        if not script_path.is_file():
+            raise ZKDiscoveryUnavailableError("ZK 发现脚本不可用")
+        zkcli = Path(zkcli_path)
+        if not zkcli.is_file() or not os.access(zkcli, os.X_OK):
+            raise ZKDiscoveryUnavailableError("ZK 客户端不可用或不可执行")
+        if not zk_auth_user or not zk_auth_password:
+            raise ZKDiscoveryUnavailableError("ZK 认证配置不可用")
+        candidates = self._split_servers(zk_server)
+        if not candidates:
+            raise ZKDiscoveryUnavailableError("ZooKeeper 服务地址无效")
+        if not any(self.is_zk_port_open(candidate) for candidate in candidates):
+            raise ZKDiscoveryUnavailableError("ZooKeeper 服务不可达")
+
         logger.info(f"开始在物理节点执行 ZK 实例扫描: server={zk_server}, root={zk_root}")
         cmd = [
             "bash", str(script_path),
             "--zk-server", zk_server,
-            "--zk-auth", f"{zk_auth_user}:{zk_auth_password}",
             "--zk-root", zk_root,
             "--zkcli", zkcli_path,
             "--proxy-mode", proxy_mode,
@@ -122,20 +204,30 @@ class ZKDiscoveryService:
             "-q"  # 开启静默只输出 CSV
         ]
 
+        env = os.environ.copy()
+        # 不把认证口令放入命令行；脚本从环境读取后通过 zkCli 的标准输入认证。
+        env["ZK_AUTH_USER"] = zk_auth_user
+        env["ZK_AUTH_PASSWORD"] = zk_auth_password
         try:
-            res = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=180, env=env)
             if res.returncode != 0:
-                logger.error(f"zk_inventory 运行失败 (code={res.returncode}): {res.stderr}")
-                raise RuntimeError(f"实例发现失败: {res.stderr or '未知错误'}")
-            
-            # 解析 CSV 输出
-            return self.parse_csv(res.stdout)
+                logger.error("zk_inventory failed with exit code %s", res.returncode)
+                raise ZKDiscoveryUnavailableError("ZK 实例发现脚本执行失败")
+
+            results = self.parse_csv(res.stdout)
+            if not results:
+                raise ZKDiscoveryUnavailableError("ZK 实例发现未返回有效记录")
+            for item in results:
+                item["is_mock"] = False
+            return results
         except subprocess.TimeoutExpired:
             logger.error("zk_inventory 运行超时 (180s)")
-            raise RuntimeError("实例发现运行超时 (180s)")
+            raise ZKDiscoveryUnavailableError("ZK 实例发现执行超时")
+        except ZKDiscoveryUnavailableError:
+            raise
         except Exception as e:
-            logger.error(f"zk_inventory 运行异常: {e}")
-            raise RuntimeError(f"实例发现运行异常: {e}")
+            logger.error("zk_inventory execution failed: %s", type(e).__name__)
+            raise ZKDiscoveryUnavailableError("ZK 实例发现执行异常") from e
 
     # kind → 本系统业务语义的映射。存原始 kind、映射在代码里做，
     # 便于与赤兔/ZK 对账；TDSQL 将来若增加形态，只改这张表。

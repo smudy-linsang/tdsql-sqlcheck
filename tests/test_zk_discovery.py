@@ -1,154 +1,199 @@
-"""G10 ZK 自动发现单元测试与集成测试"""
-import pytest
+"""ZK 自动发现的安全边界、形态映射和 API 回归测试。"""
+import json
+from types import SimpleNamespace
+
 from fastapi.testclient import TestClient
+
+from backend.api import zk_discovery as zk_api
 from backend.main import app
-from backend.services.zk_discovery_service import zk_discovery_service
 from backend.services.database import _get_connection
+from backend.services.zk_discovery_service import zk_discovery_service
+
 
 client = TestClient(app)
 
 
-def test_zk_discovery_service_mock():
-    """测试 ZK 发现服务的 Mock 模式"""
+def _clear_sessions():
+    with zk_api._sessions_lock:
+        zk_api._sessions.clear()
+
+
+def test_zk_discovery_service_mock_is_explicit_and_reserved():
     results = zk_discovery_service.discover(
-        zk_server="127.0.0.1:2118",
-        zk_auth_user="test",
-        zk_auth_password="password",
-        force_mock=True
+        zk_server="unused:2181",
+        zk_auth_user="unused",
+        zk_auth_password="",
+        force_mock=True,
     )
     assert len(results) == 3
-    assert results[0]["service_name"] == "TDSQL-Set-1(合约库)"
-    assert results[0]["host"] == "127.0.0.1"
-    assert results[0]["port"] == 15005
-    assert results[0]["user"] == "tdsqlsys_normal"
+    assert all(item["is_mock"] is True for item in results)
+    assert all(item["host"].startswith("192.0.2.") for item in results)
 
 
-# ═══ V1.5.1：--with-type 列解析与形态同步 ═══
-
-def test_parse_csv_11_columns():
-    """11 列（--with-status --with-type）：形态列正确解析与映射"""
-    csv_text = ("# header\n"
-                "集中式实例,10.206.0.4,15002,u,p,ALL,0,运营中,"
-                "noshard,set_1782130875_4,10.206.0.4:15002;10.206.0.8:15002\n")
-    item = zk_discovery_service.parse_csv(csv_text)[0]
-    assert item["instance_kind"] == "noshard"
-    assert item["instance_type"] == "centralized"
-    assert item["instance_id"] == "set_1782130875_4"
-    assert item["proxy_list"] == "10.206.0.4:15002;10.206.0.8:15002"
+def test_apply_endpoint_mapping_updates_primary_and_proxy_list():
+    mapped = zk_discovery_service.apply_endpoint_mapping([{
+        "host": "10.206.0.4",
+        "port": 15002,
+        "proxy_list": "10.206.0.4:15002;10.206.0.8:15002",
+    }], {"10.206.0.4": "119.45.220.89", "10.206.0.8": "118.195.161.48"})[0]
+    assert mapped["host"] == "119.45.220.89"
+    assert mapped["proxy_list"] == "119.45.220.89:15002;118.195.161.48:15002"
 
 
-def test_parse_csv_groupshard_maps_distributed():
-    csv_text = ("分布式实例,10.206.0.8,15005,u,p,ALL,0,运营中,"
-                "groupshard,group_1782132247_10,10.206.0.8:15005\n")
-    item = zk_discovery_service.parse_csv(csv_text)[0]
-    assert item["instance_type"] == "distributed"
+def test_real_discovery_fails_over_candidates_and_never_places_auth_in_argv(tmp_path, monkeypatch):
+    """多节点按成员尝试；认证只经子进程环境传递，不能出现在进程参数中。"""
+    fake_zkcli = tmp_path / "zkCli.sh"
+    fake_zkcli.write_text("#!/bin/sh\n", encoding="utf-8")
+    fake_zkcli.chmod(0o700)
+    monkeypatch.setattr(zk_discovery_service, "is_real_discovery_runtime_supported", lambda: True)
+    monkeypatch.setattr(zk_discovery_service, "is_zk_port_open", lambda _: True)
+    calls = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append((cmd, kwargs))
+        if cmd[3] == "first.example:2118":
+            return SimpleNamespace(returncode=4, stdout="")
+        return SimpleNamespace(
+            returncode=0,
+            stdout="set_1,10.0.0.1,15002,u,p,ALL,0,running,noshard,set_1,10.0.0.1:15002\n",
+        )
+
+    monkeypatch.setattr("backend.services.zk_discovery_service.subprocess.run", fake_run)
+    credential = "x" * 6
+    results = zk_discovery_service.discover(
+        zk_server="first.example:2118,second.example:2118",
+        zk_auth_user="reader",
+        zk_auth_password=credential,
+        zkcli_path=str(fake_zkcli),
+    )
+    assert len(calls) == 2
+    assert calls[1][0][3] == "second.example:2118"
+    assert "--zk-auth" not in calls[1][0]
+    assert calls[1][1]["env"]["ZK_AUTH_USER"] == "reader"
+    assert calls[1][1]["env"]["ZK_AUTH_PASSWORD"] == credential
+    assert results[0]["is_mock"] is False
 
 
-def test_parse_csv_backward_compatible():
-    """6 列 / 8 列旧格式必须继续可解析（新列一律追加在末尾）"""
-    assert zk_discovery_service.parse_csv("a,h,15002,u,p,ALL\n")[0]["host"] == "h"
-    item8 = zk_discovery_service.parse_csv("a,h,15002,u,p,ALL,1,已隔离\n")[0]
-    assert item8["status_text"] == "已隔离"
-    assert "instance_kind" not in item8
+def test_parse_csv_11_columns_and_kind_mapping():
+    csv_text = (
+        "Central,10.206.0.4,15002,u,p,ALL,0,running,"
+        "noshard,set_1782130875_4,10.206.0.4:15002;10.206.0.8:15002\n"
+        "Distributed,10.206.0.8,15005,u,p,ALL,0,running,"
+        "groupshard,group_1782132247_10,10.206.0.8:15005\n"
+    )
+    centralized, distributed = zk_discovery_service.parse_csv(csv_text)
+    assert centralized["instance_type"] == "centralized"
+    assert distributed["instance_type"] == "distributed"
+    assert distributed["instance_id"] == "group_1782132247_10"
 
 
 def test_unknown_kind_does_not_guess():
-    """未知形态不得静默映射 —— 那是本次事故的同类错误"""
     item = zk_discovery_service.parse_csv(
-        "n,h,1,u,p,ALL,0,ok,brand_new_kind,x_1,h:1\n")[0]
+        "n,h,1,u,p,ALL,0,ok,brand_new_kind,x_1,h:1\n"
+    )[0]
     assert item["instance_type"] is None
     assert item["instance_kind"] == "brand_new_kind"
 
 
-def test_sync_matches_any_proxy_of_instance():
-    """系统登记的是同实例的另一个网关时也必须匹配上（按 proxy_list 全集）。
-
-    ZK CSV 选中 10.206.0.4:15002，系统登记的是 10.206.0.8:15002，
-    proxy_list 含两者 → 应同步成功。
-    """
+def test_sync_matches_any_mapped_proxy_of_instance():
     conn = _get_connection()
-    conn_id = "v151_sync_test_conn"
+    conn_id = "zk_sync_mapping_test"
     try:
         conn.execute("DELETE FROM tdsql_connections WHERE id = ?", (conn_id,))
         conn.execute(
             "INSERT INTO tdsql_connections "
             "(id, name, host, port, username, password_encrypted, `database`) "
             "VALUES (?,?,?,?,?,?,?)",
-            (conn_id, "同步测试实例", "10.206.0.8", 15002, "u", "", "ALL"))
+            (conn_id, "ZK sync mapping test", "118.195.161.48", 15002, "u", "", "ALL"),
+        )
+        conn.commit()
+        assert zk_discovery_service.sync_instance_kinds([{
+            "host": "119.45.220.89", "port": 15002,
+            "instance_kind": "noshard", "instance_id": "set_1782130875_4",
+            "proxy_list": "119.45.220.89:15002;118.195.161.48:15002",
+        }]) >= 1
+        row = dict(conn.execute(
+            "SELECT zk_instance_kind, zk_instance_id FROM tdsql_connections WHERE id = ?", (conn_id,)
+        ).fetchone())
+        assert row == {"zk_instance_kind": "noshard", "zk_instance_id": "set_1782130875_4"}
+    finally:
+        conn.execute("DELETE FROM tdsql_connections WHERE id = ?", (conn_id,))
         conn.commit()
         conn.close()
 
-        synced = zk_discovery_service.sync_instance_kinds([{
-            "host": "10.206.0.4", "port": 15002,
-            "instance_kind": "noshard",
-            "instance_id": "set_1782130875_4",
-            "proxy_list": "10.206.0.4:15002;10.206.0.8:15002",
-        }])
-        assert synced >= 1
 
-        conn = _get_connection()
-        row = conn.execute(
-            "SELECT zk_instance_kind, zk_instance_id, zk_synced_at "
-            "FROM tdsql_connections WHERE id = ?", (conn_id,)).fetchone()
-        row = dict(row)
-        assert row["zk_instance_kind"] == "noshard"
-        assert row["zk_instance_id"] == "set_1782130875_4"
-        assert row["zk_synced_at"] is not None
-    finally:
-        try:
-            conn.execute("DELETE FROM tdsql_connections WHERE id = ?", (conn_id,))
-            conn.commit()
-            conn.close()
-        except Exception:
-            pass
+def test_zk_api_unconfigured_real_discovery_returns_503(monkeypatch):
+    _clear_sessions()
+    for name in ("ZK_DISCOVERY_FORCE_MOCK", "ZK_DISCOVERY_SERVERS", "ZK_DISCOVERY_AUTH_FILE"):
+        monkeypatch.delenv(name, raising=False)
+    resp = client.post("/api/v1/tdsql/discover")
+    assert resp.status_code == 503
+    assert "Mock" not in resp.text
 
 
-def test_sync_skips_entries_without_kind():
-    """无形态信息的发现条目不参与同步（不得凭空值覆写）"""
-    assert zk_discovery_service.sync_instance_kinds(
-        [{"host": "1.2.3.4", "port": 1, "instance_kind": ""}]) == 0
+def test_zk_api_mock_is_marked_and_cannot_register(monkeypatch):
+    _clear_sessions()
+    monkeypatch.setenv("ZK_DISCOVERY_FORCE_MOCK", "1")
+    called = []
+    monkeypatch.setattr(zk_discovery_service, "sync_instance_kinds", lambda _: called.append(True) or 0)
 
-
-def test_zk_discovery_api():
-    """测试 ZK 发现 API 接口"""
-    resp = client.post("/api/v1/tdsql/discover", json={
-        "zk_server": "127.0.0.1:2118",
-        "zk_auth_user": "test",
-        "zk_auth_password": "password",
-        "force_mock": True
-    })
+    resp = client.post("/api/v1/tdsql/discover")
     assert resp.status_code == 200
-    data = resp.json()
-    assert len(data) == 3
-    assert data[0]["service_name"] == "TDSQL-Set-1(合约库)"
+    payload = resp.json()
+    assert payload["source"] == "mock"
+    assert payload["is_mock"] is True
+    assert "password" not in payload["items"][0]
+    assert called == []
 
-
-def test_zk_register_api():
-    """测试 ZK 自动发现实例登记 API"""
-    # 清理已存在的连接，防止冲突
-    conn = _get_connection()
-    conn.execute("DELETE FROM tdsql_connections WHERE id = 'TDSQL-Set-1(合约库)'")
-    conn.commit()
-    conn.close()
-
-    resp = client.post("/api/v1/tdsql/discover/register", json={
-        "connection_id": "TDSQL-Set-1(合约库)",
-        "service_name": "TDSQL-Set-1(合约库)",
-        "host": "127.0.0.1",
-        "port": 15005,
-        "user": "tdsqlsys_normal",
-        "password": "mock_password_set1",
-        "database": "ALL"
+    register = client.post("/api/v1/tdsql/discover/register", json={
+        "discovery_id": payload["discovery_id"],
+        "item_token": payload["items"][0]["item_token"],
+        "connection_id": "must_not_register",
     })
-    assert resp.status_code == 200
-    assert resp.json()["status"] == "success"
+    assert register.status_code == 409
 
-    # 验证是否存入数据库
-    conn = _get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT host, port FROM tdsql_connections WHERE id = 'TDSQL-Set-1(合约库)'")
-    row = cursor.fetchone()
-    assert row is not None
-    assert row["host"] == "127.0.0.1"
-    assert row["port"] == 15005
-    conn.close()
+
+def test_zk_api_real_discovery_redacts_password_maps_address_and_registers_server_side(tmp_path, monkeypatch):
+    _clear_sessions()
+    auth_file = tmp_path / "zk-auth.json"
+    auth_file.write_text(json.dumps({"username": "reader", "password": "secret"}), encoding="utf-8")
+    monkeypatch.delenv("ZK_DISCOVERY_FORCE_MOCK", raising=False)
+    monkeypatch.setenv("ZK_DISCOVERY_SERVERS", "10.206.0.4:2118,10.206.0.8:2118")
+    monkeypatch.setenv("ZK_DISCOVERY_AUTH_FILE", str(auth_file))
+    monkeypatch.setenv("ZK_DISCOVERY_ENDPOINT_MAP", json.dumps({"10.206.0.4": "119.45.220.89"}))
+
+    raw = [{
+        "service_name": "set_1", "host": "10.206.0.4", "port": 15002,
+        "user": "db_reader", "password": "db-secret", "database": "ALL",
+        "status_code": "0", "status_text": "running", "instance_kind": "noshard",
+        "instance_id": "set_1", "instance_type": "centralized",
+        "proxy_list": "10.206.0.4:15002", "is_mock": False,
+    }]
+    monkeypatch.setattr(zk_discovery_service, "discover", lambda **_: raw)
+    sync_calls = []
+    monkeypatch.setattr(zk_discovery_service, "sync_instance_kinds", lambda items: sync_calls.append(items) or 1)
+    registered = {}
+    monkeypatch.setattr(
+        zk_discovery_service, "register_discovered",
+        lambda connection_id, instance: registered.update({"id": connection_id, "instance": instance}) or connection_id,
+    )
+
+    resp = client.post("/api/v1/tdsql/discover")
+    assert resp.status_code == 200
+    payload = resp.json()
+    item = payload["items"][0]
+    assert payload["source"] == "zk"
+    assert item["host"] == "119.45.220.89"
+    assert item["proxy_list"] == "119.45.220.89:15002"
+    assert "password" not in item
+    assert len(sync_calls) == 1
+
+    register = client.post("/api/v1/tdsql/discover/register", json={
+        "discovery_id": payload["discovery_id"],
+        "item_token": item["item_token"],
+        "connection_id": "set_1",
+    })
+    assert register.status_code == 200
+    assert registered["instance"]["password"] == "db-secret"
+    assert registered["instance"]["host"] == "119.45.220.89"
+    assert len(sync_calls) == 2

@@ -171,11 +171,14 @@ const app=createApp({
     const deepResult=reactive({cluster:null,index:null,diff:null,emergency:null,sqlstats:null});
     // G10-G13 新增状态
     const zkDialogVisible=ref(false);
-    const zkForm=reactive({zk_server:'127.0.0.1:2118',zk_auth_user:'tdsqlsys_zk',zk_auth_password:'',zk_root:'/tdsqlzk',zkcli_path:'/data/application/zookeeper/bin/zkCli.sh',proxy_mode:'random',default_database:'ALL',force_mock:false});
+    // ZK 地址、认证与映射均由部署端配置管理；不再由浏览器提交。
+    const zkForm=reactive({});
     const zkScanning=ref(false);
     const zkDiscovered=ref([]);
     const zkSelected=ref([]);
     const zkRegistering=ref(false);
+    const zkDiscoveryId=ref('');
+    const zkDiscoveryIsMock=ref(false);
     const gatewayLoading=ref(false);
     const gatewayReports=ref([]);
     const gatewayHtml=ref('');
@@ -482,17 +485,21 @@ const app=createApp({
       zkDialogVisible.value=true;
       zkDiscovered.value=[];
       zkSelected.value=[];
+      zkDiscoveryId.value='';
+      zkDiscoveryIsMock.value=false;
     };
     const runZkDiscovery=async()=>{
       zkScanning.value=true;
       try{
         const resp=await apiFetch(`${API_BASE}/api/v1/tdsql/discover`,{
           method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body:JSON.stringify(zkForm)
+          headers:{'Content-Type':'application/json'}
         });
         if(resp.ok){
-          zkDiscovered.value=await resp.json();
+          const data=await resp.json();
+          zkDiscoveryId.value=data.discovery_id||'';
+          zkDiscoveryIsMock.value=!!data.is_mock;
+          zkDiscovered.value=data.items||[];
           ElementPlus.ElMessage.success(`发现 ${zkDiscovered.value.length} 个实例`);
         }else{
           const d=await resp.json();
@@ -508,7 +515,8 @@ const app=createApp({
       zkSelected.value=val;
     };
     const registerZkInstances=async()=>{
-      if(!zkSelected.value.length)return;
+      if(!zkSelected.value.length||!zkDiscoveryId.value)return;
+      if(zkDiscoveryIsMock.value){ElementPlus.ElMessage.error('Mock 发现结果禁止导入');return}
       zkRegistering.value=true;
       let ok=0,kindSynced=0;
       for(const inst of zkSelected.value){
@@ -517,17 +525,9 @@ const app=createApp({
             method:'POST',
             headers:{'Content-Type':'application/json'},
             body:JSON.stringify({
-              connection_id: inst.service_name,
-              service_name: inst.service_name,
-              host: inst.host,
-              port: inst.port,
-              user: inst.user,
-              password: inst.password,
-              database: inst.database,
-              // V1.5.1：实例形态随注册一并落库（S1 权威源）
-              instance_kind: inst.instance_kind||'',
-              instance_id: inst.instance_id||'',
-              proxy_list: inst.proxy_list||''
+              discovery_id: zkDiscoveryId.value,
+              item_token: inst.item_token,
+              connection_id: inst.instance_id||inst.service_name
             })
           });
           if(resp.ok){ok++;const d=await resp.json().catch(()=>({}));if(d.kind_synced)kindSynced++}
