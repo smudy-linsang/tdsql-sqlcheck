@@ -16,6 +16,7 @@ dependencies = [
     "python-multipart>=0.0.18",
     "pymysql>=1.1.0",
     "apscheduler>=3.10.0",
+    "kazoo>=2.10,<3",
     "reportlab>=4.0.0",
 ]
 

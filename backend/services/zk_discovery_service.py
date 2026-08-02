@@ -5,8 +5,10 @@
 """
 import csv
 import io
+import json
 import logging
 import os
+import random
 import subprocess
 from pathlib import Path
 
@@ -176,13 +178,6 @@ class ZKDiscoveryService:
                     logger.warning("ZK candidate failed; trying next candidate: %s", candidate)
             raise ZKDiscoveryUnavailableError("所有 ZooKeeper 节点均无法完成真实实例发现")
 
-        if not self.is_real_discovery_runtime_supported():
-            raise ZKDiscoveryUnavailableError("真实 ZK 发现需要 Linux 运行环境；当前未启用 Mock")
-        if not script_path.is_file():
-            raise ZKDiscoveryUnavailableError("ZK 发现脚本不可用")
-        zkcli = Path(zkcli_path)
-        if not zkcli.is_file() or not os.access(zkcli, os.X_OK):
-            raise ZKDiscoveryUnavailableError("ZK 客户端不可用或不可执行")
         if not zk_auth_user or not zk_auth_password:
             raise ZKDiscoveryUnavailableError("ZK 认证配置不可用")
         candidates = self._split_servers(zk_server)
@@ -190,6 +185,30 @@ class ZKDiscoveryService:
             raise ZKDiscoveryUnavailableError("ZooKeeper 服务地址无效")
         if not any(self.is_zk_port_open(candidate) for candidate in candidates):
             raise ZKDiscoveryUnavailableError("ZooKeeper 服务不可达")
+
+        # 默认使用 Python 客户端：不依赖目标 TDSQL 节点的 zkCli/Java，也能在
+        # Windows、Linux 和容器中以相同方式建立真实会话。Shell 仅为历史部署
+        # 显式指定 ZK_DISCOVERY_DRIVER=shell 时的兼容回退。
+        driver = os.environ.get("ZK_DISCOVERY_DRIVER", "kazoo").strip().lower()
+        if driver == "kazoo":
+            return self._discover_with_kazoo(
+                zk_server=zk_server,
+                zk_auth_user=zk_auth_user,
+                zk_auth_password=zk_auth_password,
+                zk_root=zk_root,
+                proxy_mode=proxy_mode,
+                default_database=default_database,
+            )
+        if driver != "shell":
+            raise ZKDiscoveryUnavailableError("ZK 发现驱动配置无效")
+
+        if not self.is_real_discovery_runtime_supported():
+            raise ZKDiscoveryUnavailableError("Shell ZK 发现需要 Linux 运行环境")
+        if not script_path.is_file():
+            raise ZKDiscoveryUnavailableError("ZK 发现脚本不可用")
+        zkcli = Path(zkcli_path)
+        if not zkcli.is_file() or not os.access(zkcli, os.X_OK):
+            raise ZKDiscoveryUnavailableError("ZK 客户端不可用或不可执行")
 
         logger.info(f"开始在物理节点执行 ZK 实例扫描: server={zk_server}, root={zk_root}")
         cmd = [
@@ -228,6 +247,114 @@ class ZKDiscoveryService:
         except Exception as e:
             logger.error("zk_inventory execution failed: %s", type(e).__name__)
             raise ZKDiscoveryUnavailableError("ZK 实例发现执行异常") from e
+
+    def _discover_with_kazoo(
+        self,
+        zk_server: str,
+        zk_auth_user: str,
+        zk_auth_password: str,
+        zk_root: str,
+        proxy_mode: str,
+        default_database: str,
+    ) -> list[dict]:
+        """通过 Python ZK 客户端执行只读发现，避免非交互 zkCli 输出格式差异。"""
+        try:
+            from kazoo.client import KazooClient
+        except ImportError as exc:
+            raise ZKDiscoveryUnavailableError("Python ZooKeeper 客户端不可用") from exc
+
+        client = None
+        root = "/" + str(zk_root or "tdsqlzk").strip("/")
+        status_text = {
+            "0": "运营中", "1": "已隔离", "2": "未初始化", "-1": "删除中",
+            "100": "垂直扩容中", "101": "回档中", "102": "水平扩容中",
+        }
+
+        def set_id_from_node(node_name: str) -> str:
+            prefix = "set@"
+            return node_name[len(prefix):] if node_name.startswith(prefix) else ""
+
+        try:
+            client = KazooClient(hosts=zk_server, timeout=10.0)
+            client.start(timeout=15)
+            client.add_auth("digest", f"{zk_auth_user}:{zk_auth_password}")
+
+            records: list[tuple[str, str, str, str]] = []
+            for node_name in sorted(client.get_children(f"{root}/sets")):
+                set_id = set_id_from_node(node_name)
+                if set_id:
+                    records.append(("noshard", set_id, f"{root}/sets/{node_name}", set_id))
+
+            for group_name in sorted(client.get_children(root)):
+                if not group_name.startswith("group_"):
+                    continue
+                set_nodes = sorted(client.get_children(f"{root}/{group_name}/sets"))
+                set_id = next((set_id_from_node(item) for item in set_nodes if set_id_from_node(item)), "")
+                if set_id:
+                    records.append(("groupshard", group_name,
+                                    f"{root}/{group_name}/sets/set@{set_id}", set_id))
+
+            results: list[dict] = []
+            for kind, instance_id, parent_path, set_id in records:
+                try:
+                    raw, _stat = client.get(f"{parent_path}/setrun@{set_id}")
+                    setrun = json.loads(raw.decode("utf-8"))
+                except Exception:
+                    logger.warning("ZK setrun record unavailable: instance=%s", instance_id)
+                    continue
+                if not isinstance(setrun, dict) or str(setrun.get("status", 0)) != "0":
+                    continue
+
+                user = str(setrun.get("user") or "").strip()
+                password = str(setrun.get("password") or "").strip()
+                proxy_names = [
+                    str(item.get("name") or "")
+                    for item in (setrun.get("proxy") or [])
+                    if isinstance(item, dict) and item.get("name")
+                ]
+                endpoints = []
+                for proxy_name in proxy_names:
+                    host, separator, port = proxy_name.rpartition("_")
+                    if separator and host and port.isdigit():
+                        endpoints.append(f"{host}:{port}")
+                endpoints = sorted(set(endpoints))
+                if not user or not password or not endpoints:
+                    logger.warning("ZK instance record incomplete: instance=%s", instance_id)
+                    continue
+
+                chosen_endpoint = endpoints[0] if proxy_mode == "first" else random.choice(endpoints)
+                host, port_text = chosen_endpoint.rsplit(":", 1)
+                results.append({
+                    "service_name": instance_id,
+                    "host": host,
+                    "port": int(port_text),
+                    "user": user,
+                    "password": password,
+                    "database": default_database,
+                    "status_code": "0",
+                    "status_text": status_text["0"],
+                    "instance_kind": kind,
+                    "instance_id": instance_id,
+                    "instance_type": self._KIND_TO_TYPE[kind],
+                    "proxy_list": ";".join(endpoints),
+                    "is_mock": False,
+                })
+
+            if not results:
+                raise ZKDiscoveryUnavailableError("ZK 实例发现未返回有效记录")
+            return results
+        except ZKDiscoveryUnavailableError:
+            raise
+        except Exception as exc:
+            logger.error("kazoo discovery failed: %s", type(exc).__name__)
+            raise ZKDiscoveryUnavailableError("ZK 实例发现会话或读取失败") from exc
+        finally:
+            if client is not None:
+                try:
+                    client.stop()
+                    client.close()
+                except Exception:
+                    logger.warning("ZK client cleanup failed")
 
     # kind → 本系统业务语义的映射。存原始 kind、映射在代码里做，
     # 便于与赤兔/ZK 对账；TDSQL 将来若增加形态，只改这张表。

@@ -1,5 +1,7 @@
 """ZK 自动发现的安全边界、形态映射和 API 回归测试。"""
 import json
+import os
+from pathlib import Path
 from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
@@ -42,6 +44,7 @@ def test_apply_endpoint_mapping_updates_primary_and_proxy_list():
 
 def test_real_discovery_fails_over_candidates_and_never_places_auth_in_argv(tmp_path, monkeypatch):
     """多节点按成员尝试；认证只经子进程环境传递，不能出现在进程参数中。"""
+    monkeypatch.setenv("ZK_DISCOVERY_DRIVER", "shell")
     fake_zkcli = tmp_path / "zkCli.sh"
     fake_zkcli.write_text("#!/bin/sh\n", encoding="utf-8")
     fake_zkcli.chmod(0o700)
@@ -72,6 +75,71 @@ def test_real_discovery_fails_over_candidates_and_never_places_auth_in_argv(tmp_
     assert calls[1][1]["env"]["ZK_AUTH_USER"] == "reader"
     assert calls[1][1]["env"]["ZK_AUTH_PASSWORD"] == credential
     assert results[0]["is_mock"] is False
+
+
+def test_kazoo_driver_reads_centralized_and_distributed_instances(monkeypatch):
+    """默认 Python 客户端不依赖 zkCli，且保留两种实例形态与全部 Proxy。"""
+    class FakeKazooClient:
+        last = None
+
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+            self.auth = None
+            FakeKazooClient.last = self
+
+        def start(self, timeout):
+            assert timeout == 15
+
+        def add_auth(self, scheme, credential):
+            self.auth = (scheme, credential)
+
+        def get_children(self, path):
+            return {
+                "/tdsqlzk": ["sets", "group_demo"],
+                "/tdsqlzk/sets": ["set@central_1"],
+                "/tdsqlzk/group_demo/sets": ["set@shard_1", "set@shard_2"],
+            }[path]
+
+        def get(self, path):
+            values = {
+                "/tdsqlzk/sets/set@central_1/setrun@central_1": {
+                    "set": "central_1", "status": 0, "user": "reader", "password": "secret-a",
+                    "proxy": [{"name": "10.0.0.4_15002"}, {"name": "10.0.0.8_15002"}],
+                },
+                "/tdsqlzk/group_demo/sets/set@shard_1/setrun@shard_1": {
+                    "set": "shard_1", "status": 0, "user": "reader", "password": "secret-b",
+                    "proxy": [{"name": "10.0.0.4_15005"}, {"name": "10.0.0.8_15005"}],
+                },
+            }
+            return json.dumps(values[path]).encode("utf-8"), None
+
+        def stop(self):
+            pass
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr("kazoo.client.KazooClient", FakeKazooClient)
+    monkeypatch.setenv("ZK_TEST_AUTH_PASSWORD", "auth-secret")
+    results = zk_discovery_service._discover_with_kazoo(
+        zk_server="zk.example:2118", zk_auth_user="reader",
+        zk_auth_password=os.environ["ZK_TEST_AUTH_PASSWORD"],
+        zk_root="/tdsqlzk", proxy_mode="first", default_database="ALL",
+    )
+
+    assert FakeKazooClient.last.auth == ("digest", "reader:auth-secret")
+    assert [(item["instance_kind"], item["instance_type"]) for item in results] == [
+        ("noshard", "centralized"), ("groupshard", "distributed"),
+    ]
+    assert results[1]["proxy_list"] == "10.0.0.4:15005;10.0.0.8:15005"
+    assert all(item["is_mock"] is False for item in results)
+
+
+def test_inventory_script_handles_prompt_prefixed_noninteractive_response():
+    script = (Path(__file__).resolve().parents[1] / "deploy" / "tdsql_inventory.sh").read_text(
+        encoding="utf-8")
+    assert "_normalized_output" in script
+    assert "非交互客户端可能不回显每条 ls 命令" in script
 
 
 def test_parse_csv_11_columns_and_kind_mapping():

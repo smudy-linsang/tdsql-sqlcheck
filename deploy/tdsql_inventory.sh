@@ -309,7 +309,7 @@ zk_exec() {
     local cmds="$1"
     local zk_dir
     zk_dir="$(dirname "${ZKCLI_PATH}")"
-    local _attempt _output _rc
+    local _attempt _output _normalized_output _rc
     local _max_attempts=5
     # 单次超时默认放宽到 180s：JVM 冷启动 + ZK 抖动 + 大量 get 命令堆积时 60s 常常不够。
     # 用户可通过 ZK_EXEC_TIMEOUT 环境变量覆盖。
@@ -333,10 +333,17 @@ quit
 EOF
         )
         _rc=$?
+        # 非交互 stdin 下，部分 zkCli/JLine 版本会把提示符与响应拼在同一行：
+        #   [zk: host:port(CONNECTED) 1] [set@set_x]
+        # 或 [zk: ...] {"set":"..."}。先去掉一个或多个提示符，再按响应解析；
+        # 保留“] ls ...”命令回显，供下方 group→set 旧格式解析兼容使用。
+        _normalized_output=$(printf '%s\n' "${_output}" | sed -E \
+            -e 's/^(\[zk: [^]]+\][[:space:]]*)+(\[[^z].*)$/\2/' \
+            -e 's/^(\[zk: [^]]+\][[:space:]]*)+(\{.*)$/\2/')
         # 判定是否拿到了 ls 结果（[ 开头的数组行）或 get 结果（{ 开头的 JSON）
-        if echo "${_output}" | grep -qE '^\[[^z]|^\{|^"'; then
+        if echo "${_normalized_output}" | grep -qE '^\[[^z]|^\{|^"'; then
             # 过滤掉 zkCli 自身的 LOG 干扰行，只回显有效数据
-            echo "${_output}" | grep -vE '^(JLine|Welcome|JVM|WATCHER|WatchedEvent|log4j|SLF4J|\[main\]|Connecting|Session|JVMFLAGS|^$)'
+            echo "${_normalized_output}" | grep -vE '^(JLine|Welcome|JVM|WATCHER|WatchedEvent|log4j|SLF4J|\[main\]|Connecting|Session|JVMFLAGS|^$)'
             return 0
         fi
         # rc=137 = 被 SIGKILL（典型 OOM Killer）；rc=124 = timeout 超时
@@ -401,6 +408,8 @@ EOF
 import re, sys
 raw = """${_group_sets_raw}"""
 lines = raw.splitlines()
+group_ids = [line.strip() for line in """${_group_ids}""".splitlines() if line.strip()]
+pairs = {}
 i = 0
 while i < len(lines):
     # zkCli jline 模式可能把命令行折成两行: "ls /tdsqlzk/g\nroup_xxx/sets"
@@ -424,10 +433,25 @@ while i < len(lines):
                 # 该 group 下可能有多个 set (分布式分片), 取第一个作代表
                 set_match = re.search(r"set@([A-Za-z0-9_]+)", arr_line)
                 if set_match:
-                    print(f"{gid}|{set_match.group(1)}")
+                    pairs.setdefault(gid, set_match.group(1))
         i = j
     else:
         i += 1
+
+# 非交互客户端可能不回显每条 ls 命令，而只按输入顺序输出数组结果。
+# 此时 group_ids 与数组行一一对应；按顺序配对，避免漏掉全部 groupshard 实例。
+if not pairs:
+    array_sets = []
+    for line in lines:
+        match = re.search(r"set@([A-Za-z0-9_]+)", line)
+        if match:
+            array_sets.append(match.group(1))
+    for gid, set_id in zip(group_ids, array_sets):
+        pairs.setdefault(gid, set_id)
+
+for gid in group_ids:
+    if gid in pairs:
+        print(f"{gid}|{pairs[gid]}")
 PYINNER
 )
 fi

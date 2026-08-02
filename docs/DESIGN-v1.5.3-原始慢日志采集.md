@@ -321,6 +321,14 @@ known_hosts     = ${SLOWLOG_SECRETS_DIR}/known_hosts/tdsql_proxy_hosts_v1
 }
 ```
 
+已在开发环境验证的一类 TDSQL Gateway 文件布局为：
+
+```text
+/data/tdsql_run/<proxy-port>/gateway/log/slow_sql_instance_<proxy-port>.*
+```
+
+该路径仅作为可配置的示例模式，不能由应用自行推导或放宽；每台日志节点仍须将实际绝对 glob 写入导出器白名单，并由 Probe 校验。
+
 约束：
 
 1. `allowed_path_globs` 必须为绝对路径，且管理员只为真实慢日志目录配置；不允许 `..`、换行、控制字符或根目录通配。
