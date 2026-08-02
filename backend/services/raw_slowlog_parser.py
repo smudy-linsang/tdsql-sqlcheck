@@ -78,6 +78,7 @@ def _parse_time(raw: str, timezone: str) -> datetime:
         "%Y-%m-%dT%H:%M:%S",
         "%Y-%m-%d %H:%M:%S.%f",
         "%Y-%m-%d %H:%M:%S",
+        "%y%m%d %H:%M:%S %f",
         "%y%m%d %H:%M:%S",
     )
     for fmt in formats:

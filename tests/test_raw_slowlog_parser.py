@@ -43,6 +43,18 @@ def test_parser_uses_proxy_log_time_offsets_and_masked_template():
     assert result.incomplete_tail_start is None
 
 
+def test_parser_accepts_tdsql_compact_time_with_space_microseconds():
+    payload = b"""# Time: 260731 13:45:06 303896
+# Query_time: 1.000000  Lock_time: 0.000000 Rows_sent: 1  Rows_examined: 1
+SELECT id FROM payment_order WHERE card_no='6222-1234-5678-9999';
+"""
+    result = parse_incremental_chunk(payload, 0)
+
+    assert len(result.complete_blocks) == 1
+    assert result.complete_blocks[0].event_time.isoformat() == "2026-07-31T13:45:06.303896"
+    assert result.parse_errors == []
+
+
 def test_parser_does_not_advance_over_unfinished_last_block():
     unfinished = _FIRST + b"# Time: 2026-08-02T10:02:01\n# Query_time: 1.0 Lock_time: 0 Rows_sent: 1 Rows_examined: 1\nSELECT 'secret'"
     result = parse_incremental_chunk(unfinished, 0)

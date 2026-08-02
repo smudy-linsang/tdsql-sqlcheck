@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -170,6 +171,17 @@ func inspectFormat(files []fileMeta) map[string]any {
 
 func parseSlowLogTime(value string, location *time.Location) (time.Time, error) {
 	value = strings.TrimSpace(value)
+	// TDSQL Proxy slow logs use a compact timestamp such as
+	// "260731 13:45:06 303896": the fractional component is separated by a
+	// space rather than the dot that time.Parse treats as a fractional second.
+	parts := strings.Fields(value)
+	if len(parts) == 3 && len(parts[2]) >= 1 && len(parts[2]) <= 9 && strings.Trim(parts[2], "0123456789") == "" {
+		base, baseErr := time.ParseInLocation("060102 15:04:05", strings.Join(parts[:2], " "), location)
+		fraction, fractionErr := strconv.Atoi(parts[2])
+		if baseErr == nil && fractionErr == nil {
+			return base.Add(time.Duration(fraction) * time.Duration(1_000_000_000/intPow(10, len(parts[2])))), nil
+		}
+	}
 	for _, layout := range []string{
 		"2006-01-02T15:04:05.999999999", "2006-01-02T15:04:05",
 		"2006-01-02 15:04:05.999999999", "2006-01-02 15:04:05",
@@ -180,6 +192,14 @@ func parseSlowLogTime(value string, location *time.Location) (time.Time, error) 
 		}
 	}
 	return time.Time{}, errors.New("unsupported slow-log time")
+}
+
+func intPow(base, exponent int) int {
+	result := 1
+	for i := 0; i < exponent; i++ {
+		result *= base
+	}
+	return result
 }
 
 // initialLookbackOffset returns the first complete record boundary whose

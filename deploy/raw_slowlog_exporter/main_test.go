@@ -67,3 +67,17 @@ func TestInspectFormatReturnsOnlyRequiredBooleanSignature(t *testing.T) {
 		t.Fatalf("unexpected format signature: %#v", signature)
 	}
 }
+
+func TestParseSlowLogTimeAcceptsTDSQLCompactMicrosecondFormat(t *testing.T) {
+	location, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := parseSlowLogTime("260731 13:45:06 303896", location)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if parsed.Format("2006-01-02T15:04:05.000000") != "2026-07-31T13:45:06.303896" {
+		t.Fatalf("unexpected parse result: %s", parsed.Format(time.RFC3339Nano))
+	}
+}
