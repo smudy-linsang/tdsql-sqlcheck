@@ -303,11 +303,14 @@ def test_zk_config_frontend_exposes_admin_entry_and_redacted_password_flow():
     root = Path(__file__).resolve().parents[1]
     html = (root / "frontend" / "index.html").read_text(encoding="utf-8")
     javascript = (root / "frontend" / "static" / "js" / "app.js").read_text(encoding="utf-8")
+    assert '<script src="/static/js/app.js?v=20260803.1"></script>' in html
     assert 'v-if="isAdmin" type="warning" size="small" @click="openZkConfig">ZK发现配置' in html
     assert 'v-model="zkConfigForm.auth_password" type="password"' in html
     assert "/api/v1/tdsql/discover/config" in javascript
     assert "password_configured" in javascript
     assert "responseMessage(d,'扫描失败')" in javascript
+    assert "zkConfigDialogVisible.value=true" in javascript
+    assert "zkConfigDialogVisible,zkConfigLoading" in javascript
 
 
 def test_zk_api_mock_is_marked_and_cannot_register(monkeypatch):
