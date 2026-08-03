@@ -57,6 +57,25 @@
 4. 若 ZK 节点列表包含多个成员，后端逐节点尝试；Shell 回退不将逗号连接串直接交给 `zkCli`。
 5. 若数据库连接使用公网/NAT 地址，须先配置并复核地址映射；否则发现成功也无法同步已登记实例形态。
 
+### 3.1 运行日志与内网排障
+
+每次点击“从 ZK 自动发现”的扫描操作，后端会以 `tdsql.zk_discovery` 记录结构化阶段日志。日志仅包含候选地址、计数、驱动、阶段和异常类别；**不会记录** ZK 认证口令、ZK 中的数据库密码、密文或完整 `setrun` 内容。
+
+按实际部署方式从应用标准输出读取日志：容器部署使用 `docker logs <checksql-container>`，systemd 部署使用 `journalctl -u <checksql-service>`，Windows 本地开发按启动终端或启动脚本指定的日志文件读取。建议筛选 `ZK_DISCOVERY_` 前缀并按一次扫描的时间窗口归档。
+
+| 日志前缀 | 含义与处置 |
+|---|---|
+| `ZK_DISCOVERY_REQUEST` | 本次扫描读取到的配置来源、驱动、候选节点数、根路径和映射规则数；先核实配置是否是预期环境。 |
+| `ZK_DISCOVERY_TCP_PROBE` | TCP 探测结果；`reachable=false` 表示在会话前即不可达。 |
+| `ZK_DISCOVERY_KAZOO_SESSION_START` / `...CONNECTED` | ZK 二进制会话的开始与完成；只有出现 `...CONNECTED` 才能进入认证和节点读取。 |
+| `ZK_DISCOVERY_KAZOO_FAILED` | 记录失败阶段（例如 `session_start`、`read_root_groups`）和异常类别；它比单纯端口通断更有诊断意义。 |
+| `ZK_DISCOVERY_KAZOO_STRUCTURE` / `...RECORD_SUMMARY` | 记录根节点、集中式 SET、分布式 group、候选实例和跳过记录的汇总，用于核对 `总数 = noshard + groupshard`。 |
+| `ZK_DISCOVERY_ENDPOINT_MAPPING` | 内外网地址映射规则数及替换计数；若替换为零，应核对映射源地址是否与 ZK 返回的 Proxy 地址一致。 |
+| `ZK_DISCOVERY_KIND_SYNC_COMPLETED` | 本次发现结果实际回写的已登记实例数。 |
+| `ZK_DISCOVERY_UNAVAILABLE` | 扫描以 503 失败并停止；不会降级为 Mock 或写入形态权威字段。 |
+
+内网首测应保留一次成功扫描和一次故障扫描的上述脱敏日志片段，连同 `source=zk`、`is_mock=false`、发现记录数、`groupshard`/`noshard` 汇总及形态同步数一并归档。不得将口令、`setrun` 原文或导入前的数据库密码写入测试报告。
+
 ## 4. 验证顺序与准出标准
 
 按以下顺序执行，任何一步失败均不得把功能标记为通过：

@@ -67,6 +67,7 @@ class ZKDiscoveryService:
             if str(source).strip() and str(target).strip()
         }
         if not mapping:
+            logger.info("ZK_DISCOVERY_ENDPOINT_MAPPING mapping_rules=0 records=%s", len(results))
             return results
 
         def map_endpoint(endpoint: str) -> str:
@@ -78,15 +79,27 @@ class ZKDiscoveryService:
             return f"{mapping.get(host, host)}:{port}"
 
         mapped_results = []
+        primary_replacements = 0
+        proxy_replacements = 0
         for result in results:
             item = dict(result)
-            item["host"] = mapping.get(str(item.get("host", "")), item.get("host", ""))
+            original_host = str(item.get("host", ""))
+            item["host"] = mapping.get(original_host, item.get("host", ""))
+            if item["host"] != original_host:
+                primary_replacements += 1
             proxy_list = str(item.get("proxy_list", "") or "")
             if proxy_list:
-                item["proxy_list"] = ";".join(
-                    map_endpoint(endpoint) for endpoint in proxy_list.split(";") if endpoint.strip()
+                original_endpoints = [endpoint for endpoint in proxy_list.split(";") if endpoint.strip()]
+                mapped_endpoints = [map_endpoint(endpoint) for endpoint in original_endpoints]
+                proxy_replacements += sum(
+                    old != new for old, new in zip(original_endpoints, mapped_endpoints)
                 )
+                item["proxy_list"] = ";".join(mapped_endpoints)
             mapped_results.append(item)
+        logger.info(
+            "ZK_DISCOVERY_ENDPOINT_MAPPING mapping_rules=%s records=%s primary_replacements=%s proxy_replacements=%s",
+            len(mapping), len(results), primary_replacements, proxy_replacements,
+        )
         return mapped_results
 
     def discover(
@@ -160,13 +173,22 @@ class ZKDiscoveryService:
             ]
 
         candidates = self._split_servers(zk_server)
+        logger.info(
+            "ZK_DISCOVERY_START driver=%s candidate_count=%s root=%s proxy_mode=%s",
+            driver, len(candidates), zk_root, proxy_mode,
+        )
         if len(candidates) > 1:
             # Do not pass a comma connect string to the inventory script: deployed
             # ZK client versions have shown incompatible behaviour with it. Probe
             # each member independently and return only a real successful result.
-            for candidate in candidates:
+            failure_types: list[str] = []
+            for position, candidate in enumerate(candidates, start=1):
+                logger.info(
+                    "ZK_DISCOVERY_CANDIDATE_START candidate=%s position=%s/%s driver=%s",
+                    candidate, position, len(candidates), driver,
+                )
                 try:
-                    return self.discover(
+                    results = self.discover(
                         zk_server=candidate,
                         zk_auth_user=zk_auth_user,
                         zk_auth_password=zk_auth_password,
@@ -176,8 +198,21 @@ class ZKDiscoveryService:
                         default_database=default_database,
                         driver=driver,
                     )
-                except ZKDiscoveryUnavailableError:
-                    logger.warning("ZK candidate failed; trying next candidate: %s", candidate)
+                    logger.info(
+                        "ZK_DISCOVERY_CANDIDATE_SUCCESS candidate=%s position=%s/%s records=%s",
+                        candidate, position, len(candidates), len(results),
+                    )
+                    return results
+                except ZKDiscoveryUnavailableError as exc:
+                    failure_types.append(type(exc.__cause__).__name__ if exc.__cause__ else type(exc).__name__)
+                    logger.warning(
+                        "ZK_DISCOVERY_CANDIDATE_FAILED candidate=%s position=%s/%s reason=%s",
+                        candidate, position, len(candidates), str(exc),
+                    )
+            logger.error(
+                "ZK_DISCOVERY_ALL_CANDIDATES_FAILED candidate_count=%s failure_types=%s",
+                len(candidates), ",".join(failure_types) or "unknown",
+            )
             raise ZKDiscoveryUnavailableError("所有 ZooKeeper 节点均无法完成真实实例发现")
 
         if not zk_auth_user or not zk_auth_password:
@@ -185,7 +220,12 @@ class ZKDiscoveryService:
         candidates = self._split_servers(zk_server)
         if not candidates:
             raise ZKDiscoveryUnavailableError("ZooKeeper 服务地址无效")
-        if not any(self.is_zk_port_open(candidate) for candidate in candidates):
+        tcp_reachable = self.is_zk_port_open(candidates[0])
+        logger.info(
+            "ZK_DISCOVERY_TCP_PROBE candidate=%s reachable=%s timeout_seconds=2",
+            candidates[0], tcp_reachable,
+        )
+        if not tcp_reachable:
             raise ZKDiscoveryUnavailableError("ZooKeeper 服务不可达")
 
         # 默认使用 Python 客户端：不依赖目标 TDSQL 节点的 zkCli/Java，也能在
@@ -212,7 +252,10 @@ class ZKDiscoveryService:
         if not zkcli.is_file() or not os.access(zkcli, os.X_OK):
             raise ZKDiscoveryUnavailableError("ZK 客户端不可用或不可执行")
 
-        logger.info(f"开始在物理节点执行 ZK 实例扫描: server={zk_server}, root={zk_root}")
+        logger.info(
+            "ZK_DISCOVERY_SHELL_START candidate=%s root=%s zkcli_path=%s",
+            zk_server, zk_root, zkcli_path,
+        )
         cmd = [
             "bash", str(script_path),
             "--zk-server", zk_server,
@@ -232,17 +275,19 @@ class ZKDiscoveryService:
         try:
             res = subprocess.run(cmd, capture_output=True, text=True, timeout=180, env=env)
             if res.returncode != 0:
-                logger.error("zk_inventory failed with exit code %s", res.returncode)
+                logger.error("ZK_DISCOVERY_SHELL_FAILED candidate=%s exit_code=%s", zk_server, res.returncode)
                 raise ZKDiscoveryUnavailableError("ZK 实例发现脚本执行失败")
 
             results = self.parse_csv(res.stdout)
             if not results:
+                logger.warning("ZK_DISCOVERY_SHELL_EMPTY_RESULT candidate=%s", zk_server)
                 raise ZKDiscoveryUnavailableError("ZK 实例发现未返回有效记录")
             for item in results:
                 item["is_mock"] = False
+            logger.info("ZK_DISCOVERY_SHELL_SUCCESS candidate=%s records=%s", zk_server, len(results))
             return results
         except subprocess.TimeoutExpired:
-            logger.error("zk_inventory 运行超时 (180s)")
+            logger.error("ZK_DISCOVERY_SHELL_TIMEOUT candidate=%s timeout_seconds=180", zk_server)
             raise ZKDiscoveryUnavailableError("ZK 实例发现执行超时")
         except ZKDiscoveryUnavailableError:
             raise
@@ -267,6 +312,7 @@ class ZKDiscoveryService:
 
         client = None
         root = "/" + str(zk_root or "tdsqlzk").strip("/")
+        stage = "client_create"
         status_text = {
             "0": "运营中", "1": "已隔离", "2": "未初始化", "-1": "删除中",
             "100": "垂直扩容中", "101": "回档中", "102": "水平扩容中",
@@ -278,33 +324,58 @@ class ZKDiscoveryService:
 
         try:
             client = KazooClient(hosts=zk_server, timeout=10.0)
+            stage = "session_start"
+            logger.info("ZK_DISCOVERY_KAZOO_SESSION_START candidate=%s timeout_seconds=15", zk_server)
             client.start(timeout=15)
+            logger.info("ZK_DISCOVERY_KAZOO_SESSION_CONNECTED candidate=%s", zk_server)
+            stage = "digest_auth"
             client.add_auth("digest", f"{zk_auth_user}:{zk_auth_password}")
+            logger.info("ZK_DISCOVERY_KAZOO_AUTH_SUBMITTED candidate=%s", zk_server)
 
             records: list[tuple[str, str, str, str]] = []
-            for node_name in sorted(client.get_children(f"{root}/sets")):
+            stage = "read_centralized_sets"
+            centralized_nodes = sorted(client.get_children(f"{root}/sets"))
+            for node_name in centralized_nodes:
                 set_id = set_id_from_node(node_name)
                 if set_id:
                     records.append(("noshard", set_id, f"{root}/sets/{node_name}", set_id))
 
-            for group_name in sorted(client.get_children(root)):
+            stage = "read_root_groups"
+            root_nodes = sorted(client.get_children(root))
+            group_count = 0
+            for group_name in root_nodes:
                 if not group_name.startswith("group_"):
                     continue
+                group_count += 1
+                stage = "read_distributed_group_sets"
                 set_nodes = sorted(client.get_children(f"{root}/{group_name}/sets"))
                 set_id = next((set_id_from_node(item) for item in set_nodes if set_id_from_node(item)), "")
                 if set_id:
                     records.append(("groupshard", group_name,
                                     f"{root}/{group_name}/sets/set@{set_id}", set_id))
+            logger.info(
+                "ZK_DISCOVERY_KAZOO_STRUCTURE candidate=%s root_children=%s centralized_set_nodes=%s group_nodes=%s instance_candidates=%s",
+                zk_server, len(root_nodes), len(centralized_nodes), group_count, len(records),
+            )
 
             results: list[dict] = []
+            skipped_unreadable = 0
+            skipped_inactive = 0
+            skipped_incomplete = 0
             for kind, instance_id, parent_path, set_id in records:
                 try:
+                    stage = "read_setrun"
                     raw, _stat = client.get(f"{parent_path}/setrun@{set_id}")
                     setrun = json.loads(raw.decode("utf-8"))
-                except Exception:
-                    logger.warning("ZK setrun record unavailable: instance=%s", instance_id)
+                except Exception as exc:
+                    skipped_unreadable += 1
+                    logger.warning(
+                        "ZK_DISCOVERY_KAZOO_SETRUN_UNREADABLE candidate=%s instance=%s error_type=%s",
+                        zk_server, instance_id, type(exc).__name__,
+                    )
                     continue
                 if not isinstance(setrun, dict) or str(setrun.get("status", 0)) != "0":
+                    skipped_inactive += 1
                     continue
 
                 user = str(setrun.get("user") or "").strip()
@@ -321,7 +392,11 @@ class ZKDiscoveryService:
                         endpoints.append(f"{host}:{port}")
                 endpoints = sorted(set(endpoints))
                 if not user or not password or not endpoints:
-                    logger.warning("ZK instance record incomplete: instance=%s", instance_id)
+                    skipped_incomplete += 1
+                    logger.warning(
+                        "ZK_DISCOVERY_KAZOO_RECORD_INCOMPLETE candidate=%s instance=%s has_user=%s has_password=%s proxy_count=%s",
+                        zk_server, instance_id, bool(user), bool(password), len(endpoints),
+                    )
                     continue
 
                 chosen_endpoint = endpoints[0] if proxy_mode == "first" else random.choice(endpoints)
@@ -342,13 +417,21 @@ class ZKDiscoveryService:
                     "is_mock": False,
                 })
 
+            logger.info(
+                "ZK_DISCOVERY_KAZOO_RECORD_SUMMARY candidate=%s usable=%s skipped_unreadable=%s skipped_inactive=%s skipped_incomplete=%s",
+                zk_server, len(results), skipped_unreadable, skipped_inactive, skipped_incomplete,
+            )
             if not results:
                 raise ZKDiscoveryUnavailableError("ZK 实例发现未返回有效记录")
             return results
         except ZKDiscoveryUnavailableError:
+            logger.warning("ZK_DISCOVERY_KAZOO_STOPPED candidate=%s stage=%s", zk_server, stage)
             raise
         except Exception as exc:
-            logger.error("kazoo discovery failed: %s", type(exc).__name__)
+            logger.error(
+                "ZK_DISCOVERY_KAZOO_FAILED candidate=%s stage=%s error_type=%s",
+                zk_server, stage, type(exc).__name__,
+            )
             raise ZKDiscoveryUnavailableError("ZK 实例发现会话或读取失败") from exc
         finally:
             if client is not None:
@@ -356,7 +439,7 @@ class ZKDiscoveryService:
                     client.stop()
                     client.close()
                 except Exception:
-                    logger.warning("ZK client cleanup failed")
+                    logger.warning("ZK_DISCOVERY_KAZOO_CLEANUP_FAILED candidate=%s", zk_server)
 
     # kind → 本系统业务语义的映射。存原始 kind、映射在代码里做，
     # 便于与赤兔/ZK 对账；TDSQL 将来若增加形态，只改这张表。
@@ -441,6 +524,7 @@ class ZKDiscoveryService:
                 index[ep] = (kind, d.get("instance_id") or "")
 
         if not index:
+            logger.info("ZK_DISCOVERY_KIND_SYNC skipped=no_matchable_endpoints discovered_records=%s", len(discovered))
             return 0
 
         synced = 0
@@ -449,6 +533,10 @@ class ZKDiscoveryService:
         try:
             rows = conn.execute(
                 "SELECT id, host, port FROM tdsql_connections").fetchall()
+            logger.info(
+                "ZK_DISCOVERY_KIND_SYNC_START discovered_records=%s matchable_endpoints=%s registered_connections=%s",
+                len(discovered), len(index), len(rows),
+            )
             now = datetime.now().isoformat()
             for r in rows:
                 r = dict(r)
@@ -468,7 +556,7 @@ class ZKDiscoveryService:
         if synced:
             from backend.services.instance_type_service import instance_type_service
             instance_type_service.invalidate()   # 全量失效，本进程立即生效
-            logger.info(f"ZK 实例形态已同步 {synced} 个实例")
+        logger.info("ZK_DISCOVERY_KIND_SYNC_COMPLETED synchronized=%s", synced)
         return synced
 
     def register_discovered(self, connection_id: str, inst: dict) -> str:

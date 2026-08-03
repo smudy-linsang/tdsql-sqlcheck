@@ -1,5 +1,6 @@
 """ZK 自动发现的安全边界、形态映射和 API 回归测试。"""
 import json
+import logging
 import os
 from pathlib import Path
 from types import SimpleNamespace
@@ -12,7 +13,7 @@ from backend.api import zk_discovery as zk_api
 from backend.main import app
 from backend.services.database import _get_connection
 from backend.services.security_service import decrypt_password
-from backend.services.zk_discovery_service import zk_discovery_service
+from backend.services.zk_discovery_service import ZKDiscoveryUnavailableError, zk_discovery_service
 
 
 client = TestClient(app)
@@ -97,7 +98,7 @@ def test_real_discovery_fails_over_candidates_and_never_places_auth_in_argv(tmp_
     assert results[0]["is_mock"] is False
 
 
-def test_kazoo_driver_reads_centralized_and_distributed_instances(monkeypatch):
+def test_kazoo_driver_reads_centralized_and_distributed_instances(monkeypatch, caplog):
     """默认 Python 客户端不依赖 zkCli，且保留两种实例形态与全部 Proxy。"""
     class FakeKazooClient:
         last = None
@@ -141,6 +142,7 @@ def test_kazoo_driver_reads_centralized_and_distributed_instances(monkeypatch):
 
     monkeypatch.setattr("kazoo.client.KazooClient", FakeKazooClient)
     monkeypatch.setenv("ZK_TEST_AUTH_PASSWORD", "auth-secret")
+    caplog.set_level(logging.INFO, logger="tdsql.zk_discovery")
     results = zk_discovery_service._discover_with_kazoo(
         zk_server="zk.example:2118", zk_auth_user="reader",
         zk_auth_password=os.environ["ZK_TEST_AUTH_PASSWORD"],
@@ -153,6 +155,39 @@ def test_kazoo_driver_reads_centralized_and_distributed_instances(monkeypatch):
     ]
     assert results[1]["proxy_list"] == "10.0.0.4:15005;10.0.0.8:15005"
     assert all(item["is_mock"] is False for item in results)
+    assert "ZK_DISCOVERY_KAZOO_SESSION_CONNECTED candidate=zk.example:2118" in caplog.text
+    assert "ZK_DISCOVERY_KAZOO_STRUCTURE candidate=zk.example:2118" in caplog.text
+    assert "ZK_DISCOVERY_KAZOO_RECORD_SUMMARY candidate=zk.example:2118 usable=2" in caplog.text
+    assert "auth-secret" not in caplog.text
+    assert "secret-a" not in caplog.text
+    assert "secret-b" not in caplog.text
+
+
+def test_kazoo_failure_logs_stage_without_credentials(monkeypatch, caplog):
+    class FailingKazooClient:
+        def __init__(self, **kwargs):
+            pass
+
+        def start(self, timeout):
+            raise TimeoutError("network handshake did not finish")
+
+        def stop(self):
+            pass
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr("kazoo.client.KazooClient", FailingKazooClient)
+    monkeypatch.setenv("ZK_LOG_TEST_AUTH_PASSWORD", "never-log-me")
+    caplog.set_level(logging.INFO, logger="tdsql.zk_discovery")
+    with pytest.raises(ZKDiscoveryUnavailableError):
+        zk_discovery_service._discover_with_kazoo(
+            zk_server="zk.example:2118", zk_auth_user="reader",
+            zk_auth_password=os.environ["ZK_LOG_TEST_AUTH_PASSWORD"],
+            zk_root="/tdsqlzk", proxy_mode="first", default_database="ALL",
+        )
+    assert "ZK_DISCOVERY_KAZOO_FAILED candidate=zk.example:2118 stage=session_start error_type=TimeoutError" in caplog.text
+    assert "never-log-me" not in caplog.text
 
 
 def test_inventory_script_handles_prompt_prefixed_noninteractive_response():

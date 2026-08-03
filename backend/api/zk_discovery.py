@@ -241,6 +241,12 @@ def discover_instances(request: Request):
     """基于部署端配置执行真实发现，失败时明确返回 503。"""
     try:
         config = _read_deployment_config()
+        logger.info(
+            "ZK_DISCOVERY_REQUEST operator=%s config_source=%s driver=%s candidate_count=%s root=%s endpoint_mapping_rules=%s",
+            _operator(request), config.get("source", "unknown"), config.get("driver", "unknown"),
+            len(zk_discovery_service._split_servers(config.get("servers", ""))), config.get("root", ""),
+            len(config.get("endpoint_map", {})),
+        )
         results = zk_discovery_service.discover(
             zk_server=config["servers"],
             zk_auth_user=config["auth_user"],
@@ -256,9 +262,12 @@ def discover_instances(request: Request):
         if not is_mock:
             results = zk_discovery_service.apply_endpoint_mapping(results, config["endpoint_map"])
             synced = zk_discovery_service.sync_instance_kinds(results)
-            logger.info("real ZK discovery completed: records=%s synced=%s", len(results), synced)
+            logger.info(
+                "ZK_DISCOVERY_COMPLETED source=zk records=%s kind_synced=%s",
+                len(results), synced,
+            )
         else:
-            logger.warning("Mock discovery completed without instance-kind synchronization")
+            logger.warning("ZK_DISCOVERY_MOCK_COMPLETED records=%s kind_synchronization=skipped", len(results))
         discovery_id, visible_items = _store_session(results, _operator(request))
         return {
             "discovery_id": discovery_id,
@@ -267,6 +276,7 @@ def discover_instances(request: Request):
             "items": visible_items,
         }
     except ZKDiscoveryUnavailableError as exc:
+        logger.warning("ZK_DISCOVERY_UNAVAILABLE operator=%s reason=%s", _operator(request), str(exc))
         raise HTTPException(status_code=503, detail=str(exc))
     except HTTPException:
         raise
