@@ -12,6 +12,7 @@
 | 范围 | v1.6.0.1 处理结果 | 验收要点 |
 |---|---|---|
 | 原始慢日志前端 | 菜单、页面和采集源抽屉默认不可见 | 普通用户与管理员均没有产品入口 |
+| 原始慢日志权限 | 不出现在权限矩阵、默认角色权限或菜单元数据中 | 旧页面和手工请求不能重新授予该菜单权限 |
 | 原始慢日志 API | 全部 `/api/v1/raw-slowlogs/*` 入口默认返回 HTTP 404 | 不会读取历史采集源、不会触发 Probe 或采集 |
 | 原始慢日志调度 | 默认不注册轮询任务；运行中再次关闭也会在租约前返回 | 不会意外连接日志主机 |
 | 历史数据与代码 | 保留，不删除数据库表、事件、实现代码 | 后续独立评审后可重新设计恢复 |
@@ -34,7 +35,8 @@
 | 后端语法 | `python -m compileall -q backend` | 通过 |
 | 前端语法 | `node --check frontend/static/js/app.js` | 通过 |
 | 原始慢日志关闭控制、解析、SSH、集成、ZK、RBAC 定向回归 | 6 个测试文件 | **41 passed** |
-| 全量回归 | `python -m pytest -q` | **1208 passed，28 skipped，0 failed**，耗时 158.83 秒 |
+| 权限矩阵补充回归 | 原始慢日志权限定义、角色可见菜单、权限 API 与 ZK 回归 | **31 passed** |
+| 全量回归 | `python -m pytest -q` | **1210 passed，28 skipped，0 failed**，耗时 154.65 秒 |
 | Shell 语法 | `bash -n deploy/make_release.sh deploy/preflight_check.sh deploy/verify_deploy.sh` | 通过 |
 | 发行包依赖失败处理 | 缺少 `python3-pip` 的受控场景 | 正确失败，退出码 1；不会再伪造成功包 |
 | x86_64 / cp311 发行包构建 | `deploy/make_release.sh --arch x86_64 --py 311` | 通过 |

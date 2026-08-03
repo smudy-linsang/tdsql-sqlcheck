@@ -1505,7 +1505,7 @@ def _init_default_data(conn):
     # V3.0: 初始化角色权限矩阵（全菜单默认可见=1）
     all_menus = [
         'dashboard', 'audit-sql', 'file-audit', 'schema-extractor-audit', 'rules',
-        'slow-tasks', 'slow-records', 'slow-raw-log', 'slow-schedule', 'explain',
+        'slow-tasks', 'slow-records', 'slow-schedule', 'explain',
         'instances', 'schema-check', 'bigtable', 'deep-diag',
         'deep-diag-cluster', 'deep-diag-daily', 'deep-diag-index', 'deep-diag-diff',
         'deep-diag-emergency', 'deep-diag-sqlstats', 'deep-diag-gateway', 'deep-diag-ppt',

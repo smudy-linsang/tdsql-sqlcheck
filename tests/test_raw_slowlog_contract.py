@@ -55,11 +55,10 @@ def test_source_validation_requires_fixed_parser_and_safe_key():
         service._validate_source_payload(injected)
 
 
-def test_rbac_mapping_covers_new_prefix(monkeypatch):
-    monkeypatch.setattr(auth_service, "get_visible_menus", lambda role: {"slow-raw-log"})
-    assert auth_service.check_permission("developer", "GET", "/api/v1/raw-slowlogs/events")
-    assert not auth_service.check_permission("developer", "POST", "/api/v1/raw-slowlogs/sources/1/collect")
-    assert auth_service.check_permission("dba", "POST", "/api/v1/raw-slowlogs/sources/1/collect")
+def test_raw_slowlog_is_excluded_from_rbac_matrix_and_path_mapping():
+    assert "slow-raw-log" not in auth_service.ALL_MENU_KEYS
+    assert "slow-raw-log" not in auth_service.MENU_LABELS
+    assert "/api/v1/raw-slowlogs" not in auth_service._PATH_TO_MENU
 
 
 def test_non_admin_source_view_masks_all_connection_and_secret_references():
@@ -122,3 +121,18 @@ def test_raw_slowlog_frontend_entry_is_default_hidden():
     assert "rawSlowlogEnabled&&visibleMenus.has('slow-raw-log')" in index
     assert "const rawSlowlogEnabled=false;" in app_js
     assert "if(rawSlowlogEnabled&&visibleMenus.value.has('slow-raw-log'))" in app_js
+
+
+def test_raw_slowlog_is_not_seeded_into_role_permission_matrix():
+    database_source = (ROOT / "backend" / "services" / "database.py").read_text(encoding="utf-8")
+    matrix_section = database_source.split("# V3.0: 初始化角色权限矩阵", 1)[1].split("# V3.1:", 1)[0]
+    assert "'slow-raw-log'" not in matrix_section
+
+
+def test_role_permission_api_omits_raw_slowlog_menu():
+    from backend.main import app
+
+    with TestClient(app) as client:
+        response = client.get("/api/v1/auth/role-permissions")
+    assert response.status_code == 200
+    assert "slow-raw-log" not in {menu["key"] for menu in response.json()["menus"]}
