@@ -513,6 +513,25 @@ def _migrate_old_tables(conn):
         _add_column_if_not_exists(conn, "tdsql_connections", "monitor_user", "VARCHAR(128) DEFAULT ''")
         _add_column_if_not_exists(conn, "tdsql_connections", "monitor_password_encrypted", "TEXT")
         _add_column_if_not_exists(conn, "tdsql_connections", "monitor_db", "VARCHAR(128) DEFAULT 'tdsqlpcloud_monitor'")
+        # v1.6.0.1：标准化 ZK 导入的批次来源，便于精确审计和回滚测试数据。
+        _add_column_if_not_exists(conn, "tdsql_connections", "zk_import_batch_id", "VARCHAR(36) DEFAULT NULL")
+        try:
+            name_row = conn.execute("""
+                SELECT CHARACTER_MAXIMUM_LENGTH AS len FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tdsql_connections'
+                  AND COLUMN_NAME = 'name'
+            """).fetchone()
+            if name_row and name_row.get("len") is not None and int(name_row["len"]) < 255:
+                conn.execute("ALTER TABLE tdsql_connections MODIFY COLUMN name VARCHAR(255) NOT NULL")
+            set_row = conn.execute("""
+                SELECT DATA_TYPE AS dtype FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tdsql_connections'
+                  AND COLUMN_NAME = 'set_list'
+            """).fetchone()
+            if set_row and str(set_row.get("dtype") or "").lower() != "text":
+                conn.execute("ALTER TABLE tdsql_connections MODIFY COLUMN set_list TEXT")
+        except Exception as exc:
+            logger.warning(f"expand tdsql_connections import fields failed: {exc}")
 
     if "slow_queries" in table_names:
         # monitordb 独有：DML 影响行数（digest 源为0）
@@ -850,7 +869,7 @@ def _create_all_tables(conn):
         # T08. tdsql_connections
         """CREATE TABLE IF NOT EXISTS tdsql_connections (
             id                  VARCHAR(64) PRIMARY KEY,
-            name                VARCHAR(128) NOT NULL,
+            name                VARCHAR(255) NOT NULL,
             host                VARCHAR(256) NOT NULL,
             port                INT NOT NULL,
             username            VARCHAR(64) NOT NULL,
@@ -860,17 +879,56 @@ def _create_all_tables(conn):
             is_default          INT DEFAULT 0,
             is_distributed      INT DEFAULT 1,
             description         TEXT,
-            set_list            VARCHAR(512) DEFAULT '',
+            set_list            TEXT,
             monitor_host        VARCHAR(128) DEFAULT '',
             monitor_port        INT DEFAULT 15001,
             monitor_user        VARCHAR(128) DEFAULT '',
             monitor_password_encrypted TEXT,
             monitor_db          VARCHAR(128) DEFAULT 'tdsqlpcloud_monitor',
+            zk_import_batch_id  VARCHAR(36) DEFAULT NULL,
             status              VARCHAR(32) DEFAULT 'disconnected',
             last_connected_at   VARCHAR(32),
             created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at          DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             INDEX idx_conn_default (is_default)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""",
+
+        # T08a. ZooKeeper 标准化导入批次审计（严禁保存密码或密文）
+        """CREATE TABLE IF NOT EXISTS zk_discovery_import_batches (
+            id                  VARCHAR(36) PRIMARY KEY,
+            discovery_id        VARCHAR(64) NOT NULL,
+            operator_username   VARCHAR(128) NOT NULL,
+            selected_instance_count INT NOT NULL,
+            candidate_count     INT NOT NULL,
+            created_count       INT NOT NULL DEFAULT 0,
+            skipped_count       INT NOT NULL DEFAULT 0,
+            failed_count        INT NOT NULL DEFAULT 0,
+            status              VARCHAR(32) NOT NULL,
+            failure_summary     TEXT NULL,
+            created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
+            completed_at        DATETIME NULL,
+            INDEX idx_zk_import_batch_created (created_at),
+            INDEX idx_zk_import_batch_operator (operator_username)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""",
+
+        """CREATE TABLE IF NOT EXISTS zk_discovery_import_items (
+            id                  BIGINT PRIMARY KEY AUTO_INCREMENT,
+            batch_id            VARCHAR(36) NOT NULL,
+            source_instance_id  VARCHAR(128) NOT NULL,
+            instance_kind       VARCHAR(32) NOT NULL,
+            instance_type       VARCHAR(32) NOT NULL,
+            primary_proxy_host  VARCHAR(255) NOT NULL,
+            primary_proxy_port  INT NOT NULL,
+            set_list            TEXT NOT NULL,
+            resolved_instance_name VARCHAR(255) NULL,
+            database_name       VARCHAR(255) NULL,
+            generated_connection_name VARCHAR(255) NULL,
+            connection_id       VARCHAR(64) NULL,
+            result_status       VARCHAR(32) NOT NULL,
+            failure_code        VARCHAR(64) NULL,
+            created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_zk_import_item_batch (batch_id),
+            INDEX idx_zk_import_item_instance (source_instance_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""",
 
         # T09. bigtable_inventory

@@ -13,6 +13,11 @@ from backend.api import zk_discovery as zk_api
 from backend.main import app
 from backend.services.database import _get_connection
 from backend.services.security_service import decrypt_password
+from backend.services.zk_connection_import_service import (
+    ImportCredentials,
+    MonitorCredentials,
+    zk_connection_import_service,
+)
 from backend.services.zk_discovery_service import ZKDiscoveryUnavailableError, zk_discovery_service
 
 
@@ -22,6 +27,7 @@ client = TestClient(app)
 def _clear_sessions():
     with zk_api._sessions_lock:
         zk_api._sessions.clear()
+        zk_api._previews.clear()
 
 
 def _clear_zk_config():
@@ -154,6 +160,8 @@ def test_kazoo_driver_reads_centralized_and_distributed_instances(monkeypatch, c
         ("noshard", "centralized"), ("groupshard", "distributed"),
     ]
     assert results[1]["proxy_list"] == "10.0.0.4:15005;10.0.0.8:15005"
+    assert results[0]["set_ids"] == ["central_1"]
+    assert results[1]["set_ids"] == ["shard_1", "shard_2"]
     assert all(item["is_mock"] is False for item in results)
     assert "ZK_DISCOVERY_KAZOO_SESSION_CONNECTED candidate=zk.example:2118" in caplog.text
     assert "ZK_DISCOVERY_KAZOO_STRUCTURE candidate=zk.example:2118" in caplog.text
@@ -210,6 +218,13 @@ def test_parse_csv_11_columns_and_kind_mapping():
     assert distributed["instance_id"] == "group_1782132247_10"
 
 
+def test_parse_csv_preserves_complete_set_list_for_shell_driver():
+    item = zk_discovery_service.parse_csv(
+        "Distributed,h,15005,u,p,ALL,0,ok,groupshard,group_1,h:15005,set_a;set_b;set_a\n"
+    )[0]
+    assert item["set_ids"] == ["set_a", "set_b"]
+
+
 def test_unknown_kind_does_not_guess():
     item = zk_discovery_service.parse_csv(
         "n,h,1,u,p,ALL,0,ok,brand_new_kind,x_1,h:1\n"
@@ -241,6 +256,50 @@ def test_sync_matches_any_mapped_proxy_of_instance():
         assert row == {"zk_instance_kind": "noshard", "zk_instance_id": "set_1782130875_4"}
     finally:
         conn.execute("DELETE FROM tdsql_connections WHERE id = ?", (conn_id,))
+        conn.commit()
+        conn.close()
+
+
+def test_standardized_import_creates_one_connection_per_business_database(monkeypatch):
+    """提交只接受预检出的业务库，且类型/SET/监控配置均由权威来源写入。"""
+    instance = {
+        "instance_id": "group_import_test", "instance_kind": "groupshard",
+        "instance_type": "distributed", "host": "198.51.100.11", "port": 15136,
+        "proxy_list": "198.51.100.11:15136;198.51.100.12:15136",
+        "set_ids": ["set_import_a", "set_import_b"],
+    }
+    business = ImportCredentials("biz_user", "business-secret-for-test")
+    monitor = MonitorCredentials("198.51.100.20", 15001, "mon_user", "monitor-secret-for-test", "monitor_meta")
+    monkeypatch.setattr(zk_connection_import_service, "_resolve_instance_name", lambda *_: ("统一收单-分布式-提前批2", "instance"))
+    monkeypatch.setattr(zk_connection_import_service, "_list_business_databases", lambda *_: ["cap_gz", "cap_settle"])
+    rows = zk_connection_import_service.build_preview([instance], business, monitor)
+    assert [row["generated_connection_name"] for row in rows] == [
+        "统一收单-分布式-提前批2-15136-cap_gz",
+        "统一收单-分布式-提前批2-15136-cap_settle",
+    ]
+    assert all(row["status"] == "ready" for row in rows)
+
+    result = zk_connection_import_service.commit(rows, business, monitor, "pytest", "discovery-import-test")
+    conn = _get_connection()
+    try:
+        saved = [dict(conn.execute("SELECT * FROM tdsql_connections WHERE id=?", (item["id"],)).fetchone()) for item in result["created"]]
+        assert {row["database"] for row in saved} == {"cap_gz", "cap_settle"}
+        assert all(int(row["is_distributed"]) == 1 for row in saved)
+        assert all(row["set_list"] == "set_import_a,set_import_b" for row in saved)
+        assert all(row["zk_instance_kind"] == "groupshard" for row in saved)
+        assert all(row["zk_instance_id"] == "group_import_test" for row in saved)
+        assert all(row["monitor_host"] == "198.51.100.20" for row in saved)
+        assert all(decrypt_password(row["password_encrypted"]) == "business-secret-for-test" for row in saved)
+        assert all(decrypt_password(row["monitor_password_encrypted"]) == "monitor-secret-for-test" for row in saved)
+        audit = dict(conn.execute("SELECT * FROM zk_discovery_import_batches WHERE id=?", (result["batch_id"],)).fetchone())
+        assert audit["created_count"] == 2
+        assert "business-secret-for-test" not in str(audit)
+        assert "monitor-secret-for-test" not in str(audit)
+    finally:
+        for item in result["created"]:
+            conn.execute("DELETE FROM tdsql_connections WHERE id=?", (item["id"],))
+        conn.execute("DELETE FROM zk_discovery_import_items WHERE batch_id=?", (result["batch_id"],))
+        conn.execute("DELETE FROM zk_discovery_import_batches WHERE id=?", (result["batch_id"],))
         conn.commit()
         conn.close()
 
@@ -338,7 +397,7 @@ def test_zk_config_frontend_exposes_admin_entry_and_redacted_password_flow():
     root = Path(__file__).resolve().parents[1]
     html = (root / "frontend" / "index.html").read_text(encoding="utf-8")
     javascript = (root / "frontend" / "static" / "js" / "app.js").read_text(encoding="utf-8")
-    assert '<script src="/static/js/app.js?v=20260803.2"></script>' in html
+    assert '<script src="/static/js/app.js?v=20260803.3"></script>' in html
     assert 'v-if="isAdmin" type="warning" size="small" @click="openZkConfig">ZK发现配置' in html
     assert 'v-model="zkConfigForm.auth_password" type="password"' in html
     assert "/api/v1/tdsql/discover/config" in javascript
@@ -346,6 +405,8 @@ def test_zk_config_frontend_exposes_admin_entry_and_redacted_password_flow():
     assert "responseMessage(d,'扫描失败')" in javascript
     assert "zkConfigDialogVisible.value=true" in javascript
     assert "zkConfigDialogVisible,zkConfigLoading" in javascript
+    assert "/api/v1/tdsql/discover/import-preview" in javascript
+    assert "配置导入并生成预览" in html
 
 
 def test_zk_api_mock_is_marked_and_cannot_register(monkeypatch):
@@ -367,10 +428,10 @@ def test_zk_api_mock_is_marked_and_cannot_register(monkeypatch):
         "item_token": payload["items"][0]["item_token"],
         "connection_id": "must_not_register",
     })
-    assert register.status_code == 409
+    assert register.status_code == 410
 
 
-def test_zk_api_real_discovery_redacts_password_maps_address_and_registers_server_side(tmp_path, monkeypatch):
+def test_zk_api_real_discovery_redacts_zk_credentials_maps_address_and_creates_preview(tmp_path, monkeypatch):
     _clear_sessions()
     auth_file = tmp_path / "zk-auth.json"
     auth_file.write_text(json.dumps({"username": "reader", "password": "secret"}), encoding="utf-8")
@@ -389,10 +450,18 @@ def test_zk_api_real_discovery_redacts_password_maps_address_and_registers_serve
     monkeypatch.setattr(zk_discovery_service, "discover", lambda **_: raw)
     sync_calls = []
     monkeypatch.setattr(zk_discovery_service, "sync_instance_kinds", lambda items: sync_calls.append(items) or 1)
-    registered = {}
+    preview_calls = []
     monkeypatch.setattr(
-        zk_discovery_service, "register_discovered",
-        lambda connection_id, instance: registered.update({"id": connection_id, "instance": instance}) or connection_id,
+        zk_api.zk_connection_import_service, "build_preview",
+        lambda instances, business, monitor: preview_calls.append((instances, business, monitor)) or [{
+            "source_instance_id": "set_1", "instance_kind": "noshard", "instance_type": "centralized",
+            "primary_proxy": "119.45.220.89:15002", "primary_proxy_host": "119.45.220.89",
+            "primary_proxy_port": 15002, "set_ids": ["set_1"], "resolved_instance_name": "集中式测试",
+            "name_source": "instance", "database": "business_db",
+            "generated_connection_name": "集中式测试-15002-business_db", "status": "ready",
+            "failure_code": "", "failure_detail": "", "monitor_host": monitor.host,
+            "monitor_port": monitor.port, "monitor_user": monitor.username, "monitor_db": monitor.database,
+        }],
     )
 
     resp = client.post("/api/v1/tdsql/discover")
@@ -403,14 +472,19 @@ def test_zk_api_real_discovery_redacts_password_maps_address_and_registers_serve
     assert item["host"] == "119.45.220.89"
     assert item["proxy_list"] == "119.45.220.89:15002"
     assert "password" not in item
+    assert "user" not in item
+    assert item["set_ids"] == ["set_1"]
     assert len(sync_calls) == 1
 
-    register = client.post("/api/v1/tdsql/discover/register", json={
+    preview = client.post("/api/v1/tdsql/discover/import-preview", json={
         "discovery_id": payload["discovery_id"],
-        "item_token": item["item_token"],
-        "connection_id": "set_1",
+        "item_tokens": [item["item_token"]],
+        "business": {"username": "business_user", "password": "business-secret"},
+        "monitor": {"host": "monitor.example", "port": 15001, "username": "monitor_user", "password": "monitor-secret", "database": "tdsqlpcloud_monitor"},
     })
-    assert register.status_code == 200
-    assert registered["instance"]["password"] == "db-secret"
-    assert registered["instance"]["host"] == "119.45.220.89"
-    assert len(sync_calls) == 2
+    assert preview.status_code == 200
+    assert "business-secret" not in preview.text
+    assert "monitor-secret" not in preview.text
+    assert preview.json()["rows"][0]["generated_connection_name"] == "集中式测试-15002-business_db"
+    assert preview_calls[0][0][0]["host"] == "119.45.220.89"
+    assert "password" not in preview_calls[0][0][0]

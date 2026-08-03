@@ -138,6 +138,7 @@ class ZKDiscoveryService:
                     "instance_id": "group_mock_1",
                     "instance_type": "distributed",
                     "proxy_list": "192.0.2.10:15005",
+                    "set_ids": ["set_mock_1"],
                     "is_mock": True,
                 },
                 {
@@ -153,6 +154,7 @@ class ZKDiscoveryService:
                     "instance_id": "set_mock_2",
                     "instance_type": "centralized",
                     "proxy_list": "192.0.2.11:15006",
+                    "set_ids": ["set_mock_2"],
                     "is_mock": True,
                 },
                 {
@@ -168,6 +170,7 @@ class ZKDiscoveryService:
                     "instance_id": "",
                     "instance_type": None,
                     "proxy_list": "",
+                    "set_ids": [],
                     "is_mock": True,
                 }
             ]
@@ -332,13 +335,16 @@ class ZKDiscoveryService:
             client.add_auth("digest", f"{zk_auth_user}:{zk_auth_password}")
             logger.info("ZK_DISCOVERY_KAZOO_AUTH_SUBMITTED candidate=%s", zk_server)
 
-            records: list[tuple[str, str, str, str]] = []
+            # (kind, instance_id, setrun parent path, representative set id, all set ids)
+            # 分布式 group 不能只把代表 set 泄露给下游；代表 set 仅用于读取
+            # setrun，完整 set_ids 是导入和慢 SQL 扫描的权威拓扑。
+            records: list[tuple[str, str, str, str, list[str]]] = []
             stage = "read_centralized_sets"
             centralized_nodes = sorted(client.get_children(f"{root}/sets"))
             for node_name in centralized_nodes:
                 set_id = set_id_from_node(node_name)
                 if set_id:
-                    records.append(("noshard", set_id, f"{root}/sets/{node_name}", set_id))
+                    records.append(("noshard", set_id, f"{root}/sets/{node_name}", set_id, [set_id]))
 
             stage = "read_root_groups"
             root_nodes = sorted(client.get_children(root))
@@ -349,10 +355,16 @@ class ZKDiscoveryService:
                 group_count += 1
                 stage = "read_distributed_group_sets"
                 set_nodes = sorted(client.get_children(f"{root}/{group_name}/sets"))
-                set_id = next((set_id_from_node(item) for item in set_nodes if set_id_from_node(item)), "")
-                if set_id:
+                set_ids = sorted({set_id_from_node(item) for item in set_nodes if set_id_from_node(item)})
+                if set_ids:
+                    set_id = set_ids[0]
                     records.append(("groupshard", group_name,
-                                    f"{root}/{group_name}/sets/set@{set_id}", set_id))
+                                    f"{root}/{group_name}/sets/set@{set_id}", set_id, set_ids))
+                else:
+                    logger.warning(
+                        "ZK_DISCOVERY_GROUP_WITHOUT_SETS candidate=%s instance=%s",
+                        zk_server, group_name,
+                    )
             logger.info(
                 "ZK_DISCOVERY_KAZOO_STRUCTURE candidate=%s root_children=%s centralized_set_nodes=%s group_nodes=%s instance_candidates=%s",
                 zk_server, len(root_nodes), len(centralized_nodes), group_count, len(records),
@@ -362,7 +374,7 @@ class ZKDiscoveryService:
             skipped_unreadable = 0
             skipped_inactive = 0
             skipped_incomplete = 0
-            for kind, instance_id, parent_path, set_id in records:
+            for kind, instance_id, parent_path, set_id, set_ids in records:
                 try:
                     stage = "read_setrun"
                     raw, _stat = client.get(f"{parent_path}/setrun@{set_id}")
@@ -414,6 +426,7 @@ class ZKDiscoveryService:
                     "instance_id": instance_id,
                     "instance_type": self._KIND_TO_TYPE[kind],
                     "proxy_list": ";".join(endpoints),
+                    "set_ids": set_ids,
                     "is_mock": False,
                 })
 
@@ -454,7 +467,7 @@ class ZKDiscoveryService:
         列布局（新列一律追加在末尾，保证旧消费方按前 N 列取值不受影响）：
             base            : service_name,host,port,user,password,database          (6)
             +--with-status  : ,status_code,status_text                               (8)
-            +--with-type    : ,instance_kind,instance_id,proxy_list                  (11)
+            +--with-type    : ,instance_kind,instance_id,proxy_list,set_list         (12)
 
         V1.5.1：instance_kind 是实例类型判定的权威依据。
         脚本内部一直有这个字段，此前未导出。
@@ -494,6 +507,12 @@ class ZKDiscoveryService:
                     logger.warning(
                         f"ZK 返回未知实例形态 kind={kind!r} "
                         f"(instance_id={item['instance_id']})，本条不参与类型判定")
+            # v1.6.0.1：完整 SET 列表是标准化导入的必需拓扑。旧 shell 输出没有
+            # 第 12 列时，集中式可安全回退到自身 SET；分布式必须在预检阶段拒绝。
+            raw_set_list = (row[11] if len(row) >= 12 else "") or ""
+            item["set_ids"] = sorted({value.strip() for value in raw_set_list.split(";") if value.strip()})
+            if not item["set_ids"] and item.get("instance_kind") == "noshard" and item.get("instance_id"):
+                item["set_ids"] = [item["instance_id"]]
             results.append(item)
         return results
 
@@ -558,54 +577,5 @@ class ZKDiscoveryService:
             instance_type_service.invalidate()   # 全量失效，本进程立即生效
         logger.info("ZK_DISCOVERY_KIND_SYNC_COMPLETED synchronized=%s", synced)
         return synced
-
-    def register_discovered(self, connection_id: str, inst: dict) -> str:
-        """
-        将自动发现的实例批量写入数据库 (tdsql_connections)。
-        与 connection_registry 中的保存逻辑对齐。
-        """
-        from backend.services.connection_registry import registry
-        from backend.services.database import _get_connection, _execute_sql
-        
-        # 密码 AES 加密
-        from backend.services.security_service import encrypt_password
-        pwd_encrypted = encrypt_password(inst["password"])
-
-        conn = _get_connection()
-        try:
-            # 检查连接名是否已存在
-            cursor = conn.cursor()
-            cursor.execute(
-                "SELECT id FROM tdsql_connections WHERE id = %s",
-                (connection_id,)
-            )
-            exists = cursor.fetchone()
-
-            if exists:
-                # 更新
-                _execute_sql(conn, """
-                    UPDATE tdsql_connections 
-                    SET host=?, port=?, username=?, password_encrypted=?, `database`=?,
-                        name=?, updated_at=CURRENT_TIMESTAMP
-                    WHERE id=?
-                """, (
-                    inst["host"], inst["port"], inst["user"], pwd_encrypted,
-                    inst["database"], inst["service_name"], connection_id
-                ))
-            else:
-                # 插入
-                _execute_sql(conn, """
-                    INSERT INTO tdsql_connections 
-                    (id, host, port, username, password_encrypted, `database`, name, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-                """, (
-                    connection_id, inst["host"], inst["port"], inst["user"], pwd_encrypted,
-                    inst["database"], inst["service_name"]
-                ))
-            conn.commit()
-            return connection_id
-        finally:
-            conn.close()
-
 
 zk_discovery_service = ZKDiscoveryService()

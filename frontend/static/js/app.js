@@ -192,6 +192,19 @@ const app=createApp({
     const zkRegistering=ref(false);
     const zkDiscoveryId=ref('');
     const zkDiscoveryIsMock=ref(false);
+    // v1.6.0.1：标准化导入须经历“配置 → 预览 → 确认”，不再直接写入 ALL 连接。
+    const zkImportDialogVisible=ref(false);
+    const zkImportPreparing=ref(false);
+    const zkImportCommitting=ref(false);
+    const zkImportPreviewId=ref('');
+    const zkImportRows=ref([]);
+    const zkImportSelected=ref([]);
+    const zkImportSummary=ref({selected_instances:0,ready:0,conflict:0,error:0});
+    const zkImportTableRef=ref(null);
+    const zkImportForm=reactive({
+      business_username:'',business_password:'',
+      monitor_host:'',monitor_port:null,monitor_username:'',monitor_password:'',monitor_database:''
+    });
     const gatewayLoading=ref(false);
     const gatewayReports=ref([]);
     const gatewayHtml=ref('');
@@ -556,6 +569,10 @@ const app=createApp({
       zkSelected.value=[];
       zkDiscoveryId.value='';
       zkDiscoveryIsMock.value=false;
+      zkImportDialogVisible.value=false;
+      zkImportPreviewId.value='';
+      zkImportRows.value=[];
+      zkImportSelected.value=[];
     };
     const runZkDiscovery=async()=>{
       zkScanning.value=true;
@@ -569,6 +586,9 @@ const app=createApp({
           zkDiscoveryId.value=data.discovery_id||'';
           zkDiscoveryIsMock.value=!!data.is_mock;
           zkDiscovered.value=data.items||[];
+          zkImportPreviewId.value='';
+          zkImportRows.value=[];
+          zkImportSelected.value=[];
           ElementPlus.ElMessage.success(`发现 ${zkDiscovered.value.length} 个实例`);
         }else{
           const d=await resp.json().catch(()=>({}));
@@ -583,29 +603,65 @@ const app=createApp({
     const handleZkSelection=(val)=>{
       zkSelected.value=val;
     };
-    const registerZkInstances=async()=>{
+    const openZkImport=()=>{
       if(!zkSelected.value.length||!zkDiscoveryId.value)return;
       if(zkDiscoveryIsMock.value){ElementPlus.ElMessage.error('Mock 发现结果禁止导入');return}
-      zkRegistering.value=true;
-      let ok=0,kindSynced=0;
-      for(const inst of zkSelected.value){
-        try{
-          const resp=await apiFetch(`${API_BASE}/api/v1/tdsql/discover/register`,{
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({
-              discovery_id: zkDiscoveryId.value,
-              item_token: inst.item_token,
-              connection_id: inst.instance_id||inst.service_name
-            })
-          });
-          if(resp.ok){ok++;const d=await resp.json().catch(()=>({}));if(d.kind_synced)kindSynced++}
-        }catch(e){}
+      zkImportPreviewId.value='';
+      zkImportRows.value=[];
+      zkImportSelected.value=[];
+      zkImportSummary.value={selected_instances:zkSelected.value.length,ready:0,conflict:0,error:0};
+      zkImportDialogVisible.value=true;
+    };
+    const runZkImportPreview=async()=>{
+      if(!zkImportForm.business_username.trim()||!zkImportForm.business_password){ElementPlus.ElMessage.warning('请填写业务连接用户名和密码');return}
+      if(!zkImportForm.monitor_host.trim()||!zkImportForm.monitor_port||!zkImportForm.monitor_username.trim()||!zkImportForm.monitor_password||!zkImportForm.monitor_database.trim()){
+        ElementPlus.ElMessage.warning('请完整填写 MonitorDB 监控配置');return
       }
-      zkRegistering.value=false;
-      ElementPlus.ElMessage.success(`成功导入 ${ok} 个实例`+(kindSynced?`，已同步 ${kindSynced} 个实例的 ZK 实例形态`:''));
-      zkDialogVisible.value=false;
-      loadSavedConnections();
+      zkImportPreparing.value=true;
+      try{
+        const resp=await apiFetch(`${API_BASE}/api/v1/tdsql/discover/import-preview`,{
+          method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({
+            discovery_id:zkDiscoveryId.value,
+            item_tokens:zkSelected.value.map(item=>item.item_token),
+            business:{username:zkImportForm.business_username.trim(),password:zkImportForm.business_password},
+            monitor:{host:zkImportForm.monitor_host.trim(),port:Number(zkImportForm.monitor_port),username:zkImportForm.monitor_username.trim(),password:zkImportForm.monitor_password,database:zkImportForm.monitor_database.trim()}
+          })
+        });
+        const data=await resp.json().catch(()=>({}));
+        // 页面不保留明文密码；服务端仅在五分钟预览会话内短暂保存以便确认提交。
+        zkImportForm.business_password='';zkImportForm.monitor_password='';
+        if(!resp.ok){ElementPlus.ElMessage.error(responseMessage(data,'生成导入预览失败'));return}
+        zkImportPreviewId.value=data.preview_id||'';
+        zkImportRows.value=data.rows||[];
+        zkImportSummary.value=data.summary||{selected_instances:0,ready:0,conflict:0,error:0};
+        zkImportSelected.value=zkImportRows.value.filter(row=>row.status==='ready');
+        await nextTick();
+        if(zkImportTableRef.value){
+          zkImportRows.value.filter(row=>row.status==='ready').forEach(row=>zkImportTableRef.value.toggleRowSelection(row,true));
+        }
+        ElementPlus.ElMessage.success(`已生成预览：可创建 ${zkImportSummary.value.ready||0} 条连接`);
+      }catch(e){ElementPlus.ElMessage.error('生成导入预览失败: '+e.message)}
+      finally{zkImportPreparing.value=false}
+    };
+    const handleZkImportSelection=(val)=>{zkImportSelected.value=val};
+    const commitZkImport=async()=>{
+      if(!zkImportPreviewId.value||!zkImportSelected.value.length){ElementPlus.ElMessage.warning('请选择状态为“可创建”的候选连接');return}
+      try{await ElementPlus.ElMessageBox.confirm(`将创建 ${zkImportSelected.value.length} 条独立连接，既有连接不会被覆盖。是否继续？`,'确认导入',{type:'warning',confirmButtonText:'创建连接',cancelButtonText:'取消'})}catch(e){return}
+      zkImportCommitting.value=true;
+      try{
+        const resp=await apiFetch(`${API_BASE}/api/v1/tdsql/discover/import-commit`,{
+          method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({discovery_id:zkDiscoveryId.value,preview_id:zkImportPreviewId.value,row_tokens:zkImportSelected.value.map(row=>row.row_token)})
+        });
+        const data=await resp.json().catch(()=>({}));
+        if(!resp.ok){ElementPlus.ElMessage.error(responseMessage(data,'导入连接失败'));return}
+        ElementPlus.ElMessage.success(`已创建 ${data.created_count||0} 条连接，导入批次：${data.batch_id||'-'}`);
+        zkImportDialogVisible.value=false;
+        zkDialogVisible.value=false;
+        loadSavedConnections();
+      }catch(e){ElementPlus.ElMessage.error('导入连接失败: '+e.message)}
+      finally{zkImportCommitting.value=false}
     };
 
     // G11: Gateway Log Analysis
@@ -1467,7 +1523,7 @@ const app=createApp({
       runCompare,exportCompareHtml,saveCompareReport,loadCompareReports,viewSavedCompareReport,downloadSavedCompareReportHtml,deleteSavedCompareReport,cmpFmtChange,cmpReportQuery,cmpReportResetFilters,
       snapshotDetailDialog,filteredSnapshotIssues,openSnapshotDetail,downloadSnapshotHtml,deleteSnapshot,
       fileReportFilters,resetFileReportFilters,scanTaskFilters,scanTaskQuery,resetScanTaskFilters,
-      authState,loginForm,loginLoading,loginError,pwdDialog,savedConnections,currentConnectionId,projects,currentProjectId,activeAlerts,metadataEnhanced,statsLoading,stats,ruleHits,trendChartRef,kpiCards,sqlInput,instantAuditInstType,auditing,auditResult,auditProjectId,fileAuditTab,fileAuditInstType,fileAuditResult,fileReports,fileReportsLoading,fileReportsTotal,fileReportsPage,selectedFileReportIds,fileReportsDeleting,fileReportsTableRef,onFileReportsSelect,batchDeleteFileReports,deleteSingleFileReport,slowTasksTab,onSlowTasksTabChange,bigtableTab,onBigtableTabChange,rulesList,rulesByCategory,ruleSearch,expandedCategories,filteredCategories,slowList,slowListLoading,slowFilters,slowPage,scanTasks,scanTaskTotal,scanTaskCurrentPage,scanTaskLoading,selectedTaskIds,batchDeleting,clearingOrphan,scanDrawer,scanTimeWindow,scanTaskForm,slowDetailDrawer,slowDetail,rawSlowTab,rawEvents,rawEventsTotal,rawEventsLoading,rawRuns,rawRunsLoading,rawSources,rawSourcesLoading,rawFilters,rawSourceDrawer,rawSourceSaving,rawSourceEditMode,rawSourceForm,explainMode,explainSqlInput,explainInput,explainConnId,analyzingExplain,explainResult,tdsqlStatus,connDrawer,connForm,connEditMode,connTestResult,connTesting,connLoading,usersList,usersLoading,usersTotal,usersPage,usersPageSize,userKeyword,userQuery,userDialog,resetDialog,scanSchedules,scanScheduleLoading,scheduleDrawer,scheduleForm,healthLoading,healthResult,healthCheckType,healthDbName,schemaCheckConnId,schemaCheckScope,schemaCheckResults,schemaCheckSummary,schemaCheckLoading,schemaCheckTab,onSchemaCheckTabChange,extractedAuditConnId,extractedDbName,extractedScope,extractAuditing,extractedResult,runExtractAndAudit,downloadExtractedSql,bigtableLoading,bigtableData,bigtableRef,partitionDetail,partitionLoading,projectsList,projectsLoading,projectDialog,rulesets,rulesetsLoading,gateRules,gateStrategies,gateLoading,monitorAlerts,monitorRules,monitorLoading,monitorTab,inspectionTasks,inspectionLoading,auditLogs,auditLogsLoading,auditLogsTotal,auditLogsPage,retentionPolicies,retentionLoading,sysInfo,sysInfoLoading,roleLabel,canManagePlatform,isAdmin,canManageInstances,canViewAuditLog,canViewSysInfo,canViewProjects,canViewMonitor,canViewSchedule,canViewBigtable,breadcrumbItems,formatTime,sevTagType,statusLabel,sourceLabel,categoryOrder,doLogin,doLogout,changePassword,onUserCommand,onMenuSelect,onConnectionSwitch,onProjectSwitch,auditSql,loadExample,onFileChange,loadFileReports,downloadFileReport,loadRules,loadSlowList,resetSlowFilter,openSlowDetail,setSlowStatus,exportSlowReport,downloadScanReport,goSlowDetail,goExplainFromSlow,loadRawSources,loadRawRuns,loadRawEvents,resetRawFilters,downloadRawEvents,openRawSourceCreate,openRawSourceEdit,addRawNode,removeRawNode,saveRawSource,probeRawSource,collectRawSource,toggleRawSource,loadScanTasks,onTaskSelectChange,deleteScanTask,batchDeleteScanTasks,startScanTask,viewTaskSlowQueries,clearOrphanRecords,analyzeExplainBySql,analyzeExplain,loadSavedConnections,testConn,saveConn,openEditConn,openNewConn,deleteConn,probeInstanceType,instTypeCn,instSourceCn,lockDialog,openLockDialog,submitLock,diagDialog,openDiagDialog,runDiagnostics,downloadDiagnostics,connZkInfo,setDefaultConn,connectInstance,loadUsers,createUser,openResetPwd,resetUserPwd,unlockUser,toggleUserStatus,deleteUser,loadAll,renderTrendChart,loadProjects,loadActiveAlerts,loadScanSchedules,createScanSchedule,deleteScanSchedule,toggleScheduleEnabled,runHealthCheck,runSchemaCheck,exportSchemaCheckReport,loadBigtable,bigtableRowKey,partitionBoundaryLabel,bigtableRowClass,togglePartitions,onBigtableExpand,loadTablePartitions,loadProjectsList,createProject,deleteProject,toggleProjectStatus,loadRulesets,loadGateRules,loadGateStrategies,applyGateStrategy,loadMonitorAlerts,acknowledgeAlert,loadMonitorRules,loadInspectionTasks,loadAuditLogs,loadRetention,runRetentionCleanup,loadSysInfo,bigtableCollecting,collectBigtable,rulesetDialog,createRuleset,deleteRuleset,activateRuleset,gateCustom,openGateCustom,saveGateCustom,monitorRuleDialog,createMonitorRule,inspectionDialog,createInspection,inspectionResultDrawer,inspectionResults,viewInspectionResult,retentionDialog,openRetentionEdit,saveRetention,retentionEditMode,logoUrl,loadLogo,onLogoUpload,resetLogo,toggleSysConfig,auditFilter,resetAuditFilter,tableNameLabel,metricLabel,rolesList,rolesLoading,roleDialog,deleteRole,openRoleEdit,saveRole,roleLabelFn,permsMatrixData,permsMenuList,permsLoading,loadPerms,onPermChange,deepConnId,deepRightConnId,deepDb,deepTab,deepLoading,deepResult,runClusterInspect,runIndexAudit,runSchemaDiff,runEmergency,runSqlStats,visibleMenus,zkDialogVisible,zkConfigDialogVisible,zkConfigLoading,zkConfigSaving,zkConfigMeta,zkConfigForm,zkEndpointRows,openZkConfig,saveZkConfig,addZkEndpointRow,removeZkEndpointRow,zkScanning,zkDiscovered,zkSelected,zkRegistering,openZkDiscovery,runZkDiscovery,handleZkSelection,registerZkInstances,gatewayLoading,gatewayReports,gatewayHtml,gatewayDetailVisible,loadGatewayReports,viewGatewayReport,onGatewayUpload,pptLoading,pptDashboard,loadPptDashboard,generatePptReport,toolkitLoading,toolkitScripts,loadToolkitScripts,downloadToolkitScript,extractedTab,extractedReports,extractedReportsLoading,loadExtractedReports,downloadExtractedHtmlReport,downloadExtractedSqlFile,extractedReportsTotal,extractedReportsPage,extractedPageSize,extractedFilters,extractedTableRef,selectedExtractedIds,extractedPurgeSnapshots,extractedDeleting,canDeleteExtractedReports,extractedQuery,extractedResetFilters,extractedPickOlderThan,onExtractedSelect,batchDeleteExtractedReports,dailyInspectDates,dailyInspectThreshold,dailyCompareResult,dailyInstSearch,dailyInstSigOnly,dailySrvSearch,dailySrvSigOnly,dailyInspectChartData,dailyInspectChartMetric,dailyInspectChartNode,dailyInspectChartNodes,dailyTrendChartRef,filteredDailyInstDiffs,filteredDailySrvDiffs,runDailyInspect,compareDailyInspect,renderDailyTrendChart,exportDailyHtmlReport,activeEmergencyNames,emergencyNameLabel,rulesetDrawer,rulesetConfigItems,openRulesetConfig,rulesetCategories,rulesetCategoryCounts,filteredRulesetItems,modifiedOverrideCount,disabledCount,setFilteredRulesEnabled,resetFilteredRulesOverrides,saveRulesetConfig,dailyInstNodeSelect,dailyInstPage,dailyInstPageSize,dailySrvIpSelect,dailySrvPage,dailySrvPageSize,dailyInstNodeList,dailySrvIpList,pagedDailyInstDiffs,pagedDailySrvDiffs};
+      authState,loginForm,loginLoading,loginError,pwdDialog,savedConnections,currentConnectionId,projects,currentProjectId,activeAlerts,metadataEnhanced,statsLoading,stats,ruleHits,trendChartRef,kpiCards,sqlInput,instantAuditInstType,auditing,auditResult,auditProjectId,fileAuditTab,fileAuditInstType,fileAuditResult,fileReports,fileReportsLoading,fileReportsTotal,fileReportsPage,selectedFileReportIds,fileReportsDeleting,fileReportsTableRef,onFileReportsSelect,batchDeleteFileReports,deleteSingleFileReport,slowTasksTab,onSlowTasksTabChange,bigtableTab,onBigtableTabChange,rulesList,rulesByCategory,ruleSearch,expandedCategories,filteredCategories,slowList,slowListLoading,slowFilters,slowPage,scanTasks,scanTaskTotal,scanTaskCurrentPage,scanTaskLoading,selectedTaskIds,batchDeleting,clearingOrphan,scanDrawer,scanTimeWindow,scanTaskForm,slowDetailDrawer,slowDetail,rawSlowTab,rawEvents,rawEventsTotal,rawEventsLoading,rawRuns,rawRunsLoading,rawSources,rawSourcesLoading,rawFilters,rawSourceDrawer,rawSourceSaving,rawSourceEditMode,rawSourceForm,explainMode,explainSqlInput,explainInput,explainConnId,analyzingExplain,explainResult,tdsqlStatus,connDrawer,connForm,connEditMode,connTestResult,connTesting,connLoading,usersList,usersLoading,usersTotal,usersPage,usersPageSize,userKeyword,userQuery,userDialog,resetDialog,scanSchedules,scanScheduleLoading,scheduleDrawer,scheduleForm,healthLoading,healthResult,healthCheckType,healthDbName,schemaCheckConnId,schemaCheckScope,schemaCheckResults,schemaCheckSummary,schemaCheckLoading,schemaCheckTab,onSchemaCheckTabChange,extractedAuditConnId,extractedDbName,extractedScope,extractAuditing,extractedResult,runExtractAndAudit,downloadExtractedSql,bigtableLoading,bigtableData,bigtableRef,partitionDetail,partitionLoading,projectsList,projectsLoading,projectDialog,rulesets,rulesetsLoading,gateRules,gateStrategies,gateLoading,monitorAlerts,monitorRules,monitorLoading,monitorTab,inspectionTasks,inspectionLoading,auditLogs,auditLogsLoading,auditLogsTotal,auditLogsPage,retentionPolicies,retentionLoading,sysInfo,sysInfoLoading,roleLabel,canManagePlatform,isAdmin,canManageInstances,canViewAuditLog,canViewSysInfo,canViewProjects,canViewMonitor,canViewSchedule,canViewBigtable,breadcrumbItems,formatTime,sevTagType,statusLabel,sourceLabel,categoryOrder,doLogin,doLogout,changePassword,onUserCommand,onMenuSelect,onConnectionSwitch,onProjectSwitch,auditSql,loadExample,onFileChange,loadFileReports,downloadFileReport,loadRules,loadSlowList,resetSlowFilter,openSlowDetail,setSlowStatus,exportSlowReport,downloadScanReport,goSlowDetail,goExplainFromSlow,loadRawSources,loadRawRuns,loadRawEvents,resetRawFilters,downloadRawEvents,openRawSourceCreate,openRawSourceEdit,addRawNode,removeRawNode,saveRawSource,probeRawSource,collectRawSource,toggleRawSource,loadScanTasks,onTaskSelectChange,deleteScanTask,batchDeleteScanTasks,startScanTask,viewTaskSlowQueries,clearOrphanRecords,analyzeExplainBySql,analyzeExplain,loadSavedConnections,testConn,saveConn,openEditConn,openNewConn,deleteConn,probeInstanceType,instTypeCn,instSourceCn,lockDialog,openLockDialog,submitLock,diagDialog,openDiagDialog,runDiagnostics,downloadDiagnostics,connZkInfo,setDefaultConn,connectInstance,loadUsers,createUser,openResetPwd,resetUserPwd,unlockUser,toggleUserStatus,deleteUser,loadAll,renderTrendChart,loadProjects,loadActiveAlerts,loadScanSchedules,createScanSchedule,deleteScanSchedule,toggleScheduleEnabled,runHealthCheck,runSchemaCheck,exportSchemaCheckReport,loadBigtable,bigtableRowKey,partitionBoundaryLabel,bigtableRowClass,togglePartitions,onBigtableExpand,loadTablePartitions,loadProjectsList,createProject,deleteProject,toggleProjectStatus,loadRulesets,loadGateRules,loadGateStrategies,applyGateStrategy,loadMonitorAlerts,acknowledgeAlert,loadMonitorRules,loadInspectionTasks,loadAuditLogs,loadRetention,runRetentionCleanup,loadSysInfo,bigtableCollecting,collectBigtable,rulesetDialog,createRuleset,deleteRuleset,activateRuleset,gateCustom,openGateCustom,saveGateCustom,monitorRuleDialog,createMonitorRule,inspectionDialog,createInspection,inspectionResultDrawer,inspectionResults,viewInspectionResult,retentionDialog,openRetentionEdit,saveRetention,retentionEditMode,logoUrl,loadLogo,onLogoUpload,resetLogo,toggleSysConfig,auditFilter,resetAuditFilter,tableNameLabel,metricLabel,rolesList,rolesLoading,roleDialog,deleteRole,openRoleEdit,saveRole,roleLabelFn,permsMatrixData,permsMenuList,permsLoading,loadPerms,onPermChange,deepConnId,deepRightConnId,deepDb,deepTab,deepLoading,deepResult,runClusterInspect,runIndexAudit,runSchemaDiff,runEmergency,runSqlStats,visibleMenus,zkDialogVisible,zkConfigDialogVisible,zkConfigLoading,zkConfigSaving,zkConfigMeta,zkConfigForm,zkEndpointRows,openZkConfig,saveZkConfig,addZkEndpointRow,removeZkEndpointRow,zkScanning,zkDiscovered,zkSelected,zkRegistering,openZkDiscovery,runZkDiscovery,handleZkSelection,zkImportDialogVisible,zkImportPreparing,zkImportCommitting,zkImportPreviewId,zkImportRows,zkImportSelected,zkImportSummary,zkImportTableRef,zkImportForm,openZkImport,runZkImportPreview,handleZkImportSelection,commitZkImport,gatewayLoading,gatewayReports,gatewayHtml,gatewayDetailVisible,loadGatewayReports,viewGatewayReport,onGatewayUpload,pptLoading,pptDashboard,loadPptDashboard,generatePptReport,toolkitLoading,toolkitScripts,loadToolkitScripts,downloadToolkitScript,extractedTab,extractedReports,extractedReportsLoading,loadExtractedReports,downloadExtractedHtmlReport,downloadExtractedSqlFile,extractedReportsTotal,extractedReportsPage,extractedPageSize,extractedFilters,extractedTableRef,selectedExtractedIds,extractedPurgeSnapshots,extractedDeleting,canDeleteExtractedReports,extractedQuery,extractedResetFilters,extractedPickOlderThan,onExtractedSelect,batchDeleteExtractedReports,dailyInspectDates,dailyInspectThreshold,dailyCompareResult,dailyInstSearch,dailyInstSigOnly,dailySrvSearch,dailySrvSigOnly,dailyInspectChartData,dailyInspectChartMetric,dailyInspectChartNode,dailyInspectChartNodes,dailyTrendChartRef,filteredDailyInstDiffs,filteredDailySrvDiffs,runDailyInspect,compareDailyInspect,renderDailyTrendChart,exportDailyHtmlReport,activeEmergencyNames,emergencyNameLabel,rulesetDrawer,rulesetConfigItems,openRulesetConfig,rulesetCategories,rulesetCategoryCounts,filteredRulesetItems,modifiedOverrideCount,disabledCount,setFilteredRulesEnabled,resetFilteredRulesOverrides,saveRulesetConfig,dailyInstNodeSelect,dailyInstPage,dailyInstPageSize,dailySrvIpSelect,dailySrvPage,dailySrvPageSize,dailyInstNodeList,dailySrvIpList,pagedDailyInstDiffs,pagedDailySrvDiffs};
   }
 });
 app.use(ElementPlus,{locale:ElementPlusLocaleZhCn});

@@ -25,13 +25,22 @@ from backend.services.zk_discovery_config_service import (
     ZKDiscoveryConfigError,
     zk_discovery_config_service,
 )
+from backend.services.zk_connection_import_service import (
+    ImportCredentials,
+    MonitorCredentials,
+    ZKImportCommitError,
+    zk_connection_import_service,
+)
 
 
 logger = logging.getLogger("tdsql.zk_discovery")
 router = APIRouter(prefix="/api/v1/tdsql/discover", tags=["ZK Discovery"])
 
 _SESSION_TTL_SECONDS = 10 * 60
+_PREVIEW_TTL_SECONDS = 5 * 60
+_MAX_PREVIEW_INSTANCES = 200
 _sessions: dict[str, dict] = {}
+_previews: dict[str, dict] = {}
 _sessions_lock = threading.Lock()
 
 
@@ -42,14 +51,15 @@ class DiscoveredInstance(BaseModel):
     service_name: str
     host: str
     port: int
-    user: str
-    database: str
     status_code: str
     status_text: str
     instance_kind: str = ""
     instance_id: str = ""
     instance_type: Optional[str] = None
     proxy_list: str = ""
+    set_ids: list[str] = Field(default_factory=list)
+    proxy_count: int = 0
+    primary_proxy: str = ""
 
 
 class ZKDiscoverResponse(BaseModel):
@@ -63,6 +73,32 @@ class ZKRegisterRequest(BaseModel):
     discovery_id: str
     item_token: str
     connection_id: str = Field(min_length=1, max_length=128)
+
+
+class ZKBusinessCredentialsRequest(BaseModel):
+    username: str = Field(min_length=1, max_length=128)
+    password: str = Field(min_length=1, max_length=1024)
+
+
+class ZKMonitorCredentialsRequest(BaseModel):
+    host: str = Field(min_length=1, max_length=255)
+    port: int = Field(ge=1, le=65535)
+    username: str = Field(min_length=1, max_length=128)
+    password: str = Field(min_length=1, max_length=1024)
+    database: str = Field(min_length=1, max_length=128)
+
+
+class ZKImportPreviewRequest(BaseModel):
+    discovery_id: str = Field(min_length=1, max_length=64)
+    item_tokens: list[str] = Field(min_length=1, max_length=_MAX_PREVIEW_INSTANCES)
+    business: ZKBusinessCredentialsRequest
+    monitor: ZKMonitorCredentialsRequest
+
+
+class ZKImportCommitRequest(BaseModel):
+    discovery_id: str = Field(min_length=1, max_length=64)
+    preview_id: str = Field(min_length=1, max_length=64)
+    row_tokens: list[str] = Field(min_length=1, max_length=2000)
 
 
 class ZKDiscoveryConfigRequest(BaseModel):
@@ -202,14 +238,26 @@ def _store_session(results: list[dict], owner: str) -> tuple[str, list[dict]]:
     is_mock = bool(results and results[0].get("is_mock"))
     for result in results:
         item_token = uuid.uuid4().hex
-        raw_items[item_token] = dict(result)
-        visible = {key: value for key, value in result.items() if key != "password"}
+        # setrun 的 user/password 都是 ZK 发现内部数据，不能当作业务连接凭据
+        # 进入浏览器或继续留在发现会话中。导入账号只接受操作者本次输入。
+        raw = {key: value for key, value in result.items() if key not in {"password", "user", "database"}}
+        raw_items[item_token] = raw
+        visible = dict(raw)
+        set_ids = sorted({str(value).strip() for value in (visible.get("set_ids") or []) if str(value).strip()})
+        if not set_ids and visible.get("instance_kind") == "noshard" and visible.get("instance_id"):
+            set_ids = [str(visible["instance_id"])]
+        visible["set_ids"] = set_ids
+        visible["proxy_count"] = len([value for value in str(visible.get("proxy_list") or "").split(";") if value.strip()])
+        visible["primary_proxy"] = f"{visible.get('host', '')}:{visible.get('port', '')}"
         visible["item_token"] = item_token
         visible_items.append(visible)
     with _sessions_lock:
         expired = [key for key, item in _sessions.items() if item["expires_at"] <= now]
         for key in expired:
             _sessions.pop(key, None)
+        expired_previews = [key for key, item in _previews.items() if item["expires_at"] <= now]
+        for key in expired_previews:
+            _previews.pop(key, None)
         _sessions[discovery_id] = {
             "owner": owner,
             "expires_at": now + _SESSION_TTL_SECONDS,
@@ -234,6 +282,76 @@ def _load_session_item(discovery_id: str, item_token: str, owner: str) -> dict:
         if not item:
             raise HTTPException(status_code=404, detail="发现记录不存在")
         return dict(item)
+
+
+def _load_session_items(discovery_id: str, item_tokens: list[str], owner: str) -> list[dict]:
+    """读取并校验本操作者的多个发现项；不允许 Mock 进入预检。"""
+    unique_tokens = list(dict.fromkeys(item_tokens))
+    if len(unique_tokens) != len(item_tokens):
+        raise HTTPException(status_code=422, detail="发现记录不可重复选择")
+    now = time.monotonic()
+    with _sessions_lock:
+        session = _sessions.get(discovery_id)
+        if not session or session["expires_at"] <= now:
+            _sessions.pop(discovery_id, None)
+            raise HTTPException(status_code=410, detail="发现会话已过期，请重新扫描")
+        if session["owner"] != owner:
+            raise HTTPException(status_code=403, detail="无权使用其他操作者的发现会话")
+        if session["is_mock"]:
+            raise HTTPException(status_code=409, detail="Mock 发现结果禁止生成导入预览")
+        items = []
+        for token in unique_tokens:
+            item = session["items"].get(token)
+            if not item:
+                raise HTTPException(status_code=404, detail="发现记录不存在")
+            items.append(dict(item))
+        return items
+
+
+def _store_preview(discovery_id: str, owner: str, rows: list[dict], business: ImportCredentials,
+                   monitor: MonitorCredentials) -> tuple[str, list[dict]]:
+    """把凭据留在服务端短会话，返回仅含脱敏候选项的预览。"""
+    now = time.monotonic()
+    preview_id = uuid.uuid4().hex
+    private_rows: dict[str, dict] = {}
+    visible_rows: list[dict] = []
+    for row in rows:
+        row_token = uuid.uuid4().hex
+        private_rows[row_token] = dict(row)
+        visible = dict(row)
+        visible["row_token"] = row_token
+        visible_rows.append(visible)
+    with _sessions_lock:
+        _previews[preview_id] = {
+            "owner": owner,
+            "discovery_id": discovery_id,
+            "expires_at": now + _PREVIEW_TTL_SECONDS,
+            "rows": private_rows,
+            "business": business,
+            "monitor": monitor,
+        }
+    return preview_id, visible_rows
+
+
+def _load_preview(body: ZKImportCommitRequest, owner: str) -> tuple[dict, list[dict]]:
+    now = time.monotonic()
+    selected_tokens = list(dict.fromkeys(body.row_tokens))
+    if len(selected_tokens) != len(body.row_tokens):
+        raise HTTPException(status_code=422, detail="导入候选项不可重复选择")
+    with _sessions_lock:
+        preview = _previews.get(body.preview_id)
+        if not preview or preview["expires_at"] <= now:
+            _previews.pop(body.preview_id, None)
+            raise HTTPException(status_code=410, detail="导入预览已过期，请重新生成")
+        if preview["owner"] != owner or preview["discovery_id"] != body.discovery_id:
+            raise HTTPException(status_code=403, detail="无权使用该导入预览")
+        selected = []
+        for token in selected_tokens:
+            row = preview["rows"].get(token)
+            if not row:
+                raise HTTPException(status_code=404, detail="导入候选项不存在")
+            selected.append(dict(row))
+        return preview, selected
 
 
 @router.post("", response_model=ZKDiscoverResponse)
@@ -285,14 +403,94 @@ def discover_instances(request: Request):
         raise HTTPException(status_code=500, detail="ZK 发现后的实例形态同步失败") from exc
 
 
-@router.post("/register")
-def register_instance(body: ZKRegisterRequest, request: Request):
-    """从服务端短时发现会话导入一个真实实例，浏览器不传递连接密码。"""
-    inst = _load_session_item(body.discovery_id, body.item_token, _operator(request))
+@router.post("/import-preview")
+def create_import_preview(body: ZKImportPreviewRequest, request: Request):
+    """使用操作者本次输入的业务/MonitorDB 凭据生成只读导入预览。"""
+    owner = _operator(request)
+    instances = _load_session_items(body.discovery_id, body.item_tokens, owner)
+    business = ImportCredentials(body.business.username.strip(), body.business.password)
+    monitor = MonitorCredentials(
+        body.monitor.host.strip(), body.monitor.port, body.monitor.username.strip(),
+        body.monitor.password, body.monitor.database.strip(),
+    )
+    logger.info("ZK_IMPORT_PREVIEW_START operator=%s selected_instances=%s", owner, len(instances))
     try:
-        conn_id = zk_discovery_service.register_discovered(body.connection_id, inst)
-        synced = zk_discovery_service.sync_instance_kinds([inst])
-        return {"status": "success", "connection_id": conn_id, "kind_synced": synced > 0}
+        rows = zk_connection_import_service.build_preview(instances, business, monitor)
     except Exception as exc:
-        logger.exception("ZK discovered instance registration failed")
-        raise HTTPException(status_code=500, detail="ZK 发现实例导入失败") from exc
+        # 服务级异常不将数据库驱动文本返给浏览器，避免泄漏连接上下文。
+        logger.exception("ZK_IMPORT_PREVIEW_ABORTED operator=%s error_type=%s", owner, type(exc).__name__)
+        raise HTTPException(status_code=500, detail="生成 ZK 导入预览失败") from exc
+    preview_id, visible_rows = _store_preview(body.discovery_id, owner, rows, business, monitor)
+    summary = {
+        "selected_instances": len(instances),
+        "ready": sum(row.get("status") == "ready" for row in visible_rows),
+        "conflict": sum(row.get("status") == "conflict" for row in visible_rows),
+        "error": sum(row.get("status") == "error" for row in visible_rows),
+    }
+    logger.info("ZK_IMPORT_PREVIEW_COMPLETED operator=%s preview=%s ready=%s conflict=%s error=%s",
+                owner, preview_id, summary["ready"], summary["conflict"], summary["error"])
+    return {
+        "preview_id": preview_id,
+        "expires_in_seconds": _PREVIEW_TTL_SECONDS,
+        "summary": summary,
+        "rows": visible_rows,
+    }
+
+
+@router.post("/import-commit")
+def commit_import_preview(body: ZKImportCommitRequest, request: Request):
+    """一次性提交已审核的候选连接，失败时不产生部分连接。"""
+    owner = _operator(request)
+    preview, selected = _load_preview(body, owner)
+    try:
+        result = zk_connection_import_service.commit(
+            selected, preview["business"], preview["monitor"], owner, body.discovery_id)
+    except ZKImportCommitError as exc:
+        status = 409 if exc.code in {"IMPORT_CONFLICT", "ROW_NOT_READY", "NO_READY_ROWS"} else 500
+        logger.warning("ZK_IMPORT_COMMIT_ABORTED operator=%s code=%s", owner, exc.code)
+        raise HTTPException(status_code=status, detail=exc.detail) from exc
+    finally:
+        # 无论成功还是失败都销毁凭据和一次性预览，避免重放；失败可重新预检。
+        with _sessions_lock:
+            _previews.pop(body.preview_id, None)
+    return {
+        "status": "success",
+        "batch_id": result["batch_id"],
+        "created_count": len(result["created"]),
+        "connections": result["created"],
+    }
+
+
+@router.get("/import-batches/{batch_id}")
+def get_import_batch(batch_id: str, request: Request):
+    """查询非敏感的标准化导入审计结果。"""
+    from backend.services.database import _get_connection, ensure_db
+
+    ensure_db()
+    conn = _get_connection()
+    try:
+        batch = conn.execute(
+            "SELECT id, discovery_id, operator_username, selected_instance_count, candidate_count, "
+            "created_count, skipped_count, failed_count, status, failure_summary, created_at, completed_at "
+            "FROM zk_discovery_import_batches WHERE id=?", (batch_id,)
+        ).fetchone()
+        if not batch:
+            raise HTTPException(status_code=404, detail="ZK 导入批次不存在")
+        # 仅管理员或批次创建者可读取审计明细。
+        if getattr(request.state, "role", "") != "admin" and batch.get("operator_username") != _operator(request):
+            raise HTTPException(status_code=403, detail="无权查看该 ZK 导入批次")
+        items = conn.execute(
+            "SELECT source_instance_id, instance_kind, instance_type, primary_proxy_host, primary_proxy_port, "
+            "set_list, resolved_instance_name, database_name, generated_connection_name, connection_id, "
+            "result_status, failure_code, created_at FROM zk_discovery_import_items WHERE batch_id=? ORDER BY id",
+            (batch_id,),
+        ).fetchall()
+        return {"batch": dict(batch), "items": [dict(item) for item in items]}
+    finally:
+        conn.close()
+
+
+@router.post("/register", status_code=410)
+def register_instance(_body: ZKRegisterRequest):
+    """禁止旧的直写导入路径，避免写入 ALL 库或默认错误类型。"""
+    raise HTTPException(status_code=410, detail="旧 ZK 直接导入已废弃，请使用导入预览后确认提交")

@@ -1162,7 +1162,7 @@
                 </el-collapse-item>
               </el-collapse>
               <el-form-item label="实例类型" required><el-radio-group v-model="connForm.is_distributed"><el-radio :value="true">分布式实例</el-radio><el-radio :value="false">集中式实例</el-radio></el-radio-group><div style="font-size:12px;color:#94a3b8;margin-top:4px">分布式与集中式实例的审核规则不同，请根据实际情况选择</div></el-form-item>
-              <el-form-item v-if="connForm.is_distributed" label="SET列表"><el-input v-model="connForm.set_list" type="textarea" :rows="2" placeholder="分布式实例慢SQL扫描用，从赤兔获取，逗号分隔，如 set_1772437478_1,set_1772437504_3"></el-input><div style="font-size:12px;color:#94a3b8;margin-top:4px">TDSQL Proxy 查 performance_schema 会随机路由到单个 SET；填写全部 SET 后，慢SQL扫描会逐 SET 查询并合并。留空则只反映随机一个 SET。</div></el-form-item>
+              <el-form-item label="SET列表"><el-input v-model="connForm.set_list" type="textarea" :rows="2" placeholder="从 ZK/赤兔获取，逗号分隔；集中式为自身一个 SET"></el-input><div style="font-size:12px;color:#94a3b8;margin-top:4px">ZK 标准化导入会自动写入完整 SET 列表。分布式实例填写全部 SET 后，慢SQL扫描会逐 SET 查询并合并；集中式保留自身一个 SET 供来源追溯。</div></el-form-item>
               <!-- V1.4：质量门禁（绑定实例）。阈值修改是治理动作，非 admin 只读 -->
               <el-divider content-position="left">质量门禁</el-divider>
               <el-form-item label="ERROR 上限">
@@ -2426,18 +2426,61 @@
     
     <el-table :data="zkDiscovered" size="small" border v-loading="zkScanning" style="margin-top:12px" @selection-change="handleZkSelection">
       <el-table-column type="selection" width="55"></el-table-column>
-      <el-table-column prop="service_name" label="实例名称"></el-table-column>
-      <el-table-column label="连接地址"><template #default="{row}">{{row.host}}:{{row.port}}</template></el-table-column>
-      <el-table-column prop="user" label="用户名" width="120"></el-table-column>
+      <el-table-column prop="instance_id" label="实例 ID" min-width="190"></el-table-column>
+      <el-table-column prop="primary_proxy" label="主 Proxy" min-width="165"></el-table-column>
       <el-table-column label="实例形态" width="100"><template #default="{row}"><el-tag v-if="row.instance_type==='distributed'" size="small" type="warning">分布式</el-tag><el-tag v-else-if="row.instance_type==='centralized'" size="small" type="info">集中式</el-tag><span v-else style="color:#94a3b8">未知</span></template></el-table-column>
+      <el-table-column label="SET 列表" min-width="150"><template #default="{row}"><el-tooltip :content="(row.set_ids||[]).join(',')" placement="top"><span>{{(row.set_ids||[]).length}} 个 SET</span></el-tooltip></template></el-table-column>
+      <el-table-column prop="proxy_count" label="Proxy数" width="82"></el-table-column>
       <el-table-column prop="status_text" label="状态" width="100"><template #default="{row}"><el-tag size="small" :type="row.status_code==='0'?'success':'danger'">{{row.status_text}}</el-tag></template></el-table-column>
     </el-table>
     
     <template #footer>
       <span class="dialog-footer">
         <el-button size="small" @click="zkDialogVisible = false">取消</el-button>
-        <el-button size="small" type="primary" :disabled="zkSelected.length===0" :loading="zkRegistering" @click="registerZkInstances">导入已选</el-button>
+        <el-button size="small" type="primary" :disabled="zkSelected.length===0" @click="openZkImport">配置导入并生成预览</el-button>
       </span>
+    </template>
+  </el-dialog>
+
+  <!-- v1.6.0.1：ZK 标准化导入。业务和 MonitorDB 凭据只用于本次预检/提交。 -->
+  <el-dialog v-model="zkImportDialogVisible" title="ZK 实例标准化导入" width="1080px" :close-on-click-modal="false" append-to-body>
+    <el-alert type="info" :closable="false" style="margin-bottom:14px"
+      title="系统会从 MonitorDB 解析实例名称，并使用业务账号经发现的 Proxy 枚举业务库；每个业务库生成一条独立连接。账号密码不会在页面或预览中回显。"></el-alert>
+    <el-form label-width="130px" size="small">
+      <el-row :gutter="16">
+        <el-col :span="12"><el-form-item label="业务用户名" required><el-input v-model="zkImportForm.business_username" autocomplete="off"></el-input></el-form-item></el-col>
+        <el-col :span="12"><el-form-item label="业务密码" required><el-input v-model="zkImportForm.business_password" type="password" show-password autocomplete="new-password"></el-input></el-form-item></el-col>
+      </el-row>
+      <el-divider content-position="left">MonitorDB 监控配置（写入每一条连接）</el-divider>
+      <el-row :gutter="16">
+        <el-col :span="12"><el-form-item label="监控主机" required><el-input v-model="zkImportForm.monitor_host" placeholder="由本集群实际配置决定"></el-input></el-form-item></el-col>
+        <el-col :span="12"><el-form-item label="监控端口" required><el-input-number v-model="zkImportForm.monitor_port" :min="1" :max="65535" controls-position="right" style="width:100%"></el-input-number></el-form-item></el-col>
+        <el-col :span="12"><el-form-item label="监控用户名" required><el-input v-model="zkImportForm.monitor_username" autocomplete="off"></el-input></el-form-item></el-col>
+        <el-col :span="12"><el-form-item label="监控密码" required><el-input v-model="zkImportForm.monitor_password" type="password" show-password autocomplete="new-password"></el-input></el-form-item></el-col>
+        <el-col :span="12"><el-form-item label="监控默认库" required><el-input v-model="zkImportForm.monitor_database" placeholder="由本集群实际配置决定"></el-input></el-form-item></el-col>
+      </el-row>
+      <el-form-item>
+        <el-button type="primary" :loading="zkImportPreparing" @click="runZkImportPreview">生成导入预览</el-button>
+        <span class="hint" style="margin-left:10px">实例形态和 SET 列表直接取自 ZK，不能在此修改。</span>
+      </el-form-item>
+    </el-form>
+    <div v-if="zkImportPreviewId" style="margin-top:12px">
+      <el-alert :closable="false" :type="zkImportSummary.error||zkImportSummary.conflict?'warning':'success'"
+        :title="`已选 ${zkImportSummary.selected_instances||0} 个实例；可创建 ${zkImportSummary.ready||0} 条，冲突 ${zkImportSummary.conflict||0} 条，失败 ${zkImportSummary.error||0} 条。`" style="margin-bottom:10px"></el-alert>
+      <el-table ref="zkImportTableRef" :data="zkImportRows" size="small" border max-height="360" @selection-change="handleZkImportSelection">
+        <el-table-column type="selection" width="48" :selectable="row=>row.status==='ready'"></el-table-column>
+        <el-table-column prop="source_instance_id" label="实例 ID" min-width="160"></el-table-column>
+        <el-table-column prop="resolved_instance_name" label="实例名称" min-width="170"></el-table-column>
+        <el-table-column prop="generated_connection_name" label="生成连接名称" min-width="250"></el-table-column>
+        <el-table-column prop="primary_proxy" label="主 Proxy" min-width="145"></el-table-column>
+        <el-table-column prop="database" label="业务库" min-width="110"></el-table-column>
+        <el-table-column label="形态 / SET" min-width="155"><template #default="{row}">{{row.instance_type==='distributed'?'分布式':'集中式'}} / {{(row.set_ids||[]).join(',')}}</template></el-table-column>
+        <el-table-column label="状态" min-width="170"><template #default="{row}"><el-tag v-if="row.status==='ready'" type="success" size="small">可创建</el-tag><el-tag v-else-if="row.status==='conflict'" type="warning" size="small">已存在</el-tag><el-tooltip v-else :content="row.failure_detail||'预检失败'"><el-tag type="danger" size="small">{{row.failure_code||'失败'}}</el-tag></el-tooltip></template></el-table-column>
+      </el-table>
+    </div>
+    <template #footer>
+      <el-button @click="zkImportDialogVisible=false">取消</el-button>
+      <el-button type="primary" :disabled="!zkImportPreviewId||zkImportSelected.length===0" :loading="zkImportCommitting" @click="commitZkImport">创建已选连接</el-button>
     </template>
   </el-dialog>
 
@@ -2470,8 +2513,9 @@
             <el-radio value="random">随机 Proxy</el-radio>
           </el-radio-group>
         </el-form-item>
-        <el-form-item label="默认业务库">
-          <el-input v-model="zkConfigForm.default_database" placeholder="ALL"></el-input>
+        <el-form-item label="兼容默认库">
+          <el-input v-model="zkConfigForm.default_database" placeholder="仅兼容旧 shell 发现；不参与标准化导入"></el-input>
+          <div class="hint">标准化导入会通过业务账号执行 SHOW DATABASES，一库一连接；不会使用此值创建连接。</div>
         </el-form-item>
         <el-form-item label="ZK 认证用户名" required>
           <el-input v-model="zkConfigForm.auth_username" autocomplete="off"></el-input>
@@ -2600,6 +2644,6 @@
   </el-dialog>
 </div>
 <!-- 版本参数确保页面结构与应用逻辑同步更新，避免浏览器沿用旧版 app.js。 -->
-<script src="/static/js/app.js?v=20260803.2"></script>
+<script src="/static/js/app.js?v=20260803.3"></script>
 </body>
 </html>

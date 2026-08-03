@@ -14,8 +14,8 @@
 # 启用 --with-status 时输出 8 列 (附加状态信息):
 #   service_name,host,port,user,password,database,status_code,status_text
 #
-# 启用 --with-type 时在末尾再追加 3 列 (V1.5.1，实例形态权威依据):
-#   ...,instance_kind,instance_id,proxy_list
+# 启用 --with-type 时在末尾再追加 4 列 (V1.6.0.1，实例形态与完整 SET 拓扑):
+#   ...,instance_kind,instance_id,proxy_list,set_list
 #   instance_kind: noshard=集中式 / groupshard=分布式
 #   proxy_list:    该实例全部网关 host:port，';' 分隔
 #
@@ -392,8 +392,9 @@ _noshard_set_ids=$(echo "${_noshard_list_raw}" \
     | sed 's/^set@//' \
     | sort -u)
 
-# 第三步: 遍历每个 group, 列出其 sets 节点取第 1 个 set 作代表
-_group_repr_set=""   # 每行: "group_id|repr_set_id"
+# 第三步: 遍历每个 group, 列出其 sets 节点。第一个 SET 仅用于读取 setrun，
+# 但必须将所有 SET 输出给产品的标准化导入和分布式慢 SQL 扫描。
+_group_repr_set=""   # 每行: "group_id|repr_set_id|all_set_ids(;分隔)"
 if [ -n "${_group_ids}" ]; then
     _ls_cmds=""
     while IFS= read -r gid; do
@@ -430,10 +431,9 @@ while i < len(lines):
                 k += 1
             if k < len(lines):
                 arr_line = lines[k]
-                # 该 group 下可能有多个 set (分布式分片), 取第一个作代表
-                set_match = re.search(r"set@([A-Za-z0-9_]+)", arr_line)
-                if set_match:
-                    pairs.setdefault(gid, set_match.group(1))
+                set_ids = sorted(set(re.findall(r"set@([A-Za-z0-9_]+)", arr_line)))
+                if set_ids:
+                    pairs.setdefault(gid, set_ids)
         i = j
     else:
         i += 1
@@ -443,20 +443,20 @@ while i < len(lines):
 if not pairs:
     array_sets = []
     for line in lines:
-        match = re.search(r"set@([A-Za-z0-9_]+)", line)
-        if match:
-            array_sets.append(match.group(1))
-    for gid, set_id in zip(group_ids, array_sets):
-        pairs.setdefault(gid, set_id)
+        set_ids = sorted(set(re.findall(r"set@([A-Za-z0-9_]+)", line)))
+        if set_ids:
+            array_sets.append(set_ids)
+    for gid, set_ids in zip(group_ids, array_sets):
+        pairs.setdefault(gid, set_ids)
 
 for gid in group_ids:
     if gid in pairs:
-        print(f"{gid}|{pairs[gid]}")
+        print(f"{gid}|{pairs[gid][0]}|{';'.join(pairs[gid])}")
 PYINNER
 )
 fi
 
-# 汇总: 形成 (kind, instance_id, parent_path, set_id) 元组列表
+# 汇总: 形成 (kind, instance_id, parent_path, representative_set_id, set_list) 元组列表
 # kind: "noshard" 或 "groupshard"
 # parent_path: ZK 上 setrun 节点的父路径 (用于 get 命令)
 # instance_id: 对外展示的实例标识 (noshard 直接 set_id；groupshard 用 group_id)
@@ -465,7 +465,7 @@ trap 'rm -f "${_inventory_records}"' EXIT
 
 while IFS= read -r sid; do
     [ -z "${sid}" ] && continue
-    echo "noshard|${sid}|${ZK_ROOT}/sets/set@${sid}|${sid}" >> "${_inventory_records}"
+    echo "noshard|${sid}|${ZK_ROOT}/sets/set@${sid}|${sid}|${sid}" >> "${_inventory_records}"
 done <<EOF
 ${_noshard_set_ids}
 EOF
@@ -473,8 +473,10 @@ EOF
 while IFS= read -r entry; do
     [ -z "${entry}" ] && continue
     gid="${entry%|*}"
-    repr_sid="${entry#*|}"
-    echo "groupshard|${gid}|${ZK_ROOT}/${gid}/sets/set@${repr_sid}|${repr_sid}" >> "${_inventory_records}"
+    _tail="${entry#*|}"
+    repr_sid="${_tail%%|*}"
+    all_set_ids="${_tail#*|}"
+    echo "groupshard|${gid}|${ZK_ROOT}/${gid}/sets/set@${repr_sid}|${repr_sid}|${all_set_ids}" >> "${_inventory_records}"
 done <<EOF
 ${_group_repr_set}
 EOF
@@ -494,7 +496,7 @@ log "共发现 ${_total_inst} 个实例 (noshard ${_ns_cnt:-0} + groupshard ${_g
 # ============================================================================
 
 _zk_get_cmds=""
-while IFS='|' read -r kind iid parent set_id; do
+while IFS='|' read -r kind iid parent set_id _set_list; do
     [ -z "${set_id}" ] && continue
     _zk_get_cmds+="get ${parent}/setrun@${set_id}"$'\n'
 done < "${_inventory_records}"
@@ -764,7 +766,7 @@ if INST_NAMES_FILE and os.path.exists(INST_NAMES_FILE):
                     inst_name_map[iid] = name
 
 # ──────────────────────────────────────────────────────────────────────────
-# 读 inventory_records (kind|instance_id|parent|set_id) 并构造 CSV 行
+# 读 inventory_records (kind|instance_id|parent|representative_set_id|set_list) 并构造 CSV 行
 rows = []
 skipped_status = 0
 skipped_no_proxy = 0
@@ -776,9 +778,9 @@ with open(INVENTORY_FILE, "r", encoding="utf-8") as f:
         if not line:
             continue
         parts = line.split("|")
-        if len(parts) != 4:
+        if len(parts) != 5:
             continue
-        kind, instance_id, _parent, set_id = parts
+        kind, instance_id, _parent, set_id, set_list = parts
         setrun = setrun_map.get(set_id)
         if not setrun:
             skipped_no_setrun += 1
@@ -844,7 +846,7 @@ with open(INVENTORY_FILE, "r", encoding="utf-8") as f:
         if WITH_TYPE:
             _endpoints = sorted(set(n.rpartition("_")[0] + ":" + n.rpartition("_")[2]
                                     for n in proxy_names))
-            row += [kind, instance_id, ";".join(_endpoints)]
+            row += [kind, instance_id, ";".join(_endpoints), set_list]
 
         rows.append(row)
 
@@ -869,7 +871,7 @@ def emit_rows(fp):
     else:
         header = "# service_name,host,port,user,password,database"
     if WITH_TYPE:
-        header += ",instance_kind,instance_id,proxy_list"
+        header += ",instance_kind,instance_id,proxy_list,set_list"
     fp.write(header + "\n")
     fp.write("# 自动生成于: " + os.popen("date '+%Y-%m-%d %H:%M:%S'").read())
     fp.write("# 来源: tdsql_inventory.sh (ZK 自动发现)\n")
