@@ -263,7 +263,7 @@ sys
 
 不按前缀/包含关系过滤，避免误删业务库。剩余数据库按字典序排序。若：
 
-* 所有 Proxy 都不能连接：标记 `BUSINESS_CONNECT_FAILED`；
+* 任一在册 Proxy 无法以业务账号完成枚举：标记 `BUSINESS_PROXY_INCOMPLETE`（从严口径：部分 Proxy 目录不可见时静默继续会产出"看起来完整"的错误连接，故一票否决）；
 * Proxy 返回的业务库集合不一致：标记 `DATABASE_LIST_INCONSISTENT`；
 * 枚举成功但业务库为空：标记 `NO_BUSINESS_DATABASE`；
 
@@ -442,6 +442,12 @@ CREATE TABLE zk_discovery_import_items (
 * 所有项均无冲突：一次性插入连接和批次/明细审计，整体提交；
 * 数据库异常：整体回滚，批次可写入失败摘要但不得留下部分连接。
 
+**失败留痕（v1.6.0.1 修复 P4 追加）**：上述冲突/异常导致回滚时，必须在**独立短事务**中
+另行登记一条 `status='failed'` 的批次记录，`failure_summary` 仅含错误码、选中数量与实例 ID
+（不含口令/密文），`created_count=0`；`candidate_count` 统一取预览候选行总数（含冲突/失败行），
+与 `created_count` 配合形成"预览全量 vs 实际创建"的对账关系。否则失败导入零审计痕迹，
+与合规可追溯目标相悖。对应自动化用例见 `tests/test_zk_import_commit.py`。
+
 若未来需要“用 ZK 元数据更新已有连接”，应设计独立、带显式确认和字段级 diff 的功能，不与首次导入混用。
 
 ## 10. 服务端实现模块与调用顺序
@@ -487,7 +493,7 @@ scan -> discovery session（10 分钟、属主绑定）
 | `NO_AVAILABLE_PROXY` | 未发现可用 Proxy | 检查运行状态和地址映射 |
 | `MONITOR_CONNECT_FAILED` | 无法连接 MonitorDB | 核对本次输入的监控主机、端口、账号、库及网络 |
 | `INSTANCE_NAME_UNRESOLVED` | MonitorDB 未解析到实例名称，不能生成规范连接名 | 先核查赤兔/MonitorDB 的实例元数据字段 |
-| `BUSINESS_CONNECT_FAILED` | 无法以业务账号连接发现的 Proxy | 核对业务账号、密码、授权及网络 |
+| `BUSINESS_PROXY_INCOMPLETE` | 任一发现在册 Proxy 无法以业务账号完成 `SHOW DATABASES` 枚举，整实例预检失败 | 核对业务账号、密码、授权及每个 Proxy 的网络 |
 | `DATABASE_LIST_INCONSISTENT` | 多个 Proxy 返回的业务库列表不一致 | 排查实例同步/权限/Proxy 状态后重试 |
 | `NO_BUSINESS_DATABASE` | 未发现可导入的业务库 | 核查业务账号可见库和系统库过滤结果 |
 | `EXISTING_CONNECTION` | 同地址、端口、库的连接已存在 | 不覆盖；改用既有连接或单独处理 |
@@ -509,9 +515,9 @@ scan -> discovery session（10 分钟、属主绑定）
 | ZI-07 | 系统库过滤 | 仅排除精确系统库及本次 MonitorDB 默认库 |
 | ZI-08 | 类型/SET 持久化 | 集中/分布式的 `is_distributed`、`zk_instance_*`、完整 `set_list` 正确 |
 | ZI-09 | MonitorDB 持久化 | 每条连接均保存本次输入的监控参数，密码仅加密保存 |
-| ZI-10 | 既有连接冲突 | 预览显示冲突；提交不覆盖旧连接 |
-| ZI-11 | 原子性 | 一项冲突或数据库异常时，本批选中项零连接写入 |
-| ZI-12 | 会话安全 | 他人、过期或已使用的 preview token 均不能提交 |
+| ZI-10 | 既有连接冲突 | 预览显示冲突；提交不覆盖旧连接（自动化：`tests/test_zk_import_commit.py`） |
+| ZI-11 | 原子性 | 一项冲突或数据库异常时，本批选中项零连接写入；失败批次独立留痕（自动化同上） |
+| ZI-12 | 会话安全 | 他人、过期或已使用的 preview token 均不能提交（自动化同上） |
 | ZI-13 | 前端组件 | 扫描不显示 ZK 用户；导入必须先配置再预览；不可提交行禁用 |
 
 ### 13.2 内网集成/UAT 用例
@@ -528,7 +534,12 @@ scan -> discovery session（10 分钟、属主绑定）
 8. 分别选择一个集中式 `set_*` 和一个有多个库的分布式 `group_*` 复测；后者应创建与业务库数量相同的连接条数。
 9. 断开一个测试 ZK 节点或使用错误配置复测失败路径，必须清晰报错而非返回假数据。
 
-准出条件：上述自动化测试全部通过；UAT 至少完成一个集中式和一个分布式真实实例的“扫描—预览—导入—测试连接”闭环；不存在密码回显、错误类型、`ALL` 库、SET 截断、静默覆盖或部分提交。
+准出条件：上述自动化测试全部通过；UAT 至少完成一个集中式和一个分布式真实实例的"扫描—预览—导入—测试连接"闭环；不存在密码回显、错误类型、`ALL` 库、SET 截断、静默覆盖或部分提交。
+
+> **v1.6.0.1 修复批复测注记**：独立复测（`REPORT-v1.6.0.1-ZK标准化导入完整测试报告.md`）
+> 确认 ZI-10/ZI-11/ZI-12 原无自动化用例即出具"准予投产"结论不成立；该空白已由
+> `tests/test_zk_import_commit.py`（9 用例）补齐并实测通过。内网真实集群 UAT 闭环
+> 在复测环境仍无法替代，投产前必须按 §13.2 完成。
 
 ## 14. 实施顺序、回滚与待确认事项
 
