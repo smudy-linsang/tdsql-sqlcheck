@@ -21,6 +21,10 @@ from backend.services.zk_discovery_service import (
     ZKDiscoveryUnavailableError,
     zk_discovery_service,
 )
+from backend.services.zk_discovery_config_service import (
+    ZKDiscoveryConfigError,
+    zk_discovery_config_service,
+)
 
 
 logger = logging.getLogger("tdsql.zk_discovery")
@@ -61,23 +65,42 @@ class ZKRegisterRequest(BaseModel):
     connection_id: str = Field(min_length=1, max_length=128)
 
 
+class ZKDiscoveryConfigRequest(BaseModel):
+    """管理员提交的 ZK 运行配置；认证口令仅写入，绝不回显。"""
+
+    servers: str = Field(min_length=1, max_length=4096)
+    root_path: str = Field("/tdsqlzk", min_length=1, max_length=512)
+    driver: Literal["kazoo", "shell"] = "kazoo"
+    zkcli_path: str = Field("", max_length=1024)
+    proxy_mode: Literal["first", "random"] = "first"
+    default_database: str = Field("ALL", max_length=128)
+    endpoint_map: dict[str, str] = Field(default_factory=dict)
+    auth_username: str = Field(min_length=1, max_length=128)
+    auth_password: str = Field("", max_length=1024)
+
+
 def _operator(request: Request) -> str:
     return getattr(request.state, "username", "anonymous")
+
+
+def _require_admin(request: Request) -> None:
+    if getattr(request.state, "role", "") != "admin":
+        raise HTTPException(status_code=403, detail="仅系统管理员可维护 ZK 发现配置")
 
 
 def _is_enabled(value: str | None) -> bool:
     return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
 
 
-def _read_deployment_config() -> dict:
-    """读取不含浏览器输入的部署配置和本地秘密文件。"""
+def _read_environment_config(require_auth: bool = True) -> dict:
+    """读取兼容旧部署的环境变量配置；数据库尚未配置时作为平滑回退。"""
     force_mock = _is_enabled(os.getenv("ZK_DISCOVERY_FORCE_MOCK"))
     servers = os.getenv("ZK_DISCOVERY_SERVERS", "").strip()
     root = os.getenv("ZK_DISCOVERY_ROOT", "/tdsqlzk").strip()
     zkcli_path = os.getenv("ZK_DISCOVERY_ZKCLI_PATH", "/data/application/zookeeper/bin/zkCli.sh").strip()
     database = os.getenv("ZK_DISCOVERY_DEFAULT_DATABASE", "ALL").strip() or "ALL"
-    proxy_mode = os.getenv("ZK_DISCOVERY_PROXY_MODE", "random").strip() or "random"
-
+    proxy_mode = os.getenv("ZK_DISCOVERY_PROXY_MODE", "first").strip() or "first"
+    driver = os.getenv("ZK_DISCOVERY_DRIVER", "kazoo").strip().lower() or "kazoo"
     map_text = os.getenv("ZK_DISCOVERY_ENDPOINT_MAP", "{}").strip() or "{}"
     try:
         endpoint_map = json.loads(map_text)
@@ -88,37 +111,86 @@ def _read_deployment_config() -> dict:
         for source, target in endpoint_map.items()
     ):
         raise ZKDiscoveryUnavailableError("ZK 地址映射配置格式无效")
-
     if force_mock:
         return {
             "force_mock": True, "servers": servers or "mock.invalid:2181",
-            "auth_user": "", "auth_password": "", "root": root,
+            "auth_user": "", "auth_password": "", "root": root, "driver": driver,
             "zkcli_path": zkcli_path, "default_database": database,
-            "proxy_mode": proxy_mode, "endpoint_map": endpoint_map,
+            "proxy_mode": proxy_mode, "endpoint_map": endpoint_map, "source": "deployment_env",
         }
 
     auth_file_text = os.getenv("ZK_DISCOVERY_AUTH_FILE", "").strip()
-    if not servers:
+    if require_auth and not servers:
         raise ZKDiscoveryUnavailableError("未配置 ZK 服务地址")
-    if not auth_file_text:
+    if require_auth and not auth_file_text:
         raise ZKDiscoveryUnavailableError("未配置 ZK 认证秘密文件")
-    try:
-        auth_file = Path(auth_file_text)
-        raw_auth = json.loads(auth_file.read_text(encoding="utf-8"))
-        auth_user = str(raw_auth["username"]).strip()
-        auth_password = str(raw_auth["password"])
-    except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as exc:
-        raise ZKDiscoveryUnavailableError("ZK 认证秘密文件不可用") from exc
-    if not auth_user or not auth_password:
+    auth_user = ""
+    auth_password = ""
+    if auth_file_text:
+        try:
+            raw_auth = json.loads(Path(auth_file_text).read_text(encoding="utf-8"))
+            auth_user = str(raw_auth["username"]).strip()
+            auth_password = str(raw_auth["password"])
+        except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as exc:
+            if require_auth:
+                raise ZKDiscoveryUnavailableError("ZK 认证秘密文件不可用") from exc
+    if require_auth and (not auth_user or not auth_password):
         raise ZKDiscoveryUnavailableError("ZK 认证秘密文件内容无效")
-
     return {
         "force_mock": False, "servers": servers,
         "auth_user": auth_user, "auth_password": auth_password,
-        "root": root, "zkcli_path": zkcli_path,
+        "root": root, "driver": driver, "zkcli_path": zkcli_path,
         "default_database": database, "proxy_mode": proxy_mode,
-        "endpoint_map": endpoint_map,
+        "endpoint_map": endpoint_map, "source": "deployment_env",
     }
+
+
+def _read_deployment_config() -> dict:
+    """优先读取管理员保存的加密配置；不存在时兼容旧环境变量部署。"""
+    # 明确的 Mock 开关只服务开发联调，绝不来自浏览器或数据库配置。
+    if _is_enabled(os.getenv("ZK_DISCOVERY_FORCE_MOCK")):
+        return _read_environment_config(require_auth=False)
+    try:
+        database_config = zk_discovery_config_service.load_runtime_config()
+    except ZKDiscoveryConfigError as exc:
+        raise ZKDiscoveryUnavailableError(str(exc)) from exc
+    return database_config or _read_environment_config(require_auth=True)
+
+
+@router.get("/config", summary="读取 ZK 自动发现配置（管理员）")
+def get_discovery_config(request: Request):
+    _require_admin(request)
+    try:
+        database_config = zk_discovery_config_service.public_config()
+        if database_config:
+            return database_config
+        env_config = _read_environment_config(require_auth=False)
+        return {
+            "configured": bool(env_config["servers"] and env_config["auth_user"] and env_config["auth_password"]),
+            "source": "deployment_env" if env_config["servers"] else "unconfigured",
+            "servers": env_config["servers"],
+            "root_path": env_config["root"],
+            "driver": env_config["driver"],
+            "zkcli_path": env_config["zkcli_path"],
+            "proxy_mode": env_config["proxy_mode"],
+            "default_database": env_config["default_database"],
+            "endpoint_map": env_config["endpoint_map"],
+            "auth_username": env_config["auth_user"],
+            "password_configured": bool(env_config["auth_password"]),
+            "updated_by": "",
+            "updated_at": "",
+        }
+    except (ZKDiscoveryConfigError, ZKDiscoveryUnavailableError) as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@router.put("/config", summary="保存 ZK 自动发现配置（管理员）")
+def save_discovery_config(body: ZKDiscoveryConfigRequest, request: Request):
+    _require_admin(request)
+    try:
+        return zk_discovery_config_service.save(body.model_dump(), _operator(request))
+    except ZKDiscoveryConfigError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 def _store_session(results: list[dict], owner: str) -> tuple[str, list[dict]]:
@@ -178,6 +250,7 @@ def discover_instances(request: Request):
             proxy_mode=config["proxy_mode"],
             default_database=config["default_database"],
             force_mock=config["force_mock"],
+            driver=config["driver"],
         )
         is_mock = bool(results and results[0].get("is_mock"))
         if not is_mock:

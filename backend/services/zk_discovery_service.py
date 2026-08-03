@@ -98,7 +98,8 @@ class ZKDiscoveryService:
         zkcli_path: str = "/data/application/zookeeper/bin/zkCli.sh",
         proxy_mode: str = "random",
         default_database: str = "ALL",
-        force_mock: bool = False
+        force_mock: bool = False,
+        driver: str = "kazoo",
     ) -> list[dict]:
         """
         开始自动发现 TDSQL 实例。
@@ -173,6 +174,7 @@ class ZKDiscoveryService:
                         zkcli_path=zkcli_path,
                         proxy_mode=proxy_mode,
                         default_database=default_database,
+                        driver=driver,
                     )
                 except ZKDiscoveryUnavailableError:
                     logger.warning("ZK candidate failed; trying next candidate: %s", candidate)
@@ -187,9 +189,9 @@ class ZKDiscoveryService:
             raise ZKDiscoveryUnavailableError("ZooKeeper 服务不可达")
 
         # 默认使用 Python 客户端：不依赖目标 TDSQL 节点的 zkCli/Java，也能在
-        # Windows、Linux 和容器中以相同方式建立真实会话。Shell 仅为历史部署
-        # 显式指定 ZK_DISCOVERY_DRIVER=shell 时的兼容回退。
-        driver = os.environ.get("ZK_DISCOVERY_DRIVER", "kazoo").strip().lower()
+        # Windows、Linux 和容器中以相同方式建立真实会话。Shell 仅为历史部署的
+        # 兼容回退；驱动来自经过管理员保存并校验的运行配置。
+        driver = str(driver or "kazoo").strip().lower()
         if driver == "kazoo":
             return self._discover_with_kazoo(
                 zk_server=zk_server,

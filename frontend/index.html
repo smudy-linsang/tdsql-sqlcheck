@@ -1091,6 +1091,7 @@
               <div class="card-head">
                 <div class="page-card-title mb0">实例管理</div>
                 <div style="display:flex; gap:8px">
+                  <el-button v-if="isAdmin" type="warning" size="small" @click="openZkConfig">ZK发现配置</el-button>
                   <el-button type="success" size="small" @click="openZkDiscovery">从 ZK 自动发现</el-button>
                   <el-button type="primary" size="small" @click="openNewConn">+ 新建连接</el-button>
                 </div>
@@ -2415,9 +2416,10 @@
   <!-- G10 ZK 自动发现对话框 -->
   <el-dialog v-model="zkDialogVisible" title="从 ZooKeeper 自动发现实例" width="800px">
     <el-alert type="info" :closable="false" style="margin-bottom:12px"
-      title="ZK 地址、认证、根路径和内外网地址映射由部署端安全配置统一管理。扫描失败将明确提示，不会返回模拟实例。"></el-alert>
+      title="扫描使用管理员已保存的 ZK 配置。扫描失败会明确提示，不会返回模拟实例。"></el-alert>
     <el-form :inline="true" size="small">
       <el-form-item>
+        <el-button v-if="isAdmin" @click="openZkConfig">ZK发现配置</el-button>
         <el-button type="primary" :loading="zkScanning" @click="runZkDiscovery">开始扫描</el-button>
       </el-form-item>
     </el-form>
@@ -2436,6 +2438,69 @@
         <el-button size="small" @click="zkDialogVisible = false">取消</el-button>
         <el-button size="small" type="primary" :disabled="zkSelected.length===0" :loading="zkRegistering" @click="registerZkInstances">导入已选</el-button>
       </span>
+    </template>
+  </el-dialog>
+
+  <!-- V1.6.0.0 ZK 自动发现配置：认证口令仅写入，不回显 -->
+  <el-dialog v-model="zkConfigDialogVisible" title="ZK发现配置" width="880px" :close-on-click-modal="false">
+    <div v-loading="zkConfigLoading">
+      <el-alert type="info" :closable="false" style="margin-bottom:16px"
+        title="配置保存到系统元数据库，认证口令经加密后存储且不会回显；保存后下一次扫描立即使用新配置，无需重启服务。"></el-alert>
+      <el-alert v-if="zkConfigMeta.source==='deployment_env'" type="warning" :closable="false" style="margin-bottom:16px"
+        title="当前正在使用旧部署环境变量配置。保存本页后将切换为数据库加密配置。"></el-alert>
+      <el-form label-width="150px" size="default">
+        <el-form-item label="ZK 服务地址" required>
+          <el-input v-model="zkConfigForm.servers" placeholder="例如：zk1:2118,zk2:2118,zk3:2118"></el-input>
+        </el-form-item>
+        <el-form-item label="ZK 根路径" required>
+          <el-input v-model="zkConfigForm.root_path" placeholder="/tdsqlzk"></el-input>
+        </el-form-item>
+        <el-form-item label="发现驱动" required>
+          <el-radio-group v-model="zkConfigForm.driver">
+            <el-radio value="kazoo">kazoo（推荐，跨平台）</el-radio>
+            <el-radio value="shell">shell（兼容旧 zkCli）</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item v-if="zkConfigForm.driver==='shell'" label="zkCli.sh 路径" required>
+          <el-input v-model="zkConfigForm.zkcli_path" placeholder="/data/application/zookeeper/bin/zkCli.sh"></el-input>
+        </el-form-item>
+        <el-form-item label="Proxy 选择方式">
+          <el-radio-group v-model="zkConfigForm.proxy_mode">
+            <el-radio value="first">第一个可用 Proxy</el-radio>
+            <el-radio value="random">随机 Proxy</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="默认业务库">
+          <el-input v-model="zkConfigForm.default_database" placeholder="ALL"></el-input>
+        </el-form-item>
+        <el-form-item label="ZK 认证用户名" required>
+          <el-input v-model="zkConfigForm.auth_username" autocomplete="off"></el-input>
+        </el-form-item>
+        <el-form-item label="ZK 认证口令" required>
+          <el-input v-model="zkConfigForm.auth_password" type="password" show-password autocomplete="new-password"
+            :placeholder="zkConfigMeta.password_configured?'已配置；留空将保留现有口令':'首次保存必须填写'"></el-input>
+          <div class="hint">口令不会返回浏览器；仅加密保存。{{zkConfigMeta.password_configured?'留空并保存不会清空现有口令。':''}}</div>
+        </el-form-item>
+        <el-form-item label="内外网地址映射">
+          <div style="width:100%">
+            <div v-for="(row,index) in zkEndpointRows" :key="index" style="display:flex;gap:8px;margin-bottom:8px">
+              <el-input v-model="row.source" placeholder="ZK内网主机，例如 10.x.x.x"></el-input>
+              <span style="align-self:center;color:#94a3b8">→</span>
+              <el-input v-model="row.target" placeholder="CheckSQL可连接主机"></el-input>
+              <el-button type="danger" plain @click="removeZkEndpointRow(index)">删除</el-button>
+            </div>
+            <el-button size="small" @click="addZkEndpointRow">+ 添加地址映射</el-button>
+            <div class="hint" style="margin-top:6px">仅映射主机地址，端口保持 ZK 中发现的端口不变。</div>
+          </div>
+        </el-form-item>
+        <el-form-item v-if="zkConfigMeta.updated_at" label="最近保存">
+          <span class="hint">{{zkConfigMeta.updated_at}}{{zkConfigMeta.updated_by?'，操作人：'+zkConfigMeta.updated_by:''}}</span>
+        </el-form-item>
+      </el-form>
+    </div>
+    <template #footer>
+      <el-button @click="zkConfigDialogVisible=false">取消</el-button>
+      <el-button type="primary" :loading="zkConfigSaving" @click="saveZkConfig">保存配置</el-button>
     </template>
   </el-dialog>
 

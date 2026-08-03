@@ -4,11 +4,14 @@ import os
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from backend.api import zk_discovery as zk_api
 from backend.main import app
 from backend.services.database import _get_connection
+from backend.services.security_service import decrypt_password
 from backend.services.zk_discovery_service import zk_discovery_service
 
 
@@ -18,6 +21,23 @@ client = TestClient(app)
 def _clear_sessions():
     with zk_api._sessions_lock:
         zk_api._sessions.clear()
+
+
+def _clear_zk_config():
+    """测试库中的唯一 ZK 配置不得影响环境变量兼容用例。"""
+    conn = _get_connection()
+    try:
+        conn.execute("DELETE FROM zk_discovery_config WHERE config_id = 1")
+        conn.commit()
+    finally:
+        conn.close()
+
+
+@pytest.fixture(autouse=True)
+def _isolated_zk_config():
+    _clear_zk_config()
+    yield
+    _clear_zk_config()
 
 
 def test_zk_discovery_service_mock_is_explicit_and_reserved():
@@ -44,7 +64,6 @@ def test_apply_endpoint_mapping_updates_primary_and_proxy_list():
 
 def test_real_discovery_fails_over_candidates_and_never_places_auth_in_argv(tmp_path, monkeypatch):
     """多节点按成员尝试；认证只经子进程环境传递，不能出现在进程参数中。"""
-    monkeypatch.setenv("ZK_DISCOVERY_DRIVER", "shell")
     fake_zkcli = tmp_path / "zkCli.sh"
     fake_zkcli.write_text("#!/bin/sh\n", encoding="utf-8")
     fake_zkcli.chmod(0o700)
@@ -68,6 +87,7 @@ def test_real_discovery_fails_over_candidates_and_never_places_auth_in_argv(tmp_
         zk_auth_user="reader",
         zk_auth_password=credential,
         zkcli_path=str(fake_zkcli),
+        driver="shell",
     )
     assert len(calls) == 2
     assert calls[1][0][3] == "second.example:2118"
@@ -197,6 +217,97 @@ def test_zk_api_unconfigured_real_discovery_returns_503(monkeypatch):
     resp = client.post("/api/v1/tdsql/discover")
     assert resp.status_code == 503
     assert "Mock" not in resp.text
+
+
+def test_zk_config_api_encrypts_password_redacts_it_and_runtime_prefers_database(monkeypatch):
+    """管理员可配置，口令永不回显；保存后扫描路径即时读取数据库配置。"""
+    monkeypatch.delenv("ZK_DISCOVERY_FORCE_MOCK", raising=False)
+    monkeypatch.setenv("ZK_DISCOVERY_SERVERS", "legacy.invalid:2118")
+    payload = {
+        "servers": "zk-a.example:2118, zk-b.example:2118",
+        "root_path": "/tdsqlzk",
+        "driver": "kazoo",
+        "zkcli_path": "",
+        "proxy_mode": "first",
+        "default_database": "ALL",
+        "endpoint_map": {"10.0.0.1": "198.51.100.10"},
+        "auth_username": "zk_reader",
+        "auth_password": "test-zk-secret",
+    }
+    saved = client.put("/api/v1/tdsql/discover/config", json=payload)
+    assert saved.status_code == 200
+    body = saved.json()
+    assert body["servers"] == "zk-a.example:2118,zk-b.example:2118"
+    assert body["password_configured"] is True
+    assert "auth_password" not in body
+    assert "encrypted" not in body
+
+    public = client.get("/api/v1/tdsql/discover/config")
+    assert public.status_code == 200
+    assert "test-zk-secret" not in public.text
+    assert public.json()["endpoint_map"] == {"10.0.0.1": "198.51.100.10"}
+
+    conn = _get_connection()
+    try:
+        row = dict(conn.execute(
+            "SELECT auth_password_encrypted FROM zk_discovery_config WHERE config_id = 1"
+        ).fetchone())
+    finally:
+        conn.close()
+    assert row["auth_password_encrypted"] != "test-zk-secret"
+    assert decrypt_password(row["auth_password_encrypted"]) == "test-zk-secret"
+
+    runtime = zk_api._read_deployment_config()
+    assert runtime["source"] == "database"
+    assert runtime["servers"] == "zk-a.example:2118,zk-b.example:2118"
+    assert runtime["auth_password"] == "test-zk-secret"
+
+
+def test_zk_config_blank_password_preserves_existing_secret():
+    initial = {
+        "servers": "zk.example:2118", "root_path": "/tdsqlzk", "driver": "kazoo",
+        "zkcli_path": "", "proxy_mode": "first", "default_database": "ALL",
+        "endpoint_map": {}, "auth_username": "reader", "auth_password": "first-secret",
+    }
+    assert client.put("/api/v1/tdsql/discover/config", json=initial).status_code == 200
+    conn = _get_connection()
+    try:
+        before = dict(conn.execute(
+            "SELECT auth_password_encrypted FROM zk_discovery_config WHERE config_id = 1"
+        ).fetchone())["auth_password_encrypted"]
+    finally:
+        conn.close()
+    initial["servers"] = "zk-new.example:2118"
+    initial["auth_password"] = ""
+    updated = client.put("/api/v1/tdsql/discover/config", json=initial)
+    assert updated.status_code == 200
+    conn = _get_connection()
+    try:
+        after = dict(conn.execute(
+            "SELECT auth_password_encrypted FROM zk_discovery_config WHERE config_id = 1"
+        ).fetchone())["auth_password_encrypted"]
+    finally:
+        conn.close()
+    assert after == before
+    assert decrypt_password(after) == "first-secret"
+
+
+def test_zk_config_is_admin_only():
+    request = SimpleNamespace(state=SimpleNamespace(role="dba", username="dba"))
+    with pytest.raises(HTTPException) as exc_info:
+        zk_api.get_discovery_config(request)
+    assert exc_info.value.status_code == 403
+
+
+def test_zk_config_frontend_exposes_admin_entry_and_redacted_password_flow():
+    root = Path(__file__).resolve().parents[1]
+    html = (root / "frontend" / "index.html").read_text(encoding="utf-8")
+    javascript = (root / "frontend" / "static" / "js" / "app.js").read_text(encoding="utf-8")
+    assert 'v-if="isAdmin" type="warning" size="small" @click="openZkConfig">ZK发现配置' in html
+    assert 'v-model="zkConfigForm.auth_password" type="password"' in html
+    assert "/api/v1/tdsql/discover/config" in javascript
+    assert "password_configured" in javascript
+    assert "responseMessage(d,'扫描失败')" in javascript
 
 
 def test_zk_api_mock_is_marked_and_cannot_register(monkeypatch):
