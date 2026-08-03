@@ -8,7 +8,8 @@ import os
 import pytest
 import requests
 
-API_BASE = "http://localhost:8000/api/v1"
+TEST_BASE_URL = os.getenv("TDSQL_TEST_BASE_URL", "http://localhost:8000").rstrip("/")
+API_BASE = f"{TEST_BASE_URL}/api/v1"
 
 # 本模块为"打真实服务"的集成测试，需要一个已启动且可登录的后端。
 # admin 口令随部署环境而异（本环境 Abcd1234，G 环境 Admin@1234），
@@ -164,13 +165,13 @@ class TestFrontendIntegration:
 
     def test_frontend_page_accessible(self):
         """测试前端页面可访问"""
-        resp = requests.get("http://localhost:8000/")
+        resp = requests.get(f"{TEST_BASE_URL}/")
         assert resp.status_code == 200, f"Frontend not accessible: {resp.status_code}"
         assert "text/html" in resp.headers.get("Content-Type", ""), "Not returning HTML"
 
     def test_frontend_contains_rules_code(self):
         """测试前端包含规则页面代码（V3.0后JS在app.js中）"""
-        resp = requests.get("http://localhost:8000/static/js/app.js")
+        resp = requests.get(f"{TEST_BASE_URL}/static/js/app.js")
         assert resp.status_code == 200, "app.js not accessible"
         content = resp.text
         assert "rulesList" in content, "rulesList not found in app.js"
@@ -179,7 +180,7 @@ class TestFrontendIntegration:
 
     def test_frontend_has_rules_css(self):
         """测试前端CSS可访问"""
-        resp = requests.get("http://localhost:8000/static/css/app.css")
+        resp = requests.get(f"{TEST_BASE_URL}/static/css/app.css")
         assert resp.status_code == 200, "app.css not accessible"
 
 

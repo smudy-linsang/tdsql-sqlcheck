@@ -37,6 +37,7 @@
 | 原始慢日志关闭控制、解析、SSH、集成、ZK、RBAC 定向回归 | 6 个测试文件 | **41 passed** |
 | 权限矩阵补充回归 | 原始慢日志权限定义、角色可见菜单、权限 API 与 ZK 回归 | **31 passed** |
 | 全量回归 | `python -m pytest -q` | **1210 passed，28 skipped，0 failed**，耗时 154.65 秒 |
+| 原跳过的真实服务集成 / UAT 回归 | 源码 v1.6.0.1 隔离启动于 `127.0.0.1:8001`，使用一次性专用管理员账号执行 `tests/test_sit_rules.py tests/test_uat_rules.py` | **36 passed，0 skipped，0 failed**，耗时 1.94 秒；其中包含此前因固定 8000 端口及无可用登录态而跳过的 28 项 |
 | Shell 语法 | `bash -n deploy/make_release.sh deploy/preflight_check.sh deploy/verify_deploy.sh` | 通过 |
 | 发行包依赖失败处理 | 缺少 `python3-pip` 的受控场景 | 正确失败，退出码 1；不会再伪造成功包 |
 | x86_64 / cp311 发行包构建 | `deploy/make_release.sh --arch x86_64 --py 311` | 通过 |
@@ -45,6 +46,8 @@
 | 差异质量 | `git diff --check` | 通过 |
 
 全量测试中的 10 条 warning 均为既有技术债：Pydantic 字段名 `schema` 遮蔽提示、TestClient/httpx 弃用提示和 pytest fixture 弃用提示；不影响本版功能，未发现失败或新增告警。
+
+为避免今后再次将真实服务验收误记为“已通过”，两份集成测试均新增仅测试用途的 `TDSQL_TEST_BASE_URL` 参数（默认仍为 `http://localhost:8000`）。该参数可将测试指向隔离服务，不改变产品运行地址或生产部署配置；账号仍只从 `TDSQL_TEST_ADMIN_USER`、`TDSQL_TEST_ADMIN_PASSWORD` 读取。
 
 ## 4. ZK 自动发现检查结论
 

@@ -9,9 +9,10 @@ import pytest
 import requests
 import re
 
-API_BASE = "http://localhost:8000/api/v1"
-FRONTEND_BASE = "http://localhost:8000"
-APP_JS_URL = "http://localhost:8000/static/js/app.js"
+TEST_BASE_URL = os.getenv("TDSQL_TEST_BASE_URL", "http://localhost:8000").rstrip("/")
+API_BASE = f"{TEST_BASE_URL}/api/v1"
+FRONTEND_BASE = TEST_BASE_URL
+APP_JS_URL = f"{TEST_BASE_URL}/static/js/app.js"
 
 # 本模块为"打真实服务"的集成测试，需要一个已启动且可登录的后端。
 # admin 口令随部署环境而异（本环境 Abcd1234，G 环境 Admin@1234），
