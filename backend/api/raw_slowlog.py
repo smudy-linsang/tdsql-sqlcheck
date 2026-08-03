@@ -6,10 +6,11 @@ import html
 import io
 from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
+from backend import config
 from backend.services.raw_slowlog_service import (
     RawSlowLogBusyError,
     RawSlowLogNotFoundError,
@@ -18,7 +19,18 @@ from backend.services.raw_slowlog_service import (
 )
 
 
-router = APIRouter(prefix="/api/v1/raw-slowlogs", tags=["慢SQL治理-原始慢日志"])
+def _require_raw_slowlog_enabled() -> None:
+    """在功能关闭时拒绝全部入口，避免历史配置被意外使用。"""
+    if not config.raw_slowlog_enabled():
+        raise HTTPException(status_code=404, detail="原始慢日志功能当前未启用")
+
+
+router = APIRouter(
+    prefix="/api/v1/raw-slowlogs",
+    tags=["慢SQL治理-原始慢日志"],
+    include_in_schema=False,
+    dependencies=[Depends(_require_raw_slowlog_enabled)],
+)
 
 
 class RawSlowLogNodeRequest(BaseModel):

@@ -267,7 +267,9 @@ const app=createApp({
     const permsMatrixData=ref([]);
     const permsMenuList=ref([]);
     const permsLoading=ref(false);
-    const visibleMenus=ref(new Set(['dashboard','audit-sql','file-audit','rules','slow-tasks','slow-records','slow-raw-log','explain','instances','bigtable','deep-diag','deep-diag-cluster','deep-diag-daily','deep-diag-index','deep-diag-diff','deep-diag-emergency','deep-diag-sqlstats','deep-diag-gateway','deep-diag-ppt','deep-diag-toolkit','projects','rulesets','gate','monitor','inspection','sys-users','sys-retention','sys-auditlog','sys-info','sys-roles','sys-perms']));
+    // V1.6.0.1: 原始慢日志功能整体下线；保留代码仅供后续独立评审后恢复。
+    const rawSlowlogEnabled=false;
+    const visibleMenus=ref(new Set(['dashboard','audit-sql','file-audit','rules','slow-tasks','slow-records','explain','instances','bigtable','deep-diag','deep-diag-cluster','deep-diag-daily','deep-diag-index','deep-diag-diff','deep-diag-emergency','deep-diag-sqlstats','deep-diag-gateway','deep-diag-ppt','deep-diag-toolkit','projects','rulesets','gate','monitor','inspection','sys-users','sys-retention','sys-auditlog','sys-info','sys-roles','sys-perms']));
     // V3.0: 表名中文映射
     const tableNameLabel=(t)=>({slow_queries:'慢SQL记录',audit_history:'审核历史',scan_tasks:'扫描任务',slow_log_events:'原始慢日志事件',slow_log_collection_runs:'原始慢日志运行记录',alerts:'告警记录',operation_logs:'操作日志',gate_audit_logs:'门禁审计日志',fingerprint_stats:'SQL指纹统计'}[t]||t);
     // V3.0: 监控指标中文映射
@@ -302,7 +304,7 @@ const app=createApp({
     const changePassword=async()=>{if(!pwdDialog.new_password){ElementPlus.ElMessage.warning('请输入新口令');return}pwdDialog.loading=true;try{const resp=await apiFetch(`${API_BASE}/api/v1/auth/change-password`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({old_password:pwdDialog.old_password,new_password:pwdDialog.new_password})});const data=await resp.json();if(!resp.ok){ElementPlus.ElMessage.error(data.detail||'修改失败');return}ElementPlus.ElMessage.success('口令修改成功，请重新登录');pwdDialog.visible=false;pwdDialog.forced=false;pwdDialog.old_password='';pwdDialog.new_password='';doLogout()}catch(e){ElementPlus.ElMessage.error('修改失败: '+e.message)}finally{pwdDialog.loading=false}};
     const checkSession=async()=>{try{const resp=await apiFetch(`${API_BASE}/api/v1/auth/me`);if(resp.ok){const u=await resp.json();applyUser(u);if(u.must_change_password){ElementPlus.ElMessage.warning('首次登录请修改口令');pwdDialog.visible=true;pwdDialog.forced=true}return true}}catch(e){}return false};
     const onUserCommand=(cmd)=>{if(cmd==='password'){pwdDialog.visible=true;pwdDialog.forced=false;pwdDialog.old_password='';pwdDialog.new_password=''}else if(cmd==='logout'){doLogout()}};
-    const onMenuSelect=(key)=>{currentPage.value=key};
+    const onMenuSelect=(key)=>{if(key==='slow-raw-log'&&!rawSlowlogEnabled){currentPage.value='slow-tasks';return}currentPage.value=key};
     // P1-04: 切换实例后刷新数据
     const onConnectionSwitch=async(connId)=>{if(!connId)return;localStorage.setItem('tdsql_conn',connId);try{const conn=savedConnections.value.find(c=>c.id===connId);if(conn&&!conn.active){const resp=await apiFetch(`${API_BASE}/api/v1/tdsql/connections/${connId}/connect`,{method:'POST'});if(resp.ok){ElementPlus.ElMessage.success('实例已连接');tdsqlStatus.value={connected:true}}else{const d=await resp.json();ElementPlus.ElMessage.error(d.detail||'连接失败')}}loadAll()}catch(e){ElementPlus.ElMessage.error('切换实例失败: '+e.message)}};
     // P1-03: 项目切换后刷新受影响页面
@@ -1218,9 +1220,9 @@ const app=createApp({
       if(visibleMenus.value.has('rules'))loadRules();
       if(visibleMenus.value.has('slow-tasks'))loadScanTasks();
       if(visibleMenus.value.has('slow-records'))loadSlowList();
-      if(visibleMenus.value.has('slow-raw-log')){loadRawSources();loadRawRuns();loadRawEvents()}
+      if(rawSlowlogEnabled&&visibleMenus.value.has('slow-raw-log')){loadRawSources();loadRawRuns();loadRawEvents()}
       if(visibleMenus.value.has('projects'))loadProjects();
-      const menuOrder=['dashboard','sql-audit','file-audit','schema-extractor-audit','instances','slow-overview','slow-records','slow-tasks','slow-raw-log','bigtable','deep-diag','projects','rulesets','gate','sys-users','sys-roles','sys-perms','sys-auditlog','sys-retention','sys-info'];
+      const menuOrder=['dashboard','sql-audit','file-audit','schema-extractor-audit','instances','slow-overview','slow-records','slow-tasks','bigtable','deep-diag','projects','rulesets','gate','sys-users','sys-roles','sys-perms','sys-auditlog','sys-retention','sys-info'];
       if(!visibleMenus.value.has(currentPage.value)){
         for(const m of menuOrder){
           if(visibleMenus.value.has(m)){currentPage.value=m;break}
@@ -1390,7 +1392,7 @@ const app=createApp({
     };
 
     onMounted(async()=>{onUnauthorized=()=>{authState.token='';authState.user=null};const ok=await checkSession();if(ok&&!pwdDialog.forced)await loadAll()});
-    watch(currentPage,(v)=>{if(v==='dashboard')nextTick(renderTrendChart);if(v==='instances')loadSavedConnections();if(v==='schema-check')onSchemaCheckTabChange(schemaCheckTab.value);if(v==='rules'&&rulesList.value.length===0)loadRules();if(v==='file-audit'&&fileAuditTab.value==='reports')loadFileReports();if(v==='schema-extractor-audit'&&extractedTab.value==='history')loadExtractedReports();if(v==='slow-tasks')onSlowTasksTabChange(slowTasksTab.value);if(v==='bigtable')onBigtableTabChange(bigtableTab.value);if(v==='slow-records')loadSlowList();if(v==='slow-raw-log'){loadRawSources();loadRawRuns();loadRawEvents()};if(v==='sys-users')loadUsers();if(v==='projects')loadProjectsList();if(v==='rulesets')loadRulesets();if(v==='gate'){loadGateStrategies();loadGateRules()};if(v==='monitor'){loadMonitorAlerts();loadMonitorRules()};if(v==='inspection')loadInspectionTasks();if(v==='sys-auditlog')loadAuditLogs();if(v==='sys-retention')loadRetention();if(v==='sys-info')loadSysInfo();if(v==='sys-roles')loadRoles();if(v==='sys-perms')loadPerms();if(v==='deep-diag'){const subtabs=[{perm:'deep-diag-cluster',tab:'cluster'},{perm:'deep-diag-daily',tab:'daily_inspect'},{perm:'deep-diag-index',tab:'index'},{perm:'deep-diag-diff',tab:'diff'},{perm:'deep-diag-emergency',tab:'emergency'},{perm:'deep-diag-sqlstats',tab:'sqlstats'},{perm:'deep-diag-gateway',tab:'gateway_log'},{perm:'deep-diag-ppt',tab:'ppt_report'},{perm:'deep-diag-toolkit',tab:'toolkit'}];for(const t of subtabs){if(visibleMenus.value.has(t.perm)){deepTab.value=t.tab;break}}if(deepTab.value==='gateway_log')loadGatewayReports();if(deepTab.value==='ppt_report')loadPptDashboard();if(deepTab.value==='toolkit')loadToolkitScripts()}});
+    watch(currentPage,(v)=>{if(v==='dashboard')nextTick(renderTrendChart);if(v==='instances')loadSavedConnections();if(v==='schema-check')onSchemaCheckTabChange(schemaCheckTab.value);if(v==='rules'&&rulesList.value.length===0)loadRules();if(v==='file-audit'&&fileAuditTab.value==='reports')loadFileReports();if(v==='schema-extractor-audit'&&extractedTab.value==='history')loadExtractedReports();if(v==='slow-tasks')onSlowTasksTabChange(slowTasksTab.value);if(v==='bigtable')onBigtableTabChange(bigtableTab.value);if(v==='slow-records')loadSlowList();if(v==='slow-raw-log'&&rawSlowlogEnabled){loadRawSources();loadRawRuns();loadRawEvents()};if(v==='sys-users')loadUsers();if(v==='projects')loadProjectsList();if(v==='rulesets')loadRulesets();if(v==='gate'){loadGateStrategies();loadGateRules()};if(v==='monitor'){loadMonitorAlerts();loadMonitorRules()};if(v==='inspection')loadInspectionTasks();if(v==='sys-auditlog')loadAuditLogs();if(v==='sys-retention')loadRetention();if(v==='sys-info')loadSysInfo();if(v==='sys-roles')loadRoles();if(v==='sys-perms')loadPerms();if(v==='deep-diag'){const subtabs=[{perm:'deep-diag-cluster',tab:'cluster'},{perm:'deep-diag-daily',tab:'daily_inspect'},{perm:'deep-diag-index',tab:'index'},{perm:'deep-diag-diff',tab:'diff'},{perm:'deep-diag-emergency',tab:'emergency'},{perm:'deep-diag-sqlstats',tab:'sqlstats'},{perm:'deep-diag-gateway',tab:'gateway_log'},{perm:'deep-diag-ppt',tab:'ppt_report'},{perm:'deep-diag-toolkit',tab:'toolkit'}];for(const t of subtabs){if(visibleMenus.value.has(t.perm)){deepTab.value=t.tab;break}}if(deepTab.value==='gateway_log')loadGatewayReports();if(deepTab.value==='ppt_report')loadPptDashboard();if(deepTab.value==='toolkit')loadToolkitScripts()}});
     watch(slowTasksTab,(v)=>onSlowTasksTabChange(v));
     watch(bigtableTab,(v)=>onBigtableTabChange(v));
     watch(fileAuditTab,(v)=>{if(v==='reports')loadFileReports()});
@@ -1460,6 +1462,7 @@ const app=createApp({
     };
 
     return{currentPage,sidebarCollapsed,theme,toggleTheme,
+      rawSlowlogEnabled,
       cmpState,cmpTableRef,loadSnapshots,cmpQuery,cmpResetFilters,onSnapshotSelect,
       runCompare,exportCompareHtml,saveCompareReport,loadCompareReports,viewSavedCompareReport,downloadSavedCompareReportHtml,deleteSavedCompareReport,cmpFmtChange,cmpReportQuery,cmpReportResetFilters,
       snapshotDetailDialog,filteredSnapshotIssues,openSnapshotDetail,downloadSnapshotHtml,deleteSnapshot,

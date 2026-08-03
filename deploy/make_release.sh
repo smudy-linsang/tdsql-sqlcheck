@@ -12,6 +12,8 @@
 # 版本号从仓库根 VERSION 文件读取，不得再硬编码。
 # 曾硬编码为 1.4.0.1 而产品已到 1.5.2.4，包内 VERSION 被覆盖成旧值，
 # verify_deploy.sh 读该文件与 /health 实报版本比对不上，部署最后一步 exit 1。
+set -euo pipefail
+
 _REL_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VERSION="$(tr -d ' \r\n' < "${_REL_ROOT}/VERSION" 2>/dev/null)"
 [[ -n "${VERSION}" ]] || { echo "错误: 读不到 ${_REL_ROOT}/VERSION，无法确定版本号"; exit 1; }
@@ -54,18 +56,20 @@ echo "[1/5] 复制代码与部署脚本..."
 cp -a "${ROOT}/backend" "${STAGE}/${PKG}/"
 cp -a "${ROOT}/frontend" "${STAGE}/${PKG}/"
 cp -a "${ROOT}/requirements.txt" "${STAGE}/${PKG}/"
-cp -a "${ROOT}/deploy/"*.sh "${ROOT}/deploy/"*.service "${ROOT}/deploy/env.template" \
+for script in "${ROOT}/deploy/"*.sh; do
+  [[ "$(basename "${script}")" == "build_raw_slowlog_exporter.sh" ]] && continue
+  cp -a "${script}" "${STAGE}/${PKG}/deploy/"
+done
+cp -a "${ROOT}/deploy/"*.service "${ROOT}/deploy/env.template" \
       "${ROOT}/deploy/nginx-sqlcheck.conf" "${ROOT}/deploy/README.md" "${STAGE}/${PKG}/deploy/" 2>/dev/null || true
-# 原始慢日志导出器是受限 SSH 协议的另一端；发布包必须携带已构建的同架构二进制及哈希。
-cp -a "${ROOT}/deploy/raw_slowlog_exporter" "${STAGE}/${PKG}/deploy/"
-command -v go >/dev/null 2>&1 || { echo "错误: 构建原始慢日志导出器需要 Go 工具链"; exit 1; }
-RAW_SLOWLOG_EXPORTER_OUT_DIR="${STAGE}/${PKG}/deploy/raw_slowlog_exporter/bin" \
-  bash "${ROOT}/deploy/build_raw_slowlog_exporter.sh" "${EXPORTER_GOARCH}"
-[[ -x "${STAGE}/${PKG}/deploy/raw_slowlog_exporter/bin/raw_slowlog_exporter-linux-${EXPORTER_GOARCH}" ]] \
-  || { echo "错误: 原始慢日志导出器构建产物缺失"; exit 1; }
+# V1.6.0.1: 原始慢日志功能整体下线，发布包不再携带其远端导出器或构建脚本。
 # 文档随包（部署/运维/上线清单）
 mkdir -p "${STAGE}/${PKG}/docs"
-cp ${ROOT}/docs/*.md "${STAGE}/${PKG}/docs/" 2>/dev/null || true
+for doc in "${ROOT}/docs/"*.md; do
+  # V1.6.0.1: 隐藏功能的设计、运行和测试手册不随本版交付包分发。
+  [[ "$(basename "${doc}")" == *"原始慢日志"* ]] && continue
+  cp -a "${doc}" "${STAGE}/${PKG}/docs/"
+done
 echo "${VERSION}" > "${STAGE}/${PKG}/VERSION"
 find "${STAGE}/${PKG}" -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
 
@@ -75,7 +79,8 @@ python3 -m pip download -r "${ROOT}/requirements.txt" \
   -d "${STAGE}/${PKG}/wheels" \
   --platform "manylinux2014_${ARCH}" --platform "manylinux_2_17_${ARCH}" --platform "any" \
   --python-version "${PYTAG}" --implementation cp --abi "cp${PYTAG}" --abi none --abi abi3 \
-  --only-binary=:all:
+  --only-binary=:all: \
+  || { echo "错误: 目标平台 wheels 下载失败，禁止生成发布包"; exit 1; }
 # pip 自身与构建工具（venv 内升级用）
 python3 -m pip download pip setuptools wheel -d "${STAGE}/${PKG}/wheels" \
   --platform any --python-version "${PYTAG}" --only-binary=:all: 2>/dev/null || true

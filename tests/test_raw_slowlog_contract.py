@@ -85,8 +85,40 @@ def test_main_registers_raw_slowlog_router(monkeypatch):
     from backend.api import raw_slowlog
     from backend.main import app
 
+    monkeypatch.setenv("RAW_SLOWLOG_ENABLED", "true")
     monkeypatch.setattr(raw_slowlog.raw_slowlog_service, "list_sources", lambda role: [{"id": 7, "display_name": "masked"}])
     with TestClient(app) as client:
         response = client.get("/api/v1/raw-slowlogs/sources")
     assert response.status_code == 200
     assert response.json()["items"][0]["id"] == 7
+
+
+def test_raw_slowlog_api_is_hidden_and_fails_closed_by_default(monkeypatch):
+    from backend.main import app
+
+    monkeypatch.delenv("RAW_SLOWLOG_ENABLED", raising=False)
+    with TestClient(app) as client:
+        response = client.get("/api/v1/raw-slowlogs/sources")
+    assert response.status_code == 404
+    assert response.json()["detail"] == "原始慢日志功能当前未启用"
+
+
+def test_raw_slowlog_scheduler_does_not_acquire_lease_when_disabled(monkeypatch):
+    from backend.services import scheduler
+
+    monkeypatch.delenv("RAW_SLOWLOG_ENABLED", raising=False)
+    monkeypatch.setattr(
+        scheduler,
+        "_try_acquire_lease",
+        lambda: pytest.fail("disabled raw slowlog scheduler must not acquire a lease"),
+    )
+    scheduler._run_due_raw_slowlogs()
+
+
+def test_raw_slowlog_frontend_entry_is_default_hidden():
+    index = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
+    app_js = (ROOT / "frontend" / "static" / "js" / "app.js").read_text(encoding="utf-8")
+
+    assert "rawSlowlogEnabled&&visibleMenus.has('slow-raw-log')" in index
+    assert "const rawSlowlogEnabled=false;" in app_js
+    assert "if(rawSlowlogEnabled&&visibleMenus.value.has('slow-raw-log'))" in app_js

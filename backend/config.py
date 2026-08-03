@@ -22,8 +22,8 @@ DATABASE_DIR.mkdir(exist_ok=True)
 
 # FastAPI 配置
 APP_TITLE = "TDSQL SQL审核平台"
-APP_VERSION = "1.6.0.0"
-APP_DESCRIPTION = "银行级SQL质量管控与慢SQL分析平台（V1.6.0.0 - 原始慢日志采集/上线检查历史保留与对比/历史记录多维组合筛选/119条规则有效性与压测/实例类型多源分级判定/实例类型感知规则适用域/全局规则集尺度/实例级质量门禁/数据治理/ZK真实环境发现与部署升级）"
+APP_VERSION = "1.6.0.1"
+APP_DESCRIPTION = "银行级SQL质量管控与慢SQL分析平台（V1.6.0.1 - ZK真实环境发现配置、诊断日志与安全失败处理）"
 
 # SQL 解析配置
 SQL_DIALECT = "mysql"  # TDSQL 基于 MySQL
@@ -49,6 +49,15 @@ def _env_float(name: str, default: float) -> float:
         return float(os.getenv(name, str(default)))
     except ValueError:
         return default
+
+
+def raw_slowlog_enabled() -> bool:
+    """原始慢日志采集功能开关，默认关闭。
+
+    V1.6.0.1 起该功能不作为产品交付能力展示或运行。保留实现和历史
+    数据仅供后续经过独立设计、评审和变更审批后恢复。
+    """
+    return _env_bool("RAW_SLOWLOG_ENABLED", "false")
 
 
 # ══════════════════════════════════════════════════════════════════

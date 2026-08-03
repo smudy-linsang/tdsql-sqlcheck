@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <!-- 主题预置：首帧前置 data-theme，避免深/浅切换闪烁；默认深色，localStorage 记忆 -->
   <script>(function(){try{var t=localStorage.getItem('tdsql-theme');if(t!=='light'&&t!=='dark')t='dark';document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','dark');}})();</script>
-  <title>TDSQL数据库SQL审核工具 V1.6.0.0</title>
+  <title>TDSQL数据库SQL审核工具 V1.6.0.1</title>
   <script src="/static/vendor/vue.global.prod.js"></script>
   <link rel="stylesheet" href="/static/vendor/element-plus.css">
   <script src="/static/vendor/element-plus.full.min.js"></script>
@@ -26,7 +26,7 @@
     </div>
     <div class="login-brand">
       <h1>TDSQL数据库SQL审核工具</h1>
-      <div class="version">V1.6.0.0 · Design by Linsang</div>
+      <div class="version">V1.6.0.1 · Design by Linsang</div>
     </div>
     <div class="login-form">
       <el-card>
@@ -90,11 +90,11 @@
             <el-menu-item v-if="visibleMenus.has('file-audit')" index="file-audit">文件审核</el-menu-item>
             <el-menu-item v-if="visibleMenus.has('schema-extractor-audit')" index="schema-extractor-audit">在线元数据审核</el-menu-item>
           </el-sub-menu>
-          <el-sub-menu v-if="visibleMenus.has('slow-tasks')||visibleMenus.has('slow-records')||visibleMenus.has('slow-raw-log')||visibleMenus.has('explain')" index="slow-group">
+          <el-sub-menu v-if="visibleMenus.has('slow-tasks')||visibleMenus.has('slow-records')||(rawSlowlogEnabled&&visibleMenus.has('slow-raw-log'))||visibleMenus.has('explain')" index="slow-group">
             <template #title><el-icon><Timer /></el-icon><span>慢SQL治理</span></template>
             <el-menu-item v-if="visibleMenus.has('slow-tasks')" index="slow-tasks">扫描任务</el-menu-item>
             <el-menu-item v-if="visibleMenus.has('slow-records')" index="slow-records">慢SQL记录</el-menu-item>
-            <el-menu-item v-if="visibleMenus.has('slow-raw-log')" index="slow-raw-log">原始慢日志</el-menu-item>
+            <el-menu-item v-if="rawSlowlogEnabled&&visibleMenus.has('slow-raw-log')" index="slow-raw-log">原始慢日志</el-menu-item>
             <el-menu-item v-if="visibleMenus.has('explain')" index="explain">EXPLAIN分析</el-menu-item>
           </el-sub-menu>
           <el-sub-menu v-if="visibleMenus.has('schema-check')||visibleMenus.has('bigtable')" index="instance-group">
@@ -962,7 +962,7 @@
           </el-drawer>
 
           <!-- ═══ V1.5.3 原始慢日志（独立数据源，时间=Proxy慢日志记录时间） ═══ -->
-          <div v-if="currentPage==='slow-raw-log'">
+          <div v-if="rawSlowlogEnabled&&currentPage==='slow-raw-log'">
             <el-tabs v-model="rawSlowTab">
               <el-tab-pane label="原始慢日志事件" name="events">
                 <div class="page-card">
@@ -1023,7 +1023,7 @@
             </el-tabs>
           </div>
 
-          <el-drawer v-model="rawSourceDrawer" :title="rawSourceEditMode?'编辑原始慢日志采集源（保存后自动停用）':'新建原始慢日志采集源'" size="720px">
+          <el-drawer v-if="rawSlowlogEnabled" v-model="rawSourceDrawer" :title="rawSourceEditMode?'编辑原始慢日志采集源（保存后自动停用）':'新建原始慢日志采集源'" size="720px">
             <el-alert type="warning" :closable="false" class="mb-16" title="仅填写经审批的内网主机、只读日志路径声明及凭据引用名；口令、私钥内容不得输入本页面。启用前必须执行 Probe。"></el-alert>
             <el-form label-width="130px" size="small">
               <el-form-item label="源键"><el-input v-model="rawSourceForm.source_key" :disabled="rawSourceEditMode" placeholder="如 sit_proxy_slowlog"></el-input></el-form-item>
@@ -2441,7 +2441,7 @@
     </template>
   </el-dialog>
 
-  <!-- V1.6.0.0 ZK 自动发现配置：认证口令仅写入，不回显 -->
+  <!-- V1.6.0.1 ZK 自动发现配置：认证口令仅写入，不回显 -->
   <el-dialog v-model="zkConfigDialogVisible" title="ZK发现配置" width="880px" :close-on-click-modal="false">
     <div v-loading="zkConfigLoading">
       <el-alert type="info" :closable="false" style="margin-bottom:16px"
@@ -2600,6 +2600,6 @@
   </el-dialog>
 </div>
 <!-- 版本参数确保页面结构与应用逻辑同步更新，避免浏览器沿用旧版 app.js。 -->
-<script src="/static/js/app.js?v=20260803.1"></script>
+<script src="/static/js/app.js?v=20260803.2"></script>
 </body>
 </html>

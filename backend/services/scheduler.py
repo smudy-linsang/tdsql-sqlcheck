@@ -20,6 +20,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
+from backend import config
 from backend.config import (
     SCHEDULER_CRON_HOUR,
     SCHEDULER_CRON_MINUTE,
@@ -287,6 +288,8 @@ def _run_retention_cleanup():
 
 def _run_due_raw_slowlogs():
     """原始慢日志到期源检查（复用全局 leader 租约，源内再取得源级租约）。"""
+    if not config.raw_slowlog_enabled():
+        return
     if not _try_acquire_lease():
         return
     try:
@@ -357,13 +360,16 @@ def start_scheduler() -> Optional[BackgroundScheduler]:
     )
 
     # V1.5.3: 源自行配置轮询周期；调度器固定 30 秒检查到期源。
-    _scheduler.add_job(
-        _run_due_raw_slowlogs,
-        trigger=IntervalTrigger(seconds=30),
-        id="raw_slowlog_sources",
-        name="原始慢日志采集源检查",
-        replace_existing=True,
-    )
+    if config.raw_slowlog_enabled():
+        _scheduler.add_job(
+            _run_due_raw_slowlogs,
+            trigger=IntervalTrigger(seconds=30),
+            id="raw_slowlog_sources",
+            name="原始慢日志采集源检查",
+            replace_existing=True,
+        )
+    else:
+        logger.info("原始慢日志功能未启用，跳过采集调度任务注册")
 
     # [V2.0] 每日数据保留清理
     _scheduler.add_job(
