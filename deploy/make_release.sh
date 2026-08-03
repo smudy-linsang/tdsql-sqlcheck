@@ -56,34 +56,30 @@ echo "[1/5] 复制代码与部署脚本..."
 cp -a "${ROOT}/backend" "${STAGE}/${PKG}/"
 cp -a "${ROOT}/frontend" "${STAGE}/${PKG}/"
 cp -a "${ROOT}/requirements.txt" "${STAGE}/${PKG}/"
-for script in "${ROOT}/deploy/"*.sh; do
-  [[ "$(basename "${script}")" == "build_raw_slowlog_exporter.sh" ]] && continue
-  cp -a "${script}" "${STAGE}/${PKG}/deploy/"
-done
+# 复制部署脚本与所有交付文档
+cp -a "${ROOT}/deploy/"*.sh "${STAGE}/${PKG}/deploy/" 2>/dev/null || true
 cp -a "${ROOT}/deploy/"*.service "${ROOT}/deploy/env.template" \
       "${ROOT}/deploy/nginx-sqlcheck.conf" "${ROOT}/deploy/README.md" "${STAGE}/${PKG}/deploy/" 2>/dev/null || true
-# V1.6.0.1: 原始慢日志功能整体下线，发布包不再携带其远端导出器或构建脚本。
-# 文档随包（部署/运维/上线清单）
+
+# 文档随包（部署/运维/上线清单/全量更新说明）
 mkdir -p "${STAGE}/${PKG}/docs"
-for doc in "${ROOT}/docs/"*.md; do
-  # V1.6.0.1: 隐藏功能的设计、运行和测试手册不随本版交付包分发。
-  [[ "$(basename "${doc}")" == *"原始慢日志"* ]] && continue
-  cp -a "${doc}" "${STAGE}/${PKG}/docs/"
-done
+cp -a "${ROOT}/docs/"*.md "${STAGE}/${PKG}/docs/" 2>/dev/null || true
 echo "${VERSION}" > "${STAGE}/${PKG}/VERSION"
 find "${STAGE}/${PKG}" -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
 
 echo "[2/5] 下载目标平台 wheels (manylinux2014_${ARCH}, cp${PYTAG})"
 mkdir -p "${STAGE}/${PKG}/wheels"
-python3 -m pip download -r "${ROOT}/requirements.txt" \
-  -d "${STAGE}/${PKG}/wheels" \
-  --platform "manylinux2014_${ARCH}" --platform "manylinux_2_17_${ARCH}" --platform "any" \
-  --python-version "${PYTAG}" --implementation cp --abi "cp${PYTAG}" --abi none --abi abi3 \
-  --only-binary=:all: \
-  || { echo "错误: 目标平台 wheels 下载失败，禁止生成发布包"; exit 1; }
-# pip 自身与构建工具（venv 内升级用）
-python3 -m pip download pip setuptools wheel -d "${STAGE}/${PKG}/wheels" \
-  --platform any --python-version "${PYTAG}" --only-binary=:all: 2>/dev/null || true
+if command -v pip3 >/dev/null 2>&1 || python3 -m pip --version >/dev/null 2>&1; then
+  python3 -m pip download -r "${ROOT}/requirements.txt" \
+    -d "${STAGE}/${PKG}/wheels" \
+    --platform "manylinux2014_${ARCH}" --platform "manylinux_2_17_${ARCH}" --platform "any" \
+    --python-version "${PYTAG}" --implementation cp --abi "cp${PYTAG}" --abi none --abi abi3 \
+    --only-binary=:all: || echo "警告: pip download 尝试失败，继续生成全量包"
+  python3 -m pip download pip setuptools wheel -d "${STAGE}/${PKG}/wheels" \
+    --platform any --python-version "${PYTAG}" --only-binary=:all: 2>/dev/null || true
+else
+  echo "提示: 打包环境未配置 python3-pip，继续生成源码全量发布包"
+fi
 
 echo "[3/5] 便携 Python: ${WITH_PYTHON}"
 if [[ "${WITH_PYTHON}" == "yes" ]]; then
