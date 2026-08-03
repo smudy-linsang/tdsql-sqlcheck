@@ -201,10 +201,13 @@ def get_discovery_config(request: Request):
         if database_config:
             return database_config
         env_config = _read_environment_config(require_auth=False)
+        # P6：FORCE_MOCK 联调时的占位地址（mock.invalid:2181）不是真实配置，
+        # 不得回显给配置页，避免管理员误把占位值保存进数据库配置源。
+        servers = "" if env_config.get("force_mock") else env_config["servers"]
         return {
-            "configured": bool(env_config["servers"] and env_config["auth_user"] and env_config["auth_password"]),
-            "source": "deployment_env" if env_config["servers"] else "unconfigured",
-            "servers": env_config["servers"],
+            "configured": bool(servers and env_config["auth_user"] and env_config["auth_password"]),
+            "source": "deployment_env" if servers else "unconfigured",
+            "servers": servers,
             "root_path": env_config["root"],
             "driver": env_config["driver"],
             "zkcli_path": env_config["zkcli_path"],
@@ -442,12 +445,17 @@ def commit_import_preview(body: ZKImportCommitRequest, request: Request):
     """一次性提交已审核的候选连接，失败时不产生部分连接。"""
     owner = _operator(request)
     preview, selected = _load_preview(body, owner)
+    preview_total = len(preview["rows"])
     try:
         result = zk_connection_import_service.commit(
-            selected, preview["business"], preview["monitor"], owner, body.discovery_id)
+            selected, preview["business"], preview["monitor"], owner, body.discovery_id,
+            preview_total=preview_total)
     except ZKImportCommitError as exc:
         status = 409 if exc.code in {"IMPORT_CONFLICT", "ROW_NOT_READY", "NO_READY_ROWS"} else 500
         logger.warning("ZK_IMPORT_COMMIT_ABORTED operator=%s code=%s", owner, exc.code)
+        # 主事务已回滚；失败批次另起短事务登记，保证合规审计可追溯（P4）
+        zk_connection_import_service.record_failed_batch(
+            selected, owner, body.discovery_id, exc.code, preview_total=preview_total)
         raise HTTPException(status_code=status, detail=exc.detail) from exc
     finally:
         # 无论成功还是失败都销毁凭据和一次性预览，避免重放；失败可重新预检。

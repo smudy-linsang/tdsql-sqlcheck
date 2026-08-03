@@ -2417,6 +2417,9 @@
   <el-dialog v-model="zkDialogVisible" title="从 ZooKeeper 自动发现实例" width="800px">
     <el-alert type="info" :closable="false" style="margin-bottom:12px"
       title="扫描使用管理员已保存的 ZK 配置。扫描失败会明确提示，不会返回模拟实例。"></el-alert>
+    <!-- v1.6.0.1 修复 P5：Mock 数据必须显著标识，防止被误认为真实集群现状 -->
+    <el-alert v-if="zkDiscoveryIsMock" type="error" :closable="false" style="margin-bottom:12px"
+      title="当前为演示（Mock）数据，仅用于开发联调，禁止导入任何实例。"></el-alert>
     <el-form :inline="true" size="small">
       <el-form-item>
         <el-button v-if="isAdmin" @click="openZkConfig">ZK发现配置</el-button>
@@ -2431,7 +2434,7 @@
       <el-table-column label="实例形态" width="100"><template #default="{row}"><el-tag v-if="row.instance_type==='distributed'" size="small" type="warning">分布式</el-tag><el-tag v-else-if="row.instance_type==='centralized'" size="small" type="info">集中式</el-tag><span v-else style="color:#94a3b8">未知</span></template></el-table-column>
       <el-table-column label="SET 列表" min-width="150"><template #default="{row}"><el-tooltip :content="(row.set_ids||[]).join(',')" placement="top"><span>{{(row.set_ids||[]).length}} 个 SET</span></el-tooltip></template></el-table-column>
       <el-table-column prop="proxy_count" label="Proxy数" width="82"></el-table-column>
-      <el-table-column prop="status_text" label="状态" width="100"><template #default="{row}"><el-tag size="small" :type="row.status_code==='0'?'success':'danger'">{{row.status_text}}</el-tag></template></el-table-column>
+      <el-table-column prop="status_text" label="状态" width="130"><template #default="{row}"><el-tag v-if="zkDiscoveryIsMock" size="small" type="danger" style="margin-right:4px">演示</el-tag><el-tag size="small" :type="row.status_code==='0'?'success':'danger'">{{row.status_text}}</el-tag></template></el-table-column>
     </el-table>
     
     <template #footer>
@@ -2644,6 +2647,6 @@
   </el-dialog>
 </div>
 <!-- 版本参数确保页面结构与应用逻辑同步更新，避免浏览器沿用旧版 app.js。 -->
-<script src="/static/js/app.js?v=20260803.3"></script>
+<script src="/static/js/app.js?v=20260803.4"></script>
 </body>
 </html>

@@ -178,6 +178,9 @@ class ZKConnectionImportService:
                     "ZK_IMPORT_BUSINESS_PROXY_FAILED instance=%s endpoint=%s:%s error_type=%s",
                     instance_id, host, port, type(exc).__name__,
                 )
+                # 从严口径（设计 §12 BUSINESS_PROXY_INCOMPLETE）：任一 Proxy 枚举失败
+                # 即整实例预检失败。比"全部失败才阻断"更保守，符合 R-15——
+                # 部分 Proxy 目录不可见时静默继续会产出"看起来完整"的错误连接。
                 raise ZKImportPreparationError("BUSINESS_PROXY_INCOMPLETE", "无法通过全部发现 Proxy 枚举业务库") from exc
             catalogues.append({name for name in values if name and name.lower() not in excluded})
         canonical = catalogues[0]
@@ -296,8 +299,13 @@ class ZKConnectionImportService:
         monitor: MonitorCredentials,
         operator: str,
         discovery_id: str,
+        preview_total: int = 0,
     ) -> dict:
-        """在一个元库事务中创建连接和导入审计；有冲突时零连接写入。"""
+        """在一个元库事务中创建连接和导入审计；有冲突时零连接写入。
+
+        preview_total 为本次预览生成的候选行总数（含冲突/失败行），
+        落库到批次审计的 candidate_count，保证"预览全量 vs 实际提交"可对账。
+        """
         selected = list(candidates)
         if not selected:
             raise ZKImportCommitError("NO_READY_ROWS", "没有可提交的候选连接")
@@ -330,7 +338,7 @@ class ZKConnectionImportService:
                 "(id, discovery_id, operator_username, selected_instance_count, candidate_count, created_count, status, created_at, completed_at) "
                 "VALUES (?, ?, ?, ?, ?, ?, 'completed', NOW(), NOW())",
                 (batch_id, discovery_id, operator, len({row["source_instance_id"] for row in selected}),
-                 len(selected), len(selected)),
+                 max(preview_total, len(selected)), len(selected)),
             )
             business_password = encrypt_password(business.password)
             monitor_password = encrypt_password(monitor.password)
@@ -384,6 +392,38 @@ class ZKConnectionImportService:
         instance_type_service.invalidate()
         logger.info("ZK_IMPORT_COMMIT_SUCCEEDED batch=%s operator=%s created=%s", batch_id, operator, len(created))
         return {"batch_id": batch_id, "created": created}
+
+    def record_failed_batch(self, selected: list[dict], operator: str, discovery_id: str,
+                            code: str, preview_total: int = 0) -> None:
+        """提交失败时在独立短事务登记 status='failed' 批次（v1.6.0.1 修复 P4）。
+
+        主事务回滚后失败导入不留任何审计痕迹，与合规可追溯目标相悖；
+        本方法只写错误码、数量与实例 ID——不含任何口令、密文或连接串。
+        登记失败本身不得再向上抛错（审计是尽力而为，不能掩盖原始提交错误）。
+        """
+        try:
+            from backend.services.database import _get_connection, ensure_db
+
+            ensure_db()
+            instances = sorted({str(row.get("source_instance_id") or "") for row in selected})
+            summary = f"code={code};selected={len(selected)};instances={','.join(instances)}"[:1000]
+            conn = _get_connection()
+            try:
+                conn.execute(
+                    "INSERT INTO zk_discovery_import_batches "
+                    "(id, discovery_id, operator_username, selected_instance_count, candidate_count, "
+                    "created_count, skipped_count, failed_count, status, failure_summary, created_at, completed_at) "
+                    "VALUES (?, ?, ?, ?, ?, 0, 0, ?, 'failed', ?, NOW(), NOW())",
+                    (uuid.uuid4().hex, discovery_id, operator, len(instances),
+                     max(preview_total, len(selected)), len(selected), summary),
+                )
+                conn.commit()
+                logger.warning("ZK_IMPORT_FAILED_BATCH_RECORDED operator=%s code=%s selected=%s",
+                               operator, code, len(selected))
+            finally:
+                conn.close()
+        except Exception:
+            logger.exception("ZK_IMPORT_FAILED_BATCH_RECORD_ERROR operator=%s code=%s", operator, code)
 
 
 zk_connection_import_service = ZKConnectionImportService()
