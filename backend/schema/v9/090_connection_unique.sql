@@ -1,31 +1,11 @@
 -- ============================================================================
--- V1.6.0.1 修复 P2-01（A 质检验收）：tdsql_connections 唯一约束
--- 设计依据：docs/v1.6.0.1_质检验收报告_A.md §5.2
+-- V1.6.0.4 修复 A-P1-01（no-op 版）
 --
--- 背景：连接表此前仅有 PRIMARY(id) 与非唯一索引 idx_conn_default。
--- ZK 标准化导入的事务内"先查后插"在 REPEATABLE READ 下是非锁定一致性读，
--- 两位操作者并发提交同一候选会双双通过检查、双双插入，产生重复连接；
--- 手工新建连接同样可插入同名/同端点记录。唯一约束是根治手段，
--- 同时保护导入与手工两条写入路径。
---
--- 步骤：先清理存量重复（保留 created_at 最早一条，相同时保留 id 较小者），
--- 再建唯一约束。清理只删完全同身份（同名或同 host:port:database）的冗余行。
+-- 本文件不再执行任何删除/建约束动作：
+--   - 真重复去重 + 端点唯一约束 uq_conn_endpoint 的添加，已改由
+--     database.py::_dedup_connection_endpoints 在 Python 层带日志与门禁迁移地执行；
+--   - 不再建 uq_conn_name（重名≠重复，不删数据，交由应用层提示）；
+--   - 已应用旧 v9（含 uq_conn_name）的库，由 v11 迁移丢弃 uq_conn_name。
+-- 保留本文件仅为维持迁移版本号连续与可追溯。
 -- ============================================================================
-
--- ── 1. 存量重复清理：同名连接（保留最早一条）──
-DELETE c1 FROM tdsql_connections c1
-JOIN tdsql_connections c2
-  ON c1.name = c2.name
- AND (c1.created_at > c2.created_at
-      OR (c1.created_at = c2.created_at AND c1.id > c2.id));
-
--- ── 2. 存量重复清理：同 host:port:database 连接（保留最早一条）──
-DELETE c1 FROM tdsql_connections c1
-JOIN tdsql_connections c2
-  ON c1.host = c2.host AND c1.port = c2.port AND c1.`database` = c2.`database`
- AND (c1.created_at > c2.created_at
-      OR (c1.created_at = c2.created_at AND c1.id > c2.id));
-
--- ── 3. 建唯一约束 ──
-ALTER TABLE tdsql_connections ADD UNIQUE KEY uq_conn_name (name);
-ALTER TABLE tdsql_connections ADD UNIQUE KEY uq_conn_endpoint (host, port, `database`);
+SELECT 1;

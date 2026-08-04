@@ -515,6 +515,9 @@ def _migrate_old_tables(conn):
         _add_column_if_not_exists(conn, "tdsql_connections", "monitor_db", "VARCHAR(128) DEFAULT 'tdsqlpcloud_monitor'")
         # v1.6.0.1：标准化 ZK 导入的批次来源，便于精确审计和回滚测试数据。
         _add_column_if_not_exists(conn, "tdsql_connections", "zk_import_batch_id", "VARCHAR(36) DEFAULT NULL")
+        # v1.6.0.4 修复 A-P1-01：端点级真重复去重（带逐条日志与门禁迁移）。
+        # 只处理 host+port+database 完全相同的真重复；同名不同端点是不同实例，绝不删除。
+        _dedup_connection_endpoints(conn)
         try:
             name_row = conn.execute("""
                 SELECT CHARACTER_MAXIMUM_LENGTH AS len FROM information_schema.COLUMNS
@@ -661,6 +664,38 @@ def _add_index_if_not_exists(conn, table: str, index: str, definition: str):
             pass
 
 
+def _add_unique_index_if_not_exists(conn, table: str, index: str, definition: str):
+    """如果唯一索引不存在则添加（MySQL版）。用于端点级防重复约束。"""
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT COUNT(*) AS cnt FROM information_schema.STATISTICS "
+        "WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND INDEX_NAME = %s",
+        (MYSQL_CONFIG['database'], table, index)
+    )
+    if cursor.fetchone()['cnt'] == 0:
+        try:
+            conn.cursor().execute(f"ALTER TABLE `{table}` ADD UNIQUE KEY `{index}` {definition}")
+            logger.info(f"迁移: {table} 添加唯一索引 {index}")
+        except pymysql.err.OperationalError as exc:
+            logger.warning(f"迁移: {table} 添加唯一索引 {index} 失败（可能存在存量真重复）: {exc}")
+
+
+def _drop_index_if_exists(conn, table: str, index: str):
+    """如果索引存在则删除（MySQL版）。用于丢弃旧 v9 误建的 uq_conn_name。"""
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT COUNT(*) AS cnt FROM information_schema.STATISTICS "
+        "WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND INDEX_NAME = %s",
+        (MYSQL_CONFIG['database'], table, index)
+    )
+    if cursor.fetchone()['cnt'] > 0:
+        try:
+            conn.cursor().execute(f"ALTER TABLE `{table}` DROP INDEX `{index}`")
+            logger.info(f"迁移: {table} 删除索引 {index}")
+        except pymysql.err.OperationalError:
+            pass
+
+
 def _add_column_if_not_exists(conn, table: str, column: str, definition: str):
     """如果列不存在则添加（MySQL版）"""
     cursor = conn.cursor()
@@ -674,6 +709,64 @@ def _add_column_if_not_exists(conn, table: str, column: str, definition: str):
             logger.info(f"迁移: {table} 添加列 {column}")
         except pymysql.err.OperationalError:
             pass
+
+
+def _dedup_connection_endpoints(conn):
+    """v1.6.0.4 修复 A-P1-01：仅对 host+port+database 完全相同的真重复去重。
+
+    同名但端点/库不同是**两个不同实例**（命名冲突），绝不是重复，绝不删除。
+    对真重复组保留 created_at 最早（相同则 id 较小）一条；删除冗余前先处置
+    instance_gate_rules（ON DELETE CASCADE）：保留方无门禁则迁移过去，否则删除冗余方门禁；
+    并逐条记录被删连接及其 scan_tasks/slow_queries 关联数（将成孤儿），保证可追溯。
+    幂等：无重复时不做任何写操作。
+    """
+    try:
+        rows = conn.execute(
+            "SELECT id, name, host, port, `database`, created_at FROM tdsql_connections "
+            "ORDER BY created_at, id").fetchall()
+    except Exception as exc:
+        logger.warning(f"dedup connections read failed: {exc}")
+        return
+    groups: dict = {}
+    for r in rows:
+        key = (str(r["host"]), int(r["port"]), str(r["database"]))
+        groups.setdefault(key, []).append(r)
+    for key, grp in groups.items():
+        if len(grp) < 2:
+            continue
+        kept = grp[0]
+        for loser in grp[1:]:
+            try:
+                kept_has_gate = conn.execute(
+                    "SELECT COUNT(*) AS c FROM instance_gate_rules WHERE connection_id=%s",
+                    (kept["id"],)).fetchone()["c"]
+                if not kept_has_gate:
+                    conn.execute(
+                        "UPDATE instance_gate_rules SET connection_id=%s WHERE connection_id=%s",
+                        (kept["id"], loser["id"]))
+                else:
+                    conn.execute(
+                        "DELETE FROM instance_gate_rules WHERE connection_id=%s", (loser["id"],))
+            except Exception as exc:
+                logger.warning(f"dedup gate_rules handle failed loser={loser['id']}: {exc}")
+            n_tasks = n_slow = 0
+            try:
+                n_tasks = conn.execute(
+                    "SELECT COUNT(*) AS c FROM scan_tasks WHERE connection_id=%s", (loser["id"],)).fetchone()["c"]
+                n_slow = conn.execute(
+                    "SELECT COUNT(*) AS c FROM slow_queries WHERE connection_id=%s", (loser["id"],)).fetchone()["c"]
+            except Exception:
+                pass
+            logger.warning(
+                "迁移: 删除真重复连接 id=%s name=%s endpoint=%s:%s/%s 保留id=%s "
+                "关联scan_tasks=%s slow_queries=%s(将成孤儿,请人工核对)",
+                loser["id"], loser["name"], key[0], key[1], key[2], kept["id"], n_tasks, n_slow)
+            conn.execute("DELETE FROM tdsql_connections WHERE id=%s", (loser["id"],))
+    # 端点级唯一约束是防并发重复导入的实质约束；重名不建唯一约束（命名冲突交由应用层提示）。
+    _add_unique_index_if_not_exists(conn, "tdsql_connections", "uq_conn_endpoint", "(host, port, `database`)")
+    # v1.6.0.4：丢弃旧 v9 误建的 uq_conn_name（重名≠重复），避免后续同名不同端点插入被拒。
+    _drop_index_if_exists(conn, "tdsql_connections", "uq_conn_name")
+    conn.commit()
 
 
 def _create_all_tables(conn):

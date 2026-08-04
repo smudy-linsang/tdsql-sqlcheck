@@ -309,7 +309,7 @@ def test_concurrent_commit_same_candidate_exactly_one_wins():
 
 
 def test_manual_duplicate_connection_rejected():
-    """P2-01：手工路径同样受唯一约束保护——直接插同名/同端点记录必须被数据库拒绝。"""
+    """A-P1-01 修复后：同名不同端点是不同实例（允许），同端点同库才是真重复（必须拒绝）。"""
     conn = _get_connection()
     try:
         base = (uuid.uuid4().hex, f"手工重复_{UAT_TAG}", "10.8.8.8", 3306, "u", "x", "dbx")
@@ -319,6 +319,7 @@ def test_manual_duplicate_connection_rejected():
             "VALUES (?, ?, ?, ?, ?, ?, ?, 'utf8mb4', 0, 0, NOW())", base)
         conn.commit()
         import pymysql as _pymysql
+        # 同名但端点/库不同 = 两个不同实例，必须允许（不再误删/误拒）
         dup_name_ok = False
         try:
             conn.execute(
@@ -330,7 +331,8 @@ def test_manual_duplicate_connection_rejected():
             dup_name_ok = True
         except _pymysql.err.IntegrityError:
             conn.rollback()
-        assert not dup_name_ok, "同名连接未被唯一约束拦截"
+        assert dup_name_ok, "同名不同端点是不同实例，应允许共存（A-P1-01 修复目标）"
+        # 同 host:port:database = 真重复，必须被 uq_conn_endpoint 拒绝
         dup_endpoint_ok = False
         try:
             conn.execute(
@@ -342,7 +344,7 @@ def test_manual_duplicate_connection_rejected():
             dup_endpoint_ok = True
         except _pymysql.err.IntegrityError:
             conn.rollback()
-        assert not dup_endpoint_ok, "同端点连接未被唯一约束拦截"
+        assert not dup_endpoint_ok, "同端点同库连接未被 uq_conn_endpoint 拦截"
     finally:
         conn.execute("DELETE FROM tdsql_connections WHERE name LIKE ?", (f"%{UAT_TAG}%",))
         conn.commit()
