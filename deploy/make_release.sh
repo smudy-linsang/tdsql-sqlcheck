@@ -67,9 +67,53 @@ cp -a "${ROOT}/docs/"*.md "${STAGE}/${PKG}/docs/" 2>/dev/null || true
 echo "${VERSION}" > "${STAGE}/${PKG}/VERSION"
 find "${STAGE}/${PKG}" -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
 
-echo "[2/5] 下载目标平台 wheels (manylinux2014_${ARCH}, cp${PYTAG})"
+echo "[2/5] 准备目标平台 wheels (manylinux2014_${ARCH}, cp${PYTAG})"
 mkdir -p "${STAGE}/${PKG}/wheels"
-if command -v pip3 >/dev/null 2>&1 || python3 -m pip --version >/dev/null 2>&1; then
+if [[ -d "${ROOT}/dist/wheels_tmp" ]] && ls "${ROOT}/dist/wheels_tmp/"*.whl >/dev/null 2>&1; then
+  echo "使用预下载的全量依赖 wheels（dist/wheels_tmp）..."
+  cp -a "${ROOT}/dist/wheels_tmp/"*.whl "${STAGE}/${PKG}/wheels/"
+  # ── 离线预下载三重校验：防止 requirements.txt 变更或 wheels_tmp 陈旧/错平台被静默带进发布包 ──
+  # 1) 平台与 ABI 标签校验：不允许 windows/macosx wheel 或与 --arch/--py 不符的 cp ABI 混入
+  BADW=""
+  for w in "${STAGE}/${PKG}/wheels/"*.whl; do
+    base="$(basename "$w")"
+    if [[ "$base" == *-manylinux* ]]; then
+      if [[ "$base" != *"${ARCH}"* ]]; then BADW="${BADW}${base} "; fi
+    elif [[ "$base" != *-py3-none-any.whl && "$base" != *-py2.py3-none-any.whl && "$base" != *"${ARCH}"* ]]; then
+      BADW="${BADW}${base} "
+    fi
+    if [[ "$base" == -cp3* && "$base" != *cp${PYTAG}* && "$base" != *-abi3-* && "$base" != *none-any* ]]; then
+      BADW="${BADW}${base} "
+    fi
+  done
+  [[ -z "$BADW" ]] || { echo "错误: dist/wheels_tmp 含与目标平台(${ARCH}/cp${PYTAG})不符的 wheel：${BADW}"; exit 1; }
+  # 2) 依赖满足性校验：wheels_tmp 必须能为目标平台(${ARCH}/cp${PYTAG})满足
+  #    requirements.txt 全量解析，否则 requirements.txt 已更新而 wheels_tmp 未同步，
+  #    包到内网安装才爆。用 pip download --platform 显式指定目标平台，
+  #    与打包机本机操作系统无关（与上方在线下载分支同参数口径）。
+  if python3 -m pip --version >/dev/null 2>&1; then
+    echo "  校验 wheels_tmp 是否满足 requirements.txt (目标平台 manylinux2014_${ARCH}/cp${PYTAG}) ..."
+    VERIFY_DIR="${STAGE}/.wheels_verify"; mkdir -p "${VERIFY_DIR}"
+    python3 -m pip download --no-index \
+      --find-links "${STAGE}/${PKG}/wheels" -d "${VERIFY_DIR}" \
+      -r "${ROOT}/requirements.txt" \
+      --platform "manylinux2014_${ARCH}" --platform "manylinux_2_17_${ARCH}" --platform "any" \
+      --python-version "${PYTAG}" --implementation cp --abi "cp${PYTAG}" --abi none --abi abi3 \
+      --only-binary=:all: >/dev/null \
+      || { rm -rf "${VERIFY_DIR}"; echo "错误: dist/wheels_tmp 无法满足 requirements.txt（依赖已变更或预下载不全），请先同步重下 wheels_tmp"; exit 1; }
+    rm -rf "${VERIFY_DIR}"
+    echo "  wheels 依赖满足性校验通过"
+  else
+    # 3) 无 pip 时的兜底：仅做包数下限检查（弱校验），明确提示风险
+    WCNT="$(ls "${STAGE}/${PKG}/wheels/"*.whl 2>/dev/null | wc -l)"
+    RCNT="$(grep -c '[^[:space:]]' "${ROOT}/requirements.txt" 2>/dev/null || echo 0)"
+    if [[ "${WCNT}" -lt "${RCNT}" ]]; then
+      echo "错误: wheels_tmp 仅 ${WCNT} 个 wheel，少于 requirements.txt 直接依赖数 ${RCNT}，明显不完整"
+      exit 1
+    fi
+    echo "警告: 打包机无 python3-pip，wheels_tmp 仅通过数量兜底校验（${WCNT} 个），未做依赖满足性核验"
+  fi
+elif command -v pip3 >/dev/null 2>&1 || python3 -m pip --version >/dev/null 2>&1; then
   python3 -m pip download -r "${ROOT}/requirements.txt" \
     -d "${STAGE}/${PKG}/wheels" \
     --platform "manylinux2014_${ARCH}" --platform "manylinux_2_17_${ARCH}" --platform "any" \
