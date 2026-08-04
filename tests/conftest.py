@@ -41,7 +41,12 @@ _BIGTABLE_TEST_CONNS = (
 
 @pytest.fixture(scope="session", autouse=True)
 def _register_bigtable_test_connections():
-    """为大表治理用例登记合成实例（幂等）"""
+    """为大表治理用例登记合成实例（幂等）
+
+    P2-01 后 tdsql_connections 有唯一约束 uq_conn_endpoint(host, port, database)，
+    合成实例必须各自占用唯一端点，否则 INSERT IGNORE 会被静默吞掉、
+    依赖这些实例的用例将因"实例不存在"而 404。
+    """
     try:
         from backend.services.database import _get_connection, ensure_db
         ensure_db()
@@ -52,7 +57,7 @@ def _register_bigtable_test_connections():
                     "INSERT IGNORE INTO tdsql_connections "
                     "(id, name, host, port, username, password_encrypted, `database`) "
                     "VALUES (?,?,?,?,?,?,?)",
-                    (cid, f"测试实例-{cid}", "127.0.0.1", 3306, "test", "", "test_db"))
+                    (cid, f"测试实例-{cid}", "127.0.0.1", 3306, "test", "", f"test_db_{cid}"))
             conn.commit()
         finally:
             conn.close()

@@ -10,6 +10,8 @@ import uuid
 from dataclasses import dataclass
 from typing import Iterable
 
+import pymysql
+
 logger = logging.getLogger("tdsql.zk_import")
 
 
@@ -320,7 +322,10 @@ class ZKConnectionImportService:
         created: list[dict] = []
         conn = _get_connection()
         try:
-            # 事务内再检查，阻止两位操作者的预览并发覆盖同一连接。
+            # 事务内再检查：尽早拦截可感知的冲突。注意 REPEATABLE READ 下这是
+            # 非锁定一致性读，并发事务可能双双通过——最终防线是表上的唯一约束
+            # uq_conn_name / uq_conn_endpoint（v9/090 迁移），重复键在下方转
+            # IMPORT_CONFLICT，保持"零连接写入"语义（P2-01）。
             for row in selected:
                 by_endpoint = conn.execute(
                     "SELECT id FROM tdsql_connections WHERE host=? AND port=? AND `database`=? LIMIT 1",
@@ -381,6 +386,13 @@ class ZKConnectionImportService:
         except ZKImportCommitError:
             conn.rollback()
             raise
+        except pymysql.err.IntegrityError as exc:
+            # P2-01：唯一约束（uq_conn_name/uq_conn_endpoint）拦下的并发重复写入。
+            # 事务内预检 SELECT 为非锁定读，两位操作者可能同时通过检查，
+            # 此处由数据库兜底并归一到既有冲突语义，保持"零连接写入"。
+            conn.rollback()
+            logger.warning("ZK_IMPORT_COMMIT_DUPLICATE_KEY error=%s", type(exc).__name__)
+            raise ZKImportCommitError("IMPORT_CONFLICT", "提交期间发现既有连接，未创建任何连接") from exc
         except Exception as exc:
             conn.rollback()
             logger.exception("ZK_IMPORT_COMMIT_ABORTED error_type=%s", type(exc).__name__)

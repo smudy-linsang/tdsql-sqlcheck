@@ -266,3 +266,84 @@ def test_import_batches_query_returns_audit_without_secrets():
     assert q.status_code == 200, q.text
     assert "biz-secret" not in q.text and "mon-secret" not in q.text, "批次查询泄漏口令"
     assert q.json()["batch"]["created_count"] == 1
+
+
+def test_concurrent_commit_same_candidate_exactly_one_wins():
+    """P2-01（A 质检）：两位操作者并发提交同一候选 → 恰好一个成功、一个 409，库中恰一条。
+
+    事务内预检 SELECT 在 REPEATABLE READ 下是非锁定读，挡不住并发；
+    本用例验证唯一约束 uq_conn_name/uq_conn_endpoint 兜底 + IntegrityError
+    归一为 IMPORT_CONFLICT 的完整链路（规约 R-12 反向鉴别）。
+    """
+    import threading
+
+    rows = [_row("biz_db_conc")]
+    d1, p1, v1 = _seed_preview(rows)
+    d2, p2, v2 = _seed_preview(rows)
+    results = {}
+    barrier = threading.Barrier(2)
+
+    def do(key, discovery_id, preview_id, tokens):
+        local_client = TestClient(app)
+        barrier.wait()
+        results[key] = local_client.post("/api/v1/tdsql/discover/import-commit", json={
+            "discovery_id": discovery_id, "preview_id": preview_id, "row_tokens": tokens})
+
+    t1 = threading.Thread(target=do, args=("a", d1, p1, [r["row_token"] for r in v1]))
+    t2 = threading.Thread(target=do, args=("b", d2, p2, [r["row_token"] for r in v2]))
+    t1.start(); t2.start(); t1.join(); t2.join()
+
+    codes = sorted(r.status_code for r in results.values())
+    assert codes == [200, 409], f"并发提交应恰好一成功一冲突，实际: {codes}"
+    loser = next(r for r in results.values() if r.status_code == 409)
+    assert "既有连接" in str(loser.json().get("detail", "")), "冲突响应必须归一到 IMPORT_CONFLICT 语义"
+
+    conn = _get_connection()
+    try:
+        n = conn.execute(
+            "SELECT COUNT(*) AS c FROM tdsql_connections WHERE name=? AND zk_import_batch_id IS NOT NULL",
+            (f"回归实例_{UAT_TAG}-25002-biz_db_conc",)).fetchone()["c"]
+        assert n == 1, f"库中应恰好一条连接，实际 {n} 条（唯一约束失效）"
+    finally:
+        conn.close()
+
+
+def test_manual_duplicate_connection_rejected():
+    """P2-01：手工路径同样受唯一约束保护——直接插同名/同端点记录必须被数据库拒绝。"""
+    conn = _get_connection()
+    try:
+        base = (uuid.uuid4().hex, f"手工重复_{UAT_TAG}", "10.8.8.8", 3306, "u", "x", "dbx")
+        conn.execute(
+            "INSERT INTO tdsql_connections (id, name, host, port, username, password_encrypted, "
+            "`database`, charset, is_default, is_distributed, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, 'utf8mb4', 0, 0, NOW())", base)
+        conn.commit()
+        import pymysql as _pymysql
+        dup_name_ok = False
+        try:
+            conn.execute(
+                "INSERT INTO tdsql_connections (id, name, host, port, username, password_encrypted, "
+                "`database`, charset, is_default, is_distributed, created_at) "
+                "VALUES (?, ?, '10.9.9.9', 3307, 'u', 'x', 'other_db', 'utf8mb4', 0, 0, NOW())",
+                (uuid.uuid4().hex, f"手工重复_{UAT_TAG}"))
+            conn.commit()
+            dup_name_ok = True
+        except _pymysql.err.IntegrityError:
+            conn.rollback()
+        assert not dup_name_ok, "同名连接未被唯一约束拦截"
+        dup_endpoint_ok = False
+        try:
+            conn.execute(
+                "INSERT INTO tdsql_connections (id, name, host, port, username, password_encrypted, "
+                "`database`, charset, is_default, is_distributed, created_at) "
+                "VALUES (?, ?, '10.8.8.8', 3306, 'u', 'x', 'dbx', 'utf8mb4', 0, 0, NOW())",
+                (uuid.uuid4().hex, f"手工重复2_{UAT_TAG}"))
+            conn.commit()
+            dup_endpoint_ok = True
+        except _pymysql.err.IntegrityError:
+            conn.rollback()
+        assert not dup_endpoint_ok, "同端点连接未被唯一约束拦截"
+    finally:
+        conn.execute("DELETE FROM tdsql_connections WHERE name LIKE ?", (f"%{UAT_TAG}%",))
+        conn.commit()
+        conn.close()

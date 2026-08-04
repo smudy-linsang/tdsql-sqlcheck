@@ -13,6 +13,7 @@ import re
 import time
 from typing import Optional
 
+import pymysql
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
@@ -714,25 +715,29 @@ def save_connection(request: TDSQLConnectRequest, http_request: Request):
                 detail=f"连接ID {request.id} 已被 "
                        f"{existing.get('host')}:{existing.get('port')} 占用")
 
-    conn_id = registry.save_connection(
-        conn_id=request.id,
-        name=request.name,
-        host=request.host,
-        port=request.port,
-        username=request.username,
-        password=request.password,
-        database=request.database,
-        is_default=request.is_default,
-        is_distributed=request.is_distributed,
-        description=request.description,
-        set_list=request.set_list,
-        monitor_host=request.monitor_host,
-        monitor_port=request.monitor_port,
-        monitor_user=request.monitor_user,
-        monitor_password=request.monitor_password,
-        monitor_db=request.monitor_db,
-        operator=_operator(http_request),
-    )
+    try:
+        conn_id = registry.save_connection(
+            conn_id=request.id,
+            name=request.name,
+            host=request.host,
+            port=request.port,
+            username=request.username,
+            password=request.password,
+            database=request.database,
+            is_default=request.is_default,
+            is_distributed=request.is_distributed,
+            description=request.description,
+            set_list=request.set_list,
+            monitor_host=request.monitor_host,
+            monitor_port=request.monitor_port,
+            monitor_user=request.monitor_user,
+            monitor_password=request.monitor_password,
+            monitor_db=request.monitor_db,
+            operator=_operator(http_request),
+        )
+    except pymysql.err.IntegrityError:
+        # P2-01：唯一约束 uq_conn_name / uq_conn_endpoint 拦截同名或同端点重复连接
+        raise HTTPException(status_code=409, detail="连接名称或地址/端口/库与既有连接重复，未保存")
     # V1.5：实例配置变更后失效类型解析缓存，本进程立即生效
     from backend.services.instance_type_service import instance_type_service
     instance_type_service.invalidate(conn_id)
@@ -751,25 +756,29 @@ def update_connection(conn_id: str, request: TDSQLConnectRequest, http_request: 
     saved = registry.get_saved(conn_id)
     if not saved:
         raise HTTPException(status_code=404, detail=f"连接配置不存在: {conn_id}")
-    registry.save_connection(
-        name=request.name,
-        host=request.host,
-        port=request.port,
-        username=request.username,
-        password=request.password,
-        database=request.database,
-        is_default=request.is_default,
-        is_distributed=request.is_distributed,
-        description=request.description,
-        set_list=request.set_list,
-        monitor_host=request.monitor_host,
-        monitor_port=request.monitor_port,
-        monitor_user=request.monitor_user,
-        monitor_password=request.monitor_password,
-        monitor_db=request.monitor_db,
-        conn_id=conn_id,
-        operator=_operator(http_request),
-    )
+    try:
+        registry.save_connection(
+            name=request.name,
+            host=request.host,
+            port=request.port,
+            username=request.username,
+            password=request.password,
+            database=request.database,
+            is_default=request.is_default,
+            is_distributed=request.is_distributed,
+            description=request.description,
+            set_list=request.set_list,
+            monitor_host=request.monitor_host,
+            monitor_port=request.monitor_port,
+            monitor_user=request.monitor_user,
+            monitor_password=request.monitor_password,
+            monitor_db=request.monitor_db,
+            conn_id=conn_id,
+            operator=_operator(http_request),
+        )
+    except pymysql.err.IntegrityError:
+        # P2-01：唯一约束 uq_conn_name / uq_conn_endpoint 拦截改名/改端点后的重复
+        raise HTTPException(status_code=409, detail="连接名称或地址/端口/库与既有连接重复，未保存")
     # V1.5：实例配置变更后失效类型解析缓存
     from backend.services.instance_type_service import instance_type_service
     instance_type_service.invalidate(conn_id)
