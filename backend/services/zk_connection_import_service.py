@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 import uuid
 from dataclasses import dataclass
-from typing import Iterable
+from typing import Iterable, Optional
 
 import pymysql
 
@@ -111,46 +111,6 @@ class ZKConnectionImportService:
                 seen.add(endpoint)
         return endpoints
 
-    def _resolve_instance_name(self, monitor: MonitorCredentials, instance: dict) -> tuple[str, str]:
-        """查询与赤兔同源的 MonitorDB 实例元数据。
-
-        group 先按 group ID 查；若该集群没有 group 级记录，才回退代表 SET。
-        不使用 group/set ID 充当名称，确保连接名具有真正的业务可读性。
-        """
-        instance_id = str(instance.get("instance_id") or "").strip()
-        set_ids = self._safe_set_ids(instance)
-        candidates: list[tuple[str, str]] = [(instance_id, "instance")]
-        if instance.get("instance_kind") == "groupshard" and set_ids:
-            candidates.append((set_ids[0], "representative_set"))
-        if not instance_id:
-            raise ZKImportPreparationError("INSTANCE_ID_MISSING", "发现记录缺少实例 ID")
-        try:
-            connection = self._connect(
-                monitor.host, monitor.port, monitor.username, monitor.password, monitor.database)
-        except Exception as exc:
-            logger.warning("ZK_IMPORT_MONITOR_CONNECT_FAILED instance=%s error_type=%s", instance_id, type(exc).__name__)
-            raise ZKImportPreparationError("MONITOR_CONNECT_FAILED", "无法连接 MonitorDB") from exc
-        try:
-            with connection.cursor() as cursor:
-                for candidate_id, source in candidates:
-                    cursor.execute(
-                        "SELECT f_key, f_val FROM m_data_cur "
-                        "WHERE f_type = 1 AND f_mid = %s AND f_key IN ('instance_name', 'clientName') "
-                        "ORDER BY CASE f_key WHEN 'instance_name' THEN 0 ELSE 1 END",
-                        (f"/tdsqlzk/{candidate_id}",),
-                    )
-                    for row in cursor.fetchall() or []:
-                        name = str((row or {}).get("f_val") or "").strip()
-                        if name:
-                            logger.info("ZK_IMPORT_METADATA_RESOLVED instance=%s source=%s", instance_id, source)
-                            return name, source
-        except Exception as exc:
-            logger.warning("ZK_IMPORT_METADATA_QUERY_FAILED instance=%s error_type=%s", instance_id, type(exc).__name__)
-            raise ZKImportPreparationError("MONITOR_METADATA_QUERY_FAILED", "查询 MonitorDB 实例元数据失败") from exc
-        finally:
-            connection.close()
-        raise ZKImportPreparationError("INSTANCE_NAME_UNRESOLVED", "MonitorDB 未解析到实例名称")
-
     def _list_business_databases(
         self, instance: dict, business: ImportCredentials, monitor_db: str
     ) -> list[str]:
@@ -211,58 +171,126 @@ class ZKConnectionImportService:
         instances: Iterable[dict],
         business: ImportCredentials,
         monitor: MonitorCredentials,
+        name_overrides: Optional[dict] = None,
+        manual_databases: Optional[dict] = None,
+        hint: str = "",
     ) -> list[dict]:
-        """只读预检，返回可展示的候选项或逐实例失败项。"""
+        """只读预检，返回可展示的候选项或逐实例失败项。
+
+        v1.6.0.3：名称解析走五级解析链（手工覆盖 > 扫描期富集 > 链式解析）；
+        业务库支持手工兜底（manual_databases）与扫描期富集复用。
+        """
+        from backend.services.zk_name_resolution_service import zk_name_resolution_service
+
+        name_overrides = name_overrides or {}
+        manual_databases = manual_databases or {}
         rows: list[dict] = []
-        for instance in instances:
-            instance_id = str(instance.get("instance_id") or "").strip()
-            primary_host = str(instance.get("host") or "").strip()
-            primary_port = int(instance.get("port") or 0)
-            base = {
-                "source_instance_id": instance_id,
-                "instance_kind": str(instance.get("instance_kind") or ""),
-                "instance_type": str(instance.get("instance_type") or ""),
-                "primary_proxy": f"{primary_host}:{primary_port}" if primary_host and primary_port else "",
-                "primary_proxy_host": primary_host,
-                "primary_proxy_port": primary_port,
-                "set_ids": self._safe_set_ids(instance),
-                "monitor_host": monitor.host,
-                "monitor_port": monitor.port,
-                "monitor_user": monitor.username,
-                "monitor_db": monitor.database,
-            }
-            try:
-                instance_type, set_ids = self._validate_instance(instance)
-                instance_name, name_source = self._resolve_instance_name(monitor, instance)
-                databases = self._list_business_databases(instance, business, monitor.database)
-                for database in databases:
-                    generated_name = f"{instance_name}-{primary_port}-{database}"
-                    if len(generated_name) > 255:
-                        raise ZKImportPreparationError("CONNECTION_NAME_TOO_LONG", "生成的连接名称超过 255 个字符")
+        monitor_conn = None
+        try:
+            for instance in instances:
+                instance_id = str(instance.get("instance_id") or "").strip()
+                primary_host = str(instance.get("host") or "").strip()
+                primary_port = int(instance.get("port") or 0)
+                base = {
+                    "source_instance_id": instance_id,
+                    "instance_kind": str(instance.get("instance_kind") or ""),
+                    "instance_type": str(instance.get("instance_type") or ""),
+                    "primary_proxy": f"{primary_host}:{primary_port}" if primary_host and primary_port else "",
+                    "primary_proxy_host": primary_host,
+                    "primary_proxy_port": primary_port,
+                    "set_ids": self._safe_set_ids(instance),
+                    "monitor_host": monitor.host,
+                    "monitor_port": monitor.port,
+                    "monitor_user": monitor.username,
+                    "monitor_db": monitor.database,
+                }
+                try:
+                    instance_type, set_ids = self._validate_instance(instance)
+                    # ── 实例名称：手工覆盖 > 扫描富集 > 五级解析链 ──
+                    override_name = str(name_overrides.get(instance_id) or "").strip()
+                    if override_name:
+                        instance_name, name_source = override_name, "manual"
+                    elif str(instance.get("resolved_name") or "").strip():
+                        instance_name = str(instance["resolved_name"]).strip()
+                        name_source = str(instance.get("name_source") or "scan_enrich")
+                    else:
+                        if monitor_conn is None and not str(monitor.host or "").strip():
+                            raise ZKImportPreparationError("MONITOR_CONNECT_FAILED", "未提供 MonitorDB 配置，无法解析实例名称")
+                        if monitor_conn is None:
+                            monitor_conn = self._connect(
+                                monitor.host, monitor.port, monitor.username,
+                                monitor.password, monitor.database)
+                        instance_name, name_source, _detail = zk_name_resolution_service.resolve(
+                            monitor_conn, instance_id, set_ids,
+                            str(instance.get("instance_kind") or ""), hint=hint,
+                            zk_name_fields=instance.get("zk_name_fields"))
+                        if not instance_name:
+                            raise ZKImportPreparationError("INSTANCE_NAME_UNRESOLVED",
+                                                           "五级解析链均未命中，可在导入弹窗手工命名或跑 name-diagnose 固化模式")
+                except ZKImportPreparationError as exc:
+                    # 名称阶段失败：错误行不带名称；库阶段失败在下方保留已解析名称
+                    logger.info("ZK_IMPORT_PREVIEW_ITEM_FAILED instance=%s code=%s", instance_id, exc.code)
                     rows.append({
                         **base,
-                        "instance_type": instance_type,
-                        "set_ids": set_ids,
+                        "resolved_instance_name": "",
+                        "name_source": "",
+                        "databases_source": "",
+                        "database": "",
+                        "generated_connection_name": "",
+                        "status": "error",
+                        "failure_code": exc.code,
+                        "failure_detail": exc.detail,
+                    })
+                    continue
+                try:
+                    # ── 业务库：手工兜底 > 扫描富集 > Proxy 枚举 ──
+                    manual_dbs = [str(d).strip() for d in (manual_databases.get(instance_id) or [])
+                                  if str(d).strip()]
+                    if manual_dbs:
+                        databases, databases_source = manual_dbs, "manual"
+                    elif instance.get("business_dbs"):
+                        databases = [str(d) for d in instance["business_dbs"]]
+                        databases_source = str(instance.get("databases_source") or "scan_enrich")
+                    else:
+                        databases = self._list_business_databases(instance, business, monitor.database)
+                        databases_source = "proxy_show"
+                    for database in databases:
+                        generated_name = f"{instance_name}-{primary_port}-{database}"
+                        if len(generated_name) > 255:
+                            raise ZKImportPreparationError("CONNECTION_NAME_TOO_LONG", "生成的连接名称超过 255 个字符")
+                        rows.append({
+                            **base,
+                            "instance_type": instance_type,
+                            "set_ids": set_ids,
+                            "resolved_instance_name": instance_name,
+                            "name_source": name_source,
+                            "databases_source": databases_source,
+                            "database": database,
+                            "generated_connection_name": generated_name,
+                            "status": "ready",
+                            "failure_code": "",
+                            "failure_detail": "",
+                        })
+                except ZKImportPreparationError as exc:
+                    # 库阶段失败：保留已解析名称，便于 UI 展示与手工兜底
+                    logger.info("ZK_IMPORT_PREVIEW_ITEM_FAILED instance=%s code=%s", instance_id, exc.code)
+                    rows.append({
+                        **base,
                         "resolved_instance_name": instance_name,
                         "name_source": name_source,
-                        "database": database,
-                        "generated_connection_name": generated_name,
-                        "status": "ready",
-                        "failure_code": "",
-                        "failure_detail": "",
+                        "databases_source": "",
+                        "database": "",
+                        "generated_connection_name": "",
+                        "status": "error",
+                        "failure_code": exc.code,
+                        "failure_detail": exc.detail,
                     })
-            except ZKImportPreparationError as exc:
-                logger.info("ZK_IMPORT_PREVIEW_ITEM_FAILED instance=%s code=%s", instance_id, exc.code)
-                rows.append({
-                    **base,
-                    "resolved_instance_name": "",
-                    "name_source": "",
-                    "database": "",
-                    "generated_connection_name": "",
-                    "status": "error",
-                    "failure_code": exc.code,
-                    "failure_detail": exc.detail,
-                })
+        finally:
+            if monitor_conn is not None:
+                try:
+                    monitor_conn.close()
+                except Exception:
+                    pass
         self._mark_existing(rows)
         return rows
 
@@ -372,13 +400,14 @@ class ZKConnectionImportService:
                     "INSERT INTO zk_discovery_import_items "
                     "(batch_id, source_instance_id, instance_kind, instance_type, primary_proxy_host, "
                     "primary_proxy_port, set_list, resolved_instance_name, database_name, "
-                    "generated_connection_name, connection_id, result_status, created_at) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'created', NOW())",
+                    "generated_connection_name, connection_id, result_status, name_source, databases_source, created_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'created', ?, ?, NOW())",
                     (
                         batch_id, row["source_instance_id"], row["instance_kind"], row["instance_type"],
                         row["primary_proxy_host"], row["primary_proxy_port"], ",".join(row["set_ids"]),
                         row["resolved_instance_name"], row["database"], row["generated_connection_name"],
-                        connection_id,
+                        connection_id, str(row.get("name_source") or "")[:32],
+                        str(row.get("databases_source") or "")[:32],
                     ),
                 )
                 created.append({"id": connection_id, "name": row["generated_connection_name"], "database": row["database"]})

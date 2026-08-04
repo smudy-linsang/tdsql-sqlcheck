@@ -55,10 +55,12 @@ class ZKDiscoveryService:
         return os.name != "nt"
 
     @staticmethod
-    def apply_endpoint_mapping(results: list[dict], host_mapping: dict[str, str] | None) -> list[dict]:
+    def apply_endpoint_mapping(results: list[dict], host_mapping: dict[str, str] | None,
+                               octet_rules: list[dict] | None = None) -> list[dict]:
         """将 ZK 内网网关地址映射为 CheckSQL 实际可连接的地址。
 
-        映射只替换 host，端口保持不变；同时处理主连接地址和 proxy_list，保证后续
+        v1.6.0.3：先应用 IP 段替换规则（批量、按序），再应用精确主机映射（个别例外），
+        两者都只替换 host，端口保持不变；同时处理主连接地址和 proxy_list，保证后续
         ``sync_instance_kinds`` 能与登记在公网/NAT 地址上的实例匹配。
         """
         mapping = {
@@ -66,17 +68,34 @@ class ZKDiscoveryService:
             for source, target in (host_mapping or {}).items()
             if str(source).strip() and str(target).strip()
         }
-        if not mapping:
-            logger.info("ZK_DISCOVERY_ENDPOINT_MAPPING mapping_rules=0 records=%s", len(results))
+        rules = [
+            {"segment": int(r.get("segment")), "from": str(r.get("from")), "to": str(r.get("to"))}
+            for r in (octet_rules or [])
+            if isinstance(r, dict) and str(r.get("from", "")).strip() and str(r.get("to", "")).strip()
+        ]
+        if not mapping and not rules:
+            logger.info("ZK_DISCOVERY_ENDPOINT_MAPPING mapping_rules=0 octet_rules=0 records=%s", len(results))
             return results
+
+        def transform_host(host: str) -> str:
+            text = str(host or "").strip()
+            if rules:
+                parts = text.split(".")
+                if len(parts) == 4:
+                    for rule in rules:
+                        idx = rule["segment"] - 1
+                        if parts[idx] == rule["from"]:
+                            parts[idx] = rule["to"]
+                    text = ".".join(parts)
+            return mapping.get(text, text)
 
         def map_endpoint(endpoint: str) -> str:
             text = str(endpoint or "").strip()
             try:
                 host, port = text.rsplit(":", 1)
             except ValueError:
-                return text
-            return f"{mapping.get(host, host)}:{port}"
+                return transform_host(text)
+            return f"{transform_host(host)}:{port}"
 
         mapped_results = []
         primary_replacements = 0
@@ -84,7 +103,8 @@ class ZKDiscoveryService:
         for result in results:
             item = dict(result)
             original_host = str(item.get("host", ""))
-            item["host"] = mapping.get(original_host, item.get("host", ""))
+            item["original_host"] = original_host
+            item["host"] = transform_host(original_host)
             if item["host"] != original_host:
                 primary_replacements += 1
             proxy_list = str(item.get("proxy_list", "") or "")
@@ -97,8 +117,8 @@ class ZKDiscoveryService:
                 item["proxy_list"] = ";".join(mapped_endpoints)
             mapped_results.append(item)
         logger.info(
-            "ZK_DISCOVERY_ENDPOINT_MAPPING mapping_rules=%s records=%s primary_replacements=%s proxy_replacements=%s",
-            len(mapping), len(results), primary_replacements, proxy_replacements,
+            "ZK_DISCOVERY_ENDPOINT_MAPPING mapping_rules=%s octet_rules=%s records=%s primary_replacements=%s proxy_replacements=%s",
+            len(mapping), len(rules), len(results), primary_replacements, proxy_replacements,
         )
         return mapped_results
 
@@ -413,6 +433,13 @@ class ZKDiscoveryService:
 
                 chosen_endpoint = endpoints[0] if proxy_mode == "first" else random.choice(endpoints)
                 host, port_text = chosen_endpoint.rsplit(":", 1)
+                # v1.6.0.3 L5：setrun 中名称类字段零依赖直取（键集可扩），供名称解析链使用
+                zk_name_fields = {
+                    str(k): str(v).strip()
+                    for k, v in (setrun or {}).items()
+                    if k in ("name", "set_name", "comment", "alias", "instance_name", "clientName")
+                    and str(v or "").strip()
+                }
                 results.append({
                     "service_name": instance_id,
                     "host": host,
@@ -427,6 +454,7 @@ class ZKDiscoveryService:
                     "instance_type": self._KIND_TO_TYPE[kind],
                     "proxy_list": ";".join(endpoints),
                     "set_ids": set_ids,
+                    "zk_name_fields": zk_name_fields,
                     "is_mock": False,
                 })
 

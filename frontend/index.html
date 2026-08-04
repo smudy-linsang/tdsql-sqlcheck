@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <!-- 主题预置：首帧前置 data-theme，避免深/浅切换闪烁；默认深色，localStorage 记忆 -->
   <script>(function(){try{var t=localStorage.getItem('tdsql-theme');if(t!=='light'&&t!=='dark')t='dark';document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','dark');}})();</script>
-  <title>TDSQL数据库SQL审核工具 V1.6.0.2</title>
+  <title>TDSQL数据库SQL审核工具 V1.6.0.3</title>
   <script src="/static/vendor/vue.global.prod.js"></script>
   <link rel="stylesheet" href="/static/vendor/element-plus.css">
   <script src="/static/vendor/element-plus.full.min.js"></script>
@@ -26,7 +26,7 @@
     </div>
     <div class="login-brand">
       <h1>TDSQL数据库SQL审核工具</h1>
-      <div class="version">V1.6.0.1 · Design by Linsang</div>
+      <div class="version">V1.6.0.3 · Design by Linsang</div>
     </div>
     <div class="login-form">
       <el-card>
@@ -2414,7 +2414,7 @@
   </el-dialog>
 
   <!-- G10 ZK 自动发现对话框 -->
-  <el-dialog v-model="zkDialogVisible" title="从 ZooKeeper 自动发现实例" width="800px">
+  <el-dialog v-model="zkDialogVisible" title="从 ZooKeeper 自动发现实例" width="1280px">
     <el-alert type="info" :closable="false" style="margin-bottom:12px"
       title="扫描使用管理员已保存的 ZK 配置。扫描失败会明确提示，不会返回模拟实例。"></el-alert>
     <!-- v1.6.0.1 修复 P5：Mock 数据必须显著标识，防止被误认为真实集群现状 -->
@@ -2426,17 +2426,36 @@
         <el-button type="primary" :loading="zkScanning" @click="runZkDiscovery">开始扫描</el-button>
       </el-form-item>
     </el-form>
-    
-    <el-table :data="zkDiscovered" size="small" border v-loading="zkScanning" style="margin-top:12px" @selection-change="handleZkSelection">
-      <el-table-column type="selection" width="55"></el-table-column>
-      <el-table-column prop="instance_id" label="实例 ID" min-width="190"></el-table-column>
-      <el-table-column prop="primary_proxy" label="主 Proxy" min-width="165"></el-table-column>
-      <el-table-column label="实例形态" width="100"><template #default="{row}"><el-tag v-if="row.instance_type==='distributed'" size="small" type="warning">分布式</el-tag><el-tag v-else-if="row.instance_type==='centralized'" size="small" type="info">集中式</el-tag><span v-else style="color:#94a3b8">未知</span></template></el-table-column>
-      <el-table-column label="SET 列表" min-width="150"><template #default="{row}"><el-tooltip :content="(row.set_ids||[]).join(',')" placement="top"><span>{{(row.set_ids||[]).length}} 个 SET</span></el-tooltip></template></el-table-column>
-      <el-table-column prop="proxy_count" label="Proxy数" width="82"></el-table-column>
-      <el-table-column prop="status_text" label="状态" width="130"><template #default="{row}"><el-tag v-if="zkDiscoveryIsMock" size="small" type="danger" style="margin-right:4px">演示</el-tag><el-tag size="small" :type="row.status_code==='0'?'success':'danger'">{{row.status_text}}</el-tag></template></el-table-column>
+    <!-- v1.6.0.3：五维筛选 + 分页 -->
+    <el-form :inline="true" size="small" style="margin-top:4px" v-if="zkDiscovered.length">
+      <el-form-item label="实例名称"><el-input v-model="zkScanFilter.name" placeholder="模糊" clearable style="width:140px" @input="onZkScanFilterChange"></el-input></el-form-item>
+      <el-form-item label="业务库"><el-input v-model="zkScanFilter.db" placeholder="模糊" clearable style="width:120px" @input="onZkScanFilterChange"></el-input></el-form-item>
+      <el-form-item label="Proxy地址"><el-input v-model="zkScanFilter.host" placeholder="模糊" clearable style="width:140px" @input="onZkScanFilterChange"></el-input></el-form-item>
+      <el-form-item label="端口"><el-input v-model="zkScanFilter.port" placeholder="精确" clearable style="width:80px" @input="onZkScanFilterChange"></el-input></el-form-item>
+      <el-form-item label="形态">
+        <el-select v-model="zkScanFilter.kind" clearable placeholder="全部" style="width:100px" @change="onZkScanFilterChange">
+          <el-option value="distributed" label="分布式"></el-option>
+          <el-option value="centralized" label="集中式"></el-option>
+        </el-select>
+      </el-form-item>
+      <el-form-item><span class="hint">共 {{zkFilteredDiscovered.length}} / {{zkDiscovered.length}} 条</span></el-form-item>
+    </el-form>
+
+    <el-table :data="zkPagedDiscovered" size="small" border v-loading="zkScanning" style="margin-top:8px" @selection-change="handleZkSelection">
+      <el-table-column type="selection" width="45"></el-table-column>
+      <el-table-column prop="instance_id" label="实例 ID" min-width="170"></el-table-column>
+      <el-table-column label="实例名称" min-width="140"><template #default="{row}"><span v-if="row.resolved_name">{{row.resolved_name}}<el-tag size="small" type="info" style="margin-left:4px">{{row.name_source}}</el-tag></span><span v-else style="color:#94a3b8">未解析</span></template></el-table-column>
+      <el-table-column label="业务库" min-width="160"><template #default="{row}"><el-tooltip v-if="(row.business_dbs||[]).length" :content="row.business_dbs.join(', ')" placement="top"><span>{{row.business_dbs.length}} 个库</span></el-tooltip><span v-else style="color:#94a3b8">{{row.enrich_status&&row.enrich_status.indexOf('dbs_failed')===0?'枚举失败':'—'}}</span></template></el-table-column>
+      <el-table-column label="主 Proxy" min-width="150"><template #default="{row}"><span>{{row.primary_proxy}}</span><el-tooltip v-if="row.original_host&&row.original_host!==row.host" :content="'原始：'+row.original_host" placement="top"><el-tag size="small" type="warning" style="margin-left:4px">已适配</el-tag></el-tooltip></template></el-table-column>
+      <el-table-column label="实例形态" width="90"><template #default="{row}"><el-tag v-if="row.instance_type==='distributed'" size="small" type="warning">分布式</el-tag><el-tag v-else-if="row.instance_type==='centralized'" size="small" type="info">集中式</el-tag><span v-else style="color:#94a3b8">未知</span></template></el-table-column>
+      <el-table-column label="SET 列表" min-width="110"><template #default="{row}"><el-tooltip :content="(row.set_ids||[]).join(',')" placement="top"><span>{{(row.set_ids||[]).length}} 个 SET</span></el-tooltip></template></el-table-column>
+      <el-table-column prop="proxy_count" label="Proxy数" width="75"></el-table-column>
+      <el-table-column prop="status_text" label="状态" width="120"><template #default="{row}"><el-tag v-if="zkDiscoveryIsMock" size="small" type="danger" style="margin-right:4px">演示</el-tag><el-tag size="small" :type="row.status_code==='0'?'success':'danger'">{{row.status_text}}</el-tag></template></el-table-column>
     </el-table>
-    
+    <el-pagination v-if="zkDiscovered.length" style="margin-top:10px;justify-content:flex-end" background layout="prev,pager,next,sizes"
+      :total="zkFilteredDiscovered.length" :page-size="zkScanPageSize" v-model:current-page="zkScanPage"
+      :page-sizes="[20,50,100]" @size-change="(s)=>{zkScanPageSize=s;zkScanPage=1}"></el-pagination>
+
     <template #footer>
       <span class="dialog-footer">
         <el-button size="small" @click="zkDialogVisible = false">取消</el-button>
@@ -2446,7 +2465,7 @@
   </el-dialog>
 
   <!-- v1.6.0.1：ZK 标准化导入。业务和 MonitorDB 凭据只用于本次预检/提交。 -->
-  <el-dialog v-model="zkImportDialogVisible" title="ZK 实例标准化导入" width="1080px" :close-on-click-modal="false" append-to-body>
+  <el-dialog v-model="zkImportDialogVisible" title="ZK 实例标准化导入" width="1400px" :close-on-click-modal="false" append-to-body>
     <el-alert type="info" :closable="false" style="margin-bottom:14px"
       title="系统会从 MonitorDB 解析实例名称，并使用业务账号经发现的 Proxy 枚举业务库；每个业务库生成一条独立连接。账号密码不会在页面或预览中回显。"></el-alert>
     <el-form label-width="130px" size="small">
@@ -2462,6 +2481,27 @@
         <el-col :span="12"><el-form-item label="监控密码" required><el-input v-model="zkImportForm.monitor_password" type="password" show-password autocomplete="new-password"></el-input></el-form-item></el-col>
         <el-col :span="12"><el-form-item label="监控默认库" required><el-input v-model="zkImportForm.monitor_database" placeholder="由本集群实际配置决定"></el-input></el-form-item></el-col>
       </el-row>
+      <!-- v1.6.0.3：本次会话临时地址段替换（预填配置值，可改） -->
+      <el-divider content-position="left">地址段替换（本次临时，可选）</el-divider>
+      <div style="margin-bottom:8px">
+        <div v-for="(row,index) in zkImportOctetRows" :key="index" style="display:flex;gap:8px;margin-bottom:8px;align-items:center">
+          <el-select v-model="row.segment" style="width:110px">
+            <el-option :value="1" label="第1段"></el-option><el-option :value="2" label="第2段"></el-option>
+            <el-option :value="3" label="第3段"></el-option><el-option :value="4" label="第4段"></el-option>
+          </el-select>
+          <el-input v-model="row.from" placeholder="原值 0-255" style="width:110px"></el-input>
+          <span style="color:#94a3b8">→</span>
+          <el-input v-model="row.to" placeholder="新值 0-255" style="width:110px"></el-input>
+          <el-button type="danger" plain @click="removeZkImportOctetRow(index)">删除</el-button>
+        </div>
+        <el-button size="small" @click="addZkImportOctetRow">+ 添加段替换</el-button>
+        <span class="hint" style="margin-left:8px">例：第3段 21→20，把 10.243.21.13 替换为 10.243.20.13。</span>
+      </div>
+      <!-- v1.6.0.3：手工兜底（名称/业务库），每行 实例ID=值 -->
+      <el-row :gutter="16">
+        <el-col :span="12"><el-form-item label="手工实例名称"><el-input v-model="zkNameOverrideText" type="textarea" :rows="2" placeholder="可选，每行：实例ID=名称（解析失败时兜底）"></el-input></el-form-item></el-col>
+        <el-col :span="12"><el-form-item label="手工业务库"><el-input v-model="zkManualDbsText" type="textarea" :rows="2" placeholder="可选，每行：实例ID=库1,库2（Proxy 枚举失败时兜底）"></el-input></el-form-item></el-col>
+      </el-row>
       <el-form-item>
         <el-button type="primary" :loading="zkImportPreparing" @click="runZkImportPreview">生成导入预览</el-button>
         <span class="hint" style="margin-left:10px">实例形态和 SET 列表直接取自 ZK，不能在此修改。</span>
@@ -2470,16 +2510,19 @@
     <div v-if="zkImportPreviewId" style="margin-top:12px">
       <el-alert :closable="false" :type="zkImportSummary.error||zkImportSummary.conflict?'warning':'success'"
         :title="`已选 ${zkImportSummary.selected_instances||0} 个实例；可创建 ${zkImportSummary.ready||0} 条，冲突 ${zkImportSummary.conflict||0} 条，失败 ${zkImportSummary.error||0} 条。`" style="margin-bottom:10px"></el-alert>
-      <el-table ref="zkImportTableRef" :data="zkImportRows" size="small" border max-height="360" @selection-change="handleZkImportSelection">
+      <el-table ref="zkImportTableRef" :data="zkPagedPreviewRows" size="small" border max-height="360" @selection-change="handleZkImportSelection">
         <el-table-column type="selection" width="48" :selectable="row=>row.status==='ready'"></el-table-column>
         <el-table-column prop="source_instance_id" label="实例 ID" min-width="160"></el-table-column>
-        <el-table-column prop="resolved_instance_name" label="实例名称" min-width="170"></el-table-column>
-        <el-table-column prop="generated_connection_name" label="生成连接名称" min-width="250"></el-table-column>
-        <el-table-column prop="primary_proxy" label="主 Proxy" min-width="145"></el-table-column>
+        <el-table-column label="实例名称" min-width="150"><template #default="{row}"><span v-if="row.resolved_instance_name">{{row.resolved_instance_name}}<el-tag size="small" type="info" style="margin-left:4px">{{row.name_source}}</el-tag></span><span v-else style="color:#94a3b8">未解析</span></template></el-table-column>
+        <el-table-column prop="generated_connection_name" label="生成连接名称" min-width="230"></el-table-column>
+        <el-table-column prop="primary_proxy" label="主 Proxy" min-width="140"></el-table-column>
         <el-table-column prop="database" label="业务库" min-width="110"></el-table-column>
-        <el-table-column label="形态 / SET" min-width="155"><template #default="{row}">{{row.instance_type==='distributed'?'分布式':'集中式'}} / {{(row.set_ids||[]).join(',')}}</template></el-table-column>
+        <el-table-column label="形态 / SET" min-width="150"><template #default="{row}">{{row.instance_type==='distributed'?'分布式':'集中式'}} / {{(row.set_ids||[]).join(',')}}</template></el-table-column>
         <el-table-column label="状态" min-width="170"><template #default="{row}"><el-tag v-if="row.status==='ready'" type="success" size="small">可创建</el-tag><el-tag v-else-if="row.status==='conflict'" type="warning" size="small">已存在</el-tag><el-tooltip v-else :content="row.failure_detail||'预检失败'"><el-tag type="danger" size="small">{{row.failure_code||'失败'}}</el-tag></el-tooltip></template></el-table-column>
       </el-table>
+      <el-pagination style="margin-top:10px;justify-content:flex-end" background layout="prev,pager,next,sizes"
+        :total="zkImportRows.length" :page-size="zkPreviewPageSize" v-model:current-page="zkPreviewPage"
+        :page-sizes="[20,50,100]" @size-change="(s)=>{zkPreviewPageSize=s;zkPreviewPage=1}"></el-pagination>
     </div>
     <template #footer>
       <el-button @click="zkImportDialogVisible=false">取消</el-button>
@@ -2540,6 +2583,48 @@
             <div class="hint" style="margin-top:6px">仅映射主机地址，端口保持 ZK 中发现的端口不变。</div>
           </div>
         </el-form-item>
+        <!-- v1.6.0.3：IP 段替换规则（批量，先于精确映射应用） -->
+        <el-form-item label="地址段替换">
+          <div style="width:100%">
+            <div v-for="(row,index) in zkOctetRows" :key="index" style="display:flex;gap:8px;margin-bottom:8px;align-items:center">
+              <el-select v-model="row.segment" style="width:110px">
+                <el-option :value="1" label="第1段"></el-option><el-option :value="2" label="第2段"></el-option>
+                <el-option :value="3" label="第3段"></el-option><el-option :value="4" label="第4段"></el-option>
+              </el-select>
+              <el-input v-model="row.from" placeholder="原值 0-255" style="width:110px"></el-input>
+              <span style="color:#94a3b8">→</span>
+              <el-input v-model="row.to" placeholder="新值 0-255" style="width:110px"></el-input>
+              <el-button type="danger" plain @click="removeZkOctetRow(index)">删除</el-button>
+            </div>
+            <el-button size="small" @click="addZkOctetRow">+ 添加段替换</el-button>
+            <div class="hint" style="margin-top:6px">对全部发现地址生效（如第3段 21→20）；精确映射可覆盖个别主机。</div>
+          </div>
+        </el-form-item>
+        <!-- v1.6.0.3：扫描期富集（名称+业务库） -->
+        <el-divider content-position="left">扫描期富集（可选）</el-divider>
+        <el-form-item label="启用富集">
+          <el-switch v-model="zkConfigForm.enrich_enabled" :active-value="1" :inactive-value="0"></el-switch>
+          <span class="hint" style="margin-left:8px">扫描时解析实例名称并枚举业务库，列表直接展示。</span>
+        </el-form-item>
+        <el-row :gutter="16">
+          <el-col :span="12"><el-form-item label="MonitorDB 主机"><el-input v-model="zkConfigForm.monitor_host" placeholder="如 10.243.20.13"></el-input></el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="MonitorDB 端口"><el-input-number v-model="zkConfigForm.monitor_port" :min="1" :max="65535" controls-position="right" style="width:100%"></el-input-number></el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="MonitorDB 用户"><el-input v-model="zkConfigForm.monitor_user" autocomplete="off"></el-input></el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="MonitorDB 口令"><el-input v-model="zkConfigForm.monitor_password" type="password" show-password autocomplete="new-password"
+            :placeholder="zkConfigMeta.monitor_password_configured?'已配置；留空保留':'可选'"></el-input></el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="MonitorDB 默认库"><el-input v-model="zkConfigForm.monitor_db" placeholder="如 tdsqlpcloud_monitor"></el-input></el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="业务用户名"><el-input v-model="zkConfigForm.business_username" autocomplete="off" placeholder="用于 SHOW DATABASES"></el-input></el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="业务口令"><el-input v-model="zkConfigForm.business_password" type="password" show-password autocomplete="new-password"
+            :placeholder="zkConfigMeta.business_password_configured?'已配置；留空保留':'可选'"></el-input></el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="名称解析固化">
+            <el-select v-model="zkConfigForm.name_query_hint" clearable placeholder="自动（逐级）" style="width:100%">
+              <el-option value="L1" label="L1 精确mid"></el-option><el-option value="L2" label="L2 模糊mid"></el-option>
+              <el-option value="L3" label="L3 值像名称"></el-option><el-option value="L4" label="L4 元数据表"></el-option>
+              <el-option value="L5" label="L5 ZK节点"></el-option>
+            </el-select>
+            <div class="hint">由 name-diagnose 诊断结论固化，可跳过未命中级别。</div>
+          </el-form-item></el-col>
+        </el-row>
         <el-form-item v-if="zkConfigMeta.updated_at" label="最近保存">
           <span class="hint">{{zkConfigMeta.updated_at}}{{zkConfigMeta.updated_by?'，操作人：'+zkConfigMeta.updated_by:''}}</span>
         </el-form-item>
@@ -2647,6 +2732,6 @@
   </el-dialog>
 </div>
 <!-- 版本参数确保页面结构与应用逻辑同步更新，避免浏览器沿用旧版 app.js。 -->
-<script src="/static/js/app.js?v=20260803.4"></script>
+<script src="/static/js/app.js?v=20260804.1"></script>
 </body>
 </html>

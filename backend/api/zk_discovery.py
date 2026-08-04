@@ -60,6 +60,13 @@ class DiscoveredInstance(BaseModel):
     set_ids: list[str] = Field(default_factory=list)
     proxy_count: int = 0
     primary_proxy: str = ""
+    # v1.6.0.3 扫描期富集（设计 DESIGN-v1.6.0.3）
+    original_host: str = ""
+    resolved_name: str = ""
+    name_source: str = ""
+    business_dbs: list[str] = Field(default_factory=list)
+    databases_source: str = ""
+    enrich_status: str = ""
 
 
 class ZKDiscoverResponse(BaseModel):
@@ -93,6 +100,10 @@ class ZKImportPreviewRequest(BaseModel):
     item_tokens: list[str] = Field(min_length=1, max_length=_MAX_PREVIEW_INSTANCES)
     business: ZKBusinessCredentialsRequest
     monitor: ZKMonitorCredentialsRequest
+    # v1.6.0.3：本次会话临时覆盖（不写配置）
+    octet_rules: list[dict] = Field(default_factory=list)
+    manual_databases: dict[str, list[str]] = Field(default_factory=dict)
+    name_overrides: dict[str, str] = Field(default_factory=dict)
 
 
 class ZKImportCommitRequest(BaseModel):
@@ -113,6 +124,17 @@ class ZKDiscoveryConfigRequest(BaseModel):
     endpoint_map: dict[str, str] = Field(default_factory=dict)
     auth_username: str = Field(min_length=1, max_length=128)
     auth_password: str = Field("", max_length=1024)
+    # v1.6.0.3：段替换 + 扫描富集配置
+    octet_rules: list[dict] = Field(default_factory=list)
+    monitor_host: str = Field("", max_length=255)
+    monitor_port: int = Field(0, ge=0, le=65535)
+    monitor_user: str = Field("", max_length=128)
+    monitor_password: str = Field("", max_length=1024)
+    monitor_db: str = Field("", max_length=128)
+    business_username: str = Field("", max_length=128)
+    business_password: str = Field("", max_length=1024)
+    name_query_hint: str = Field("", max_length=64)
+    enrich_enabled: int = Field(1)
 
 
 def _operator(request: Request) -> str:
@@ -381,12 +403,23 @@ def discover_instances(request: Request):
         )
         is_mock = bool(results and results[0].get("is_mock"))
         if not is_mock:
-            results = zk_discovery_service.apply_endpoint_mapping(results, config["endpoint_map"])
+            results = zk_discovery_service.apply_endpoint_mapping(
+                results, config["endpoint_map"], config.get("octet_rules") or [])
             synced = zk_discovery_service.sync_instance_kinds(results)
             logger.info(
                 "ZK_DISCOVERY_COMPLETED source=zk records=%s kind_synced=%s",
                 len(results), synced,
             )
+            # v1.6.0.3 扫描期富集：名称（五级解析链）+ 业务库（适配后 Proxy 枚举）
+            if config.get("enrich_enabled", 1):
+                from backend.services.zk_scan_enrich_service import enrich_discovered_items
+                try:
+                    enrich_discovered_items(
+                        results, config.get("monitor") or None,
+                        config.get("business") or None,
+                        hint=config.get("name_query_hint") or "")
+                except Exception as enrich_exc:
+                    logger.warning("ZK_ENRICH_ABORTED error_type=%s", type(enrich_exc).__name__)
         else:
             logger.warning("ZK_DISCOVERY_MOCK_COMPLETED records=%s kind_synchronization=skipped", len(results))
         discovery_id, visible_items = _store_session(results, _operator(request))
@@ -416,9 +449,26 @@ def create_import_preview(body: ZKImportPreviewRequest, request: Request):
         body.monitor.host.strip(), body.monitor.port, body.monitor.username.strip(),
         body.monitor.password, body.monitor.database.strip(),
     )
+    # v1.6.0.3：临时段替换规则（从原始地址重建后应用）；缺省沿用配置
+    hint = ""
+    try:
+        saved = zk_discovery_config_service.load_runtime_config() or {}
+        hint = str(saved.get("name_query_hint") or "")
+    except Exception:
+        saved = {}
+    if body.octet_rules:
+        for inst in instances:
+            if inst.get("original_host"):
+                inst["host"] = inst["original_host"]
+        instances = zk_discovery_service.apply_endpoint_mapping(
+            instances, saved.get("endpoint_map") or {}, body.octet_rules)
     logger.info("ZK_IMPORT_PREVIEW_START operator=%s selected_instances=%s", owner, len(instances))
     try:
-        rows = zk_connection_import_service.build_preview(instances, business, monitor)
+        rows = zk_connection_import_service.build_preview(
+            instances, business, monitor,
+            name_overrides=body.name_overrides,
+            manual_databases=body.manual_databases,
+            hint=hint)
     except Exception as exc:
         # 服务级异常不将数据库驱动文本返给浏览器，避免泄漏连接上下文。
         logger.exception("ZK_IMPORT_PREVIEW_ABORTED operator=%s error_type=%s", owner, type(exc).__name__)
@@ -438,6 +488,67 @@ def create_import_preview(body: ZKImportPreviewRequest, request: Request):
         "summary": summary,
         "rows": visible_rows,
     }
+
+
+class ZKNameDiagnoseRequest(BaseModel):
+    """v1.6.0.3 名称解析诊断：返回实例在 monitordb 的形态样本与各级命中。"""
+    instance_ids: list[str] = Field(min_length=1, max_length=10)
+    discovery_id: str = Field("", max_length=64)
+    monitor: Optional[ZKMonitorCredentialsRequest] = None
+
+
+@router.post("/name-diagnose")
+def name_diagnose(body: ZKNameDiagnoseRequest, request: Request):
+    """对若干实例跑名称解析诊断（admin/dba），用于固化 name_query_hint。响应不含口令。"""
+    if getattr(request.state, "role", "") not in ("admin", "dba"):
+        raise HTTPException(status_code=403, detail={"detail": "仅管理员/DBA 可执行名称解析诊断", "code": "E403"})
+    from backend.services.zk_name_resolution_service import zk_name_resolution_service
+
+    monitor = body.monitor
+    saved: dict = {}
+    try:
+        saved = zk_discovery_config_service.load_runtime_config() or {}
+    except Exception:
+        saved = {}
+    if monitor is None and saved.get("monitor") and saved["monitor"].get("host"):
+        m = saved["monitor"]
+        monitor = ZKMonitorCredentialsRequest(
+            host=m["host"], port=m["port"], username=m["username"],
+            password=m["password"], database=m["database"])
+    session_items: dict[str, dict] = {}
+    if body.discovery_id:
+        with _sessions_lock:
+            session = _sessions.get(body.discovery_id)
+            if session:
+                for raw in session["items"].values():
+                    session_items[str(raw.get("instance_id") or "")] = raw
+    monitor_conn = None
+    items_out = []
+    try:
+        if monitor is not None:
+            import pymysql
+            import pymysql.cursors
+            try:
+                monitor_conn = pymysql.connect(
+                    host=monitor.host, port=monitor.port, user=monitor.username,
+                    password=monitor.password, database=monitor.database,
+                    charset="utf8mb4", connect_timeout=3, read_timeout=10,
+                    cursorclass=pymysql.cursors.DictCursor, autocommit=True)
+            except Exception as exc:
+                raise HTTPException(status_code=503, detail=f"无法连接 MonitorDB: {type(exc).__name__}")
+        for instance_id in body.instance_ids:
+            sess = session_items.get(instance_id, {})
+            items_out.append(zk_name_resolution_service.diagnose(
+                monitor_conn, instance_id, sess.get("set_ids", []),
+                sess.get("instance_kind", ""), zk_name_fields=sess.get("zk_name_fields")))
+    finally:
+        if monitor_conn is not None:
+            try:
+                monitor_conn.close()
+            except Exception:
+                pass
+    logger.info("ZK_NAME_DIAGNOSE operator=%s instances=%s", _operator(request), len(items_out))
+    return {"items": items_out}
 
 
 @router.post("/import-commit")

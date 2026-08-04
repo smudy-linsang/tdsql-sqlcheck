@@ -19,6 +19,7 @@ from backend.services.zk_connection_import_service import (
     zk_connection_import_service,
 )
 from backend.services.zk_discovery_service import ZKDiscoveryUnavailableError, zk_discovery_service
+from backend.services.zk_name_resolution_service import zk_name_resolution_service
 
 
 client = TestClient(app)
@@ -270,9 +271,11 @@ def test_standardized_import_creates_one_connection_per_business_database(monkey
     }
     business = ImportCredentials("biz_user", "business-secret-for-test")
     monitor = MonitorCredentials("198.51.100.20", 15001, "mon_user", "monitor-secret-for-test", "monitor_meta")
-    monkeypatch.setattr(zk_connection_import_service, "_resolve_instance_name", lambda *_: ("统一收单-分布式-提前批2", "instance"))
-    monkeypatch.setattr(zk_connection_import_service, "_list_business_databases", lambda *_: ["cap_gz", "cap_settle"])
-    rows = zk_connection_import_service.build_preview([instance], business, monitor)
+    monkeypatch.setattr(zk_name_resolution_service, "resolve", lambda *a, **k: ("统一收单-分布式-提前批2", "instance", {}))
+    monkeypatch.setattr(zk_connection_import_service, "_list_business_databases", lambda *a, **k: ["cap_gz", "cap_settle"])
+    rows = zk_connection_import_service.build_preview(
+        [instance], business, monitor,
+        name_overrides={"group_import_test": "统一收单-分布式-提前批2"})
     assert [row["generated_connection_name"] for row in rows] == [
         "统一收单-分布式-提前批2-15136-cap_gz",
         "统一收单-分布式-提前批2-15136-cap_settle",
@@ -397,7 +400,7 @@ def test_zk_config_frontend_exposes_admin_entry_and_redacted_password_flow():
     root = Path(__file__).resolve().parents[1]
     html = (root / "frontend" / "index.html").read_text(encoding="utf-8")
     javascript = (root / "frontend" / "static" / "js" / "app.js").read_text(encoding="utf-8")
-    assert '<script src="/static/js/app.js?v=20260803.4"></script>' in html
+    assert '<script src="/static/js/app.js?v=20260804.1"></script>' in html
     assert 'v-if="isAdmin" type="warning" size="small" @click="openZkConfig">ZK发现配置' in html
     assert 'v-model="zkConfigForm.auth_password" type="password"' in html
     # v1.6.0.1 修复 P5：Mock 结果必须有醒目"演示"标识，前端模板与状态暴露缺一不可
@@ -457,7 +460,7 @@ def test_zk_api_real_discovery_redacts_zk_credentials_maps_address_and_creates_p
     preview_calls = []
     monkeypatch.setattr(
         zk_api.zk_connection_import_service, "build_preview",
-        lambda instances, business, monitor: preview_calls.append((instances, business, monitor)) or [{
+        lambda instances, business, monitor, **kw: preview_calls.append((instances, business, monitor)) or [{
             "source_instance_id": "set_1", "instance_kind": "noshard", "instance_type": "centralized",
             "primary_proxy": "119.45.220.89:15002", "primary_proxy_host": "119.45.220.89",
             "primary_proxy_port": 15002, "set_ids": ["set_1"], "resolved_instance_name": "集中式测试",
