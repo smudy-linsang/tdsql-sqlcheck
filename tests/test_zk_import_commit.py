@@ -10,7 +10,6 @@
 用例以"预置既有连接→提交→断言零写入"的反向鉴别结构编写（规约 R-12）。
 """
 import json
-import time
 import uuid
 
 import pytest
@@ -91,10 +90,20 @@ def _cleanup():
 @pytest.fixture(autouse=True)
 def _clean():
     _cleanup()
-    with zk_api._sessions_lock:
-        zk_api._previews.clear()
+    _clear_previews()
     yield
     _cleanup()
+
+
+def _clear_previews():
+    """v1.6.0.5：预览改存元数据库，清理相应改为清表。"""
+    conn = _get_connection()
+    try:
+        conn.execute("DELETE FROM zk_discovery_previews")
+        conn.execute("DELETE FROM zk_discovery_sessions")
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def test_commit_happy_path_encrypts_and_audits():
@@ -241,8 +250,12 @@ def test_commit_rejects_non_ready_rows():
 def test_expired_preview_is_rejected():
     """ZI-12：过期预览必须 410。"""
     discovery_id, preview_id, visible = _seed_preview([_row()])
-    with zk_api._sessions_lock:
-        zk_api._previews[preview_id]["expires_at"] = time.monotonic() - 1
+    conn = _get_connection()
+    try:
+        conn.execute("UPDATE zk_discovery_previews SET expires_at=0 WHERE preview_id=?", (preview_id,))
+        conn.commit()
+    finally:
+        conn.close()
     resp = _commit(discovery_id, preview_id, [r["row_token"] for r in visible])
     assert resp.status_code == 410, resp.text
 
@@ -250,8 +263,12 @@ def test_expired_preview_is_rejected():
 def test_foreign_owner_preview_is_rejected():
     """ZI-12：他人属主的预览必须 403。"""
     discovery_id, preview_id, visible = _seed_preview([_row()])
-    with zk_api._sessions_lock:
-        zk_api._previews[preview_id]["owner"] = "someone_else"
+    conn = _get_connection()
+    try:
+        conn.execute("UPDATE zk_discovery_previews SET owner='someone_else' WHERE preview_id=?", (preview_id,))
+        conn.commit()
+    finally:
+        conn.close()
     resp = _commit(discovery_id, preview_id, [r["row_token"] for r in visible])
     assert resp.status_code == 403, resp.text
 

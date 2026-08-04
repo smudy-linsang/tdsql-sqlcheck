@@ -26,7 +26,17 @@ PROXY_CONNECT_TIMEOUT = 3
 
 def _list_business_databases(endpoints: list[tuple[str, int]], username: str, password: str,
                              monitor_db: str) -> tuple[list[str], str]:
-    """对每个端点 SHOW DATABASES；返回 (sorted_dbs, source_or_errorcode)。"""
+    """v1.6.0.5 修复：业务库枚举改为"≥1 个 Proxy 成功即可"（形态无关）。
+
+    旧版要求全部 Proxy 连接成功，任一不可达/鉴权失败即整实例失败；内网分布式与
+    集中式普遍双 Proxy（主+备），备 Proxy 不可达导致大面积枚举失败。
+    现逐端点捕获异常不抛出：
+      - 0 个成功 -> ([], "NO_AVAILABLE_PROXY")；
+      - 1 个成功 -> 用之，source="proxy_show"；
+      - 多个成功且一致 -> 用之，source="proxy_show"；
+      - 多个成功但不一致 -> 取并集，source="proxy_show_partial"（不整实例失败）。
+    端点顺序由 _proxy_endpoints 保证主 Proxy 在最前（已知可达优先）。
+    """
     import pymysql
     import pymysql.cursors
 
@@ -34,29 +44,33 @@ def _list_business_databases(endpoints: list[tuple[str, int]], username: str, pa
     if monitor_db:
         excluded.add(monitor_db.strip().lower())
     catalogues: list[set[str]] = []
+    failed = 0
     for host, port in endpoints:
-        conn = pymysql.connect(host=host, port=int(port), user=username, password=password,
-                               charset="utf8mb4", connect_timeout=PROXY_CONNECT_TIMEOUT,
-                               read_timeout=10, cursorclass=pymysql.cursors.DictCursor,
-                               autocommit=True)
         try:
-            with conn.cursor() as cur:
-                cur.execute("SHOW DATABASES")
-                values = {
-                    str((row or {}).get("Database") or (row or {}).get("database") or "").strip()
-                    for row in (cur.fetchall() or [])
-                }
-        finally:
-            conn.close()
-        catalogues.append({n for n in values if n and n.lower() not in excluded})
+            conn = pymysql.connect(host=host, port=int(port), user=username, password=password,
+                                   charset="utf8mb4", connect_timeout=PROXY_CONNECT_TIMEOUT,
+                                   read_timeout=10, cursorclass=pymysql.cursors.DictCursor,
+                                   autocommit=True)
+            try:
+                with conn.cursor() as cur:
+                    cur.execute("SHOW DATABASES")
+                    values = {
+                        str((row or {}).get("Database") or (row or {}).get("database") or "").strip()
+                        for row in (cur.fetchall() or [])
+                    }
+            finally:
+                conn.close()
+            catalogues.append({n for n in values if n and n.lower() not in excluded})
+        except Exception as exc:
+            failed += 1
+            logger.warning("ZK_ENRICH_PROXY_FAILED endpoint=%s:%s error_type=%s", host, port, type(exc).__name__)
     if not catalogues:
         return [], "NO_AVAILABLE_PROXY"
-    canonical = catalogues[0]
-    if any(values != canonical for values in catalogues[1:]):
-        return [], "DATABASE_LIST_INCONSISTENT"
-    if not canonical:
-        return [], "NO_BUSINESS_DATABASE"
-    return sorted(canonical, key=lambda item: (item.lower(), item)), "proxy_show"
+    union = set().union(*catalogues)
+    if len(catalogues) > 1 and any(c != catalogues[0] for c in catalogues[1:]):
+        logger.warning("ZK_ENRICH_DBS_INCONSISTENT proxies=%d failed=%d 取并集", len(catalogues), failed)
+        return sorted(union, key=lambda s: (s.lower(), s)), "proxy_show_partial"
+    return sorted(union, key=lambda s: (s.lower(), s)), "proxy_show"
 
 
 def _proxy_endpoints(item: dict) -> list[tuple[str, int]]:
@@ -139,7 +153,7 @@ def enrich_discovered_items(results: list[dict], monitor: Optional[dict],
                             dbs, source = [], "BUSINESS_PROXY_TIMEOUT"
                         except Exception as exc:
                             dbs, source = [], f"BUSINESS_PROXY_FAILED:{type(exc).__name__}"
-                    if source == "proxy_show":
+                    if source in ("proxy_show", "proxy_show_partial"):
                         item["business_dbs"] = dbs
                         item["databases_source"] = source
                     else:

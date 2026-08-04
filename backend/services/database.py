@@ -1004,6 +1004,28 @@ def _create_all_tables(conn):
             INDEX idx_zk_import_batch_operator (operator_username)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""",
 
+        # T08b. v1.6.0.5：ZK 发现会话/导入预览改存元数据库（worker 无关）。
+        # 口令以 Fernet 密文存储（business_enc/monitor_enc），items/rows 为脱敏 JSON。
+        """CREATE TABLE IF NOT EXISTS zk_discovery_sessions (
+            discovery_id        VARCHAR(64) PRIMARY KEY,
+            owner               VARCHAR(64) NOT NULL,
+            is_mock             INT NOT NULL DEFAULT 0,
+            expires_at          DOUBLE NOT NULL,
+            items_json          LONGTEXT NOT NULL,
+            created_at          DATETIME DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""",
+
+        """CREATE TABLE IF NOT EXISTS zk_discovery_previews (
+            preview_id          VARCHAR(64) PRIMARY KEY,
+            discovery_id        VARCHAR(64) NOT NULL,
+            owner               VARCHAR(64) NOT NULL,
+            expires_at          DOUBLE NOT NULL,
+            rows_json           LONGTEXT NOT NULL,
+            business_enc        TEXT,
+            monitor_enc         TEXT,
+            created_at          DATETIME DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""",
+
         """CREATE TABLE IF NOT EXISTS zk_discovery_import_items (
             id                  BIGINT PRIMARY KEY AUTO_INCREMENT,
             batch_id            VARCHAR(36) NOT NULL,

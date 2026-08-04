@@ -111,6 +111,22 @@ class TestConnectionPool:
 # ══════════════════════════════════════════════════════════════
 
 class TestScanScheduleDue:
+    # R-18 零跳过：时间敏感用例改为冻结时钟，不再按运行时刻跳过。
+    _FIXED_NOW = datetime(2026, 8, 5, 10, 30, 0)
+
+    class _FrozenDatetime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return TestScanScheduleDue._FIXED_NOW
+
+    @pytest.fixture(autouse=True)
+    def _frozen_clock(self, sched_env):
+        """冻结测试与调度器的'当前时间'，到期判定与用例断言共用同一时刻。"""
+        from backend.services import scheduler
+        with patch.object(scheduler, "datetime", self._FrozenDatetime), \
+             patch("tests.test_v2_1_platform.datetime", self._FrozenDatetime):
+            yield
+
     @pytest.fixture()
     def sched_env(self):
         from backend.services.database import _get_connection, ensure_db
@@ -154,8 +170,6 @@ class TestScanScheduleDue:
         """应跑时刻已过且今日未跑 → 到期（积压补跑核心场景）"""
         now = datetime.now()
         past = now - timedelta(hours=1)
-        if past.day != now.day:
-            pytest.skip("跨日边界时段，跳过该时间敏感用例")
         yesterday = (now - timedelta(days=1)).isoformat()
         sid = self._insert_schedule(past.hour, past.minute, last_run_at=yesterday)
         assert sid in self._run_and_collect(), "已过时刻且昨日最后执行的计划应补跑"
@@ -164,8 +178,6 @@ class TestScanScheduleDue:
         """从未执行过且时刻已过 → 到期"""
         now = datetime.now()
         past = now - timedelta(minutes=5)
-        if past.day != now.day:
-            pytest.skip("跨日边界时段，跳过该时间敏感用例")
         sid = self._insert_schedule(past.hour, past.minute, last_run_at=None)
         assert sid in self._run_and_collect()
 
@@ -173,8 +185,6 @@ class TestScanScheduleDue:
         """今日已执行 → 不重复触发"""
         now = datetime.now()
         past = now - timedelta(hours=1)
-        if past.day != now.day:
-            pytest.skip("跨日边界时段，跳过该时间敏感用例")
         sid = self._insert_schedule(past.hour, past.minute,
                                     last_run_at=now.isoformat())
         assert sid not in self._run_and_collect()
@@ -183,8 +193,6 @@ class TestScanScheduleDue:
         """应跑时刻未到 → 不触发"""
         now = datetime.now()
         future = now + timedelta(hours=1)
-        if future.day != now.day:
-            pytest.skip("跨日边界时段，跳过该时间敏感用例")
         sid = self._insert_schedule(future.hour, future.minute)
         assert sid not in self._run_and_collect()
 
@@ -192,16 +200,11 @@ class TestScanScheduleDue:
         """停用计划不触发"""
         now = datetime.now()
         past = now - timedelta(hours=1)
-        if past.day != now.day:
-            pytest.skip("跨日边界时段，跳过该时间敏感用例")
         sid = self._insert_schedule(past.hour, past.minute, enabled=0)
         assert sid not in self._run_and_collect()
 
     def test_backlog_processed_in_order(self, sched_env):
         """多个积压计划按时刻顺序一次性补跑（同刻风暴修复验证）"""
-        now = datetime.now()
-        if now.hour < 3:
-            pytest.skip("凌晨时段积压场景不成立，跳过")
         sids = [self._insert_schedule(h, 0) for h in (1, 2)]
         executed = self._run_and_collect()
         assert executed[:2] == sids, f"积压计划应按时刻顺序补跑: {executed}"

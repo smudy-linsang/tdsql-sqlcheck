@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <!-- 主题预置：首帧前置 data-theme，避免深/浅切换闪烁；默认深色，localStorage 记忆 -->
   <script>(function(){try{var t=localStorage.getItem('tdsql-theme');if(t!=='light'&&t!=='dark')t='dark';document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','dark');}})();</script>
-  <title>TDSQL数据库SQL审核工具 V1.6.0.4</title>
+  <title>TDSQL数据库SQL审核工具 V1.6.0.5</title>
   <script src="/static/vendor/vue.global.prod.js"></script>
   <link rel="stylesheet" href="/static/vendor/element-plus.css">
   <script src="/static/vendor/element-plus.full.min.js"></script>
@@ -26,7 +26,7 @@
     </div>
     <div class="login-brand">
       <h1>TDSQL数据库SQL审核工具</h1>
-      <div class="version">V1.6.0.4 · Design by Linsang</div>
+      <div class="version">V1.6.0.5 · Design by Linsang</div>
     </div>
     <div class="login-form">
       <el-card>
@@ -2441,7 +2441,7 @@
       <el-form-item><span class="hint">共 {{zkFilteredDiscovered.length}} / {{zkDiscovered.length}} 条</span></el-form-item>
     </el-form>
 
-    <el-table :data="zkPagedDiscovered" size="small" border v-loading="zkScanning" style="margin-top:8px" @selection-change="handleZkSelection">
+    <el-table ref="zkDiscoveryTableRef" :data="zkPagedDiscovered" size="small" border v-loading="zkScanning" style="margin-top:8px" @selection-change="handleZkSelection">
       <el-table-column type="selection" width="45"></el-table-column>
       <el-table-column prop="instance_id" label="实例 ID" min-width="170"></el-table-column>
       <el-table-column label="实例名称" min-width="140"><template #default="{row}"><span v-if="row.resolved_name">{{row.resolved_name}}<el-tag size="small" type="info" style="margin-left:4px">{{row.name_source}}</el-tag></span><span v-else style="color:#94a3b8">未解析</span></template></el-table-column>
@@ -2465,7 +2465,7 @@
   </el-dialog>
 
   <!-- v1.6.0.1：ZK 标准化导入。业务和 MonitorDB 凭据只用于本次预检/提交。 -->
-  <el-dialog v-model="zkImportDialogVisible" title="ZK 实例标准化导入" width="1400px" :close-on-click-modal="false" append-to-body>
+  <el-dialog v-model="zkImportDialogVisible" title="ZK 实例标准化导入" width="1400px" :close-on-click-modal="false" append-to-body @close="closeZkImport">
     <el-alert type="info" :closable="false" style="margin-bottom:14px"
       title="系统会从 MonitorDB 解析实例名称，并使用业务账号经发现的 Proxy 枚举业务库；每个业务库生成一条独立连接。账号密码不会在页面或预览中回显。"></el-alert>
     <el-form label-width="130px" size="small">
@@ -2732,6 +2732,6 @@
   </el-dialog>
 </div>
 <!-- 版本参数确保页面结构与应用逻辑同步更新，避免浏览器沿用旧版 app.js。 -->
-<script src="/static/js/app.js?v=20260804.1"></script>
+<script src="/static/js/app.js?v=20260805.1"></script>
 </body>
 </html>

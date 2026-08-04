@@ -8,9 +8,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-import threading
-import time
-import uuid
 from pathlib import Path
 from typing import Literal, Optional
 
@@ -31,17 +28,15 @@ from backend.services.zk_connection_import_service import (
     ZKImportCommitError,
     zk_connection_import_service,
 )
+# v1.6.0.5：会话/预览改存元数据库（worker 无关），见 zk_discovery_session_store。
+from backend.services import zk_discovery_session_store as _zk_store
 
 
 logger = logging.getLogger("tdsql.zk_discovery")
 router = APIRouter(prefix="/api/v1/tdsql/discover", tags=["ZK Discovery"])
 
-_SESSION_TTL_SECONDS = 10 * 60
 _PREVIEW_TTL_SECONDS = 5 * 60
 _MAX_PREVIEW_INSTANCES = 200
-_sessions: dict[str, dict] = {}
-_previews: dict[str, dict] = {}
-_sessions_lock = threading.Lock()
 
 
 class DiscoveredInstance(BaseModel):
@@ -255,128 +250,23 @@ def save_discovery_config(body: ZKDiscoveryConfigRequest, request: Request):
 
 
 def _store_session(results: list[dict], owner: str) -> tuple[str, list[dict]]:
-    """只在进程内短时暂存原始结果；数据库密码永不进入 API 响应。"""
-    now = time.monotonic()
-    discovery_id = uuid.uuid4().hex
-    visible_items: list[dict] = []
-    raw_items: dict[str, dict] = {}
-    is_mock = bool(results and results[0].get("is_mock"))
-    for result in results:
-        item_token = uuid.uuid4().hex
-        # setrun 的 user/password 都是 ZK 发现内部数据，不能当作业务连接凭据
-        # 进入浏览器或继续留在发现会话中。导入账号只接受操作者本次输入。
-        raw = {key: value for key, value in result.items() if key not in {"password", "user", "database"}}
-        raw_items[item_token] = raw
-        visible = dict(raw)
-        set_ids = sorted({str(value).strip() for value in (visible.get("set_ids") or []) if str(value).strip()})
-        if not set_ids and visible.get("instance_kind") == "noshard" and visible.get("instance_id"):
-            set_ids = [str(visible["instance_id"])]
-        visible["set_ids"] = set_ids
-        visible["proxy_count"] = len([value for value in str(visible.get("proxy_list") or "").split(";") if value.strip()])
-        visible["primary_proxy"] = f"{visible.get('host', '')}:{visible.get('port', '')}"
-        visible["item_token"] = item_token
-        visible_items.append(visible)
-    with _sessions_lock:
-        expired = [key for key, item in _sessions.items() if item["expires_at"] <= now]
-        for key in expired:
-            _sessions.pop(key, None)
-        expired_previews = [key for key, item in _previews.items() if item["expires_at"] <= now]
-        for key in expired_previews:
-            _previews.pop(key, None)
-        _sessions[discovery_id] = {
-            "owner": owner,
-            "expires_at": now + _SESSION_TTL_SECONDS,
-            "is_mock": is_mock,
-            "items": raw_items,
-        }
-    return discovery_id, visible_items
-
-
-def _load_session_item(discovery_id: str, item_token: str, owner: str) -> dict:
-    now = time.monotonic()
-    with _sessions_lock:
-        session = _sessions.get(discovery_id)
-        if not session or session["expires_at"] <= now:
-            _sessions.pop(discovery_id, None)
-            raise HTTPException(status_code=410, detail="发现会话已过期，请重新扫描")
-        if session["owner"] != owner:
-            raise HTTPException(status_code=403, detail="无权使用其他操作者的发现会话")
-        if session["is_mock"]:
-            raise HTTPException(status_code=409, detail="Mock 发现结果禁止导入或同步")
-        item = session["items"].get(item_token)
-        if not item:
-            raise HTTPException(status_code=404, detail="发现记录不存在")
-        return dict(item)
+    """脱敏后入库（跨 worker 共享）；口令永不进入 API 响应。"""
+    return _zk_store.store_session(results, owner)
 
 
 def _load_session_items(discovery_id: str, item_tokens: list[str], owner: str) -> list[dict]:
     """读取并校验本操作者的多个发现项；不允许 Mock 进入预检。"""
-    unique_tokens = list(dict.fromkeys(item_tokens))
-    if len(unique_tokens) != len(item_tokens):
-        raise HTTPException(status_code=422, detail="发现记录不可重复选择")
-    now = time.monotonic()
-    with _sessions_lock:
-        session = _sessions.get(discovery_id)
-        if not session or session["expires_at"] <= now:
-            _sessions.pop(discovery_id, None)
-            raise HTTPException(status_code=410, detail="发现会话已过期，请重新扫描")
-        if session["owner"] != owner:
-            raise HTTPException(status_code=403, detail="无权使用其他操作者的发现会话")
-        if session["is_mock"]:
-            raise HTTPException(status_code=409, detail="Mock 发现结果禁止生成导入预览")
-        items = []
-        for token in unique_tokens:
-            item = session["items"].get(token)
-            if not item:
-                raise HTTPException(status_code=404, detail="发现记录不存在")
-            items.append(dict(item))
-        return items
+    return _zk_store.load_session_items(discovery_id, item_tokens, owner)
 
 
 def _store_preview(discovery_id: str, owner: str, rows: list[dict], business: ImportCredentials,
                    monitor: MonitorCredentials) -> tuple[str, list[dict]]:
-    """把凭据留在服务端短会话，返回仅含脱敏候选项的预览。"""
-    now = time.monotonic()
-    preview_id = uuid.uuid4().hex
-    private_rows: dict[str, dict] = {}
-    visible_rows: list[dict] = []
-    for row in rows:
-        row_token = uuid.uuid4().hex
-        private_rows[row_token] = dict(row)
-        visible = dict(row)
-        visible["row_token"] = row_token
-        visible_rows.append(visible)
-    with _sessions_lock:
-        _previews[preview_id] = {
-            "owner": owner,
-            "discovery_id": discovery_id,
-            "expires_at": now + _PREVIEW_TTL_SECONDS,
-            "rows": private_rows,
-            "business": business,
-            "monitor": monitor,
-        }
-    return preview_id, visible_rows
+    """凭据加密入库，返回仅含脱敏候选项的预览。"""
+    return _zk_store.store_preview(discovery_id, owner, rows, business, monitor)
 
 
 def _load_preview(body: ZKImportCommitRequest, owner: str) -> tuple[dict, list[dict]]:
-    now = time.monotonic()
-    selected_tokens = list(dict.fromkeys(body.row_tokens))
-    if len(selected_tokens) != len(body.row_tokens):
-        raise HTTPException(status_code=422, detail="导入候选项不可重复选择")
-    with _sessions_lock:
-        preview = _previews.get(body.preview_id)
-        if not preview or preview["expires_at"] <= now:
-            _previews.pop(body.preview_id, None)
-            raise HTTPException(status_code=410, detail="导入预览已过期，请重新生成")
-        if preview["owner"] != owner or preview["discovery_id"] != body.discovery_id:
-            raise HTTPException(status_code=403, detail="无权使用该导入预览")
-        selected = []
-        for token in selected_tokens:
-            row = preview["rows"].get(token)
-            if not row:
-                raise HTTPException(status_code=404, detail="导入候选项不存在")
-            selected.append(dict(row))
-        return preview, selected
+    return _zk_store.load_preview(body.preview_id, body.discovery_id, body.row_tokens, owner)
 
 
 @router.post("", response_model=ZKDiscoverResponse)
@@ -517,11 +407,7 @@ def name_diagnose(body: ZKNameDiagnoseRequest, request: Request):
             password=m["password"], database=m["database"])
     session_items: dict[str, dict] = {}
     if body.discovery_id:
-        with _sessions_lock:
-            session = _sessions.get(body.discovery_id)
-            if session:
-                for raw in session["items"].values():
-                    session_items[str(raw.get("instance_id") or "")] = raw
+        session_items = _zk_store.get_session_items_map(body.discovery_id)
     monitor_conn = None
     items_out = []
     try:
@@ -569,9 +455,8 @@ def commit_import_preview(body: ZKImportCommitRequest, request: Request):
             selected, owner, body.discovery_id, exc.code, preview_total=preview_total)
         raise HTTPException(status_code=status, detail=exc.detail) from exc
     finally:
-        # 无论成功还是失败都销毁凭据和一次性预览，避免重放；失败可重新预检。
-        with _sessions_lock:
-            _previews.pop(body.preview_id, None)
+        # 无论成功还是失败都销毁一次性预览，避免重放；失败可重新预检。
+        _zk_store.delete_preview(body.preview_id)
     return {
         "status": "success",
         "batch_id": result["batch_id"],
