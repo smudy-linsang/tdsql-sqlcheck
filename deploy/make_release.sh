@@ -82,7 +82,7 @@ if [[ -d "${ROOT}/dist/wheels_tmp" ]] && ls "${ROOT}/dist/wheels_tmp/"*.whl >/de
     elif [[ "$base" != *-py3-none-any.whl && "$base" != *-py2.py3-none-any.whl && "$base" != *"${ARCH}"* ]]; then
       BADW="${BADW}${base} "
     fi
-    if [[ "$base" == -cp3* && "$base" != *cp${PYTAG}* && "$base" != *-abi3-* && "$base" != *none-any* ]]; then
+    if [[ "$base" == *-cp3* && "$base" != *cp${PYTAG}* && "$base" != *-abi3-* && "$base" != *none-any* ]]; then
       BADW="${BADW}${base} "
     fi
   done
