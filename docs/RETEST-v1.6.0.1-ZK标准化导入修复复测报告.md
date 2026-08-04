@@ -3,7 +3,7 @@
 > 复测对象：`FIX-v1.6.0.1-ZK标准化导入问题修复说明书.md` 所列 P1~P8 修复（commits `15fdcf8` / `f1b9e90` / `dd6ca73`）
 > 复测环境：Windows 开发机，Python 3.14，FastAPI 0.139，MySQL 8.0（127.0.0.1:13306），真开 Chromium
 > 日期：2026-08-03
-> **复测结论：🟢 8 项问题全部修复确认有效；全量回归 1220 通过 / 0 失败；修复未引入新缺陷**
+> **复测结论：🟢 8 项问题全部修复确认有效；全量回归 1249 通过 / 0 失败 / 0 跳过（R-18 零跳过口径）；修复未引入新缺陷**
 
 ---
 
@@ -24,15 +24,27 @@
 
 | 项 | 修复前基线 | 复测结果 | 判定 |
 |---|---|---|---|
-| 全量套件 `pytest tests` | 1212 通过 / 0 失败 / 28 跳过 | **1220 通过 / 0 失败 / 29 跳过** | ✅ 零回归，净增 8 条守护用例 |
+| 全量套件 `pytest tests` | 1212 通过 / 0 失败 / 28 跳过 | **1249 通过 / 0 失败 / 0 跳过** | ✅ 零回归、**零跳过** |
 | ZK 专项（`test_zk_discovery.py` + `test_zk_import_commit.py`） | 18 通过 | **27 通过** | ✅ |
 | 前端语法 `node --check app.js` | 通过 | 通过 | ✅ |
 | 后端语法 `compileall` | 通过 | 通过 | ✅ |
 
-**说明**：复测首轮曾出现 1 条失败（`test_zk_config_frontend_exposes_admin_entry_and_redacted_password_flow`），
+**说明一（良性失败）**：复测首轮曾出现 1 条失败（`test_zk_config_frontend_exposes_admin_entry_and_redacted_password_flow`），
 原因是该用例是前端缓存版本守卫，断言固定了 `app.js?v=20260803.3`，而 P5/P7 修复按惯例 bump 至 `.4`。
 已按守卫本意同步版本号，并把 P5 的"演示标识"三要素（警示条/标签/状态暴露）追加为守护断言——
 **守卫机制按设计发挥了拦截作用，属良性失败**（commit `dd6ca73`）。
+
+**说明二（跳过清零，R-18）**：基线中的 28 个 skip 全部来自 `test_sit_rules.py`（11）与
+`test_uat_rules.py`（17）——两个"打真实服务"的集成模块，服务未启动时按模块内设计整体 skip。
+按项目负责人"全部都要测，不能跳过"的要求，本轮补齐前置环境后全部实跑：
+
+1. 起本机服务 `uvicorn backend.main:app --port 8000`（元库 `tdsql_sqlcheck`），
+   设置 `TDSQL_TEST_BASE_URL / TDSQL_TEST_ADMIN_USER / TDSQL_TEST_ADMIN_PASSWORD`；
+2. 第一次实跑即暴露真实行为：**27/28 失败**——admin 口令重置后 `must_change_password=1`
+   导致全部业务接口 403（这正是 skip 长期掩盖的集成层盲区）；
+3. 清除强制改密状态后复跑：**28/28 通过**，全量套件随之达到 **1249 通过 / 0 失败 / 0 跳过**；
+4. "回归零跳过"已固化为规约 **R-18**（`GUIDE-团队施工规约.md`）：skip 不得计入通过口径，
+   仅真实内网才能执行的用例可例外、且必须显式列入内网测试清单。
 
 ## 3. 浏览器 UAT 复测记录（真启服务，人类用户视角）
 
