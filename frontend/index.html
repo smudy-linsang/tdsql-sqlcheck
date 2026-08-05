@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <!-- 主题预置：首帧前置 data-theme，避免深/浅切换闪烁；默认深色，localStorage 记忆 -->
   <script>(function(){try{var t=localStorage.getItem('tdsql-theme');if(t!=='light'&&t!=='dark')t='dark';document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','dark');}})();</script>
-  <title>TDSQL数据库SQL审核工具 V1.6.0.7</title>
+  <title>TDSQL数据库SQL审核工具 V1.6.1.0</title>
   <script src="/static/vendor/vue.global.prod.js"></script>
   <link rel="stylesheet" href="/static/vendor/element-plus.css">
   <script src="/static/vendor/element-plus.full.min.js"></script>
@@ -26,7 +26,7 @@
     </div>
     <div class="login-brand">
       <h1>TDSQL数据库SQL审核工具</h1>
-      <div class="version">V1.6.0.7 · Design by Linsang</div>
+      <div class="version">V1.6.1.0 · Design by Linsang</div>
     </div>
     <div class="login-form">
       <el-card>
@@ -2445,7 +2445,7 @@
       <el-table-column type="selection" width="45"></el-table-column>
       <el-table-column prop="instance_id" label="实例 ID" min-width="170"></el-table-column>
       <el-table-column label="实例名称" min-width="140"><template #default="{row}"><span v-if="row.resolved_name">{{row.resolved_name}}<el-tag size="small" type="info" style="margin-left:4px">{{row.name_source}}</el-tag></span><span v-else style="color:#94a3b8">未解析</span></template></el-table-column>
-      <el-table-column label="业务库" min-width="160"><template #default="{row}"><el-tooltip v-if="(row.business_dbs||[]).length" :content="row.business_dbs.join(', ')" placement="top"><span>{{row.business_dbs.length}} 个库</span></el-tooltip><span v-else style="color:#94a3b8">{{row.enrich_status&&row.enrich_status.indexOf('dbs_failed')===0?'枚举失败':'—'}}</span><el-tooltip v-if="String(row.databases_source||'').indexOf('partial')>=0" content="部分 Proxy 未响应，列表可能不全" placement="top"><el-tag size="small" type="warning" style="margin-left:4px">部分 Proxy</el-tag></el-tooltip></template></el-table-column>
+      <el-table-column label="业务库" min-width="160"><template #default="{row}"><el-tooltip v-if="(row.business_dbs||[]).length" :content="row.business_dbs.join(', ')" placement="top"><span>{{row.business_dbs.length}} 个库</span></el-tooltip><el-tooltip v-else-if="row.enrich_status==='dbs_failed:NO_BUSINESS_USER'" content="业务账号在本实例鉴权失败（access denied）：通常未创建监控用户（如 checksql）或口令与 ZK 发现配置不一致；创建用户或更正口令后重新扫描即可" placement="top"><span style="color:#e6a23c">未创建监控用户</span></el-tooltip><el-tooltip v-else-if="row.enrich_status&&row.enrich_status.indexOf('dbs_failed')===0" :content="'枚举失败：'+row.enrich_status" placement="top"><span style="color:#94a3b8">枚举失败</span></el-tooltip><span v-else style="color:#94a3b8">—</span><el-tooltip v-if="String(row.databases_source||'').indexOf('partial')>=0" content="部分 Proxy 未响应，列表可能不全" placement="top"><el-tag size="small" type="warning" style="margin-left:4px">部分 Proxy</el-tag></el-tooltip></template></el-table-column>
       <el-table-column label="主 Proxy" min-width="150"><template #default="{row}"><span>{{row.primary_proxy}}</span><el-tooltip v-if="row.original_host&&row.original_host!==row.host" :content="'原始：'+row.original_host" placement="top"><el-tag size="small" type="warning" style="margin-left:4px">已适配</el-tag></el-tooltip></template></el-table-column>
       <el-table-column label="实例形态" width="90"><template #default="{row}"><el-tag v-if="row.instance_type==='distributed'" size="small" type="warning">分布式</el-tag><el-tag v-else-if="row.instance_type==='centralized'" size="small" type="info">集中式</el-tag><span v-else style="color:#94a3b8">未知</span></template></el-table-column>
       <el-table-column label="SET 列表" min-width="110"><template #default="{row}"><el-tooltip :content="(row.set_ids||[]).join(',')" placement="top"><span>{{(row.set_ids||[]).length}} 个 SET</span></el-tooltip></template></el-table-column>
@@ -2518,7 +2518,7 @@
         <el-table-column prop="primary_proxy" label="主 Proxy" min-width="140"></el-table-column>
         <el-table-column prop="database" label="业务库" min-width="110"><template #default="{row}"><span>{{row.database}}</span><el-tooltip v-if="String(row.databases_source||'').indexOf('partial')>=0" content="部分 Proxy 未响应，列表可能不全" placement="top"><el-tag size="small" type="warning" style="margin-left:4px">部分 Proxy</el-tag></el-tooltip></template></el-table-column>
         <el-table-column label="形态 / SET" min-width="150"><template #default="{row}">{{row.instance_type==='distributed'?'分布式':'集中式'}} / {{(row.set_ids||[]).join(',')}}</template></el-table-column>
-        <el-table-column label="状态" min-width="170"><template #default="{row}"><el-tag v-if="row.status==='ready'" type="success" size="small">可创建</el-tag><el-tag v-else-if="row.status==='conflict'" type="warning" size="small">已存在</el-tag><el-tooltip v-else :content="row.failure_detail||'预检失败'"><el-tag type="danger" size="small">{{row.failure_code||'失败'}}</el-tag></el-tooltip></template></el-table-column>
+        <el-table-column label="状态" min-width="170"><template #default="{row}"><el-tag v-if="row.status==='ready'" type="success" size="small">可创建</el-tag><el-tag v-else-if="row.status==='conflict'" type="warning" size="small">已存在</el-tag><el-tooltip v-else :content="row.failure_detail||'预检失败'" placement="top"><el-tag :type="row.failure_code==='NO_BUSINESS_USER'?'warning':'danger'" size="small">{{zkFailureLabel(row.failure_code)}}</el-tag></el-tooltip></template></el-table-column>
       </el-table>
       <el-pagination style="margin-top:10px;justify-content:flex-end" background layout="prev,pager,next,sizes"
         :total="zkImportRows.length" :page-size="zkPreviewPageSize" v-model:current-page="zkPreviewPage"
@@ -2732,6 +2732,6 @@
   </el-dialog>
 </div>
 <!-- 版本参数确保页面结构与应用逻辑同步更新，避免浏览器沿用旧版 app.js。 -->
-<script src="/static/js/app.js?v=20260806.1"></script>
+<script src="/static/js/app.js?v=20260806.2"></script>
 </body>
 </html>

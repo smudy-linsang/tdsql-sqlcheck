@@ -57,7 +57,8 @@ def test_list_business_databases_one_proxy_down_still_succeeds(monkeypatch):
     monkeypatch.setattr(pymysql, "connect", fake_connect)
     dbs, source = _list_business_databases(
         [("10.0.0.1", 15001), ("10.0.0.2", 15001)], "u", "p", "tdsqlpcloud_monitor")
-    assert dbs == ["cap_gz", "sysdb"]
+    # v1.6.1.0：sysdb 为实例默认管理库，枚举结果必须排除
+    assert dbs == ["cap_gz"]
     assert source == "proxy_show_partial"
 
 

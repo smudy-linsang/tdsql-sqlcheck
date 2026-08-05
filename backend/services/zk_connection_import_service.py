@@ -15,12 +15,8 @@ import pymysql
 logger = logging.getLogger("tdsql.zk_import")
 
 
-SYSTEM_DATABASES = {
-    "information_schema",
-    "mysql",
-    "performance_schema",
-    "sys",
-}
+# v1.6.1.0：系统库排除集统一以富集侧为单源（含 sysdb），消除双份定义漂移（设计 DESIGN-v1.6.0.8 §4）
+from backend.services.zk_scan_enrich_service import SYSTEM_DATABASES, _errno_of
 
 
 class ZKImportPreparationError(RuntimeError):
@@ -151,6 +147,7 @@ class ZKConnectionImportService:
             excluded.add(monitor_db.strip().lower())
         catalogues: list[set[str]] = []
         failed = 0
+        auth_failures = 0
         for host, port in endpoints:
             try:
                 connection = self._connect(host, port, business.username, business.password, "")
@@ -165,13 +162,22 @@ class ZKConnectionImportService:
                     connection.close()
             except Exception as exc:
                 failed += 1
+                # v1.6.1.0：捕获 errno 用于失败分类（1045=鉴权失败；沿 _connect 包装层的 __cause__ 追原始异常）
+                errno_ = _errno_of(exc)
+                if errno_ == 1045:
+                    auth_failures += 1
                 logger.warning(
-                    "ZK_IMPORT_BUSINESS_PROXY_FAILED instance=%s endpoint=%s:%s error_type=%s",
-                    instance_id, host, port, type(exc).__name__,
+                    "ZK_IMPORT_BUSINESS_PROXY_FAILED instance=%s endpoint=%s:%s error_type=%s errno=%s",
+                    instance_id, host, port, type(exc).__name__, errno_,
                 )
                 continue
             catalogues.append({name for name in values if name and name.lower() not in excluded})
         if not catalogues:
+            # v1.6.1.0（设计 DESIGN-v1.6.0.8 §3）：全部鉴权失败 → NO_BUSINESS_USER
+            if failed and auth_failures == failed:
+                raise ZKImportPreparationError(
+                    "NO_BUSINESS_USER",
+                    "业务账号在该实例全部 Proxy 上鉴权失败：通常未创建监控用户或口令与配置不一致")
             raise ZKImportPreparationError("NO_AVAILABLE_PROXY", "全部 Proxy 均无法枚举业务库")
         union = set().union(*catalogues)
         if not union:

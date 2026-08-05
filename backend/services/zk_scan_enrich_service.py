@@ -18,10 +18,24 @@ from backend.services.zk_name_resolution_service import zk_name_resolution_servi
 
 logger = logging.getLogger("tdsql.zk_enrich")
 
-SYSTEM_DATABASES = {"information_schema", "mysql", "performance_schema", "sys"}
+SYSTEM_DATABASES = {"information_schema", "mysql", "performance_schema", "sys",
+                    # v1.6.1.0：sysdb 为 TDSQL 实例默认管理库，非业务库，不纳入 SQL 审核（设计 DESIGN-v1.6.0.8 §4）
+                    "sysdb"}
 ENRICH_MAX_INSTANCES = 500
 ENRICH_WORKERS = 8
 PROXY_CONNECT_TIMEOUT = 3
+
+
+def _errno_of(exc: Exception):
+    """v1.6.1.0：提取数据库 errno，沿 __cause__ 链追原始异常。
+
+    导入侧 _connect 会把 pymysql 异常包成 ZKImportPreparationError（A-P2-02），
+    原始 errno 在 __cause__ 里；富集侧直连 pymysql 则在本层。
+    """
+    for e in (exc, getattr(exc, "__cause__", None)):
+        if e is not None and getattr(e, "args", None) and isinstance(e.args[0], int):
+            return e.args[0]
+    return None
 
 
 def _list_business_databases(endpoints: list[tuple[str, int]], username: str, password: str,
@@ -31,7 +45,8 @@ def _list_business_databases(endpoints: list[tuple[str, int]], username: str, pa
     旧版要求全部 Proxy 连接成功，任一不可达/鉴权失败即整实例失败；内网分布式与
     集中式普遍双 Proxy（主+备），备 Proxy 不可达导致大面积枚举失败。
     现逐端点捕获异常不抛出：
-      - 0 个成功 -> ([], "NO_AVAILABLE_PROXY")；
+      - 0 个成功且全部 1045 -> ([], "NO_BUSINESS_USER")（未创建监控用户/口令不符，v1.6.1.0）；
+      - 0 个成功含连接类/混合 -> ([], "NO_AVAILABLE_PROXY")；
       - 1 个成功 -> 用之，source="proxy_show"；
       - 多个成功且一致 -> 用之，source="proxy_show"；
       - 多个成功但不一致 -> 取并集，source="proxy_show_partial"（不整实例失败）。
@@ -45,6 +60,7 @@ def _list_business_databases(endpoints: list[tuple[str, int]], username: str, pa
         excluded.add(monitor_db.strip().lower())
     catalogues: list[set[str]] = []
     failed = 0
+    auth_failures = 0
     for host, port in endpoints:
         try:
             conn = pymysql.connect(host=host, port=int(port), user=username, password=password,
@@ -63,8 +79,17 @@ def _list_business_databases(endpoints: list[tuple[str, int]], username: str, pa
             catalogues.append({n for n in values if n and n.lower() not in excluded})
         except Exception as exc:
             failed += 1
-            logger.warning("ZK_ENRICH_PROXY_FAILED endpoint=%s:%s error_type=%s", host, port, type(exc).__name__)
+            # v1.6.1.0：捕获 errno 用于失败分类（1045=鉴权失败，通常为未创建监控用户）
+            errno_ = _errno_of(exc)
+            if errno_ == 1045:
+                auth_failures += 1
+            logger.warning("ZK_ENRICH_PROXY_FAILED endpoint=%s:%s error_type=%s errno=%s",
+                           host, port, type(exc).__name__, errno_)
     if not catalogues:
+        # v1.6.1.0（设计 DESIGN-v1.6.0.8 §3）：全部鉴权失败 → NO_BUSINESS_USER，
+        # 页面可提示"未创建监控用户"；含连接类/混合失败仍为 NO_AVAILABLE_PROXY。
+        if failed and auth_failures == failed:
+            return [], "NO_BUSINESS_USER"
         return [], "NO_AVAILABLE_PROXY"
     union = set().union(*catalogues)
     # v1.6.0.6（A-P2-01）：只要有 Proxy 失败就标降级，"用一个 Proxy 的目录

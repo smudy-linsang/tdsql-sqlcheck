@@ -147,5 +147,6 @@ curl -s -X POST $HOST/api/v1/tdsql/discover \
 | diagnose 返回 `error`/`matched_mids` 空 | MonitorDB 连不上或无该实例 | 核对 monitor 五项；或导入时用手工命名/手工库兜底 |
 | 名称仍为空但 `enrich_status=name_only` | 业务库枚举失败 | 看 `dbs_failed:*`；核对业务账号 SHOW DATABASES 权限或 octet_rules |
 | 预览某行 `NO_AVAILABLE_PROXY` | 适配后全部 Proxy 仍不可达（v1.6.0.6 起部分失败只标"部分 Proxy"降级不阻断） | 调整 octet_rules/endpoint_map，或该行手工填库 |
+| 扫描列表"未创建监控用户" / 预览 `NO_BUSINESS_USER` | 业务账号（如 checksql）在该实例鉴权失败（1045）：未创建监控用户或口令与配置不一致（v1.6.1.0 起单独标识） | 在实例上创建监控用户或更正配置口令后重扫；该提示可反向核查监控账号覆盖率 |
 
 *本手册不改代码；所有配置经加密存储，口令不回显。*

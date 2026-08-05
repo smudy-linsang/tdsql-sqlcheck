@@ -491,6 +491,7 @@ scan -> discovery session（10 分钟、属主绑定）
 | `ZK_UNAVAILABLE` | ZK 真实发现不可用，未返回模拟实例 | 检查 ZK 配置、路由、认证及服务端日志 |
 | `GROUP_WITHOUT_SETS` | 分布式实例未读取到 SET 列表，已跳过 | 核查该 group 的 ZK 节点结构 |
 | `NO_AVAILABLE_PROXY` | 未发现可用 Proxy | 检查运行状态和地址映射 |
+| `NO_BUSINESS_USER`（v1.6.1.0 新增） | 业务账号在实例全部 Proxy 鉴权失败（1045）：未创建监控用户或口令不匹配；页面短标签"未创建监控用户" | 在实例上创建监控用户（如 checksql）或更正 ZK 配置口令后重扫 |
 | `MONITOR_CONNECT_FAILED` | 无法连接 MonitorDB | 核对本次输入的监控主机、端口、账号、库及网络 |
 | `INSTANCE_NAME_UNRESOLVED` | MonitorDB 未解析到实例名称，不能生成规范连接名 | 先核查赤兔/MonitorDB 的实例元数据字段 |
 | `BUSINESS_PROXY_INCOMPLETE` | **已作废（v1.6.0.6）**：任一 Proxy 枚举失败即整实例预检失败。内网实测证明主备双 Proxy 下备不可达会大面积误杀，已改为≥1 成功即可、部分失败标 `proxy_show_partial` 降级，见 `docs/v1.6.0.6_修复说明_A复测问题.md` | — |
