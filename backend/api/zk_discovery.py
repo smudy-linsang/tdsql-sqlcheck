@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Literal, Optional
 
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from backend.services.zk_discovery_service import (
     ZKDiscoveryUnavailableError,
@@ -122,7 +122,10 @@ class ZKDiscoveryConfigRequest(BaseModel):
     # v1.6.0.3：段替换 + 扫描富集配置
     octet_rules: list[dict] = Field(default_factory=list)
     monitor_host: str = Field("", max_length=255)
-    monitor_port: int = Field(0, ge=0, le=65535)
+    # v1.6.0.6（A-P1-02）：前端 el-input-number 空值是 null；Pydantic 默认值只在
+    # 字段缺失时生效，显式 null 会被 422 拒掉——页面标"可选"的 MonitorDB 段
+    # 会导致整份配置存不上。允许 null/空串并归一为 0。
+    monitor_port: Optional[int] = Field(0, ge=0, le=65535)
     monitor_user: str = Field("", max_length=128)
     monitor_password: str = Field("", max_length=1024)
     monitor_db: str = Field("", max_length=128)
@@ -130,6 +133,11 @@ class ZKDiscoveryConfigRequest(BaseModel):
     business_password: str = Field("", max_length=1024)
     name_query_hint: str = Field("", max_length=64)
     enrich_enabled: int = Field(1)
+
+    @field_validator("monitor_port", mode="before")
+    @classmethod
+    def _null_port_as_zero(cls, value):
+        return 0 if value in (None, "") else value
 
 
 def _operator(request: Request) -> str:

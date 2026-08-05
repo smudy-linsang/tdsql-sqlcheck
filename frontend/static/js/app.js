@@ -7,6 +7,15 @@ function clearToken(){localStorage.removeItem(AUTH_TOKEN_KEY)}
 function responseMessage(data,fallback){
   const value=(data&&typeof data==='object')?(data.detail??data.message??data.error):data;
   if(typeof value==='string'&&value.trim())return value;
+  // v1.6.0.6（A-P1-02）：FastAPI 校验错误的 detail 是数组（[{loc,msg},...]），
+  // 旧实现只认字符串 detail，422 永远落到无指向的兜底文案；取首条 loc+msg 展示。
+  if(Array.isArray(value)&&value.length){
+    const first=value[0]||{};
+    const loc=Array.isArray(first.loc)?first.loc.slice(1).join('.'):String(first.loc||'');
+    const msg=first.msg||first.message||'';
+    const text=loc?`${loc}: ${msg}`:msg;
+    if(typeof text==='string'&&text.trim())return text;
+  }
   if(value&&typeof value==='object'){
     const nested=value.detail??value.message??value.error;
     if(typeof nested==='string'&&nested.trim())return nested;

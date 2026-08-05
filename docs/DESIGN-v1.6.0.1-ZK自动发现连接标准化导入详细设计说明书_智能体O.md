@@ -263,8 +263,8 @@ sys
 
 不按前缀/包含关系过滤，避免误删业务库。剩余数据库按字典序排序。若：
 
-* 任一在册 Proxy 无法以业务账号完成枚举：标记 `BUSINESS_PROXY_INCOMPLETE`（从严口径：部分 Proxy 目录不可见时静默继续会产出"看起来完整"的错误连接，故一票否决）；
-* Proxy 返回的业务库集合不一致：标记 `DATABASE_LIST_INCONSISTENT`；
+* 任一在册 Proxy 无法以业务账号完成枚举：~~标记 `BUSINESS_PROXY_INCOMPLETE`（从严口径，一票否决）~~ **已作废（v1.6.0.6）**，现行为≥1 成功即可、全部失败才 `NO_AVAILABLE_PROXY`、部分失败标 `proxy_show_partial`（见 §12 表内注记）；
+* Proxy 返回的业务库集合不一致：~~标记 `DATABASE_LIST_INCONSISTENT`~~ **已作废（v1.6.0.6）**，改取并集并标 `proxy_show_partial`；
 * 枚举成功但业务库为空：标记 `NO_BUSINESS_DATABASE`；
 
 则该实例不允许提交。不得创建数据库为 `ALL` 的连接，也不得用 MonitorDB 数据库代替业务库。
@@ -493,8 +493,8 @@ scan -> discovery session（10 分钟、属主绑定）
 | `NO_AVAILABLE_PROXY` | 未发现可用 Proxy | 检查运行状态和地址映射 |
 | `MONITOR_CONNECT_FAILED` | 无法连接 MonitorDB | 核对本次输入的监控主机、端口、账号、库及网络 |
 | `INSTANCE_NAME_UNRESOLVED` | MonitorDB 未解析到实例名称，不能生成规范连接名 | 先核查赤兔/MonitorDB 的实例元数据字段 |
-| `BUSINESS_PROXY_INCOMPLETE` | 任一发现在册 Proxy 无法以业务账号完成 `SHOW DATABASES` 枚举，整实例预检失败 | 核对业务账号、密码、授权及每个 Proxy 的网络 |
-| `DATABASE_LIST_INCONSISTENT` | 多个 Proxy 返回的业务库列表不一致 | 排查实例同步/权限/Proxy 状态后重试 |
+| `BUSINESS_PROXY_INCOMPLETE` | **已作废（v1.6.0.6）**：任一 Proxy 枚举失败即整实例预检失败。内网实测证明主备双 Proxy 下备不可达会大面积误杀，已改为≥1 成功即可、部分失败标 `proxy_show_partial` 降级，见 `docs/v1.6.0.6_修复说明_A复测问题.md` | — |
+| `DATABASE_LIST_INCONSISTENT` | **已作废（v1.6.0.6）**：目录不一致不再阻断，改取并集并标 `proxy_show_partial`（R-15：宁可多给可见的错误） | — |
 | `NO_BUSINESS_DATABASE` | 未发现可导入的业务库 | 核查业务账号可见库和系统库过滤结果 |
 | `EXISTING_CONNECTION` | 同地址、端口、库的连接已存在 | 不覆盖；改用既有连接或单独处理 |
 | `PREVIEW_EXPIRED` | 导入预览已失效 | 重新生成预览 |

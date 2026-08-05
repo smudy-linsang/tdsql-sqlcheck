@@ -45,7 +45,11 @@ class _FakeConn:
 
 
 def test_list_business_databases_one_proxy_down_still_succeeds(monkeypatch):
-    """Fix1：双 Proxy 其一不可达，另一成功 → 仍返回业务库（不整实例失败）。"""
+    """Fix1：双 Proxy 其一不可达，另一成功 → 仍返回业务库（不整实例失败）。
+
+    v1.6.0.6（A-P2-01）：备 Proxy 挂掉属于降级，source 必须标
+    proxy_show_partial——"用一个 Proxy 的目录代表整个实例"用户有权知道。
+    """
     def fake_connect(host, port, **kw):
         if host == "10.0.0.2":
             raise pymysql.err.OperationalError(2003, "Can't connect")
@@ -54,7 +58,7 @@ def test_list_business_databases_one_proxy_down_still_succeeds(monkeypatch):
     dbs, source = _list_business_databases(
         [("10.0.0.1", 15001), ("10.0.0.2", 15001)], "u", "p", "tdsqlpcloud_monitor")
     assert dbs == ["cap_gz", "sysdb"]
-    assert source == "proxy_show"
+    assert source == "proxy_show_partial"
 
 
 def test_list_business_databases_all_down_no_fake_data(monkeypatch):

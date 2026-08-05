@@ -146,6 +146,6 @@ curl -s -X POST $HOST/api/v1/tdsql/discover \
 | 扫描 503 `ZK 不可达` | ZK 协议被拦/地址错 | 核对 servers 与网络；本机"TCP通协议拦"属环境限制 |
 | diagnose 返回 `error`/`matched_mids` 空 | MonitorDB 连不上或无该实例 | 核对 monitor 五项；或导入时用手工命名/手工库兜底 |
 | 名称仍为空但 `enrich_status=name_only` | 业务库枚举失败 | 看 `dbs_failed:*`；核对业务账号 SHOW DATABASES 权限或 octet_rules |
-| 预览某行 `BUSINESS_PROXY_INCOMPLETE` | 适配后 Proxy 仍不可达 | 调整 octet_rules/endpoint_map，或该行手工填库 |
+| 预览某行 `NO_AVAILABLE_PROXY` | 适配后全部 Proxy 仍不可达（v1.6.0.6 起部分失败只标"部分 Proxy"降级不阻断） | 调整 octet_rules/endpoint_map，或该行手工填库 |
 
 *本手册不改代码；所有配置经加密存储，口令不回显。*

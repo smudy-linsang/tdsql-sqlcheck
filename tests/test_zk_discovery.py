@@ -277,7 +277,7 @@ def test_standardized_import_creates_one_connection_per_business_database(monkey
     business = ImportCredentials("biz_user", "business-secret-for-test")
     monitor = MonitorCredentials("198.51.100.20", 15001, "mon_user", "monitor-secret-for-test", "monitor_meta")
     monkeypatch.setattr(zk_name_resolution_service, "resolve", lambda *a, **k: ("统一收单-分布式-提前批2", "instance", {}))
-    monkeypatch.setattr(zk_connection_import_service, "_list_business_databases", lambda *a, **k: ["cap_gz", "cap_settle"])
+    monkeypatch.setattr(zk_connection_import_service, "_list_business_databases", lambda *a, **k: (["cap_gz", "cap_settle"], "proxy_show"))
     rows = zk_connection_import_service.build_preview(
         [instance], business, monitor,
         name_overrides={"group_import_test": "统一收单-分布式-提前批2"})
@@ -405,7 +405,7 @@ def test_zk_config_frontend_exposes_admin_entry_and_redacted_password_flow():
     root = Path(__file__).resolve().parents[1]
     html = (root / "frontend" / "index.html").read_text(encoding="utf-8")
     javascript = (root / "frontend" / "static" / "js" / "app.js").read_text(encoding="utf-8")
-    assert '<script src="/static/js/app.js?v=20260805.1"></script>' in html
+    assert '<script src="/static/js/app.js?v=20260806.1"></script>' in html
     assert 'v-if="isAdmin" type="warning" size="small" @click="openZkConfig">ZK发现配置' in html
     assert 'v-model="zkConfigForm.auth_password" type="password"' in html
     # v1.6.0.1 修复 P5：Mock 结果必须有醒目"演示"标识，前端模板与状态暴露缺一不可

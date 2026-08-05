@@ -67,8 +67,10 @@ def _list_business_databases(endpoints: list[tuple[str, int]], username: str, pa
     if not catalogues:
         return [], "NO_AVAILABLE_PROXY"
     union = set().union(*catalogues)
-    if len(catalogues) > 1 and any(c != catalogues[0] for c in catalogues[1:]):
-        logger.warning("ZK_ENRICH_DBS_INCONSISTENT proxies=%d failed=%d 取并集", len(catalogues), failed)
+    # v1.6.0.6（A-P2-01）：只要有 Proxy 失败就标降级，"用一个 Proxy 的目录
+    # 代表整个实例"这件事用户有权知道（R-15：漏掉的库是不可见的错误）。
+    if failed or any(c != catalogues[0] for c in catalogues[1:]):
+        logger.warning("ZK_ENRICH_DBS_DEGRADED proxies=%s failed=%s 取并集并标降级", len(catalogues), failed)
         return sorted(union, key=lambda s: (s.lower(), s)), "proxy_show_partial"
     return sorted(union, key=lambda s: (s.lower(), s)), "proxy_show"
 
@@ -76,7 +78,10 @@ def _list_business_databases(endpoints: list[tuple[str, int]], username: str, pa
 def _proxy_endpoints(item: dict) -> list[tuple[str, int]]:
     raw = [p.strip() for p in str(item.get("proxy_list") or "").split(";") if p.strip()]
     primary = f"{item.get('host', '')}:{item.get('port', '')}"
-    if primary not in raw and item.get("host"):
+    # v1.6.0.6（A-P3-01）：主 Proxy 真正前移——先移除再插首位（旧实现仅在
+    # proxy_list 不含主 Proxy 时才插入，实际总含，等于从未生效）。
+    if item.get("host"):
+        raw = [p for p in raw if p != primary]
         raw.insert(0, primary)
     endpoints: list[tuple[str, int]] = []
     seen: set[tuple[str, int]] = set()

@@ -96,7 +96,10 @@ class ZKConnectionImportService:
     def _proxy_endpoints(instance: dict) -> list[tuple[str, int]]:
         raw = [item.strip() for item in str(instance.get("proxy_list") or "").split(";") if item.strip()]
         primary = f"{instance.get('host', '')}:{instance.get('port', '')}"
-        if primary and primary not in raw:
+        # v1.6.0.6（A-P3-01）：主 Proxy 真正前移——先从列表移除再插到首位，
+        # 已知可达端点优先，避免死 Proxy 排在前面先等一轮超时。
+        if instance.get("host") and primary:
+            raw = [item for item in raw if item != primary]
             raw.insert(0, primary)
         endpoints: list[tuple[str, int]] = []
         seen: set[tuple[str, int]] = set()
@@ -113,8 +116,17 @@ class ZKConnectionImportService:
 
     def _list_business_databases(
         self, instance: dict, business: ImportCredentials, monitor_db: str
-    ) -> list[str]:
-        """对发现到的每个 Proxy 做只读目录检查，拒绝目录不一致。"""
+    ) -> tuple[list[str], str]:
+        """对发现到的每个 Proxy 做只读目录检查，返回 (业务库列表, 来源标记)。
+
+        v1.6.0.6（A-P1-01）：对齐扫描富集侧"≥1 成功即可"口径。旧版任一 Proxy
+        失败即整实例 BUSINESS_PROXY_INCOMPLETE，而内网分布式与集中式普遍双 Proxy
+        （主+备），备 Proxy 不可达会让预检大面积失败。现逐端点捕获异常不抛出：
+          - 0 个成功 -> NO_AVAILABLE_PROXY；
+          - 有失败或目录不一致 -> 取并集，来源标 proxy_show_partial（R-15：
+            宁可多给可见的错误，不可少给不可见的错误）；
+          - 全部成功且一致 -> proxy_show。
+        """
         instance_id = str(instance.get("instance_id") or "").strip()
         endpoints = self._proxy_endpoints(instance)
         if not endpoints:
@@ -123,6 +135,7 @@ class ZKConnectionImportService:
         if monitor_db:
             excluded.add(monitor_db.strip().lower())
         catalogues: list[set[str]] = []
+        failed = 0
         for host, port in endpoints:
             try:
                 connection = self._connect(host, port, business.username, business.password, "")
@@ -136,22 +149,26 @@ class ZKConnectionImportService:
                 finally:
                     connection.close()
             except Exception as exc:
+                failed += 1
                 logger.warning(
                     "ZK_IMPORT_BUSINESS_PROXY_FAILED instance=%s endpoint=%s:%s error_type=%s",
                     instance_id, host, port, type(exc).__name__,
                 )
-                # 从严口径（设计 §12 BUSINESS_PROXY_INCOMPLETE）：任一 Proxy 枚举失败
-                # 即整实例预检失败。比"全部失败才阻断"更保守，符合 R-15——
-                # 部分 Proxy 目录不可见时静默继续会产出"看起来完整"的错误连接。
-                raise ZKImportPreparationError("BUSINESS_PROXY_INCOMPLETE", "无法通过全部发现 Proxy 枚举业务库") from exc
+                continue
             catalogues.append({name for name in values if name and name.lower() not in excluded})
-        canonical = catalogues[0]
-        if any(values != canonical for values in catalogues[1:]):
-            logger.warning("ZK_IMPORT_DATABASES_INCONSISTENT instance=%s proxy_count=%s", instance_id, len(endpoints))
-            raise ZKImportPreparationError("DATABASE_LIST_INCONSISTENT", "多个 Proxy 返回的业务库列表不一致")
-        if not canonical:
+        if not catalogues:
+            raise ZKImportPreparationError("NO_AVAILABLE_PROXY", "全部 Proxy 均无法枚举业务库")
+        union = set().union(*catalogues)
+        if not union:
             raise ZKImportPreparationError("NO_BUSINESS_DATABASE", "未发现可导入的业务库")
-        return sorted(canonical, key=lambda item: (item.lower(), item))
+        inconsistent = any(values != catalogues[0] for values in catalogues[1:])
+        if failed or inconsistent:
+            logger.warning(
+                "ZK_IMPORT_DATABASES_DEGRADED instance=%s proxies=%s failed=%s inconsistent=%s 取并集",
+                instance_id, len(endpoints), failed, inconsistent,
+            )
+            return sorted(union, key=lambda item: (item.lower(), item)), "proxy_show_partial"
+        return sorted(union, key=lambda item: (item.lower(), item)), "proxy_show"
 
     @staticmethod
     def _validate_instance(instance: dict) -> tuple[str, list[str]]:
@@ -252,8 +269,8 @@ class ZKConnectionImportService:
                         databases = [str(d) for d in instance["business_dbs"]]
                         databases_source = str(instance.get("databases_source") or "scan_enrich")
                     else:
-                        databases = self._list_business_databases(instance, business, monitor.database)
-                        databases_source = "proxy_show"
+                        databases, databases_source = self._list_business_databases(
+                            instance, business, monitor.database)
                     for database in databases:
                         generated_name = f"{instance_name}-{primary_port}-{database}"
                         if len(generated_name) > 255:

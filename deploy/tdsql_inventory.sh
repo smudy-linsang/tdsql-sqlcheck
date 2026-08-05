@@ -472,7 +472,11 @@ EOF
 
 while IFS= read -r entry; do
     [ -z "${entry}" ] && continue
-    gid="${entry%|*}"
+    # v1.6.0.6（A-P1-03）：entry 为三字段 group_id|repr_set_id|all_set_ids，
+    # %%|* 才是"首个 | 之前"；旧写法的 %|* 只剥最后一段，三字段下 gid 会
+    # 混入 repr_set_id，记录变 7 字段 → 下游 read 错位 + Python 静默丢弃，
+    # 分布式实例 100% 全丢且无任何告警。
+    gid="${entry%%|*}"
     _tail="${entry#*|}"
     repr_sid="${_tail%%|*}"
     all_set_ids="${_tail#*|}"
@@ -779,6 +783,9 @@ with open(INVENTORY_FILE, "r", encoding="utf-8") as f:
             continue
         parts = line.split("|")
         if len(parts) != 5:
+            # v1.6.0.6（A-P1-03）：字段数异常不再静默丢弃——日志计数与
+            # 实际输出对不上时，这里必须留下可见痕迹。
+            print(f"[WARN] inventory 记录字段数异常({len(parts)}≠5)，已丢弃: {line[:120]}", file=sys.stderr)
             continue
         kind, instance_id, _parent, set_id, set_list = parts
         setrun = setrun_map.get(set_id)
