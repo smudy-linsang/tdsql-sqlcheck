@@ -232,6 +232,10 @@ class ZKDiscoveryConfigService:
         supplied_monitor_pw = str(data.get("monitor_password") or "")
         if supplied_monitor_pw:
             monitor_pw_enc = encrypt_password(supplied_monitor_pw)
+        elif not monitor_host:
+            # v1.6.0.6（A-P3-02）：MonitorDB 整段清空 = 明确要求清除该组凭据，
+            # 不得继承旧密文（银行场景凭据轮换/人员离场的硬要求）。
+            monitor_pw_enc = ""
         elif current and current.get("monitor_password_encrypted"):
             monitor_pw_enc = str(current["monitor_password_encrypted"])
         else:
@@ -242,6 +246,11 @@ class ZKDiscoveryConfigService:
         supplied_business_pw = str(data.get("business_password") or "")
         if supplied_business_pw:
             business_pw_enc = encrypt_password(supplied_business_pw)
+        elif not business_username:
+            # v1.6.0.6（A-P3-02）：用户名与口令同时为空 = 明确要求清除已存业务凭据。
+            # 旧逻辑此处会继承旧密文，导致"用户名空+继承密文非空"永远触发
+            # 下方成对校验，清空用户名成死路，页面上再也删不掉已存凭据。
+            business_pw_enc = ""
         elif current and current.get("business_password_encrypted"):
             business_pw_enc = str(current["business_password_encrypted"])
         else:

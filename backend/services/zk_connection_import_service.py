@@ -60,25 +60,40 @@ class ZKConnectionImportService:
     """生成预览并事务性创建一库一连接的连接记录。"""
 
     def _connect(self, host: str, port: int, username: str, password: str, database: str):
-        """只创建短连接。调用方负责关闭；异常统一在上层脱敏。"""
+        """只创建短连接。调用方负责关闭；异常统一在上层脱敏。
+
+        v1.6.0.6（A-P2-02）：连接类异常必须转成逐实例可读的失败，
+        不能裸抛出去把整批预检掀翻成无指向的 500（填错端口/口令是
+        真实会发生的场景）。错误文本只带 host:port，不带账号口令。
+        """
         try:
             import pymysql
             import pymysql.cursors
         except ImportError as exc:  # pragma: no cover - 生产依赖，保留明确信息
             raise ZKImportPreparationError("PYMYSQL_UNAVAILABLE", "数据库客户端不可用") from exc
-        return pymysql.connect(
-            host=host,
-            port=int(port),
-            user=username,
-            password=password,
-            database=database or None,
-            charset="utf8mb4",
-            connect_timeout=5,
-            read_timeout=10,
-            write_timeout=10,
-            cursorclass=pymysql.cursors.DictCursor,
-            autocommit=True,
-        )
+        try:
+            return pymysql.connect(
+                host=host,
+                port=int(port),
+                user=username,
+                password=password,
+                database=database or None,
+                charset="utf8mb4",
+                connect_timeout=5,
+                read_timeout=10,
+                write_timeout=10,
+                cursorclass=pymysql.cursors.DictCursor,
+                autocommit=True,
+            )
+        except ZKImportPreparationError:
+            raise
+        except Exception as exc:
+            logger.warning(
+                "ZK_IMPORT_DB_CONNECT_FAILED endpoint=%s:%s error_type=%s",
+                host, port, type(exc).__name__,
+            )
+            raise ZKImportPreparationError(
+                "DB_CONNECT_FAILED", f"连接 {host}:{port} 失败，请核对地址、端口、账号与网络") from exc
 
     @staticmethod
     def _safe_set_ids(instance: dict) -> list[str]:
@@ -234,9 +249,17 @@ class ZKConnectionImportService:
                         if monitor_conn is None and not str(monitor.host or "").strip():
                             raise ZKImportPreparationError("MONITOR_CONNECT_FAILED", "未提供 MonitorDB 配置，无法解析实例名称")
                         if monitor_conn is None:
-                            monitor_conn = self._connect(
-                                monitor.host, monitor.port, monitor.username,
-                                monitor.password, monitor.database)
+                            try:
+                                monitor_conn = self._connect(
+                                    monitor.host, monitor.port, monitor.username,
+                                    monitor.password, monitor.database)
+                            except ZKImportPreparationError as exc:
+                                # A-P2-02：MonitorDB 连不上归一到既有语义，逐实例可读，
+                                # 不再裸抛 OperationalError 把整批预检掀翻成 500。
+                                raise ZKImportPreparationError(
+                                    "MONITOR_CONNECT_FAILED",
+                                    f"无法连接 MonitorDB {monitor.host}:{monitor.port}，"
+                                    "请核对主机、端口、账号、口令与网络") from exc
                         instance_name, name_source, _detail = zk_name_resolution_service.resolve(
                             monitor_conn, instance_id, set_ids,
                             str(instance.get("instance_kind") or ""), hint=hint,

@@ -208,3 +208,86 @@ def test_ap301_primary_proxy_moved_to_front_both_implementations():
     # 不重不漏：前移不得产生重复端点
     got = zk_connection_import_service._proxy_endpoints(item)
     assert len(got) == 3 and len(set(got)) == 3
+
+
+def test_ap202_bad_monitor_endpoint_yields_per_row_error_not_500(monkeypatch):
+    """A-P2-02：MonitorDB 端口不通/口令错 → 逐行可读失败，不得裸抛掀翻整批。
+
+    旧行为：OperationalError 逃出 build_preview → 接口兜底 500
+    "生成 ZK 导入预览失败"，无任何指向。build_preview 不抛即意味着
+    接口层不会走到 500 兜底分支。
+    """
+    for errno_, scenario in ((2003, "端口不通"), (1045, "口令错")):
+        def fake_connect(host, port, **kw):
+            raise pymysql.err.OperationalError(errno_, f"{scenario}")
+        monkeypatch.setattr(pymysql, "connect", fake_connect)
+        rows = zk_connection_import_service.build_preview(
+            [_instance_without_enrich()],
+            ImportCredentials("u", "p"),
+            MonitorCredentials("10.9.9.9", 15999, "mu", "wrong", "tdsqlpcloud_monitor"))
+        assert len(rows) == 1 and rows[0]["status"] == "error", f"{scenario}应逐行失败而非整批炸掉"
+        assert rows[0]["failure_code"] == "MONITOR_CONNECT_FAILED"
+        assert "10.9.9.9:15999" in rows[0]["failure_detail"], "失败提示必须带端点指向"
+        assert "wrong" not in rows[0]["failure_detail"], "提示不得回显口令"
+
+
+def _put_config(payload):
+    base = {
+        "servers": "zk-a.example:2118",
+        "auth_username": "zk_reader",
+        "auth_password": "v1606-zk-secret",
+    }
+    base.update(payload)
+    return client.put("/api/v1/tdsql/discover/config", json=base)
+
+
+def _config_row():
+    conn = _get_connection()
+    try:
+        return conn.execute(
+            "SELECT * FROM zk_discovery_config WHERE config_id=1").fetchone()
+    finally:
+        conn.close()
+
+
+def test_ap302_saved_business_credentials_can_be_cleared():
+    """A-P3-02：已存业务凭据必须能被清除（凭据轮换/人员离场硬要求）。"""
+    conn = _get_connection()
+    try:
+        conn.execute("DELETE FROM zk_discovery_config WHERE config_id=1")
+        conn.commit()
+    finally:
+        conn.close()
+    try:
+        # ① 先存上业务凭据
+        assert _put_config({"business_username": "bizuser",
+                            "business_password": "bizpw"}).status_code == 200
+        assert _config_row()["business_password_encrypted"]
+        # ② 用户名口令同时留空 → 必须 200 且密文被清空（旧逻辑在此 400 死路）
+        resp = _put_config({"business_username": "", "business_password": ""})
+        assert resp.status_code == 200, f"清空业务凭据被拒: {resp.status_code} {resp.text}"
+        row = _config_row()
+        assert row["business_username"] == "" and row["business_password_encrypted"] == ""
+        # ③ MonitorDB 整段清空 → 口令密文一并清除
+        assert _put_config({"monitor_host": "mon.example", "monitor_port": 15001,
+                            "monitor_user": "mu", "monitor_password": "mpw",
+                            "monitor_db": "mdb"}).status_code == 200
+        assert _config_row()["monitor_password_encrypted"]
+        resp = _put_config({"monitor_host": "", "monitor_port": 0, "monitor_user": "",
+                            "monitor_password": "", "monitor_db": ""})
+        assert resp.status_code == 200, resp.text
+        assert _config_row()["monitor_password_encrypted"] == ""
+        # ④ 反向鉴别：保留用户名、口令留空 → 仍继承旧密文（原设计未被破坏）
+        assert _put_config({"business_username": "bizuser",
+                            "business_password": "keepme"}).status_code == 200
+        before = _config_row()["business_password_encrypted"]
+        assert _put_config({"business_username": "bizuser",
+                            "business_password": ""}).status_code == 200
+        assert _config_row()["business_password_encrypted"] == before
+    finally:
+        conn = _get_connection()
+        try:
+            conn.execute("DELETE FROM zk_discovery_config WHERE config_id=1")
+            conn.commit()
+        finally:
+            conn.close()
