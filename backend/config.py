@@ -22,8 +22,8 @@ DATABASE_DIR.mkdir(exist_ok=True)
 
 # FastAPI 配置
 APP_TITLE = "TDSQL SQL审核平台"
-APP_VERSION = "1.6.1.1"
-APP_DESCRIPTION = "银行级SQL质量管控与慢SQL分析平台（V1.6.1.1 - 实例管理分页筛选与显示优化、query_rewrite/xa默认库屏蔽）"
+APP_VERSION = "1.6.1.2"
+APP_DESCRIPTION = "银行级SQL质量管控与慢SQL分析平台（V1.6.1.2 - 地址列溢出tooltip、混合失败语义修正、MonitorDB连接失败单次尝试）"
 
 # SQL 解析配置
 SQL_DIALECT = "mysql"  # TDSQL 基于 MySQL

@@ -86,7 +86,7 @@ def test_instance_management_pagination_filters_and_nowrap_guard():
     assert "连接名（模糊）" in html
     assert "filteredConnections" in js and "pagedConnections" in js and "onConnFilterChange" in js
     # 换行治理：列宽与 nowrap 类
-    assert 'label="地址" width="260" class-name="td-nowrap"' in html
+    assert 'label="地址" width="260" class-name="td-nowrap" show-overflow-tooltip' in html
     assert 'label="操作" width="480" fixed="right" class-name="td-nowrap"' in html
     assert 'label="WARNING上限" width="120" label-class-name="th-nowrap"' in html
     assert ".td-nowrap .cell{white-space:nowrap;}" in css

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <!-- 主题预置：首帧前置 data-theme，避免深/浅切换闪烁；默认深色，localStorage 记忆 -->
   <script>(function(){try{var t=localStorage.getItem('tdsql-theme');if(t!=='light'&&t!=='dark')t='dark';document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','dark');}})();</script>
-  <title>TDSQL数据库SQL审核工具 V1.6.1.1</title>
+  <title>TDSQL数据库SQL审核工具 V1.6.1.2</title>
   <script src="/static/vendor/vue.global.prod.js"></script>
   <link rel="stylesheet" href="/static/vendor/element-plus.css">
   <script src="/static/vendor/element-plus.full.min.js"></script>
@@ -26,7 +26,7 @@
     </div>
     <div class="login-brand">
       <h1>TDSQL数据库SQL审核工具</h1>
-      <div class="version">V1.6.1.1 · Design by Linsang</div>
+      <div class="version">V1.6.1.2 · Design by Linsang</div>
     </div>
     <div class="login-form">
       <el-card>
@@ -1108,7 +1108,7 @@
               </div>
               <el-table :data="pagedConnections" v-loading="connLoading" stripe class="w-full">
                 <el-table-column prop="name" label="连接名" show-overflow-tooltip></el-table-column>
-                <el-table-column label="地址" width="260" class-name="td-nowrap"><template #default="{row}">{{ row.host }}:{{ row.port }}{{ row.database?'/'+row.database:'' }}</template></el-table-column>
+                <el-table-column label="地址" width="260" class-name="td-nowrap" show-overflow-tooltip><template #default="{row}">{{ row.host }}:{{ row.port }}{{ row.database?'/'+row.database:'' }}</template></el-table-column>
                 <el-table-column prop="username" label="用户名" width="100"></el-table-column>
                 <el-table-column label="类型" width="150"><template #default="{row}"><el-tag size="small" :type="(row.effective_instance_type||'distributed')==='distributed'?'warning':'info'" :effect="row.instance_type_source==='declared'?'plain':'dark'">{{ ((row.effective_instance_type||'distributed')==='distributed'?'分布式':'集中式')+'·'+instSourceCn(row.instance_type_source) }}</el-tag><el-tooltip v-if="row.instance_type_conflict" :content="'各源结论不一致：声明='+instTypeCn(row.declared_instance_type)+'，ZK='+instTypeCn(row.zk_instance_type)+'，探测='+instTypeCn(row.detected_instance_type)+'。已按保守原则取分布式，请点「探测类型」查看多源明细并核实。'" placement="top"><span style="color:#dc2626;margin-left:4px;cursor:help">⚠</span></el-tooltip><el-tooltip v-if="row.instance_type_source==='declared'&&!row.zk_instance_type&&!row.detected_instance_type" content="仅有人工声明，未经权威源确认。建议执行「ZK 自动发现」同步管控面形态。" placement="top"><span style="color:#94a3b8;margin-left:4px;cursor:help">?</span></el-tooltip></template></el-table-column>
                 <el-table-column label="状态" width="80"><template #default="{row}"><span :style="{color:row.active?'#16a34a':'#94a3b8'}">●</span> {{ row.active?'已连接':'未连接' }}</template></el-table-column>
@@ -2745,6 +2745,6 @@
   </el-dialog>
 </div>
 <!-- 版本参数确保页面结构与应用逻辑同步更新，避免浏览器沿用旧版 app.js。 -->
-<script src="/static/js/app.js?v=20260806.3"></script>
+<script src="/static/js/app.js?v=20260806.4"></script>
 </body>
 </html>

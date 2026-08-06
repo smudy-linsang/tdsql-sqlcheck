@@ -173,8 +173,10 @@ class ZKConnectionImportService:
                 continue
             catalogues.append({name for name in values if name and name.lower() not in excluded})
         if not catalogues:
-            # v1.6.1.0（设计 DESIGN-v1.6.0.8 §3）：全部鉴权失败 → NO_BUSINESS_USER
-            if failed and auth_failures == failed:
+            # v1.6.1.2（A-P2-04）：只要任一端点回 1045 即判 NO_BUSINESS_USER——
+            # 鉴权失败是实例级确证（账号不存在/口令不符），比"不可达"更具处置指向；
+            # 全部为连接类失败才归 NO_AVAILABLE_PROXY。
+            if auth_failures:
                 raise ZKImportPreparationError(
                     "NO_BUSINESS_USER",
                     "业务账号在该实例全部 Proxy 上鉴权失败：通常未创建监控用户或口令与配置不一致")
@@ -224,6 +226,7 @@ class ZKConnectionImportService:
         manual_databases = manual_databases or {}
         rows: list[dict] = []
         monitor_conn = None
+        monitor_connect_error = None
         try:
             for instance in instances:
                 instance_id = str(instance.get("instance_id") or "").strip()
@@ -252,20 +255,26 @@ class ZKConnectionImportService:
                         instance_name = str(instance["resolved_name"]).strip()
                         name_source = str(instance.get("name_source") or "scan_enrich")
                     else:
-                        if monitor_conn is None and not str(monitor.host or "").strip():
-                            raise ZKImportPreparationError("MONITOR_CONNECT_FAILED", "未提供 MonitorDB 配置，无法解析实例名称")
+                        # v1.6.1.2（A-P2-03）：MonitorDB 连接失败只尝试一次并缓存结论，
+                        # 后续实例直接复用，避免逐实例重连超时累加被网关 120s 读超时掐断。
+                        if monitor_conn is None and monitor_connect_error is None:
+                            if not str(monitor.host or "").strip():
+                                monitor_connect_error = ZKImportPreparationError(
+                                    "MONITOR_CONNECT_FAILED", "未提供 MonitorDB 配置，无法解析实例名称")
+                            else:
+                                try:
+                                    monitor_conn = self._connect(
+                                        monitor.host, monitor.port, monitor.username,
+                                        monitor.password, monitor.database)
+                                except ZKImportPreparationError as exc:
+                                    logger.warning("ZK_IMPORT_MONITOR_CONNECT_FAILED endpoint=%s:%s detail=%s",
+                                                   monitor.host, monitor.port, exc.detail)
+                                    monitor_connect_error = ZKImportPreparationError(
+                                        "MONITOR_CONNECT_FAILED",
+                                        f"无法连接 MonitorDB {monitor.host}:{monitor.port}，"
+                                        "请核对主机、端口、账号、口令与网络")
                         if monitor_conn is None:
-                            try:
-                                monitor_conn = self._connect(
-                                    monitor.host, monitor.port, monitor.username,
-                                    monitor.password, monitor.database)
-                            except ZKImportPreparationError as exc:
-                                # A-P2-02：MonitorDB 连不上归一到既有语义，逐实例可读，
-                                # 不再裸抛 OperationalError 把整批预检掀翻成 500。
-                                raise ZKImportPreparationError(
-                                    "MONITOR_CONNECT_FAILED",
-                                    f"无法连接 MonitorDB {monitor.host}:{monitor.port}，"
-                                    "请核对主机、端口、账号、口令与网络") from exc
+                            raise monitor_connect_error
                         instance_name, name_source, _detail = zk_name_resolution_service.resolve(
                             monitor_conn, instance_id, set_ids,
                             str(instance.get("instance_kind") or ""), hint=hint,

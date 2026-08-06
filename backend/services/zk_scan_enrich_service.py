@@ -88,9 +88,9 @@ def _list_business_databases(endpoints: list[tuple[str, int]], username: str, pa
             logger.warning("ZK_ENRICH_PROXY_FAILED endpoint=%s:%s error_type=%s errno=%s",
                            host, port, type(exc).__name__, errno_)
     if not catalogues:
-        # v1.6.1.0（设计 DESIGN-v1.6.0.8 §3）：全部鉴权失败 → NO_BUSINESS_USER，
-        # 页面可提示"未创建监控用户"；含连接类/混合失败仍为 NO_AVAILABLE_PROXY。
-        if failed and auth_failures == failed:
+        # v1.6.1.2（A-P2-04）：任一端点回 1045 即判 NO_BUSINESS_USER（鉴权失败是
+        # 实例级确证，处置指向更明确）；全部连接类失败才归 NO_AVAILABLE_PROXY。
+        if auth_failures:
             return [], "NO_BUSINESS_USER"
         return [], "NO_AVAILABLE_PROXY"
     union = set().union(*catalogues)

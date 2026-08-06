@@ -56,11 +56,26 @@ def test_all_1045_maps_to_no_business_user_enrich(monkeypatch):
     assert source == "NO_BUSINESS_USER"
 
 
-def test_mixed_1045_and_2003_stays_no_available_proxy(monkeypatch):
-    """混合失败（鉴权+网络）→ 仍 NO_AVAILABLE_PROXY，分类不越界（反向鉴别）。"""
+def test_mixed_1045_and_2003_maps_to_no_business_user(monkeypatch):
+    """v1.6.1.2（A-P2-04）：混合失败（1045+2003）→ NO_BUSINESS_USER。
+
+    鉴权失败是实例级确证（账号不存在/口令不符），比"不可达"更具处置指向；
+    内网"主活备死+未建用户"混合场景应提示未创建监控用户。
+    """
     def fake_connect(host, port, **kw):
         if host == "10.0.0.1":
             raise pymysql.err.OperationalError(1045, "Access denied")
+        raise pymysql.err.OperationalError(2003, "Can't connect")
+    monkeypatch.setattr(pymysql, "connect", fake_connect)
+    dbs, source = _list_business_databases([("10.0.0.1", 15001), ("10.0.0.2", 15001)],
+                                           "checksql", "p", "m")
+    assert dbs == []
+    assert source == "NO_BUSINESS_USER"
+
+
+def test_all_2003_stays_no_available_proxy(monkeypatch):
+    """纯连接类失败（无 1045）→ 仍 NO_AVAILABLE_PROXY（反向鉴别，不越界）。"""
+    def fake_connect(host, port, **kw):
         raise pymysql.err.OperationalError(2003, "Can't connect")
     monkeypatch.setattr(pymysql, "connect", fake_connect)
     dbs, source = _list_business_databases([("10.0.0.1", 15001), ("10.0.0.2", 15001)],
@@ -90,6 +105,27 @@ def test_preview_all_1045_failure_code_no_business_user(monkeypatch):
     assert len(rows) == 1 and rows[0]["status"] == "error"
     assert rows[0]["failure_code"] == "NO_BUSINESS_USER"
     assert "p" not in rows[0]["failure_detail"] or "password" not in rows[0]["failure_detail"]
+
+
+def test_monitor_connect_failure_attempted_once(monkeypatch):
+    """v1.6.1.2（A-P2-03）：MonitorDB 不可达时连接只尝试一次，逐实例复用失败结论。
+
+    旧实现每实例重连一次，200 实例×超时累加会被网关 120s 读超时掐断。
+    """
+    calls = {"n": 0}
+    def fake_connect(host, port, **kw):
+        if port == 15001:  # MonitorDB
+            calls["n"] += 1
+            raise pymysql.err.OperationalError(2003, "Can't connect")
+        return _FakeConn(["biz_a"])
+    monkeypatch.setattr(pymysql, "connect", fake_connect)
+    instances = [_instance(), dict(_instance(), instance_id="set_b"), dict(_instance(), instance_id="set_c")]
+    rows = zk_connection_import_service.build_preview(
+        instances, ImportCredentials("checksql", "p"),
+        MonitorCredentials("10.9.9.9", 15001, "mu", "mp", "mdb"))
+    assert calls["n"] == 1, f"MonitorDB 连接应只尝试一次，实际 {calls['n']} 次"
+    assert len(rows) == 3
+    assert all(r["status"] == "error" and r["failure_code"] == "MONITOR_CONNECT_FAILED" for r in rows)
 
 
 def test_preview_excludes_sysdb_but_manual_keeps_it(monkeypatch):
