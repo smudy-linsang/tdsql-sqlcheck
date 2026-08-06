@@ -20,7 +20,9 @@ logger = logging.getLogger("tdsql.zk_enrich")
 
 SYSTEM_DATABASES = {"information_schema", "mysql", "performance_schema", "sys",
                     # v1.6.1.0：sysdb 为 TDSQL 实例默认管理库，非业务库，不纳入 SQL 审核（设计 DESIGN-v1.6.0.8 §4）
-                    "sysdb"}
+                    "sysdb",
+                    # v1.6.1.1：query_rewrite（查询改写）/xa（XA 事务管理）同为实例默认库，一并屏蔽（设计 DESIGN-v1.6.1.1 §4）
+                    "query_rewrite", "xa"}
 ENRICH_MAX_INSTANCES = 500
 ENRICH_WORKERS = 8
 PROXY_CONNECT_TIMEOUT = 3

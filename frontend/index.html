@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <!-- 主题预置：首帧前置 data-theme，避免深/浅切换闪烁；默认深色，localStorage 记忆 -->
   <script>(function(){try{var t=localStorage.getItem('tdsql-theme');if(t!=='light'&&t!=='dark')t='dark';document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','dark');}})();</script>
-  <title>TDSQL数据库SQL审核工具 V1.6.1.0</title>
+  <title>TDSQL数据库SQL审核工具 V1.6.1.1</title>
   <script src="/static/vendor/vue.global.prod.js"></script>
   <link rel="stylesheet" href="/static/vendor/element-plus.css">
   <script src="/static/vendor/element-plus.full.min.js"></script>
@@ -26,7 +26,7 @@
     </div>
     <div class="login-brand">
       <h1>TDSQL数据库SQL审核工具</h1>
-      <div class="version">V1.6.1.0 · Design by Linsang</div>
+      <div class="version">V1.6.1.1 · Design by Linsang</div>
     </div>
     <div class="login-form">
       <el-card>
@@ -1096,9 +1096,19 @@
                   <el-button type="primary" size="small" @click="openNewConn">+ 新建连接</el-button>
                 </div>
               </div>
-              <el-table :data="savedConnections" v-loading="connLoading" stripe class="w-full">
+              <!-- v1.6.1.1：实例管理三维筛选 + 客户端分页（设计 DESIGN-v1.6.1.1 §2） -->
+              <div class="filter-bar" style="margin:10px 0">
+                <el-input v-model="connFilters.name" placeholder="连接名（模糊）" clearable size="small" style="width:200px" @input="onConnFilterChange" @clear="onConnFilterChange"></el-input>
+                <el-input v-model="connFilters.address" placeholder="地址" clearable size="small" style="width:200px" @input="onConnFilterChange" @clear="onConnFilterChange"></el-input>
+                <el-select v-model="connFilters.type" placeholder="类型" clearable size="small" style="width:140px" @change="onConnFilterChange">
+                  <el-option label="分布式" value="distributed"></el-option>
+                  <el-option label="集中式" value="centralized"></el-option>
+                </el-select>
+                <span class="hint">共 {{filteredConnections.length}} / {{savedConnections.length}} 条</span>
+              </div>
+              <el-table :data="pagedConnections" v-loading="connLoading" stripe class="w-full">
                 <el-table-column prop="name" label="连接名" show-overflow-tooltip></el-table-column>
-                <el-table-column label="地址" width="200"><template #default="{row}">{{ row.host }}:{{ row.port }}{{ row.database?'/'+row.database:'' }}</template></el-table-column>
+                <el-table-column label="地址" width="260" class-name="td-nowrap"><template #default="{row}">{{ row.host }}:{{ row.port }}{{ row.database?'/'+row.database:'' }}</template></el-table-column>
                 <el-table-column prop="username" label="用户名" width="100"></el-table-column>
                 <el-table-column label="类型" width="150"><template #default="{row}"><el-tag size="small" :type="(row.effective_instance_type||'distributed')==='distributed'?'warning':'info'" :effect="row.instance_type_source==='declared'?'plain':'dark'">{{ ((row.effective_instance_type||'distributed')==='distributed'?'分布式':'集中式')+'·'+instSourceCn(row.instance_type_source) }}</el-tag><el-tooltip v-if="row.instance_type_conflict" :content="'各源结论不一致：声明='+instTypeCn(row.declared_instance_type)+'，ZK='+instTypeCn(row.zk_instance_type)+'，探测='+instTypeCn(row.detected_instance_type)+'。已按保守原则取分布式，请点「探测类型」查看多源明细并核实。'" placement="top"><span style="color:#dc2626;margin-left:4px;cursor:help">⚠</span></el-tooltip><el-tooltip v-if="row.instance_type_source==='declared'&&!row.zk_instance_type&&!row.detected_instance_type" content="仅有人工声明，未经权威源确认。建议执行「ZK 自动发现」同步管控面形态。" placement="top"><span style="color:#94a3b8;margin-left:4px;cursor:help">?</span></el-tooltip></template></el-table-column>
                 <el-table-column label="状态" width="80"><template #default="{row}"><span :style="{color:row.active?'#16a34a':'#94a3b8'}">●</span> {{ row.active?'已连接':'未连接' }}</template></el-table-column>
@@ -1110,12 +1120,12 @@
                     <el-tag v-if="row.gate_is_default" size="small" type="info">默认</el-tag>
                   </template>
                 </el-table-column>
-                <el-table-column label="WARNING上限" width="110">
+                <el-table-column label="WARNING上限" width="120" label-class-name="th-nowrap">
                   <template #default="{row}">
                     <span :class="row.gate_is_default?'t-secondary':''">{{ row.max_warning_count===-1?'不限':row.max_warning_count }}</span>
                   </template>
                 </el-table-column>
-                <el-table-column label="操作" width="360" fixed="right">
+                <el-table-column label="操作" width="480" fixed="right" class-name="td-nowrap">
                   <template #default="{row}">
                     <el-button link size="small" @click="connectInstance(row)" v-if="!row.active" :loading="row.connecting">连接</el-button>
                     <el-button link size="small" @click="setDefaultConn(row)" v-if="!row.is_default">设为默认</el-button>
@@ -1127,6 +1137,9 @@
                   </template>
                 </el-table-column>
               </el-table>
+              <el-pagination style="margin-top:10px;justify-content:flex-end" background layout="total,prev,pager,next,sizes"
+                :total="filteredConnections.length" :page-size="connPageSize" v-model:current-page="connPage"
+                :page-sizes="[20,50,100]" @size-change="(s)=>{connPageSize=s;connPage=1}"></el-pagination>
             </div>
           </div>
 
@@ -2732,6 +2745,6 @@
   </el-dialog>
 </div>
 <!-- 版本参数确保页面结构与应用逻辑同步更新，避免浏览器沿用旧版 app.js。 -->
-<script src="/static/js/app.js?v=20260806.2"></script>
+<script src="/static/js/app.js?v=20260806.3"></script>
 </body>
 </html>
