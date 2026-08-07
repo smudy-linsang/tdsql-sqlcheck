@@ -295,3 +295,20 @@ class TestAuthAPI:
         assert resp.status_code == 200
         resp = _login(auth_client, "disme")
         assert resp.status_code == 401
+
+    def test_create_role_custom_and_auto_id(self, auth_client):
+        headers = _auth_headers(auth_client, "admin")
+        # 1. 指定自定义 role_id
+        resp1 = auth_client.post("/api/v1/auth/roles", headers=headers, json={"role_id": "sec_auditor", "role_name": "安全审计员", "description": "自定义描述"})
+        assert resp1.status_code == 200
+        assert resp1.json()["role"]["role_id"] == "sec_auditor"
+
+        # 2. 传空 role_id（自动生成）
+        resp2 = auth_client.post("/api/v1/auth/roles", headers=headers, json={"role_id": "", "role_name": "运维监控员", "description": ""})
+        assert resp2.status_code == 200
+        assert resp2.json()["role"]["role_id"].startswith("role_")
+
+        # 3. 非法 role_id 校验
+        resp3 = auth_client.post("/api/v1/auth/roles", headers=headers, json={"role_id": "a", "role_name": "非法ID", "description": ""})
+        assert resp3.status_code == 422
+

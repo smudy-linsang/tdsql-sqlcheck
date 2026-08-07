@@ -2374,7 +2374,7 @@
             <div class="page-card">
               <div class="card-head">
                 <div class="page-card-title mb0">角色管理</div>
-                <el-button type="primary" size="small" @click="roleDialog.visible=true">+ 新建角色</el-button>
+                <el-button type="primary" size="small" @click="openRoleCreate">+ 新建角色</el-button>
               </div>
               <el-table :data="rolesList" v-loading="rolesLoading" stripe class="w-full">
                 <el-table-column prop="role_id" label="角色ID" width="140"></el-table-column>
@@ -2387,6 +2387,12 @@
           </div>
           <el-dialog v-model="roleDialog.visible" :title="roleDialog.isEdit?'编辑角色':'新建角色'" width="440px">
             <el-form label-position="top">
+              <el-form-item label="角色ID" v-if="!roleDialog.isEdit">
+                <el-input v-model="roleDialog.form.role_id" placeholder="如：sec_admin（英文字母/数字，留空则自动生成）"></el-input>
+              </el-form-item>
+              <el-form-item label="角色ID" v-else>
+                <el-input :model-value="roleDialog.form.role_id" disabled></el-input>
+              </el-form-item>
               <el-form-item label="角色名称"><el-input v-model="roleDialog.form.role_name" placeholder="如：运维管理员"></el-input></el-form-item>
               <el-form-item label="描述"><el-input v-model="roleDialog.form.description" type="textarea" placeholder="角色描述（可选）"></el-input></el-form-item>
             </el-form>

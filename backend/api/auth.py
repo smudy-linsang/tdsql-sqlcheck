@@ -13,10 +13,12 @@ TDSQL SQL审核工具 - 认证与用户管理 API (V2.0)
   POST     /api/v1/auth/users/{username}/reset-password
   POST     /api/v1/auth/users/{username}/unlock
 """
+import re
+import uuid
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from backend.services import metrics_service
 from backend.services import auth_service as auth_service_mod
@@ -158,9 +160,23 @@ def roles():
 # ── V3.0: 角色CRUD + 权限矩阵（admin only） ─────────────────────
 
 class RoleCreateRequest(BaseModel):
-    role_id: Optional[str] = Field(None, min_length=2, max_length=32, description="角色ID（可选，不传则自动生成）")
-    role_name: str = Field(..., description="角色名称")
+    role_id: Optional[str] = Field(None, description="角色ID（可选，不传则自动生成）")
+    role_name: str = Field(..., min_length=1, max_length=64, description="角色名称")
     description: str = Field("", description="描述")
+
+    @field_validator('role_id', mode='before')
+    def sanitize_role_id(cls, v):
+        if v is None:
+            return None
+        if isinstance(v, str):
+            v = v.strip()
+            if not v:
+                return None
+            if len(v) < 2 or len(v) > 32:
+                raise ValueError("角色ID长度须在2至32个字符之间")
+            if not re.match(r'^[a-zA-Z0-9_-]+$', v):
+                raise ValueError("角色ID仅可包含英文字母、数字、下划线及连字符")
+        return v
 
 class RoleUpdateRequest(BaseModel):
     role_name: Optional[str] = None
@@ -186,7 +202,13 @@ def update_role_permissions(role_id: str, body: RolePermissionsRequest):
 
 @router.post("/roles", summary="创建角色")
 def create_role(body: RoleCreateRequest):
-    role_id = body.role_id or body.role_name.lower().replace(' ', '_').replace('-', '_')
+    role_id = body.role_id
+    if not role_id:
+        clean_name = re.sub(r'[^a-zA-Z0-9_-]', '', body.role_name.lower())
+        if clean_name and len(clean_name) >= 2:
+            role_id = f"role_{clean_name[:20]}"
+        else:
+            role_id = f"role_{uuid.uuid4().hex[:8]}"
     result = create_custom_role(role_id, body.role_name, body.description)
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
