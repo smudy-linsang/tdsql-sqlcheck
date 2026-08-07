@@ -2257,7 +2257,7 @@
                 <div class="flex-gap8">
                   <el-input v-model="userKeyword" placeholder="搜索用户名/姓名" clearable size="small" class="w-220" @keyup.enter="userQuery" @clear="userQuery"></el-input>
                   <el-button size="small" @click="userQuery">搜索</el-button>
-                  <el-button type="primary" size="small" @click="userDialog.visible=true">+ 新建用户</el-button>
+                  <el-button type="primary" size="small" @click="openUserCreate ? openUserCreate() : (userDialog.visible=true)">+ 新建用户</el-button>
                 </div>
               </div>
               <el-table :data="usersList" v-loading="usersLoading" stripe class="w-full">
@@ -2283,7 +2283,11 @@
             <el-form label-position="top">
               <el-form-item label="用户名"><el-input v-model="userDialog.form.username"></el-input></el-form-item>
               <el-form-item label="姓名"><el-input v-model="userDialog.form.display_name"></el-input></el-form-item>
-              <el-form-item label="角色"><el-select v-model="userDialog.form.role" class="w-full"><el-option label="系统管理员" value="admin"></el-option><el-option label="数据库管理员" value="dba"></el-option><el-option label="开发人员" value="developer"></el-option><el-option label="审计员" value="auditor"></el-option></el-select></el-form-item>
+              <el-form-item label="角色">
+                <el-select v-model="userDialog.form.role" class="w-full">
+                  <el-option v-for="r in (rolesList.length ? rolesList : [{role_id:'admin',role_name:'系统管理员'},{role_id:'dba',role_name:'数据库管理员'},{role_id:'developer',role_name:'开发人员'},{role_id:'auditor',role_name:'审计员'}])" :key="r.role_id || r.role || r" :label="r.role_name || r.label || r" :value="r.role_id || r.role || r"></el-option>
+                </el-select>
+              </el-form-item>
               <el-form-item label="口令"><el-input v-model="userDialog.form.password" type="password" show-password></el-input></el-form-item>
             </el-form>
             <template #footer><el-button @click="userDialog.visible=false">取消</el-button><el-button type="primary" :loading="userDialog.loading" @click="createUser">创建</el-button></template>
@@ -2751,6 +2755,6 @@
   </el-dialog>
 </div>
 <!-- 版本参数确保页面结构与应用逻辑同步更新，避免浏览器沿用旧版 app.js。 -->
-<script src="/static/js/app.js?v=20260807.5"></script>
+<script src="/static/js/app.js?v=20260807.6"></script>
 </body>
 </html>

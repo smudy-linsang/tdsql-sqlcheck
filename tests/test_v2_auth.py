@@ -13,7 +13,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.services.auth_service import (
-    AuthService, check_permission, hash_password, is_public_path,
+    AuthService, auth_service, check_permission, hash_password, is_public_path,
     issue_token, validate_password_strength, verify_password, verify_token,
 )
 
@@ -298,6 +298,7 @@ class TestAuthAPI:
 
     def test_create_role_custom_and_auto_id(self, auth_client):
         headers = _auth_headers(auth_client, "admin")
+        auth_client.delete("/api/v1/auth/roles/sec_auditor", headers=headers)
         # 1. 指定自定义 role_id
         resp1 = auth_client.post("/api/v1/auth/roles", headers=headers, json={"role_id": "sec_auditor", "role_name": "安全审计员", "description": "自定义描述"})
         assert resp1.status_code == 200
@@ -311,4 +312,20 @@ class TestAuthAPI:
         # 3. 非法 role_id 校验
         resp3 = auth_client.post("/api/v1/auth/roles", headers=headers, json={"role_id": "a", "role_name": "非法ID", "description": ""})
         assert resp3.status_code == 422
+
+    def test_create_user_with_custom_role(self, auth_client):
+        headers = _auth_headers(auth_client, "admin")
+        # 创建自定义角色 testor
+        auth_client.post("/api/v1/auth/roles", headers=headers, json={"role_id": "testor", "role_name": "测试人员", "description": "功能与性能测试"})
+        # 赋予用户 testor 角色
+        auth_service.delete_user("custom_role_user", operator="test")
+        resp = auth_client.post("/api/v1/auth/users", headers=headers, json={
+            "username": "custom_role_user",
+            "display_name": "自定义角色用户",
+            "role": "testor",
+            "password": STRONG_PW
+        })
+        assert resp.status_code == 200
+        assert resp.json()["user"]["role"] == "testor"
+
 
