@@ -2374,7 +2374,7 @@
             <div class="page-card">
               <div class="card-head">
                 <div class="page-card-title mb0">角色管理</div>
-                <el-button type="primary" size="small" @click="openRoleCreate">+ 新建角色</el-button>
+                <el-button type="primary" size="small" @click="openRoleCreate ? openRoleCreate() : (roleDialog.isEdit=false, roleDialog.form={role_id:'',role_name:'',description:''}, roleDialog.visible=true)">+ 新建角色</el-button>
               </div>
               <el-table :data="rolesList" v-loading="rolesLoading" stripe class="w-full">
                 <el-table-column prop="role_id" label="角色ID" width="140"></el-table-column>
@@ -2751,6 +2751,6 @@
   </el-dialog>
 </div>
 <!-- 版本参数确保页面结构与应用逻辑同步更新，避免浏览器沿用旧版 app.js。 -->
-<script src="/static/js/app.js?v=20260806.4"></script>
+<script src="/static/js/app.js?v=20260807.5"></script>
 </body>
 </html>
