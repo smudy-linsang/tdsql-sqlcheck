@@ -526,11 +526,15 @@ class SQLParser:
         if properties:
             self._parse_table_properties(properties, parsed)
 
-        # 检查表级COMMENT（可能在properties中）
-        for prop_str in str(properties).split(",") if properties else []:
-            if "comment" in prop_str.lower():
-                parsed.has_table_comment = True
-                break
+        # 检查表级COMMENT（如果table_options或properties中存在）
+        if not parsed.has_table_comment and properties and hasattr(properties, "expressions"):
+            for prop in properties.expressions:
+                try:
+                    if isinstance(prop, exp.Property) and getattr(prop, "name", "").upper() == "COMMENT":
+                        parsed.has_table_comment = True
+                        break
+                except Exception:
+                    continue
 
     def _parse_index_constraint(self, col_def) -> dict:
         """解析 IndexColumnConstraint"""
@@ -665,24 +669,35 @@ class SQLParser:
 
     def _parse_table_properties(self, properties, parsed: ParsedSQL):
         """解析表选项 (ENGINE, CHARSET, COMMENT 等)"""
-        for prop in properties.expressions:
-            if isinstance(prop, exp.EngineProperty):
-                engine_var = prop.this
-                if engine_var:
-                    parsed.engine = engine_var.name.upper() if hasattr(engine_var, 'name') else str(engine_var).upper()
-                    parsed.table_options["engine"] = parsed.engine
-            elif isinstance(prop, exp.CharacterSetProperty):
-                charset_var = prop.this
-                if charset_var:
-                    parsed.charset = charset_var.name.upper() if hasattr(charset_var, 'name') else str(charset_var).upper()
-                    parsed.table_options["charset"] = parsed.charset
-            elif isinstance(prop, exp.Property):
-                key = prop.name.upper() if hasattr(prop, 'name') else ""
-                val = prop.args.get("value")
-                if key and val:
-                    parsed.table_options[key] = val.sql(dialect=self.dialect)
-                if key == "COMMENT":
+        for prop in getattr(properties, "expressions", []):
+            try:
+                if isinstance(prop, exp.EngineProperty):
+                    engine_var = prop.this
+                    if engine_var:
+                        parsed.engine = engine_var.name.upper() if hasattr(engine_var, 'name') else str(engine_var).upper()
+                        parsed.table_options["engine"] = parsed.engine
+                elif isinstance(prop, exp.CharacterSetProperty):
+                    charset_var = prop.this
+                    if charset_var:
+                        parsed.charset = charset_var.name.upper() if hasattr(charset_var, 'name') else str(charset_var).upper()
+                        parsed.table_options["charset"] = parsed.charset
+                elif isinstance(prop, exp.SchemaCommentProperty):
                     parsed.has_table_comment = True
+                    c_val = prop.this
+                    if c_val:
+                        parsed.table_options["COMMENT"] = c_val.this if hasattr(c_val, 'this') else str(c_val)
+                elif isinstance(prop, exp.Property):
+                    key = prop.name.upper() if hasattr(prop, 'name') else ""
+                    val = prop.args.get("value")
+                    if key and val is not None:
+                        try:
+                            parsed.table_options[key] = val.sql(dialect=self.dialect)
+                        except Exception:
+                            parsed.table_options[key] = str(val)
+                    if key == "COMMENT" or "COMMENT" in prop.__class__.__name__.upper():
+                        parsed.has_table_comment = True
+            except Exception:
+                continue
 
     # ── ALTER TABLE 解析 ─────────────────────────────────
 

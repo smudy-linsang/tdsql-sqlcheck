@@ -111,3 +111,27 @@ class TestSQLParser:
         sql = "SELECT * FROM t_order WHERE DATE(create_time) = '2024-01-01'"
         result = parser.parse(sql)
         assert result.where_has_function is True
+
+    def test_parse_partition_by_range_and_options(self, parser):
+        """测试解析含 PARTITION BY RANGE 的表及选项"""
+        sql = """
+        CREATE TABLE t_range_part (
+            id BIGINT NOT NULL AUTO_INCREMENT,
+            create_time DATETIME NOT NULL,
+            amount DECIMAL(10,2) DEFAULT '0.00',
+            PRIMARY KEY (id, create_time)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='分区测试表'
+        PARTITION BY RANGE (TO_DAYS(create_time)) (
+            PARTITION p202601 VALUES LESS THAN (TO_DAYS('2026-02-01')),
+            PARTITION p202602 VALUES LESS THAN (TO_DAYS('2026-03-01')),
+            PARTITION pmax VALUES LESS THAN (MAXVALUE)
+        );
+        """
+        result = parser.parse(sql)
+        assert result.is_create_table is True
+        assert result.has_primary_key is True
+        assert result.has_table_comment is True
+        assert result.engine == "INNODB"
+        assert result.charset == "UTF8MB4"
+        assert len(result.columns) == 3
+
