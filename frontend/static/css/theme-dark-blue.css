@@ -168,8 +168,8 @@
 :root[data-theme="dark"] .el-tabs__nav-wrap::after { background: var(--line-blue); }
 /* ── 6. 表格：高密度 + 深色 + 悬浮湛蓝 ── */
 :root[data-theme="dark"] .el-table, :root[data-theme="dark"] .el-table__inner-wrapper { background: transparent; color: var(--text-ice); }
-:root[data-theme="dark"] .el-table th.el-table__cell { background: rgba(56,189,248,.06); color: var(--text-sky); font-weight: 600; }
-:root[data-theme="dark"] .el-table tr, :root[data-theme="dark"] .el-table td.el-table__cell { background: transparent; }
+:root[data-theme="dark"] .el-table th.el-table__cell { background: #0c1626; color: var(--text-sky); font-weight: 600; }
+:root[data-theme="dark"] .el-table tr, :root[data-theme="dark"] .el-table td.el-table__cell { background: var(--bg-panel); }
 :root[data-theme="dark"] .el-table td.el-table__cell, :root[data-theme="dark"] .el-table th.el-table__cell { border-bottom: 1px solid var(--line-blue); padding: 6px 0; }
 :root[data-theme="dark"] .el-table--border .el-table__cell { border-right: 1px solid var(--line-blue); }
 :root[data-theme="dark"] .el-table--border, :root[data-theme="dark"] .el-table--group { border-color: var(--line-blue); }
@@ -177,6 +177,29 @@
 :root[data-theme="dark"] .el-table .el-table__row:hover > td.el-table__cell { background: rgba(56,189,248,.08) !important; }
 :root[data-theme="dark"] .el-table__empty-text { color: var(--text-secondary); }
 :root[data-theme="dark"] .el-table__body tr.hover-row > td.el-table__cell { background: rgba(56,189,248,.08) !important; }
+
+/* 固定列实心背景与悬浮阴影：杜绝悬浮穿透重影 */
+:root[data-theme="dark"] .el-table__cell.is-fixed,
+:root[data-theme="dark"] .el-table .el-table-fixed-column--right,
+:root[data-theme="dark"] .el-table .el-table-fixed-column--left,
+:root[data-theme="dark"] .el-table__fixed,
+:root[data-theme="dark"] .el-table__fixed-right,
+:root[data-theme="dark"] .el-table__fixed-right-patch {
+  background-color: var(--bg-panel) !important;
+}
+:root[data-theme="dark"] .el-table th.is-fixed,
+:root[data-theme="dark"] .el-table th.el-table-fixed-column--right,
+:root[data-theme="dark"] .el-table th.el-table-fixed-column--left {
+  background-color: #0c1626 !important;
+}
+:root[data-theme="dark"] .el-table .el-table__row:hover > td.is-fixed,
+:root[data-theme="dark"] .el-table .el-table__row:hover > td.el-table-fixed-column--right,
+:root[data-theme="dark"] .el-table .el-table__row:hover > td.el-table-fixed-column--left,
+:root[data-theme="dark"] .el-table__body tr.hover-row > td.is-fixed,
+:root[data-theme="dark"] .el-table__body tr.hover-row > td.el-table-fixed-column--right,
+:root[data-theme="dark"] .el-table__body tr.hover-row > td.el-table-fixed-column--left {
+  background-color: #132238 !important;
+}
 /* ── 7. 表单控件：输入/选择/开关/日期 ── */
 :root[data-theme="dark"] .el-input__wrapper, :root[data-theme="dark"] .el-textarea__inner, :root[data-theme="dark"] .el-select__wrapper {
   background: var(--bg-panel) !important;

@@ -30,11 +30,12 @@ echo "════════════════════════�
 
 # 1. 备份原文件
 echo "[1/4] 备份变动前的文件至 $BACKUP_DIR ..."
-mkdir -p "$BACKUP_DIR/backend" "$BACKUP_DIR/frontend/static/js" "$BACKUP_DIR/docs"
+mkdir -p "$BACKUP_DIR/backend" "$BACKUP_DIR/frontend/static/js" "$BACKUP_DIR/frontend/static/css" "$BACKUP_DIR/docs"
 [ -f "$TARGET_DIR/VERSION" ] && cp "$TARGET_DIR/VERSION" "$BACKUP_DIR/"
 [ -f "$TARGET_DIR/backend/config.py" ] && cp "$TARGET_DIR/backend/config.py" "$BACKUP_DIR/backend/"
 [ -f "$TARGET_DIR/frontend/index.html" ] && cp "$TARGET_DIR/frontend/index.html" "$BACKUP_DIR/frontend/"
 [ -f "$TARGET_DIR/frontend/static/js/app.js" ] && cp "$TARGET_DIR/frontend/static/js/app.js" "$BACKUP_DIR/frontend/static/js/"
+[ -f "$TARGET_DIR/frontend/static/css/theme-dark-blue.css" ] && cp "$TARGET_DIR/frontend/static/css/theme-dark-blue.css" "$BACKUP_DIR/frontend/static/css/"
 
 # 2. 覆盖增量更新文件
 echo "[2/4] 写入 V1.6.1.7 增量补丁文件..."
@@ -42,6 +43,7 @@ cp "$SCRIPT_DIR/VERSION" "$TARGET_DIR/VERSION"
 cp "$SCRIPT_DIR/backend/config.py" "$TARGET_DIR/backend/config.py"
 cp "$SCRIPT_DIR/frontend/index.html" "$TARGET_DIR/frontend/index.html"
 cp "$SCRIPT_DIR/frontend/static/js/app.js" "$TARGET_DIR/frontend/static/js/app.js"
+[ -f "$SCRIPT_DIR/frontend/static/css/theme-dark-blue.css" ] && cp "$SCRIPT_DIR/frontend/static/css/theme-dark-blue.css" "$TARGET_DIR/frontend/static/css/"
 mkdir -p "$TARGET_DIR/docs"
 cp -r "$SCRIPT_DIR/docs/"* "$TARGET_DIR/docs/" 2>/dev/null || true
 
