@@ -723,10 +723,8 @@ const app=createApp({
       }
     };
     const handleZkSelection=(val)=>{
-      // v1.6.0.3 分页跨页勾选合并：当前页替换、其他页保留
-      const pageKeys=new Set((zkPagedDiscovered.value||[]).map(r=>r.item_token));
-      const others=(zkSelected.value||[]).filter(r=>!pageKeys.has(r.item_token));
-      zkSelected.value=[...others,...val];
+      // v1.6.1.7 配合 el-table row-key 与 reserve-selection，原生保留跨页与跨五维筛选的所有勾选项
+      zkSelected.value=val||[];
     };
     const openZkImport=()=>{
       if(!zkSelected.value.length||!zkDiscoveryId.value)return;
