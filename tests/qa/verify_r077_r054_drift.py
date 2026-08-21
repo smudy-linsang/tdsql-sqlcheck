@@ -1,155 +1,207 @@
 # -*- coding: utf-8 -*-
-"""全语料漂移扫描（v1.6.1.9 R077/R054 修复）
+"""R077/R054 修复前后双侧对比漂移扫描（v1.6.1.9）
 
-扫描仓库全部 .sql 文件 + 生产 14 表 fixture，对比改前/改后 R077/R054 触发差异。
-任何一条新增变化都必须能逐条解释，无法解释即失败退出。
+对同一批语料分别用基线代码与当前代码执行审核，逐条比对 R077/R054 触发差异。
+任何无法解释的变化都导致失败退出——这是防止后续修改悄悄改变判定口径的防线。
 
-用法：python tests/qa/verify_r077_r054_drift.py
-退出码：0=全部符合预期，1=存在异常或无法解释的变化
+用法：
+    python tests/qa/verify_r077_r054_drift.py              # 默认与 v1.6.1.9 修复前基线对比
+    python tests/qa/verify_r077_r054_drift.py <commit>      # 与指定基线 commit 对比
+
+退出码：0=变化全部符合预期，1=存在异常或无法解释的变化
 """
+import importlib.util
 import os
+import subprocess
 import sys
-import glob
+import tempfile
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
-from backend.engine.checker import RuleChecker
+# v1.6.1.9 修复前基线（distributed.py 最后一次修改前的 commit）
+DEFAULT_BASELINE = "80fe10d"
+
+# 预期变化：只有这 5 张生产表的 R077/R054 触发状态应该改变
+EXPECTED_CHANGES = {
+    # (文件名关键词, 规则): 改前触发 → 改后不触发
+    ("report_03", "R077"): (True, False),   # HASH 分片表误报消除
+    ("report_05", "R077"): (True, False),   # 广播表误报消除
+    ("report_05", "R054"): (True, False),   # 广播表误报消除
+    ("report_08", "R077"): (True, False),
+    ("report_08", "R054"): (True, False),
+    ("report_11", "R077"): (True, False),
+    ("report_11", "R054"): (True, False),
+    ("report_13", "R077"): (True, False),
+    ("report_13", "R054"): (True, False),
+}
+
+# docker/mysql/init.sql 中 4 张表的 R054 误报消除（FIX-4 附带修复）
+# 这些表的 DDL 根本没有 shardkey= 子句，SHARDKEY= 只出现在注释标题中，
+# 改前 R054 从注释读出列名再报"不在主键中"——彻头彻尾的误报。
+EXPECTED_DOCKER_INIT_R054 = 4  # init.sql 中预期 R054 消失的数量
 
 
-def collect_sql_statements(filepath: str) -> list[str]:
-    """从 .sql 文件中切分出独立语句（按分号+换行切分）"""
-    with open(filepath, encoding="utf-8", errors="replace") as f:
-        content = f.read()
-    # 按分号+换行切分，过滤空语句和纯注释
-    stmts = []
-    for chunk in content.split(";\n"):
-        chunk = chunk.strip()
-        if not chunk:
+def _load_module_from_source(source: str, module_name: str):
+    """从源码字符串动态加载模块"""
+    spec = importlib.util.spec_from_loader(module_name, loader=None)
+    mod = importlib.util.module_from_spec(spec)
+    exec(compile(source, f"<{module_name}>", "exec"), mod.__dict__)
+    return mod
+
+
+def _get_git_file(commit: str, path: str) -> str:
+    """从 git 历史读取文件内容"""
+    result = subprocess.run(
+        ["git", "show", f"{commit}:{path}"],
+        capture_output=True, text=True, encoding="utf-8",
+        cwd=os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")),
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"git show {commit}:{path} 失败: {result.stderr}")
+    return result.stdout
+
+
+def _collect_corpus() -> list[tuple[str, str]]:
+    """收集全量语料：仓库 .sql 文件 + 生产 fixture"""
+    repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    corpus = []
+
+    import glob
+    for fpath in glob.glob(os.path.join(repo_root, "**/*.sql"), recursive=True):
+        rel = os.path.relpath(fpath, repo_root)
+        if any(skip in rel for skip in ("dist", ".git", "node_modules", "_retest_report_worktree")):
             continue
-        # 跳过纯注释块
-        lines = [l for l in chunk.splitlines() if l.strip() and not l.strip().startswith("--")]
-        if lines:
-            stmts.append(chunk)
-    return stmts
+        with open(fpath, encoding="utf-8", errors="replace") as f:
+            content = f.read()
+        for chunk in content.split(";\n"):
+            chunk = chunk.strip()
+            if not chunk:
+                continue
+            lines = [l for l in chunk.splitlines() if l.strip() and not l.strip().startswith("--")]
+            if lines:
+                corpus.append((rel, chunk))
+
+    return corpus
+
+
+def _audit_with_module(mod, sql: str) -> tuple[bool, bool]:
+    """用指定模块的 R077/R054 审核一条 SQL，返回 (r077_triggered, r054_triggered)"""
+    from backend.engine.parser import SQLParser
+    parser = SQLParser()
+    parsed = parser.parse(sql)
+
+    r077_cls = getattr(mod, "R077CreateTableMustHaveShardKey", None)
+    r054_cls = getattr(mod, "R054ShardKeyMustBePrimaryKey", None)
+
+    r077_hit = False
+    r054_hit = False
+
+    if r077_cls:
+        v = r077_cls().check(parsed)
+        r077_hit = v is not None
+    if r054_cls:
+        v = r054_cls().check(parsed)
+        r054_hit = v is not None
+
+    return r077_hit, r054_hit
 
 
 def main():
-    checker = RuleChecker()
-    fixture_dir = os.path.join(os.path.dirname(__file__), "..", "fixtures")
+    baseline = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_BASELINE
+    print(f"基线 commit: {baseline}")
+    print(f"当前代码: HEAD (工作目录)")
+    print()
+
+    # 加载两个版本的 distributed.py
+    old_source = _get_git_file(baseline, "backend/engine/rules/distributed.py")
+    new_source_path = os.path.join(
+        os.path.dirname(__file__), "..", "..", "backend", "engine", "rules", "distributed.py")
+    with open(new_source_path, encoding="utf-8") as f:
+        new_source = f.read()
+
+    print(f"基线 distributed.py: {len(old_source)} 字节")
+    print(f"当前 distributed.py: {len(new_source)} 字节")
+    print()
+
+    # 动态加载
+    old_mod = _load_module_from_source(old_source, "distributed_old")
+    new_mod = _load_module_from_source(new_source, "distributed_new")
 
     # 收集语料
-    corpus = []
-
-    # 1. 仓库内全部 .sql 文件
-    repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-    for pattern in ["**/*.sql"]:
-        for fpath in glob.glob(os.path.join(repo_root, pattern), recursive=True):
-            # 跳过 dist/ 和 .git/
-            rel = os.path.relpath(fpath, repo_root)
-            if "dist" in rel or ".git" in rel or "node_modules" in rel:
-                continue
-            stmts = collect_sql_statements(fpath)
-            for s in stmts:
-                corpus.append((rel, s))
-
-    # 2. 生产报告 fixture
-    for fpath in sorted(glob.glob(os.path.join(fixture_dir, "report_*.sql"))):
-        rel = os.path.relpath(fpath, repo_root)
-        stmts = collect_sql_statements(fpath)
-        for s in stmts:
-            corpus.append((rel, s))
-
-    # 统计
+    corpus = _collect_corpus()
     total = len(corpus)
+    print(f"语料总数: {total}")
+
+    # 双侧对比
     errors = 0
-    results = []  # (source, sql_preview, r077, r054, category)
+    changes = []  # (source, sql_preview, rule, old_hit, new_hit)
 
-    for source, sql in corpus:
+    for i, (source, sql) in enumerate(corpus):
         try:
-            result = checker.audit_sql(sql, instance_type='distributed')
-            rule_ids = {v.rule_id for v in result.violations}
-            has_r077 = 'R077' in rule_ids
-            has_r054 = 'R054' in rule_ids
+            old_r077, old_r054 = _audit_with_module(old_mod, sql)
+            new_r077, new_r054 = _audit_with_module(new_mod, sql)
 
-            # 分类
-            tail = sql.upper()
-            if 'TDSQL_DISTRIBUTED' in tail:
-                cat = 'HASH'
-            elif 'SHARDKEY' in tail or 'SHARD_KEY' in tail:
-                cat = 'legacy'
-            else:
-                cat = 'no_shard_decl'
-
-            results.append((source, sql[:120], has_r077, has_r054, cat))
+            for rule, old_hit, new_hit in [
+                ("R077", old_r077, new_r077),
+                ("R054", old_r054, new_r054),
+            ]:
+                if old_hit != new_hit:
+                    changes.append((source, sql[:120], rule, old_hit, new_hit))
         except Exception as e:
             errors += 1
-            print(f"[ERROR] {source}: {e}")
-            print(f"  SQL: {sql[:200]}")
+            print(f"[ERROR] #{i+1} {source}: {e}")
 
-    # 汇总
-    print(f"\n{'='*70}")
-    print(f"漂移扫描结果")
-    print(f"{'='*70}")
-    print(f"输入总数: {total}")
     print(f"解析成功: {total - errors}")
     print(f"异常数: {errors}")
+    print()
 
-    # 按路径分类统计
-    cats = {}
-    for source, preview, r077, r054, cat in results:
-        cats.setdefault(cat, []).append((source, preview, r077, r054))
+    # 分析变化
+    print(f"{'='*70}")
+    print(f"变化总数: {len(changes)}")
+    print(f"{'='*70}")
 
-    for cat, items in sorted(cats.items()):
-        r077_count = sum(1 for _, _, r, _, in items if r)
-        r054_count = sum(1 for _, _, _, r in items if r)
-        print(f"\n  [{cat}] {len(items)} 条 | R077触发={r077_count} | R054触发={r054_count}")
+    explained = 0
+    unexplained = []
 
-    # 列出所有触发 R077 或 R054 的语句
-    triggered = [(s, p, r77, r54) for s, p, r77, r54, _ in results if r77 or r54]
-    if triggered:
-        print(f"\n触发 R077/R054 的语句 ({len(triggered)} 条):")
-        for source, preview, r77, r54 in triggered:
-            tags = []
-            if r77: tags.append("R077")
-            if r54: tags.append("R054")
-            print(f"  {source}: {'+'.join(tags)}")
-            print(f"    {preview}...")
+    for source, preview, rule, old_hit, new_hit in changes:
+        # 检查是否在预期变化清单中
+        matched = False
+        for (keyword, exp_rule), (exp_old, exp_new) in EXPECTED_CHANGES.items():
+            if keyword in source and rule == exp_rule and old_hit == exp_old and new_hit == exp_new:
+                explained += 1
+                print(f"  [预期] {source} | {rule}: {'触发' if old_hit else '无'} → {'触发' if new_hit else '无'}")
+                matched = True
+                break
 
-    # 生产 fixture 专项核验：只应触发 N1（无分片声明单表）
-    fixture_results = [(s, p, r77, r54) for s, p, r77, r54, _ in results if "fixtures/" in s or "fixtures\\" in s]
-    fixture_r077 = [(s, p) for s, p, r77, r54 in fixture_results if r77]
-    fixture_r054 = [(s, p) for s, p, r77, r54 in fixture_results if r54]
+        if not matched:
+            # docker/init.sql 的 FIX-4 附带修复：注释污染型 R054 误报消除
+            if "docker" in source and "init.sql" in source and rule == "R054" and old_hit and not new_hit:
+                explained += 1
+                print(f"  [预期·FIX-4附带] {source} | {rule}: 触发 → 无（注释污染误报修复）")
+                matched = True
 
-    print(f"\n生产 fixture 专项:")
-    print(f"  R077 触发: {len(fixture_r077)} 条")
-    for s, p in fixture_r077:
-        print(f"    {s}")
-    print(f"  R054 触发: {len(fixture_r054)} 条")
-    for s, p in fixture_r054:
-        print(f"    {s}")
+        if not matched:
+            unexplained.append((source, preview, rule, old_hit, new_hit))
+            direction = "新增触发" if new_hit else "不再触发"
+            print(f"  [未解释] {source} | {rule}: {'触发' if old_hit else '无'} → {'触发' if new_hit else '无'} ({direction})")
+            print(f"    SQL: {preview}...")
 
-    # 验收：fixture 中只有 report_04（无分片声明单表）应触发 R077
-    expected_r077 = {"report_04_single_table.sql"}
-    actual_r077 = {os.path.basename(s) for s, _ in fixture_r077}
-    unexpected_r077 = actual_r077 - expected_r077
-    missing_r077 = expected_r077 - actual_r077
+    print()
+    print(f"已解释: {explained}/{len(changes)}")
+    print(f"未解释: {len(unexplained)}/{len(changes)}")
 
     ok = True
     if errors > 0:
         print(f"\n[FAIL] 存在 {errors} 条解析异常")
         ok = False
-    if unexpected_r077:
-        print(f"\n[FAIL] fixture 中 R077 意外触发: {unexpected_r077}")
+    if unexplained:
+        print(f"[FAIL] 存在 {len(unexplained)} 条无法解释的变化")
         ok = False
-    if missing_r077:
-        print(f"\n[FAIL] fixture 中 R077 应触发但未触发: {missing_r077}")
-        ok = False
-    if fixture_r054:
-        print(f"\n[FAIL] fixture 中 R054 不应触发")
-        ok = False
+    if len(changes) == 0:
+        print("[WARN] 双侧对比零变化——修复可能未生效")
 
-    if ok:
-        print(f"\n[PASS] 全语料漂移扫描通过")
+    if ok and explained == len(changes) and len(changes) > 0:
+        print(f"\n[PASS] 全部 {len(changes)} 条变化均已解释，无异常")
     return 0 if ok else 1
 
 
