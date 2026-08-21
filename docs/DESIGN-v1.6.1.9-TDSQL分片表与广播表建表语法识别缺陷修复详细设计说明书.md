@@ -9,7 +9,8 @@
 | 改动文件 | **仅 1 个**：`backend/engine/rules/distributed.py` |
 | 改动类 | **仅 2 个**：`R077CreateTableMustHaveShardKey`、`R054ShardKeyMustBePrimaryKey` |
 | 撰写 | 智能体 A |
-| 修订 | **Rev.B**——按用户对 TDSQL 分片表合规判据的口径纠正，撤销原 FIX-3（见 §11 修订记录） |
+| 修订 | **Rev.C**——ADJ-4 经用户决策关闭、ADJ-5 升级为永久禁令（见 §8.1、§11 修订记录） |
+| 评审 | 待智能体 O 评审；可复现验证脚本见**附录 B** |
 | 状态 | **待评审——未动任何代码** |
 
 ---
@@ -170,7 +171,7 @@ _collect_pk_cols   = ['id']                            ← 主键是 ID
 | **NG-2** | **不修改 `tdsql_connector.py` 的 `_detect_shard_info()` / `parse_shard_key_from_ddl()`** | 它们同源带病（§8），但服务的是 R020/R021/R022/R053/R056/R057/R060 的元数据通道与「大表治理」。改它等于一次性动 7 条规则 + 1 个业务模块 |
 | **NG-3** | **不给 R054 增加 `TDSQL_DISTRIBUTED` 识别** | R054 当前对该语法**取不到分片键、直接返回 None**，属"漏报"而非"误报"。补上会让**过去不报的语句开始报**——这是行为扩张，不是缺陷修复。R077 已覆盖 J-2 且消息是超集 |
 | **NG-4** | **不修改 R054 的 UNIQUE 正则** | R054 的 E2 分支是**产出违规**的分支（J-3 判据），放宽正则会让它发现更多唯一索引 → 新增违规 |
-| **NG-5** | **不放宽 R077 的 `_UNIQUE_RE`** | **Rev.B 新增。** 原 Rev.A 曾计划放宽它以支持反引号索引名，但该正则服务的是 R077 的"主键 **或** 唯一索引"口径，而按 J-2/NJ-2，**分片键在唯一索引里但不在主键里并不合规**。放宽它会**压制真实违规**。详见 §8 ADJ-4 |
+| **NG-5** | **不放宽 R077 的 `_UNIQUE_RE`（永久约束，非仅本次）** | **Rev.B 提出、Rev.C 升级为永久禁令。** 该正则服务于 R077 的"主键 **或** 唯一索引"口径；按 J-2/NJ-2，分片键在唯一索引里但不在主键里**并不合规**。且 ADJ-4 已由用户决策关闭，**这个"坏正则"正是 R077 在真实 TDSQL 元数据上贴合 J-2 的唯一原因——它是承重的**。放宽它会立即制造漏报。**实测论证见 §8.1，务必先读再动手** |
 | **NG-6** | **不改动任何规则的 `severity` / `enabled` / `instance_scope`** | 规则元数据一旦变动会穿透规则集、门禁、报表统计 |
 | **NG-7** | **不改动 R077/R054 之外的任何一条规则** | 报告中同时出现的 R001/R036/R037/R061/R063 均为独立正确判定，与本缺陷无关 |
 
@@ -364,7 +365,32 @@ _NOSHARDKEY_SENTINEL_RE = re.compile(r"^noshardkey(?:_[a-z0-9_]+)?$", re.IGNOREC
 
 ---
 
-### 5.5 改动汇总
+### 5.5 改动点 5（**可选，纯注释，零行为变化**）：为 `_UNIQUE_RE` 加地雷警示
+
+**背景**：§8.1 论证了 `_UNIQUE_RE` 认不出反引号是**承重**的。但代码现场看不出这一点——后来者极易把它当成一个显而易见的正则 bug 顺手"修好"，从而静默制造漏报。
+
+**位置**：`distributed.py:519`（`# 表级 UNIQUE KEY/INDEX 列提取正则（回退方案）` 那一行的上方）。
+
+**建议新增**（**只加注释，不改任何一个字符的正则**）：
+
+```python
+    # ⚠️ 禁止放宽本正则（v1.6.1.9 决策，来源见
+    #    docs/DESIGN-v1.6.1.9-...说明书.md §8.1）
+    #    它认不出反引号索引名，看起来像 bug，实际是承重的：
+    #    R077 采用"分片键 ∈ 主键 或 唯一索引"的宽松口径（ADJ-4，已决策
+    #    永久保留），只有当本正则在真实 TDSQL 元数据上取不到唯一索引时，
+    #    该判定才恰好等价于"分片键必须在主键中"这一真实约束。
+    #    放宽本正则 = 激活 OR 分支 = 立即产生漏报。
+    #    若确需修改，必须与 ADJ-4 一起收紧，二者是原子决策。
+```
+
+**性质**：纯注释，**零行为变化**，`git diff` 只增注释行。
+
+> **本条留给评审决策**：采纳则 Phase 1 为「4 处行为改动 + 1 处注释」；不采纳则为「4 处行为改动」，§8.1 的约束仅存在于本文档中。**建议采纳**——文档会被遗忘，代码旁的注释不会。
+
+---
+
+### 5.6 改动汇总
 
 | # | 文件 | 类/方法 | 类型 | 净增行 |
 |---|---|---|---|---|
@@ -373,7 +399,9 @@ _NOSHARDKEY_SENTINEL_RE = re.compile(r"^noshardkey(?:_[a-z0-9_]+)?$", re.IGNOREC
 | 3 | `distributed.py` | `R077._extract_shard_key()` | 新增 7 行 | +7 |
 | 4 | `distributed.py` | `R054.check()` | 新增 6 行 | +6 |
 
-**合计：1 个文件、2 个类、4 处、净增约 43 行，无删除、无正则放宽、无签名变更、无新增依赖、无 import 变更、无数据库变更、无接口变更、无前端变更。**
+| 5 | `distributed.py` | `R077._UNIQUE_RE` 上方 | **（可选）**纯注释护栏 | +7 |
+
+**合计：1 个文件、2 个类、4 处行为改动（+1 处可选纯注释），净增约 43（或 50）行，无删除、无正则放宽、无签名变更、无新增依赖、无 import 变更、无数据库变更、无接口变更、无前端变更。**
 
 ---
 
@@ -438,15 +466,50 @@ _NOSHARDKEY_SENTINEL_RE = re.compile(r"^noshardkey(?:_[a-z0-9_]+)?$", re.IGNOREC
 
 ---
 
-## 8. 已知邻接缺陷（同源，本次**不修**，建议单独排期）
+## 8. 已知邻接缺陷（同源，本次**不修**）
+
+> **状态说明**：ADJ-1/2/3 建议 Phase 2 排期；**ADJ-4 已由用户决策关闭、永不排期**；**ADJ-5 因 ADJ-4 关闭而升级为「永久禁止修复」**，见下表与 §8.1。
 
 | 编号 | 位置 | 问题 | 后果 | 建议 |
 |---|---|---|---|---|
 | **ADJ-1** | `parser_legacy.py` | `TDSQL_DISTRIBUTED BY ...` 导致 sqlglot 整条降级为 Command，`columns/indexes/table_options` 全空 | 这类分片表被**全套结构类规则漏审**（实测 #3 漏掉 R036/R037/R061） | Phase 2：在交给 sqlglot 前净化方言尾子句，**`parsed.raw_sql` 必须保留原文**（R077 依赖它取分片键）。需全量回归 + 用户确认"报告违规数会上升" |
 | **ADJ-2** | `tdsql_connector.py:162` `parse_shard_key_from_ddl()`、`:404` `_detect_shard_info()` | 同样只认 `SHARDKEY=`，且把 `noshardkey_allset` 原样当分片键写进 `meta.shard_key`（`parse_shard_key_from_ddl` 的 docstring 声称"broadcast 表返回 ''"，与实际不符） | ① R020/R021/R022/R053/R056/R057/R060 在元数据通道对广播表连带误报（如"分片表 t_branch 的分片键 'noshardkey_allset' 未在 WHERE 条件中"）；② 「大表治理」展示的分片键为哨兵值 | Phase 2：统一到一个共享的分片键解析工具函数 |
 | **ADJ-3** | `tdsql_connector.py:1546` `TDSQLConnector._detect_shard_info()` | 与 `:404` 近似重复实现；其中引用了**未定义变量** `create_sql_upper`（该方法内定义的是 `create_sql`），触发 `NameError` 被外层 `except Exception: pass` 静默吞掉 | 该类的**广播表识别与 `TDSQL_SHARDING_RULES` 查询整段成为死代码**，`is_broadcast_table` 永不为 True | Phase 2：与 ADJ-2 一并去重收敛。**建议优先级最高——这是真实的静默失效** |
-| **ADJ-4** | `R077.check()` 的判定口径 | R077 用"分片键 ∈ 主键 **或** 唯一索引"，与 §1 判据 J-2（必须在主键中）+ J-3（必须在每个唯一索引中）不符，**偏宽松且缺 J-3** | 分片键只在唯一索引、不在主键的表，R077 **漏报**（实测：裸索引名写法下确实放行）。当前因 `_UNIQUE_RE` 不认反引号，真实 TDSQL 元数据上恰好"歪打正着"仍会报 | **需用户决策**：收紧 R077 到 J-2/J-3 口径会让过去不报的语句开始报 ERROR，属行为扩张，须评估存量影响 |
-| **ADJ-5** | `R077._UNIQUE_RE`、`parsed.indexes` | 唯一索引识别对反引号索引名失配（实测 `` UNIQUE KEY `uk_code` (`code`) `` → 提取结果为空）；`parsed.indexes` 也从不产出 UNIQUE 条目 | 与 ADJ-4 绑定。**在 ADJ-4 定案之前不得单独修**——单独修会把 ADJ-4 的漏报面扩大 | Phase 2：与 ADJ-4 一并决策 |
+| **ADJ-4** | `R077.check()` 的判定口径 | R077 用"分片键 ∈ 主键 **或** 唯一索引"，与 §1 判据 J-2 + J-3 不符，**偏宽松且缺 J-3** | 分片键只在唯一索引、不在主键的表，R077 在**手写裸索引名**形态下漏报；在**真实 TDSQL 反引号形态**下因 ADJ-5 恰好仍会报 | **🔒 用户已决策：关闭，永不排期，不得改动。** 收紧会让存量语句大批新增 ERROR，收益不抵风险 |
+| **ADJ-5** | `R077._UNIQUE_RE`、`parsed.indexes` | 唯一索引识别对反引号索引名失配（实测 `` UNIQUE KEY `uk_code` (`code`) `` → 提取结果为空）；`parsed.indexes` 也从不产出 UNIQUE 条目 | **因 ADJ-4 关闭，此"缺陷"反而是 R077 在真实 TDSQL 元数据上贴合 J-2 的唯一原因——它是承重的** | **🔒 永久禁止修复。** 单独修会立即制造漏报，详见 §8.1 |
+
+### 8.1 ⚠️ 为什么 ADJ-5 必须永久保持"不修"——一条留给后来者的地雷警示
+
+ADJ-4 关闭（R077 保留"主键 **或** 唯一索引"的宽松口径）之后，出现一个**反直觉但必须遵守**的结论：
+
+> **`_UNIQUE_RE` 认不出反引号索引名这个"缺陷"，是 R077 在真实 TDSQL 元数据上仍然正确的唯一原因。它是承重的，不是待修的。**
+
+推理：`_collect_unique_index_cols()` 的两个来源在真实 TDSQL 元数据上**同时失效**（`parsed.indexes` 从不产出 UNIQUE 条目；`_UNIQUE_RE` 不认反引号），返回恒为空集。于是 R077 的判定
+
+```python
+if shard_key_col not in pk_cols and shard_key_col not in unique_index_cols:
+```
+
+在 `unique_index_cols == set()` 时**恒等于** `if shard_key_col not in pk_cols:`——**这正好就是判据 J-2**。也就是说 R077 目前是"歪打正着地正确"。
+
+**实测验证**（同一条 SQL，唯一变量是 ADJ-5 修不修）：
+
+| 场景 | ADJ-5 保持不修 | ADJ-5 若被"顺手修好" |
+|---|---|---|
+| **TDSQL 真实形态**：`` UNIQUE KEY `uk_code` (`code`) ``，分片键 `code` ∉ 主键（违反 J-2，应报） | **报 R077** ✅ | **★漏报** ❌ |
+| 手写形态：`UNIQUE KEY uk_code (code)`，分片键 ∉ 主键（违反 J-2，应报） | ★漏报（ADJ-4 关闭的既有残留） | ★漏报 |
+
+**结论：修 ADJ-5 会在生产环境真正出现的那一种形态上直接制造漏报。** 因此：
+
+- ❌ **任何人（含后续智能体）不得以"正则写得不对/不支持反引号"为由修改 `R077._UNIQUE_RE`**
+- ❌ 不得为 `parsed.indexes` 补充 UNIQUE 条目产出（同样会激活 OR 分支）
+- ✅ 若将来确需修 ADJ-5，**必须与 ADJ-4 同时收紧**（把 R077 改为 J-2 且 J-3），二者是一个原子决策，不可拆开
+
+> 建议施工后把本条写入 `docs/GUIDE-团队施工规约.md`（该文档要求每条规约注明来源事故——本条来源即 v1.6.1.9 缺陷调查）。
+
+### 8.2 ADJ-4 关闭后被接受的残留漏报（如实记录）
+
+手写形态 SQL 中，`UNIQUE KEY 裸索引名 (分片键)` 且分片键不在主键时，R077 漏报（上表第 2 行）。这是 ADJ-4 关闭的直接后果，**已知、已接受、本次不处理**。R054 对该场景仍会报 WARNING，具备兜底。
 
 ---
 
@@ -454,7 +517,9 @@ _NOSHARDKEY_SENTINEL_RE = re.compile(r"^noshardkey(?:_[a-z0-9_]+)?$", re.IGNOREC
 
 ### 9.1 正反用例矩阵（20 条，已用 Rev.B 原型全量实测通过 20/20）
 
-> 建议落库为 `tests/test_r077_r054_tdsql_syntax.py`。★ = 反向鉴别用例（团队规约 R-12：必须证明"没把功能删掉"）。
+> **前置条件**：全部用例均在 `instance_type="distributed"`、`table_metadata=None` 下执行（R077/R054 的 `instance_scope` 为 DISTRIBUTED，集中式实例本就跳过，由既有测试 `test_instance_scope_rules.py` 覆盖，本矩阵不重复）。
+>
+> 建议落库为 `tests/test_r077_r054_tdsql_syntax.py`；可复现脚本见**附录 B**。★ = 反向鉴别用例（团队规约 R-12：必须证明"没把功能删掉"）。
 
 | 用例 | 场景 | 改前 | 期望（改后） |
 |---|---|---|---|
@@ -514,14 +579,36 @@ _NOSHARDKEY_SENTINEL_RE = re.compile(r"^noshardkey(?:_[a-z0-9_]+)?$", re.IGNOREC
 | `TDSQL_DISTRIBUTED` 出现在注释/字符串里造成误放行 | 低 | 与既有 `_BROADCAST_RE`、`_SHARDKEY_RE` 同等特性（现状下表注释含 "broadcast" 已可绕过 R077），**非本次引入**；用例 N7 覆盖哨兵侧 |
 | N3/N8 类语句由"不报"变"报 R077" | 低 | 这是**恢复鉴别力**（分片键确实不在主键，违反 J-2）；已列入验收矩阵明示 |
 | #3 修完后显示"零违规"但实际仍被漏审 | **中** | 已在 §7.3 明示；根治需 Phase 2 (ADJ-1)。**必须在交付说明中写清楚** |
-| ADJ-4 的漏报面 | **中** | 本次**不动**，但已定位记录。**在 ADJ-4 定案前不得单独修 ADJ-5**，否则会扩大漏报 |
+| ADJ-4 关闭后的残留漏报 | **中** | 手写裸索引名 `UNIQUE KEY uk (分片键)` 且分片键不在主键时 R077 漏报，R054 仍报 WARNING 兜底。**已知、已接受**（§8.2） |
+| 后来者"顺手修好" `_UNIQUE_RE` 从而制造漏报 | **中高** | 这是本次最容易踩的地雷。对策：§8.1 实测论证 + NG-5 永久禁令 + 改动点 5 的代码旁注释 + §12 检查单硬项 |
 | 回滚 | — | 单文件 4 处纯增量改动，`git revert` 单个提交即可完全回到 v1.6.1.8 行为，无数据、无 schema、无接口残留 |
 
 ---
 
 ## 11. 修订记录
 
-### Rev.B（本版）——按用户口径纠正撤销 FIX-3
+### Rev.C（本版）——ADJ-4 用户决策关闭，ADJ-5 升级为永久禁令
+
+**用户决策**：*"ADJ-4 不要排，这个别动了。"*
+
+**处置与连锁影响**：
+
+| 项 | Rev.B | Rev.C |
+|---|---|---|
+| ADJ-4（收紧 R077 到 J-2/J-3） | 待用户决策 | **🔒 关闭，永不排期** |
+| ADJ-5（`_UNIQUE_RE` 不认反引号） | "Phase 2 与 ADJ-4 一并决策" | **🔒 永久禁止修复**——ADJ-4 关闭后它变成承重件 |
+| NG-5 | 本次不放宽 | **升级为永久约束**（非仅本次） |
+| 新增章节 | — | **§8.1 地雷警示**（含实测论证表）、**§8.2 已接受的残留漏报** |
+| 新增改动点 | — | **改动点 5（可选，纯注释）**：在 `_UNIQUE_RE` 旁留代码级警示 |
+| 新增附录 | — | **附录 B 可复现验证脚本**（供评审独立复核） |
+
+**关键结论（Rev.C 的核心增量）**：ADJ-4 关闭后，`_UNIQUE_RE` 认不出反引号这个"缺陷"，**反而是 R077 在真实 TDSQL 元数据上贴合判据 J-2 的唯一原因**。实测：同一条违反 J-2 的真实形态 SQL，ADJ-5 不修 → 正确报 R077；ADJ-5 若被修 → **漏报**。故必须把"禁止修复"写死在文档、检查单与代码注释三处。
+
+**Phase 1 修复方案本身不受影响**：FIX-1/FIX-2 与 ADJ-4/ADJ-5 无交集，用例矩阵与漂移扫描结果均不变。
+
+---
+
+### Rev.B——按用户口径纠正撤销 FIX-3
 
 **用户纠正原文**：*"这张表之所以顺利的创建成分片表的关键是 `TDSQL_DISTRIBUTED BY HASH(cust_no)` 以及 `PRIMARY KEY (ID, CUST_NO)`，也就是 cust_no 字段既是分片键又是主键或主键的一部分，同时如果这张表有除主键外的其他唯一索引，那么 cust_no 还应该是这些唯一索引的一部分。"*
 
@@ -540,7 +627,7 @@ _NOSHARDKEY_SENTINEL_RE = re.compile(r"^noshardkey(?:_[a-z0-9_]+)?$", re.IGNOREC
 | 改动点数 | 5 处 | **4 处** |
 | 用例 C3 期望 | R077 放行 | **R077 保持触发** |
 | 新增用例 | — | **N8★**：分片键只在普通 `KEY` 里、不在主键 → R077 必须触发（直接守 NJ-1） |
-| §3.3 对 R077/R054 口径差异的定性 | "故意不同严，是既有设计" | **更正**：R054 才贴合 J-2/J-3，R077 的 `或` 口径偏宽松且缺 J-3，是既有口径缺陷 ADJ-4 |
+| §4.3 对 R077/R054 口径差异的定性 | "故意不同严，是既有设计" | **更正**：R054 才贴合 J-2/J-3，R077 的 `或` 口径偏宽松且缺 J-3，是既有口径缺陷 ADJ-4 |
 | 漂移扫描结果 | 5 条 | **5 条（不变）** |
 | 用例矩阵 | 20/20 | **20/20（已用 Rev.B 原型重测）** |
 
@@ -560,7 +647,9 @@ _NOSHARDKEY_SENTINEL_RE = re.compile(r"^noshardkey(?:_[a-z0-9_]+)?$", re.IGNOREC
 
 **判据不得放宽（Rev.B 重点）**
 
-- [ ] **`_UNIQUE_RE` 一个字符都没动**（NG-5）
+- [ ] **`_UNIQUE_RE` 的正则一个字符都没动**（NG-5 永久禁令。动手前必读 §8.1——它看起来像 bug，实际是承重的，修了就会制造漏报）
+- [ ] 没有为 `parsed.indexes` 补充 UNIQUE 条目产出（同样会激活 R077 的 OR 分支）
+- [ ] 没有收紧 R077 的 `或` 口径（ADJ-4 已由用户决策永久关闭）
 - [ ] `_PK_RE` / `_SHARDKEY_RE` / `_SHARD_KEY_RE` / `_BROADCAST_RE` 均未改动
 - [ ] `_collect_pk_cols()` / `_collect_unique_index_cols()` 均未改动
 - [ ] R077 的 `shard_key_col not in pk_cols and shard_key_col not in unique_index_cols` 判定行原样保留
@@ -586,7 +675,9 @@ _NOSHARDKEY_SENTINEL_RE = re.compile(r"^noshardkey(?:_[a-z0-9_]+)?$", re.IGNOREC
 **交付说明**
 
 - [ ] 写明 §7.3 的 #3 漏审副作用（"零违规"不等于"已全量审核"）
-- [ ] 写明 §8 的五项邻接缺陷，其中 ADJ-4/ADJ-5 需用户决策、ADJ-3 建议优先处理
+- [ ] 写明 §8 的五项邻接缺陷：ADJ-1/2/3 建议 Phase 2 排期（ADJ-3 优先）；**ADJ-4/ADJ-5 已永久关闭，交付说明中须明确"不得修复"**
+- [ ] 若采纳改动点 5，确认新增内容**只有注释行**（`git diff` 中不含任何非注释的代码变更）
+- [ ] 建议把 §8.1 的禁令补录进 `docs/GUIDE-团队施工规约.md`（来源：v1.6.1.9 缺陷调查）
 
 ---
 
@@ -608,3 +699,159 @@ _NOSHARDKEY_SENTINEL_RE = re.compile(r"^noshardkey(?:_[a-z0-9_]+)?$", re.IGNOREC
 | E-10 | Rev.B 补丁 20/20 用例通过（含 N8★、修正后的 C3） | 原型子类全量矩阵 |
 | E-11 | 全语料 201 条语句仅 5 条判定变化 | Rev.B 原型漂移扫描实测 |
 | E-12 | 规则测试基线 168 passed | 改动前实测 |
+| E-13 | `_UNIQUE_RE` 是承重件：修了它会在真实 TDSQL 形态上制造漏报 | 对照实验实测——同一条违反 J-2 的反引号 UNIQUE 语句，ADJ-5 不修→报 R077，ADJ-5 修→漏报（§8.1 表） |
+| E-14 | #3 的 UNIQUE 索引数量 = 0，两个 `KEY` 均为普通索引 | 正则统计实测 → 其合规完全来自 J-2，与普通索引无关（守 NJ-1） |
+
+---
+
+## 附录 B：可复现的验证脚本（供评审独立复核）
+
+> 本设计的全部实测结论均可由下列脚本复现。评审人不必采信文中数字，可直接跑。
+> 施工时建议把 B.2/B.3 合并落库为 `tests/qa/verify_r077_r054_tdsql_syntax.py`（沿用
+> `tests/qa/verify_oracle_rules_acceptance.py` 的既有约定）。
+
+**运行前置**：工作目录为仓库根目录；`AUTH_ENABLED=false SCHEDULER_ENABLED=false`。
+
+### B.1 从生产 HTML 报告提取 14 张表的原始 DDL
+
+```python
+import re, html, json
+p = "Extracted_Schema_Report_6261.html"          # 用户提供的现场报告
+s = open(p, encoding="utf-8", errors="replace").read()
+items = []
+for pt in re.split(r'<h3[^>]*>', s)[1:]:
+    no   = re.match(r'#(\d+)', pt)
+    sql  = re.search(r'<div class="sql-box">(.*?)</div>', pt, re.S)
+    txt  = html.unescape(re.sub(r'<[^>]+>', '', sql.group(1))).strip() if sql else ""
+    name = re.search(r'--\s*Table:\s*(\S+)', txt)
+    items.append({"no": int(no.group(1)) if no else 0,
+                  "table": name.group(1) if name else "",
+                  "rules": sorted(set(re.findall(r'\b(R\d{3})\b', pt))),
+                  "sql": txt})
+json.dump(items, open("report_items.json", "w"), ensure_ascii=False, indent=1)
+```
+
+### B.2 正反用例矩阵（§9.1）
+
+拟议补丁以**子类覆写**方式模拟，因此可在**不改动任何源码**的前提下复核：
+
+```python
+import re, os, sys, io, json, contextlib, warnings
+warnings.filterwarnings("ignore")
+os.environ.update(AUTH_ENABLED="false", SCHEDULER_ENABLED="false")
+buf = io.StringIO()
+with contextlib.redirect_stderr(buf):
+    from backend.engine.checker import SQLParser
+    from backend.engine.rules.distributed import (
+        R077CreateTableMustHaveShardKey as O77, R054ShardKeyMustBePrimaryKey as O54)
+
+# ——— 拟议新增的两个模块级常量（与 §5.1 逐字一致）———
+_TDSQL_DISTRIBUTED_RE = re.compile(
+    r"\btdsql_distributed\s+by\s+(?:hash|key)\s*\(\s*[`\"']?([a-z_][a-z0-9_]*)[`\"']?\s*\)",
+    re.IGNORECASE)
+_NOSHARDKEY_SENTINEL_RE = re.compile(r"^noshardkey(?:_[a-z0-9_]+)?$", re.IGNORECASE)
+
+class R077V2(O77):
+    # 注意：_UNIQUE_RE 原样继承，绝不覆写（NG-5 / §8.1）
+    def _extract_shard_key(self, parsed, raw_sql):
+        v = super()._extract_shard_key(parsed, raw_sql)
+        if v:
+            return v
+        m = _TDSQL_DISTRIBUTED_RE.search(raw_sql)
+        return m.group(1).strip('`"\' ').lower() if m else ""
+
+    def check(self, parsed, table_metadata=None):
+        if not parsed.is_create_table or parsed.is_create_table_select \
+                or parsed.is_temporary_table:
+            return None
+        raw = parsed.raw_sql
+        if self._BROADCAST_RE.search(raw):
+            return None
+        sk = self._extract_shard_key(parsed, raw)
+        if sk and _NOSHARDKEY_SENTINEL_RE.match(sk):        # FIX-2
+            return None
+        if not sk:
+            t = parsed.tables[0] if parsed.tables else ""
+            return self._make_violation(f"建表语句未声明分片键…（表 {t}）")
+        if sk not in self._collect_pk_cols(parsed, raw) \
+                and sk not in self._collect_unique_index_cols(parsed, raw):
+            return self._make_violation(f"分片键 '{sk}' 不在主键或唯一索引中")
+        return None
+
+class R054V2(O54):
+    def check(self, parsed, table_metadata=None):
+        sk = ""
+        if table_metadata:
+            for t in parsed.tables:
+                v = (table_metadata.get(t) or {}).get("shard_key", "")
+                if v:
+                    sk = v; break
+        if not sk:
+            m = re.search(r"shardkey\s*=\s*['\"`]?(\w+)", parsed.raw_sql, re.IGNORECASE)
+            if m:
+                sk = m.group(1)
+        if sk and _NOSHARDKEY_SENTINEL_RE.match(sk.strip('`"\' ')):   # FIX-2
+            return None
+        return super().check(parsed, table_metadata)
+```
+
+用例集与期望值见 §9.1 表格（P1–P5 / N1–N8 / C1–C9）；判定方式：
+`(R077触发?, R054触发?) == (期望R077, 期望R054)`。**要求 20/20 通过。**
+
+### B.3 全语料漂移扫描（§7.2，最关键的一条证据）
+
+```python
+import glob, os
+stmts = []
+for f in sorted(glob.glob("**/*.sql", recursive=True)):
+    for st in open(f, encoding="utf-8", errors="replace").read().split(";"):
+        if len(st.strip()) > 20:
+            stmts.append((f, st.strip()))
+for it in json.load(open("report_items.json")):          # 追加现场 14 表
+    stmts.append((f"现场#{it['no']} {it['table']}",
+                  "\n".join(l for l in it['sql'].splitlines()
+                            if not l.strip().startswith('--'))))
+
+p_ = SQLParser(); o77, o54, n77, n54 = O77(), O54(), R077V2(), R054V2()
+diff = []
+for src, st in stmts:
+    try:
+        with contextlib.redirect_stderr(buf):
+            pr = p_.parse(st)
+            old = (o77.check(pr) is not None, o54.check(pr) is not None)
+            new = (n77.check(pr) is not None, n54.check(pr) is not None)
+    except Exception:
+        continue
+    if old != new:
+        diff.append((src, old, new))
+print(f"判定变化 {len(diff)} 条")     # 门槛：必须 == 5，且恰为现场 #3/#5/#8/#11/#13
+```
+
+**验收门槛**：`len(diff) == 5`，且这 5 条恰为现场 `#3 / #5 / #8 / #11 / #13`。
+任何第 6 条变化都意味着爆炸半径超出设计，**必须停止施工并回到评审**。
+
+### B.4 ADJ-5 承重性对照实验（§8.1）
+
+```python
+class R077IfADJ5Fixed(R077V2):          # 假设有人"顺手"把 ADJ-5 修了
+    _UNIQUE_RE = re.compile(
+        r"unique\s+(?:key|index)\s*(?:[`\"']?\w+[`\"']?)?\s*\(([^)]+)\)", re.IGNORECASE)
+
+SQL = ("CREATE TABLE `t1` (`id` bigint NOT NULL, `code` varchar(16) NOT NULL, "
+       "PRIMARY KEY (`id`), UNIQUE KEY `uk_code` (`code`)) ENGINE=InnoDB shardkey=code")
+# 该表违反 J-2（分片键 code 不在主键），应当报 R077
+# 期望输出： ADJ-5不修 → 报R077（正确）； ADJ-5被修 → 漏报（回归）
+```
+
+### B.5 回归基线
+
+```bash
+pytest tests/test_rules.py tests/test_instance_scope_rules.py \
+       tests/test_oracle_compat_rules.py tests/test_instance_type_service.py -q
+# 门槛：168 passed, 0 failed（改前实测基线）
+
+pytest tests/ -q
+# 门槛：不得新增 failed；skipped 不得增加
+# 注：跑前需 SET GLOBAL slow_query_log=ON; SET GLOBAL long_query_time=0.1
+#     否则 test_uat47_05 / test_uat53_02 会因本地环境失败（非产品缺陷）
+```
