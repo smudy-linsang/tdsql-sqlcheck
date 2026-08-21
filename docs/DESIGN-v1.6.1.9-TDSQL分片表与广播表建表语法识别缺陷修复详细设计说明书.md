@@ -9,26 +9,70 @@
 | 改动文件 | **仅 1 个**：`backend/engine/rules/distributed.py` |
 | 改动类 | **仅 2 个**：`R077CreateTableMustHaveShardKey`、`R054ShardKeyMustBePrimaryKey` |
 | 撰写 | 智能体 A |
+| 修订 | **Rev.B**——按用户对 TDSQL 分片表合规判据的口径纠正，撤销原 FIX-3（见 §11 修订记录） |
 | 状态 | **待评审——未动任何代码** |
 
 ---
 
 ## 0. 一句话结论
 
-TDSQL 真实内核输出的两种合规建表语法——分片表的 `TDSQL_DISTRIBUTED BY HASH(col)` 与广播表（全局表）的 `shardkey=noshardkey_allset`——在规则引擎里**从来没有被认识过**（全仓库检索：这两个 token 在 `backend/` 下零出现）。R077 因此把合规分片表判成"未声明分片键的单表"，把广播表的哨兵值 `noshardkey_allset` 当成一个**真实列名**去查主键，必然查不到，于是 R077 与 R054 双双误报。修复方式是在这两条规则内部补齐对这两种语法的识别，**不动解析器、不动元数据采集、不动其余 117 条规则**。
+TDSQL 真实内核输出的两种合规建表语法——分片表的 `TDSQL_DISTRIBUTED BY HASH(col)` 与广播表（全局表）的 `shardkey=noshardkey_allset`——在规则引擎里**从来没有被认识过**（全仓库检索：这两个 token 在 `backend/` 下零出现）。R077 因此把合规分片表判成"未声明分片键的单表"，把广播表的哨兵值 `noshardkey_allset` 当成一个**真实列名**去查主键，必然查不到，于是 R077 与 R054 双双误报。修复方式是在这两条规则内部补齐对这两种语法的识别，**不动解析器、不动元数据采集、不动其余 117 条规则，也不放宽任何既有的合规判据**。
 
 ---
 
-## 1. 现场与复现
+## 1. TDSQL 分片表的合规判据（本设计的判定基准）
 
-### 1.1 用户报告的两项
+> 本节由用户在评审中明确给定，是全文一切判定的**唯一基准**，施工时不得自行放宽。
 
-| 报告序号 | 表名 | 尾部语法 | 实际触发 | 用户判定 |
+一张 TDSQL 分片表合规，需**同时**满足：
+
+| 编号 | 判据 |
+|---|---|
+| **J-1** | 声明了分片键。语法形态有两种：`shardkey=col`，或 `TDSQL_DISTRIBUTED BY HASH(col)` |
+| **J-2** | **分片键必须是主键、或主键的一部分** |
+| **J-3** | 若该表还有主键之外的唯一索引，**分片键还必须是每一个唯一索引的一部分** |
+
+广播表（全局表）不适用 J-2/J-3，其声明形态为 `shardkey=noshardkey_allset` 或 `BROADCAST` 关键字。
+
+### 1.1 三条必须记住的否定判据
+
+| 编号 | 内容 | 为什么要单列 |
+|---|---|---|
+| **NJ-1** | **普通索引（`KEY`）含分片键，不构成合规** | 现场 #3 里的 `` KEY `cus_bas_corp_contact_IDX1` (`CUST_NO`,`DATA_VALID_TM`) `` 是**普通索引**，它对合规性**不起任何作用**。#3 之所以合规，靠的是 `PRIMARY KEY (`ID`,`CUST_NO`)`——`cust_no` 在主键里 |
+| **NJ-2** | **分片键只在唯一索引里、不在主键里，不构成合规** | 判据是 J-2 **且** J-3，不是"主键 **或** 唯一索引"。R077 现有实现的 `或` 口径比真实约束宽松（见 §8 ADJ-4），本次**不予放宽、不予收紧**，原样保留 |
+| **NJ-3** | J-3 是**每一个**唯一索引都要满足，不是"任意一个" | 这正是 R054 现有 E2 分支的口径 |
+
+### 1.2 现场 #3 按判据逐条核对（实测）
+
+```
+PRIMARY KEY (`ID`,`CUST_NO`),
+KEY `cus_bas_corp_contact_IDX1` (`CUST_NO`,`DATA_VALID_TM`),     ← 普通索引，与合规性无关
+KEY `cus_bas_corp_contact_IDX2` (`CONTACT_NO`,`DATA_VALID_TM`),  ← 普通索引，与合规性无关
+) ENGINE=InnoDB ... TDSQL_DISTRIBUTED BY HASH(`cust_no`)
+
+实测该表 UNIQUE 索引数量 = 0
+```
+
+| 判据 | 核对 | 结论 |
+|---|---|---|
+| J-1 | `TDSQL_DISTRIBUTED BY HASH(`cust_no`)` | ✅ 已声明 |
+| J-2 | `cust_no` ∈ 主键 `(ID, CUST_NO)` | ✅ 满足 |
+| J-3 | 无主键外唯一索引 | ✅ 空条件成立 |
+
+**→ #3 合规，R077 属误报。** 且它的合规**完全来自 J-2（主键），与两个普通 `KEY` 无关**。
+
+---
+
+## 2. 现场与复现
+
+### 2.1 用户报告的两项
+
+| 报告序号 | 表名 | 尾部语法 | 实际触发 | 判定 |
 |---|---|---|---|---|
-| #3 | `cus_bas_corp_contact` | `TDSQL_DISTRIBUTED BY HASH(\`cust_no\`)` | R077 (ERROR) | **合规分片表，不应触发** |
-| #5 | `cus_name_list_type` | `shardkey=noshardkey_allset` | R077 (ERROR) + R054 (WARNING) | **合规广播表（全局表），均不应触发** |
+| #3 | `cus_bas_corp_contact` | `TDSQL_DISTRIBUTED BY HASH(\`cust_no\`)` + `PRIMARY KEY (\`ID\`,\`CUST_NO\`)` | R077 (ERROR) | **合规分片表，误报** |
+| #5 | `cus_name_list_type` | `shardkey=noshardkey_allset` | R077 (ERROR) + R054 (WARNING) | **合规广播表（全局表），均误报** |
 
-### 1.2 本地 1:1 复现（实测，非推断）
+### 2.2 本地 1:1 复现（实测，非推断）
 
 把报告里 14 张表的原始 DDL 逐条灌回本地引擎（`instance_type="distributed"`，`table_metadata=None`，与在线元数据审核通道口径一致），**引擎命中的规则集与生产报告逐字一致**：
 
@@ -43,15 +87,15 @@ TDSQL 真实内核输出的两种合规建表语法——分片表的 `TDSQL_DIS
 
 > **本次缺陷的真实影响面比用户报告的两项更大**：报告 14 张表中，**#5、#8、#11、#13 共 4 张广播表**全部同时误报 R077+R054，**#3** 误报 R077。合计 **5 张表被误报，占全表 35.7%**。
 
-### 1.3 反向鉴别基准（必须保持触发的对照）
+### 2.3 反向鉴别基准（必须保持触发的对照）
 
 **#4 `cus_bas_corp_contact_addr_20260511`** 尾部没有任何分片/广播声明（以 `COMMENT='…'` 结束），是**真正的单表**，R077 触发**正确**。本设计的全部验收都以"#4 必须继续报 R077"为反向鉴别锚点——若修完 #4 也不报了，等于把 R077 废掉，属于施工失败。
 
 ---
 
-## 2. 根因分析
+## 3. 根因分析
 
-### 2.1 缺陷 A：R077 不认识 `TDSQL_DISTRIBUTED BY HASH(col)`
+### 3.1 缺陷 A：R077 不认识 `TDSQL_DISTRIBUTED BY HASH(col)`（违反 J-1）
 
 `R077._extract_shard_key()`（`distributed.py:572-586`）**只有三个取值来源**：
 
@@ -70,7 +114,9 @@ TDSQL 真实内核输出的两种合规建表语法——分片表的 `TDSQL_DIS
 
 **全仓库检索证据**：`TDSQL_DISTRIBUTED` 这个 token 在整个代码库（含 `backend/`、`tests/`、`docs/`）**零出现**。这不是"正则写窄了"，是"这个语法从未进入过设计视野"。
 
-### 2.2 缺陷 B：`noshardkey_allset` 被当成列名
+> **注意**：本缺陷是**取不到分片键**，不是"判据放宽"。补上识别之后，J-2/J-3 的判定照常进行——现场 #3 能通过，是因为它**真的满足 J-2**（`_collect_pk_cols` 实测为 `['cust_no','id']`），而不是因为放行了什么。
+
+### 3.2 缺陷 B：`noshardkey_allset` 被当成列名
 
 TDSQL 对广播表（全局表）在 `SHOW CREATE TABLE` 尾部输出 `shardkey=noshardkey_allset`。`noshardkey_allset` 是内核的**哨兵值**，语义是"本表无分片键"，**它不是列名**。
 
@@ -89,91 +135,63 @@ _collect_pk_cols   = ['id']                            ← 主键是 ID
 - **R077** 走到第二分支：`'noshardkey_allset' not in {'id'}` → 报 *"分片键 'noshardkey_allset' 不在主键或唯一索引中"*。
 - **R054** 走 raw_sql 回退正则 `shardkey\s*=\s*['"\`]?(\w+)` 同样取到 `noshardkey_allset` → 报 *"分片键 'noshardkey_allset' 不在主键中"*。
 
-**这是一个必然失败的判定**：只要一张表是广播表，这个哨兵值永远不可能出现在主键里，误报 100% 复现。
+**这是一个必然失败的判定**：广播表不适用 J-2/J-3，这个哨兵值永远不可能出现在主键里，误报 100% 复现。
 
 **全仓库检索证据**：`noshardkey` / `allset` 在 `backend/engine/` 下**零出现**（`backend/services/` 下的 `/*sets:allsets*/` 是 TDSQL 查询提示，与此无关）。
 
 **附加事实**：`R054` 从头到尾**没有任何 BROADCAST 放行分支**——R077 至少有 `_BROADCAST_RE` 快速通道，R054 连这个都没有。所以哪怕一张表老老实实写了 `BROADCAST` 关键字，只要同时出现 `shardkey=` 字样，R054 依然会误报。本次一并收口。
 
-### 2.3 缺陷 C（同类、未被用户发现）：R077 的"唯一索引"放行通道对真实 TDSQL 输出完全失效
-
-R077 的规则描述明确写着"分片键必须是主键**或唯一索引**的一个字段"，`_collect_unique_index_cols()` 就是这条放行通道。实测它**在真实 TDSQL 元数据上从不生效**：
-
-```
-CREATE TABLE `t_u1` (`id` bigint NOT NULL, `code` varchar(16) NOT NULL,
-  PRIMARY KEY (`id`), UNIQUE KEY `uk_code` (`code`)) ENGINE=InnoDB shardkey=code
-
-parsed.indexes        = []          ← 解析器压根没输出 UNIQUE 条目
-index_definitions     = []
-_collect_unique_cols  = []          ← 两个来源都空
-R077 → ★误报「分片键 'code' 不在主键或唯一索引中」
-```
-
-两个来源同时失效：
-
-| 来源 | 失效原因 |
-|---|---|
-| `parsed.indexes` 中 `type=="UNIQUE"` | 解析器对 `UNIQUE KEY` 未产出 UNIQUE 类型条目（实测恒为空，裸名写法也一样） |
-| `_UNIQUE_RE` = `unique\s+(?:key\|index)\s+\w*\s*\(...\)` | 索引名的 `\w*` **不接受反引号包裹**。而 `SHOW CREATE TABLE` 输出的索引名**永远带反引号** |
-
-对照实测：
-
-| 写法 | `_collect_unique_index_cols` | R077 |
-|---|---|---|
-| `` UNIQUE KEY `uk_code` (`code`) ``（TDSQL 真实输出） | `[]` | ★误报 |
-| `UNIQUE KEY uk_code (code)`（测试用例写法） | `['code']` | 通过 |
-| `` UNIQUE INDEX `uk_x` (`code`) `` | `[]` | ★误报 |
-
-**这就是为什么现有测试全绿却挡不住线上误报**：`tests/rule_audit_materials/` 里的 UNIQUE 用例用的是裸索引名，而生产元数据一律带反引号。这是同一缺陷类（"规则按手写 SQL 的形态设计，没按 `SHOW CREATE TABLE` 的真实输出形态验证"）的第三个实例，**只要不修，下一张以唯一键做分片键的分片表上线就会复现同样的投诉**，故纳入本次范围。
-
-### 2.4 三个缺陷的共同根因
+### 3.3 共同根因
 
 | | |
 |---|---|
-| **根因** | R077/R054 的分片键识别逻辑，是按**开发人员手写的建表 SQL**形态设计的（`SHARDKEY=id`、裸索引名），从未按**TDSQL 内核 `SHOW CREATE TABLE` 的真实输出**形态验证过 |
+| **根因** | R077/R054 的分片键识别逻辑，是按**开发人员手写的建表 SQL**形态设计的（`SHARDKEY=id`），从未按**TDSQL 内核 `SHOW CREATE TABLE` 的真实输出**形态验证过 |
 | **触发条件** | v1.6.x 新增「在线元数据审核」，第一次把内核原样输出的 DDL 直接喂进规则引擎，形态差异立刻暴露 |
-| **为何测试没拦住** | 全部规则物料（`tests/rule_audit_materials/sql_audit/*.sql`）是手写形态；仓库内 17 个 `.sql` 文件、201 条语句中，`TDSQL_DISTRIBUTED`、`noshardkey_allset`、反引号 UNIQUE 索引名**一条都没有** |
+| **为何测试没拦住** | 全部规则物料（`tests/rule_audit_materials/sql_audit/*.sql`）是手写形态；仓库内 17 个 `.sql` 文件、201 条语句中，`TDSQL_DISTRIBUTED`、`noshardkey_allset` **一条都没有** |
 
 ---
 
-## 3. 修复方案与范围边界
+## 4. 修复方案与范围边界
 
-### 3.1 本次实施（Phase 1）——三个改动点，全部落在一个文件的两个类里
+### 4.1 本次实施（Phase 1）——两个改动点，全部落在一个文件的两个类里
 
 | 编号 | 位置 | 改动 | 方向性质 |
 |---|---|---|---|
-| **FIX-1** | `R077._extract_shard_key()` | 追加**第 4 个**取值来源：`TDSQL_DISTRIBUTED BY HASH/KEY(col)` | 仅在前 3 个来源**全空**时才可达 |
+| **FIX-1** | `R077._extract_shard_key()` | 追加**第 4 个**取值来源：`TDSQL_DISTRIBUTED BY HASH/KEY(col)` | 仅在前 3 个来源**全空**时才可达；取到之后 J-2/J-3 判定照常执行 |
 | **FIX-2** | `R077.check()` + `R054.check()` | 识别 `noshardkey*` 哨兵值 → 判为广播表 → 放行 | 仅在分片键取值命中哨兵时可达 |
-| **FIX-3** | `R077._UNIQUE_RE` | 索引名允许被反引号/引号包裹 | **只扩大放行集，不可能产生新违规** |
 
-### 3.2 明确的非目标（本次绝不触碰）
+**本次不放宽任何合规判据。** FIX-1 补的是"看不看得见分片键"，不是"分片键合不合格"；FIX-2 处理的是"这张表根本不是分片表"。
+
+### 4.2 明确的非目标（本次绝不触碰）
 
 | # | 不做什么 | 为什么不做 |
 |---|---|---|
-| NG-1 | **不修改 `backend/engine/parser/parser_legacy.py`** | 净化 `TDSQL_DISTRIBUTED` 尾子句会让 sqlglot 从"降级为 Command"变成"完整解析"，**全部 119 条规则**看到的输入结构随之改变（见 §6.3 实测）。爆炸半径与本次缺陷不成比例，单独排期 |
-| NG-2 | **不修改 `tdsql_connector.py` 的 `_detect_shard_info()` / `parse_shard_key_from_ddl()`** | 它们同源带病（§8），但服务的是 R020/R021/R022/R053/R056/R057/R060 的元数据通道与「大表治理」。改它等于一次性动 7 条规则 + 1 个业务模块，违反"严控范围" |
-| NG-3 | **不给 R054 增加 `TDSQL_DISTRIBUTED` 识别** | R054 当前对该语法**取不到分片键、直接返回 None**，属"漏报"而非"误报"。补上会让**过去不报的语句开始报**——这是行为扩张，不是缺陷修复。R077 已覆盖同一约束且消息是超集 |
-| NG-4 | **不修改 R054 的 UNIQUE 正则** | 同 NG-3：R054 的 E2 分支是**产出违规**的分支，放宽正则会让它发现更多唯一索引 → 新增违规。FIX-3 只放宽 R077 的**放行**分支，方向相反、风险相反 |
-| NG-5 | **不改动任何规则的 `severity` / `enabled` / `instance_scope`** | 规则元数据一旦变动会穿透规则集、门禁、报表统计 |
-| NG-6 | **不改动 R077/R054 之外的任何一条规则** | 报告中同时出现的 R001/R036/R037/R061/R063 均为独立正确判定，与本缺陷无关 |
+| **NG-1** | **不修改 `backend/engine/parser/parser_legacy.py`** | 净化 `TDSQL_DISTRIBUTED` 尾子句会让 sqlglot 从"降级为 Command"变成"完整解析"，**全部 119 条规则**看到的输入结构随之改变（见 §7.3 实测）。爆炸半径与本次缺陷不成比例，单独排期 |
+| **NG-2** | **不修改 `tdsql_connector.py` 的 `_detect_shard_info()` / `parse_shard_key_from_ddl()`** | 它们同源带病（§8），但服务的是 R020/R021/R022/R053/R056/R057/R060 的元数据通道与「大表治理」。改它等于一次性动 7 条规则 + 1 个业务模块 |
+| **NG-3** | **不给 R054 增加 `TDSQL_DISTRIBUTED` 识别** | R054 当前对该语法**取不到分片键、直接返回 None**，属"漏报"而非"误报"。补上会让**过去不报的语句开始报**——这是行为扩张，不是缺陷修复。R077 已覆盖 J-2 且消息是超集 |
+| **NG-4** | **不修改 R054 的 UNIQUE 正则** | R054 的 E2 分支是**产出违规**的分支（J-3 判据），放宽正则会让它发现更多唯一索引 → 新增违规 |
+| **NG-5** | **不放宽 R077 的 `_UNIQUE_RE`** | **Rev.B 新增。** 原 Rev.A 曾计划放宽它以支持反引号索引名，但该正则服务的是 R077 的"主键 **或** 唯一索引"口径，而按 J-2/NJ-2，**分片键在唯一索引里但不在主键里并不合规**。放宽它会**压制真实违规**。详见 §8 ADJ-4 |
+| **NG-6** | **不改动任何规则的 `severity` / `enabled` / `instance_scope`** | 规则元数据一旦变动会穿透规则集、门禁、报表统计 |
+| **NG-7** | **不改动 R077/R054 之外的任何一条规则** | 报告中同时出现的 R001/R036/R037/R061/R063 均为独立正确判定，与本缺陷无关 |
 
-### 3.3 R054 与 R077 的口径差异（施工时不得"顺手统一"）
+### 4.3 R054 与 R077 的口径差异（施工时不得"顺手统一"）
 
-两条规则**故意不同严**，这是既有设计，不是 bug：
+对照 §1 的判据：
 
-| | R077 (ERROR) | R054 (WARNING) |
-|---|---|---|
-| 判定 | 分片键 ∈ 主键 **∪ 唯一索引** | 分片键 ∈ **主键**（更严）；且所有唯一索引须含分片键 |
+| | R077 (ERROR) | R054 (WARNING) | 对照 J-2/J-3 |
+|---|---|---|---|
+| 主键判定 | 分片键 ∈ 主键 **∪ 唯一索引**（`或`） | 分片键 ∈ **主键** | **R054 与 J-2 一致；R077 偏宽松** |
+| 唯一索引判定 | 无独立判定 | **每一个**唯一索引都须含分片键 | **R054 与 J-3 一致；R077 无此判定** |
 
-因此 FIX-3 之后会出现"R077 放行、R054 仍报 WARNING"的组合（见 §7 用例 C3/C4）——**这是正确的**，不得为了让两条规则"看起来一致"而去动 R054。
+> **结论：真正贴合 TDSQL 约束的是 R054，R077 的 `或` 口径偏宽松、且缺 J-3 判定。** 这是一个**既有的口径缺陷**（ADJ-4），但收紧 R077 会让过去不报的语句开始报 ERROR，属行为扩张，**本次一律不动**，原样保留。施工时不得为了"让两条规则看起来一致"而修改任何一边。
 
 ---
 
-## 4. 详细设计（照图施工）
+## 5. 详细设计（照图施工）
 
-> 全部改动位于 `backend/engine/rules/distributed.py`。行号基于当前 `main`（commit `4ee5961`）。
+> 全部改动位于 `backend/engine/rules/distributed.py`。行号基于当前 `main`（commit `5cbafa4`）。
 
-### 4.1 改动点 1：新增两个模块级常量
+### 5.1 改动点 1：新增两个模块级常量
 
 **位置**：文件顶部 import 区之后、`class R020ShardKeyInWhere` 之前，即**第 23 行（最后一条 `from backend.models import ...`）与第 26 行（`class R020ShardKeyInWhere`）之间的空行区**。
 
@@ -191,6 +209,10 @@ R077 → ★误报「分片键 'code' 不在主键或唯一索引中」
 #
 # `noshardkey_allset` 是内核表示"本表无分片键"的哨兵值，不是列名，
 # 拿它去比对主键必然失败，是误报的直接成因。
+#
+# 注意: 这两个常量只解决"能否识别出分片键"，不改变"分片键是否合格"
+# 的判定——分片键必须在主键中（且必须在每个唯一索引中）的既有口径
+# 原样保留，不得借本次改动放宽。
 #
 # 来源：内网 v1.6.1.8 生产环境在线元数据审核报告（14 表中 5 张误报）
 # ═══════════════════════════════════════════════════════════════
@@ -210,39 +232,7 @@ _NOSHARDKEY_SENTINEL_RE = re.compile(r"^noshardkey(?:_[a-z0-9_]+)?$", re.IGNOREC
 
 ---
 
-### 4.2 改动点 2：R077 `_UNIQUE_RE` 放宽索引名（FIX-3）
-
-**位置**：`distributed.py:519-523`。
-
-**改前**：
-
-```python
-    # 表级 UNIQUE KEY/INDEX 列提取正则（回退方案）
-    _UNIQUE_RE = re.compile(
-        r"unique\s+(?:key|index)\s+\w*\s*\(([^)]+)\)",
-        re.IGNORECASE,
-    )
-```
-
-**改后**：
-
-```python
-    # 表级 UNIQUE KEY/INDEX 列提取正则（回退方案）
-    # v1.6.1.9: 索引名允许被反引号/引号包裹——SHOW CREATE TABLE 输出的
-    # 索引名恒带反引号，原 `\w*` 匹配不上，导致"唯一索引"放行通道在真实
-    # TDSQL 元数据上完全失效（见设计说明书 §2.3）。同时把 key|index 之后
-    # 的 \s+ 放宽为 \s*，兼容 `UNIQUE KEY(col)` 无空格写法。
-    _UNIQUE_RE = re.compile(
-        r"unique\s+(?:key|index)\s*(?:[`\"']?\w+[`\"']?)?\s*\(([^)]+)\)",
-        re.IGNORECASE,
-    )
-```
-
-**性质**：该正则**唯一被 `_collect_unique_index_cols()` 使用**，其返回值**只用于放行判定**（`shard_key_col not in unique_index_cols` 才违规）。因此本改动**在数学上不可能新增任何违规**，只可能消除违规。
-
----
-
-### 4.3 改动点 3：R077 `check()` 插入哨兵放行（FIX-2）
+### 5.2 改动点 2：R077 `check()` 插入哨兵放行（FIX-2）
 
 **位置**：`distributed.py:543-546`。
 
@@ -262,7 +252,7 @@ _NOSHARDKEY_SENTINEL_RE = re.compile(r"^noshardkey(?:_[a-z0-9_]+)?$", re.IGNOREC
         shard_key_col = self._extract_shard_key(parsed, raw_sql)
 
         # v1.6.1.9: 广播表(全局表) —— TDSQL 以 shardkey=noshardkey_allset
-        # 表达"本表无分片键"，该值是哨兵而非列名，不适用分片键约束
+        # 表达"本表无分片键"，该值是哨兵而非列名，主键/唯一索引约束均不适用
         if shard_key_col and _NOSHARDKEY_SENTINEL_RE.match(shard_key_col):
             return None
 
@@ -273,7 +263,7 @@ _NOSHARDKEY_SENTINEL_RE = re.compile(r"^noshardkey(?:_[a-z0-9_]+)?$", re.IGNOREC
 
 ---
 
-### 4.4 改动点 4：R077 `_extract_shard_key()` 追加第 4 来源（FIX-1）
+### 5.3 改动点 3：R077 `_extract_shard_key()` 追加第 4 来源（FIX-1）
 
 **位置**：`distributed.py:572-586`。
 
@@ -316,7 +306,8 @@ _NOSHARDKEY_SENTINEL_RE = re.compile(r"^noshardkey(?:_[a-z0-9_]+)?$", re.IGNOREC
             return shard_match.group(1).strip('`"\' ').lower()
         # v1.6.1.9 回退来源3: TDSQL_DISTRIBUTED BY HASH/KEY(col)
         # 该语法下 sqlglot 整条降级为 Command，table_options 为空，
-        # 前两个正则也不匹配，故必须走到这里才能拿到分片键
+        # 前两个正则也不匹配，故必须走到这里才能拿到分片键。
+        # 取到后仍照常执行"分片键须在主键/唯一索引中"的既有判定。
         td_match = _TDSQL_DISTRIBUTED_RE.search(raw_sql)
         if td_match:
             return td_match.group(1).strip('`"\' ').lower()
@@ -330,7 +321,7 @@ _NOSHARDKEY_SENTINEL_RE = re.compile(r"^noshardkey(?:_[a-z0-9_]+)?$", re.IGNOREC
 
 ---
 
-### 4.5 改动点 5：R054 `check()` 插入哨兵放行（FIX-2）
+### 5.4 改动点 4：R054 `check()` 插入哨兵放行（FIX-2）
 
 **位置**：`distributed.py:262-268`（第二个 `if not shard_key: return None` 之后、`# 检查主键是否包含分片键` 之前）。
 
@@ -373,53 +364,52 @@ _NOSHARDKEY_SENTINEL_RE = re.compile(r"^noshardkey(?:_[a-z0-9_]+)?$", re.IGNOREC
 
 ---
 
-### 4.6 改动汇总
+### 5.5 改动汇总
 
 | # | 文件 | 类/方法 | 类型 | 净增行 |
 |---|---|---|---|---|
-| 1 | `distributed.py` | 模块级 | 新增 2 个常量 + 注释 | +22 |
-| 2 | `distributed.py` | `R077._UNIQUE_RE` | 改 1 行正则 + 注释 | +4 |
-| 3 | `distributed.py` | `R077.check()` | 新增 4 行 | +4 |
-| 4 | `distributed.py` | `R077._extract_shard_key()` | 新增 6 行 | +6 |
-| 5 | `distributed.py` | `R054.check()` | 新增 6 行 | +6 |
+| 1 | `distributed.py` | 模块级 | 新增 2 个常量 + 注释 | +26 |
+| 2 | `distributed.py` | `R077.check()` | 新增 4 行 | +4 |
+| 3 | `distributed.py` | `R077._extract_shard_key()` | 新增 7 行 | +7 |
+| 4 | `distributed.py` | `R054.check()` | 新增 6 行 | +6 |
 
-**合计：1 个文件、2 个类、5 处、净增约 42 行，无删除、无签名变更、无新增依赖、无 import 变更、无数据库变更、无接口变更、无前端变更。**
+**合计：1 个文件、2 个类、4 处、净增约 43 行，无删除、无正则放宽、无签名变更、无新增依赖、无 import 变更、无数据库变更、无接口变更、无前端变更。**
 
 ---
 
-## 5. 不需要改动的部分（施工时逐项确认，防止范围蔓延）
+## 6. 不需要改动的部分（施工时逐项确认，防止范围蔓延）
 
 | 对象 | 结论 | 依据 |
 |---|---|---|
-| `backend/engine/rules/__init__.py` | **不改** | 规则未增减，注册表与文档串不变 |
+| `R077._UNIQUE_RE` | **不改** | NG-5。放宽会压制真实违规 |
+| `R077._PK_RE` / `_SHARDKEY_RE` / `_SHARD_KEY_RE` / `_BROADCAST_RE` | **不改** | 现有行为正确，新分支追加在其后 |
+| `R077._collect_pk_cols()` / `_collect_unique_index_cols()` | **不改** | 判据逻辑本体，本次不触碰 |
+| `backend/engine/rules/__init__.py` | **不改** | 规则未增减 |
 | `backend/engine/parser/**` | **不改** | 见 NG-1 |
 | `backend/services/tdsql_connector.py` | **不改** | 见 NG-2、§8 |
 | `backend/services/audit_service.py` | **不改** | 只是调用方，不含分片键判定 |
-| `backend/api/**` | **不改** | 无接口/字段变更 |
-| `backend/schema/**` | **不改** | 无 schema 变更 |
-| 前端 `index.html` / 静态资源 | **不改** | 无展示层变更 |
+| `backend/api/**` / `backend/schema/**` / 前端 | **不改** | 无接口、schema、展示层变更 |
 | R020/R021/R022/R053/R055/R056/R057/R058/R059/R060 | **不改** | 实测：这 10 条均**只从 `table_metadata` 取分片键**，不解析 DDL，与本次改动零交集 |
 | 其余 107 条规则 | **不改** | 与分片键判定无关 |
 
 ---
 
-## 6. 影响面分析（爆炸半径）
+## 7. 影响面分析（爆炸半径）
 
-### 6.1 逻辑论证：三处改动的可达域
+### 7.1 逻辑论证：两处改动的可达域
 
-| 改动 | 可达前置条件 | 改前该条件下的行为 | 改后 | 是否可能新增违规 |
+| 改动 | 可达前置条件 | 改前该条件下的行为 | 改后 | 是否可能压制真实违规 |
 |---|---|---|---|---|
-| FIX-1 | 三个既有分片键来源全空 **且** SQL 含 `TDSQL_DISTRIBUTED BY HASH/KEY(...)` | 必报"未声明分片键" | 取到分片键后按既有主键/唯一索引口径判定 | **可能**——分片键不在主键/唯一索引时会报（用例 N3，属正确行为，是恢复鉴别力） |
-| FIX-2 | 分片键取值匹配 `^noshardkey(_\w+)?$` | 必报"不在主键中" | 放行 | **不可能** |
-| FIX-3 | SQL 含 `UNIQUE KEY/INDEX` 且索引名带引号 | 该唯一索引不被计入放行集 | 计入放行集 | **不可能**（只扩大放行集） |
+| FIX-1 | 三个既有分片键来源全空 **且** SQL 含 `TDSQL_DISTRIBUTED BY HASH/KEY(...)` | 必报"未声明分片键" | 取到分片键后按**既有** J-2/J-3 口径判定 | **否**——判据一字未改；分片键不在主键时照常报（用例 N3/N8） |
+| FIX-2 | 分片键取值匹配 `^noshardkey(_\w+)?$` | 必报"不在主键中" | 放行 | **否**——广播表本就不适用 J-2/J-3 |
 
-### 6.2 全语料实测漂移扫描
+### 7.2 全语料实测漂移扫描
 
-把仓库内**全部 17 个 `.sql` 文件切出的 201 条可解析语句** + **生产报告 14 张表的原始 DDL**，逐条同时灌进"改前规则"与"改后原型"，比对 (R077, R054) 判定：
+把仓库内**全部 17 个 `.sql` 文件切出的 201 条可解析语句** + **生产报告 14 张表的原始 DDL**，逐条同时灌进"改前规则"与"Rev.B 改后原型"，比对 (R077, R054) 判定：
 
 ```
-扫描 .sql 文件 17 个，可解析语句 201 条
-改前/改后判定发生变化的语句: 5 条
+扫描 .sql 文件 17 个 + 现场 14 表，可解析语句 201 条
+判定发生变化: 5 条
 
   现场报告#3  cus_bas_corp_contact   R077/--    → --/--
   现场报告#5  cus_name_list_type     R077/R054  → --/--
@@ -428,11 +418,11 @@ _NOSHARDKEY_SENTINEL_RE = re.compile(r"^noshardkey(?:_[a-z0-9_]+)?$", re.IGNOREC
   现场报告#13 t_product              R077/R054  → --/--
 ```
 
-> **发生变化的 5 条，恰好就是本次要修的 5 处误报；仓库内 201 条既有语料判定 100% 逐字不变。**
+> **发生变化的 5 条，恰好就是本次要修的 5 处误报；仓库内 201 条既有语料判定 100% 逐字不变。**（撤销 FIX-3 后该结果不变——#3 靠 J-2 通过，#8 靠哨兵在唯一索引判定之前就已返回。）
 
-### 6.3 一个必须向用户明示的副作用（不是本次引入，但会因本次而"显形"）
+### 7.3 一个必须向用户明示的副作用（不是本次引入，但会因本次而"显形"）
 
-#3 `cus_bas_corp_contact` 的 `TDSQL_DISTRIBUTED BY HASH(...)` 会让 **sqlglot 整条降级为 Command**，实测后果：
+#3 的 `TDSQL_DISTRIBUTED BY HASH(...)` 会让 **sqlglot 整条降级为 Command**，实测后果：
 
 | | `columns` | `indexes` | `table_options` | 命中规则 |
 |---|---|---|---|---|
@@ -440,7 +430,7 @@ _NOSHARDKEY_SENTINEL_RE = re.compile(r"^noshardkey(?:_[a-z0-9_]+)?$", re.IGNOREC
 | #3 摘掉尾子句（反事实实验） | 25 | 2 | 3 | `[R036,R037,R061,R077]` |
 | #4 对照（结构相同、无尾子句） | 34 | 1 | 3 | `[R001,R036,R037,R061,R077]` |
 
-也就是说：**#3 目前不仅被误报 R077，还被漏审了 R036/R037/R061**。Phase 1 修完后，#3 会显示为"零违规"——**这个"零"是干净的 R077 判定 + 仍然存在的漏审叠加出来的**，并非该表真的完全合规。
+也就是说：**#3 目前不仅被误报 R077，还被漏审了 R036/R037/R061**。Phase 1 修完后，#3 会显示为"零违规"——**这个"零"是干净的 R077 判定 + 仍然存在的漏审叠加出来的**，并非该表真的通过了全量审核。
 
 - 消除漏审的唯一办法是 NG-1（解析器净化 TDSQL 方言尾子句）；
 - 该改动会让**所有** `TDSQL_DISTRIBUTED` 建表语句突然被全套 DDL 规则审到，报告违规数上升，属于用户可感知的行为变化；
@@ -448,36 +438,48 @@ _NOSHARDKEY_SENTINEL_RE = re.compile(r"^noshardkey(?:_[a-z0-9_]+)?$", re.IGNOREC
 
 ---
 
-## 7. 验收测试方案
+## 8. 已知邻接缺陷（同源，本次**不修**，建议单独排期）
 
-### 7.1 正反用例矩阵（20 条，已在设计阶段用原型全量实测通过 20/20）
+| 编号 | 位置 | 问题 | 后果 | 建议 |
+|---|---|---|---|---|
+| **ADJ-1** | `parser_legacy.py` | `TDSQL_DISTRIBUTED BY ...` 导致 sqlglot 整条降级为 Command，`columns/indexes/table_options` 全空 | 这类分片表被**全套结构类规则漏审**（实测 #3 漏掉 R036/R037/R061） | Phase 2：在交给 sqlglot 前净化方言尾子句，**`parsed.raw_sql` 必须保留原文**（R077 依赖它取分片键）。需全量回归 + 用户确认"报告违规数会上升" |
+| **ADJ-2** | `tdsql_connector.py:162` `parse_shard_key_from_ddl()`、`:404` `_detect_shard_info()` | 同样只认 `SHARDKEY=`，且把 `noshardkey_allset` 原样当分片键写进 `meta.shard_key`（`parse_shard_key_from_ddl` 的 docstring 声称"broadcast 表返回 ''"，与实际不符） | ① R020/R021/R022/R053/R056/R057/R060 在元数据通道对广播表连带误报（如"分片表 t_branch 的分片键 'noshardkey_allset' 未在 WHERE 条件中"）；② 「大表治理」展示的分片键为哨兵值 | Phase 2：统一到一个共享的分片键解析工具函数 |
+| **ADJ-3** | `tdsql_connector.py:1546` `TDSQLConnector._detect_shard_info()` | 与 `:404` 近似重复实现；其中引用了**未定义变量** `create_sql_upper`（该方法内定义的是 `create_sql`），触发 `NameError` 被外层 `except Exception: pass` 静默吞掉 | 该类的**广播表识别与 `TDSQL_SHARDING_RULES` 查询整段成为死代码**，`is_broadcast_table` 永不为 True | Phase 2：与 ADJ-2 一并去重收敛。**建议优先级最高——这是真实的静默失效** |
+| **ADJ-4** | `R077.check()` 的判定口径 | R077 用"分片键 ∈ 主键 **或** 唯一索引"，与 §1 判据 J-2（必须在主键中）+ J-3（必须在每个唯一索引中）不符，**偏宽松且缺 J-3** | 分片键只在唯一索引、不在主键的表，R077 **漏报**（实测：裸索引名写法下确实放行）。当前因 `_UNIQUE_RE` 不认反引号，真实 TDSQL 元数据上恰好"歪打正着"仍会报 | **需用户决策**：收紧 R077 到 J-2/J-3 口径会让过去不报的语句开始报 ERROR，属行为扩张，须评估存量影响 |
+| **ADJ-5** | `R077._UNIQUE_RE`、`parsed.indexes` | 唯一索引识别对反引号索引名失配（实测 `` UNIQUE KEY `uk_code` (`code`) `` → 提取结果为空）；`parsed.indexes` 也从不产出 UNIQUE 条目 | 与 ADJ-4 绑定。**在 ADJ-4 定案之前不得单独修**——单独修会把 ADJ-4 的漏报面扩大 | Phase 2：与 ADJ-4 一并决策 |
+
+---
+
+## 9. 验收测试方案
+
+### 9.1 正反用例矩阵（20 条，已用 Rev.B 原型全量实测通过 20/20）
 
 > 建议落库为 `tests/test_r077_r054_tdsql_syntax.py`。★ = 反向鉴别用例（团队规约 R-12：必须证明"没把功能删掉"）。
 
 | 用例 | 场景 | 改前 | 期望（改后） |
 |---|---|---|---|
-| P1 | 现场#3 `TDSQL_DISTRIBUTED BY HASH(cust_no)` 分片表 | R077 | 零违规 |
+| P1 | 现场#3：`TDSQL_DISTRIBUTED BY HASH(cust_no)` 且 `cust_no ∈ PRIMARY KEY(ID,CUST_NO)` | R077 | 零违规 |
 | P2 | 现场#5 `shardkey=noshardkey_allset` 广播表 | R077+R054 | 零违规 |
 | P3 | 现场#8 `t_branch` 广播表（含 UNIQUE KEY） | R077+R054 | 零违规 |
 | P4 | 现场#11 `t_dict` 广播表 | R077+R054 | 零违规 |
 | P5 | 现场#13 `t_product` 广播表 | R077+R054 | 零违规 |
 | **N1★** | 现场#4 无任何分片声明 | R077 | **R077 仍触发** |
-| **N2★** | `SHARDKEY=cust_id` 但不在主键 | R077+R054 | **R077+R054 仍触发** |
-| **N3★** | `TDSQL_DISTRIBUTED BY HASH(cust_no)` 但 cust_no 不在主键 | R077 | **R077 仍触发**（新增鉴别力，非放行） |
+| **N2★** | `SHARDKEY=cust_id` 但不在主键（违反 J-2） | R077+R054 | **R077+R054 仍触发** |
+| **N3★** | `TDSQL_DISTRIBUTED BY HASH(cust_no)` 但 cust_no 不在主键 | R077 | **R077 仍触发**（识别到分片键 ≠ 放行） |
+| **N8★** | `TDSQL_DISTRIBUTED BY HASH(cust_no)`，cust_no **只在普通 KEY 里**、不在主键——**直接对应 NJ-1，防止把普通索引当合规依据** | R077 | **R077 仍触发** |
 | **N4★** | 反引号 UNIQUE 不含分片键、分片键也不在主键 | R077+R054 | **R077+R054 仍触发** |
-| **N5★** | 普通 `KEY`（非 UNIQUE）含分片键 | R077+R054 | **仍触发**（不得把普通索引当唯一索引放行） |
+| **N5★** | 普通 `KEY`（非 UNIQUE）含分片键（NJ-1） | R077+R054 | **仍触发** |
 | **N7★** | 表注释里含 `noshardkey_allset` 字样、真实分片键合规 | 零违规 | **零违规**（哨兵不得被注释文本诱发） |
-| C1 | 合规分片表（分片键在主键） | 零违规 | 零违规 |
+| C1 | 合规分片表（分片键在主键，J-2 满足） | 零违规 | 零违规 |
 | C2 | `BROADCAST` 关键字广播表 | 零违规 | 零违规 |
-| C3 | 分片键在**反引号** UNIQUE 中 | R077+R054 | R054（R077 放行，R054 按更严口径保留） |
-| C4 | 分片键在**裸名** UNIQUE 中 | R054 | R054（**改前改后逐字一致**） |
-| C5 | `TDSQL_DISTRIBUTED BY KEY(sk)` 写法 | R077 | 零违规 |
-| C6 | `tdsql_Distributed  By  Hash( SK )` 大小写混排+多空格+无反引号 | R077 | 零违规 |
-| C7 | CTAS `CREATE TABLE ... AS SELECT` | 零违规 | 零违规（跳过分支不受影响） |
+| **C3** | 分片键在**反引号** UNIQUE 中但**不在主键**（违反 J-2/NJ-2） | R077+R054 | **R077+R054 仍触发（改前改后逐字一致）** |
+| C5 | `TDSQL_DISTRIBUTED BY KEY(sk)`，sk ∈ 主键 | R077 | 零违规 |
+| C6 | `tdsql_Distributed  By  Hash( SK )` 大小写混排+多空格+无反引号，sk ∈ 主键 | R077 | 零违规 |
+| C7 | CTAS `CREATE TABLE ... AS SELECT` | 零违规 | 零违规 |
 | C8 | `CREATE TEMPORARY TABLE` | 零违规 | 零违规 |
 | C9 | 非建表语句（SELECT） | 零违规 | 零违规 |
 
-### 7.2 端到端验收（在线元数据审核通道）
+### 9.2 端到端验收（在线元数据审核通道）
 
 把 `Extracted_Schema_Report_6261.html` 的 14 张表原样组成 `.sql`，走**在线元数据审核 / 文件审核**通道（`instance_type=distributed`），逐表比对：
 
@@ -485,67 +487,106 @@ _NOSHARDKEY_SENTINEL_RE = re.compile(r"^noshardkey(?:_[a-z0-9_]+)?$", re.IGNOREC
 |---|---|---|---|
 | #3 | cus_bas_corp_contact | R077 | **无 R077** |
 | #4 | cus_bas_corp_contact_addr_20260511 | R001,R036,R037,R061,R077 | **原样不变（含 R077）** |
-| #5 | cus_name_list_type | R036,R037,R054,R061,R077 | **R036,R037,R061**（去掉 R054/R077） |
+| #5 | cus_name_list_type | R036,R037,R054,R061,R077 | **R036,R037,R061** |
 | #8 | t_branch | R036,R054,R061,R077 | **R036,R061** |
 | #11 | t_dict | R036,R054,R061,R063,R077 | **R036,R061,R063** |
 | #13 | t_product | R036,R054,R061,R063,R077 | **R036,R061,R063** |
 | #1,#2,#6,#7,#9,#10,#12,#14 | 其余 8 张 | — | **逐条原样不变** |
 
-### 7.3 回归门槛（团队规约 R-18：零跳过）
+### 9.3 回归门槛（团队规约 R-18：零跳过）
 
 | 项 | 基线 | 门槛 |
 |---|---|---|
-| `tests/test_rules.py` + `test_instance_scope_rules.py` + `test_oracle_compat_rules.py` + `test_instance_type_service.py` | **168 passed**（已实测） | **必须仍为 168 passed，0 failed** |
+| `test_rules.py` + `test_instance_scope_rules.py` + `test_oracle_compat_rules.py` + `test_instance_type_service.py` | **168 passed**（已实测） | **必须仍为 168 passed，0 failed** |
 | 全量回归 `pytest tests/` | v1.6.1.8 基线 1312 passed / 0 failed / 1 skipped | **不得新增 failed，skipped 不得增加** |
 | 规则总数 | 119（92 ALL + 27 DISTRIBUTED） | **必须仍为 119 / 92 / 27** |
-| 全语料漂移扫描（§6.2 脚本） | — | **变化语句数必须 = 5，且就是 P1–P5** |
+| 全语料漂移扫描（§7.2 脚本） | — | **变化语句数必须 = 5，且就是 P1–P5** |
 
-> 注：本地环境 `test_uat47_05_slow_query_config` / `test_uat53_02_slow_query_workflow` 两条依赖 MariaDB `slow_query_log=ON`，跑全量前需 `SET GLOBAL slow_query_log=ON; SET GLOBAL long_query_time=0.1`，否则会有 2 条环境性失败（非产品缺陷）。
-
----
-
-## 8. 已知邻接缺陷（同源，本次**不修**，建议单独排期）
-
-调查过程中发现三处**同一根因**的问题。它们不在用户报告范围内，且修复会显著扩大爆炸半径，故全部剔出本次范围、单独立项：
-
-| 编号 | 位置 | 问题 | 后果 | 建议 |
-|---|---|---|---|---|
-| **ADJ-1** | `parser_legacy.py` | `TDSQL_DISTRIBUTED BY ...` 导致 sqlglot 整条降级为 Command，`columns/indexes/table_options` 全空 | 这类分片表被**全套结构类规则漏审**（实测 #3 漏掉 R036/R037/R061） | Phase 2：在交给 sqlglot 前净化方言尾子句，**`parsed.raw_sql` 必须保留原文**（R077 依赖它取分片键）。需全量回归 + 用户确认"报告违规数会上升" |
-| **ADJ-2** | `tdsql_connector.py:404` `TDSQLConnectionPool._detect_shard_info()` 与 `:162` `parse_shard_key_from_ddl()` | 同样只认 `SHARDKEY=`，且把 `noshardkey_allset` 原样当分片键写进 `meta.shard_key`（`parse_shard_key_from_ddl` 的 docstring 声称"broadcast 表返回 ''"，与实际不符） | ① R020/R021/R022/R053/R056/R057/R060 在元数据通道对广播表连带误报（如"分片表 t_branch 的分片键 'noshardkey_allset' 未在 WHERE 条件中"）；② 「大表治理」展示的分片键为哨兵值 | Phase 2：统一到一个共享的分片键解析工具函数 |
-| **ADJ-3** | `tdsql_connector.py:1546` `TDSQLConnector._detect_shard_info()` | 与 `:404` 近似重复实现；其中引用了**未定义变量** `create_sql_upper`（该方法内定义的是 `create_sql`），触发 `NameError` 被外层 `except Exception: pass` 静默吞掉 | 该类的**广播表识别与 `TDSQL_SHARDING_RULES` 查询整段成为死代码**，`is_broadcast_table` 永不为 True | Phase 2：与 ADJ-2 一并去重收敛 |
-
-> ADJ-3 是一个**真实的静默失效**，建议 Phase 2 优先级高于 ADJ-1。
+> 注：本地环境 `test_uat47_05_slow_query_config` / `test_uat53_02_slow_query_workflow` 依赖 MariaDB `slow_query_log=ON`，跑全量前需 `SET GLOBAL slow_query_log=ON; SET GLOBAL long_query_time=0.1`，否则会有 2 条环境性失败（非产品缺陷）。
 
 ---
 
-## 9. 风险与回滚
+## 10. 风险与回滚
 
 | 风险 | 等级 | 说明与对策 |
 |---|---|---|
-| 名为 `noshardkey*` 的真实列被误判为广播表 | 极低 | 该命名与 TDSQL 保留语义直接冲突，现实中不存在；已在 §4.1 注释中显式记录取舍 |
+| 名为 `noshardkey*` 的真实列被误判为广播表 | 极低 | 该命名与 TDSQL 保留语义直接冲突，现实中不存在；已在 §5.1 注释中显式记录取舍 |
 | `TDSQL_DISTRIBUTED` 出现在注释/字符串里造成误放行 | 低 | 与既有 `_BROADCAST_RE`、`_SHARDKEY_RE` 同等特性（现状下表注释含 "broadcast" 已可绕过 R077），**非本次引入**；用例 N7 覆盖哨兵侧 |
-| N3 类语句由"不报"变"报 R077" | 低 | 这是**恢复鉴别力**（分片键确实不在主键），属正确行为；已列入验收矩阵明示 |
-| #3 修完后显示"零违规"但实际仍被漏审 | **中** | 已在 §6.3 明示；根治需 Phase 2 (ADJ-1)。**必须在交付说明中写清楚，避免用户误以为该表已通过全量审核** |
-| 回滚 | — | 单文件 5 处纯增量改动，`git revert` 单个提交即可完全回到 v1.6.1.8 行为，无数据、无 schema、无接口残留 |
+| N3/N8 类语句由"不报"变"报 R077" | 低 | 这是**恢复鉴别力**（分片键确实不在主键，违反 J-2）；已列入验收矩阵明示 |
+| #3 修完后显示"零违规"但实际仍被漏审 | **中** | 已在 §7.3 明示；根治需 Phase 2 (ADJ-1)。**必须在交付说明中写清楚** |
+| ADJ-4 的漏报面 | **中** | 本次**不动**，但已定位记录。**在 ADJ-4 定案前不得单独修 ADJ-5**，否则会扩大漏报 |
+| 回滚 | — | 单文件 4 处纯增量改动，`git revert` 单个提交即可完全回到 v1.6.1.8 行为，无数据、无 schema、无接口残留 |
 
 ---
 
-## 10. 施工检查单（逐项打勾）
+## 11. 修订记录
+
+### Rev.B（本版）——按用户口径纠正撤销 FIX-3
+
+**用户纠正原文**：*"这张表之所以顺利的创建成分片表的关键是 `TDSQL_DISTRIBUTED BY HASH(cust_no)` 以及 `PRIMARY KEY (ID, CUST_NO)`，也就是 cust_no 字段既是分片键又是主键或主键的一部分，同时如果这张表有除主键外的其他唯一索引，那么 cust_no 还应该是这些唯一索引的一部分。"*
+
+**Rev.A 的问题**：Rev.A 把现场 #3 里的 `` KEY `cus_bas_corp_contact_IDX1` (`CUST_NO`,`DATA_VALID_TM`) `` 与合规性联系了起来，并据此提出 **FIX-3**——放宽 `R077._UNIQUE_RE` 以支持反引号索引名，让"分片键在唯一索引中"的放行通道生效。
+
+**按 §1 判据，这是错的**：
+
+1. `KEY ... (CUST_NO, ...)` 是**普通索引**，对合规性不起任何作用（NJ-1）。#3 合规靠的是 J-2（`cust_no ∈ PRIMARY KEY`）。
+2. 更严重的是，"分片键在唯一索引里但不在主键里"**本身就不合规**（NJ-2）。FIX-3 会让这类表被 R077 放行，**等于压制真实违规**——方向恰好反了。实测用例 C3 印证：`PRIMARY KEY(id) + UNIQUE KEY uk_code(code) + shardkey=code` 在 FIX-3 下会被放行，而按 J-2 它应当报错。
+
+**处置**：
+
+| 项 | Rev.A | Rev.B |
+|---|---|---|
+| FIX-3（放宽 `_UNIQUE_RE`） | 列入 Phase 1 | **撤销**，改列为 NG-5 非目标 + ADJ-5 邻接缺陷 |
+| 改动点数 | 5 处 | **4 处** |
+| 用例 C3 期望 | R077 放行 | **R077 保持触发** |
+| 新增用例 | — | **N8★**：分片键只在普通 `KEY` 里、不在主键 → R077 必须触发（直接守 NJ-1） |
+| §3.3 对 R077/R054 口径差异的定性 | "故意不同严，是既有设计" | **更正**：R054 才贴合 J-2/J-3，R077 的 `或` 口径偏宽松且缺 J-3，是既有口径缺陷 ADJ-4 |
+| 漂移扫描结果 | 5 条 | **5 条（不变）** |
+| 用例矩阵 | 20/20 | **20/20（已用 Rev.B 原型重测）** |
+
+**未受影响的部分**：FIX-1、FIX-2 与该口误无关——#3 的通过完全来自 J-2（实测 `_collect_pk_cols = ['cust_no','id']`），广播表放行与主键/唯一索引判据无关。核心修复不需返工。
+
+---
+
+## 12. 施工检查单（逐项打勾）
+
+**范围控制**
 
 - [ ] 只改了 `backend/engine/rules/distributed.py` 一个文件（`git diff --stat` 必须只有一行）
 - [ ] 只改了 `R077CreateTableMustHaveShardKey` 与 `R054ShardKeyMustBePrimaryKey` 两个类 + 模块级常量
+- [ ] 全文件共 **4 处**改动（模块级常量、`R077.check()`、`R077._extract_shard_key()`、`R054.check()`）
 - [ ] 没有新增 import（`re` 已在第 18 行）
 - [ ] 没有改动任何规则的 `rule_id` / `severity` / `enabled` / `instance_scope` / `category` / `description`
-- [ ] `_extract_shard_key()` 的新分支在**函数最末尾**，前 3 个来源的代码逐字未动
-- [ ] R054 的哨兵判定在 `if not shard_key: return None` **之后**（保证同时覆盖元数据通道与 raw_sql 通道）
+
+**判据不得放宽（Rev.B 重点）**
+
+- [ ] **`_UNIQUE_RE` 一个字符都没动**（NG-5）
+- [ ] `_PK_RE` / `_SHARDKEY_RE` / `_SHARD_KEY_RE` / `_BROADCAST_RE` 均未改动
+- [ ] `_collect_pk_cols()` / `_collect_unique_index_cols()` 均未改动
+- [ ] R077 的 `shard_key_col not in pk_cols and shard_key_col not in unique_index_cols` 判定行原样保留
 - [ ] 没有给 R054 增加 `TDSQL_DISTRIBUTED` 识别（NG-3）
 - [ ] 没有改动 R054 内联的 UNIQUE 正则（NG-4）
-- [ ] §7.1 的 20 条正反用例全部通过，其中 6 条 ★ 反向鉴别用例必须仍然触发
-- [ ] §7.2 端到端 14 张表逐表比对符合期望，**#4 仍报 R077**
-- [ ] §7.3 回归：4 个规则测试文件仍为 168 passed；全量 `pytest tests/` 无新增 failed、skipped 不增加
+
+**插入位置**
+
+- [ ] `_extract_shard_key()` 的新分支在**函数最末尾**，前 3 个来源的代码逐字未动
+- [ ] R077 的哨兵判定在 `_extract_shard_key()` 调用**之后**、`if not shard_key_col:` **之前**
+- [ ] R054 的哨兵判定在第二个 `if not shard_key: return None` **之后**（保证同时覆盖元数据通道与 raw_sql 通道）
+
+**验收**
+
+- [ ] §9.1 的 20 条用例全部通过，其中 7 条 ★ 反向鉴别用例必须仍然触发
+- [ ] **N8★ 必须通过**——分片键只在普通 `KEY` 里、不在主键时 R077 必须报（守 NJ-1，防止重犯 Rev.A 的误读）
+- [ ] **C3 必须保持触发**——分片键在唯一索引但不在主键时 R077 不得放行（守 NJ-2）
+- [ ] §9.2 端到端 14 张表逐表比对符合期望，**#4 仍报 R077**
+- [ ] §9.3 回归：4 个规则测试文件仍为 168 passed；全量 `pytest tests/` 无新增 failed、skipped 不增加
 - [ ] 规则总数仍为 119（92 ALL + 27 DISTRIBUTED）
-- [ ] §6.2 全语料漂移扫描：变化语句数恰为 5，且就是 P1–P5
-- [ ] 交付说明中写明 §6.3 的漏审副作用与 §8 的三项邻接缺陷
+- [ ] §7.2 全语料漂移扫描：变化语句数恰为 5，且就是 P1–P5
+
+**交付说明**
+
+- [ ] 写明 §7.3 的 #3 漏审副作用（"零违规"不等于"已全量审核"）
+- [ ] 写明 §8 的五项邻接缺陷，其中 ADJ-4/ADJ-5 需用户决策、ADJ-3 建议优先处理
 
 ---
 
@@ -558,12 +599,12 @@ _NOSHARDKEY_SENTINEL_RE = re.compile(r"^noshardkey(?:_[a-z0-9_]+)?$", re.IGNOREC
 | E-1 | 生产报告可 1:1 本地复现 | 14 表逐条比对，6 张重点表规则集逐字一致 |
 | E-2 | #3 的 `table_options`/`columns`/`indexes` 全空 | 解析器输出实测 `{}` / `0` / `[]` |
 | E-3 | #5/#8/#11/#13 的 `_extract_shard_key` 返回 `'noshardkey_allset'` | 直调规则私有方法实测 |
-| E-4 | #3 的 `_collect_pk_cols` 已含 `cust_no` | 直调实测 `['cust_no','id']` → FIX-1 后必然放行 |
-| E-5 | `_UNIQUE_RE` 对反引号索引名失配 | 4 组正则样本实测，2 组 MISS |
-| E-6 | `parsed.indexes` 恒不产出 UNIQUE 条目 | 3 组 UNIQUE 写法实测均为 `[]` |
+| E-4 | #3 的 `_collect_pk_cols` 含 `cust_no`，且 UNIQUE 索引数 = 0 | 直调实测 `['cust_no','id']`；正则统计 UNIQUE = 0 → **J-2 满足、J-3 空条件成立** |
+| E-5 | `_UNIQUE_RE` 对反引号索引名失配 | 4 组正则样本实测，2 组 MISS（→ ADJ-5，本次不修） |
+| E-6 | `parsed.indexes` 恒不产出 UNIQUE 条目 | 3 组 UNIQUE 写法实测均为 `[]`（→ ADJ-5，本次不修） |
 | E-7 | `TDSQL_DISTRIBUTED` 全仓库零出现 | `grep -rn` 全库检索 |
 | E-8 | `noshardkey`/`allset` 在 `backend/engine/` 零出现 | `grep -rn` 检索 |
-| E-9 | 摘掉尾子句后 #3 多命中 R036/R037/R061 | 反事实实验实测 |
-| E-10 | 拟议补丁 20/20 用例通过 | 原型子类全量矩阵 |
-| E-11 | 全语料 201 条语句仅 5 条判定变化 | 漂移扫描实测 |
+| E-9 | 摘掉尾子句后 #3 多命中 R036/R037/R061 | 反事实实验实测（→ ADJ-1） |
+| E-10 | Rev.B 补丁 20/20 用例通过（含 N8★、修正后的 C3） | 原型子类全量矩阵 |
+| E-11 | 全语料 201 条语句仅 5 条判定变化 | Rev.B 原型漂移扫描实测 |
 | E-12 | 规则测试基线 168 passed | 改动前实测 |
