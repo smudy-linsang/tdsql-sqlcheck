@@ -180,6 +180,16 @@ if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    """网站图标路由（避免浏览器请求 404）"""
+    custom_logo = STATIC_DIR / "img" / "custom-logo.png"
+    if custom_logo.exists():
+        return FileResponse(str(custom_logo), media_type="image/png")
+    from fastapi.responses import Response
+    return Response(status_code=204)
+
+
 @app.get("/health", tags=["健康检查"])
 async def health():
     """健康检查端点（存活探针）"""

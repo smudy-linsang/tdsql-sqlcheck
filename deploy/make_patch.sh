@@ -18,6 +18,7 @@ mkdir -p "$STAGE_DIR/backend/services" "$STAGE_DIR/backend/api" "$STAGE_DIR/fron
 # 1. 复制最小必要变动文件
 cp "$ROOT_DIR/VERSION" "$STAGE_DIR/"
 cp "$ROOT_DIR/backend/config.py" "$STAGE_DIR/backend/"
+cp "$ROOT_DIR/backend/main.py" "$STAGE_DIR/backend/"
 cp "$ROOT_DIR/backend/services/connection_registry.py" "$STAGE_DIR/backend/services/"
 cp "$ROOT_DIR/backend/services/auth_service.py" "$STAGE_DIR/backend/services/"
 cp "$ROOT_DIR/backend/services/report_service.py" "$STAGE_DIR/backend/services/"
