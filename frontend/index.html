@@ -60,7 +60,7 @@
             <component :is="theme==='dark' ? 'Sunny' : 'Moon'"></component>
           </el-icon>
         </el-tooltip>
-        <el-badge :value="activeAlerts" :hidden="activeAlerts===0" class="alert-badge">
+        <el-badge v-if="canViewMonitor" :value="activeAlerts" :hidden="activeAlerts===0" class="alert-badge">
           <el-icon size="20" class="clickable" @click="currentPage='monitor'"><Bell /></el-icon>
         </el-badge>
         <el-dropdown @command="onUserCommand">

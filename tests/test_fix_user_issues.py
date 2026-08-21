@@ -178,3 +178,12 @@ def test_non_manager_connection_write_still_forbidden(fix_verification_env):
         "name": "illegal_conn", "host": "127.0.0.1", "port": 3306, "username": "u", "password": "p"
     })
     assert resp.status_code == 403
+
+
+def test_logo_accessible_for_all_roles(fix_verification_env):
+    """顶部Logo获取属于全局平台属性，所有已认证角色（包括开发/测试人员）均可正常读取（200 OK）"""
+    client, tokens = fix_verification_env
+    for user in ("admin", "dev_test_user", "tester_test_user"):
+        resp = client.get("/api/v1/admin/logo", headers=tokens[user])
+        assert resp.status_code == 200, f"{user} 读取Logo失败: {resp.text}"
+

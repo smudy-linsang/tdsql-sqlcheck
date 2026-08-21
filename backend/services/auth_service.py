@@ -396,6 +396,7 @@ _PATH_TO_MENU = {
 # 独立于特定菜单的已认证只读端点（已登录任意有效角色均可读取，但必须携带有效Token，非 PUBLIC_PATHS）
 _MENU_INDEPENDENT_READ_ENDPOINTS = {
     ("GET", "/api/v1/tdsql/connections/options"),
+    ("GET", "/api/v1/admin/logo"),
 }
 
 def check_permission(role: str, method: str, path: str) -> bool:

@@ -389,7 +389,7 @@ const app=createApp({
     const canViewAuditLog=computed(()=>['admin','dba','auditor'].includes(authState.role));
     const canViewSysInfo=computed(()=>['admin','dba','auditor'].includes(authState.role));
     const canViewProjects=computed(()=>['admin','dba','developer','auditor'].includes(authState.role));
-    const canViewMonitor=computed(()=>['admin','dba','auditor'].includes(authState.role));
+    const canViewMonitor=computed(()=>visibleMenus.value.has('monitor'));
     const canViewSchedule=computed(()=>['admin','dba'].includes(authState.role));
     const canViewBigtable=computed(()=>['admin','dba','auditor'].includes(authState.role));
     // 历史审核记录删除属高风险操作，仅系统管理员；后端同样显式校验，前端隐藏只是第一层
@@ -734,7 +734,7 @@ const app=createApp({
     const toggleUserStatus=async(row)=>{const ns=row.status==='active'?'disabled':'active';if(ns==='disabled'){try{await ElementPlus.ElMessageBox.confirm(`确认禁用用户 ${row.username}？禁用后该用户将无法登录。`,'禁用确认',{type:'warning'})}catch(e){return}}try{const resp=await apiFetch(`${API_BASE}/api/v1/auth/users/${row.username}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:ns})});if(resp.ok){ElementPlus.ElMessage.success(ns==='active'?'已启用':'已禁用');loadUsers()}}catch(e){}};
     const deleteUser=async(row)=>{try{await ElementPlus.ElMessageBox.confirm(`确认删除用户 ${row.username}？`,'删除确认',{type:'warning'})}catch(e){return}try{const resp=await apiFetch(`${API_BASE}/api/v1/auth/users/${row.username}`,{method:'DELETE'});if(resp.ok){ElementPlus.ElMessage.success('用户已删除');loadUsers()}}catch(e){}};
     // P1-07: 加载活跃告警数
-    const loadActiveAlerts=async()=>{try{const resp=await apiFetch(`${API_BASE}/api/v1/monitor/alerts`);if(resp.ok){const d=await resp.json();activeAlerts.value=(d.data||[]).length}}catch(e){}};
+    const loadActiveAlerts=async()=>{if(!visibleMenus.value.has('monitor')){activeAlerts.value=0;return}try{const resp=await apiFetch(`${API_BASE}/api/v1/monitor/alerts`);if(resp.ok){const d=await resp.json();activeAlerts.value=(d.data||[]).length}}catch(e){}};
     // P0-01: 扫描计划
     const loadScanSchedules=async()=>{scanScheduleLoading.value=true;try{const resp=await apiFetch(`${API_BASE}/api/v1/tdsql/scan-schedules`);if(resp.ok){const d=await resp.json();scanSchedules.value=d.schedules||[]}}catch(e){}finally{scanScheduleLoading.value=false}};
     const createScanSchedule=async()=>{if(!scheduleForm.connection_id){ElementPlus.ElMessage.warning('请选择目标实例');return}try{const resp=await apiFetch(`${API_BASE}/api/v1/tdsql/scan-schedules`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(scheduleForm)});if(resp.ok){ElementPlus.ElMessage.success('计划已创建');scheduleDrawer.value=false;loadScanSchedules()}else{const d=await resp.json();ElementPlus.ElMessage.error(d.detail||'创建失败')}}catch(e){ElementPlus.ElMessage.error('创建失败: '+e.message)}};
@@ -1654,7 +1654,7 @@ const app=createApp({
       normalizeCurrentPageByPermissions();
       loadConnectionOptions();
       loadLogo();
-      if(visibleMenus.value.has('dashboard')){loadDashboard();loadActiveAlerts();if(currentPage.value==='dashboard'){nextTick(renderTrendChart);setTimeout(renderTrendChart,150)}}
+      if(visibleMenus.value.has('dashboard')){loadDashboard();if(visibleMenus.value.has('monitor'))loadActiveAlerts();if(currentPage.value==='dashboard'){nextTick(renderTrendChart);setTimeout(renderTrendChart,150)}}
       if(visibleMenus.value.has('instances')){
         loadManagedConnections();
       }else{
