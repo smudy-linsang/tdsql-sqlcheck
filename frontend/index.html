@@ -369,7 +369,7 @@
                 </div>
 
                 <!-- 提取与审核结果双栏视图 -->
-                <div v-if="extractedResult.filename" class="mt-16">
+                <div v-if="extractedResult && extractedResult.filename" class="mt-16">
                   <!-- V1.5：报告口径横幅（自证按哪种实例类型评估、跳过多少条） -->
                   <el-alert v-if="extractedResult.scope_notice" :title="extractedResult.scope_notice"
                     :type="extractedResult.instance_type_conflict?'warning':'info'" show-icon :closable="false" class="mb-16">

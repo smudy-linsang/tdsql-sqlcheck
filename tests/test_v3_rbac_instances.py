@@ -86,6 +86,12 @@ def rbac_v3_env():
         registry.delete_saved(test_conn_id, operator="test")
     except Exception:
         pass
+    try:
+        # 恢复所有内置角色在 role_permissions 表中的 instances 菜单默认权限为 1，杜绝跨测试套件污染共享测试库
+        for r in ("admin", "dba", "developer", "auditor"):
+            set_role_permissions(r, {"instances": 1})
+    except Exception:
+        pass
     os.environ["AUTH_ENABLED"] = "false"
 
 
@@ -101,30 +107,37 @@ def test_rbac_01_anonymous_access(rbac_v3_env):
 def test_rbac_02_all_roles_read_options_without_menu(rbac_v3_env):
     """RBAC-02: 无论是否分配 instances 菜单，所有已认证角色均可访问 /connections/options"""
     client, tokens, _ = rbac_v3_env
-    # 剥夺 developer, auditor, custom_role 的 instances 菜单
-    for role in ("developer", "auditor", "custom_role"):
-        set_role_permissions(role, {"instances": 0})
+    try:
+        # 剥夺 developer, auditor, custom_role 的 instances 菜单
+        for role in ("developer", "auditor", "custom_role"):
+            set_role_permissions(role, {"instances": 0})
 
-    for user in ("admin", "test_dba", "test_dev", "test_aud", "test_custom"):
-        resp = client.get("/api/v1/tdsql/connections/options", headers=tokens[user])
-        assert resp.status_code == 200, f"User {user} should be able to get options: {resp.text}"
-        d = resp.json()
-        assert "connections" in d
-        assert len(d["connections"]) >= 1
+        for user in ("admin", "test_dba", "test_dev", "test_aud", "test_custom"):
+            resp = client.get("/api/v1/tdsql/connections/options", headers=tokens[user])
+            assert resp.status_code == 200, f"User {user} should be able to get options: {resp.text}"
+            d = resp.json()
+            assert "connections" in d
+            assert len(d["connections"]) >= 1
+    finally:
+        set_role_permissions("developer", {"instances": 1})
+        set_role_permissions("auditor", {"instances": 1})
 
 
 def test_rbac_03_connections_menu_dependent(rbac_v3_env):
     """RBAC-03: /connections 全量管理列表依赖 instances 菜单"""
     client, tokens, _ = rbac_v3_env
-    # 剥夺 developer 的 instances 菜单
-    set_role_permissions("developer", {"instances": 0})
-    resp_denied = client.get("/api/v1/tdsql/connections", headers=tokens["test_dev"])
-    assert resp_denied.status_code == 403
+    try:
+        # 剥夺 developer 的 instances 菜单
+        set_role_permissions("developer", {"instances": 0})
+        resp_denied = client.get("/api/v1/tdsql/connections", headers=tokens["test_dev"])
+        assert resp_denied.status_code == 403
 
-    # 授予 developer 的 instances 菜单后可读
-    set_role_permissions("developer", {"instances": 1})
-    resp_allowed = client.get("/api/v1/tdsql/connections", headers=tokens["test_dev"])
-    assert resp_allowed.status_code == 200
+        # 授予 developer 的 instances 菜单后可读
+        set_role_permissions("developer", {"instances": 1})
+        resp_allowed = client.get("/api/v1/tdsql/connections", headers=tokens["test_dev"])
+        assert resp_allowed.status_code == 200
+    finally:
+        set_role_permissions("developer", {"instances": 1})
 
 
 def test_rbac_04_non_manager_write_rejected(rbac_v3_env):
@@ -275,29 +288,32 @@ def test_data_03_connections_dual_password_strip(rbac_v3_env):
 def test_session_isolation_and_role_switching(rbac_v3_env):
     """DEFECT-01 回归测试: 跨角色切换时后端权限隔离与可见菜单一致性"""
     client, tokens, _ = rbac_v3_env
-    # 确保 developer 角色无 instances 菜单
-    set_role_permissions("developer", {"instances": 0})
+    try:
+        # 确保 developer 角色无 instances 菜单
+        set_role_permissions("developer", {"instances": 0})
 
-    # 1. 模拟 DBA 登录并获取全量管理列表与菜单
-    resp_dba_menus = client.get("/api/v1/auth/visible-menus", headers=tokens["test_dba"])
-    assert resp_dba_menus.status_code == 200
-    assert "instances" in resp_dba_menus.json()["menus"]
-    resp_dba_conns = client.get("/api/v1/tdsql/connections", headers=tokens["test_dba"])
-    assert resp_dba_conns.status_code == 200
+        # 1. 模拟 DBA 登录并获取全量管理列表与菜单
+        resp_dba_menus = client.get("/api/v1/auth/visible-menus", headers=tokens["test_dba"])
+        assert resp_dba_menus.status_code == 200
+        assert "instances" in resp_dba_menus.json()["menus"]
+        resp_dba_conns = client.get("/api/v1/tdsql/connections", headers=tokens["test_dba"])
+        assert resp_dba_conns.status_code == 200
 
-    # 2. 模拟同会话登出后，普通角色 developer 登录
-    resp_dev_menus = client.get("/api/v1/auth/visible-menus", headers=tokens["test_dev"])
-    assert resp_dev_menus.status_code == 200
-    assert "instances" not in resp_dev_menus.json()["menus"]
+        # 2. 模拟同会话登出后，普通角色 developer 登录
+        resp_dev_menus = client.get("/api/v1/auth/visible-menus", headers=tokens["test_dev"])
+        assert resp_dev_menus.status_code == 200
+        assert "instances" not in resp_dev_menus.json()["menus"]
 
-    # 3. developer 绝对无法访问 /connections 全量管理端点
-    resp_dev_conns = client.get("/api/v1/tdsql/connections", headers=tokens["test_dev"])
-    assert resp_dev_conns.status_code == 403
+        # 3. developer 绝对无法访问 /connections 全量管理端点
+        resp_dev_conns = client.get("/api/v1/tdsql/connections", headers=tokens["test_dev"])
+        assert resp_dev_conns.status_code == 403
 
-    # 4. developer 可以正常访问 /connections/options 精简下拉列表
-    resp_dev_opts = client.get("/api/v1/tdsql/connections/options", headers=tokens["test_dev"])
-    assert resp_dev_opts.status_code == 200
-    assert "connections" in resp_dev_opts.json()
+        # 4. developer 可以正常访问 /connections/options 精简下拉列表
+        resp_dev_opts = client.get("/api/v1/tdsql/connections/options", headers=tokens["test_dev"])
+        assert resp_dev_opts.status_code == 200
+        assert "connections" in resp_dev_opts.json()
+    finally:
+        set_role_permissions("developer", {"instances": 1})
 
 
 def test_frontend_security_contract():
@@ -318,4 +334,13 @@ def test_frontend_security_contract():
 
     # 契约 4: loadManagedConnections 必须具备 fail-closed 特性
     assert "managedConnections.value=[];" in content
+
+    # 契约 5: clearRoleScopedState 中 extractedResult 必须保持对象契约 {}
+    assert "extractedResult.value={};" in content
+
+    # 契约 6: index.html 中对 extractedResult 访问具备空值保护
+    index_html_path = Path("frontend/index.html")
+    assert index_html_path.exists(), "index.html must exist"
+    html_content = index_html_path.read_text(encoding="utf-8")
+    assert "extractedResult && extractedResult.filename" in html_content
 

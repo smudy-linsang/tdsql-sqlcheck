@@ -404,7 +404,7 @@ const app=createApp({
     const categoryOrder=[{key:'naming',label:'命名规范'},{key:'ddl',label:'DDL规范'},{key:'dml',label:'DML规范'},{key:'index',label:'索引规范'},{key:'distributed',label:'分布式规范'},{key:'security',label:'安全规范'},{key:'performance',label:'性能规范'},{key:'transaction',label:'事务规范'},{key:'oracle_compat',label:'Oracle迁移兼容'}];
     const filteredCategories=computed(()=>{if(!ruleSearch.value)return categoryOrder;const q=ruleSearch.value.toLowerCase();return categoryOrder.filter(c=>{const rs=rulesByCategory.value[c.key]||[];return rs.some(r=>r.rule_id.toLowerCase().includes(q)||r.description.toLowerCase().includes(q))})});
     const applyUser=(u)=>{authState.user=u;authState.role=u.role};
-    // V1.6.1.8 DEFECT-01: 角色态与高权限缓存彻底清理函数（跨角色切换会话隔离保障）
+    // V1.6.1.8 DEFECT-01: 角色态与高权限缓存彻底清理函数（跨角色切换会话隔离保障，严格维持组件初始契约类型）
     const clearRoleScopedState=()=>{
       visibleMenus.value=new Set();
       managedConnections.value=[];
@@ -437,9 +437,9 @@ const app=createApp({
       extractedReportsTotal.value=0;
       auditResult.value=null;
       fileAuditResult.value=null;
-      extractedResult.value=null;
+      extractedResult.value={};
       explainResult.value=null;
-      bigtableData.value=[];
+      bigtableData.value=null;
       connTestResult.value=null;
       zkDiscovered.value=[];
       zkImportRows.value=[];
