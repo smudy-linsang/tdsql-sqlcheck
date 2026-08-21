@@ -23,6 +23,170 @@ from backend.engine.rules.base import BaseRule
 from backend.models import RuleCategory, Severity, Violation, InstanceScope
 
 
+# ═══════════════════════════════════════════════════════════════
+# TDSQL 内核建表语法补充识别（v1.6.1.9）
+#
+# TDSQL 的 SHOW CREATE TABLE 对分片表/广播表存在两种输出形态，均非
+# 开发人员手写的 `shardkey=col`：
+#   分片表:  TDSQL_DISTRIBUTED BY HASH(col)
+#   广播表:  shardkey=noshardkey_allset
+# 本模块的规则此前只认手写形态，导致内核输出被误报为"未声明分片键"。
+# 以下助手提供共享的、经注释/字符串清洗且尾部锚定的语法识别，
+# 由 R077 与 R054 共同消费。
+# ═══════════════════════════════════════════════════════════════
+
+_NOSHARDKEY_ALLSET = "noshardkey_allset"   # 广播表(全局表)哨兵，精确值
+
+# 取值必须以合法终止符收尾，避免 `noshardkey_allset-x` 被截断成合法哨兵
+_TOKEN_END = r"(?=\s|[,;)]|$)"
+
+_TDSQL_HASH_RE = re.compile(
+    r"\btdsql_distributed\s+by\s+hash\s*\(\s*"
+    r"(?:`(?P<quoted>[^`]+)`|(?P<bare>[a-z_][a-z0-9_]*))\s*\)",
+    re.IGNORECASE,
+)
+# legacy 形态。模式本身与原 R077._SHARDKEY_RE / _SHARD_KEY_RE 保持一致，
+# 只追加 token 边界；真正的变化是"喂给它的文本"从整条 raw 换成可信尾部。
+_SHARDKEY_TAIL_RE = re.compile(
+    r"\bshardkey\b\s*=?\s*\(?[`\"']?([a-z_][a-z0-9_]*)[`\"']?\)?" + _TOKEN_END,
+    re.IGNORECASE,
+)
+_SHARD_KEY_TAIL_RE = re.compile(
+    r"\bshard_key\b\s*=?\s*\(?[`\"']?([a-z_][a-z0-9_]*)[`\"']?\)?" + _TOKEN_END,
+    re.IGNORECASE,
+)
+
+
+def _strip_sql_noise(sql: str) -> str:
+    """剔除行/块注释与引号字符串字面量；保留反引号标识符。
+
+    `--` 按 MySQL 5.7/8.0 词法处理：第二个 `-` 之后必须紧跟空白或控制字符
+    才构成注释，否则 `CHECK(a--b > 0)` 会被误当注释截断，反把合法 HASH 表
+    打成 R077 误报。参考 MySQL Reference Manual — Comments。
+
+    ⚠️ 不得改用 backend/engine/rules/oracle_compat.py 的 clean_sql()：
+       它的 _LINE_COMMENT = r"--[^\n]*" 正是上面这个词法缺陷（见 ADJ-8），
+       且它会剔除反引号内容之外的大小写信息。换用它等于把已修复的
+       BLOCK-3 重新装回来。二者看似重复，实为不同契约，请勿"DRY 化"。
+
+    仅用于语法形态判定，不改变 parsed.raw_sql。
+    """
+    out, i, n = [], 0, len(sql)
+    while i < n:
+        c = sql[i]
+        if c == '`':                                   # 反引号标识符：整体保留
+            j = sql.find('`', i + 1)
+            if j < 0:
+                out.append(sql[i:]); break
+            out.append(sql[i:j + 1]); i = j + 1
+        elif c in ("'", '"'):                          # 字符串字面量：整体丢弃
+            q, j = c, i + 1
+            while j < n:
+                if sql[j] == '\\':
+                    j += 2; continue
+                if sql[j] == q:
+                    if j + 1 < n and sql[j + 1] == q:  # '' / "" 转义
+                        j += 2; continue
+                    break
+                j += 1
+            out.append(' '); i = j + 1
+        elif (sql.startswith('--', i)
+              and (i + 2 >= n or sql[i + 2].isspace())) or c == '#':
+            j = sql.find('\n', i); out.append(' ')     # 行注释
+            i = n if j < 0 else j
+        elif sql.startswith('/*', i):                  # 块注释
+            j = sql.find('*/', i + 2); out.append(' ')
+            i = n if j < 0 else j + 2
+        else:
+            out.append(c); i += 1
+    return ''.join(out)
+
+
+def _ddl_options_tail(cleaned: str) -> str:
+    """返回列定义清单右括号之后的表选项尾部；定位不到时返回空串（保守：不识别）。
+
+    必须在 _strip_sql_noise 之后调用——字符串里的括号已被剔除，配对才可靠。
+    """
+    start = cleaned.find('(')
+    if start < 0:
+        return ""
+    depth = 0
+    for i in range(start, len(cleaned)):
+        if cleaned[i] == '(':
+            depth += 1
+        elif cleaned[i] == ')':
+            depth -= 1
+            if depth == 0:
+                return cleaned[i + 1:]
+    return ""
+
+
+def _trusted_options_tail(raw_sql: str) -> str:
+    """一切 raw SQL 语法判定的唯一可信输入：清洗 + 表选项尾部锚定。"""
+    return _ddl_options_tail(_strip_sql_noise(raw_sql))
+
+
+def _extract_legacy_shard_key(raw_sql: str) -> str:
+    """SHARDKEY= / SHARD_KEY= 的 raw 回退提取（限定在可信尾部内）。"""
+    tail = _trusted_options_tail(raw_sql)
+    if not tail:
+        return ""
+    for pat in (_SHARDKEY_TAIL_RE, _SHARD_KEY_TAIL_RE):
+        m = pat.search(tail)
+        if m:
+            return m.group(1).strip('`"\' ').lower()
+    return ""
+
+
+def _extract_tdsql_hash_key(raw_sql: str) -> str:
+    """TDSQL_DISTRIBUTED BY HASH(col) 的分片键提取（限定在可信尾部内）。"""
+    tail = _trusted_options_tail(raw_sql)
+    if not tail:
+        return ""
+    m = _TDSQL_HASH_RE.search(tail)
+    if not m:
+        return ""
+    return (m.group('quoted') or m.group('bare')).strip('` ').lower()
+
+
+def _is_broadcast_sentinel(value: str) -> bool:
+    """精确判定广播表(全局表)哨兵值（大小写不敏感）。
+
+    仅接受 noshardkey_allset。新增哨兵只能通过有出处的显式白名单扩展，
+    不得改回前缀匹配——`noshardkey_*` 不是 TDSQL 保留命名空间。
+    调用方必须保证 value 来自可信来源（table_metadata / table_options /
+    上面两个 _extract_* 助手），否则等于把注释文本当成放行凭据。
+    """
+    return value.strip('`"\' ').casefold() == _NOSHARDKEY_ALLSET
+
+
+_UNIQUE_IDX_RE = re.compile(
+    r"\bunique\s+(?:key|index)\s*(?:`(?P<qname>[^`]+)`|(?P<bname>\w+))?\s*\(([^)]+)\)",
+    re.IGNORECASE,
+)
+
+
+def _iter_unique_indexes(parsed: ParsedSQL, raw_sql: str):
+    """逐个产出唯一索引 (名称, 列名集合)。
+
+    J-3 要求"每一个唯一索引都包含分片键"，因此**不得展平成列并集**——
+    并集只能回答"是否在任意唯一索引中"，表达不了 J-3。
+    """
+    seen = False
+    for idx in list(parsed.indexes) + list(parsed.index_definitions):
+        if (idx.get("type") or "").upper() == "UNIQUE":
+            seen = True
+            yield (idx.get("name") or "UNIQUE索引",
+                   {c.lower() for c in idx.get("columns", [])})
+    if seen:
+        return
+    # 回退：解析器未产出 UNIQUE 条目时走正则（索引名支持反引号——
+    # SHOW CREATE TABLE 输出的索引名恒带反引号）
+    for m in _UNIQUE_IDX_RE.finditer(_strip_sql_noise(raw_sql)):
+        yield (m.group('qname') or m.group('bname') or "UNIQUE索引",
+               {c.strip('`"\' ').lower() for c in m.group(3).split(",")})
+
+
 class R020ShardKeyInWhere(BaseRule):
     """R020: 分布式表查询必须包含分片键字段"""
 
@@ -260,11 +424,17 @@ class R054ShardKeyMustBePrimaryKey(BaseRule):
                     shard_key = sk
                     break
         if not shard_key:
-            # raw_sql 回退提取 shardkey=xxx
-            sk_match = re.search(r"shardkey\s*=\s*['\"`]?(\w+)", parsed.raw_sql, re.IGNORECASE)
-            if sk_match:
-                shard_key = sk_match.group(1)
+            # v1.6.1.9: legacy 回退与 R077 共用同一可信来源
+            #（清洗 + 表选项尾部锚定），不再 search 整条 raw_sql
+            shard_key = _extract_legacy_shard_key(parsed.raw_sql)
         if not shard_key:
+            # v1.6.1.9 新增来源: TDSQL_DISTRIBUTED BY HASH(col)
+            shard_key = _extract_tdsql_hash_key(parsed.raw_sql)
+        if not shard_key:
+            return None
+
+        # v1.6.1.9: 广播表(全局表) —— noshardkey_allset 是哨兵值而非列名
+        if _is_broadcast_sentinel(shard_key):
             return None
 
         # 检查主键是否包含分片键
@@ -285,30 +455,22 @@ class R054ShardKeyMustBePrimaryKey(BaseRule):
                     c.strip('`"\' ').lower()
                     for c in pk_match.group(1).split(",")
                 }
-        if pk_cols and shard_key.lower() not in pk_cols:
+        # v1.6.1.9: 空主键集合同样是 J-2 失败
+        if shard_key.lower() not in pk_cols:
+            if not pk_cols:
+                return self._make_violation(
+                    f"建表语句未声明主键，分片键 '{shard_key}' 必须是主键的一部分",
+                )
             return self._make_violation(
                 f"分片键 '{shard_key}' 不在主键中，TDSQL要求分片键必须是主键的一部分",
             )
 
-        # E2: 检查唯一索引是否包含分片键
-        # 来源1: parsed.indexes / index_definitions
-        for idx in parsed.indexes + parsed.index_definitions:
-            if idx.get("type", "").upper() == "UNIQUE":
-                idx_cols = {c.lower() for c in idx.get("columns", [])}
-                if shard_key.lower() not in idx_cols:
-                    idx_name = idx.get("name", "UNIQUE索引")
-                    return self._make_violation(
-                        f"{idx_name}未包含分片键 '{shard_key}'，TDSQL要求唯一索引必须包含分片键",
-                    )
-        # 来源2: raw_sql 正则回退(解析失败时 indexes 为空)
-        if not any(idx.get("type", "").upper() == "UNIQUE" for idx in parsed.indexes + parsed.index_definitions):
-            for m in re.finditer(r"unique\s+(?:key|index)\s+(\w+)?\s*\(([^)]+)\)", parsed.raw_sql, re.IGNORECASE):
-                idx_name = m.group(1) or "UNIQUE索引"
-                idx_cols = {c.strip('`"\' ').lower() for c in m.group(2).split(",")}
-                if shard_key.lower() not in idx_cols:
-                    return self._make_violation(
-                        f"{idx_name}未包含分片键 '{shard_key}'，TDSQL要求唯一索引必须包含分片键",
-                    )
+        # E2: J-3 —— 每一个唯一索引都必须包含分片键（逐个判断，不展平）
+        for idx_name, idx_cols in _iter_unique_indexes(parsed, parsed.raw_sql):
+            if shard_key.lower() not in idx_cols:
+                return self._make_violation(
+                    f"{idx_name}未包含分片键 '{shard_key}'，TDSQL要求唯一索引必须包含分片键",
+                )
         return None
 
 
@@ -488,34 +650,37 @@ class R077CreateTableMustHaveShardKey(BaseRule):
     category = RuleCategory.DISTRIBUTED
     severity = Severity.ERROR
     description = (
-        "TDSQL分布式实例建表必须声明分片键(SHARDKEY)或广播表标记(BROADCAST)，"
-        "不允许创建单表；分片键必须是主键或唯一索引的字段"
+        "TDSQL分布式实例建表必须声明分片键或广播表标记，不允许创建单表；"
+        "分片键必须是主键或唯一索引的字段。支持的分片键声明形态："
+        "SHARDKEY=列名、TDSQL_DISTRIBUTED BY HASH(列名)；"
+        "广播表(全局表)形态：BROADCAST、shardkey=noshardkey_allset"
     )
     enabled = True
     spec_source = "TDSQL数据库开发规范 - 分布式建表规范"
     fix_suggestion = (
-        "在建表语句末尾添加 SHARDKEY=列名 声明分片键（该列必须为主键或唯一索引的一部分），"
-        "或添加 BROADCAST 声明为广播表。示例:\n"
+        "请按目标实例支持的形态声明分片键或广播表。示例:\n"
         "  CREATE TABLE t1 (...) ENGINE=InnoDB SHARDKEY=user_id\n"
-        "  CREATE TABLE t1 (...) ENGINE=InnoDB BROADCAST"
+        "  CREATE TABLE t1 (...) ENGINE=InnoDB TDSQL_DISTRIBUTED BY HASH(`user_id`)\n"
+        "  CREATE TABLE t1 (...) ENGINE=InnoDB BROADCAST\n"
+        "  CREATE TABLE t1 (...) ENGINE=InnoDB shardkey=noshardkey_allset\n"
+        "分片表的分片键必须是主键(或主键的一部分)，且必须包含在每一个唯一索引中。"
     )
 
-    # 分片键声明的正则模式（\b 词边界防止列名子串误匹配，[`"']? 支持反引号包裹列名）
-    _SHARDKEY_RE = re.compile(
-        r"\bshardkey\b\s*=?\s*\(?[`\"']?([a-z_][a-z0-9_]*)[`\"']?\)?",
-        re.IGNORECASE,
-    )
+    # 分片键声明的正则模式（已迁至模块级 _SHARDKEY_TAIL_RE / _SHARD_KEY_TAIL_RE，
+    # 由 _extract_shard_key() 经 _trusted_options_tail() 清洗后调用）
     _BROADCAST_RE = re.compile(r"\bbroadcast\b", re.IGNORECASE)
-    # 兼容 shard_key=xxx 写法
-    _SHARD_KEY_RE = re.compile(
-        r"\bshard_key\b\s*=?\s*\(?[`\"']?([a-z_][a-z0-9_]*)[`\"']?\)?",
-        re.IGNORECASE,
-    )
     # 表级 PRIMARY KEY 列提取正则（回退方案，兼容 USING BTREE 语法）
     _PK_RE = re.compile(
         r"primary\s+key\s*(?:using\s+\w+\s*)?\(([^)]+)\)",
         re.IGNORECASE,
     )
+    # ⚠️ 不得单独放宽本正则：R077 仍保留 legacy 的"主键 或 唯一索引"判定
+    #    （ADJ-4，已决策不收紧）。本正则一旦认出更多唯一索引，就会激活那个
+    #    宽松分支并产生漏报。修改本正则、或让 parsed.indexes 开始产出 UNIQUE
+    #    条目时，必须在同一次提交内把 R077 判定对齐 J-2/J-3，并通过
+    #    tests/test_r077_r054_tdsql_syntax.py 中裸索引名/反引号索引名两组
+    #    同语义用例。不得拆分提交。
+    #    背景：docs/DESIGN-v1.6.1.9-TDSQL分片表与广播表建表语法识别缺陷修复详细设计说明书.md
     # 表级 UNIQUE KEY/INDEX 列提取正则（回退方案）
     _UNIQUE_RE = re.compile(
         r"unique\s+(?:key|index)\s+\w*\s*\(([^)]+)\)",
@@ -542,6 +707,10 @@ class R077CreateTableMustHaveShardKey(BaseRule):
 
         # 提取分片键列名（优先使用解析器结构化数据，回退到正则）
         shard_key_col = self._extract_shard_key(parsed, raw_sql)
+
+        # v1.6.1.9: 广播表(全局表)哨兵，精确等值且来源可信
+        if shard_key_col and _is_broadcast_sentinel(shard_key_col):
+            return None
 
         if not shard_key_col:
             # 未声明分片键，也未声明广播表 → 违规
@@ -570,20 +739,18 @@ class R077CreateTableMustHaveShardKey(BaseRule):
         return None
 
     def _extract_shard_key(self, parsed: ParsedSQL, raw_sql: str) -> str:
-        """提取分片键列名，优先使用解析器结构化数据，回退到正则"""
-        # 优先来源: parsed.table_options（sqlglot 已解析的表选项）
+        """提取分片键列名，优先结构化数据，回退到清洗且尾部锚定的正则"""
+        # 优先来源: parsed.table_options（sqlglot 已解析的表选项，可信）
         for key in ("SHARDKEY", "SHARD_KEY"):
             val = parsed.table_options.get(key, "")
             if val:
                 return val.strip('`"\' ').lower()
-        # 回退来源1: SHARDKEY 正则
-        shard_match = self._SHARDKEY_RE.search(raw_sql)
-        if not shard_match:
-            # 回退来源2: shard_key 正则
-            shard_match = self._SHARD_KEY_RE.search(raw_sql)
-        if shard_match:
-            return shard_match.group(1).strip('`"\' ').lower()
-        return ""
+        # 回退来源1: legacy SHARDKEY= / SHARD_KEY=（可信尾部）
+        legacy = _extract_legacy_shard_key(raw_sql)
+        if legacy:
+            return legacy
+        # 回退来源2: TDSQL_DISTRIBUTED BY HASH(col)（可信尾部）
+        return _extract_tdsql_hash_key(raw_sql)
 
     def _collect_pk_cols(self, parsed: ParsedSQL, raw_sql: str) -> set[str]:
         """收集主键列名（三个来源合并，确保不遗漏）"""
