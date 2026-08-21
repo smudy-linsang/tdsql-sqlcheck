@@ -15,6 +15,12 @@ def rbac_env():
     from backend.services.auth_service import auth_service
     from backend.services.database import _get_connection, ensure_db
     ensure_db()
+
+    conn = _get_connection()
+    orig_admin = conn.execute("SELECT password_hash, salt, must_change_password, status FROM users WHERE username = 'admin'").fetchone()
+    orig_admin_dict = dict(orig_admin) if orig_admin else None
+    conn.close()
+
     auth_service.ensure_bootstrap_admin()
     auth_service.reset_password("admin", STRONG_PW, operator="test")
 
@@ -34,8 +40,32 @@ def rbac_env():
         resp = client.post("/api/v1/auth/login", json={"username": name, "password": STRONG_PW})
         tokens[name] = {"Authorization": f"Bearer {resp.json()['token']}"}
 
-    yield client, tokens
-    os.environ["AUTH_ENABLED"] = "false"
+    try:
+        yield client, tokens
+    finally:
+        for name in ("test_dba", "test_dev", "test_aud"):
+            try:
+                auth_service.delete_user(name, operator="test")
+            except Exception:
+                pass
+        if orig_admin_dict:
+            conn = _get_connection()
+            try:
+                conn.execute("""
+                    UPDATE users SET password_hash = ?, salt = ?, must_change_password = ?, status = ?
+                    WHERE username = 'admin'
+                """, (
+                    orig_admin_dict["password_hash"],
+                    orig_admin_dict["salt"],
+                    orig_admin_dict["must_change_password"],
+                    orig_admin_dict["status"]
+                ))
+                conn.commit()
+            except Exception:
+                pass
+            finally:
+                conn.close()
+        os.environ["AUTH_ENABLED"] = "false"
 
 
 def test_rbac_admin_full_access(rbac_env):
