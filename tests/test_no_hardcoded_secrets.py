@@ -31,7 +31,7 @@ _ALLOWED_TEST_DEFAULTS = {
     "SmokeConn@1", "Secret@123", "Pw@12345",   # 单元测试构造值
     "Sec01#Pass123", "Sec01#Pass456", "Sec01#Pass789",
     "Sec02#Pass123", "Sit05#Pass123", "Init#Pass123", "New#Passw0rd9",
-    "my_secret_password_123!@#",
+    "my_secret_password_123!@#", "Test@2026Admin", "SecretPassword123!", "MonitorSecret123!",
 }
 
 # 已确认泄露、必须永不再出现的生产凭据（值本身不写在此处，用特征匹配）
