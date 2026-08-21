@@ -1420,7 +1420,7 @@
                         </el-option>
                       </el-select>
                       <el-button size="small" @click="loadBigtable">刷新清单</el-button>
-                      <el-button v-if="canManageInstances" type="primary" size="small" :loading="bigtableCollecting" @click="collectBigtable">采集大表清单</el-button>
+                      <el-button type="primary" size="small" :loading="bigtableCollecting" @click="collectBigtable">采集大表清单</el-button>
                     </div>
                   </div>
                   <div style="color:#909399;font-size:12px;margin-bottom:8px">提示：分区表可点击「表名」就地展开查看每个分区的大小与合理性分析</div>

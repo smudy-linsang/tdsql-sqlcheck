@@ -274,18 +274,29 @@ WEBHOOK_PATHS = ("/api/v1/gitlab/webhook/",)
 
 _READ_METHODS = ("GET", "HEAD", "OPTIONS")
 
-# developer 允许的写操作（开发自助）
-_DEVELOPER_WRITE_PREFIXES = (
-    "/api/v1/audit/",                       # SQL/文件审核
+# developer 允许的写操作（开发与测试等业务自助操作）
+_OPERATIONAL_WRITE_PREFIXES = (
+    "/api/v1/audit/",                       # SQL/文件审核/即时元数据提取与审核
     "/api/v1/gitlab/audit/",                # diff/仓库审核
+    "/api/v1/scan-compare/",                # 扫描结果对比/归档
     "/api/v1/slow-queries/analyze-explain", # EXPLAIN分析
     "/api/v1/slow-queries/analyze-explain-by-sql", # EXPLAIN分析(SQL直连)
+    "/api/v1/tdsql/slow-queries",           # 慢SQL抓取/触发扫描
     "/api/v1/inspection/schema-check",      # 上线检查(12项Schema检查+报告导出)
+    "/api/v1/bigtable/",                    # 大表清单采集
     "/api/v1/auth/logout",
     "/api/v1/auth/change-password",
     "/api/v1/gateway-log/",                 # 网关日志上传分析
     "/api/v1/ppt-report/",                  # PPT汇报导出
+    "/api/v1/cluster-inspect/",             # 深度诊断-集群体检
+    "/api/v1/daily-inspect/",               # 深度诊断-日常巡检
+    "/api/v1/index-audit/",                 # 深度诊断-索引画像
+    "/api/v1/schema-diff/",                 # 深度诊断-表结构对比
+    "/api/v1/emergency/",                   # 深度诊断-应急工具
+    "/api/v1/sql-stats/",                   # 深度诊断-SQL统计
+    "/api/v1/toolkit/",                     # 深度诊断-工具箱
 )
+_DEVELOPER_WRITE_PREFIXES = _OPERATIONAL_WRITE_PREFIXES
 
 # 所有角色都允许的写操作（自助账户操作）
 _SELF_SERVICE_PREFIXES = (
@@ -331,9 +342,10 @@ _PATH_TO_MENU = {
     # V1.5：审核历史列表/删除。batch-delete 为 admin 独占（处理函数 _require_admin 兜底）
     "/api/v1/audit/extracted-reports": "schema-extractor-audit",
     "/api/v1/audit/file-reports": "file-audit",
+    "/api/v1/audit/slow-report": ("slow-tasks", "slow-records"),
     "/api/v1/rules": "rules",
-    "/api/v1/slow-queries": "slow-tasks",
-    "/api/v1/tdsql/slow-queries": "slow-tasks",
+    "/api/v1/slow-queries": ("slow-tasks", "slow-records"),
+    "/api/v1/tdsql/slow-queries": ("slow-tasks", "slow-records"),
     "/api/v1/tdsql/scan-schedules": "slow-tasks",
     "/api/v1/slow-queries/analyze-explain": "explain",
     "/api/v1/tdsql/connections": "instances",
@@ -378,7 +390,6 @@ _PATH_TO_MENU = {
     "/api/v1/tdsql/audit": "audit-sql",
     "/api/v1/tdsql/scheduler": "slow-tasks",
     "/api/v1/audit/batch-stream": "file-audit",
-    "/api/v1/audit/extracted-reports": "schema-extractor-audit",
     "/api/v1/gitlab/audit": "file-audit",
 }
 
@@ -421,11 +432,23 @@ def check_permission(role: str, method: str, path: str) -> bool:
             return False
         if method in _READ_METHODS:
             allowed = True
+        elif method == "PUT" and path.startswith("/api/v1/slow-queries/") and path.endswith("/status"):
+            allowed = True
         else:
             allowed = any(path.startswith(p) for p in _DEVELOPER_WRITE_PREFIXES)
     else:
-        # 自定义角色：默认不可写，读操作需检查role_permissions
-        allowed = method in _READ_METHODS
+        # 自定义角色（如测试人员角色）：
+        # 1) 拒绝敏感审计路径
+        if any(path.startswith(p) for p in _DEVELOPER_DENIED_PREFIXES):
+            return False
+        # 2) 读操作允许（进入二级 role_permissions 校验）
+        if method in _READ_METHODS:
+            allowed = True
+        elif method == "PUT" and path.startswith("/api/v1/slow-queries/") and path.endswith("/status"):
+            allowed = True
+        else:
+            # 3) 业务操作性写端点允许（进入二级 role_permissions 校验）
+            allowed = any(path.startswith(p) for p in _DEVELOPER_WRITE_PREFIXES)
 
     if not allowed:
         return False

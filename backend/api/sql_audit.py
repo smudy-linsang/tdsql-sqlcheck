@@ -701,11 +701,12 @@ async def export_audit_report(report_id: int):
     try:
         from backend.services.report_service import generate_audit_report_pdf
         pdf_bytes, filename = generate_audit_report_pdf(report_id)
+        encoded_filename = quote(filename)
         return StreamingResponse(
             iter([pdf_bytes]),
             media_type="application/pdf",
             headers={
-                "Content-Disposition": f'attachment; filename="{filename}"',
+                "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}; filename=\"{encoded_filename}\"",
                 "Content-Length": str(len(pdf_bytes)),
             },
         )
@@ -972,11 +973,12 @@ async def export_slow_query_report(slow_id: int):
     try:
         from backend.services.report_service import generate_slow_query_report_pdf
         pdf_bytes, filename = generate_slow_query_report_pdf(slow_id)
+        encoded_filename = quote(filename)
         return StreamingResponse(
             iter([pdf_bytes]),
             media_type="application/pdf",
             headers={
-                "Content-Disposition": f'attachment; filename="{filename}"',
+                "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}; filename=\"{encoded_filename}\"",
                 "Content-Length": str(len(pdf_bytes)),
             },
         )

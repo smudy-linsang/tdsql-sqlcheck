@@ -94,10 +94,10 @@ def _register_chinese_font():
         windows_fonts_dir = "C:/Windows/Fonts"
         candidates.extend([
             os.path.join(windows_fonts_dir, "msyh.ttc"),
-            os.path.join(windows_fonts, "simsun.ttc"),
-            os.path.join(windows_fonts, "simhei.ttf"),
-            os.path.join(windows_fonts, "msyhbd.ttc"),
-            os.path.join(windows_fonts, "wingding.ttf"),
+            os.path.join(windows_fonts_dir, "simsun.ttc"),
+            os.path.join(windows_fonts_dir, "simhei.ttf"),
+            os.path.join(windows_fonts_dir, "msyhbd.ttc"),
+            os.path.join(windows_fonts_dir, "wingding.ttf"),
         ])
         # 扫描 Fonts 目录下的所有 .ttf/.ttc 文件
         candidates.extend(_scan_directory_for_fonts(windows_fonts_dir, (".ttf", ".ttc", ".otf")))
@@ -123,13 +123,14 @@ def _register_chinese_font():
 
     # 去重 + 过滤不存在的文件
     seen: set[str] = set()
+    valid_candidates: list[str] = []
     for fp in candidates:
-        if fp and fp not in seen and Path(fp).exists():
+        if fp and fp not in seen and os.path.exists(fp):
             seen.add(fp)
-            candidates.append(fp)
+            valid_candidates.append(fp)
 
     # 注册第一个成功的字体
-    for font_path in candidates:
+    for font_path in valid_candidates:
         try:
             pdfmetrics.registerFont(TTFont("ChineseFont", font_path))
             _font_registered = True
