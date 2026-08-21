@@ -25,8 +25,12 @@ dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.24.0",
     "httpx>=0.27.0",
+    "playwright>=1.55.0,<2",
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+markers = [
+    "e2e: real-browser end-to-end tests (set RUN_BROWSER_E2E=1 to execute)",
+]

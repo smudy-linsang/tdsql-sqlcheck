@@ -50,6 +50,7 @@ Thumbs.db
 
 # Test cache
 .pytest_cache/
+test-results/
 
 # Debug/temp scripts
 _debug_*.py

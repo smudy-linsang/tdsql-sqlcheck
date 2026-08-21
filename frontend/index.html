@@ -33,13 +33,13 @@
         <div class="login-title">用户登录</div>
         <el-form ref="loginFormRef" :model="loginForm" label-position="top" @submit.prevent="doLogin">
           <el-form-item>
-            <el-input v-model="loginForm.username" placeholder="用户名" size="large" @keyup.enter="doLogin"></el-input>
+            <el-input data-testid="login-username" v-model="loginForm.username" placeholder="用户名" size="large" @keyup.enter="doLogin"></el-input>
           </el-form-item>
           <el-form-item>
-            <el-input v-model="loginForm.password" type="password" placeholder="口令" size="large" show-password @keyup.enter="doLogin"></el-input>
+            <el-input data-testid="login-password" v-model="loginForm.password" type="password" placeholder="口令" size="large" show-password @keyup.enter="doLogin"></el-input>
           </el-form-item>
           <el-alert v-if="loginError" :title="loginError" type="error" show-icon :closable="false" class="mb-16"></el-alert>
-          <el-button type="primary" size="large" class="w-full" :loading="loginLoading" @click="doLogin">登 录</el-button>
+          <el-button data-testid="login-submit" type="primary" size="large" class="w-full" :loading="loginLoading" @click="doLogin">登 录</el-button>
         </el-form>
       </el-card>
     </div>
@@ -84,29 +84,29 @@
       <aside class="sidebar" :class="{collapsed: sidebarCollapsed}">
         <el-menu :default-active="currentPage" :collapse="sidebarCollapsed" @select="onMenuSelect" background-color="transparent" text-color="#b9c4d4" active-text-color="#fff">
           <el-menu-item v-if="visibleMenus.has('dashboard')" index="dashboard"><el-icon><Odometer /></el-icon><span>治理概览</span></el-menu-item>
-          <el-sub-menu v-if="visibleMenus.has('audit-sql')||visibleMenus.has('file-audit')||visibleMenus.has('schema-extractor-audit')" index="audit-group">
+          <el-sub-menu data-testid="submenu-audit" v-if="visibleMenus.has('audit-sql')||visibleMenus.has('file-audit')||visibleMenus.has('schema-extractor-audit')" index="audit-group">
             <template #title><el-icon><Document /></el-icon><span>SQL审核</span></template>
             <el-menu-item v-if="visibleMenus.has('audit-sql')" index="audit-sql">即时审核</el-menu-item>
             <el-menu-item v-if="visibleMenus.has('file-audit')" index="file-audit">文件审核</el-menu-item>
-            <el-menu-item v-if="visibleMenus.has('schema-extractor-audit')" index="schema-extractor-audit">在线元数据审核</el-menu-item>
+            <el-menu-item data-testid="menu-online-metadata" v-if="visibleMenus.has('schema-extractor-audit')" index="schema-extractor-audit">在线元数据审核</el-menu-item>
           </el-sub-menu>
-          <el-sub-menu v-if="visibleMenus.has('slow-tasks')||visibleMenus.has('slow-records')||(rawSlowlogEnabled&&visibleMenus.has('slow-raw-log'))||visibleMenus.has('explain')" index="slow-group">
+          <el-sub-menu data-testid="submenu-slow" v-if="visibleMenus.has('slow-tasks')||visibleMenus.has('slow-records')||(rawSlowlogEnabled&&visibleMenus.has('slow-raw-log'))||visibleMenus.has('explain')" index="slow-group">
             <template #title><el-icon><Timer /></el-icon><span>慢SQL治理</span></template>
-            <el-menu-item v-if="visibleMenus.has('slow-tasks')" index="slow-tasks">扫描任务</el-menu-item>
+            <el-menu-item data-testid="menu-scan-tasks" v-if="visibleMenus.has('slow-tasks')" index="slow-tasks">扫描任务</el-menu-item>
             <el-menu-item v-if="visibleMenus.has('slow-records')" index="slow-records">慢SQL记录</el-menu-item>
             <el-menu-item v-if="rawSlowlogEnabled&&visibleMenus.has('slow-raw-log')" index="slow-raw-log">原始慢日志</el-menu-item>
             <el-menu-item v-if="visibleMenus.has('explain')" index="explain">EXPLAIN分析</el-menu-item>
           </el-sub-menu>
-          <el-sub-menu v-if="visibleMenus.has('schema-check')||visibleMenus.has('bigtable')" index="instance-group">
+          <el-sub-menu data-testid="submenu-instance" v-if="visibleMenus.has('schema-check')||visibleMenus.has('bigtable')" index="instance-group">
             <template #title><el-icon><Coin /></el-icon><span>实例体检</span></template>
-            <el-menu-item v-if="visibleMenus.has('schema-check')" index="schema-check">上线检查</el-menu-item>
-            <el-menu-item v-if="visibleMenus.has('bigtable')" index="bigtable">大表治理</el-menu-item>
+            <el-menu-item data-testid="menu-schema-check" v-if="visibleMenus.has('schema-check')" index="schema-check">上线检查</el-menu-item>
+            <el-menu-item data-testid="menu-bigtable" v-if="visibleMenus.has('bigtable')" index="bigtable">大表治理</el-menu-item>
           </el-sub-menu>
           <el-menu-item v-if="visibleMenus.has('deep-diag')" index="deep-diag"><el-icon><Cpu /></el-icon><span>深度诊断</span></el-menu-item>
-          <el-sub-menu v-if="visibleMenus.has('instances')||visibleMenus.has('rulesets')||visibleMenus.has('rules')" index="platform-group">
+          <el-sub-menu data-testid="submenu-platform" v-if="visibleMenus.has('instances')||visibleMenus.has('rulesets')||visibleMenus.has('rules')" index="platform-group">
             <template #title><el-icon><Setting /></el-icon><span>平台治理</span></template>
             <!-- V1.4：项目管理/质量门禁/巡检管理隐藏（项目降级为业务标签，门禁并入实例页） -->
-            <el-menu-item v-if="visibleMenus.has('instances')" index="instances">实例管理</el-menu-item>
+            <el-menu-item data-testid="menu-instances" v-if="visibleMenus.has('instances')" index="instances">实例管理</el-menu-item>
             <el-menu-item v-if="visibleMenus.has('rules')" index="rules">审核规则库</el-menu-item>
             <el-menu-item v-if="visibleMenus.has('rulesets')" index="rulesets">评估规则集</el-menu-item>
           </el-sub-menu>
@@ -352,7 +352,7 @@
                   <div class="card-head" style="flex-wrap:wrap;gap:12px">
                     <div class="page-card-title mb0">在线元数据提取与文件审核</div>
                     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-                      <el-select v-model="extractedAuditConnId" placeholder="选择目标实例" filterable size="small" style="width:200px">
+                      <el-select data-testid="metadata-instance-select" v-model="extractedAuditConnId" placeholder="选择目标实例" filterable size="small" style="width:200px">
                         <el-option v-for="c in savedConnections" :key="c.id" :label="c.name+' ('+c.host+':'+c.port+')'" :value="c.id"></el-option>
                       </el-select>
                       <el-input v-model="extractedDbName" placeholder="目标数据库(留空默认)" size="small" style="width:160px"></el-input>
@@ -362,7 +362,7 @@
                         <el-checkbox label="VIEW">视图定义</el-checkbox>
                         <el-checkbox label="SHARDKEY">分片键</el-checkbox>
                       </el-checkbox-group>
-                      <el-button type="primary" size="small" :loading="extractAuditing" :disabled="!extractedAuditConnId" @click="runExtractAndAudit">🚀 拉取元数据并执行文件审核</el-button>
+                      <el-button data-testid="metadata-run" type="primary" size="small" :loading="extractAuditing" :disabled="!extractedAuditConnId" @click="runExtractAndAudit">🚀 拉取元数据并执行文件审核</el-button>
                     </div>
                   </div>
                   <div style="color:#909399;font-size:13px;margin:8px 0">自动从选择的 SIT/UAT 测试库中提取当前最新表、索引、视图 DDL 元数据，拼接生成完整的 .sql 描述文件，并自动提交文件审核引擎进行规则评价。</div>
@@ -654,7 +654,7 @@
                   </div>
                   <!-- 慢SQL扫描任务多维筛选工具栏 -->
                   <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:16px;background:var(--bg-subtle,rgba(255,255,255,0.03));padding:12px 14px;border-radius:8px;border:1px solid var(--border-color,#334155)">
-                    <el-select v-model="scanTaskFilters.connection_id" placeholder="数据库实例" clearable filterable size="small" style="width:200px" @change="scanTaskQuery">
+                    <el-select data-testid="scan-instance-select" v-model="scanTaskFilters.connection_id" placeholder="数据库实例" clearable filterable size="small" style="width:200px" @change="scanTaskQuery">
                       <el-option v-for="c in savedConnections" :key="c.id" :value="c.id" :label="c.name"></el-option>
                     </el-select>
                     <el-input v-model="scanTaskFilters.db_name" placeholder="目标库名" clearable size="small" style="width:140px" @keyup.enter="scanTaskQuery" @clear="scanTaskQuery"></el-input>
@@ -663,7 +663,7 @@
                     </el-input>
                     <el-date-picker v-model="scanTaskFilters.date_from" type="date" value-format="YYYY-MM-DD" placeholder="开始日期" size="small" style="width:140px" @change="scanTaskQuery"></el-date-picker>
                     <el-date-picker v-model="scanTaskFilters.date_to" type="date" value-format="YYYY-MM-DD" placeholder="结束日期" size="small" style="width:140px" @change="scanTaskQuery"></el-date-picker>
-                    <el-button type="primary" size="small" @click="scanTaskQuery">查询</el-button>
+                    <el-button data-testid="scan-query" type="primary" size="small" @click="scanTaskQuery">查询</el-button>
                     <el-button size="small" @click="resetScanTaskFilters">重置</el-button>
                   </div>
                   <el-table :data="scanTasks" v-loading="scanTaskLoading" stripe class="w-full" @selection-change="onTaskSelectChange">
@@ -1091,9 +1091,9 @@
               <div class="card-head">
                 <div class="page-card-title mb0">实例管理</div>
                 <div style="display:flex; gap:8px" v-if="canManageInstances">
-                  <el-button v-if="isAdmin" type="warning" size="small" @click="openZkConfig">ZK发现配置</el-button>
+                  <el-button data-testid="instance-zk-config" v-if="isAdmin" type="warning" size="small" @click="openZkConfig">ZK发现配置</el-button>
                   <el-button type="success" size="small" @click="openZkDiscovery">从 ZK 自动发现</el-button>
-                  <el-button type="primary" size="small" @click="openNewConn">+ 新建连接</el-button>
+                  <el-button data-testid="instance-create" type="primary" size="small" @click="openNewConn">+ 新建连接</el-button>
                 </div>
               </div>
               <!-- v1.6.1.1：实例管理三维筛选 + 客户端分页（设计 DESIGN-v1.6.1.1 §2） -->
@@ -1146,12 +1146,12 @@
           <!-- 新建/编辑连接抽屉 -->
           <el-drawer v-model="connDrawer" :title="connEditMode?'编辑连接':'新建连接'" size="440px">
             <el-form label-position="top">
-              <el-form-item label="连接名称"><el-input v-model="connForm.name"></el-input></el-form-item>
-              <el-form-item label="主机地址"><el-input v-model="connForm.host"></el-input></el-form-item>
+              <el-form-item label="连接名称"><el-input data-testid="connection-name" v-model="connForm.name"></el-input></el-form-item>
+              <el-form-item label="主机地址"><el-input data-testid="connection-host" v-model="connForm.host"></el-input></el-form-item>
               <el-form-item label="端口"><el-input-number v-model="connForm.port" :min="1"></el-input-number></el-form-item>
-              <el-form-item label="用户名"><el-input v-model="connForm.username"></el-input></el-form-item>
-              <el-form-item label="密码"><el-input v-model="connForm.password" type="password" show-password></el-input></el-form-item>
-              <el-form-item label="默认库"><el-input v-model="connForm.database"></el-input></el-form-item>
+              <el-form-item label="用户名"><el-input data-testid="connection-username" v-model="connForm.username"></el-input></el-form-item>
+              <el-form-item label="密码"><el-input data-testid="connection-password" v-model="connForm.password" type="password" show-password></el-input></el-form-item>
+              <el-form-item label="默认库"><el-input data-testid="connection-database" v-model="connForm.database"></el-input></el-form-item>
               <el-form-item label="描述"><el-input v-model="connForm.description" type="textarea" :rows="2" placeholder="可选，描述信息"></el-input></el-form-item>
               <!-- V1.5.1 F5：ZK 管控面信息（只读，仅编辑态展示） -->
               <el-form-item v-if="connEditMode&&connZkInfo.zk_instance_kind" label="ZK 管控面信息">
@@ -1191,7 +1191,7 @@
             </el-form>
             <template #footer>
               <el-button @click="testConn" :loading="connTesting">测试连接</el-button>
-              <el-button type="primary" @click="saveConn">{{ connEditMode?'更新':'保存' }}</el-button>
+              <el-button data-testid="connection-save" type="primary" @click="saveConn">{{ connEditMode?'更新':'保存' }}</el-button>
             </template>
           </el-drawer>
 
@@ -1206,10 +1206,10 @@
               <div class="card-head" style="flex-wrap:wrap;gap:12px">
                 <div class="page-card-title mb0">数据库上线检查</div>
                 <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-                  <el-select v-model="schemaCheckConnId" placeholder="选择实例" filterable size="small" style="width:220px">
+                  <el-select data-testid="schema-check-instance-select" v-model="schemaCheckConnId" placeholder="选择实例" filterable size="small" style="width:220px">
                     <el-option v-for="c in savedConnections" :key="c.id" :label="c.name+' ('+c.host+':'+c.port+')'" :value="c.id"></el-option>
                   </el-select>
-                  <el-button type="primary" size="small" :loading="schemaCheckLoading" :disabled="!schemaCheckConnId" @click="runSchemaCheck">执行上线检查</el-button>
+                  <el-button data-testid="schema-check-run" type="primary" size="small" :loading="schemaCheckLoading" :disabled="!schemaCheckConnId" @click="runSchemaCheck">执行上线检查</el-button>
                 </div>
               </div>
               <div style="color:#909399;font-size:13px;margin:8px 0">根据 12 项上线规范检查规则，针对已连接数据库进行建表合规性及设计隐患扫描。</div>
@@ -1414,12 +1414,12 @@
                   <div class="card-head">
                     <div class="page-card-title mb0">大表治理</div>
                     <div>
-                      <el-select v-model="currentConnectionId" placeholder="选择实例" filterable size="small" class="w-200" style="margin-right:8px">
+                      <el-select data-testid="bigtable-instance-select" v-model="currentConnectionId" placeholder="选择实例" filterable size="small" class="w-200" style="margin-right:8px">
                         <el-option v-for="c in savedConnections" :key="c.id" :value="c.id" :label="c.name + ' (' + c.host + ':' + c.port + ')'">
                           <span style="display:flex;align-items:center;gap:6px"><span :style="{color: c.active ? '#16a34a' : '#94a3b8'}">●</span><span>{{ c.name }} ({{ c.host }}:{{ c.port }})</span></span>
                         </el-option>
                       </el-select>
-                      <el-button size="small" @click="loadBigtable">刷新清单</el-button>
+                      <el-button data-testid="bigtable-refresh" size="small" @click="loadBigtable">刷新清单</el-button>
                       <el-button v-if="canManageInstances" type="primary" size="small" :loading="bigtableCollecting" @click="collectBigtable">采集大表清单</el-button>
                     </div>
                   </div>
