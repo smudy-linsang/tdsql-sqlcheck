@@ -368,6 +368,59 @@ class ConnectionRegistry:
         finally:
             conn.close()
 
+    def list_connection_options(self) -> list[dict]:
+        """已保存连接精简选项列表（供全平台下拉框使用，最小SQL列投影，仅含8个核心展示字段）"""
+        ensure_db()
+        conn = _get_connection()
+        try:
+            sql = """
+                SELECT id, name, host, port, `database`, is_default,
+                       is_distributed, detected_instance_type, zk_instance_kind,
+                       instance_type_locked, instance_type_locked_value
+                FROM tdsql_connections
+                ORDER BY is_default DESC, name ASC, created_at ASC
+            """
+            rows = conn.execute(sql).fetchall()
+            result = []
+            with self._lock:
+                active_ids = set(self._pools.keys())
+            for r in rows:
+                d = dict(r)
+                declared = "distributed" if int(d.get("is_distributed", 1) or 0) == 1 else "centralized"
+                detected = d.get("detected_instance_type") or None
+                if detected not in ("distributed", "centralized"):
+                    detected = None
+                zk_kind = (d.get("zk_instance_kind") or "").strip()
+                zk_type = {"noshard": "centralized",
+                           "groupshard": "distributed"}.get(zk_kind)
+                locked_flag = int(d.get("instance_type_locked", 0) or 0) == 1
+                locked_value = (d.get("instance_type_locked_value") or "").strip()
+                if locked_value not in ("distributed", "centralized"):
+                    locked_value = ""
+
+                if locked_flag and locked_value:
+                    effective = locked_value
+                else:
+                    candidates = [("probed", detected), ("zk", zk_type),
+                                  ("declared", declared)]
+                    available = [(s, v) for s, v in candidates if v is not None]
+                    dist = [(s, v) for s, v in available if v == "distributed"]
+                    _, effective = dist[0] if dist else (available[0] if available else ("declared", "distributed"))
+
+                result.append({
+                    "id": d["id"],
+                    "name": d.get("name") or f"{d['host']}:{d['port']}",
+                    "host": d["host"],
+                    "port": d["port"],
+                    "database": d.get("database") or "",
+                    "effective_instance_type": effective,
+                    "is_default": bool(d.get("is_default")),
+                    "active": d["id"] in active_ids,
+                })
+            return result
+        finally:
+            conn.close()
+
     def list_saved(self) -> list[dict]:
         """已保存连接列表（密码脱敏）"""
         ensure_db()
@@ -386,7 +439,9 @@ class ConnectionRegistry:
             for r in rows:
                 d = dict(r)
                 d.pop("password_encrypted", None)
+                d.pop("monitor_password_encrypted", None)
                 d["password"] = "***"
+                d["monitor_password"] = "***" if d.get("monitor_user") else ""
                 d["active"] = d["id"] in active_ids
                 # V1.4 门禁字段：未配置走系统默认（0 / -1）并标记 gate_is_default
                 gate_err = d.pop("gate_max_error", None)

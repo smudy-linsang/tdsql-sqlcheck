@@ -59,8 +59,30 @@ class SlowQueryFetchRequest(BaseModel):
     poll_interval: float = Field(1.0, description="processlist轮询间隔(秒)，仅processlist模式有效，默认1秒")
 
 
+class TestConnectionRequest(BaseModel):
+    host: Optional[str] = None
+    port: int = 3306
+    user: Optional[str] = None
+    username: Optional[str] = None
+    password: Optional[str] = None
+    database: Optional[str] = None
+    monitor_host: Optional[str] = None
+    monitor_port: int = 15001
+    monitor_user: Optional[str] = None
+    monitor_password: Optional[str] = None
+    monitor_db: str = "tdsqlpcloud_monitor"
+
+
 def _operator(request: Request) -> str:
     return getattr(request.state, "username", "anonymous")
+
+
+def _require_instance_manager(request: Request) -> str:
+    """端点级校验：仅限 admin 与 dba 执行实例写操作与探测"""
+    role = getattr(request.state, "role", None) or "guest"
+    if role not in ("admin", "dba"):
+        raise HTTPException(status_code=403, detail="该操作仅限系统管理员或数据库管理员执行")
+    return getattr(request.state, "username", "unknown")
 
 
 # V1.0 兼容测试席位: 存量测试通过 tdsql_manage._pool = <mock> 注入连接池。
@@ -79,7 +101,7 @@ def _get_pool(connection_id: Optional[str] = None):
             status_code=400,
             detail="未连接TDSQL实例，请先调用 /api/v1/tdsql/connect 或指定有效的 connection_id")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"连接失败: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"未连接TDSQL实例: {str(e)}")
 
 
 @router.post("/connect", summary="连接TDSQL实例")
@@ -90,6 +112,7 @@ def connect_tdsql(request: TDSQLConnectRequest, http_request: Request):
     连接成功后，不带 connection_id 的API调用将默认使用此连接。
     如需长期管理多个实例，请使用 POST /connections 保存配置后按ID连接。
     """
+    _require_instance_manager(http_request)
     try:
         from backend.services.tdsql_connector import TDSQLConnectionConfig
         config = TDSQLConnectionConfig(
@@ -115,13 +138,14 @@ def connect_tdsql(request: TDSQLConnectRequest, http_request: Request):
 
 
 @router.post("/connect-from-config", summary="使用配置文件连接TDSQL")
-def connect_from_config(config_path: Optional[str] = None):
+def connect_from_config(http_request: Request, config_path: Optional[str] = None):
     """
     使用环境变量或配置文件中的参数连接TDSQL（注册为 adhoc 连接）。
 
     优先级: 环境变量 > 配置文件 > 默认值
     配置文件路径: 项目根目录/config/tdsql.json
     """
+    _require_instance_manager(http_request)
     try:
         from backend.services.tdsql_connector import TDSQLConnectionConfig
         config_data = load_tdsql_config_from_file(config_path)
@@ -159,35 +183,29 @@ def connect_from_config(config_path: Optional[str] = None):
         raise HTTPException(status_code=500, detail=f"连接失败: {str(e)}")
 
 
-@router.get("/test-connection", summary="测试TDSQL连接")
 @router.post("/test-connection", summary="测试TDSQL连接")
-def test_connection(host: Optional[str] = None, port: int = 3306,
-                          user: Optional[str] = None, username: Optional[str] = None,
-                          password: Optional[str] = None,
-                          database: Optional[str] = None,
-                          monitor_host: Optional[str] = None, monitor_port: int = 15001,
-                          monitor_user: Optional[str] = None, monitor_password: Optional[str] = None,
-                          monitor_db: str = "tdsqlpcloud_monitor"):
+def test_connection(body: TestConnectionRequest, http_request: Request):
     """
     测试TDSQL连接可用性（不注册连接）。
 
-    可通过参数指定连接信息，也可使用环境变量/配置文件中的默认配置。
+    可通过 JSON Body 参数指定连接信息，也可使用环境变量/配置文件中的默认配置。
     返回连接延迟和服务器版本信息。
     """
+    _require_instance_manager(http_request)
     try:
         from backend.services.tdsql_connector import TDSQLConnectionPool, TDSQLConnectionConfig
 
         # 与保存连接接口保持字段一致；user 保留为既有调用方的兼容别名。
-        user = user or username
+        user = body.user or body.username
 
         # 优先使用传入参数，其次使用配置
-        if host and user:
+        if body.host and user:
             config = TDSQLConnectionConfig(
-                host=host, port=port, user=user,
-                password=password or "", database=database or "",
-                monitor_host=monitor_host or "", monitor_port=monitor_port,
-                monitor_user=monitor_user or "", monitor_password=monitor_password or "",
-                monitor_db=monitor_db or "tdsqlpcloud_monitor"
+                host=body.host, port=body.port, user=user,
+                password=body.password or "", database=body.database or "",
+                monitor_host=body.monitor_host or "", monitor_port=body.monitor_port,
+                monitor_user=body.monitor_user or "", monitor_password=body.monitor_password or "",
+                monitor_db=body.monitor_db or "tdsqlpcloud_monitor"
             )
         else:
             config_data = TDSQL_CONFIG if TDSQL_CONFIG.get("host") else load_tdsql_config_from_file()
@@ -291,8 +309,9 @@ def test_connection(host: Optional[str] = None, port: int = 3306,
 
 
 @router.post("/disconnect", summary="断开TDSQL连接")
-def disconnect_tdsql(connection_id: Optional[str] = None):
+def disconnect_tdsql(http_request: Request, connection_id: Optional[str] = None):
     """断开指定连接；不指定 connection_id 时断开全部活跃连接。"""
+    _require_instance_manager(http_request)
     count = registry.disconnect(connection_id)
     return {"message": "已断开连接", "disconnected": count}
 
@@ -419,7 +438,7 @@ def fetch_slow_queries(request: SlowQueryFetchRequest, http_request: Request):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=400, detail=f"未连接TDSQL实例或连接失败: {str(e)}")
 
 
 @router.get("/check/charset", summary="字符集一致性检查")
@@ -678,6 +697,20 @@ def delete_scan_schedule(schedule_id: int):
 # ── 多连接配置管理（V2.0：SQLite加密存储） ─────────────────
 
 
+@router.get("/connections/options", summary="获取实例下拉选择精简列表（全角色可用）")
+def get_connection_options():
+    """
+    供全平台业务模块下拉框使用的精简实例列表。
+    仅返回 8 个核心字段（id, name, host, port, database, effective_instance_type, is_default, active）。
+    """
+    options = registry.list_connection_options()
+    default_id = next((c["id"] for c in options if c.get("is_default")), None)
+    return {
+        "connections": options,
+        "default": default_id,
+    }
+
+
 @router.get("/connections", summary="获取所有连接配置")
 def get_connections():
     """
@@ -706,6 +739,7 @@ def save_connection(request: TDSQLConnectRequest, http_request: Request):
     自动化运维按原 ID 回查/删除会得到 404，幂等登记契约被破坏。
     若 id 已被另一实例（host:port 不同）占用，返回 409。
     """
+    _require_instance_manager(http_request)
     if request.id:
         existing = registry.get_saved(request.id) or {}
         if existing and (existing.get("host") != request.host
@@ -753,6 +787,7 @@ def update_connection(conn_id: str, request: TDSQLConnectRequest, http_request: 
     """
     更新已存在的连接配置（所有字段均可修改，密码加密存储）。
     """
+    _require_instance_manager(http_request)
     saved = registry.get_saved(conn_id)
     if not saved:
         raise HTTPException(status_code=404, detail=f"连接配置不存在: {conn_id}")
@@ -799,9 +834,7 @@ def probe_instance_type(conn_id: str, http_request: Request):
     权限：admin / dba（写实例元数据，等同实例管理操作）。
     探测失败不返回 5xx——网络抖动/权限不足是正常业务分支，此时下沉至声明值。
     """
-    if getattr(http_request.state, "role", "") not in ("admin", "dba"):
-        raise HTTPException(status_code=403,
-                            detail={"detail": "仅管理员/DBA 可探测实例类型", "code": "E403"})
+    _require_instance_manager(http_request)
     saved = registry.get_saved(conn_id)
     if not saved:
         raise HTTPException(status_code=404,
@@ -885,9 +918,7 @@ def probe_diagnostics(conn_id: str, payload: dict, http_request: Request):
 
     权限：admin / dba。
     """
-    if getattr(http_request.state, "role", "") not in ("admin", "dba"):
-        raise HTTPException(status_code=403,
-                            detail={"detail": "仅管理员/DBA 可采集探测诊断", "code": "E403"})
+    _require_instance_manager(http_request)
     saved = registry.get_saved(conn_id)
     if not saved:
         raise HTTPException(status_code=404,
@@ -918,9 +949,10 @@ def probe_diagnostics(conn_id: str, payload: dict, http_request: Request):
 
 @router.post("/connections/{conn_id}/monitor-probe", summary="测试 monitordb 连通性")
 @router.get("/connections/{conn_id}/probe", summary="探针检测monitordb状态")
-def monitor_probe(conn_id: str):
+def monitor_probe(conn_id: str, request: Request):
     """探测该连接的 monitordb（15001/tdsqlpcloud_monitor）是否可用。
     仅返回连通性与列数，不回列名明细（避免信息泄露）。"""
+    _require_instance_manager(request)
     conn = _get_pool(conn_id)
     probe = conn.monitor_probe()
     return {
@@ -935,6 +967,7 @@ def monitor_probe(conn_id: str):
 @router.delete("/connections/{conn_id}", summary="删除连接配置")
 def delete_connection(conn_id: str, request: Request):
     """删除指定ID的连接配置（同时断开其活跃连接）"""
+    _require_instance_manager(request)
     if not registry.delete_saved(conn_id, operator=_operator(request)):
         raise HTTPException(status_code=404, detail=f"连接配置不存在: {conn_id}")
     return {"message": "连接配置已删除"}
@@ -942,18 +975,20 @@ def delete_connection(conn_id: str, request: Request):
 
 @router.post("/connections/{conn_id}/set-default", summary="设置默认连接")
 @router.post("/connections/{conn_id}/default", summary="设为默认连接")
-def set_default_connection(conn_id: str):
+def set_default_connection(conn_id: str, request: Request):
     """设置指定ID的连接为默认连接"""
+    _require_instance_manager(request)
     if not registry.set_default_saved(conn_id):
         raise HTTPException(status_code=404, detail=f"连接配置不存在: {conn_id}")
     return {"message": "默认连接已设置"}
 
 
 @router.post("/connections/{conn_id}/connect", summary="激活连接")
-def connect_by_saved_config(conn_id: str):
+def connect_by_saved_config(conn_id: str, request: Request):
     """
     使用已保存的连接配置建立连接（注册到连接注册表，ID即配置ID）。
     """
+    _require_instance_manager(request)
     saved = registry.get_saved(conn_id)
     if not saved:
         raise HTTPException(status_code=404, detail=f"连接配置不存在: {conn_id}")

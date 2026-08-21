@@ -116,8 +116,8 @@ class TestUAT44_TDSQLConnection:
 
     @pytest.mark.skipif(not MYSQL_AVAILABLE, reason=SKIP_REASON)
     def test_uat44_04_test_connection(self, client):
-        """测试连接测试接口（返回版本和延迟）"""
-        resp = client.get("/api/v1/tdsql/test-connection", params=TDSQL_TEST_CONFIG)
+        """测试连接测试接口（返回版本和延迟，V3.1升级为POST+JSON Body）"""
+        resp = client.post("/api/v1/tdsql/test-connection", json=TDSQL_TEST_CONFIG)
         assert resp.status_code == 200
         data = resp.json()
         assert data["status"] == "connected"

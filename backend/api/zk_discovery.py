@@ -149,6 +149,11 @@ def _require_admin(request: Request) -> None:
         raise HTTPException(status_code=403, detail="仅系统管理员可维护 ZK 发现配置")
 
 
+def _require_instance_manager(request: Request) -> None:
+    if getattr(request.state, "role", "") not in ("admin", "dba"):
+        raise HTTPException(status_code=403, detail="仅系统管理员或数据库管理员可执行 ZK 发现与导入")
+
+
 def _is_enabled(value: str | None) -> bool:
     return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
 
@@ -280,6 +285,7 @@ def _load_preview(body: ZKImportCommitRequest, owner: str) -> tuple[dict, list[d
 @router.post("", response_model=ZKDiscoverResponse)
 def discover_instances(request: Request):
     """基于部署端配置执行真实发现，失败时明确返回 503。"""
+    _require_instance_manager(request)
     try:
         config = _read_deployment_config()
         logger.info(
@@ -340,6 +346,7 @@ def discover_instances(request: Request):
 @router.post("/import-preview")
 def create_import_preview(body: ZKImportPreviewRequest, request: Request):
     """使用操作者本次输入的业务/MonitorDB 凭据生成只读导入预览。"""
+    _require_instance_manager(request)
     owner = _operator(request)
     instances = _load_session_items(body.discovery_id, body.item_tokens, owner)
     business = ImportCredentials(body.business.username.strip(), body.business.password)
@@ -398,8 +405,7 @@ class ZKNameDiagnoseRequest(BaseModel):
 @router.post("/name-diagnose")
 def name_diagnose(body: ZKNameDiagnoseRequest, request: Request):
     """对若干实例跑名称解析诊断（admin/dba），用于固化 name_query_hint。响应不含口令。"""
-    if getattr(request.state, "role", "") not in ("admin", "dba"):
-        raise HTTPException(status_code=403, detail={"detail": "仅管理员/DBA 可执行名称解析诊断", "code": "E403"})
+    _require_instance_manager(request)
     from backend.services.zk_name_resolution_service import zk_name_resolution_service
 
     monitor = body.monitor
@@ -448,6 +454,7 @@ def name_diagnose(body: ZKNameDiagnoseRequest, request: Request):
 @router.post("/import-commit")
 def commit_import_preview(body: ZKImportCommitRequest, request: Request):
     """一次性提交已审核的候选连接，失败时不产生部分连接。"""
+    _require_instance_manager(request)
     owner = _operator(request)
     preview, selected = _load_preview(body, owner)
     preview_total = len(preview["rows"])

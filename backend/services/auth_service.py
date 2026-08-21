@@ -382,6 +382,11 @@ _PATH_TO_MENU = {
     "/api/v1/gitlab/audit": "file-audit",
 }
 
+# 独立于特定菜单的已认证只读端点（已登录任意有效角色均可读取，但必须携带有效Token，非 PUBLIC_PATHS）
+_MENU_INDEPENDENT_READ_ENDPOINTS = {
+    ("GET", "/api/v1/tdsql/connections/options"),
+}
+
 def check_permission(role: str, method: str, path: str) -> bool:
     """RBAC 权限判定（含role_permissions二级校验）"""
     method = method.upper()
@@ -399,6 +404,10 @@ def check_permission(role: str, method: str, path: str) -> bool:
 
     # 自助操作所有角色可用
     if method not in _READ_METHODS and any(path.startswith(p) for p in _SELF_SERVICE_PREFIXES):
+        return True
+
+    # 独立于菜单的已认证只读端点（如全平台下拉选择用的实例精简数据）
+    if (method, path) in _MENU_INDEPENDENT_READ_ENDPOINTS:
         return True
 
     # 第一级：原有角色权限检查
