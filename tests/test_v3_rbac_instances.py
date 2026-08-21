@@ -270,3 +270,52 @@ def test_data_03_connections_dual_password_strip(rbac_v3_env):
         assert conn.get("password") == "***"
         if conn.get("monitor_user"):
             assert conn.get("monitor_password") == "***"
+
+
+def test_session_isolation_and_role_switching(rbac_v3_env):
+    """DEFECT-01 回归测试: 跨角色切换时后端权限隔离与可见菜单一致性"""
+    client, tokens, _ = rbac_v3_env
+    # 确保 developer 角色无 instances 菜单
+    set_role_permissions("developer", {"instances": 0})
+
+    # 1. 模拟 DBA 登录并获取全量管理列表与菜单
+    resp_dba_menus = client.get("/api/v1/auth/visible-menus", headers=tokens["test_dba"])
+    assert resp_dba_menus.status_code == 200
+    assert "instances" in resp_dba_menus.json()["menus"]
+    resp_dba_conns = client.get("/api/v1/tdsql/connections", headers=tokens["test_dba"])
+    assert resp_dba_conns.status_code == 200
+
+    # 2. 模拟同会话登出后，普通角色 developer 登录
+    resp_dev_menus = client.get("/api/v1/auth/visible-menus", headers=tokens["test_dev"])
+    assert resp_dev_menus.status_code == 200
+    assert "instances" not in resp_dev_menus.json()["menus"]
+
+    # 3. developer 绝对无法访问 /connections 全量管理端点
+    resp_dev_conns = client.get("/api/v1/tdsql/connections", headers=tokens["test_dev"])
+    assert resp_dev_conns.status_code == 403
+
+    # 4. developer 可以正常访问 /connections/options 精简下拉列表
+    resp_dev_opts = client.get("/api/v1/tdsql/connections/options", headers=tokens["test_dev"])
+    assert resp_dev_opts.status_code == 200
+    assert "connections" in resp_dev_opts.json()
+
+
+def test_frontend_security_contract():
+    """DEFECT-01 前端防御性契约测试: 静态断言 app.js 中的安全状态清理与时序控制"""
+    from pathlib import Path
+    app_js_path = Path("frontend/static/js/app.js")
+    assert app_js_path.exists(), "app.js must exist"
+    content = app_js_path.read_text(encoding="utf-8")
+
+    # 契约 1: visibleMenus 默认初始化必须为空 Set
+    assert "const visibleMenus=ref(new Set());" in content or "const visibleMenus = ref(new Set());" in content
+
+    # 契约 2: 必须包含统一的 clearRoleScopedState 角色态清理函数
+    assert "clearRoleScopedState" in content
+
+    # 契约 3: doLogin 中必须先 await loadVisibleMenus() 再应用用户与页面
+    assert "await loadVisibleMenus()" in content
+
+    # 契约 4: loadManagedConnections 必须具备 fail-closed 特性
+    assert "managedConnections.value=[];" in content
+

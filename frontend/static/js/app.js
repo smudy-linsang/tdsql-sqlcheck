@@ -373,7 +373,8 @@ const app=createApp({
     const permsLoading=ref(false);
     // V1.6.0.1: 原始慢日志功能整体下线；保留代码仅供后续独立评审后恢复。
     const rawSlowlogEnabled=false;
-    const visibleMenus=ref(new Set(['dashboard','audit-sql','file-audit','rules','slow-tasks','slow-records','explain','instances','bigtable','deep-diag','deep-diag-cluster','deep-diag-daily','deep-diag-index','deep-diag-diff','deep-diag-emergency','deep-diag-sqlstats','deep-diag-gateway','deep-diag-ppt','deep-diag-toolkit','projects','rulesets','gate','monitor','inspection','sys-users','sys-retention','sys-auditlog','sys-info','sys-roles','sys-perms']));
+    // V1.6.1.8 DEFECT-01: visibleMenus 默认初始化为空集合（未完成鉴权与菜单读取前不渲染任何业务菜单）
+    const visibleMenus=ref(new Set());
     // V3.0: 表名中文映射
     const tableNameLabel=(t)=>({slow_queries:'慢SQL记录',audit_history:'审核历史',scan_tasks:'扫描任务',slow_log_events:'原始慢日志事件',slow_log_collection_runs:'原始慢日志运行记录',alerts:'告警记录',operation_logs:'操作日志',gate_audit_logs:'门禁审计日志',fingerprint_stats:'SQL指纹统计'}[t]||t);
     // V3.0: 监控指标中文映射
@@ -403,8 +404,85 @@ const app=createApp({
     const categoryOrder=[{key:'naming',label:'命名规范'},{key:'ddl',label:'DDL规范'},{key:'dml',label:'DML规范'},{key:'index',label:'索引规范'},{key:'distributed',label:'分布式规范'},{key:'security',label:'安全规范'},{key:'performance',label:'性能规范'},{key:'transaction',label:'事务规范'},{key:'oracle_compat',label:'Oracle迁移兼容'}];
     const filteredCategories=computed(()=>{if(!ruleSearch.value)return categoryOrder;const q=ruleSearch.value.toLowerCase();return categoryOrder.filter(c=>{const rs=rulesByCategory.value[c.key]||[];return rs.some(r=>r.rule_id.toLowerCase().includes(q)||r.description.toLowerCase().includes(q))})});
     const applyUser=(u)=>{authState.user=u;authState.role=u.role};
-    const doLogin=async()=>{if(!loginForm.username||!loginForm.password){loginError.value='请输入用户名和口令';return}loginLoading.value=true;loginError.value='';try{const resp=await fetch(`${API_BASE}/api/v1/auth/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:loginForm.username,password:loginForm.password})});const data=await resp.json();if(!resp.ok){loginError.value=data.detail||'登录失败';return}setToken(data.token);authState.token=data.token;applyUser(data.user);loginForm.password='';if(data.user.must_change_password){ElementPlus.ElMessage.warning('首次登录请修改口令');pwdDialog.visible=true;pwdDialog.forced=true}else{await loadAll()}}catch(e){loginError.value='登录请求失败: '+e.message}finally{loginLoading.value=false}};
-    const doLogout=async()=>{try{await apiFetch(`${API_BASE}/api/v1/auth/logout`,{method:'POST'})}catch(e){}clearToken();authState.token='';authState.user=null;loginForm.username='';loginForm.password=''};
+    // V1.6.1.8 DEFECT-01: 角色态与高权限缓存彻底清理函数（跨角色切换会话隔离保障）
+    const clearRoleScopedState=()=>{
+      visibleMenus.value=new Set();
+      managedConnections.value=[];
+      connectionOptions.value=[];
+      currentPage.value='dashboard';
+      usersList.value=[];
+      usersTotal.value=0;
+      auditLogs.value=[];
+      auditLogsTotal.value=0;
+      rolesList.value=[];
+      permsMatrixData.value=[];
+      permsMenuList.value=[];
+      sysInfo.value=null;
+      retentionPolicies.value=[];
+      projects.value=[];
+      projectsList.value=[];
+      rulesets.value=[];
+      gateRules.value=null;
+      gateStrategies.value=[];
+      monitorAlerts.value=[];
+      monitorRules.value=[];
+      inspectionTasks.value=[];
+      inspectionResults.value=[];
+      scanTasks.value=[];
+      scanTaskTotal.value=0;
+      slowList.value=[];
+      fileReports.value=[];
+      fileReportsTotal.value=0;
+      extractedReports.value=[];
+      extractedReportsTotal.value=0;
+      auditResult.value=null;
+      fileAuditResult.value=null;
+      extractedResult.value=null;
+      explainResult.value=null;
+      bigtableData.value=[];
+      connTestResult.value=null;
+      zkDiscovered.value=[];
+      zkImportRows.value=[];
+      gatewayReports.value=[];
+      pptDashboard.value=null;
+      toolkitScripts.value=[];
+      dailyCompareResult.value=null;
+    };
+    const doLogin=async()=>{
+      if(!loginForm.username||!loginForm.password){loginError.value='请输入用户名和口令';return}
+      loginLoading.value=true;
+      loginError.value='';
+      clearRoleScopedState();
+      try{
+        const resp=await fetch(`${API_BASE}/api/v1/auth/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:loginForm.username,password:loginForm.password})});
+        const data=await resp.json();
+        if(!resp.ok){loginError.value=data.detail||'登录失败';return}
+        setToken(data.token);
+        authState.token=data.token;
+        // 关键时序优化：先获取新角色可见菜单并规范化当前页面，再应用用户角色并加载数据，彻底杜绝跨角色切换瞬态闪现上一账号管理数据
+        await loadVisibleMenus();
+        normalizeCurrentPageByPermissions();
+        applyUser(data.user);
+        loginForm.password='';
+        if(data.user.must_change_password){
+          ElementPlus.ElMessage.warning('首次登录请修改口令');
+          pwdDialog.visible=true;
+          pwdDialog.forced=true;
+        }else{
+          await loadAll(true);
+        }
+      }catch(e){loginError.value='登录请求失败: '+e.message}
+      finally{loginLoading.value=false}
+    };
+    const doLogout=async()=>{
+      try{await apiFetch(`${API_BASE}/api/v1/auth/logout`,{method:'POST'})}catch(e){}
+      clearToken();
+      clearRoleScopedState();
+      authState.token='';
+      authState.user=null;
+      loginForm.username='';
+      loginForm.password='';
+    };
     const changePassword=async()=>{if(!pwdDialog.new_password){ElementPlus.ElMessage.warning('请输入新口令');return}pwdDialog.loading=true;try{const resp=await apiFetch(`${API_BASE}/api/v1/auth/change-password`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({old_password:pwdDialog.old_password,new_password:pwdDialog.new_password})});const data=await resp.json();if(!resp.ok){ElementPlus.ElMessage.error(data.detail||'修改失败');return}ElementPlus.ElMessage.success('口令修改成功，请重新登录');pwdDialog.visible=false;pwdDialog.forced=false;pwdDialog.old_password='';pwdDialog.new_password='';doLogout()}catch(e){ElementPlus.ElMessage.error('修改失败: '+e.message)}finally{pwdDialog.loading=false}};
     const checkSession=async()=>{try{const resp=await apiFetch(`${API_BASE}/api/v1/auth/me`);if(resp.ok){const u=await resp.json();applyUser(u);if(u.must_change_password){ElementPlus.ElMessage.warning('首次登录请修改口令');pwdDialog.visible=true;pwdDialog.forced=true}return true}}catch(e){}return false};
     const onUserCommand=(cmd)=>{if(cmd==='password'){pwdDialog.visible=true;pwdDialog.forced=false;pwdDialog.old_password='';pwdDialog.new_password=''}else if(cmd==='logout'){doLogout()}};
@@ -483,14 +561,22 @@ const app=createApp({
       }catch(e){}
     };
     const loadManagedConnections=async()=>{
+      if(!visibleMenus.value.has('instances')){
+        managedConnections.value=[];
+        return;
+      }
       connLoading.value=true;
       try{
         const resp=await apiFetch(`${API_BASE}/api/v1/tdsql/connections`);
         if(resp.ok){
           const d=await resp.json();
           managedConnections.value=d.connections||[];
+        }else{
+          managedConnections.value=[];
         }
-      }catch(e){}finally{
+      }catch(e){
+        managedConnections.value=[];
+      }finally{
         connLoading.value=false;
       }
     };
@@ -1539,24 +1625,46 @@ const app=createApp({
     const saveGateCustom=async()=>{if(!currentProjectId.value){ElementPlus.ElMessage.warning('请先选择项目');return}try{const resp=await apiFetch(`${API_BASE}/api/v1/gate/rules`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({project_id:currentProjectId.value,max_error_count:gateCustom.max_error_count,max_warning_count:gateCustom.max_warning_count})});if(resp.ok){ElementPlus.ElMessage.success('门禁规则已保存');gateCustom.visible=false;loadGateRules()}else{const d=await resp.json();ElementPlus.ElMessage.error(d.detail||'保存失败')}}catch(e){ElementPlus.ElMessage.error('保存失败: '+e.message)}};
     const openRetentionEdit=(row)=>{if(row){retentionEditMode.value=true;retentionDialog.form={table_name:row.table_name,retention_days:row.retention_days,enabled:!!row.enabled}}else{retentionEditMode.value=false;retentionDialog.form={table_name:'',retention_days:30,enabled:true}}retentionDialog.visible=true};
     const saveRetention=async()=>{if(!retentionDialog.form.table_name){ElementPlus.ElMessage.warning('请输入表名');return}retentionDialog.loading=true;try{const resp=await apiFetch(`${API_BASE}/api/v1/admin/retention`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(retentionDialog.form)});if(resp.ok){ElementPlus.ElMessage.success('保留策略已保存');retentionDialog.visible=false;loadRetention()}else{const d=await resp.json();ElementPlus.ElMessage.error(d.detail||'保存失败')}}catch(e){ElementPlus.ElMessage.error('保存失败: '+e.message)}finally{retentionDialog.loading=false}};
-    const loadVisibleMenus=async()=>{try{const resp=await apiFetch(`${API_BASE}/api/v1/auth/visible-menus`);if(resp.ok){const d=await resp.json();visibleMenus.value=new Set(d.menus||[])}}catch(e){}};
-    const loadAll=async()=>{
-      await loadVisibleMenus();
+    const normalizeCurrentPageByPermissions=()=>{
+      const menuOrder=['dashboard','audit-sql','file-audit','schema-extractor-audit','rules','slow-tasks','slow-records','explain','instances','schema-check','bigtable','deep-diag','projects','rulesets','gate','monitor','inspection','sys-users','sys-roles','sys-perms','sys-auditlog','sys-retention','sys-info'];
+      if(!visibleMenus.value.has(currentPage.value)){
+        for(const m of menuOrder){
+          if(visibleMenus.value.has(m)){currentPage.value=m;return}
+        }
+        currentPage.value='dashboard';
+      }
+    };
+    const loadVisibleMenus=async()=>{
+      try{
+        const resp=await apiFetch(`${API_BASE}/api/v1/auth/visible-menus`);
+        if(resp.ok){
+          const d=await resp.json();
+          visibleMenus.value=new Set(d.menus||[]);
+        }else{
+          visibleMenus.value=new Set();
+        }
+      }catch(e){
+        visibleMenus.value=new Set();
+      }
+    };
+    const loadAll=async(menusAlreadyLoaded=false)=>{
+      if(!menusAlreadyLoaded){
+        await loadVisibleMenus();
+      }
+      normalizeCurrentPageByPermissions();
       loadConnectionOptions();
       loadLogo();
       if(visibleMenus.value.has('dashboard')){loadDashboard();loadActiveAlerts();if(currentPage.value==='dashboard'){nextTick(renderTrendChart);setTimeout(renderTrendChart,150)}}
-      if(visibleMenus.value.has('instances')||currentPage.value==='instances')loadManagedConnections();
+      if(visibleMenus.value.has('instances')){
+        loadManagedConnections();
+      }else{
+        managedConnections.value=[];
+      }
       if(visibleMenus.value.has('rules'))loadRules();
       if(visibleMenus.value.has('slow-tasks'))loadScanTasks();
       if(visibleMenus.value.has('slow-records'))loadSlowList();
       if(rawSlowlogEnabled&&visibleMenus.value.has('slow-raw-log')){loadRawSources();loadRawRuns();loadRawEvents()}
       if(visibleMenus.value.has('projects'))loadProjects();
-      const menuOrder=['dashboard','sql-audit','file-audit','schema-extractor-audit','instances','slow-overview','slow-records','slow-tasks','bigtable','deep-diag','projects','rulesets','gate','sys-users','sys-roles','sys-perms','sys-auditlog','sys-retention','sys-info'];
-      if(!visibleMenus.value.has(currentPage.value)){
-        for(const m of menuOrder){
-          if(visibleMenus.value.has(m)){currentPage.value=m;break}
-        }
-      }
     };
     // ═══ V1.3 扫描结果纵向对比 ═══
     const cmpResetResult=()=>{cmpState.result=null;cmpState.visible=false};
@@ -1720,8 +1828,47 @@ const app=createApp({
       return `${ch.old} → ${ch.new}${pct}`;
     };
 
-    onMounted(async()=>{onUnauthorized=()=>{authState.token='';authState.user=null};const ok=await checkSession();if(ok&&!pwdDialog.forced)await loadAll()});
-    watch(currentPage,(v)=>{if(v==='dashboard')nextTick(renderTrendChart);if(v==='instances')loadSavedConnections();if(v==='schema-check')onSchemaCheckTabChange(schemaCheckTab.value);if(v==='rules'&&rulesList.value.length===0)loadRules();if(v==='file-audit'&&fileAuditTab.value==='reports')loadFileReports();if(v==='schema-extractor-audit'&&extractedTab.value==='history')loadExtractedReports();if(v==='slow-tasks')onSlowTasksTabChange(slowTasksTab.value);if(v==='bigtable')onBigtableTabChange(bigtableTab.value);if(v==='slow-records')loadSlowList();if(v==='slow-raw-log'&&rawSlowlogEnabled){loadRawSources();loadRawRuns();loadRawEvents()};if(v==='sys-users')loadUsers();if(v==='projects')loadProjectsList();if(v==='rulesets')loadRulesets();if(v==='gate'){loadGateStrategies();loadGateRules()};if(v==='monitor'){loadMonitorAlerts();loadMonitorRules()};if(v==='inspection')loadInspectionTasks();if(v==='sys-auditlog')loadAuditLogs();if(v==='sys-retention')loadRetention();if(v==='sys-info')loadSysInfo();if(v==='sys-roles')loadRoles();if(v==='sys-perms')loadPerms();if(v==='deep-diag'){const subtabs=[{perm:'deep-diag-cluster',tab:'cluster'},{perm:'deep-diag-daily',tab:'daily_inspect'},{perm:'deep-diag-index',tab:'index'},{perm:'deep-diag-diff',tab:'diff'},{perm:'deep-diag-emergency',tab:'emergency'},{perm:'deep-diag-sqlstats',tab:'sqlstats'},{perm:'deep-diag-gateway',tab:'gateway_log'},{perm:'deep-diag-ppt',tab:'ppt_report'},{perm:'deep-diag-toolkit',tab:'toolkit'}];for(const t of subtabs){if(visibleMenus.value.has(t.perm)){deepTab.value=t.tab;break}}if(deepTab.value==='gateway_log')loadGatewayReports();if(deepTab.value==='ppt_report')loadPptDashboard();if(deepTab.value==='toolkit')loadToolkitScripts()}});
+    onMounted(async()=>{
+      onUnauthorized=()=>{
+        clearRoleScopedState();
+        authState.token='';
+        authState.user=null;
+      };
+      const ok=await checkSession();
+      if(ok&&!pwdDialog.forced)await loadAll();
+    });
+    watch(currentPage,(v)=>{
+      if(v==='dashboard')nextTick(renderTrendChart);
+      if(v==='instances'&&visibleMenus.value.has('instances'))loadSavedConnections();
+      if(v==='schema-check')onSchemaCheckTabChange(schemaCheckTab.value);
+      if(v==='rules'&&rulesList.value.length===0)loadRules();
+      if(v==='file-audit'&&fileAuditTab.value==='reports')loadFileReports();
+      if(v==='schema-extractor-audit'&&extractedTab.value==='history')loadExtractedReports();
+      if(v==='slow-tasks')onSlowTasksTabChange(slowTasksTab.value);
+      if(v==='bigtable')onBigtableTabChange(bigtableTab.value);
+      if(v==='slow-records')loadSlowList();
+      if(v==='slow-raw-log'&&rawSlowlogEnabled){loadRawSources();loadRawRuns();loadRawEvents()};
+      if(v==='sys-users')loadUsers();
+      if(v==='projects')loadProjectsList();
+      if(v==='rulesets')loadRulesets();
+      if(v==='gate'){loadGateStrategies();loadGateRules()};
+      if(v==='monitor'){loadMonitorAlerts();loadMonitorRules()};
+      if(v==='inspection')loadInspectionTasks();
+      if(v==='sys-auditlog')loadAuditLogs();
+      if(v==='sys-retention')loadRetention();
+      if(v==='sys-info')loadSysInfo();
+      if(v==='sys-roles')loadRoles();
+      if(v==='sys-perms')loadPerms();
+      if(v==='deep-diag'){
+        const subtabs=[{perm:'deep-diag-cluster',tab:'cluster'},{perm:'deep-diag-daily',tab:'daily_inspect'},{perm:'deep-diag-index',tab:'index'},{perm:'deep-diag-diff',tab:'diff'},{perm:'deep-diag-emergency',tab:'emergency'},{perm:'deep-diag-sqlstats',tab:'sqlstats'},{perm:'deep-diag-gateway',tab:'gateway_log'},{perm:'deep-diag-ppt',tab:'ppt_report'},{perm:'deep-diag-toolkit',tab:'toolkit'}];
+        for(const t of subtabs){
+          if(visibleMenus.value.has(t.perm)){deepTab.value=t.tab;break}
+        }
+        if(deepTab.value==='gateway_log')loadGatewayReports();
+        if(deepTab.value==='ppt_report')loadPptDashboard();
+        if(deepTab.value==='toolkit')loadToolkitScripts();
+      }
+    });
     watch(slowTasksTab,(v)=>onSlowTasksTabChange(v));
     watch(bigtableTab,(v)=>onBigtableTabChange(v));
     watch(fileAuditTab,(v)=>{if(v==='reports')loadFileReports()});
