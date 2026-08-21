@@ -17,9 +17,24 @@ def rbac_v3_env():
     import os
     os.environ["AUTH_ENABLED"] = "true"
     ensure_db()
+
+    conn = _get_connection()
+    # 1. 深度备份当前 DB 中的真实状态（用于 teardown 100% 精确还原，绝不污染测试库）
+    orig_perm_rows = conn.execute("SELECT role_id, menu_key, visible FROM role_permissions").fetchall()
+    orig_permissions = [dict(r) for r in orig_perm_rows]
+
+    orig_admin = conn.execute(
+        "SELECT password_hash, salt, must_change_password, status FROM users WHERE username = 'admin'"
+    ).fetchone()
+    orig_admin_dict = dict(orig_admin) if orig_admin else None
+
+    orig_role_rows = conn.execute("SELECT role_id FROM roles").fetchall()
+    orig_role_ids = {r["role_id"] for r in orig_role_rows}
+    conn.close()
+
+    # 2. 设置测试 admin 凭据
     auth_service.ensure_bootstrap_admin()
     auth_service.reset_password("admin", STRONG_PW, operator="test")
-
     conn = _get_connection()
     conn.execute("UPDATE users SET must_change_password = 0 WHERE username = 'admin'")
     conn.commit()
@@ -31,19 +46,22 @@ def rbac_v3_env():
         ("test_custom", "custom_role"),
     ]
 
-    # 创建自定义角色
-    try:
-        from backend.services.auth_service import create_custom_role
-        create_custom_role("custom_role", "自定义角色")
-    except Exception:
-        pass
+    # 创建自定义角色（如果原先不存在）
+    if "custom_role" not in orig_role_ids:
+        try:
+            from backend.services.auth_service import create_custom_role
+            create_custom_role("custom_role", "自定义角色")
+        except Exception:
+            pass
 
     for name, role in test_roles:
         auth_service.delete_user(name, operator="test")
         auth_service.create_user(name, STRONG_PW, role, operator="test")
 
-    conn = _get_connection()
-    conn.execute("UPDATE users SET must_change_password = 0")
+    # 仅针对本测试创建的测试账号清零 must_change_password，绝不污染系统其他已有用户
+    conn.execute(
+        "UPDATE users SET must_change_password = 0 WHERE username IN ('test_dba', 'test_dev', 'test_aud', 'test_custom')"
+    )
     conn.commit()
     conn.close()
 
@@ -80,19 +98,65 @@ def rbac_v3_env():
         assert resp.status_code == 200, f"Login failed for {name}: {resp.text}"
         tokens[name] = {"Authorization": f"Bearer {resp.json()['token']}"}
 
-    yield client, tokens, test_conn_id
+    try:
+        yield client, tokens, test_conn_id
+    finally:
+        # 3. 彻底恢复与清理测试产生的副作用
+        # 3.1 清理测试连接
+        try:
+            registry.delete_saved(test_conn_id, operator="test")
+        except Exception:
+            pass
+        try:
+            registry.delete_saved("test_dba_created_conn", operator="test")
+        except Exception:
+            pass
 
-    try:
-        registry.delete_saved(test_conn_id, operator="test")
-    except Exception:
-        pass
-    try:
-        # 恢复所有内置角色在 role_permissions 表中的 instances 菜单默认权限为 1，杜绝跨测试套件污染共享测试库
-        for r in ("admin", "dba", "developer", "auditor"):
-            set_role_permissions(r, {"instances": 1})
-    except Exception:
-        pass
-    os.environ["AUTH_ENABLED"] = "false"
+        # 3.2 清理测试用户
+        for name, _ in test_roles:
+            try:
+                auth_service.delete_user(name, operator="test")
+            except Exception:
+                pass
+
+        # 3.3 清理自定义测试角色
+        if "custom_role" not in orig_role_ids:
+            try:
+                from backend.services.auth_service import delete_role
+                delete_role("custom_role")
+            except Exception:
+                pass
+
+        # 3.4 严格将 role_permissions 恢复至测试执行前状态
+        conn = _get_connection()
+        try:
+            if "custom_role" not in orig_role_ids:
+                conn.execute("DELETE FROM role_permissions WHERE role_id = 'custom_role'")
+            for row in orig_permissions:
+                conn.execute("""
+                    INSERT INTO role_permissions(role_id, menu_key, visible)
+                    VALUES (?, ?, ?)
+                    ON DUPLICATE KEY UPDATE visible = VALUES(visible)
+                """, (row["role_id"], row["menu_key"], row["visible"]))
+
+            # 3.5 恢复 admin 用户的原有口令/状态
+            if orig_admin_dict:
+                conn.execute("""
+                    UPDATE users SET password_hash = ?, salt = ?, must_change_password = ?, status = ?
+                    WHERE username = 'admin'
+                """, (
+                    orig_admin_dict["password_hash"],
+                    orig_admin_dict["salt"],
+                    orig_admin_dict["must_change_password"],
+                    orig_admin_dict["status"]
+                ))
+            conn.commit()
+        except Exception:
+            pass
+        finally:
+            conn.close()
+
+        os.environ["AUTH_ENABLED"] = "false"
 
 
 def test_rbac_01_anonymous_access(rbac_v3_env):
@@ -107,6 +171,9 @@ def test_rbac_01_anonymous_access(rbac_v3_env):
 def test_rbac_02_all_roles_read_options_without_menu(rbac_v3_env):
     """RBAC-02: 无论是否分配 instances 菜单，所有已认证角色均可访问 /connections/options"""
     client, tokens, _ = rbac_v3_env
+    conn = _get_connection()
+    orig = conn.execute("SELECT role_id, menu_key, visible FROM role_permissions WHERE menu_key = 'instances'").fetchall()
+    conn.close()
     try:
         # 剥夺 developer, auditor, custom_role 的 instances 菜单
         for role in ("developer", "auditor", "custom_role"):
@@ -119,13 +186,17 @@ def test_rbac_02_all_roles_read_options_without_menu(rbac_v3_env):
             assert "connections" in d
             assert len(d["connections"]) >= 1
     finally:
-        set_role_permissions("developer", {"instances": 1})
-        set_role_permissions("auditor", {"instances": 1})
+        for r in orig:
+            set_role_permissions(r["role_id"], {"instances": r["visible"]})
 
 
 def test_rbac_03_connections_menu_dependent(rbac_v3_env):
     """RBAC-03: /connections 全量管理列表依赖 instances 菜单"""
     client, tokens, _ = rbac_v3_env
+    conn = _get_connection()
+    orig = conn.execute("SELECT visible FROM role_permissions WHERE role_id = 'developer' AND menu_key = 'instances'").fetchone()
+    orig_val = orig["visible"] if orig else 1
+    conn.close()
     try:
         # 剥夺 developer 的 instances 菜单
         set_role_permissions("developer", {"instances": 0})
@@ -137,41 +208,48 @@ def test_rbac_03_connections_menu_dependent(rbac_v3_env):
         resp_allowed = client.get("/api/v1/tdsql/connections", headers=tokens["test_dev"])
         assert resp_allowed.status_code == 200
     finally:
-        set_role_permissions("developer", {"instances": 1})
+        set_role_permissions("developer", {"instances": orig_val})
 
 
 def test_rbac_04_non_manager_write_rejected(rbac_v3_env):
     """RBAC-04: 普通角色（即使拥有 instances 菜单）调用所有写操作均返回 403"""
     client, tokens, conn_id = rbac_v3_env
-    set_role_permissions("developer", {"instances": 1})
+    conn = _get_connection()
+    orig = conn.execute("SELECT visible FROM role_permissions WHERE role_id = 'developer' AND menu_key = 'instances'").fetchone()
+    orig_val = orig["visible"] if orig else 1
+    conn.close()
+    try:
+        set_role_permissions("developer", {"instances": 1})
 
-    # 新建连接
-    resp_create = client.post("/api/v1/tdsql/connections", headers=tokens["test_dev"], json={
-        "name": "dev_illegal", "host": "127.0.0.1", "port": 3306, "username": "u", "password": "p"
-    })
-    assert resp_create.status_code == 403
+        # 新建连接
+        resp_create = client.post("/api/v1/tdsql/connections", headers=tokens["test_dev"], json={
+            "name": "dev_illegal", "host": "127.0.0.1", "port": 3306, "username": "u", "password": "p"
+        })
+        assert resp_create.status_code == 403
 
-    # 更新连接
-    resp_update = client.put(f"/api/v1/tdsql/connections/{conn_id}", headers=tokens["test_dev"], json={
-        "name": "dev_illegal_mod", "host": "127.0.0.1", "port": 3306, "username": "u", "password": "p"
-    })
-    assert resp_update.status_code == 403
+        # 更新连接
+        resp_update = client.put(f"/api/v1/tdsql/connections/{conn_id}", headers=tokens["test_dev"], json={
+            "name": "dev_illegal_mod", "host": "127.0.0.1", "port": 3306, "username": "u", "password": "p"
+        })
+        assert resp_update.status_code == 403
 
-    # 删除连接
-    resp_delete = client.delete(f"/api/v1/tdsql/connections/{conn_id}", headers=tokens["test_dev"])
-    assert resp_delete.status_code == 403
+        # 删除连接
+        resp_delete = client.delete(f"/api/v1/tdsql/connections/{conn_id}", headers=tokens["test_dev"])
+        assert resp_delete.status_code == 403
 
-    # 设为默认
-    resp_default = client.post(f"/api/v1/tdsql/connections/{conn_id}/set-default", headers=tokens["test_dev"])
-    assert resp_default.status_code == 403
+        # 设为默认
+        resp_default = client.post(f"/api/v1/tdsql/connections/{conn_id}/set-default", headers=tokens["test_dev"])
+        assert resp_default.status_code == 403
 
-    # 显式激活
-    resp_connect = client.post(f"/api/v1/tdsql/connections/{conn_id}/connect", headers=tokens["test_dev"])
-    assert resp_connect.status_code == 403
+        # 显式激活
+        resp_connect = client.post(f"/api/v1/tdsql/connections/{conn_id}/connect", headers=tokens["test_dev"])
+        assert resp_connect.status_code == 403
 
-    # 断开连接
-    resp_disc = client.post(f"/api/v1/tdsql/disconnect?connection_id={conn_id}", headers=tokens["test_dev"])
-    assert resp_disc.status_code == 403
+        # 断开连接
+        resp_disc = client.post(f"/api/v1/tdsql/disconnect?connection_id={conn_id}", headers=tokens["test_dev"])
+        assert resp_disc.status_code == 403
+    finally:
+        set_role_permissions("developer", {"instances": orig_val})
 
 
 def test_rbac_05_test_connection_restrictions(rbac_v3_env):
@@ -199,13 +277,20 @@ def test_rbac_05_test_connection_restrictions(rbac_v3_env):
 def test_rbac_06_monitor_probe_defense(rbac_v3_env):
     """RBAC-06: 有副作用的探测接口仅限 admin/dba"""
     client, tokens, conn_id = rbac_v3_env
-    set_role_permissions("developer", {"instances": 1})
+    conn = _get_connection()
+    orig = conn.execute("SELECT visible FROM role_permissions WHERE role_id = 'developer' AND menu_key = 'instances'").fetchone()
+    orig_val = orig["visible"] if orig else 1
+    conn.close()
+    try:
+        set_role_permissions("developer", {"instances": 1})
 
-    resp_probe = client.get(f"/api/v1/tdsql/connections/{conn_id}/probe", headers=tokens["test_dev"])
-    assert resp_probe.status_code == 403
+        resp_probe = client.get(f"/api/v1/tdsql/connections/{conn_id}/probe", headers=tokens["test_dev"])
+        assert resp_probe.status_code == 403
 
-    resp_mprobe = client.post(f"/api/v1/tdsql/connections/{conn_id}/monitor-probe", headers=tokens["test_dev"])
-    assert resp_mprobe.status_code == 403
+        resp_mprobe = client.post(f"/api/v1/tdsql/connections/{conn_id}/monitor-probe", headers=tokens["test_dev"])
+        assert resp_mprobe.status_code == 403
+    finally:
+        set_role_permissions("developer", {"instances": orig_val})
 
 
 def test_rbac_07_dba_manager_permissions(rbac_v3_env):
@@ -213,19 +298,25 @@ def test_rbac_07_dba_manager_permissions(rbac_v3_env):
     client, tokens, _ = rbac_v3_env
     dba_conn_id = "test_dba_created_conn"
     try:
-        registry.delete_saved(dba_conn_id, operator="test")
-    except Exception:
-        pass
+        try:
+            registry.delete_saved(dba_conn_id, operator="test")
+        except Exception:
+            pass
 
-    # DBA 创建连接
-    resp_create = client.post("/api/v1/tdsql/connections", headers=tokens["test_dba"], json={
-        "id": dba_conn_id, "name": "DBA专用测试库", "host": "127.0.0.2", "port": 3306, "username": "u", "password": "p"
-    })
-    assert resp_create.status_code == 200
+        # DBA 创建连接
+        resp_create = client.post("/api/v1/tdsql/connections", headers=tokens["test_dba"], json={
+            "id": dba_conn_id, "name": "DBA专用测试库", "host": "127.0.0.2", "port": 3306, "username": "u", "password": "p"
+        })
+        assert resp_create.status_code == 200
 
-    # DBA 删除连接
-    resp_delete = client.delete(f"/api/v1/tdsql/connections/{dba_conn_id}", headers=tokens["test_dba"])
-    assert resp_delete.status_code == 200
+        # DBA 删除连接
+        resp_delete = client.delete(f"/api/v1/tdsql/connections/{dba_conn_id}", headers=tokens["test_dba"])
+        assert resp_delete.status_code == 200
+    finally:
+        try:
+            registry.delete_saved(dba_conn_id, operator="test")
+        except Exception:
+            pass
 
 
 def test_rbac_08_dba_admin_only_rejection(rbac_v3_env):
@@ -288,6 +379,10 @@ def test_data_03_connections_dual_password_strip(rbac_v3_env):
 def test_session_isolation_and_role_switching(rbac_v3_env):
     """DEFECT-01 回归测试: 跨角色切换时后端权限隔离与可见菜单一致性"""
     client, tokens, _ = rbac_v3_env
+    conn = _get_connection()
+    orig = conn.execute("SELECT visible FROM role_permissions WHERE role_id = 'developer' AND menu_key = 'instances'").fetchone()
+    orig_val = orig["visible"] if orig else 1
+    conn.close()
     try:
         # 确保 developer 角色无 instances 菜单
         set_role_permissions("developer", {"instances": 0})
@@ -313,7 +408,7 @@ def test_session_isolation_and_role_switching(rbac_v3_env):
         assert resp_dev_opts.status_code == 200
         assert "connections" in resp_dev_opts.json()
     finally:
-        set_role_permissions("developer", {"instances": 1})
+        set_role_permissions("developer", {"instances": orig_val})
 
 
 def test_frontend_security_contract():
@@ -343,4 +438,5 @@ def test_frontend_security_contract():
     assert index_html_path.exists(), "index.html must exist"
     html_content = index_html_path.read_text(encoding="utf-8")
     assert "extractedResult && extractedResult.filename" in html_content
+
 
