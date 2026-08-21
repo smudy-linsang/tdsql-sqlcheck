@@ -9,8 +9,8 @@
 | 改动文件 | **仅 1 个**：`backend/engine/rules/distributed.py` |
 | 改动类 | **仅 2 个**：`R077CreateTableMustHaveShardKey`、`R054ShardKeyMustBePrimaryKey` |
 | 撰写 | 智能体 A |
-| 修订 | **Rev.E**——Rev.D 已按智能体 O 评审（BLOCK）完成 7 项强制整改；本版补录目标环境 TDSQL 版本基线，并落实 ADJ-6 关闭决策（见 §11） |
-| 状态 | **待复审** |
+| 修订 | **Rev.F**——按智能体 O 对 Rev.E 的复审（BLOCK）整改 BLOCK-1/2/3（见 §14 逐条答复） |
+| 状态 | **待复审（第三轮）** |
 
 ---
 
@@ -186,8 +186,13 @@ _collect_pk_cols    = ['id']
 | **FIX-1** | 新增**共享语法助手**：注释/字符串清洗 → DDL 表选项尾部锚定 → 提取 `TDSQL_DISTRIBUTED BY HASH(col)`（仅 `HASH`，仅裸标识符/反引号标识符） |
 | **FIX-2** | 广播表哨兵**精确等值**判定 `noshardkey_allset`（大小写不敏感），R077 与 R054 同时放行 |
 | **FIX-3** | **R054 与 R077 共同消费** FIX-1 的结果：R077 判"有无合法声明"，**R054 判 J-2/J-3**；R054 的唯一索引提取改为**逐个索引、支持反引号索引名** |
+| **FIX-4**<br>*(Rev.F)* | **legacy `SHARDKEY=` 的 raw 回退也收敛到同一可信来源**（清洗 + 表选项尾部锚定 + 完整 token 边界），R077 / R054 共用；广播哨兵放行只接受可信来源 |
+| **FIX-5**<br>*(Rev.F)* | **R054 的 J-2 判定：空主键集合也判为失败**（原 `if pk_cols and ...` 会把"根本没有主键"当作无需检查） |
+| **FIX-6**<br>*(Rev.F)* | `_strip_sql_noise()` 按 MySQL 5.7/8.0 词法处理 `--`：**第二个 `-` 之后须紧跟空白**才算注释 |
 
 **FIX-3 是 Rev.D 相对 Rev.C 的关键补强**。Rev.C 以 NG-3 为由禁止 R054 识别 HASH，导致 HASH 路径下 J-2/J-3 无人负责——实测会把两类非合规表压成零违规。
+
+**FIX-4/5/6 是 Rev.F 相对 Rev.E 的关键补强**。Rev.E 只把新增 HASH 路径接入清洗，legacy `SHARDKEY=` 仍从未清洗的整条 raw SQL 提取；配合新增的哨兵提前返回，**在注释或字符串里写一句 `shardkey=noshardkey_allset` 就能让 R077/R054 同时静默放行**（4 种变体实测全部复现）。FIX-5 补上"无主键"这个 J-2 缺口，FIX-6 修正 `--` 词法以免把合法 HASH 表重新打成误报。
 
 ### 4.2 明确的非目标
 
@@ -232,30 +237,46 @@ R077 的宽松 `或` 口径是既有缺陷（ADJ-4），**用户已决策永久�
 #   分片表:  ) ENGINE=InnoDB ... TDSQL_DISTRIBUTED BY HASH(`cust_no`)
 #   广播表:  ) ENGINE=InnoDB ... shardkey=noshardkey_allset
 #
-# 设计约束（来源：v1.6.1.9 独立评审）：
+# 设计约束（来源：v1.6.1.9 两轮独立评审）：
 #   1) 只接受有证据的 HASH，不接受 KEY；
 #   2) 列名只接受裸标识符与反引号标识符，不接受引号字符串；
-#   3) 必须在剔除注释/字符串字面量后、且锚定到表选项尾部再匹配，
-#      否则表注释里的伪语法可绕过审核；
-#   4) 广播哨兵必须精确等值，不得前缀猜测；
-#   5) 本组助手由 R077 与 R054 共同消费——R077 判"有无声明"，
-#      R054 判 J-2/J-3，二者不得各自猜一次字符串。
+#   3) 一切 raw SQL 回退——含 legacy SHARDKEY=——都必须先剔除注释与
+#      字符串字面量，再锚定到列清单之后的表选项尾部才允许匹配，
+#      否则注释里的伪语法可绕过审核；
+#   4) 广播哨兵必须精确等值，且取值必须来自可信来源；
+#   5) 本组助手由 R077 与 R054 共同消费，二者不得各自保留一份 raw 正则。
 # ═══════════════════════════════════════════════════════════════
 
 _NOSHARDKEY_ALLSET = "noshardkey_allset"   # 广播表(全局表)哨兵，精确值
+
+# 取值必须以合法终止符收尾，避免 `noshardkey_allset-x` 被截断成合法哨兵
+_TOKEN_END = r"(?=\s|[,;)]|$)"
 
 _TDSQL_HASH_RE = re.compile(
     r"\btdsql_distributed\s+by\s+hash\s*\(\s*"
     r"(?:`(?P<quoted>[^`]+)`|(?P<bare>[a-z_][a-z0-9_]*))\s*\)",
     re.IGNORECASE,
 )
+# legacy 形态。模式本身与原 R077._SHARDKEY_RE / _SHARD_KEY_RE 保持一致，
+# 只追加 token 边界；真正的变化是"喂给它的文本"从整条 raw 换成可信尾部。
+_SHARDKEY_TAIL_RE = re.compile(
+    r"\bshardkey\b\s*=?\s*\(?[`\"']?([a-z_][a-z0-9_]*)[`\"']?\)?" + _TOKEN_END,
+    re.IGNORECASE,
+)
+_SHARD_KEY_TAIL_RE = re.compile(
+    r"\bshard_key\b\s*=?\s*\(?[`\"']?([a-z_][a-z0-9_]*)[`\"']?\)?" + _TOKEN_END,
+    re.IGNORECASE,
+)
 
 
 def _strip_sql_noise(sql: str) -> str:
-    """剔除 -- / # 行注释、/* */ 块注释、单双引号字符串字面量；保留反引号标识符。
+    """剔除行/块注释与引号字符串字面量；保留反引号标识符。
 
-    仅用于新增语法形态判定，不改变 parsed.raw_sql，也不影响既有取值路径。
-    失败方向是"识别不到"→R077 照报（可见错误），符合团队规约 R-15。
+    `--` 按 MySQL 5.7/8.0 词法处理：第二个 `-` 之后必须紧跟空白或控制字符
+    才构成注释，否则 `CHECK(a--b > 0)` 会被误当注释截断，反把合法 HASH 表
+    打成 R077 误报。参考 MySQL Reference Manual — Comments。
+
+    仅用于语法形态判定，不改变 parsed.raw_sql。
     """
     out, i, n = [], 0, len(sql)
     while i < n:
@@ -276,8 +297,9 @@ def _strip_sql_noise(sql: str) -> str:
                     break
                 j += 1
             out.append(' '); i = j + 1
-        elif sql.startswith('--', i) or c == '#':      # 行注释
-            j = sql.find('\n', i); out.append(' ')
+        elif (sql.startswith('--', i)
+              and (i + 2 >= n or sql[i + 2].isspace())) or c == '#':
+            j = sql.find('\n', i); out.append(' ')     # 行注释
             i = n if j < 0 else j
         elif sql.startswith('/*', i):                  # 块注释
             j = sql.find('*/', i + 2); out.append(' ')
@@ -290,7 +312,7 @@ def _strip_sql_noise(sql: str) -> str:
 def _ddl_options_tail(cleaned: str) -> str:
     """返回列定义清单右括号之后的表选项尾部；定位不到时返回空串（保守：不识别）。
 
-    必须在 _strip_sql_noise 之后调用——字符串里的括号已被剔除，括号配对才可靠。
+    必须在 _strip_sql_noise 之后调用——字符串里的括号已被剔除，配对才可靠。
     """
     start = cleaned.find('(')
     if start < 0:
@@ -306,9 +328,26 @@ def _ddl_options_tail(cleaned: str) -> str:
     return ""
 
 
+def _trusted_options_tail(raw_sql: str) -> str:
+    """一切 raw SQL 语法判定的唯一可信输入：清洗 + 表选项尾部锚定。"""
+    return _ddl_options_tail(_strip_sql_noise(raw_sql))
+
+
+def _extract_legacy_shard_key(raw_sql: str) -> str:
+    """SHARDKEY= / SHARD_KEY= 的 raw 回退提取（限定在可信尾部内）。"""
+    tail = _trusted_options_tail(raw_sql)
+    if not tail:
+        return ""
+    for pat in (_SHARDKEY_TAIL_RE, _SHARD_KEY_TAIL_RE):
+        m = pat.search(tail)
+        if m:
+            return m.group(1).strip('`"\' ').lower()
+    return ""
+
+
 def _extract_tdsql_hash_key(raw_sql: str) -> str:
-    """从清洗且尾部锚定的 DDL 中提取 TDSQL_DISTRIBUTED BY HASH(col) 的分片键。"""
-    tail = _ddl_options_tail(_strip_sql_noise(raw_sql))
+    """TDSQL_DISTRIBUTED BY HASH(col) 的分片键提取（限定在可信尾部内）。"""
+    tail = _trusted_options_tail(raw_sql)
     if not tail:
         return ""
     m = _TDSQL_HASH_RE.search(tail)
@@ -322,6 +361,8 @@ def _is_broadcast_sentinel(value: str) -> bool:
 
     仅接受 noshardkey_allset。新增哨兵只能通过有出处的显式白名单扩展，
     不得改回前缀匹配——`noshardkey_*` 不是 TDSQL 保留命名空间。
+    调用方必须保证 value 来自可信来源（table_metadata / table_options /
+    上面两个 _extract_* 助手），否则等于把注释文本当成放行凭据。
     """
     return value.strip('`"\' ').casefold() == _NOSHARDKEY_ALLSET
 
@@ -386,26 +427,41 @@ def _iter_unique_indexes(parsed: ParsedSQL, raw_sql: str):
 
 ---
 
-### 5.3 改动点 3：R077 `_extract_shard_key()` 追加第 4 来源
+### 5.3 改动点 3：R077 `_extract_shard_key()` 改用共享可信来源
 
-**位置**：`distributed.py:572-586`，**仅把末尾 `return ""` 替换为新增来源，前面一字不动**。
+**位置**：`distributed.py:572-586`，并**删除**已被取代的两个类属性 `_SHARDKEY_RE`（504 行）、`_SHARD_KEY_RE`（510 行）。
 
-**改后**（末尾片段）：
+> 实测确认：这两个类属性**仅**被 `_extract_shard_key()` 引用（`grep -rn "_SHARDKEY_RE\|_SHARD_KEY_RE"` 全仓库 4 处命中，全在本方法及其定义处），删除不影响其它调用方。其正则模式已原样搬进模块级 `_SHARDKEY_TAIL_RE` / `_SHARD_KEY_TAIL_RE`。
+
+**改后**：
 
 ```python
-        if shard_match:
-            return shard_match.group(1).strip('`"\' ').lower()
-        # v1.6.1.9 回退来源3: TDSQL_DISTRIBUTED BY HASH(col)
-        # 该语法下 sqlglot 整条降级为 Command，table_options 为空，前两个正则
-        # 也不匹配，故必须走到这里才能拿到分片键。取值经注释/字符串清洗并锚定
-        # 到表选项尾部，防止表注释中的伪语法绕过（见 _extract_tdsql_hash_key）。
+    def _extract_shard_key(self, parsed: ParsedSQL, raw_sql: str) -> str:
+        """提取分片键列名，优先结构化数据，回退到清洗且尾部锚定的正则"""
+        # 优先来源: parsed.table_options（sqlglot 已解析的表选项，可信）
+        for key in ("SHARDKEY", "SHARD_KEY"):
+            val = parsed.table_options.get(key, "")
+            if val:
+                return val.strip('`"\' ').lower()
+        # 回退来源1: legacy SHARDKEY= / SHARD_KEY=
+        # v1.6.1.9: 改为在"清洗 + 表选项尾部锚定"后的可信文本上匹配。
+        # 原实现直接 search 整条 raw_sql，会把注释与字符串里的
+        # `shardkey=xxx` 当成真实声明——两个方向都出过错：
+        #   ① 注释里的 shardkey=noshardkey_allset 让本规则静默放行；
+        #   ② 注释标题里的 SHARDKEY=user_id 让 R054 误报"不在主键中"。
+        legacy = _extract_legacy_shard_key(raw_sql)
+        if legacy:
+            return legacy
+        # 回退来源2: TDSQL_DISTRIBUTED BY HASH(col)
+        # 该语法下 sqlglot 整条降级为 Command，table_options 为空，
+        # legacy 正则也不匹配，故必须走到这里才能拿到分片键。
         # 取到后仍照常执行 R077 既有的主键/唯一索引判定，不放宽任何判据。
         return _extract_tdsql_hash_key(raw_sql)
 ```
 
 ---
 
-### 5.4 改动点 4：R054 `check()` 追加 HASH 来源与哨兵放行
+### 5.4 改动点 4：R054 取值改用共享可信来源，并追加 HASH 与哨兵放行
 
 **位置**：`distributed.py:262-268`。
 
@@ -427,21 +483,20 @@ def _iter_unique_indexes(parsed: ParsedSQL, raw_sql: str):
 
 ```python
         if not shard_key:
-            # raw_sql 回退提取 shardkey=xxx
-            sk_match = re.search(r"shardkey\s*=\s*['\"`]?(\w+)", parsed.raw_sql, re.IGNORECASE)
-            if sk_match:
-                shard_key = sk_match.group(1)
+            # v1.6.1.9: legacy 回退与 R077 共用同一可信来源
+            #（清洗 + 表选项尾部锚定），不再 search 整条 raw_sql
+            shard_key = _extract_legacy_shard_key(parsed.raw_sql)
         if not shard_key:
             # v1.6.1.9 新增来源: TDSQL_DISTRIBUTED BY HASH(col)。
             # R054 必须与 R077 消费同一解析结果——否则 HASH 路径下 J-2/J-3
-            # 无人负责，会把违规表压成零违规（v1.6.1.9 评审实测结论）。
+            # 无人负责，会把违规表压成零违规。
             shard_key = _extract_tdsql_hash_key(parsed.raw_sql)
         if not shard_key:
             return None
 
         # v1.6.1.9: 广播表(全局表) —— noshardkey_allset 是哨兵值而非列名，
-        # J-2/J-3 均不适用。该判定同时覆盖 table_metadata 通道
-        # （_detect_shard_info 会把哨兵原样写进 meta["shard_key"]）与 raw_sql 通道。
+        # J-2/J-3 均不适用。三条取值来源（table_metadata / legacy / HASH）
+        # 均已是可信来源，故此处放行不会被注释文本诱发。
         if _is_broadcast_sentinel(shard_key):
             return None
 
@@ -450,7 +505,38 @@ def _iter_unique_indexes(parsed: ParsedSQL, raw_sql: str):
 
 ---
 
-### 5.5 改动点 5：R054 的唯一索引判定改为逐索引 + 支持反引号索引名
+### 5.5 改动点 5：R054 的 J-2 判定——空主键集合也是失败
+
+**位置**：`distributed.py` R054 `check()` 的主键判定段。
+
+**改前**（`pk_cols` 为空时整个 J-2 检查被跳过）：
+
+```python
+        if pk_cols and shard_key.lower() not in pk_cols:
+            return self._make_violation(
+                f"分片键 '{shard_key}' 不在主键中，TDSQL要求分片键必须是主键的一部分",
+            )
+```
+
+**改后**：
+
+```python
+        # v1.6.1.9: 空主键集合同样是 J-2 失败——"根本没有主键"不等于
+        # "无需检查"。原写法会让"无主键 + 分片键只在 UNIQUE 中"的表
+        # 在 R077(宽松 OR 分支放行) 与 R054 之间同时漏网。
+        if shard_key.lower() not in pk_cols:
+            if not pk_cols:
+                return self._make_violation(
+                    f"建表语句未声明主键，分片键 '{shard_key}' 必须是主键的一部分",
+                )
+            return self._make_violation(
+                f"分片键 '{shard_key}' 不在主键中，TDSQL要求分片键必须是主键的一部分",
+            )
+```
+
+---
+
+### 5.6 改动点 6：R054 的唯一索引判定改为逐索引 + 支持反引号索引名
 
 **位置**：`distributed.py` R054 `check()` 的 E2 段（`# E2: 检查唯一索引是否包含分片键` 起，至方法末尾 `return None` 前）。
 
@@ -500,7 +586,7 @@ def _iter_unique_indexes(parsed: ParsedSQL, raw_sql: str):
 
 ---
 
-### 5.6 改动点 6：同步修订 R077 用户可见文案（**必选**）
+### 5.7 改动点 7：同步修订 R077 用户可见文案（**必选**）
 
 **位置**：`distributed.py:481-501` 的 `description` 与 `fix_suggestion`。
 
@@ -529,7 +615,7 @@ def _iter_unique_indexes(parsed: ParsedSQL, raw_sql: str):
 
 ---
 
-### 5.7 改动点 7：`_UNIQUE_RE` 原子变更护栏（**必选，纯注释，零行为**）
+### 5.8 改动点 8：`_UNIQUE_RE` 原子变更护栏（**必选，纯注释，零行为**）
 
 **位置**：`distributed.py:519`（`# 表级 UNIQUE KEY/INDEX 列提取正则（回退方案）` 上方）。
 
@@ -547,19 +633,24 @@ def _iter_unique_indexes(parsed: ParsedSQL, raw_sql: str):
 
 ---
 
-### 5.8 改动汇总
+### 5.9 改动汇总
 
 | # | 类/位置 | 类型 | 净增行 |
 |---|---|---|---|
-| 1 | 模块级 | 新增常量 + 4 个助手函数 + 注释 | +115 |
-| 2 | `R077.check()` | 新增 4 行 | +4 |
-| 3 | `R077._extract_shard_key()` | 替换末行 `return ""` | +5 |
-| 4 | `R054.check()` 取值段 | 新增 10 行 | +10 |
-| 5 | `R054.check()` E2 段 | 收敛替换（净减） | −12 |
-| 6 | `R077.description` / `fix_suggestion` | 文案替换 | +6 |
-| 7 | `R077._UNIQUE_RE` 上方 | 纯注释护栏 | +7 |
+| 1 | 模块级 | 新增常量 + 7 个共享助手 + 注释 | +165 |
+| 2 | `R077.check()` | 新增 4 行（哨兵放行） | +4 |
+| 3 | `R077._extract_shard_key()` | 改用共享助手；**删除 `_SHARDKEY_RE` / `_SHARD_KEY_RE` 两个类属性** | −6 |
+| 4 | `R054.check()` 取值段 | 改用共享助手 + 追加 HASH 来源 + 哨兵放行 | +8 |
+| 5 | `R054.check()` J-2 段 | 空主键集合也判失败 | +5 |
+| 6 | `R054.check()` E2 段 | 收敛为逐索引判定（净减） | −12 |
+| 7 | `R077.description` / `fix_suggestion` | 文案替换 | +6 |
+| 8 | `R077._UNIQUE_RE` 上方 | 纯注释护栏 | +7 |
 
-**合计：1 个文件、2 个类、7 处，净增约 135 行；无签名变更、无新增依赖、无 import 变更、无 schema 变更、无接口变更、无前端变更。**
+**合计：1 个文件、2 个类、8 处，净增约 177 行；无签名变更、无新增依赖、无 import 变更、无 schema 变更、无接口变更、无前端变更。**
+
+> **⚠️ Rev.F 的范围变化，须向用户明示**：改动点 3、4 把 **legacy `SHARDKEY=` 这条既有路径**也改成了"清洗 + 尾部锚定"。这已经超出"只加新语法"的范围，触及了改前就存在的取值逻辑。
+> **为什么必须做**：不改它，注释里一句 `shardkey=noshardkey_allset` 就能让新增的哨兵放行分支静默吞掉真实违规（4 种变体实测全部复现，见 §14）——这是本次补丁**新引入**的绕过路径，不修就是带病上线。
+> **实测代价**：既有语料上不但没有负面影响，反而**额外修掉了 4 条同类误报**（§7.3）。
 
 ---
 
@@ -598,31 +689,47 @@ Rev.C §7.1 声称"行为差集恰好等于误报集合""不可能压制真实�
 | `HASH('id')` 单引号 | R077 | ★零违规 | **R077 触发** |
 | `BY KEY(id)` 无据形态 | R077 | ★零违规 | **R077 触发** |
 
-### 7.2 Rev.D 的诚实影响面表述
+### 7.2 影响面表述（Rev.F）
 
 | 改动 | 可达条件 | 效果方向 | 可能新增违规？ |
 |---|---|---|---|
-| FIX-1（R077 识别 HASH） | 前 3 源全空 **且** 清洗后尾部含合法 HASH 子句 | 消除误报；J-2 违规仍由 R077 报 | 否（放行集变化，判据未动） |
-| FIX-2（精确哨兵） | 分片键取值精确等于 `noshardkey_allset` | 消除误报 | 否 |
-| FIX-3a（R054 识别 HASH） | R054 原有两源全空 **且** 存在合法 HASH 子句 | **恢复 J-2/J-3 判定** | **是**——但这些表改前均已触发 R077，**总判定"违规/不违规"不变**，只是由更准确的规则与消息承担 |
-| FIX-3b（R054 唯一索引支持反引号） | 存在反引号命名的唯一索引且不含分片键 | 使 J-3 在真实 TDSQL 元数据上生效 | **是**——**这是本次唯一的净收紧**，实测语料影响 0 条（§7.3） |
+| FIX-1（R077 识别 HASH） | 前序来源全空 **且** 可信尾部含合法 HASH 子句 | 消除误报 | 否（放行集变化，判据未动） |
+| FIX-2（精确哨兵） | 分片键取值精确等于 `noshardkey_allset` **且**来自可信来源 | 消除误报 | 否 |
+| FIX-3a（R054 识别 HASH） | R054 前序来源全空 **且**存在合法 HASH 子句 | 恢复 J-2/J-3 判定 | **是**——但这些表改前均已触发 R077，**总判定不变**，只是由更准确的规则承担 |
+| FIX-3b（R054 唯一索引支持反引号） | 存在反引号命名的唯一索引且不含分片键 | 使 J-3 在真实 TDSQL 元数据上生效 | **是**——净收紧，实测语料影响 0 条 |
+| **FIX-4**（legacy 取值收敛到可信尾部） | 任何含 `shardkey=` / `shard_key=` 的语句 | **双向修正**：既堵住"注释伪造哨兵→静默放行"，也修掉"注释标题被当成真实声明→误报" | **否**——只会减少违规。实测**额外修掉 4 条既有误报** |
+| **FIX-5**（空主键集合判 J-2 失败） | 分片键存在且表无任何主键 | 补齐 J-2 缺口 | **是**——净收紧，实测语料影响 0 条 |
+| **FIX-6**（`--` 词法对齐 MySQL） | 语句含 `a--b` 形态 | 防止合法 HASH 表被误清洗成误报 | 否 |
 
-### 7.3 全语料实测漂移扫描（Rev.D）
+> **Rev.E 曾声称"FIX-3b 是本次唯一净收紧"，该表述在 Rev.F 已不成立**——FIX-5 同样是净收紧。两者实测在既有语料上新增违规均为 0 条，但**必须如实并列声明**，不得只报总数。
+
+### 7.3 全语料实测漂移扫描（Rev.F，按路径拆分）
 
 ```
 输入 201 条（仓库 17 个 .sql 切分）+ 生产 14 表
-成功解析 201 条，异常 0 条          ← 无静默跳过
-判定发生变化: 5 条
+解析成功 201 条，异常 0 条          ← 无静默跳过
+语料按路径分布: HASH=1  legacy SHARDKEY==23  无分片声明=177
 
-  现场#3  cus_bas_corp_contact   R077/--    → --/--
-  现场#5  cus_name_list_type     R077/R054  → --/--
-  现场#8  t_branch               R077/R054  → --/--
-  现场#11 t_dict                 R077/R054  → --/--
-  现场#13 t_product              R077/R054  → --/--
+判定变化合计 9 条：
+  【HASH】语料 1 条 → 变化 1 条
+      现场#3  cus_bas_corp_contact       R077/--    → --/--
+  【legacy SHARDKEY=】语料 23 条 → 变化 8 条
+      现场#5  cus_name_list_type         R077/R054  → --/--
+      现场#8  t_branch                   R077/R054  → --/--
+      现场#11 t_dict                     R077/R054  → --/--
+      现场#13 t_product                  R077/R054  → --/--
+      docker/mysql/init.sql ×4           R077/R054  → R077/--
+  【无分片声明】语料 177 条 → 变化 0 条
 ```
 
-> **变化的 5 条恰好就是 5 处误报现场；201 条既有语料判定 100% 逐字不变，且 FIX-3b 的收紧在既有语料上新增违规 0 条。**
-> 扫描器已按评审要求输出输入总数/解析成功数/异常数，异常不再静默 `continue`。
+**9 条变化逐条解释（O 复审门禁要求）**：
+
+| 变化 | 条数 | 解释 |
+|---|---|---|
+| 现场 #3/#5/#8/#11/#13 | 5 | **本次要修的目标误报**，符合预期 |
+| `docker/mysql/init.sql` ×4 | 4 | **额外修掉的同类既有误报**。这 4 张表的 DDL 里**根本没有 `shardkey=` 子句**，`SHARDKEY=user_id` 只出现在 `-- 1. 分片表 - 订单主表（SHARDKEY=user_id）` 这样的**注释标题**里。改前 R054 从注释里读出 `user_id` 再报"不在主键中"——这是彻头彻尾的误报。FIX-4 让 R054 不再读注释，误报消失；R077 仍照报"未声明分片键"（这些表确实没声明），**总判定方向不变** |
+
+> **生产 14 表仍只有 #3/#5/#8/#11/#13 五张发生变化**，符合复审准入条件。多出的 4 条全在本仓库的 docker 初始化脚本里。
 
 ### 7.4 必须向用户明示的副作用（非本次引入）
 
@@ -696,7 +803,7 @@ O 评审要求"冲突声明不得被快速通道静默放行"。**实测现状�
 
 ## 9. 验收测试方案
 
-### 9.1 用例矩阵（29 条，Rev.D 原型已全量实测 **29/29 通过**）
+### 9.1 用例矩阵（41 条，Rev.F 原型已全量实测 **41/41 通过**）
 
 > **前置条件**：`instance_type="distributed"`；除注明外 `table_metadata=None`。R077/R054 的 `instance_scope` 为 DISTRIBUTED，集中式跳过由既有 `test_instance_scope_rules.py` 覆盖，本矩阵不重复。
 > **落库要求**：必须落为 `tests/test_r077_r054_tdsql_syntax.py`（普通 pytest，进入默认 `pytest tests/` 门禁），**不得以文档片段代替门禁**。
@@ -733,13 +840,25 @@ O 评审要求"冲突声明不得被快速通道静默放行"。**实测现状�
 | **X7★** | HASH 键 ∉ 主键、只在裸名 UNIQUE（违反 J-2） | R077 | **R054** |
 | **X8★** | 两个 UNIQUE 仅一个含 HASH 键（守 NJ-3"每一个"） | R077 | **R054** |
 | X12 | 现场#3 换行/大小写/空白变体 | R077 | 零违规 |
+| **X14★** | 表 `COMMENT` 字符串只含 `shardkey=noshardkey_allset` | R077+R054 | **R077** |
+| **X15★** | `/* */` 只含该哨兵 | R077+R054 | **R077** |
+| **X16★** | `-- ` 只含该哨兵 | R077+R054 | **R077** |
+| **X17★** | `#` 只含该哨兵 | R077+R054 | **R077** |
+| X18 | 真实 `shardkey=noshardkey_allset` + 注释另有干扰文本 | R077+R054 | 零违规 |
+| **X19★** | HASH，**无主键**，裸名 UNIQUE 含分片键（违反 J-2） | R077 | **R054** |
+| **X20★** | HASH，**无主键**，反引号 UNIQUE 含分片键 | R077 | **R077+R054** |
+| **X21★** | `SHARDKEY=sk`，**无主键**，UNIQUE 含 `sk` | 零违规 | **R054** |
+| X22 | HASH，有主键且含键，无 UNIQUE | R077 | 零违规 |
+| X23 | `CHECK(a--b > 0)` + 合法 HASH 子句（MySQL `--` 词法） | R077 | **零违规** |
+| **X24★** | 真正的 `-- ` 行注释含 HASH 子句 | R077 | **R077** |
+| **X25★** | `shardkey=noshardkey_allset-x`（畸形值，token 边界） | R077+R054 | **R077**（不得当成哨兵放行） |
 
 **补充测试（非违规判定，但必须落库）**：
 
 | 用例 | 场景 | 期望 |
 |---|---|---|
 | X9 | DDL 含 `shardkey=noshardkey_allset` **且** `table_metadata` 也返回该哨兵 | 零违规（覆盖元数据通道） |
-| X10 | `BROADCAST` + 真实 `shardkey=col` 冲突（两种变体） | **特征化测试**：锁定 §8.3 表中的现状，行为变化即报警 |
+| X10 | `BROADCAST` + 真实 `shardkey=col` 冲突（两种变体） | **特征化测试**：锁定 §8.3 表中的现状，行为变化即报警。**测试函数名须用 `characterization_current_contract` 一类措辞并注明「现状源于用户对 ADJ-6 的关闭决策，不代表 TDSQL 官方合规语法」**（采纳复审建议） |
 | X11 | 裸索引名与反引号索引名的同语义 DDL | **两者结果必须一致**（实测已一致） |
 | X13 | ADJ-5 承重性对照：只修 `_UNIQUE_RE` 不动 R077 判定 | **断言会漏报** —— 防止未来依赖升级悄悄激活宽松分支 |
 
@@ -757,15 +876,27 @@ O 评审要求"冲突声明不得被快速通道静默放行"。**实测现状�
 
 ### 9.3 回归门槛
 
-| 项 | 基线 | 门槛 |
-|---|---|---|
-| 4 个规则测试文件 | **168 passed, 0 failed**（A 与 O 实测一致） | 必须仍为 168 passed / 0 failed |
-| 4 文件 + `test_distributed.py` | **182 passed, 0 failed**（O 实测） | 不得下降 |
-| 全量 `pytest tests/` | **收集总数 1313**。O 环境 1313 passed / 0 failed / 0 skipped；A 环境 1284 passed / 0 failed / **29 skipped** | **收集总数仍为 1313；0 failed；skipped 数不得高于同一环境改前基线** |
-| 规则总数 | 119（92 ALL + 27 DISTRIBUTED） | 必须不变 |
-| 全语料漂移扫描 | — | 输入 201 条，**异常必须为 0**，判定变化**必须 = 5** 且恰为 P1–P5。**出现第 6 条即停止施工，回到评审** |
+**Rev.F 已在临时 detached worktree 中逐处应用补丁并实测（用完即删，未进产品分支）**，与同环境基线对跑：
 
-> **关于基线数字的说明（Rev.D 更正）**：Rev.C 写的 "1312 passed / 1 skipped" 取自 v1.6.1.8 台账，**已过期**。经复核：A 与 O 的**收集总数一致均为 1313**；差异仅在于 O 环境配置了 `TDSQL_TEST_ADMIN_USER` / `TDSQL_TEST_ADMIN_PASSWORD`，29 条需可登录后端的集成用例得以实际执行，A 环境则跳过。**两份数据不矛盾**。另需 uvicorn 在 127.0.0.1:8000 运行，否则 8 条前端集成用例 `ConnectionRefusedError` 失败（环境问题，非产品缺陷）。故门槛按"同环境自比"表述，不锁死绝对数字。
+| 项 | 基线（`main @ 0ac5960`） | Rev.F 补丁后 | 判定 |
+|---|---|---|---|
+| `py_compile distributed.py` | — | 通过 | ✅ |
+| 4 个规则测试文件 | 140 passed / 0 failed / 28 skipped（收集 **168**） | **完全相同** | ✅ 零差异 |
+| 上述 4 文件 + `test_distributed.py` | 154 passed / 0 failed / 28 skipped（收集 **182**） | **完全相同** | ✅ 零差异 |
+| 全量 `pytest tests/` | 1284 passed / 0 failed / 29 skipped（收集 **1313**） | **完全相同** | ✅ 零差异 |
+| 生产 14 表整机回放（`RuleChecker.audit_sql`） | — | **仅 #3/#5/#8/#11/#13 变化**，#4 保留 R077 | ✅ |
+| 全语料漂移 | — | 输入 201 / 解析成功 201 / **异常 0** / 变化 9 条（**逐条已解释，§7.3**） | ✅ |
+
+**施工门槛**：
+
+| 项 | 门槛 |
+|---|---|
+| 4 文件 / +`test_distributed` / 全量 | 收集数仍为 168 / 182 / 1313；**0 failed**；skipped 不高于同环境改前基线 |
+| 规则总数 | 119（92 ALL + 27 DISTRIBUTED），必须不变 |
+| 生产 14 表 | **只允许 #3/#5/#8/#11/#13 变化** |
+| 全语料漂移 | 异常必须为 0；**任何一条新增变化都必须能逐条解释**，无法解释即停止施工回到评审 |
+
+> **环境说明**：A 环境的 29 条集成用例因未配置 `TDSQL_TEST_ADMIN_USER` / `TDSQL_TEST_ADMIN_PASSWORD` 而跳过，O 环境已配置故实跑，双方**收集总数一致均为 1313**。另需 uvicorn 运行于 `127.0.0.1:8000`，否则 8 条前端集成用例报 `ConnectionRefusedError`（环境问题，基线与补丁后同时出现，非产品缺陷）。故门槛按"同环境自比 + 收集数锁定"表述。
 
 ---
 
@@ -773,7 +904,8 @@ O 评审要求"冲突声明不得被快速通道静默放行"。**实测现状�
 
 | 风险 | 等级 | 对策 |
 |---|---|---|
-| FIX-3b 收紧导致存量报告新增 R054 WARNING | **中** | 实测语料影响 0 条；R054 为 WARNING 不阻断门禁；已在 §5.5 显式标注为"本次唯一收紧"，交付说明须写明 |
+| **两处净收紧**（FIX-3b 唯一索引支持反引号、FIX-5 空主键判 J-2 失败）导致存量报告新增 R054 WARNING | **中** | 实测既有语料影响均为 0 条；R054 为 WARNING 不阻断门禁；已在 §7.2 并列声明，交付说明须写明 |
+| **范围扩张**：FIX-4 触及 legacy `SHARDKEY=` 这条既有路径 | **中** | 不改则新增的哨兵放行分支可被注释伪造静默绕过（4 变体实测）；实测代价为负——额外修掉 4 条既有误报。已在 §5.9 醒目标注，**请用户裁定是否接受该范围扩张** |
 | #3 修完后显示"零违规"但仍被漏审 | **中** | §7.4 明示；根治需 Phase 2 (ADJ-1)；**必须写入交付说明** |
 | 后来者单独放宽 `R077._UNIQUE_RE` 造成漏报 | **中** | 改动点 7 代码注释 + §8.1 论证 + §12 检查单硬项 + X13 断言测试，四重设防 |
 | `sqlglot` 升级后 `parsed.indexes` 开始产出 UNIQUE 条目，静默激活 R077 宽松分支 | **中** | X13 断言测试可捕获；已在 §8.1 点名该路径 |
@@ -791,7 +923,8 @@ O 评审要求"冲突声明不得被快速通道静默放行"。**实测现状�
 | **Rev.B** | 用户口径纠正 | 撤销放宽 `_UNIQUE_RE`（方向错误，会压制真实违规）；新增 §1 判据章节与 N8★ 用例 |
 | **Rev.C** | 用户决策 ADJ-4 关闭 | ADJ-5 升级为"永久禁令"；新增 §8.1、改动点 5、附录 B |
 | **Rev.D** | **智能体 O 独立评审（BLOCK）** | **见 §13 逐条答复**：7 项强制整改全部落实；撤回 Rev.C 的错误论证；新增清洗+尾部锚定、精确哨兵、R054 共享 HASH、J-3 逐索引判定、文案同步、X1–X13 反例 |
-| **Rev.E**（本版） | 用户提供版本截图 + ADJ-6 决策 | ① §1.1.1 补录目标环境 TDSQL 版本基线（独立发布版本 `10.3.22.8.0-4`、内核 `5.7.36-v17-txsql-22.6.8` / `8.0.33-v24-txsql-22.6.9` 双内核并存、`proxy-22.4.5`），并据此确认两种语法形态是**按表类型分化**而非版本差异；② **ADJ-6 经用户决策不进 Phase 2、不改动**，仅保留特征化测试；③ 清除 §1.1 的施工前置待办 |
+| **Rev.E** | 用户提供版本截图 + ADJ-6 决策 | ① §1.1.1 补录目标环境 TDSQL 版本基线（独立发布版本 `10.3.22.8.0-4`、内核 `5.7.36-v17-txsql-22.6.8` / `8.0.33-v24-txsql-22.6.9` 双内核并存、`proxy-22.4.5`），并据此确认两种语法形态是**按表类型分化**而非版本差异；② **ADJ-6 经用户决策不进 Phase 2、不改动**，仅保留特征化测试；③ 清除 §1.1 的施工前置待办 |
+| **Rev.F**（本版） | **智能体 O 对 Rev.E 的复审（BLOCK）** | **见 §14 逐条答复**：BLOCK-1/2/3 全部整改——① legacy `SHARDKEY=` 取值收敛到清洗+尾部锚定的可信来源（**堵住"注释里写一句哨兵即可静默放行"**，4 变体实测复现）；② R054 的 J-2 判定把空主键集合也判为失败；③ `--` 词法对齐 MySQL 5.7/8.0。撤回"FIX-3b 是唯一净收紧"的表述，漂移改为按路径拆分统计；用例扩到 41 条；回归改为临时 worktree 实打补丁与基线对跑 |
 
 ---
 
@@ -814,11 +947,16 @@ O 评审要求"冲突声明不得被快速通道静默放行"。**实测现状�
 - [ ] 未收紧 R077 的 `或` 判定（ADJ-4 已关闭）
 - [ ] 未改动 `BROADCAST` 快速通道（NG-5）
 - [ ] R054 的唯一索引判定**逐个索引**进行，**未展平成列并集**（守 NJ-3）
-- [ ] R054 的 HASH 来源在原有两源**之后**，哨兵判定在 `if not shard_key: return None` **之后**（同时覆盖元数据与 raw_sql 通道）
+- [ ] R054 的 HASH 来源在原有来源**之后**，哨兵判定在 `if not shard_key: return None` **之后**（同时覆盖元数据与 raw 通道）
+- [ ] **一切 raw SQL 语法判定都经 `_trusted_options_tail()`**——含 legacy `SHARDKEY=`；代码中**不得再出现任何直接 `search(parsed.raw_sql)` 的分片键提取**
+- [ ] `_SHARDKEY_RE` / `_SHARD_KEY_RE` 两个类属性已删除（其模式已搬到模块级 `_*_TAIL_RE`）
+- [ ] R054 的 J-2 写成 `if shard_key.lower() not in pk_cols:`（**不带 `pk_cols and`**），空主键集合给出专门消息
+- [ ] `_strip_sql_noise()` 的 `--` 分支带 `sql[i+2].isspace()` 条件（MySQL 5.7/8.0 词法）
+- [ ] 哨兵正则带 token 边界 `_TOKEN_END`，`noshardkey_allset-x` 不被当成哨兵
 
 **验收**
 
-- [ ] §9.1 的 29 条矩阵全部通过；**X1–X8 全部通过**（O 评审反例）
+- [ ] §9.1 的 41 条矩阵全部通过；**X1–X8（首轮评审反例）与 X14–X25（复审反例）全部通过**
 - [ ] X9/X10/X11/X13 四条补充测试落库
 - [ ] §9.2 端到端 14 表逐表符合期望，**#4 仍报 R077**
 - [ ] 用例已落为 `tests/test_r077_r054_tdsql_syntax.py` 并进入默认 `pytest tests/` 门禁
@@ -829,7 +967,8 @@ O 评审要求"冲突声明不得被快速通道静默放行"。**实测现状�
 **交付说明**
 
 - [ ] 写明 §7.4 的 #3 漏审副作用（"零违规" ≠ "已全量审核"）
-- [ ] 写明 §5.5 FIX-3b 是本次唯一收紧，可能新增 R054 WARNING
+- [ ] 写明本次有**两处净收紧**：FIX-3b（唯一索引支持反引号）与 FIX-5（空主键判 J-2 失败），均可能新增 R054 WARNING；**不得再声称"唯一净收紧"**
+- [ ] 写明 §5.9 的范围变化：legacy `SHARDKEY=` 这条既有路径也被改为清洗+尾部锚定
 - [ ] 写明 ADJ-1/2/3 留待 Phase 2（ADJ-3 优先）；**ADJ-4、ADJ-6 已由用户决策关闭**；ADJ-5 为原子变更约束
 - [ ] 建议把 §8.1 原子变更约束补录进 `docs/GUIDE-团队施工规约.md`
 
@@ -873,6 +1012,44 @@ O 报告 **1313 passed / 0 failed / 0 skipped**；A 环境实测 **1284 passed /
 
 ---
 
+## 14. 对智能体 O 复审（Rev.E → BLOCK）的逐条答复
+
+复审结论：**有条件否决（BLOCK）**。A 独立复现全部三项 BLOCK，**三项全部成立、全部整改**。
+
+### 14.1 三项阻断问题
+
+| # | O 的判定 | A 的复现结果 | 答复 |
+|---|---|---|---|
+| **BLOCK-1** | 广播哨兵仍从未清洗的 raw SQL 提取，注释/字符串可伪造 → R077+R054 同时静默放行 | **4/4 变体复现**（`COMMENT='...'`、`/* */`、`-- `、`#`）：改前 `R077/R054`，Rev.E `----/----` | **完全认可，且认可其"新引入"定性。** 改前这串虽也从注释被取出，但随后因不在主键中而触发违规；Rev.E 新增的提前 `return None` 才把它变成零违规——**这是本补丁新开的绕过路径**，我此前"沿用既有行为"的辩解不成立。整改：FIX-4，legacy 取值全部收敛到 `_trusted_options_tail()` |
+| **BLOCK-2** | R054 把"没有主键"当作无需检查，J-2 无人执行 | **复现**。`if pk_cols and ...` 在 `pk_cols` 为空时整段跳过；配合 R077 宽松 `或` 分支被裸名 UNIQUE 放行，两条规则同时漏网 | **完全认可。** 且认同 O 的定性——这不是 ADJ-4 翻案：用户关闭的是"收紧 R077 口径"，本项修的是**我自己指定的 J-2/J-3 责任人 R054 没尽责**。整改：FIX-5 |
+| **BLOCK-3** | `_strip_sql_noise()` 把所有 `--` 当注释，与 MySQL 5.7/8.0 词法不符，会把合法 HASH 表打成误报 | **复现**：`CHECK(a--b > 0)` 使清洗后尾部变为 `''`，分片键提取失败 → R077 误报 | **完全认可。** 我此前以"失败方向可见（团队规约 R-15）"为由接受该偏差**理由不充分**——本次缺陷本身就是"合法 DDL 被误报"，而正确实现只需一个 `isspace()` 判断。整改：FIX-6 |
+
+### 14.2 其余门禁项
+
+| O 的要求 | 落实 |
+|---|---|
+| 不再声称"FIX-3b 是唯一净收紧" | §7.2 已并列声明 FIX-3b 与 FIX-5 **两处**净收紧 |
+| 分路径统计漂移，不能只报总数 | §7.3 已按 `HASH` / `legacy SHARDKEY=` / `无分片声明` 三路拆分 |
+| 新增变化逐条解释 | §7.3 已解释全部 9 条 |
+| 补 X14–X22 | 已补 **X14–X25**（含 A 自增的 X23 `a--b` 正例、X24 真注释反例、X25 token 边界） |
+| 原 29 条 + X9/X10/X11/X13 保留 | 全部保留，矩阵扩至 41 条，实测 **41/41** |
+| 生产 14 表仍只改 5 张 | 已用**打了补丁的真实引擎整机回放**验证：仅 #3/#5/#8/#11/#13 变化，#4 保留 R077 |
+| 182 / 1313 在同环境 0 failed | 临时 worktree 实打补丁与基线对跑：168 / 182 / 1313 收集数一致，**逐项零差异** |
+| 201 条语料异常为 0 | 实测 输入 201 / 解析成功 201 / **异常 0** |
+| 不得触碰 `BROADCAST` 快速通道 | 未触碰；ADJ-6 保持用户关闭状态 |
+| X10 测试命名建议 | 已采纳，写入 §9.1 补充测试表 |
+| 生产集群版本另录 | 已作为交付说明项写入 §12 |
+
+### 14.3 A 补充的事实（O 未提及，如实记录，不作为辩解）
+
+**其一：BLOCK-2 的实际暴露面比"零违规"小。** 那三条无主键反例在**整机全规则**下仍会被拦住——实测命中 `R003`（CREATE TABLE 必须显式指定主键）、`R005`、`R028`。即该表不会真的以"零违规"出现在报告里。**这不改变 BLOCK-2 成立**：R054 是本设计指定的 J-2 责任人，它漏判就是漏判；此处记录只为让影响面评估准确。
+
+**其二：FIX-4 额外修掉了 4 条既有误报。** 把 legacy 取值收敛到可信尾部后，`docker/mysql/init.sql` 中 4 条语句的 R054 消失。查明原因：这些表的 DDL **根本没有 `shardkey=` 子句**，`SHARDKEY=user_id` 只写在 `-- 1. 分片表 - 订单主表（SHARDKEY=user_id）` 这样的注释标题里，改前 R054 从注释读出列名再报"不在主键中"。**说明注释污染在改前就是双向的**：既能制造误报，也能（在 Rev.E 引入哨兵放行后）制造漏报。FIX-4 一并堵住两个方向。
+
+**其三：本次范围确实超出了"只加新语法"。** FIX-4 触及 legacy `SHARDKEY=` 这条既有路径。这与用户"严控修改范围"的硬约束存在张力，故已在 §5.9 用醒目方式向用户明示：**不改它就是带病上线**，且实测代价为负（只减少违规、不新增）。是否接受该范围扩张，请用户裁定。
+
+---
+
 ## 附录 A：实测证据清单
 
 | 编号 | 结论 | 证据 |
@@ -885,7 +1062,7 @@ O 报告 **1313 passed / 0 failed / 0 skipped**；A 环境实测 **1284 passed /
 | E-6 | `noshardkey`/`allset` 在 `backend/engine/` 零出现 | `grep -rn` 检索 |
 | E-7 | 摘掉尾子句后 #3 多命中 R036/R037/R061 | 反事实实验（→ ADJ-1） |
 | E-8 | **Rev.C 会把 6 类非合规语句压成零违规** | O 评审反例，A 独立复现 **6/6 成立** |
-| E-9 | Rev.D 用例矩阵 **29/29 通过**（含 O 的 X1–X8） | Rev.D 原型全量矩阵 |
+| E-9 | Rev.D 用例矩阵 29/29 通过（含 O 首轮的 X1–X8） | Rev.D 原型全量矩阵（**已被 Rev.F 的 41/41 取代，保留作沿革**） |
 | E-10 | Rev.D 全语料漂移：输入 201、异常 0、变化 5 条且恰为误报现场 | Rev.D 原型漂移扫描 |
 | E-11 | 只让 R054 取到 HASH 键不足以满足 X6/X8，必须同时修 R054 的唯一索引提取 | 最小版 vs 完整版对照实测 |
 | E-12 | FIX-3b 收紧在既有语料上新增违规 **0 条** | 漂移扫描（201 条无一新增） |
@@ -894,8 +1071,14 @@ O 报告 **1313 passed / 0 failed / 0 skipped**；A 环境实测 **1284 passed /
 | E-15 | X10 冲突声明在 `sk` ∉ 主键时 R054 会触发，非静默放行 | 两变体对照实测 |
 | E-16 | 规则文案无精确字符串断言，改文案安全 | `grep` 全测试目录核查 |
 | E-17 | 全量回归收集总数 1313，A/O 一致；差异为环境口令配置 | A 实测 1284 passed + 29 skipped；O 实测 1313 passed |
+| E-20 | O 复审的 3 项 BLOCK **全部独立复现成立** | 哨兵伪造 4/4 变体、无主键 J-2 漏判、`a--b` 词法误报 |
+| E-21 | Rev.F 矩阵 **41/41 通过**（含 X14–X25） | Rev.F 原型全量矩阵 |
+| E-22 | Rev.F 在临时 worktree 实打补丁，与基线**逐项零差异** | 168 / 182 / 1313 三档收集数一致，0 failed |
+| E-23 | 打补丁的**真实整机引擎**回放生产 14 表，仅 5 张变化 | `RuleChecker.audit_sql` 全规则回放 |
+| E-24 | FIX-4 额外修掉 4 条注释污染型既有误报 | `docker/mysql/init.sql` 逐条溯源 |
+| E-25 | 无主键反例在整机层面仍被 R003/R005/R028 拦截 | 整机回放实测 |
 | E-19 | 目标环境版本基线已补录 | TDSQL 赤兔管理台「系统管理 → 版本管理」页面截图（§1.1.1） |
-| E-18 | **§5.2–§5.5 的 before/after 代码块逐字实现后行为正确** | 按文档逐字实现的独立原型（非等价改写）：矩阵 **29/29 通过**，与已验证原型**差异 0 条**，漂移扫描输入 201 / 解析成功 201 / 异常 0 / 变化 5 条且恰为误报现场 |
+| E-18 | Rev.D 的 before/after 代码块逐字实现后行为正确 | 按文档逐字实现的独立原型（非等价改写）：矩阵 29/29，与等价原型差异 0 条（**Rev.F 已改用临时 worktree 实打补丁验证，见 E-22**） |
 
 ---
 
@@ -905,7 +1088,7 @@ O 报告 **1313 passed / 0 failed / 0 skipped**；A 环境实测 **1284 passed /
 
 | 文件 | 内容 | 门槛 |
 |---|---|---|
-| `tests/test_r077_r054_tdsql_syntax.py` | §9.1 的 29 条矩阵 + X9/X10/X11/X13，普通 pytest，参数化 + 显式断言 | 进入默认 `pytest tests/` 门禁；29/29 通过 |
+| `tests/test_r077_r054_tdsql_syntax.py` | §9.1 的 41 条矩阵 + X9/X10/X11/X13，普通 pytest，参数化 + 显式断言 | 进入默认 `pytest tests/` 门禁；41/41 通过 |
 | `tests/qa/verify_r077_r054_drift.py` | 全语料漂移扫描 | **必须输出输入总数 / 解析成功数 / 异常数**；任一异常即失败退出，不得静默 `continue`；变化数 ≠ 5 即失败 |
 
 漂移扫描的现场物料（生产 14 表 DDL）需随测试落库为固定 fixture，不得依赖运行期从 HTML 报告解析。
