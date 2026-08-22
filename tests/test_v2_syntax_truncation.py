@@ -41,7 +41,13 @@ CREATE TABLE `t3` (
 """
     results = checker.audit_file(file_content, file_path="test.sql")
     assert len(results) == 3, f"应该成功分割为 3 条语句，实际为 {len(results)}"
-    assert results[0].passed is True, "标准的 t1 语句应该审计通过"
+    # v1.6.2.0: t1/t3 尾部含 BROADCAST，改前降级零违规（passed=True），
+    # 改后恢复结构化解析并命中 R037(INFO)。本测试的真实意图是
+    # "语句分割 + 语法错误阻断"，与 INFO 级建议无关，故断言修正为
+    # "完整语句不应被 E999_SYNTAX_ERROR 阻断"，而非放宽 passed 判定。
+    assert not any(v.rule_id == "E999_SYNTAX_ERROR" for v in results[0].violations), \
+        "完整的 t1 语句不应被语法错误阻断"
     assert results[1].passed is False, "残缺截断的 t2 语句必须阻断报错"
     assert any(v.rule_id == "E999_SYNTAX_ERROR" for v in results[1].violations)
-    assert results[2].passed is True, "标准的 t3 语句应该审计通过"
+    assert not any(v.rule_id == "E999_SYNTAX_ERROR" for v in results[2].violations), \
+        "完整的 t3 语句不应被语法错误阻断"

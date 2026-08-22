@@ -13,6 +13,21 @@ from sqlglot import exp
 from sqlglot.errors import SqlglotError
 
 
+# TDSQL 方言尾子句：sqlglot 不认识，会导致整条建表语句降级为 exp.Command，
+# 进而使 columns/indexes/table_options 全空，所有结构类规则静默跳过。
+#   分片表:  ) ENGINE=InnoDB ... TDSQL_DISTRIBUTED BY HASH(`cust_no`)
+#            （HASH / RANGE / LIST 三种方法均会降级）
+#   广播表:  ) ENGINE=InnoDB ... BROADCAST
+# 注: `shardkey=col` 与单独的 `PARTITION BY ...` 不会降级，无需处理。
+# 本正则只在"已经降级"的重试路径上使用，故无需做注释/字符串感知——
+# 正常解析的语句根本不会走到那里（见 parse() 内注释）。
+_TDSQL_DIALECT_RE = re.compile(
+    r"\btdsql_distributed\s+by\s+\w+\s*\([^)]*\)"   # 分片表：BY HASH/RANGE/LIST(col)
+    r"|\bbroadcast\b",                               # 广播表关键字
+    re.IGNORECASE,
+)
+
+
 @dataclass
 class ParsedSQL:
     """解析后的SQL结构（V1.0 完整字段）"""
@@ -110,6 +125,21 @@ class SQLParser:
         # 尝试解析SQL
         try:
             ast = sqlglot.parse_one(sql_clean, read=self.dialect)
+            # v1.6.2.0: TDSQL 方言尾子句会让 sqlglot 把整条语句降级为 Command，
+            # 导致 columns/indexes/table_options 全空、结构类规则静默漏审。
+            # 仅在"确实已降级"且"语句含方言子句"时，剥离该子句重试一次；
+            # 且只有重试确实产出非 Command 节点才采用其结果。
+            # 正常解析的语句不会进入本分支，故对既有行为的影响可证明为零；
+            # 重试失败时保留原 Command 结果，不劣于改前。
+            # 注意: parsed.raw_sql 始终保持原文——R077/R054 依赖它提取分片键。
+            if isinstance(ast, exp.Command) and _TDSQL_DIALECT_RE.search(sql_clean):
+                try:
+                    _retry_ast = sqlglot.parse_one(
+                        _TDSQL_DIALECT_RE.sub(" ", sql_clean), read=self.dialect)
+                    if not isinstance(_retry_ast, exp.Command):
+                        ast = _retry_ast
+                except Exception:
+                    pass
             parsed.ast = ast
         except (SqlglotError, Exception) as e:
             parsed.parse_error = str(e)
