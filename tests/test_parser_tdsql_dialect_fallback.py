@@ -95,11 +95,19 @@ class TestNoRetry:
     """N1-N7★：证明正常语句不进入重试分支，零影响"""
 
     def test_n1_column_named_broadcast(self, parser):
-        """N1★: 列名恰好叫 broadcast → 不进入重试"""
+        """N1★: 列名恰好叫 broadcast → 不进入重试；解析结果与改前逐字一致
+
+        ⚠️ 列名集合精确断言是本设计的 Command 门守门员：
+        若有人移除 `isinstance(ast, exp.Command)` 前置条件（改成无条件剥离），
+        剥离正则会吃掉 `broadcast` 列名，本断言立即失败。
+        """
         sql = "CREATE TABLE t_n1 (id BIGINT NOT NULL, broadcast VARCHAR(32), PRIMARY KEY (id)) ENGINE=InnoDB"
         parsed = parser.parse(sql)
         assert not isinstance(parsed.ast, exp.Command), "第一次就解析成功，不进入重试"
         assert len(parsed.columns) > 0
+        # Command 门守门员：列名集合必须与改前逐字一致
+        assert [c.get("name") for c in parsed.columns] == ["id", "broadcast"], \
+            "列名与改前不一致——说明正常语句被误剥离（Command 门可能已失效）"
 
     def test_n2_comment_contains_hash(self, parser, checker):
         """N2★: 表注释含 TDSQL_DISTRIBUTED BY HASH(id) → 不进入重试，R077 仍触发"""
@@ -112,12 +120,18 @@ class TestNoRetry:
         assert 'R077' in rule_ids, "注释伪造 HASH 子句应仍触发 R077（v1.6.1.9 X1 行为不变）"
 
     def test_n3_comment_contains_broadcast(self, parser):
-        """N3★: 表注释含 broadcast 字样 → 不进入重试"""
+        """N3★: 表注释含 broadcast 字样 → 不进入重试；解析结果与改前逐字一致
+
+        ⚠️ 列名集合精确断言是 Command 门的另一道守门员（注释中含 broadcast）。
+        """
         sql = ("CREATE TABLE t_n3 (id BIGINT NOT NULL, PRIMARY KEY (id)) "
                "ENGINE=InnoDB COMMENT='broadcast table info'")
         parsed = parser.parse(sql)
         assert not isinstance(parsed.ast, exp.Command)
         assert len(parsed.columns) > 0
+        # Command 门守门员：列名集合必须与改前逐字一致
+        assert [c.get("name") for c in parsed.columns] == ["id"], \
+            "列名与改前不一致——说明正常语句被误剥离（Command 门可能已失效）"
 
     def test_n4_shardkey_no_retry(self, parser):
         """N4★: shardkey=col 建表 → 不进入重试（本就正常解析）"""
@@ -143,12 +157,27 @@ class TestNoRetry:
         assert 'E999_SYNTAX_ERROR' in rule_ids, "残缺 SQL 必须被语法错误阻断"
 
     def test_n7_unparseable_retry_keeps_command(self, parser):
-        """N7★: 剥离后仍无法解析的构造语句 → 保留原 Command 结果"""
-        # 构造一条含方言关键字但剥离后仍无法解析的 SQL
-        sql = "CREATE TABLE t_n7 (id BIGINT TDSQL_DISTRIBUTED BY HASH(`id`)"
+        """N7★: 剥离后仍无法解析的构造语句 → 保留原 Command 结果，不劣于改前
+
+        ⚠️ 本用例锁住"重试结果只在非 Command 时才采用"的约束：
+        第一次解析为 Command（含方言子句）→ 剥离后 sqlglot 仍返回 Command →
+        必须保留原始 Command 结果而非采用重试结果。
+        判别方法：原始 Command 的 SQL 文本含 TDSQL_DISTRIBUTED，重试后被剥离。
+        若有人改成无条件采用重试结果（ast = _retry_ast），
+        ast.sql() 中的 TDSQL_DISTRIBUTED 会消失，本断言立即失败。
+        """
+        # 方言子句 + 尾部还有其他无法解析的内容 → 剥离后仍 Command
+        sql = "CREATE TABLE t_n7 (id BIGINT) ENGINE=InnoDB TDSQL_DISTRIBUTED BY HASH(id) SOME_GARBAGE"
         parsed = parser.parse(sql)
-        # 不应崩溃，parse_error 或 Command 均可接受
-        assert parsed.parse_error is not None or isinstance(parsed.ast, exp.Command)
+        # 第一次解析必须是 Command（降级），且含方言子句（会进入重试分支）
+        assert isinstance(parsed.ast, exp.Command), \
+            "第一次解析应为 Command（含方言且无法解析）"
+        # 关键断言：保留的是原始 Command（含 TDSQL_DISTRIBUTED），而非重试的 Command（已剥离）
+        assert "TDSQL_DISTRIBUTED" in parsed.ast.sql().upper(), \
+            "重试结果被无条件采用——剥离后的 Command 丢失了方言子句信息"
+        # 结果不劣于改前：表名被正则回退正确提取
+        assert "t_n7" in parsed.tables, \
+            "保留原 Command 结果时表名应被正则回退提取"
 
 
 # ── G1★：ADJ-5 前提锁定 ──
