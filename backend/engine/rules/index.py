@@ -25,19 +25,25 @@ class R061IndexNaming(BaseRule):
         if not parsed.is_create_table:
             return None
         for idx in parsed.indexes:
-            idx_name = idx.get("name", "").lower()
+            # 解析器对索引"列名"做了去引号、唯独"索引名"未做（parser_legacy.py:572/604），
+            # 而 SHOW CREATE TABLE 导出的索引名恒带反引号，直接 startswith 会把
+            # 合规的 `idx_xxx` 判成不合规。此处补齐去引号，字符集与 naming.py:98、
+            # distributed.py:187 保持一致。raw_name 保留原始大小写，仅用于告警展示，
+            # 使用户能按告警文本在库中检索到该索引。
+            raw_name = idx.get("name", "").strip('`"\' ')
+            idx_name = raw_name.lower()
             idx_type = idx.get("type", "NORMAL")
             if not idx_name:
                 continue
             if idx_type == "PRIMARY":
                 if not idx_name.startswith("pk_"):
-                    return self._make_violation(f"主键索引 '{idx_name}' 应以 pk_ 开头")
+                    return self._make_violation(f"主键索引 '{raw_name}' 应以 pk_ 开头")
             elif idx_type == "UNIQUE":
                 if not idx_name.startswith("uk_"):
-                    return self._make_violation(f"唯一索引 '{idx_name}' 应以 uk_ 开头")
+                    return self._make_violation(f"唯一索引 '{raw_name}' 应以 uk_ 开头")
             else:
                 if not idx_name.startswith("idx_"):
-                    return self._make_violation(f"普通索引 '{idx_name}' 应以 idx_ 开头")
+                    return self._make_violation(f"普通索引 '{raw_name}' 应以 idx_ 开头")
         return None
 
 
