@@ -147,46 +147,25 @@ class TestProductionReplay:
     """G1/G2：生产报告 6297 原样 DDL"""
 
     def test_g1_big_audit_trail(self, checker):
-        """G1: 生产 #1 big_audit_trail 原样 DDL → R061 不命中，且 R029/R036/R037 仍命中"""
-        sql = _read_fixture("report_03_cus_bas_corp_contact.sql")  # 用 fixture 中含反引号索引的表
-        # 换一个真正带 idx_ 前缀反引号索引的 DDL
-        sql = ("CREATE TABLE `big_audit_trail` (\n"
-               "  `id` bigint NOT NULL AUTO_INCREMENT,\n"
-               "  `trace_id` varchar(64) NOT NULL,\n"
-               "  `operator` varchar(64) NOT NULL,\n"
-               "  `event` varchar(32) NOT NULL,\n"
-               "  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,\n"
-               "  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n"
-               "  PRIMARY KEY (`id`),\n"
-               "  KEY `idx_trace` (`trace_id`),\n"
-               "  KEY `idx_operator` (`operator`),\n"
-               "  KEY `idx_event` (`event`)\n"
-               ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4")
-        hit, msg = _has_r061(checker, sql)
-        assert not hit, f"生产 #1 的反引号 idx_ 索引不应误报: {msg}"
+        """G1: 生产 #1 big_audit_trail 原样 DDL → R061 不命中，且 R029/R036/R037 仍命中
 
-        # 验证其他规则仍命中（证明只减 R061）
+        第二个断言是本用例的核心安全性质——证明修复"只减 R061"，
+        其他规则的审核结果原样保留。
+        """
+        sql = _read_fixture("report_01_big_audit_trail.sql")
         result = checker.audit_sql(sql, instance_type='distributed')
         rule_ids = {v.rule_id for v in result.violations}
-        # big_audit_trail 应有其他规则命中（如 R029 缺 COMMENT）
-        # 但不断言具体规则——只证明 R061 被移除
+        assert 'R061' not in rule_ids, f"生产 #1 的反引号 idx_ 索引不应误报: {sorted(rule_ids)}"
+        assert {'R029', 'R036', 'R037'} <= rule_ids, \
+            f"生产 #1 的其他规则必须原样保留（证明只减 R061）: {sorted(rule_ids)}"
 
     def test_g2_cus_name_list_type(self, checker):
-        """G2: 生产 #5 cus_name_list_type 原样 DDL → R061 仍命中（真实违规不放过）"""
-        sql = _read_fixture("report_05_cus_name_list_type.sql")
+        """G2: 生产 #5 cus_name_list_type 原样 DDL → R061 仍命中（真实违规不放过）
+
+        使用 6297 报告 #5 的原样形态 fixture（含非 idx_ 前缀索引），
+        与 v1.6.1.9 的 report_05 简化 fixture（无索引，供 R077/R054 用）区分。
+        """
+        sql = _read_fixture("report_6297_05_cus_name_list_type_full.sql")
         hit, msg = _has_r061(checker, sql)
-        # fixture 中的索引名是 CUS_NAME_LIST_TYPE_IDX1 形态（非 idx_ 前缀）
-        # 如果 fixture 里没有非 idx_ 前缀索引，则可能不命中
-        # 这里用设计文档中的真实违规形态
-        sql_real = ("CREATE TABLE `cus_name_list_type` (\n"
-                    "  `id` bigint NOT NULL AUTO_INCREMENT,\n"
-                    "  `type_name` varchar(128) NOT NULL,\n"
-                    "  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,\n"
-                    "  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n"
-                    "  `is_deleted` tinyint NOT NULL DEFAULT 0,\n"
-                    "  PRIMARY KEY (`id`),\n"
-                    "  KEY `CUS_NAME_LIST_TYPE_IDX1` (`type_name`)\n"
-                    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='名单类型表' shardkey=noshardkey_allset")
-        hit, msg = _has_r061(checker, sql_real)
         assert hit, "生产 #5 的非 idx_ 前缀索引（真实违规）必须命中 R061"
         assert "CUS_NAME_LIST_TYPE_IDX1" in msg, f"告警消息应含原始大小写索引名: {msg}"
