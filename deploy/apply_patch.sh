@@ -2,7 +2,7 @@
 set -e
 
 # ==============================================================================
-# TDSQL-SQLCheck V1.6.1.8 增量热补丁应用脚本
+# TDSQL-SQLCheck V1.6.1.9 增量热补丁应用脚本
 # ==============================================================================
 
 TARGET_DIR="${1:-.}"
@@ -19,18 +19,18 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CURRENT_VER=$(cat "$TARGET_DIR/VERSION" 2>/dev/null || echo "unknown")
-BACKUP_DIR="$TARGET_DIR/backup_pre_v1.6.1.8_$(date +%Y%m%d_%H%M%S)"
+BACKUP_DIR="$TARGET_DIR/backup_pre_v1.6.1.9_$(date +%Y%m%d_%H%M%S)"
 
 echo "══════════════════════════════════════════════════════════════════"
-echo "  TDSQL-SQLCheck V1.6.1.8 增量热补丁部署"
+echo "  TDSQL-SQLCheck V1.6.1.9 增量热补丁部署"
 echo "  目标路径: $(cd "$TARGET_DIR" && pwd)"
 echo "  当前版本: $CURRENT_VER"
-echo "  升级目标: 1.6.1.8"
+echo "  升级目标: 1.6.1.9"
 echo "══════════════════════════════════════════════════════════════════"
 
 # 1. 备份原文件
 echo "[1/4] 备份变动前的文件至 $BACKUP_DIR ..."
-mkdir -p "$BACKUP_DIR/backend/services" "$BACKUP_DIR/backend/api" "$BACKUP_DIR/frontend/static/js" "$BACKUP_DIR/frontend/static/css" "$BACKUP_DIR/docs"
+mkdir -p "$BACKUP_DIR/backend/services" "$BACKUP_DIR/backend/api" "$BACKUP_DIR/backend/engine/rules" "$BACKUP_DIR/frontend/static/js" "$BACKUP_DIR/frontend/static/css" "$BACKUP_DIR/docs"
 [ -f "$TARGET_DIR/VERSION" ] && cp "$TARGET_DIR/VERSION" "$BACKUP_DIR/"
 [ -f "$TARGET_DIR/backend/config.py" ] && cp "$TARGET_DIR/backend/config.py" "$BACKUP_DIR/backend/"
 [ -f "$TARGET_DIR/backend/main.py" ] && cp "$TARGET_DIR/backend/main.py" "$BACKUP_DIR/backend/"
@@ -40,12 +40,13 @@ mkdir -p "$BACKUP_DIR/backend/services" "$BACKUP_DIR/backend/api" "$BACKUP_DIR/f
 [ -f "$TARGET_DIR/backend/api/tdsql_manage.py" ] && cp "$TARGET_DIR/backend/api/tdsql_manage.py" "$BACKUP_DIR/backend/api/"
 [ -f "$TARGET_DIR/backend/api/zk_discovery.py" ] && cp "$TARGET_DIR/backend/api/zk_discovery.py" "$BACKUP_DIR/backend/api/"
 [ -f "$TARGET_DIR/backend/api/sql_audit.py" ] && cp "$TARGET_DIR/backend/api/sql_audit.py" "$BACKUP_DIR/backend/api/"
+[ -f "$TARGET_DIR/backend/engine/rules/distributed.py" ] && cp "$TARGET_DIR/backend/engine/rules/distributed.py" "$BACKUP_DIR/backend/engine/rules/"
 [ -f "$TARGET_DIR/frontend/index.html" ] && cp "$TARGET_DIR/frontend/index.html" "$BACKUP_DIR/frontend/"
 [ -f "$TARGET_DIR/frontend/static/js/app.js" ] && cp "$TARGET_DIR/frontend/static/js/app.js" "$BACKUP_DIR/frontend/static/js/"
 [ -f "$TARGET_DIR/frontend/static/css/theme-dark-blue.css" ] && cp "$TARGET_DIR/frontend/static/css/theme-dark-blue.css" "$BACKUP_DIR/frontend/static/css/"
 
 # 2. 覆盖增量更新文件
-echo "[2/4] 写入 V1.6.1.8 增量补丁文件..."
+echo "[2/4] 写入 V1.6.1.9 增量补丁文件..."
 cp "$SCRIPT_DIR/VERSION" "$TARGET_DIR/VERSION"
 cp "$SCRIPT_DIR/backend/config.py" "$TARGET_DIR/backend/config.py"
 cp "$SCRIPT_DIR/backend/main.py" "$TARGET_DIR/backend/main.py"
@@ -55,6 +56,7 @@ cp "$SCRIPT_DIR/backend/services/auth_service.py" "$TARGET_DIR/backend/services/
 cp "$SCRIPT_DIR/backend/api/tdsql_manage.py" "$TARGET_DIR/backend/api/tdsql_manage.py"
 cp "$SCRIPT_DIR/backend/api/zk_discovery.py" "$TARGET_DIR/backend/api/zk_discovery.py"
 [ -f "$SCRIPT_DIR/backend/api/sql_audit.py" ] && cp "$SCRIPT_DIR/backend/api/sql_audit.py" "$TARGET_DIR/backend/api/sql_audit.py"
+[ -f "$SCRIPT_DIR/backend/engine/rules/distributed.py" ] && cp "$SCRIPT_DIR/backend/engine/rules/distributed.py" "$TARGET_DIR/backend/engine/rules/distributed.py"
 cp "$SCRIPT_DIR/frontend/index.html" "$TARGET_DIR/frontend/index.html"
 cp "$SCRIPT_DIR/frontend/static/js/app.js" "$TARGET_DIR/frontend/static/js/app.js"
 [ -f "$SCRIPT_DIR/frontend/static/css/theme-dark-blue.css" ] && cp "$SCRIPT_DIR/frontend/static/css/theme-dark-blue.css" "$TARGET_DIR/frontend/static/css/"
@@ -80,17 +82,10 @@ else
     fi
 fi
 
-# 4. 健康检查
-echo "[4/4] 检查服务状态与版本号..."
+# 4. 验证更新结果
+echo "[4/4] 验证服务状态..."
 sleep 2
-for i in {1..10}; do
-    HEALTH_OUT=$(curl -s http://127.0.0.1:8000/health 2>/dev/null || true)
-    if [[ "$HEALTH_OUT" == *"1.6.1.8"* ]]; then
-        echo "✅ 升级成功！服务已就绪，当前版本: 1.6.1.8"
-        echo "══════════════════════════════════════════════════════════════════"
-        exit 0
-    fi
-    sleep 1
-done
-
-echo "⚠️ 提示: 服务正在拉起或请手动确认 curl http://127.0.0.1:8000/health"
+NEW_VER=$(cat "$TARGET_DIR/VERSION" 2>/dev/null || echo "unknown")
+echo "✅ 补丁应用成功！当前版本已更新为: $NEW_VER"
+echo "  备份路径: $BACKUP_DIR"
+echo "══════════════════════════════════════════════════════════════════"

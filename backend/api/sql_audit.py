@@ -267,6 +267,8 @@ async def extract_and_audit(http_request: Request, payload: dict):
         conn_info = registry.get_saved(connection_id) or {}
     except ConnectionNotFoundError:
         raise HTTPException(status_code=400, detail="选定的数据库实例未激活，请在「实例管理」中连接或重试")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"无法连接选定的数据库实例: {str(e)}")
 
     try:
         from backend.connectors.metadata_fetcher import MetadataFetcher

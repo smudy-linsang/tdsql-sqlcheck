@@ -94,9 +94,28 @@ grep -q "^AUTH_SECRET_KEY=..*" "${INSTALL_DIR}/.env" || {
   log "已自动生成并固化 AUTH_SECRET_KEY（务必随 .env 一起备份，丢失将导致全员token失效）"
 }
 
+PREV_TARGET="$(readlink "${INSTALL_DIR}/current" 2>/dev/null || true)"
+if ! grep -q "^TDSQL_ENCRYPTION_KEY=..*" "${INSTALL_DIR}/.env"; then
+  if [[ -n "${PREV_TARGET}" && -f "${PREV_TARGET}/data/encryption.key" ]]; then
+    OLD_KEY="$(cat "${PREV_TARGET}/data/encryption.key" | tr -d ' \r\n')"
+    echo "TDSQL_ENCRYPTION_KEY=${OLD_KEY}" >> "${INSTALL_DIR}/.env"
+    log "已从历史版本(${PREV_TARGET})自动迁移并固化 TDSQL_ENCRYPTION_KEY 至 .env"
+  elif [[ -f "${INSTALL_DIR}/data/encryption.key" ]]; then
+    OLD_KEY="$(cat "${INSTALL_DIR}/data/encryption.key" | tr -d ' \r\n')"
+    echo "TDSQL_ENCRYPTION_KEY=${OLD_KEY}" >> "${INSTALL_DIR}/.env"
+    log "已从 ${INSTALL_DIR}/data/encryption.key 固化 TDSQL_ENCRYPTION_KEY 至 .env"
+  fi
+fi
+
+# 确保 data 目录存在并自动继承历史 encryption.key（文件+环境变量双重防呆）
+mkdir -p "${RELEASE_DIR}/data"
+if [[ -n "${PREV_TARGET}" && -f "${PREV_TARGET}/data/encryption.key" && ! -f "${RELEASE_DIR}/data/encryption.key" ]]; then
+  cp "${PREV_TARGET}/data/encryption.key" "${RELEASE_DIR}/data/encryption.key"
+  log "已从历史版本同步 data/encryption.key 到新发布目录"
+fi
+
 # ── 6. 切换 current 软链 ────────────────────────────────────────────────
 log "步骤6: 切换 current -> releases/v${VERSION}"
-PREV_TARGET="$(readlink "${INSTALL_DIR}/current" 2>/dev/null || true)"
 [[ -n "${PREV_TARGET}" ]] && echo "${PREV_TARGET}" > "${INSTALL_DIR}/.previous_release"
 ln -sfn "${RELEASE_DIR}" "${INSTALL_DIR}/current"
 chown -R "${RUN_USER}:${RUN_USER}" "${INSTALL_DIR}"
