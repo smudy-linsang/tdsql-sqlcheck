@@ -2,16 +2,58 @@
 
 | 项目 | 内容 |
 |---|---|
-| 文档版本 | **Rev.C**（Rev.A、Rev.B 经智能体 O 两轮独立复审均判 No-Go；本版按第二轮 BLOCK-B1/B2、MAJOR-B1/B2 整改） |
+| 文档版本 | **Rev.D**（Rev.A/B/C 经智能体 O 三轮独立复审均判 No-Go；本版按第三轮 BLOCK-C1、MAJOR-C1 整改） |
 | 目标版本 | **v1.6.2.2** |
 | 缺陷来源 | 内网人工扫描报告 #6309（gg77）、#6311（gg78） |
 | 缺陷编号 | **DEF-1 = DEF-R054-FAKEUNIQUE**；**DEF-2 = DEF-PARSE-UKCOMMENT** |
 | 撰写 | 智能体 A |
 | 施工 | 智能体 Q |
-| 基线 commit | `48d2396`（main） |
+| 基线 commit | `99827f9`（main） |
 | 评审依据 | `docs/REVIEW-v1.6.2.2-...独立复审报告-Codex.md` |
-| 改动范围 | **`parser_legacy.py` 4 个改动点**（+1 处 import）；**另修正 2 个 fixture**（删除会污染审核的文件头） |
+| 改动范围 | **`parser_legacy.py` 5 个改动点**（含**删除 v1.6.2.0 的 `_TDSQL_DIALECT_RE` 全局正则**）；fixture 已在 Rev.C 修正；**另需 pin `sqlglot` 版本**（见 §5.0，待用户拍板） |
 | 实测结论 | 生产 14 表**零漂移**；全语料 197 条中**恰好 2 条**变化且都是目标缺陷；全量回归 **1355 passed / 0 failed / 29 skipped**；TDSQL 四种方言组合**全部恢复**；5 类作用域负例 span **全部为 1**；模糊 6000 条**零违例**；生产回放**精确集合相等** |
+
+---
+
+## 🚨 首要事项：本缺陷**已在当前生产版本 v1.6.2.1 上活跃**
+
+O 第三轮指出的 BLOCK-C1，我复现后发现它**不是 Rev.C 引入的**——
+它是 **v1.6.2.0 引入、目前正在内网运行的 `_TDSQL_DIALECT_RE` 全局正则**的缺陷。
+在**当前已部署的 v1.6.2.1** 上直接实测（不打任何补丁）：
+
+| 输入（分片表，尾子句 `TDSQL_DISTRIBUTED BY HASH(sk)`） | 当前生产版本的实际解析结果 |
+|---|---|
+| 有一列名为 `` `broadcast` `` | 列名变成 **`' '`（空白）——该列被吃掉** |
+| 某列注释为 `'broadcast table info'` | 注释被改成 **`'  table info'`** |
+| 某列注释为 `'TDSQL_DISTRIBUTED BY HASH(fake)'` | 注释被清空成 **`' '`** |
+
+三种情况**解析都"成功"**，产出的是**结构已被破坏的 AST**，下游 119 条规则基于错误结构继续审核，
+不会报 E999，也没有任何告警。这比显式报错更危险。
+
+**因此本次修复的性质变了**：不再只是"修两个误报"，而是**同时修掉一个正在生产环境静默破坏
+审核数据的缺陷**。请据此判断上线优先级。
+
+---
+
+## Rev.D 修订说明（针对 O 第三轮独立复审）
+
+O 对 Rev.C 判定 **No-Go**，开出 1 项 BLOCK、1 项 MAJOR、1 项 DOC。**我逐条独立复现，全部成立，全部接受。**
+
+| 编号 | O 的意见 | 我的复核 | Rev.D 处置 |
+|---|---|---|---|
+| **BLOCK-C1** | 第二阶段仍对整条 SQL 做不感知作用域的 `_TDSQL_DIALECT_RE.sub()`，会删真实列、改真实注释，且错误 AST 能通过四道门禁 | ✅ **三个反例全部复现**，并进一步查明**当前生产版本 v1.6.2.1 上已经如此** | **删除 `_TDSQL_DIALECT_RE`**，新增 token 级 `_strip_tdsql_dialect_tail()`；**新旧两条恢复入口统一使用它**；两阶段 span **联合门禁** |
+| **MAJOR-C1** | 依赖声明 `>=26.0.0`，但 T5（HASH+二级分区）在 26.0.0 下不成立 | ✅ **复现**，并**二分出真实下界**：26/27/28 失败，**29.0.0 起通过** | §5.0 给出实测版本矩阵与 pin 方案（需用户拍板） |
+| **DOC-C1** | 文字与证据标签仍停留在 Rev.B | ✅ 属实 | 已随本版更正 |
+
+### 这一轮我最该反省的两点
+
+**其一，我的 T7/T8 用例是"构造得让缺陷不可能出现"。** 两条用例的尾子句都写成了 `shardkey=sk`
+——而 `shardkey=` **根本不触发**那条方言正则。于是"列名 broadcast 仍在""注释原样保留"这两个
+结论看着通过，实际上从未走进出问题的代码路径。O 说得对：**这是同源错误对照，不能当安全 oracle。**
+
+**其二，我把"NG-4 不动 v1.6.2.0 的代码"当成了不可逾越的边界。** 但当既有代码被证明正在损坏数据、
+而我又正把更多语句引流进去时，正确的做法是**撤销这条 NG 并把它一起修好**，而不是绕着它走。
+Rev.D 因此**撤销 NG-4**。
 
 ---
 
@@ -272,9 +314,9 @@ Rev.B 把安全性拆成四条**各自独立可验证**的性质：
 | 编号 | 性质 | 由什么保证 | 实测证据 |
 |---|---|---|---|
 | **S-1** | 不改变"首次解析即成功"语句的控制流与结果 | 新逻辑只在 `except` 内 | 全语料 197 条中仅 2 条变化，且均为本次目标缺陷 |
-| **S-2a 词法完整性** | 差异只落在词法器给出的 token 区间内 | 字符串/标识符/注释各是完整 token；改写等长 + 逐字符校验（门禁①） | O 的 BLOCK-1 反例：变换 **1 处**（Rev.A 是 2 处），越界改写 **0** |
+| **S-2a 词法完整性** | **整条恢复链**（阶段一 UNIQUE COMMENT + 阶段二 TDSQL 尾子句）的差异只落在两阶段 span 并集内 | 两阶段均为 token 级剥离并各自返回 span；最终做 `sql_clean → _final_sql` 的**联合**逐字符校验 | BLOCK-1 反例越界改写 **0**；X 组 40 例字段级精确保持（生产版本 36 例失败） |
 | **S-2b 语法作用域完整性**（Rev.C 新增） | **每个 span 必须来自第一条 CREATE TABLE 顶层、且以 UNIQUE 开头的定义项** | 显式 `at_def_start` 状态；定义列表闭合即停止扫描 | 5 类作用域负例（CONSTRAINT / 列内联 / 定义项中部 / 两条语句 / 表选项）span 数**全部为 1** |
-| **S-3** | 无法证明安全时**失败关闭**，绝不猜测性改写 | 词法失败 / 括号未闭合 / 非 CREATE TABLE / 无 span → 返回 `None`，沿用原异常 | 未闭合引号、未闭合括号、非 CREATE TABLE 均实测不变换 |
+| **S-3** | 无法证明安全时**失败关闭**，绝不猜测性改写 | 两个剥离器在词法失败 / 括号未闭合 / 非建表 / 尾子句形态不完整 / span 越界时均返回 `None`；联合门禁不通过即沿用原异常 | 未闭合引号与括号、非 CREATE TABLE 实测不变换；O 判 Rev.C『S-3 不成立』的原因（第二阶段无 span）已由联合门禁消除 |
 | **S-4** | `parsed.raw_sql` 保持原文 | 变换只作用于送进 sqlglot 的副本 | 12 例正向恢复全部 `raw_sql == 输入` |
 
 > **S-2a 是 Rev.A 完全缺失的一条；S-2b 是 Rev.B 只写进文档、未在代码中实现的一条。**
@@ -292,6 +334,166 @@ Rev.B 把安全性拆成四条**各自独立可验证**的性质：
 ```python
 from sqlglot.tokens import TokenType
 ```
+
+### 3.0b 改动点 0b：**删除** `_TDSQL_DIALECT_RE`（NG-4 已撤销）
+
+删除 `parser_legacy.py` 第 16-29 行的整块注释与 `_TDSQL_DIALECT_RE = re.compile(...)` 定义。
+
+**删除理由（实测，非推演）**：它对整条 SQL 做 `re.sub()`，不感知 token 作用域。
+只要语句含真实 TDSQL 尾子句（这正是它被激活的条件），SQL 任何位置的同名文本都会被一并抹掉：
+
+| 输入片段 | 该正则处理后 |
+|---|---|
+| `` `broadcast` varchar(20) `` | 列名被抹成空白，**该列消失** |
+| `COMMENT 'broadcast table info'` | 变成 `COMMENT '  table info'` |
+| `COMMENT 'TDSQL_DISTRIBUTED BY HASH(fake)'` | 变成 `COMMENT ' '` |
+
+且改坏后的 SQL **仍能解析成同表名的 `exp.Create`**，四道门禁发现不了 → **静默错误 AST**。
+
+> 全仓 `grep` 确认该常量**只被 `parser_legacy.py` 自身引用**（第 135/138 行），删除无外部影响。
+
+### 3.0c 改动点 0c：新增 span 校验器与 token 级 TDSQL 尾子句剥离器
+
+**位置**：原 `_TDSQL_DIALECT_RE` 所在处（即 import 区之后、`_strip_unique_index_comments` 之前）。
+
+```python
+# ── v1.6.2.2：解析恢复链的两个 token 级安全剥离器 ─────────────────────────────
+#
+# 本文件原有的 _TDSQL_DIALECT_RE（v1.6.2.0 引入的全局正则）已删除。
+# 删除原因（实测，见设计说明书 §5.14）：它对整条 SQL 做 re.sub()，不感知
+# token 作用域，会把定义体里的真实内容一并抹掉——
+#   `broadcast` varchar(20)                 → 列被删除（列名变成空白）
+#   COMMENT 'broadcast table info'          → 注释被改成 '  table info'
+#   COMMENT 'TDSQL_DISTRIBUTED BY HASH(x)'  → 注释被清空
+# 且改写后的 SQL 仍能解析成同表名的 exp.Create，四道门禁发现不了，
+# 形成**静默错误 AST**。该缺陷自 v1.6.2.0 起已在生产版本中存在。
+#
+# 两个剥离器共用同一套安全模型：
+#   * 只在 token 流上识别，字符串/注释/反引号标识符天然不可见；
+#   * 只在明确的语法作用域内动手；
+#   * 等长空格替换、保留换行；
+#   * 返回精确 span，由调用方做"差异必须全部落在 span 内"的联合校验；
+#   * 无法证明安全时返回 None —— 失败关闭。
+
+
+def _spans_only_diff(orig: str, new: str, spans) -> bool:
+    """校验 new 相对 orig 的全部差异都落在 spans 内，且长度恒等。"""
+    if new is None or len(new) != len(orig):
+        return False
+    for i in range(len(orig)):
+        if orig[i] != new[i] and not any(s <= i <= e for s, e in spans):
+            return False
+    return True
+
+
+def _tdsql_table_def_end(toks):
+    """返回第一条 CREATE [TEMPORARY] TABLE 定义列表收尾右括号之后的 token 下标。
+
+    不是建表语句、或定义列表不完整时返回 -1。
+    """
+    n = len(toks)
+    if n < 4 or toks[0].token_type != TokenType.CREATE:
+        return -1
+    p = 1
+    if toks[p].token_type == TokenType.TEMPORARY:
+        p += 1
+    if p >= n or toks[p].token_type != TokenType.TABLE:
+        return -1
+    while p < n and toks[p].token_type != TokenType.L_PAREN:
+        p += 1
+    if p >= n:
+        return -1
+    d = 0
+    while p < n:
+        if toks[p].token_type == TokenType.L_PAREN:
+            d += 1
+        elif toks[p].token_type == TokenType.R_PAREN:
+            d -= 1
+            if d == 0:
+                return p + 1
+        p += 1
+    return -1
+
+
+_TDSQL_SHARD_METHODS = {"HASH", "RANGE", "LIST"}
+
+
+def _strip_tdsql_dialect_tail(sql: str, dialect: str = "mysql"):
+    """剥离**第一条建表语句定义列表闭合之后、顶层**的 TDSQL 方言尾子句。
+
+    识别两种形态（均要求是真实关键字 token，不是字符串/注释/标识符内容）：
+      * TDSQL_DISTRIBUTED BY HASH|RANGE|LIST ( ... )
+      * 独立的 BROADCAST 标志
+    返回 (改写后SQL, spans)；无可安全变换或形态不完整时返回 (None, [])。
+
+    与被删除的全局正则的本质区别：定义体（列、索引、注释、DEFAULT）在
+    **位置上**就不在扫描范围内，因此名为 broadcast 的列、注释里的伪方言
+    片段结构上不可达，不可能被误改。
+    """
+    try:
+        toks = sqlglot.Dialect.get_or_raise(dialect).tokenizer_class().tokenize(sql)
+    except Exception:
+        return None, []
+    i = _tdsql_table_def_end(toks)
+    if i < 0:
+        return None, []
+    n = len(toks)
+    spans = []
+    depth = 0
+    while i < n:
+        tt = toks[i].token_type
+        tx = (toks[i].text or "").upper()
+        if tt == TokenType.L_PAREN:
+            depth += 1
+            i += 1
+            continue
+        if tt == TokenType.R_PAREN:
+            depth -= 1
+            i += 1
+            continue
+        if depth == 0 and tx == "TDSQL_DISTRIBUTED":
+            j = i + 1
+            if j < n and (toks[j].text or "").upper() == "BY":
+                j += 1
+            if j < n and (toks[j].text or "").upper() in _TDSQL_SHARD_METHODS:
+                j += 1
+            if j < n and toks[j].token_type == TokenType.L_PAREN:
+                d2 = 0
+                while j < n:
+                    if toks[j].token_type == TokenType.L_PAREN:
+                        d2 += 1
+                    elif toks[j].token_type == TokenType.R_PAREN:
+                        d2 -= 1
+                        if d2 == 0:
+                            break
+                    j += 1
+                if j < n:
+                    spans.append((toks[i].start, toks[j].end))
+                    i = j + 1
+                    continue
+            return None, []                     # 形态不完整 → 失败关闭
+        if (depth == 0 and tx == "BROADCAST"
+                and tt in (TokenType.VAR, TokenType.IDENTIFIER)
+                and not (i > 0 and toks[i - 1].token_type == TokenType.EQ)):
+            spans.append((toks[i].start, toks[i].end))
+            i += 1
+            continue
+        i += 1
+    if not spans:
+        return None, []
+    buf = list(sql)
+    for s, e in spans:
+        if not (0 <= s <= e < len(buf)):
+            return None, []
+        for q in range(s, e + 1):
+            if buf[q] != "\n":
+                buf[q] = " "
+    return "".join(buf), spans
+```
+
+**与被删正则的本质区别**：定义体（列、索引、注释、DEFAULT）在**位置上**就不在扫描范围内
+——`_tdsql_table_def_end()` 先定位定义列表收尾右括号，扫描**从它之后**才开始。
+因此名为 `broadcast` 的列、注释里的伪方言片段**结构上不可达**，不可能被误改。
 
 ### 3.1 改动点 1：新增词法安全、作用域受限的剥离器（模块级）
 
@@ -463,6 +665,43 @@ def _strip_unique_index_comments(sql: str, dialect: str = "mysql"):
 | ⑧ 无法证明边界时返回 `None`，不猜测性改写 | 词法异常 / 括号未闭合 / 非建表 / 无 span / span 越界 均返回 `(None, [], "")` |
 | ⑨ 等长空格替换并保留换行 | 逐字符置空格、跳过 `\n`；实测改写前后**长度恒等** |
 
+### 3.2b 改动点 2b：**改造既有首次解析的 `Command` 重试**（BLOCK-C1 第 4 条）
+
+**改动前**（当前第 135-142 行，v1.6.2.0 原样）：
+
+```python
+            if isinstance(ast, exp.Command) and _TDSQL_DIALECT_RE.search(sql_clean):
+                try:
+                    _retry_ast = sqlglot.parse_one(
+                        _TDSQL_DIALECT_RE.sub(" ", sql_clean), read=self.dialect)
+                    if not isinstance(_retry_ast, exp.Command):
+                        ast = _retry_ast
+                except Exception:
+                    pass
+```
+
+**改动后**（逐字照抄）：
+
+```python
+            if isinstance(ast, exp.Command):
+                # v1.6.2.2 / BLOCK-C1: 原实现对整条 SQL 做 _TDSQL_DIALECT_RE.sub()，
+                # 不感知 token 作用域，会删掉名为 broadcast 的列、篡改注释里的
+                # broadcast / 伪 TDSQL 片段，且改坏后仍能解析成同表名 Create，
+                # 形成静默错误 AST。改用 token 级尾子句剥离器 + span 校验。
+                _t_sql, _t_spans = _strip_tdsql_dialect_tail(sql_clean, self.dialect)
+                if _t_sql is not None and _spans_only_diff(sql_clean, _t_sql, _t_spans):
+                    try:
+                        _retry_ast = sqlglot.parse_one(_t_sql, read=self.dialect)
+                        if not isinstance(_retry_ast, exp.Command):
+                            ast = _retry_ast
+                    except Exception:
+                        pass
+```
+
+> **必须同时改这里，不能只改 except 分支。** O 指出：只修新路径会留下
+> "无 UNIQUE COMMENT 时仍静默损坏"的同源问题——而那正是**当前生产版本正在发生的事**。
+> 实测：改造后，三个反例在**首次重试路径**上同样恢复正确（列名与注释逐字保持）。
+
 ### 3.2 改动点 2：`parse()` 的 `except` 分支——受限重试 + 四道门禁
 
 **改动前**（当前第 144-155 行，逐字现状）：
@@ -488,50 +727,45 @@ def _strip_unique_index_comments(sql: str, dialect: str = "mysql"):
         except (SqlglotError, Exception) as e:
             # v1.6.2.2 / DEF-2: UNIQUE 索引带 COMMENT 会让 sqlglot 抛 ParseError，
             # 整条语句结构信息全丢，R003/R004/R005/R028 集体误报。
-            # 此处以"词法安全的受限剥离 + 严格接纳门禁"重试一次。
-            # 六道门禁全部通过才采用候选 AST；任一不满足即沿用原异常与原有
-            # E999 路径（失败关闭），故失败路径与改前逐字等价。
+            # 恢复链共两阶段，**两阶段都是 token 级剥离并各自返回 span**：
+            #   阶段一：剥离 UNIQUE 索引 COMMENT
+            #   阶段二：若仍降级为 Command，再剥离 TDSQL 方言尾子句
+            # 最终以「原文 → 最终 SQL 的全部差异必须落在两阶段 span 并集内」
+            # 作联合门禁（BLOCK-C1 要求）；任一环节不满足即沿用原异常，
+            # 下方失败路径与改前逐字一致。
             _retry_ast = None
             _new_sql, _spans, _tbl = _strip_unique_index_comments(sql_clean, self.dialect)
-            if _new_sql is not None and _spans:
-                # 门禁①：改写必须等长，且差异只允许出现在批准的 span 内
-                _ok = len(_new_sql) == len(sql_clean)
-                if _ok:
-                    for _p in range(len(sql_clean)):
-                        if sql_clean[_p] != _new_sql[_p] and not any(
-                                _s <= _p <= _e for _s, _e in _spans):
-                            _ok = False
-                            break
-                if _ok:
-                    try:
-                        _cand = sqlglot.parse_one(_new_sql, read=self.dialect)
-                    except Exception:
-                        _cand = None
-                    # v1.6.2.2 / BLOCK-B1: 与 v1.6.2.0 的 TDSQL 方言恢复串联。
-                    # 同一条 DDL 同时含 UNIQUE-COMMENT 与 TDSQL_DISTRIBUTED/BROADCAST
-                    # 时，剥离 COMMENT 后仍会降级为 Command；此处复用**同一条**
-                    # _TDSQL_DIALECT_RE 与同样的"仅在已降级时"前置条件再恢复一次。
-                    # 不修改该正则本身，也不放宽既有 Command 前置门禁。
-                    if (isinstance(_cand, exp.Command)
-                            and _TDSQL_DIALECT_RE.search(_new_sql)):
+            if (_new_sql is not None and _spans
+                    and _spans_only_diff(sql_clean, _new_sql, _spans)):
+                _all_spans = list(_spans)
+                _final_sql = _new_sql
+                try:
+                    _cand = sqlglot.parse_one(_new_sql, read=self.dialect)
+                except Exception:
+                    _cand = None
+                # 阶段二：与 TDSQL 方言恢复串联（同为 token 级，非正则）
+                if isinstance(_cand, exp.Command):
+                    _t_sql, _t_spans = _strip_tdsql_dialect_tail(_new_sql, self.dialect)
+                    if _t_sql is not None and _spans_only_diff(_new_sql, _t_sql, _t_spans):
                         try:
-                            _c2 = sqlglot.parse_one(
-                                _TDSQL_DIALECT_RE.sub(" ", _new_sql), read=self.dialect)
+                            _c2 = sqlglot.parse_one(_t_sql, read=self.dialect)
                             if not isinstance(_c2, exp.Command):
                                 _cand = _c2
+                                _final_sql = _t_sql
+                                _all_spans = _all_spans + _t_spans
                         except Exception:
                             pass
-                    # 门禁②：候选必须是 CREATE           门禁③：kind 必须是 TABLE
-                    if (isinstance(_cand, exp.Create)
-                            and str(_cand.args.get("kind") or "").upper() == "TABLE"):
-                        _cand_tbl = ""
-                        _sch = _cand.this
-                        _tobj = _sch.this if isinstance(_sch, exp.Schema) else _sch
-                        if _tobj is not None:
-                            _cand_tbl = getattr(_tobj, "name", "") or ""
-                        # 门禁④：候选表名必须与原文提取的表名一致
-                        if _cand_tbl and _cand_tbl.strip('`"\' ').lower() == _tbl.strip('`"\' ').lower():
-                            _retry_ast = _cand
+                if (isinstance(_cand, exp.Create)
+                        and str(_cand.args.get("kind") or "").upper() == "TABLE"
+                        and _spans_only_diff(sql_clean, _final_sql, _all_spans)):
+                    _cand_tbl = ""
+                    _sch = _cand.this
+                    _tobj = _sch.this if isinstance(_sch, exp.Schema) else _sch
+                    if _tobj is not None:
+                        _cand_tbl = getattr(_tobj, "name", "") or ""
+                    if (_cand_tbl
+                            and _cand_tbl.strip('`"\' ').lower() == _tbl.strip('`"\' ').lower()):
+                        _retry_ast = _cand
             if _retry_ast is not None:
                 # 必须同时重绑局部变量 ast——下方通用流程（_get_sql_type/_parse_create/
                 # _parse_common）直接引用 ast，只赋 parsed.ast 会 UnboundLocalError。
@@ -606,28 +840,32 @@ def _strip_unique_index_comments(sql: str, dialect: str = "mysql"):
         idx_type = kind if kind in {"PRIMARY", "UNIQUE", "FULLTEXT"} else "NORMAL"
 ```
 
-> ✅ **本文档的代码块已自验证（Rev.C）**：§3.2 与 §3.3 的两个「改动前」块经程序比对与
-> `parser_legacy.py` **逐字匹配**；四个「改动后」块被**原样抽取**并施工到一棵干净工作树上，
-> 实测语法通过、导入自检通过、行为与我的实现**完全一致**——T 组 10 例、N 组 5 例、
-> C 组 4 例、F 组精确集合断言、6000 条模糊测试逐项相同，全量回归
-> **1355 passed / 0 failed / 29 skipped**。Q 可以直接复制粘贴，无需再做适配。
+> ✅ **本文档的代码块已自验证（Rev.D）**：§3.2b / §3.2 / §3.3 的三个「改动前」块经程序比对与
+> `parser_legacy.py` **逐字匹配**；五个「改动后」块被**原样抽取**并施工到一棵干净工作树上，
+> 实测：语法通过、导入自检通过、旧正则确认已删除、**X 组 40 例全通过**、
+> T/N/C/F 矩阵与 6000 条模糊测试逐项相同、方言回退等 71 例专项 passed、
+> 全量回归 **1355 passed / 0 failed / 29 skipped**。Q 可以直接复制粘贴。
 >
-> ⚠️ 抽取时注意块的先后：§3.2 与 §3.3 都是**前者「改动前」、后者「改动后」**，
-> 且 §3.3 两块开头都是 `# 判断索引类型`，容易搞反（我在 Rev.A 自验证时就反过一次）。
+> ⚠️ 抽取时注意块的先后：§3.2b、§3.2、§3.3 均为**前者「改动前」、后者「改动后」**，
+> 且 §3.3 两块开头都是 `# 判断索引类型`，容易搞反。
 
 ### 3.4 改动汇总
 
 | 序号 | 位置 | 改动 |
 |---|---|---|
 | 0 | 文件头 import 区 | `from sqlglot.tokens import TokenType`（+1 行） |
-| 1 | `_TDSQL_DIALECT_RE` 之后 | 新增 `_strip_unique_index_comments()`（约 +140 行，含约 35 行注释） |
-| 2 | `parse()` 的 `except` 分支 | 受限重试 + 五道门禁（含 TDSQL 方言恢复串联）；原失败路径整体下移一层缩进 |
+| **0b** | 原 `_TDSQL_DIALECT_RE` 处 | **删除**该全局正则及其注释（-14 行） |
+| **0c** | 同上位置 | 新增 `_spans_only_diff()` / `_tdsql_table_def_end()` / `_strip_tdsql_dialect_tail()`（+132 行，含约 40 行注释） |
+| 1 | 紧随其后 | 新增 `_strip_unique_index_comments()`（+140 行） |
+| **2b** | `parse()` 首次 `Command` 重试 | 改用 token 剥离器 + span 校验（v1.6.2.0 代码，NG-4 已撤销） |
+| 2 | `parse()` 的 `except` 分支 | 两阶段受限重试 + **联合 span 门禁** |
 | 3 | `_parse_index_constraint()` | 类型判据改读 `kind` 白名单映射 |
-| **4** | **`tests/fixtures/report_6309_*.sql`、`report_6311_*.sql`** | **删除会污染审核的文件头注释**（来源说明移入同目录 `README-report-fixtures.md`） |
 
-**产品代码：1 个文件；连同两个 fixture 修正，`git diff --stat` 实测
-`3 files changed, 218 insertions(+), 24 deletions(-)`。
-不新增第三方依赖（`TokenType` 来自已在用的 sqlglot），规则层一行不动。**
+**产品代码：`parser_legacy.py` 一个文件，`git diff --stat` 实测 `360 insertions(+), 39 deletions(-)`。
+fixture 已在 Rev.C 修正。不新增第三方依赖（`TokenType` 来自已在用的 sqlglot），规则层一行不动。**
+
+> 本版改动量明显大于 Rev.C——因为 NG-4 被撤销，v1.6.2.0 的方言处理被纳入修复范围。
+> 这是必要的：那段代码**正在生产环境静默破坏审核数据**（§5.14.1）。
 
 ## 4. 明确的非目标（NG，施工红线）
 
@@ -637,7 +875,7 @@ def _strip_unique_index_comments(sql: str, dialect: str = "mysql"):
 | **NG-1** | **不改任何规则文件** | `ddl.py` / `index.py` / `distributed.py` / `dml.py` / `oracle_compat.py` **零改动**。本次是解析器供数问题，不是规则判据问题 |
 | **NG-2** | **不动 `distributed.py`** | v1.6.1.9 冻结代码；`_iter_unique_indexes` 的早退逻辑本次不碰——DEF-1 修好后它拿到的就是正确输入 |
 | **NG-3** | **不动 `_parse_unique_constraint()`** | 它硬编码 `"type": "UNIQUE"`，本就正确 |
-| **NG-4** | **不动 v1.6.2.0 的 TDSQL 方言重试** | `_TDSQL_DIALECT_RE` 及其重试块一字不改 |
+| ~~NG-4~~ | ~~不动 v1.6.2.0 的 TDSQL 方言重试~~ | 🚫 **本版撤销**。O 第三轮证明该正则会静默破坏 AST，且我正把更多语句引流进去；继续绕开它等于把已知损坏留在生产。Rev.D **删除该正则**并把两条恢复入口统一到 token 级剥离器 |
 | **NG-5** | **不动 v1.6.2.1 的 R061 去引号** | `index.py` 一字不改 |
 | **NG-6** | **不把 SPATIAL 单独成型** | 维持映射为 NORMAL。这是本次热修「输出域不变」的**兼容性取舍**，**不是**「空间索引语义上等同普通索引」的结论；后续如新增空间索引规则，另行立项扩展模型与消费者（O 复审同意） |
 | **NG-7** | **不新增字段级字符集/排序规则检查** | 用户已决策：R005 维持只判表级，字段级字符集本次不纳入 |
@@ -649,21 +887,45 @@ def _strip_unique_index_comments(sql: str, dialect: str = "mysql"):
 
 ## 5. 影响面分析（全部实测）
 
-### 5.0 环境与依赖版本（O MAJOR-2）
+### 5.0 sqlglot 版本矩阵与依赖 pin（O MAJOR-C1）
 
-| 项目 | 值 |
+**实测版本矩阵**（在独立 venv 中逐版本安装后跑同一组探针）：
+
+| sqlglot | T1~T4/T6（HASH/RANGE/LIST/BROADCAST/shardkey + UNIQUE COMMENT） | T5（HASH + 二级分区） | BLOCK-C1 三反例（列/注释保持） |
+|---|---|---|---|
+| 26.0.0 | ✅ | ❌ **失败** | ✅ |
+| 27.0.0 | ✅ | ❌ **失败** | ✅ |
+| 28.0.0 | ✅ | ❌ **失败** | ✅ |
+| **29.0.0** | ✅ | ✅ **起可用** | ✅ |
+| 30.0.0 | ✅ | ✅ | ✅ |
+| 30.12.0（O 侧） | ✅ | ✅ | ✅ |
+| 30.14.0（本文档回归版本） | ✅ | ✅ | ✅ |
+
+**两条结论**：
+
+1. **本次 BLOCK-C1 修复本身与版本无关**——26 / 27 / 28 / 29 / 30 上列名与注释均正确保持。
+2. **T5 的真实下界是 29.0.0**（26/27/28 实测失败）。这是 **v1.6.2.0 既有的**版本兼容边界
+   （仓内既有 `test_d5_hash_plus_partition` 在 26.0.0 下同样失败），不是 Rev.D 引入。
+
+**当前依赖声明与实际安装的脱节**：
+
+| 位置 | 现状 |
 |---|---|
-| 依赖声明 | `requirements.txt: sqlglot>=26.0.0`；`pyproject.toml: sqlglot>=26.0`（**无上限**） |
-| 本文档回归实际执行版本 | **sqlglot 30.14.0** |
-| O 复审环境实测版本 | sqlglot 30.12.0 |
-| DEF-1 AST 结论验证覆盖 | 26.0.0 / 30.12.0 / 30.14.0（O 侧）+ 30.14.0（本侧），**均无反例** |
-| 数据库 | MariaDB `127.0.0.1:13306`，`slow_query_log=ON` |
-| 后端 | uvicorn `127.0.0.1:8000` 在线 |
+| `requirements.txt` | `sqlglot>=26.0.0`（无上限） |
+| `pyproject.toml` | `sqlglot>=26.0`（无上限） |
+| 内网部署 | `pip install --no-index --find-links=wheels/ -r requirements.txt`，**实际版本 = 打包时 `make_release.sh` 抓到的 wheel**，未固定 |
 
-> **交付要求**：发布制品必须记录实际安装的 sqlglot 版本；建议后续单独立项锁定上限。
-> 本次不改依赖声明（超出缺陷范围），但 §7.1 A 组的 AST 契约测试会在升级破坏假设时**显式失败**。
+> ⚠️ **这是一个需要你拍板的产品决策**，因为它改的是发布包而不只是代码。
+>
+> **我的建议（低风险路径）**：把两处依赖声明改为 **`sqlglot>=29,<31`**，
+> 并要求打包时记录实际 wheel 版本。下界 29.0.0 是**实测出来的**（不是从两个通过点外推），
+> 上界 `<31` 是为了不把未测过的大版本纳入。
+>
+> 若你更倾向严格，可直接 pin 到发布实测版本（如 `sqlglot==30.14.0`），与 wheel 完全一致。
+>
+> **本设计不擅自改依赖声明**——等你决定后再由 Q 一并落地（施工检查单 C-19）。
 
-### 5.1 引擎指纹与解析产物
+### 5.1 引擎指纹与解析产物### 5.1 引擎指纹与解析产物
 
 | 指标 | 基线 | Rev.B |
 |---|---|---|
@@ -768,8 +1030,8 @@ Rev.B 对它们**失败关闭**，仍报原错误——这是正确行为，并�
 | T4 | `BROADCAST` | ❌ E999 | ✅ cols=5 | ✅ |
 | T5 | `HASH + 二级 PARTITION` | ❌ | ✅ | ✅ |
 | T6 | `shardkey=sk`（对照） | ✅ | ✅ | ✅ |
-| T7 | 列名为 `broadcast` | — | ✅ 列仍在 | — |
-| T8 | 列注释含伪 `TDSQL_DISTRIBUTED` | — | ✅ 注释原样保留 | — |
+| ~~T7~~ | ~~列名为 `broadcast`~~ | 🚫 **本版撤回**：Rev.C 的 T7 尾子句写成了 `shardkey=`，**根本不触发**方言正则，是同源错误对照，不能作安全 oracle。已由 §5.14 的 40 例交叉矩阵取代 |
+| ~~T8~~ | ~~列注释含伪 `TDSQL_DISTRIBUTED`~~ | 🚫 **本版撤回**，同上 |
 | T9/T10 | `TEMPORARY` 集中式 / 分布式 | ❌ E999 | ✅ 且 R032 / R024+R032 正常命中 | — |
 
 > **最强的一条不变量**：T1~T6 均实测「带 COMMENT 的表」与「同一张表去掉 COMMENT」
@@ -810,6 +1072,45 @@ fixture 已移除会污染审核的文件头（来源说明移入 `tests/fixture
 
 > 修正前实测：gg78 原样读取会因我加的中文文件头（含**全角括号**）多出一条 **R104**——
 > 这正是 O 指出的、子集断言无法暴露的问题。
+
+### 5.14 BLOCK-C1：方言尾子句处理的安全性（Rev.D 新增，本轮核心）
+
+#### 5.14.1 缺陷在当前生产版本上的实际表现
+
+在**未打任何补丁的 v1.6.2.1**（即内网正在运行的版本）上实测：
+
+| 输入（尾子句 `TDSQL_DISTRIBUTED BY HASH(sk)`） | 生产版本实际结果 |
+|---|---|
+| 有一列名为 `` `broadcast` `` | 列名变成 `' '`，**该列消失** |
+| 某列注释 `'broadcast table info'` | 变成 `'  table info'` |
+| 某列注释 `'TDSQL_DISTRIBUTED BY HASH(fake)'` | 变成 `' '` |
+
+三种情况**均"解析成功"**、无 E999，产出结构已损坏的 AST。
+
+#### 5.14.2 交叉矩阵：40 例（4 尾子句 × 5 诱饵 × 带/不带 UNIQUE COMMENT）
+
+诱饵：列名为 `broadcast`（反引号 / 裸名）、列注释含 `broadcast`、列注释含伪 `TDSQL_DISTRIBUTED`、
+`DEFAULT` 值含 `broadcast`。断言**字段级精确保持**：列名序列、目标列注释、`raw_sql` 逐字等于输入。
+
+| 版本 | 结果 |
+|---|---|
+| **当前生产 v1.6.2.1** | **40 例中 36 例失败** |
+| **Rev.D** | **40 例全部通过** ✅ |
+
+> 这条矩阵是 O 要求的"**真正独立的结构 oracle**"——它不比较两个都经过同一不安全预处理的
+> 规则集合，而是直接对列名、列注释、DEFAULT、`raw_sql` 做字段级精确断言。
+
+#### 5.14.3 两条恢复入口均已统一
+
+| 入口 | 触发条件 | Rev.D 前 | Rev.D 后 |
+|---|---|---|---|
+| 首次解析降级为 `Command`（v1.6.2.0） | 语句含真实方言尾子句 | 全局正则，**损坏** | token 剥离器 + span 校验 ✅ |
+| 首次解析抛 `ParseError`（本次新增） | UNIQUE COMMENT + 方言尾子句 | Rev.C 复用同一不安全正则 | 同上，且与阶段一做**联合 span 门禁** ✅ |
+
+#### 5.14.4 既有方言回退专项未退化
+
+`tests/test_parser_tdsql_dialect_fallback.py`（v1.6.2.0 的 14 例）在 Rev.D 下 **14 passed**，
+`test_r077_r054_tdsql_syntax.py` **45 passed**，`test_r061_index_name_quoting.py` **12 passed**。
 
 ### 5.13 全量回归与审核物料校验器
 
@@ -886,14 +1187,28 @@ verify_rules.py  Rev.B：119 / 107 / 未覆盖 0 / 断言失败 3   ← 逐项�
 **`USING BTREE` 前置于键值列表**。断言**仍报原错误**，并在注释中写明该处是 sqlglot 能力边界、
 非剥离器缺陷（去掉 COMMENT 后 sqlglot 同样 ParseError）。
 
-**T 组 — TDSQL 方言组合（10 例，对应 §5.9，BLOCK-B1）**：T1 HASH、T2 RANGE、T3 LIST、
-T4 BROADCAST、T5 HASH+二级分区、T6 `shardkey=`（对照）、T7 列名为 `broadcast`、
-T8 列注释含伪 `TDSQL_DISTRIBUTED`、T9 TEMPORARY（集中式）、T10 TEMPORARY（分布式）。
+**T 组 — TDSQL 方言组合（8 例，对应 §5.9）**：T1 HASH、T2 RANGE、T3 LIST、T4 BROADCAST、
+T5 HASH+二级分区、T6 `shardkey=`（对照）、T9 TEMPORARY（集中式）、T10 TEMPORARY（分布式）。
+（原 T7/T8 已撤回并由 X 组取代——它们的尾子句写成 `shardkey=`，根本不触发方言处理路径。）
 
 每例断言：解析成功、`columns > 0`、无 E999、`raw_sql` 逐字等于输入，
 **且规则命中集合与「同一张表去掉 UNIQUE 索引 COMMENT」完全相等**
 ——这条相等断言是最强的护栏，它证明恢复**没有引入任何自己的口径**。
 T9/T10 额外断言 R032（集中式）与 R024+R032（分布式）仍正常命中。
+
+**X 组 — 方言尾子句安全交叉矩阵（40 例，对应 §5.14，BLOCK-C1，本轮最重要）**：
+4 种尾子句（HASH / RANGE / LIST / BROADCAST）× 5 类诱饵（列名为 `` `broadcast` ``、
+裸列名 `broadcast`、列注释含 `broadcast`、列注释含伪 `TDSQL_DISTRIBUTED ...`、
+`DEFAULT` 值含 `broadcast`）× 带 / 不带 UNIQUE 索引 COMMENT（覆盖**两条**恢复入口）。
+
+每例做**字段级精确断言**，不得退化为"与去掉 COMMENT 的结果相等"这类同源对照：
+
+1. 列名序列 `[c["name"] for c in parsed.columns]` **精确相等**于期望列表；
+2. 目标列的 `column_comments[...]` **逐字等于**原文注释；
+3. `DEFAULT` 值保持；
+4. `parsed.raw_sql` 逐字符等于输入。
+
+> ⚠️ 这 40 例中有 **36 例在当前生产版本 v1.6.2.1 上是失败的**，务必确认它们在你的实现上全绿。
 
 **N 组 — 作用域负向（5 例，对应 §5.10，BLOCK-B2）**：N1 `CONSTRAINT ... UNIQUE`、
 N2 列内联 `UNIQUE`、N3 定义项中部 `UNIQUE`、N4 两条语句拼接、N5 定义列表闭合后的表选项。
@@ -926,7 +1241,7 @@ N2 列内联 `UNIQUE`、N3 定义项中部 `UNIQUE`、N4 两条语句拼接、N5
 > 两个 fixture 已随设计提交（纯 DDL，来源说明见 `tests/fixtures/README-report-fixtures.md`），
 > 与报告 HTML 中的 DDL 逐字一致，请直接读取，**不要手写替代表、不要再加文件头注释**。
 
-**合计 52 例（A9 + B12 + C4 + D6 + E4 + F2 + T10 + N5），要求零 skip。**
+**合计 90 例（A9 + B12 + C4 + D6 + E4 + F2 + T8 + N5 + X40），要求零 skip。**
 
 ### 7.2 需修订的既有测试
 
@@ -937,11 +1252,11 @@ N2 列内联 `UNIQUE`、N3 定义项中部 `UNIQUE`、N4 两条语句拼接、N5
 
 | 门槛 | 要求 |
 |---|---|
-| G-1 | `pytest tests/` 全量：**1355 passed / 0 failed / 29 skipped**（+新增 52 例 → 1407 passed），无既有用例由通过转失败 |
+| G-1 | `pytest tests/` 全量：**1355 passed / 0 failed / 29 skipped**（+新增 90 例 → 1445 passed），无既有用例由通过转失败 |
 | G-2 | `test_r077_r054_tdsql_syntax.py` **45 passed** |
 | G-3 | `test_parser_tdsql_dialect_fallback.py` **14 passed** |
 | G-4 | `test_r061_index_name_quoting.py` **12 passed** |
-| G-5 | 新增 `tests/test_parser_index_type_and_uk_comment.py` **52 例全通过，零 skip** |
+| G-5 | 新增 `tests/test_parser_index_type_and_uk_comment.py` **90 例全通过，零 skip** |
 | G-6 | `verify_rules.py`：119 / 107 / 未覆盖 0 / 断言失败 **3**（与基线同名同因） |
 | G-7 | 全语料 197 条 × 119 规则：**恰好 2 条变化**，且均为两个目标 fixture；其余 195 条零漂移 |
 | G-8 | 生产 14 表回放**零漂移** |
@@ -949,6 +1264,8 @@ N2 列内联 `UNIQUE`、N3 定义项中部 `UNIQUE`、N4 两条语句拼接、N5
 | G-10 | F1/F2 **精确集合相等**通过 |
 | **G-13** | **T 组 10 例全通过**，其中 T1~T6 的「与去掉 COMMENT 结论相等」断言必须成立 |
 | **G-14** | **N 组 5 例 span 数全部为 1** |
+| **G-15** | **X 组 40 例全通过**（字段级精确断言），且 `test_parser_tdsql_dialect_fallback.py` 仍 **14 passed** |
+| **G-16** | 代码中**不得再出现** `_TDSQL_DIALECT_RE`（注释性说明除外），`grep` 确认无 `.sub(` 形式的 SQL 全局改写 |
 | **G-11** | **模糊测试（O §6.4-5）**：对 `_strip_unique_index_comments()` 随机组合引号、括号、逗号、注释、转义生成 ≥2000 条输入，断言**不抛异常**，且凡返回非 `None` 者必满足「长度恒等 + 差异全在 span 内」 |
 | **G-12** | 提交说明记录实际 `sqlglot.__version__` |
 
@@ -963,7 +1280,9 @@ N2 列内联 `UNIQUE`、N3 定义项中部 `UNIQUE`、N4 两条语句拼接、N5
 | sqlglot 升级导致 AST 假设失效 | **中→低** | 白名单映射不会静默降级；A9 契约测试在升级时显式失败；§5.0 记录版本 |
 | 丢失真索引类型 | **低** | A5 锁定真 FULLTEXT |
 | 告警数量变化引发用户疑虑 | **需沟通** | gg78 由 5 条 ERROR 变为 2 条 INFO；gg77 少 1 条 WARNING。减少的**全部是误报**，另有 1 处漏报被补上 |
-| **UNIQUE-COMMENT 与 TDSQL 方言组合仍失败** | **已消除** | 方言恢复串联；T1~T6 实测全部恢复，且与「去掉 COMMENT」结论相等 |
+| **UNIQUE-COMMENT 与 TDSQL 方言组合仍失败** | **已消除** | 方言恢复串联；T1~T6 实测全部恢复 |
+| **方言全局正则静默破坏 AST（BLOCK-C1）** | **已消除，且顺带修好一个生产在跑的缺陷** | 删除 `_TDSQL_DIALECT_RE`；两条入口统一 token 剥离器；X 组 40 例字段级精确断言全过（生产版本 36 例失败） |
+| **sqlglot 版本漂移致 T5 失效** | **需产品决策** | 实测下界 29.0.0；建议 pin `>=29,<31`，见 §5.0（C-19） |
 | **span 被错误批准（作用域越界）** | **已消除** | `at_def_start` + 定义列表闭合即停；5 类作用域负例 span 全为 1 |
 | `UnboundLocalError` | **已知陷阱** | §3.2 红框 |
 
@@ -981,6 +1300,8 @@ N2 列内联 `UNIQUE`、N3 定义项中部 `UNIQUE`、N4 两条语句拼接、N5
 - [ ] **C-5** 失败路径（`else` 分支内）与改前**逐字一致**，仅整体缩进一层
 - [ ] **C-6** 五道门禁一个不少（等长+差异仅在 span、`exp.Create`、`kind=='TABLE'`、表名同一性、**TDSQL 方言恢复串联**）
 - [ ] **C-6b** 剥离器入口接受 `CREATE [TEMPORARY] TABLE`；`at_def_start` 状态存在且正确；定义列表闭合即 `break`
+- [ ] **C-6c** **`_TDSQL_DIALECT_RE` 已删除**；两条恢复入口（首次 `Command` 重试、`except` 重试）**都**改用 `_strip_tdsql_dialect_tail()` + `_spans_only_diff()`
+- [ ] **C-6d** except 路径做的是**两阶段 span 联合门禁**（`sql_clean → _final_sql` 的全部差异落在 `_all_spans` 内），不是只校验阶段一
 - [ ] **C-7** 剥离器在词法异常 / 括号未闭合 / 非建表 / 无 span / span 越界时一律返回 `(None, [], "")`
 - [ ] **C-8** 未新增第三方依赖；只新增 `from sqlglot.tokens import TokenType`
 - [ ] **C-9** 规则层零改动：`ddl.py`/`index.py`/`distributed.py`/`dml.py`/`oracle_compat.py`
@@ -989,7 +1310,8 @@ N2 列内联 `UNIQUE`、N3 定义项中部 `UNIQUE`、N4 两条语句拼接、N5
 - [ ] **C-12** F 组**原样读取**已提交的两个纯 DDL fixture（**不要过滤注释行**），6309 用**分布式**、6311 用**集中式**，且用**精确集合相等**断言
 - [ ] **C-12b** **不得**给这两个 fixture 重新添加任何文件头注释
 - [ ] **C-13** 未修改任何既有测试文件；若确需修改，**停工回报**
-- [ ] **C-14** G-1 ~ G-14 十四道门槛逐条实测通过，提交说明中贴出实测数字
+- [ ] **C-14** G-1 ~ G-16 十六道门槛逐条实测通过，提交说明中贴出实测数字
+- [ ] **C-19** **依赖 pin**：待用户拍板后，把 `requirements.txt` 与 `pyproject.toml` 的 `sqlglot` 声明改为议定值（建议 `>=29,<31`），并在提交说明记录打包实际 wheel 版本
 - [ ] **C-15** 导入自检：`python -c "from backend.engine.parser.parser_legacy import SQLParser, _strip_unique_index_comments"` 无异常
 - [ ] **C-16** 版本号更新：`VERSION` 与 `backend/config.py` 的 `APP_VERSION`、`APP_DESCRIPTION` → `1.6.2.2`
 - [ ] **C-17** 提交说明记录实际 `sqlglot.__version__`
@@ -997,7 +1319,7 @@ N2 列内联 `UNIQUE`、N3 定义项中部 `UNIQUE`、N4 两条语句拼接、N5
 
 ---
 
-## 附录 A：实测证据清单（Rev.C）
+## 附录 A：实测证据清单（Rev.D）
 
 ### A.1 Rev.A / Rev.B 阶段既有证据（沿用）
 
@@ -1028,7 +1350,20 @@ N2 列内联 `UNIQUE`、N3 定义项中部 `UNIQUE`、N4 两条语句拼接、N5
 | **A-33** | RANGE/LIST 的 R077 基线对照 | 基线上同表去 COMMENT 后同样命中 R077 → 既有口径，登记 ADJ-13 |
 | **A-34** | Rev.C 生产 14 表 + 全语料 197 条漂移 | 14 表**零漂移**；语料**恰好 2 条**变化，均为目标 fixture |
 | **A-35** | Rev.C 全量回归 + `verify_rules.py` 双侧 | **1355 passed / 0 failed / 29 skipped**、119/107/0/3，**逐项一致** |
-| **A-36** | **文档代码块自验证** | §3.1/§3.2 四个块抽取施工到干净工作树，行为与实现完全一致 |
+| **A-36** | **文档代码块自验证** | 各改动点代码块抽取施工到干净工作树，行为与实现完全一致 |
+
+### A.3 Rev.D 新增证据（第三轮整改）
+
+| 编号 | 证据 | 结论 |
+|---|---|---|
+| **A-37** | **复现 O 第三轮 BLOCK-C1 三反例** | 列被删、注释被改、伪片段被清空 —— 指控成立 |
+| **A-38** | **在未打补丁的 v1.6.2.1 上复跑同三例** | **同样损坏** → 该缺陷**已在生产环境活跃**，非 Rev.C 引入 |
+| **A-39** | **X 组 40 例交叉矩阵** | 生产版本 **36/40 失败**；Rev.D **40/40 通过** |
+| **A-40** | Rev.D 对两条恢复入口的统一改造 | 首次 `Command` 重试路径上三反例同样恢复正确 |
+| **A-41** | **sqlglot 版本二分**：26/27/28/29/30/30.12/30.14 | T5 真实下界 = **29.0.0**；BLOCK-C1 修复**与版本无关** |
+| **A-42** | 既有方言回退 14 例 + R077/R054 45 例 + R061 12 例 | 全部 passed，未退化 |
+| **A-43** | Rev.D 全语料 197 条 / 生产 14 表 / 全量回归 | 语料**恰好 2 条**变化；14 表**零漂移**；**1355 passed / 0 failed** |
+| **A-44** | 自查 Rev.C 的 T7/T8 用例 | 尾子句写成 `shardkey=`，**从未触发**方言路径 —— O 的『同源错误对照』判断成立 |
 
 ---
 
@@ -1047,5 +1382,8 @@ N2 列内联 `UNIQUE`、N3 定义项中部 `UNIQUE`、N4 两条语句拼接、N5
 5. **F 组要原样读 fixture、用精确相等断言。** 不要过滤注释行（fixture 已是纯 DDL），
    不要再加文件头（我上一版加的文件头就让 gg78 多出一条 R104），
    6309 走**分布式**、6311 走**集中式**。
-6. **T 组那条"与去掉 COMMENT 结论相等"是最强的护栏。** 它证明这次恢复没有引入任何自己的口径，
-   只是让本该被审核的表回到它应有的结果。如果这条断言不成立，说明实现跑偏了。
+6. **X 组 40 例是本轮的重中之重。** 其中 **36 例在当前生产版本上就是失败的**——
+   它们直接验证列名、列注释、DEFAULT、`raw_sql` 有没有被静默改坏。
+   **不要**用『与去掉 UNIQUE COMMENT 的结果相等』代替字段级断言：两边都会经过同一条
+   不安全预处理，是同源错误对照，我上一版就栽在这里。
+7. **T 组那条『与去掉 COMMENT 结论相等』仍可保留，但只能作辅助 oracle，不能当主断言。**
