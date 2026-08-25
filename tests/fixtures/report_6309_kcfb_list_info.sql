@@ -1,6 +1,3 @@
--- 内网人工扫描报告 #6309（gg77）原样 DDL，未做任何删改。
--- 用途：v1.6.2.2 DEF-1 验收 C1——普通索引 kcfb_list_info_idx13 的列名 list_unique_num
---       曾使其被误判为 UNIQUE，导致 R054 误报；真唯一索引 idx14 反被顶替而漏检。
 -- Table: kcfb_list_info
 CREATE TABLE `kcfb_list_info` (
   `lgl_pern_code` varchar(4) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL COMMENT '法人代码',

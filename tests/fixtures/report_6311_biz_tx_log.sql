@@ -1,6 +1,3 @@
--- 内网人工扫描报告 #6311（gg78）原样 DDL，未做任何删改。
--- 用途：v1.6.2.2 DEF-2 验收 C2——UNIQUE KEY `uk_biztxlog` 上的 COMMENT 子句
---       曾使 sqlglot 抛 ParseError，进而 R003/R004/R005/R028 集体误报。
 CREATE TABLE `biz_tx_log` (
   `tx_serial_no` varchar(32) COLLATE utf8mb4_general_ci NOT NULL COMMENT '平台流水号',
   `term_id` varchar(64) COLLATE utf8mb4_general_ci NOT NULL COMMENT '终端编号',
