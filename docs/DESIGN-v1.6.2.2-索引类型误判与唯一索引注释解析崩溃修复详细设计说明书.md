@@ -2,13 +2,13 @@
 
 | 项目 | 内容 |
 |---|---|
-| 文档版本 | **Rev.E**（O 四轮独立复审；本版按第四轮 BLOCK-D1/D2、MAJOR-D1/D2 整改） |
+| 文档版本 | **Rev.F**（O 五轮独立复审；本版按第五轮 BLOCK-E1/E2、DOC-E1 整改，并做**结构性收敛**） |
 | 目标版本 | **v1.6.2.2** |
 | 缺陷来源 | 内网人工扫描报告 #6309（gg77）、#6311（gg78） |
 | 缺陷编号 | **DEF-1 = DEF-R054-FAKEUNIQUE**；**DEF-2 = DEF-PARSE-UKCOMMENT** |
 | 撰写 | 智能体 A |
 | 施工 | 智能体 Q |
-| 基线 commit | `d56b73f`（main） |
+| 基线 commit | `ecbbe8a`（main） |
 | 评审依据 | `docs/REVIEW-v1.6.2.2-...独立复审报告-Codex.md` |
 | 改动范围 | **`parser_legacy.py` 5 个改动点**（含**删除 v1.6.2.0 的 `_TDSQL_DIALECT_RE` 全局正则**）+ **`requirements.txt` / `pyproject.toml` 各 1 行依赖 pin**；fixture 已在 Rev.C 修正 |
 | 实测结论 | 生产 14 表**零漂移**；全语料 197 条中**恰好 2 条**变化且都是目标缺陷；全量回归 **1355 passed / 0 failed / 29 skipped**；TDSQL 四种方言组合**全部恢复**；5 类作用域负例 span **全部为 1**；模糊 6000 条**零违例**；生产回放**精确集合相等** |
@@ -37,6 +37,58 @@ O 第三轮指出的 BLOCK-C1，我复现后发现它**不是 Rev.C 引入的**�
 > 依据：内网目前"用关键字作列名"的情形还不多，暴露面有限。
 > 本条已决，后续评审与施工**不必再把它作为独立待办重新提出**——
 > 只需确保 v1.6.2.2 把它修好（门槛 G-15、X 组 40 例）。
+
+---
+
+## Rev.F 修订说明（针对 O 第五轮独立复审）
+
+O 对 Rev.E 判定 **No-Go**，开出 2 项 BLOCK + 1 项 DOC。**我逐条独立复现，全部成立，全部接受。**
+
+| 编号 | O 的意见 | 我的复核 | Rev.F 处置 |
+|---|---|---|---|
+| **BLOCK-E1** | 方法括号内只检查"能配平"，未验证分片键语法 | ✅ `HASH()`、`HASH(,)`、`HASH('id')`、`HASH(id+1)`、`HASH(lower(id))`、`HASH(a,b)` **六种非法形态全部得 1 span**，剥离后 `ast=Create`、**E999 消失**（主干对照：这些输入主干上明确报 E999） | 键值括号收紧为**精确形态**：`( 恰好一个 VAR/IDENTIFIER )`，其余一律失败关闭 |
+| **BLOCK-E2** | `_NAMEY` 含 `TokenType.STRING`，同表名门禁又主动剥单引号 | ✅ `CREATE TABLE 't' (...)` / `"t"` + UNIQUE COMMENT：主干 E999，Rev.E **变成 `Create`、E999 消失** | 表名 token 白名单**删除 STRING**（只留 VAR/IDENTIFIER）；`_same_table_name()` 与 except 内比较**不再剥单引号**，只去反引号 |
+| **DOC-E1** | §5.1 标题重复、§3.1 锚点失效、§8 风险表 pin 措辞、C-14 门槛区间、Y 组覆盖面表述 | ✅ 属实 | 已逐条更正 |
+
+### 为什么五轮都没有一次到位——我自己的复盘
+
+把五轮问题排在一起看，它们其实是**同一个错误**的五个切面：
+
+| 轮次 | 被指出的问题 | 本质 |
+|---|---|---|
+| 一 | 全局正则跨字符串边界 | approve 了没证明是目标的字符 |
+| 二 | `depth==1` 不等于"定义项起点" | approve 了没证明是目标的位置 |
+| 三 | 第二阶段仍用同一条全局正则 | 同上，只是换了个入口 |
+| 四 | `BY`/方法可选、STRING 当关键字、CTAS 括号、跨分号 | approve 了没证明是目标的 **token** |
+| 五 | 括号体任意、STRING 表名 | approve 了没证明是目标的 **参数与表名** |
+
+**共同点：我一直在写"扫描 + 排除已知的坏形态"（黑名单）。** 黑名单的问题是——
+每补一种排除，总还剩下没想到的另一种；评审每轮都能再举出一个我没排除的东西，
+所以永远收敛不了。**这不是 O 太苛刻，是我的写法决定了这个结果。**
+
+**Rev.F 做的结构性改变：把黑名单换成白名单。**
+
+1. **只接受精确形态，其余一律拒绝**——不再"扫描并排除"，而是把每个必选 token
+   的类型与位置逐个断言，任何一位不符立刻 `return None`；
+2. **两个剥离器共用同一个严格头部定位器** `_tdsql_table_def_bounds()`。
+   第五轮 §5.2.4 指出：两套头部逻辑各自演化，正是安全模型反复漂移的机制。
+   合并后，"什么算合法建表头部"**只有一处定义**；
+3. **原则写进模块首注释**，让后来者一眼看到约束，而不是散落在各处判断里。
+
+按这个原则重写后，本轮 O 提的两类问题**同时**被覆盖，而不是各打一个补丁。
+
+### 一处我按实测确认后才收紧的地方
+
+O 要求把方法参数收紧为"单个标识符"。我先查了**冻结的 v1.6.1.9 契约**：
+`_extract_tdsql_hash_key()` 用 `_TDSQL_HASH_RE` 只提取**单个**分片键；
+仓内全部语料的 `TDSQL_DISTRIBUTED BY <方法>(...)` 也**全是单字段**，无多字段/表达式形态。
+两者一致，故"恰好一个标识符"的收紧与既有契约不冲突。
+若将来确认官方支持多字段，必须**带出处地**显式建模，不得退回"任意平衡括号"。
+
+**另一处我没有按直觉收紧**：曾考虑要求 `BROADCAST` 必须是语句最后一个 token。
+实测仓内语料中 `BROADCAST` **从未**出现在末尾（`BROADCAST COMMENT='测试表'`、
+`BROADCAST SHARDKEY=sk` 各若干处，末尾 0 处、中间 8 处），这条会直接打断合法用例。
+**先量再改，没有拍脑袋。**
 
 ---
 
@@ -372,8 +424,8 @@ Rev.B 把安全性拆成四条**各自独立可验证**的性质：
 |---|---|---|---|
 | **S-1** | 不改变"首次解析即成功"语句的控制流与结果 | 新逻辑只在 `except` 内 | 全语料 197 条中仅 2 条变化，且均为本次目标缺陷 |
 | **S-2a 词法完整性** | **整条恢复链**（阶段一 UNIQUE COMMENT + 阶段二 TDSQL 尾子句）的差异只落在两阶段 span 并集内 | 两阶段均为 token 级剥离并各自返回 span；最终做 `sql_clean → _final_sql` 的**联合**逐字符校验 | BLOCK-1 反例越界改写 **0**；X 组 40 例字段级精确保持（生产版本 36 例失败） |
-| **S-2b 语法作用域完整性** | **UNIQUE 阶段**：span 必须来自第一条 CREATE TABLE 顶层、以 UNIQUE 开头的定义项；**TDSQL 阶段**：span 必须是定义列表**闭合之后**顶层的**完整合法**方言尾子句 | UNIQUE 阶段用 `at_def_start`；TDSQL 阶段用**严格形态定位** + 必选 token 强校验 + 单声明约束 + 分号即失败关闭 | N 组 5 例 span 全为 1；§5.15 的 D1a/D1b/D1d 非法形态 span **全为 0**；CTAS / LIKE / 多语句 span **全为 0** |
-| **S-3** | 无法证明安全时**失败关闭**，**绝不把非法 DDL 修成合法** | 缺 BY / 缺方法 / 缺括号 / 未知方法 / 双声明 / 冲突声明 / STRING / IDENTIFIER / CTAS / LIKE / 多语句 / 未闭合引号或括号 —— **一律返回 `None`** | §5.15 共 13 类非法或越界形态实测 span 全为 0；O 判 Rev.D『S-3 不成立』的四类反例已逐条关闭 |
+| **S-2b 语法作用域与形态完整性** | **UNIQUE 阶段**：span 必须来自第一条 CREATE TABLE 顶层、以 UNIQUE 开头的定义项；**TDSQL 阶段**：span 必须是定义列表**闭合之后**顶层的**完整合法**方言尾子句 | UNIQUE 阶段用 `at_def_start`；TDSQL 阶段用**严格形态定位** + 必选 token 强校验 + 单声明约束 + 分号即失败关闭 | N 组 5 例 span 全为 1；§5.15 的 D1a/D1b/D1d 非法形态 span **全为 0**；CTAS / LIKE / 多语句 span **全为 0** |
+| **S-3** | 无法证明安全时**失败关闭**，**绝不把非法 DDL 修成合法** | 采用**白名单**：只接受精确形态，其余全部 `return None`。覆盖缺 BY / 缺方法 / 缺括号 / 未知方法 / **括号体非单标识符** / 双声明 / 冲突声明 / STRING / IDENTIFIER / **STRING 表名** / CTAS / LIKE / 多语句 / 未闭合引号或括号 | §5.15 的 13 类 + §5.16 的 10 类实测 span 全为 0；**且 Z1/Z3 额外断言最终仍报 E999**（Rev.E 正是在这一层被吞掉） |
 | **S-4** | `parsed.raw_sql` 保持原文 | 变换只作用于送进 sqlglot 的副本 | 12 例正向恢复全部 `raw_sql == 输入` |
 
 > **S-2a 是 Rev.A 完全缺失的一条；S-2b 是 Rev.B 只写进文档、未在代码中实现的一条。**
@@ -414,7 +466,7 @@ from sqlglot.tokens import TokenType
 **位置**：原 `_TDSQL_DIALECT_RE` 所在处（即 import 区之后、`_strip_unique_index_comments` 之前）。
 
 ```python
-# ── v1.6.2.2：解析恢复链的两个 token 级安全剥离器 ─────────────────────────────
+# ── v1.6.2.2：解析恢复链的 token 级安全剥离器 ─────────────────────────────────
 #
 # 本文件原有的 _TDSQL_DIALECT_RE（v1.6.2.0 引入的全局正则）已删除。
 # 删除原因（实测，见设计说明书 §5.14）：它对整条 SQL 做 re.sub()，不感知
@@ -425,14 +477,19 @@ from sqlglot.tokens import TokenType
 # 且改写后的 SQL 仍能解析成同表名的 exp.Create，门禁发现不了，
 # 形成**静默错误 AST**。该缺陷自 v1.6.2.0 起已在生产版本中存在。
 #
-# 两个剥离器共用同一套安全模型：
-#   * 只在 token 流上识别，字符串/注释/反引号标识符天然不可见；
-#   * 关键字必须是**裸关键字 token**（sqlglot 实测为 TokenType.VAR），
-#     STRING / IDENTIFIER 一律不得进入关键字分支；
-#   * 只在明确的语法作用域内动手，且只处理**第一条**语句；
-#   * 等长空格替换、保留换行；
-#   * 返回精确 span，由调用方做"差异必须全部落在 span 内"的联合校验；
-#   * 任一必选成分缺失即返回 None —— 失败关闭，绝不把非法 DDL 修成合法。
+# ── 本模块的设计原则：白名单，不是黑名单 ──
+# 前几版反复出问题的根源是"扫描 + 排除已知的坏形态"：每补一种排除，
+# 就还剩下没想到的另一种。本版一律改成**只接受精确形态、其余全部拒绝**：
+#   * 建表头部：CREATE [TEMPORARY] TABLE [IF NOT EXISTS] 名[.名] (  —— 且表名
+#     只接受裸标识符 VAR 与反引号标识符 IDENTIFIER；STRING（单/双引号）一律拒绝；
+#   * 方言尾子句：TDSQL_DISTRIBUTED BY HASH|RANGE|LIST ( 单个标识符 )
+#     —— 括号内必须**恰好一个**标识符 token，空参数、字符串、逗号、多字段、
+#     运算符、函数、嵌套括号一律拒绝；
+#   * 广播标志：独立的裸 BROADCAST 关键字；
+#   * 其余一切形态 → 返回 None，**保持原有失败路径**（宁可继续报 E999，
+#     也绝不把非法 DDL 修成"解析成功"）。
+# 两个剥离器共用同一个严格头部定位器 _tdsql_table_def_bounds()，
+# 避免两套安全模型再次各自漂移。
 
 
 def _spans_only_diff(orig: str, new: str, spans) -> bool:
@@ -449,10 +506,13 @@ def _spans_only_diff(orig: str, new: str, spans) -> bool:
 # 用"排除法"而非"只认 VAR"是实测决定的：sqlglot 30.14 里
 #   TDSQL_DISTRIBUTED / BY / HASH / BROADCAST -> TokenType.VAR
 #   RANGE -> TokenType.RANGE ，LIST -> TokenType.LIST（各有专用 token 类型）
-# 只认 VAR 会让合法的 BY RANGE(...) / BY LIST(...) 无法恢复（已实测）；
-# 而排除 STRING/IDENTIFIER 正好挡住 'TDSQL_DISTRIBUTED' 与 `broadcast` 这两类诱饵，
-# 且不依赖 sqlglot 给关键字分配哪一个具体 token 类型，跨版本更稳。
+# 只认 VAR 会让合法的 BY RANGE(...) / BY LIST(...) 无法恢复（已实测）。
 _NON_KEYWORD_TOKENS = (TokenType.STRING, TokenType.IDENTIFIER)
+
+# 合法标识符 token：裸名(VAR) 与反引号名(IDENTIFIER)。
+# **不含 STRING**——MySQL 下 't' / "t" 会被词法器标成 STRING，
+# 若把它当合法表名/分片键，就会把非法 DDL 恢复成功（第五轮 BLOCK-E2）。
+_IDENT_TOKENS = (TokenType.VAR, TokenType.IDENTIFIER)
 
 
 def _is_bare_kw(tok, word: str) -> bool:
@@ -461,40 +521,40 @@ def _is_bare_kw(tok, word: str) -> bool:
             and (tok.text or "").upper() == word)
 
 
-def _tdsql_table_def_end(toks):
-    """定位第一条建表语句的列定义列表，返回 (收尾右括号之后的下标, 表名)。
+def _tdsql_table_def_bounds(toks):
+    """严格定位第一条建表语句的列定义列表。
 
-    **严格形态**：CREATE [TEMPORARY] TABLE [IF NOT EXISTS] <表名[.表名]> ( ... )
-    表名之后必须**紧接**列定义左括号。
-    CREATE TABLE ... AS SELECT（CTAS）、CREATE TABLE ... LIKE 一律返回 (-1, "")
-    ——不得拿后续任意括号（例如 CTAS 里 CONCAT(...) 的括号）冒充定义列表。
+    返回 (左括号下标, 右括号下标, 表名)；任一环节不满足返回 (-1, -1, "")。
+
+    只接受：CREATE [TEMPORARY] TABLE [IF NOT EXISTS] <名>[.<名>] ( ... )
+      * 表名只接受 VAR / IDENTIFIER，**STRING 一律拒绝**；
+      * 表名之后必须**紧接**列定义左括号 —— CTAS(`AS SELECT`)、`LIKE`
+        因此被拒，不会拿后续任意括号（如 CONCAT(...)）冒充定义列表。
     """
     n = len(toks)
     if n < 4 or toks[0].token_type != TokenType.CREATE:
-        return -1, ""
+        return -1, -1, ""
     p = 1
     if toks[p].token_type == TokenType.TEMPORARY:
         p += 1
     if p >= n or toks[p].token_type != TokenType.TABLE:
-        return -1, ""
+        return -1, -1, ""
     p += 1
-    # 可选 IF NOT EXISTS
     if (p + 2 < n and _is_bare_kw(toks[p], "IF")
             and toks[p + 1].token_type == TokenType.NOT
             and toks[p + 2].token_type == TokenType.EXISTS):
         p += 3
-    _NAMEY = (TokenType.VAR, TokenType.IDENTIFIER, TokenType.STRING)
-    if p >= n or toks[p].token_type not in _NAMEY:
-        return -1, ""
+    if p >= n or toks[p].token_type not in _IDENT_TOKENS:
+        return -1, -1, ""
     table_name = toks[p].text
     p += 1
     if (p + 1 < n and toks[p].token_type == TokenType.DOT
-            and toks[p + 1].token_type in _NAMEY):
+            and toks[p + 1].token_type in _IDENT_TOKENS):
         table_name = toks[p + 1].text
         p += 2
-    # 表名之后必须紧接列定义左括号（CTAS 的 ALIAS/AS、LIKE 在此被拒）
     if p >= n or toks[p].token_type != TokenType.L_PAREN:
-        return -1, ""
+        return -1, -1, ""
+    open_idx = p
     d = 0
     while p < n:
         if toks[p].token_type == TokenType.L_PAREN:
@@ -502,39 +562,45 @@ def _tdsql_table_def_end(toks):
         elif toks[p].token_type == TokenType.R_PAREN:
             d -= 1
             if d == 0:
-                return p + 1, table_name
+                return open_idx, p, table_name
         p += 1
-    return -1, ""
+    return -1, -1, ""
 
 
 _TDSQL_SHARD_METHODS = {"HASH", "RANGE", "LIST"}
 
-
 def _strip_tdsql_dialect_tail(sql: str, dialect: str = "mysql"):
     """剥离**第一条建表语句定义列表闭合之后、顶层**的 TDSQL 方言尾子句。
 
-    严格识别两种形态，且**每个必选成分都必须是裸关键字 token**：
-      * TDSQL_DISTRIBUTED BY HASH|RANGE|LIST ( ... )   —— BY 与方法均为必选
-      * 独立的 BROADCAST 标志
-    一条语句只允许**一个**分布声明；出现第二个（含 HASH+BROADCAST、
-    HASH+RANGE 这类冲突组合）即失败关闭——本设计不猜测这类组合的合法性。
+    **只接受两种精确形态**，其余一律失败关闭：
+      * TDSQL_DISTRIBUTED BY HASH|RANGE|LIST ( <恰好一个标识符> )
+      * 独立的裸 BROADCAST 标志
+    键值括号内必须**恰好一个** VAR/IDENTIFIER token —— 空参数 `HASH()`、
+    `HASH(,)`、字符串 `HASH('id')`、表达式 `HASH(id+1)`、函数 `HASH(lower(id))`、
+    多字段 `HASH(a,b)` 全部返回 None（第五轮 BLOCK-E1）。
+    这与 v1.6.1.9 冻结的 `_extract_tdsql_hash_key()` 单分片键契约一致；
+    若将来确认官方支持多字段形态，必须**带出处地**显式建模并补正反用例。
 
-    返回 (改写后SQL, spans, 表名)；无可安全变换或形态不完整返回 (None, [], "")。
+    一条语句只允许**一个**分布声明；出现第二个（含 HASH+BROADCAST、
+    HASH+RANGE 这类冲突组合）即失败关闭。
+
+    返回 (改写后SQL, spans, 表名)；无可安全变换时返回 (None, [], "")。
     """
     try:
         toks = sqlglot.Dialect.get_or_raise(dialect).tokenizer_class().tokenize(sql)
     except Exception:
         return None, [], ""
-    # 多语句：调用方已有拆分能力，解析器不猜测多语句语义
+    # 多语句：调用方（RuleChecker._split_sql_file）已有拆分能力，解析器不猜测
     if any(t.token_type == TokenType.SEMICOLON for t in toks):
         return None, [], ""
-    i, table_name = _tdsql_table_def_end(toks)
-    if i < 0:
+    _open, close_idx, table_name = _tdsql_table_def_bounds(toks)
+    if close_idx < 0:
         return None, [], ""
     n = len(toks)
     spans = []
     depth = 0
     seen_decl = False
+    i = close_idx + 1
     while i < n:
         tt = toks[i].token_type
         if tt == TokenType.L_PAREN:
@@ -548,32 +614,23 @@ def _strip_tdsql_dialect_tail(sql: str, dialect: str = "mysql"):
         if depth == 0 and _is_bare_kw(toks[i], "TDSQL_DISTRIBUTED"):
             if seen_decl:
                 return None, [], ""              # 第二个分布声明 → 失败关闭
-            j = i + 1
-            if not (j < n and _is_bare_kw(toks[j], "BY")):
-                return None, [], ""              # BY 必选
-            j += 1
-            if not (j < n and toks[j].token_type not in _NON_KEYWORD_TOKENS
-                    and (toks[j].text or "").upper() in _TDSQL_SHARD_METHODS):
-                return None, [], ""              # 分片方法必选（HASH/RANGE/LIST）
-            j += 1
-            if not (j < n and toks[j].token_type == TokenType.L_PAREN):
-                return None, [], ""              # 键值括号必选
-            d2 = 0
-            closed = False
-            while j < n:
-                if toks[j].token_type == TokenType.L_PAREN:
-                    d2 += 1
-                elif toks[j].token_type == TokenType.R_PAREN:
-                    d2 -= 1
-                    if d2 == 0:
-                        closed = True
-                        break
-                j += 1
-            if not closed:
+            # 精确形态：BY <方法> ( <单个标识符> )  —— 每一位都是必选
+            if not (i + 5 < n + 1):
                 return None, [], ""
-            spans.append((toks[i].start, toks[j].end))
+            if not (i + 1 < n and _is_bare_kw(toks[i + 1], "BY")):
+                return None, [], ""
+            if not (i + 2 < n and toks[i + 2].token_type not in _NON_KEYWORD_TOKENS
+                    and (toks[i + 2].text or "").upper() in _TDSQL_SHARD_METHODS):
+                return None, [], ""
+            if not (i + 3 < n and toks[i + 3].token_type == TokenType.L_PAREN):
+                return None, [], ""
+            if not (i + 4 < n and toks[i + 4].token_type in _IDENT_TOKENS):
+                return None, [], ""              # 空参/字符串/运算符/函数 → 拒绝
+            if not (i + 5 < n and toks[i + 5].token_type == TokenType.R_PAREN):
+                return None, [], ""              # 多字段/嵌套/表达式 → 拒绝
+            spans.append((toks[i].start, toks[i + 5].end))
             seen_decl = True
-            i = j + 1
+            i += 6
             continue
         if (depth == 0 and _is_bare_kw(toks[i], "BROADCAST")
                 and not (i > 0 and toks[i - 1].token_type == TokenType.EQ)):
@@ -595,14 +652,19 @@ def _strip_tdsql_dialect_tail(sql: str, dialect: str = "mysql"):
                 buf[q] = " "
     return "".join(buf), spans, table_name
 
+
 def _same_table_name(node, expected: str) -> bool:
-    """候选 AST 的表名是否与从原文提取的表名一致（去引号、忽略大小写）。"""
+    """候选 AST 的表名是否与从原文提取的表名一致。
+
+    只去反引号 —— **不再剥单引号**：STRING 表名已在定位阶段被拒绝，
+    此处若继续归一化单引号，等于把被拒的形态又放回来（第五轮 BLOCK-E2）。
+    """
     if not expected:
         return False
     schema = node.this
     tbl = schema.this if isinstance(schema, exp.Schema) else schema
-    name = getattr(tbl, "name", "") or "" if tbl is not None else ""
-    return bool(name) and name.strip('`"\' ').lower() == expected.strip('`"\' ').lower()
+    name = (getattr(tbl, "name", "") or "") if tbl is not None else ""
+    return bool(name) and name.strip("` ").lower() == expected.strip("` ").lower()
 ```
 
 **与被删正则的本质区别**：定义体（列、索引、注释、DEFAULT）在**位置上**就不在扫描范围内
@@ -611,8 +673,8 @@ def _same_table_name(node, expected: str) -> bool:
 
 ### 3.1 改动点 1：新增词法安全、作用域受限的剥离器（模块级）
 
-**位置**：`backend/engine/parser/parser_legacy.py`，紧接 `_TDSQL_DIALECT_RE` 定义之后，
-与下方 `@dataclass class ParsedSQL` 之间保留两个空行。
+**位置**：`backend/engine/parser/parser_legacy.py`，紧接 §3.0c 的方言剥离器之后、
+`@dataclass class ParsedSQL` 之前（`_TDSQL_DIALECT_RE` 已按 §3.0b 删除，不再作为锚点）。
 
 ```python
 # ── v1.6.2.2 / DEF-2：唯一索引 COMMENT 剥离（基于 sqlglot 词法器，非正则）──────
@@ -648,34 +710,19 @@ def _strip_unique_index_comments(sql: str, dialect: str = "mysql"):
         toks = tokenizer.tokenize(sql)
     except Exception:
         return None, [], ""
+    # 复用与方言剥离器**同一个**严格头部定位器：CREATE [TEMPORARY] TABLE
+    # [IF NOT EXISTS] <名>[.<名>] ( ... —— 表名只接受 VAR/IDENTIFIER，
+    # STRING（单/双引号表名）一律拒绝；CTAS / LIKE 因表名后非左括号而被拒。
+    # 两个剥离器共用同一定位器，避免两套安全模型各自漂移（第五轮 §5.2.4）。
+    open_idx, close_idx, table_name = _tdsql_table_def_bounds(toks)
+    if open_idx < 0:
+        return None, [], ""
     n = len(toks)
-    if n < 4:
-        return None, [], ""
-
-    # ── 入口：CREATE [TEMPORARY] TABLE ──（TEMPORARY 属既有产品域，见 R024/R032）
-    if toks[0].token_type != TokenType.CREATE:
-        return None, [], ""
-    p = 1
-    if toks[p].token_type == TokenType.TEMPORARY:
-        p += 1
-    if p >= n or toks[p].token_type != TokenType.TABLE:
-        return None, [], ""
-    p += 1
-
-    # ── 表名 + 定义列表左括号定位 ──
-    _NAMEY = (TokenType.VAR, TokenType.IDENTIFIER, TokenType.STRING)
-    table_name = ""
-    while p < n and toks[p].token_type != TokenType.L_PAREN:
-        if toks[p].token_type in _NAMEY:
-            table_name = toks[p].text
-        p += 1
-    if not table_name or p >= n:
-        return None, [], ""
 
     spans = []
     depth = 1                      # 已越过定义列表左括号
     at_def_start = True            # 左括号之后即为第一个定义项的起点
-    i = p + 1
+    i = open_idx + 1
     while i < n:
         tt = toks[i].token_type
         if tt == TokenType.L_PAREN:
@@ -882,8 +929,10 @@ def _strip_unique_index_comments(sql: str, dialect: str = "mysql"):
                     _tobj = _sch.this if isinstance(_sch, exp.Schema) else _sch
                     if _tobj is not None:
                         _cand_tbl = getattr(_tobj, "name", "") or ""
+                    # 只去反引号：STRING 表名已在定位阶段被拒绝，
+                    # 此处不再剥单引号（第五轮 BLOCK-E2）。
                     if (_cand_tbl
-                            and _cand_tbl.strip('`"\' ').lower() == _tbl.strip('`"\' ').lower()):
+                            and _cand_tbl.strip("` ").lower() == _tbl.strip("` ").lower()):
                         _retry_ast = _cand
             if _retry_ast is not None:
                 # 必须同时重绑局部变量 ast——下方通用流程（_get_sql_type/_parse_create/
@@ -893,6 +942,15 @@ def _strip_unique_index_comments(sql: str, dialect: str = "mysql"):
             else:
                 parsed.parse_error = str(e)
                 parsed.sql_type = self._detect_sql_type_regex(sql_clean)
+                # 正则回退提取表名（防止含中划线等语法不合规表名在解析报错时漏检）
+                tbl_match = re.search(r'\b(?:create\s+table|alter\s+table|drop\s+table|truncate\s+table|from|into|update)\s+(?:if\s+(?:not\s+)?exists\s+)?([`\'"]?[a-zA-Z0-9_\-]+[`\'"]?)', sql_clean, re.IGNORECASE)
+                if tbl_match:
+                    tb_name = tbl_match.group(1).strip("`\"' ")
+                    if tb_name and tb_name.lower() not in ("table", "if", "exists"):
+                        parsed.tables.append(tb_name)
+                        if "create table" in sql_clean.lower():
+                            parsed.is_create_table = True
+                return parsed
                 # 正则回退提取表名（防止含中划线等语法不合规表名在解析报错时漏检）
                 tbl_match = re.search(r'\b(?:create\s+table|alter\s+table|drop\s+table|truncate\s+table|from|into|update)\s+(?:if\s+(?:not\s+)?exists\s+)?([`\'"]?[a-zA-Z0-9_\-]+[`\'"]?)', sql_clean, re.IGNORECASE)
                 if tbl_match:
@@ -968,11 +1026,12 @@ def _strip_unique_index_comments(sql: str, dialect: str = "mysql"):
         idx_type = kind if kind in {"PRIMARY", "UNIQUE", "FULLTEXT"} else "NORMAL"
 ```
 
-> ✅ **本文档的代码块已自验证（Rev.E）**：§3.2b / §3.2 / §3.3 的三个「改动前」块经程序比对与
+> ✅ **本文档的代码块已自验证（Rev.F）**：§3.2b / §3.2 / §3.3 的三个「改动前」块经程序比对与
 > `parser_legacy.py` **逐字匹配**；五个「改动后」块被**原样抽取**并施工到一棵干净工作树上，实测：
-> 语法通过、导入自检通过、**Y 组 16 例全通过**、**X 组 40 例全通过**、
-> T/N/C/F 矩阵与 6000 条模糊测试逐项相同、专项 **71 passed**、
-> 全量回归 **1355 passed / 0 failed / 29 skipped**。Q 可以直接复制粘贴。
+> 语法通过、导入自检通过、**Z 组 21 例全通过**、**Y 组 16 例全通过**、**X 组 40 例全通过**、
+> T/N/C/F 与 6000 条模糊测试逐项相同、专项 **71 passed**、
+> 全量回归 **1355 passed / 0 failed / 29 skipped**、
+> `grep _tdsql_table_def_bounds` 确认两个剥离器共用同一定位器。Q 可以直接复制粘贴。
 >
 > ⚠️ 抽取时注意块的先后：§3.2b、§3.2、§3.3 均为**前者「改动前」、后者「改动后」**，
 > 且 §3.3 两块开头都是 `# 判断索引类型`，容易搞反。
@@ -1057,7 +1116,7 @@ fixture 已在 Rev.C 修正。不新增第三方依赖（`TokenType` 来自已�
 > `>=26` 就等于**在文档里宣称 T5 已解决、实际却允许装上一个 T5 不成立的版本**。
 > **如果你不同意这个 pin，告诉我，我改回去。**
 
-### 5.1 引擎指纹与解析产物### 5.1 引擎指纹与解析产物### 5.1 引擎指纹与解析产物
+### 5.1 引擎指纹与解析产物## 5.1 引擎指纹与解析产物
 
 | 指标 | 基线 | Rev.B |
 |---|---|---|
@@ -1299,6 +1358,44 @@ fixture 已移除会污染审核的文件头（来源说明移入 `tests/fixture
 > 二者立刻失败（实测 `RANGE`→`TokenType.RANGE`、`LIST`→`TokenType.LIST`）。
 > Rev.E 改用排除法后恢复正常。**Q 施工后务必确认这三种方法都能恢复。**
 
+### 5.16 BLOCK-E1 / E2：方法参数与表名的精确形态（Rev.F 新增）
+
+#### 5.16.1 方法参数（BLOCK-E1）
+
+| 尾子句 | Rev.E | Rev.F |
+|---|---|---|
+| `HASH()` 空参 | span=1 → `Create`，**E999 被吞** | **span=0，仍报 E999** ✅ |
+| `HASH(,)` | span=1 → `Create` | **span=0** ✅ |
+| `HASH('id')` 字符串 | span=1 → `Create` | **span=0** ✅ |
+| `HASH(`id` + 1)` 表达式 | span=1 → `Create` | **span=0** ✅ |
+| `HASH(lower(`id`))` 函数 | span=1 → `Create` | **span=0** ✅ |
+| `HASH(`a`,`b`)` 多字段 | span=1 → `Create` | **span=0** ✅ |
+| `HASH("id")` 双引号 | span=1 → `Create` | **span=0** ✅ |
+
+**合法形态不得回归**（6 组，全部实测 span=1 且解析成功）：
+`HASH/RANGE/LIST` ×（反引号 `` `id` `` / 裸名 `id`），外加 `BROADCAST`、`BROADCAST COMMENT='x'`。
+
+> **主干对照**：上述 7 种非法形态在**当前主干 v1.6.2.1** 上均报 `E999_SYNTAX_ERROR`。
+> Rev.E 把它们变成了"解析成功"，Rev.F 恢复为**继续报 E999**——这是 S-3 的直接体现：
+> **宁可继续报错，也绝不把非法 DDL 修成合法。**
+
+#### 5.16.2 表名 token（BLOCK-E2）
+
+| 输入 | Rev.E | Rev.F |
+|---|---|---|
+| `CREATE TABLE 't' (...)` + UNIQUE COMMENT | `Create`，**E999 消失** | **仍报 E999** ✅ |
+| `CREATE TABLE "t" (...)` + UNIQUE COMMENT | `Create`，E999 消失 | **仍报 E999** ✅ |
+| 单引号表名 + `HASH(`id`)` | `Create`，E999 消失 | **仍报 E999** ✅ |
+
+**合法表名形态不得回归**（4 例，全部实测 `Create` 且 `cols>0`）：
+裸表名 `t`、反引号 `` `t` ``、库限定 `` `db`.`t` ``、`IF NOT EXISTS`。
+
+#### 5.16.3 两个剥离器已合并到同一严格头部定位器
+
+`_strip_unique_index_comments()` 与 `_strip_tdsql_dialect_tail()` 现在都调用
+`_tdsql_table_def_bounds()`。这条是第五轮 §5.2.4 第 3/4 点的要求，也是防止
+"两套安全模型各自漂移"的结构性措施——**"什么算合法建表头部"只有一处定义**。
+
 ### 5.13 全量回归与审核物料校验器
 
 ```
@@ -1408,6 +1505,18 @@ T9/T10 额外断言 R032（集中式）与 R024+R032（分布式）仍正常命�
 | **Y13~Y15** | **CTAS（含函数括号）/ `CREATE TABLE ... LIKE` / 两条语句拼接** | **span == 0**；CTAS 的 SELECT 列与真实尾子句**都不得被改** |
 | **Y16** | **合法 HASH / RANGE / LIST / BROADCAST 四种形态** | **span == 1 且解析成功**——⚠️ 这条防的是"收紧过头"，RANGE/LIST 在实现中回归过一次 |
 
+**Z 组 — 方法参数与表名精确形态（21 例，对应 §5.16，BLOCK-E1/E2）**：
+
+| 子组 | 用例 | 断言 |
+|---|---|---|
+| Z1（7 例） | `HASH()` / `HASH(,)` / `HASH('id')` / `HASH(id+1)` / `HASH(lower(id))` / `HASH(a,b)` / `HASH("id")` | **span == 0 且最终仍报 `E999_SYNTAX_ERROR`**（不得被"修成合法"） |
+| Z2（8 例） | `HASH/RANGE/LIST` ×（反引号 / 裸名）、`BROADCAST`、`BROADCAST COMMENT='x'` | **span == 1 且解析成功**（防收紧过头） |
+| Z3（3 例） | 单引号表名 / 双引号表名 / 单引号表名+HASH，均带 UNIQUE COMMENT | **仍报 E999** |
+| Z4（3 例） | 裸表名 / 反引号表名 / 库限定 `` `db`.`t` `` / `IF NOT EXISTS` | **解析成功且 `cols>0`** |
+
+> ⚠️ Z1/Z3 的断言必须包含"**仍报 E999**"，只断言 `span==0` 不够——
+> Rev.E 正是在 `span` 层面看着正常、却在最终结论上吞掉了 E999。
+
 **N 组 — 作用域负向（5 例，对应 §5.10，BLOCK-B2）**：N1 `CONSTRAINT ... UNIQUE`、
 N2 列内联 `UNIQUE`、N3 定义项中部 `UNIQUE`、N4 两条语句拼接、N5 定义列表闭合后的表选项。
 每例都**同时**放一个真实目标，断言 **span 数恰为 1** 且抹除的正是那个真实目标。
@@ -1439,7 +1548,7 @@ N2 列内联 `UNIQUE`、N3 定义项中部 `UNIQUE`、N4 两条语句拼接、N5
 > 两个 fixture 已随设计提交（纯 DDL，来源说明见 `tests/fixtures/README-report-fixtures.md`），
 > 与报告 HTML 中的 DDL 逐字一致，请直接读取，**不要手写替代表、不要再加文件头注释**。
 
-**合计 106 例（A9 + B12 + C4 + D6 + E4 + F2 + T8 + N5 + X40 + Y16），要求零 skip。**
+**合计 127 例（A9 + B12 + C4 + D6 + E4 + F2 + T8 + N5 + X40 + Y16 + Z21），要求零 skip。**
 
 ### 7.2 需修订的既有测试
 
@@ -1450,11 +1559,11 @@ N2 列内联 `UNIQUE`、N3 定义项中部 `UNIQUE`、N4 两条语句拼接、N5
 
 | 门槛 | 要求 |
 |---|---|
-| G-1 | `pytest tests/` 全量：**1355 passed / 0 failed / 29 skipped**（+新增 106 例 → 1461 passed），无既有用例由通过转失败 |
+| G-1 | `pytest tests/` 全量：**1355 passed / 0 failed / 29 skipped**（+新增 127 例 → 1482 passed），无既有用例由通过转失败 |
 | G-2 | `test_r077_r054_tdsql_syntax.py` **45 passed** |
 | G-3 | `test_parser_tdsql_dialect_fallback.py` **14 passed** |
 | G-4 | `test_r061_index_name_quoting.py` **12 passed** |
-| G-5 | 新增 `tests/test_parser_index_type_and_uk_comment.py` **106 例全通过，零 skip** |
+| G-5 | 新增 `tests/test_parser_index_type_and_uk_comment.py` **127 例全通过，零 skip** |
 | G-6 | `verify_rules.py`：119 / 107 / 未覆盖 0 / 断言失败 **3**（与基线同名同因） |
 | G-7 | 全语料 197 条 × 119 规则：**恰好 2 条变化**，且均为两个目标 fixture；其余 195 条零漂移 |
 | G-8 | 生产 14 表回放**零漂移** |
@@ -1466,6 +1575,8 @@ N2 列内联 `UNIQUE`、N3 定义项中部 `UNIQUE`、N4 两条语句拼接、N5
 | **G-16** | 代码中**不得再出现** `_TDSQL_DIALECT_RE`（注释性说明除外），`grep` 确认无 `.sub(` 形式的 SQL 全局改写 |
 | **G-17** | **Y 组 16 例全通过**；其中 Y16 四种合法方言形态必须全部恢复 |
 | **G-18** | **依赖 pin 已落地**：`requirements.txt` 与 `pyproject.toml` 均为 `sqlglot>=29,<31`；提交说明记录打包 wheel 实际版本 |
+| **G-19** | **Z 组 21 例全通过**；Z1/Z3 必须断言"仍报 E999"，Z2/Z4 必须断言合法形态仍恢复 |
+| **G-20** | **两个剥离器共用 `_tdsql_table_def_bounds()`**；`grep` 确认代码中不存在第二套建表头部定位逻辑 |
 | **G-11** | **模糊测试（O §6.4-5）**：对 `_strip_unique_index_comments()` 随机组合引号、括号、逗号、注释、转义生成 ≥2000 条输入，断言**不抛异常**，且凡返回非 `None` 者必满足「长度恒等 + 差异全在 span 内」 |
 | **G-12** | 提交说明记录实际 `sqlglot.__version__` |
 
@@ -1482,7 +1593,7 @@ N2 列内联 `UNIQUE`、N3 定义项中部 `UNIQUE`、N4 两条语句拼接、N5
 | 告警数量变化引发用户疑虑 | **需沟通** | gg78 由 5 条 ERROR 变为 2 条 INFO；gg77 少 1 条 WARNING。减少的**全部是误报**，另有 1 处漏报被补上 |
 | **UNIQUE-COMMENT 与 TDSQL 方言组合仍失败** | **已消除** | 方言恢复串联；T1~T6 实测全部恢复 |
 | **方言全局正则静默破坏 AST（BLOCK-C1）** | **已消除，且顺带修好一个生产在跑的缺陷** | 删除 `_TDSQL_DIALECT_RE`；两条入口统一 token 剥离器；X 组 40 例字段级精确断言全过（生产版本 36 例失败） |
-| **sqlglot 版本漂移致 T5 失效** | **需产品决策** | 实测下界 29.0.0；建议 pin `>=29,<31`，见 §5.0（C-19） |
+| **sqlglot 版本漂移致 T5 失效** | **已决并纳入改动** | 实测下界 29.0.0；`requirements.txt` / `pyproject.toml` 均 pin 为 `sqlglot>=29,<31`（§5.0、C-19、G-18） |
 | **span 被错误批准（作用域越界）** | **已消除** | `at_def_start` + 定义列表闭合即停；5 类作用域负例 span 全为 1 |
 | `UnboundLocalError` | **已知陷阱** | §3.2 红框 |
 
@@ -1506,12 +1617,13 @@ N2 列内联 `UNIQUE`、N3 定义项中部 `UNIQUE`、N4 两条语句拼接、N5
 - [ ] **C-8** 未新增第三方依赖；只新增 `from sqlglot.tokens import TokenType`
 - [ ] **C-9** 规则层零改动：`ddl.py`/`index.py`/`distributed.py`/`dml.py`/`oracle_compat.py`
 - [ ] **C-10** ✅ **确认 `_TDSQL_DIALECT_RE` 常量已从代码中删除**（仅允许出现在解释性注释里）；`_parse_unique_constraint()` 一字未动
-- [ ] **C-11** 新建 `tests/test_parser_index_type_and_uk_comment.py`，覆盖 §7.1 A~F+T+N+X+Y 共 **106 例**，零 skip
+- [ ] **C-11** 新建 `tests/test_parser_index_type_and_uk_comment.py`，覆盖 §7.1 A~F+T+N+X+Y+Z 共 **127 例**，零 skip
 - [ ] **C-12** F 组**原样读取**已提交的两个纯 DDL fixture（**不要过滤注释行**），6309 用**分布式**、6311 用**集中式**，且用**精确集合相等**断言
 - [ ] **C-12b** **不得**给这两个 fixture 重新添加任何文件头注释
 - [ ] **C-13** 未修改任何既有测试文件；若确需修改，**停工回报**
-- [ ] **C-14** G-1 ~ G-16 十六道门槛逐条实测通过，提交说明中贴出实测数字
+- [ ] **C-14** G-1 ~ G-20 二十道门槛逐条实测通过，提交说明中贴出实测数字
 - [ ] **C-19** **依赖 pin**：`requirements.txt` 与 `pyproject.toml` 的 `sqlglot` 声明改为 **`sqlglot>=29,<31`**，并在提交说明记录打包 wheel 实际版本
+- [ ] **C-20b** ⚠️ **两个剥离器必须调用同一个 `_tdsql_table_def_bounds()`**，不得各写一套头部定位
 - [ ] **C-20** ⚠️ **确认 `BY RANGE(...)` / `BY LIST(...)` 仍能恢复**——严格化时若写成"只认 `TokenType.VAR`"，这两种会静默回归（我实现时踩到过）
 - [ ] **C-15** 导入自检：`python -c "from backend.engine.parser.parser_legacy import SQLParser, _strip_unique_index_comments"` 无异常
 - [ ] **C-16** 版本号更新：`VERSION` 与 `backend/config.py` 的 `APP_VERSION`、`APP_DESCRIPTION` → `1.6.2.2`
@@ -1520,7 +1632,7 @@ N2 列内联 `UNIQUE`、N3 定义项中部 `UNIQUE`、N4 两条语句拼接、N5
 
 ---
 
-## 附录 A：实测证据清单（Rev.E）
+## 附录 A：实测证据清单（Rev.F）
 
 ### A.1 Rev.A / Rev.B 阶段既有证据（沿用）
 
@@ -1582,6 +1694,20 @@ N2 列内联 `UNIQUE`、N3 定义项中部 `UNIQUE`、N4 两条语句拼接、N5
 | **A-54** | Rev.E X 组 40 例 / T 组 / N 组 / C 组 / F 组 / 模糊 6000 条 | 全部保持通过，无回归 |
 | **A-55** | Rev.E 专项 71 例 + 生产 14 表 + 全语料 197 条 + 全量回归 | 71 passed；14 表**零漂移**；语料**恰好 2 条**变化；**1355 passed / 0 failed / 29 skipped** |
 | **A-56** | `RuleChecker.audit_file()` 拆分核查 | 经 `_split_sql_file()` 先行拆分 → 多语句进入 `parse()` 属边缘路径 |
+
+### A.5 Rev.F 新增证据（第五轮整改）
+
+| 编号 | 证据 | 结论 |
+|---|---|---|
+| **A-57** | 复现 BLOCK-E1：7 种非法方法参数 | Rev.E 全部得 1 span、`ast=Create`、**E999 被吞** —— 指控成立 |
+| **A-58** | **主干对照**：同 7 种输入在 v1.6.2.1 上 | 均明确报 `E999_SYNTAX_ERROR` → 确系 Rev.E 吞掉，非"本就没有" |
+| **A-59** | 复现 BLOCK-E2：单/双引号表名 × UNIQUE COMMENT × HASH | Rev.E 一律变成 `Create`、E999 消失 —— 指控成立 |
+| **A-60** | **冻结契约核查**：`_extract_tdsql_hash_key()` / `_TDSQL_HASH_RE` | 只提取**单个**分片键；仓内语料无多字段/表达式形态 → "恰好一个标识符"的收紧与 v1.6.1.9 契约一致 |
+| **A-61** | **BROADCAST 位置实测**（曾考虑要求"必须在末尾"） | 仓内语料末尾 **0** 处、中间 **8** 处（`BROADCAST COMMENT='x'` 等）→ 该收紧会打断合法用例，**未采纳** |
+| **A-62** | Rev.F Z 组 21 例 | 全通过：Z1 7 例非法参数仍报 E999；Z2 8 例合法形态全恢复；Z3 3 例 STRING 表名仍报 E999；Z4 4 例合法表名全恢复 |
+| **A-63** | Rev.F 对前四轮全部矩阵复跑 | Y 组 16 例、X 组 40 例、T/N/C/F、模糊 6000 条 **全部保持通过，无回归** |
+| **A-64** | Rev.F 专项 71 例 + 生产 14 表 + 全语料 197 条 + 全量回归 | 71 passed；14 表**零漂移**；语料**恰好 2 条**变化；**1355 passed / 0 failed / 29 skipped** |
+| **A-65** | 两个剥离器头部定位器合并 | 均调用 `_tdsql_table_def_bounds()`，代码中不存在第二套头部逻辑 |
 
 ---
 
