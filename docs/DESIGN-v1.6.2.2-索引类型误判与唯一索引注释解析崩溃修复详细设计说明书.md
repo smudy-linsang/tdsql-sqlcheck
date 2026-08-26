@@ -2,7 +2,7 @@
 
 | 项目 | 内容 |
 |---|---|
-| 文档版本 | **Rev.H**（O 七轮独立复审；本版按第七轮 BLOCK-G1/G2/G3、MAJOR-G1/G2、MINOR-G1/G2 整改） |
+| 文档版本 | **Rev.I**（O 八轮独立复审；本版按第八轮 BLOCK-H1/H2/H3、MAJOR-H1/H2、MINOR-H1/H2 整改，并把判据切换为 **TDSQL 官方语法**） |
 | 目标版本 | **v1.6.2.2** |
 | 缺陷来源 | 内网人工扫描报告 #6309（gg77）、#6311（gg78） |
 | 缺陷编号 | **DEF-1 = DEF-R054-FAKEUNIQUE**；**DEF-2 = DEF-PARSE-UKCOMMENT** |
@@ -37,6 +37,97 @@ O 第三轮指出的 BLOCK-C1，我复现后发现它**不是 Rev.C 引入的**�
 > 依据：内网目前"用关键字作列名"的情形还不多，暴露面有限。
 > 本条已决，后续评审与施工**不必再把它作为独立待办重新提出**——
 > 只需确保 v1.6.2.2 把它修好（门槛 G-15、X 组 40 例）。
+
+---
+
+## Rev.I 修订说明（针对 O 第八轮独立复审）
+
+O 对 Rev.H 判定 **No-Go**，开出 3 项 BLOCK、2 项 MAJOR、2 项 MINOR。
+**我逐条独立复现，7 条全部成立，全部接受**，并在复核过程中**自查出 3 条 O 未发现的同类问题**。
+
+本轮最重要的不是又补了几个消费器，而是**判据换了**。用户与 O 在同一轮给出同一条纠正：
+
+> 本项目是 **TDSQL** 数据库 SQL 审核。TDSQL 底层虽是 MySQL，语法却不等同；
+> 最终必须遵照 **TDSQL 官方语法**。
+
+因此 Rev.I 确立证据优先级，并写进代码注释顶部：
+
+```text
+① 目标实例真实 SHOW CREATE TABLE / 已验证生产 DDL
+② 腾讯云 TDSQL MySQL 版官方语法
+③ 项目已冻结的产品规则与用户决策
+④ MySQL 官方语法
+⑤ sqlglot 当前解析能力
+```
+
+**sqlglot 只是词法器与候选 AST 生成器，不是 TDSQL 合规性判据**：
+既不能把"sqlglot 能解析"当作 TDSQL 合法，也不能把"sqlglot 解析失败"当作 TDSQL 非法。
+前七轮我恰恰两头都犯过——`USING HASH` 属前者，`ASC/DESC` 属后者。
+
+### O 的七条意见
+
+| 编号 | O 的意见 | 我的复核 | Rev.I 处置 |
+|---|---|---|---|
+| **BLOCK-H1** | 恢复门禁只验证目标 UNIQUE，没有验证整条建表语句 | ✅ H1-1~H1-5 **五条全部复现**（我另加 2 条同类，共 7 条），主干 E999 → Rev.H `Create`。UNIQUE 单独恢复路径**根本不调用表尾消费者** | 新增 `_plan_recovery()` 统一规划器：定义列表逐项普查 + 表尾**始终**完整验证；新增 `_validate_recovery_candidate()` 结构保真门禁（定义项数、非空列/索引、分区保留） |
+| **BLOCK-H2** | 分区消费者仍是"非空配平即通过" | ✅ `RANGE(,)` / `RANGE(+)` / `RANGE(id,)` 三条复现，主干 E999 → Rev.H `Create` | 分区表达式与分区定义按 TDSQL 官方形态精确建模：`_consume_partition_expr()` / `_consume_partition_values()` / `_consume_partition_defs()` |
+| **BLOCK-H3** | `USING HASH` 与 TDSQL 官方 `index_type: USING {BTREE}` 冲突 | ✅ 官方语法核实无误；实测 Rev.H 明确批准 `USING HASH`，主干 E999 → `Create`；且 119 条规则无一否决 HASH 索引类型 | 索引选项白名单收为 `_TDSQL_INDEX_TYPES = ("BTREE",)`，`USING HASH` 失败关闭 |
+| **MAJOR-H1** | 官方合法的 TDSQL 被标成"neg/产品边界"；分区顺序覆盖不全 | ✅ 官方 `key_part` 确含 `[ASC\|DESC]`；官方二级分区确含 List 与 partition `ENGINE`；官方确有 `PARTITION BY ... TDSQL_DISTRIBUTED BY ...` 顺序 | 三者**全部改为必须恢复**并已实现；测试分类新增 `pos_known`（TDSQL 合法但 sqlglot 暂不支持），与非法 neg 彻底分开统计 |
+| **MAJOR-H2** | `sqlglot>=29,<31` 不是可复现构建 | ✅ 属实 | 依赖改为**精确锁定** `sqlglot==30.14.0`；并实测 29.0.0 / 30.14.0 / **30.17.0** 三版全部矩阵逐条一致，作为将来移动 pin 的依据 |
+| **MINOR-H1** | §5.17.5 仍写 `PARTITION BY` 是"不透明终结子句" | ✅ 属实 | 已删除并改写为 Rev.G 历史标注 |
+| **MINOR-H2** | §3.1 第⑤项、C-14 门槛区间、C-1 文件数三处旧口径 | ✅ 属实 | 已逐条更正 |
+
+### 我自查出的三条（O 未发现）
+
+按"TDSQL 官方语法优先"重做取证时，发现 Rev.H **会拒绝三种官方合法形态**——
+方向与 BLOCK-H3 相反，属同一个根因（拿 MySQL/sqlglot 当判据）：
+
+| 编号 | 形态 | 依据 | Rev.H | Rev.I |
+|---|---|---|---|---|
+| **SELF-I1** | `TDSQL_DISTRIBUTED BY range\|list (col) (s1 VALUES LESS THAN(100), ...)` | 腾讯官方建表文档原例：`tdsql_distributed by range(a) (s1 values less than(100), s2 values less than(200))` | **E999，不恢复** | `Create` ✅ |
+| **SELF-I2** | `PARTITION BY LIST(o) (...) TDSQL_DISTRIBUTED BY RANGE(id)`（分区在前、分片在后） | 官方二级分区原例 `tb_sub_r_l` | **E999，不恢复**（Rev.H 强制分区子句消费到语句结束） | `Create` ✅ |
+| **SELF-I3** | 多列分片键 `shardkey=(a,b)` | **项目自身代码**：`tdsql_connector.parse_shard_key_from_ddl()` 注释明写"或多列 `shardkey=(a,b)`" | **E999，不恢复**（只认单标识符） | `Create` ✅ |
+
+> SELF-I3 尤其值得记一笔：**依据就在本仓库里**，我前七轮一次都没去查。
+> 写 TDSQL 审核工具却不读项目自己已经沉淀的 TDSQL 事实，是这轮最该改的习惯。
+
+同时，Z 组在我改完后立刻抓出一个我新引入的 bug：为支持多列 `shardkey=(a,b)`
+我把"多标识符"规则误用到了 `TDSQL_DISTRIBUTED BY HASH(...)` 上。
+但官方语法那里是**单列 `column_name`**，且 v1.6.1.9 冻结的 `_extract_tdsql_hash_key()`
+也只提取单个分片键——已改回单列。**两处形态不同，不能共用一个消费器。**
+
+### 结构性变化：从"多个剥离器"到"一个规划器 + 一道结构门禁"
+
+Rev.H 的两个剥离器各自决定"要不要改写"，谁也不为整条语句负责，这正是 BLOCK-H1 的根因。
+Rev.I 改为：
+
+```text
+_plan_recovery(sql)                     ← 唯一入口，一次性验证整条 CREATE TABLE
+  ├─ _tdsql_table_def_bounds()          定位建表头与定义列表
+  ├─ _scan_definition_list()            逐个定义项普查（列类型、索引键列、索引选项）
+  │    └─ _consume_index_key_parts()    TDSQL key_part：col [(len)] [ASC|DESC]
+  └─ _scan_table_tail()                 表尾**始终**完整验证，直到语句结束
+       ├─ _consume_table_option()       每选项专属值谓词
+       ├─ _consume_partition_clause()   TDSQL 二级分区
+       │    ├─ _consume_partition_expr()
+       │    └─ _consume_partition_defs()  └─ _consume_partition_values()
+       └─ 分片声明（恰好一个）：TDSQL_DISTRIBUTED BY … / BROADCAST
+                                        ↓
+         返回三类 span：uq（目标 COMMENT）/ dialect（方言）/ mask（官方语法掩码）
+                                        ↓
+_blank_spans() 一次性置空 → sqlglot 解析 → _spans_only_diff() 逐字符 span 门禁
+                                        ↓
+_validate_recovery_candidate()          ← **新增**：候选 AST 结构保真门禁
+   ① exp.Create + kind==TABLE + 表名一致
+   ② 候选定义项数 == 原文顶层定义项数        （防静默丢定义项）
+   ③ 列必须有类型、索引必须有非空键列        （防空结构）
+   ④ 原文有 PARTITION BY → 候选必须保留分区   （防静默丢分区）
+```
+
+**第三类 span 是本版的新机制**：TDSQL 官方合法、但 sqlglot 30.x 解析不了的形态
+（`key_part` 的 `ASC/DESC`、分区定义里的 `ENGINE=`/`COMMENT=`），
+与 UNIQUE COMMENT 用**完全相同的等长置空 + span 门禁**处理。
+这样既不牺牲 TDSQL 合规性，也不引入新机制——实测五种缺口全部一次闭合。
+`raw_sql` 始终保持原文（S-4），且实测 119 条规则无一消费 `ASC/DESC`，故掩码不影响任何结论。
 
 ---
 
@@ -785,6 +876,14 @@ def _consume_table_option(toks, i):
     if txt == "ENGINE":
         return _val(i + 1, _OPT_NAMEY)
     if txt == "SHARDKEY":
+        # TDSQL 官方分片键：单列 `shardkey=col`、多列 `shardkey=(a,b)`，
+        # 以及全局表哨兵 `shardkey=noshardkey_allset`。
+        # 多列形态由项目内 tdsql_connector.parse_shard_key_from_ddl() 证实
+        # （"或多列 shardkey=(a,b)"）—— Rev.H 只认单标识符，会把官方合法
+        # 的多列分片表判成非法（第八轮我方自查发现）。
+        j = _eq(i + 1)
+        if j < n and toks[j].token_type == TokenType.L_PAREN:
+            return _consume_ident_list(toks, j)
         return _val(i + 1, _OPT_SHARDKEY)
     if txt == "ROW_FORMAT":
         return _val_words(i + 1, _ROW_FORMAT_ENUM)
@@ -798,205 +897,339 @@ def _consume_table_option(toks, i):
     return -1
 
 
-# key-part 列表消费器（第七轮 BLOCK-G1）
-# ---------------------------------------------------------------------------
-# Rev.G 只对索引**选项区**做了完整消费，键值列表仍然只做括号配平：
-# `uk()` / `uk(,)` / `uk('id')` / `uk(123)` / `uk(lower(id))` / `uk(,id)` / `uk(id,)`
-# 都能带着 COMMENT 进入恢复；删掉 COMMENT 后 sqlglot 宽松产出 Create，原 E999 消失。
-# 这与 S-2c 的承诺直接矛盾：既然是本函数**主动定位并改写**的同一条 UNIQUE 定义，
-# 就不能把它的键值列表交给一个已知宽松的 parser 兜底。
+# ── TDSQL 官方语法消费器（Rev.I：判据由 MySQL/sqlglot 切换为 TDSQL 官方语法）──
 #
-# 本次建模的 key_part 形态（MySQL 官方 key_part 的子集）：
-#     key_part  := (VAR | IDENTIFIER) [ "(" NUMBER ")" ] [ ASC | DESC ]
-#     key_list  := key_part ( "," key_part )*        # 至少一个，逗号不得前导/尾随/连续
-# 实测依据：仓内语料 + 生产 fixture 的索引键值列表内**只出现** VAR / IDENTIFIER /
-# COMMA 三种 token（§5.19.1）。前缀长度与 ASC/DESC 语料中未出现，但属官方 key_part
-# 的无歧义形态，一并纳入以免对常见 DDL 失败关闭。
-# **函数/表达式索引 `((expr))` 本次不建模 → 失败关闭**（与 §5.4 产品边界一致）。
+# 判据优先级（第八轮确立）：
+#   ① 目标实例真实 SHOW CREATE TABLE / 已验证生产 DDL
+#   ② 腾讯云 TDSQL MySQL 版官方语法
+#   ③ 项目已冻结的产品规则与用户决策
+#   ④ MySQL 官方语法
+#   ⑤ sqlglot 当前解析能力
+# sqlglot 只是**词法器与候选 AST 生成器**，不是 TDSQL 合规性判据：
+# 既不能把"sqlglot 能解析"当作 TDSQL 合法，也不能把"sqlglot 解析失败"当作 TDSQL 非法。
+#
+# TDSQL 官方建表语法（本次建模所依据的形态）：
+#   hash / broadcast:
+#     CREATE TABLE ... [local_table_options] shardkey=col | shardkey=(col,...) | noshardkey_allset
+#   range / list:
+#     CREATE TABLE ... [local_table_options] TDSQL_DISTRIBUTED BY range|list (col) [partition_options]
+#   index_type : USING {BTREE}              ← 官方**只有 BTREE**，没有 HASH
+#   key_part   : {col_name [(length)]} [ASC | DESC]
+#   二级分区   : PARTITION BY RANGE|LIST(expr) (partition_definition, ...)
+#              子句顺序两种官方形态都存在：
+#                shardkey=col PARTITION BY ...            （分片在前）
+#                PARTITION BY ... TDSQL_DISTRIBUTED BY ... （分区在前）
+
+# 官方 index_type 只有 BTREE。HASH 是 MySQL 某些引擎的能力，**不是 TDSQL 合规 DDL**，
+# 且 119 条规则中没有任何一条负责否决 HASH 索引类型 —— 放行即次生放行（第八轮 BLOCK-H3）。
+_TDSQL_INDEX_TYPES = ("BTREE",)
+# 分区方法：官方二级分区支持 Range / List；HASH / KEY 为 MySQL 侧形态，一并接受但不放宽校验
+_PARTITION_METHODS = ("RANGE", "LIST", "HASH", "KEY")
+# 分片方法：TDSQL_DISTRIBUTED BY 后可接的方法
+_TDSQL_SHARD_METHODS = ("HASH", "RANGE", "LIST")
+# 分区表达式允许的函数（官方示例中的日期函数；其余一律失败关闭）
+_PARTITION_FUNCS = ("YEAR", "TO_DAYS", "TO_SECONDS", "UNIX_TIMESTAMP", "MONTH", "DAYOFMONTH")
 
 
-def _consume_index_key_parts(toks, i):
-    """消费索引键值列表 `( key_part [, key_part]* )`。
+def _consume_ident(toks, i):
+    """消费一个标识符（裸名或反引号名），返回下一个下标；否则 -1。"""
+    n = len(toks)
+    if i < n and toks[i].token_type in _IDENT_TOKENS:
+        return i + 1
+    return -1
 
-    `i` 必须指向左括号；返回配对右括号的**下一个**下标，不合规返回 -1。
-    """
+
+def _consume_ident_list(toks, i):
+    """消费 `( ident [, ident]* )`，返回下一个下标；否则 -1。至少一个，逗号不得前导/尾随/连续。"""
     n = len(toks)
     if i >= n or toks[i].token_type != TokenType.L_PAREN:
         return -1
     j = i + 1
     while True:
-        # —— 一个 key_part ——
+        j = _consume_ident(toks, j)
+        if j < 0:
+            return -1
+        if j < n and toks[j].token_type == TokenType.COMMA:
+            j += 1
+            continue
+        if j < n and toks[j].token_type == TokenType.R_PAREN:
+            return j + 1
+        return -1
+
+
+def _consume_index_key_parts(toks, i):
+    """消费索引键值列表 `( key_part [, key_part]* )`。
+
+    TDSQL 官方 key_part：`{col_name [(length)]} [ASC | DESC]`
+
+    `i` 必须指向左括号；返回 `(下一个下标, ASC/DESC 的 span 列表)`，不合规返回 `(-1, [])`。
+
+    **ASC / DESC 是 TDSQL 官方合法形态**，但 sqlglot 30.x 对
+    `UNIQUE KEY uk (id ASC)` 直接 ParseError（实测）。因此本函数把它们作为
+    **可掩码 span** 返回：由调用方等长置空后送进 sqlglot，从而在不牺牲 TDSQL
+    合规性的前提下绕开解析器缺口。规则层不消费排序方向（实测 119 条规则
+    无一引用 ASC/DESC），`raw_sql` 亦保持原文，故掩码不影响任何审核结论。
+    """
+    n = len(toks)
+    if i >= n or toks[i].token_type != TokenType.L_PAREN:
+        return -1, []
+    spans = []
+    j = i + 1
+    while True:
         if j >= n or toks[j].token_type not in _IDENT_TOKENS:
-            return -1                                  # 空列表 / 前导逗号 / 非列名键
+            return -1, []                              # 空列表 / 前导逗号 / 非列名键
         j += 1
-        if j < n and toks[j].token_type == TokenType.L_PAREN:   # 可选前缀长度
+        if j < n and toks[j].token_type == TokenType.L_PAREN:      # 可选前缀长度
             if not (j + 2 < n and toks[j + 1].token_type == TokenType.NUMBER
                     and toks[j + 2].token_type == TokenType.R_PAREN):
-                return -1
+                return -1, []
             j += 3
         if j < n and toks[j].token_type in (TokenType.ASC, TokenType.DESC):
+            spans.append((toks[j].start, toks[j].end))             # 记为可掩码 span
             j += 1
-        # —— 分隔符或收尾 ——
         if j < n and toks[j].token_type == TokenType.COMMA:
             j += 1
             continue                                   # 逗号后必须还有 key_part
         if j < n and toks[j].token_type == TokenType.R_PAREN:
+            return j + 1, spans
+        return -1, []                                  # 尾随逗号 / 未闭合 / 未知 token
+
+
+def _consume_partition_expr(toks, i):
+    """消费分区表达式 `( col )` 或 `( FUNC(col) )`（官方形态），返回下一个下标；否则 -1。
+
+    第八轮 BLOCK-H2：Rev.H 用"非空且括号配平"当充分条件，`(,)` / `(+)` / `(id,)`
+    都能通过。现按官方形态精确建模，其余一律失败关闭。
+    """
+    n = len(toks)
+    if i >= n or toks[i].token_type != TokenType.L_PAREN:
+        return -1
+    j = i + 1
+    if j < n and toks[j].token_type in _IDENT_TOKENS:
+        j += 1
+    elif j < n and _is_bare_kw(toks[j]) and (toks[j].text or "").upper() in _PARTITION_FUNCS:
+        j = _consume_ident_list(toks, j + 1)
+        if j < 0:
+            return -1
+    else:
+        return -1
+    return j + 1 if (j < n and toks[j].token_type == TokenType.R_PAREN) else -1
+
+
+def _consume_partition_values(toks, i):
+    """消费 `VALUES LESS THAN ( ... )` / `VALUES IN ( ... )` / `VALUES LESS THAN MAXVALUE`。"""
+    n = len(toks)
+    if i >= n or toks[i].token_type != TokenType.VALUES:
+        return -1
+    j = i + 1
+    if j < n and _is_bare_kw(toks[j], "LESS"):
+        j += 1
+        if not (j < n and _is_bare_kw(toks[j], "THAN")):
+            return -1
+        j += 1
+        if j < n and _is_bare_kw(toks[j], "MAXVALUE"):
             return j + 1
-        return -1                                      # 尾随逗号 / 未闭合 / 未知 token
+    elif j < n and toks[j].token_type == TokenType.IN:
+        j += 1
+    else:
+        return -1
+    # 值列表：( 字面量 [, 字面量]* )，至少一个
+    if j >= n or toks[j].token_type != TokenType.L_PAREN:
+        return -1
+    j += 1
+    _LIT = (TokenType.NUMBER, TokenType.STRING, TokenType.VAR, TokenType.IDENTIFIER,
+            TokenType.NULL)
+    while True:
+        if j >= n or toks[j].token_type not in _LIT:
+            return -1
+        j += 1
+        if j < n and toks[j].token_type == TokenType.COMMA:
+            j += 1
+            continue
+        if j < n and toks[j].token_type == TokenType.R_PAREN:
+            return j + 1
+        return -1
 
 
-# 分区子句消费器（第七轮 BLOCK-G2）
-# ---------------------------------------------------------------------------
-# Rev.G 把 `PARTITION BY` 当作"不透明终结子句"直接 break，其后 token 完全不校验。
-# 于是 `PARTITION BY` / `PARTITION BY DEFAULT` 这类残缺分区语法被 sqlglot 静默丢弃，
-# 删掉目标 span 后原 E999 变成 Create —— 与 S-2c"未认领 token 必须整体失败"直接矛盾。
-#
-# 本次建模的分区子句形态（MySQL partition_options 的子集）：
-#     PARTITION BY [LINEAR] <方法> [COLUMNS] "(" <非空> ")" [PARTITIONS NUMBER]
-#                  [ "(" <非空分区定义表> ")" ]  <语句结束>
-#     方法 := HASH | KEY | RANGE | LIST（裸词；实测 KEY/RANGE/LIST 有专属 TokenType）
-# 约束（缺一即失败关闭）：
-#   * 必须有方法，且方法后必须紧跟**非空**括号体；
-#   * 括号必须闭合；可选 `PARTITIONS <数字>`；
-#   * 可选的分区定义表必须是**单个非空**括号体；
-#   * 消费必须一直到**语句结束**——尾随任何未认领 token 即失败；
-#   * 括号体内**不得再出现** PARTITION BY / TDSQL_DISTRIBUTED / BROADCAST /
-#     分号（防止第二个方言声明或第二条语句藏在里面）。
-# 括号体内部不逐 token 建模（分区定义语法庞大），但它**不是被跳过**：
-# 上述禁词与非空约束把它限定成"确实是分区定义、且不含任何我们需要识别的东西"，
-# 且本函数对该区间**不做任何改写**。
-_PARTITION_METHODS = ("HASH", "KEY", "RANGE", "LIST")
+def _consume_partition_defs(toks, i):
+    """消费分区定义表 `( partition_def [, partition_def]* )`。
+
+    官方 partition_definition（本次建模的子集）：
+        PARTITION name VALUES (LESS THAN (...) | LESS THAN MAXVALUE | IN (...))
+        [ENGINE [=] name] [COMMENT [=] STRING]
+
+    返回 `(下一个下标, 需掩码的 span 列表)`；不合规返回 `(-1, [])`。
+
+    分区定义里的 `ENGINE = InnoDB` / `COMMENT = 'x'` 是**官方合法**的
+    partition_option，但 sqlglot 30.x 遇到即 ParseError（实测）。同 ASC/DESC，
+    按**可掩码 span** 处理，不因解析器缺口把官方语法判成非法。
+
+    TDSQL 官方 `TDSQL_DISTRIBUTED BY range|list(col) (s1 VALUES LESS THAN(100), ...)`
+    的分片定义表**没有 `PARTITION` 前缀**（官方原例即 `s1 values less than(100)`），
+    故 `PARTITION` 关键字在此处可选。
+    """
+    n = len(toks)
+    if i >= n or toks[i].token_type != TokenType.L_PAREN:
+        return -1, []
+    spans = []
+    j = i + 1
+    while True:
+        if j < n and toks[j].token_type == TokenType.PARTITION:
+            j += 1                                     # 二级分区形态带 PARTITION 前缀
+        j = _consume_ident(toks, j)                    # 分区名
+        if j < 0:
+            return -1, []
+        j = _consume_partition_values(toks, j)
+        if j < 0:
+            return -1, []
+        while True:                                    # 可选 partition_option（可掩码）
+            start = j
+            if j < n and (toks[j].token_type == TokenType.VAR
+                          and (toks[j].text or "").upper() == "ENGINE"):
+                k = j + 1
+                if k < n and toks[k].token_type == TokenType.EQ:
+                    k += 1
+                if k < n and toks[k].token_type in _OPT_NAMEY:
+                    spans.append((toks[j].start, toks[k].end))
+                    j = k + 1
+                    continue
+                return -1, []
+            if j < n and toks[j].token_type == TokenType.COMMENT:
+                k = j + 1
+                if k < n and toks[k].token_type == TokenType.EQ:
+                    k += 1
+                if k < n and toks[k].token_type == TokenType.STRING:
+                    spans.append((toks[j].start, toks[k].end))
+                    j = k + 1
+                    continue
+                return -1, []
+            if j == start:
+                break
+        if j < n and toks[j].token_type == TokenType.COMMA:
+            j += 1
+            continue
+        if j < n and toks[j].token_type == TokenType.R_PAREN:
+            return j + 1, spans
+        return -1, []
 
 
 def _consume_partition_clause(toks, i):
-    """消费 `PARTITION BY ...` 直到语句结束；返回 len(toks)，不合规返回 -1。
+    """消费 `PARTITION BY ...` 一整个二级分区子句。
 
-    `i` 必须指向 PARTITION_BY token。
+    `i` 必须指向 PARTITION_BY token；返回 `(下一个下标, 需掩码的 span 列表)`，
+    不合规返回 `(-1, [])`。
+
+    **不再要求消费到语句结束**——TDSQL 官方存在
+    `PARTITION BY LIST(o) (...) TDSQL_DISTRIBUTED BY RANGE(id)` 这种
+    分区在前、分片声明在后的合法顺序（官方原例 tb_sub_r_l）。
+    Rev.H 强制消费到 EOF，会把该官方形态判成非法（第八轮 MAJOR-H1）。
+    尾部完整性改由调用方的统一尾部扫描保证。
     """
     n = len(toks)
     if i >= n or toks[i].token_type != TokenType.PARTITION_BY:
-        return -1
+        return -1, []
     j = i + 1
     if j < n and _is_bare_kw(toks[j], "LINEAR"):
         j += 1
     if not (j < n and _is_bare_kw(toks[j])
             and (toks[j].text or "").upper() in _PARTITION_METHODS):
-        return -1                                  # 缺方法 / DEFAULT / 引号形态
+        return -1, []                                  # 缺方法 / DEFAULT / 引号形态
     j += 1
     if j < n and _is_bare_kw(toks[j], "COLUMNS"):
         j += 1
-
-    def _balanced(k):
-        """消费一个**非空**且不含禁词的括号体；返回其后下标，否则 -1。"""
-        if k >= n or toks[k].token_type != TokenType.L_PAREN:
-            return -1
-        d, m = 0, k
-        while m < n:
-            tt = toks[m].token_type
-            if tt == TokenType.L_PAREN:
-                d += 1
-            elif tt == TokenType.R_PAREN:
-                d -= 1
-                if d == 0:
-                    return -1 if m == k + 1 else m + 1      # 空括号体 → 失败
-            elif tt in (TokenType.SEMICOLON, TokenType.PARTITION_BY):
-                return -1
-            elif _is_bare_kw(toks[m], "TDSQL_DISTRIBUTED") or _is_bare_kw(toks[m], "BROADCAST"):
-                return -1                                   # 第二个方言声明藏在括号里
-            m += 1
-        return -1                                           # 未闭合
-
-    j = _balanced(j)
+    j = _consume_partition_expr(toks, j)
     if j < 0:
-        return -1
+        return -1, []
+    spans = []
     if j + 1 < n and _is_bare_kw(toks[j], "PARTITIONS") and toks[j + 1].token_type == TokenType.NUMBER:
         j += 2
-    if j < n and toks[j].token_type == TokenType.L_PAREN:   # 可选分区定义表
-        j = _balanced(j)
+    if j < n and toks[j].token_type == TokenType.L_PAREN:
+        j, spans = _consume_partition_defs(toks, j)
         if j < 0:
-            return -1
-    return j if j == n else -1                              # 必须消费到语句结束
+            return -1, []
+    return j, spans
 
 
-def _strip_tdsql_dialect_tail(sql: str, dialect: str = "mysql"):
-    """剥离**第一条建表语句定义列表闭合之后、顶层**的 TDSQL 方言尾子句。
+def _scan_table_tail(toks, start, want_dialect=True):
+    """扫描定义列表收尾右括号之后的**全部** token，直到语句结束。
 
-    **只接受两种精确形态**，且要求**整个表选项区被完整消费**：
-      * TDSQL_DISTRIBUTED BY HASH|RANGE|LIST ( <恰好一个标识符> )
-      * 独立的裸 BROADCAST 标志
-    目标之外的每一个 token 都必须能被 `_consume_table_option()` 消费成完整选项；
-    出现任何残缺/未知选项即返回 (None, [], "") —— 这是第六轮 BLOCK-F1 的整改：
-    只证明"目标片段合法"不够，还必须证明**目标所处的上下文本身是完整的**。
+    第八轮 BLOCK-H1：Rev.H 只在"要剥离方言目标"时才验证表尾；
+    UNIQUE-COMMENT 单独恢复路径根本不看表尾，于是 `ENGINE=123`、孤立 `DEFAULT`、
+    `PARTITION BY RANGE(,)` 这些与目标无关的非法结构被 sqlglot 静默丢弃后
+    仍返回 `exp.Create`，原 E999 消失。现在**只要进入恢复链就必须完整验证表尾**。
 
-    `PARTITION BY` 交由 `_consume_partition_clause()` **完整消费到语句结束**
-    （第七轮 BLOCK-G2）：Rev.G 曾把它当作"不透明终结子句"直接 break，其后 token
-    完全不校验，于是 `PARTITION BY` / `PARTITION BY DEFAULT` 这类残缺分区语法被
-    sqlglot 静默丢弃，原 E999 被吞掉。现在缺方法、空括号、未闭合、尾随垃圾、
-    或括号体内藏第二个方言声明，一律失败关闭。
+    尾部允许（顺序不限，各自必须被完整消费）：
+      * 表选项 atom（`_consume_table_option`）
+      * 二级分区子句（`_consume_partition_clause`）—— 可能带需掩码的 partition_option
+      * **恰好一个**分片声明：
+          `TDSQL_DISTRIBUTED BY hash|range|list ( col ) [ (分片定义表) ]`
+          `BROADCAST`
+        其中 range/list 的分片定义表是 TDSQL 官方形态
+        （`tdsql_distributed by range(a) (s1 values less than(100), ...)`）。
 
-    一条语句只允许**一个**分布声明；出现第二个即失败关闭。
-    返回 (改写后SQL, spans, 表名)；无可安全变换时返回 (None, [], "")。
+    返回 `(方言目标 span 列表, 需掩码的官方语法 span 列表)`；
+    任一 token 无法认领即返回 `(None, None)` —— 失败关闭。
+
+    `want_dialect=False` 时只做**验证**、不产生方言 span（供 UNIQUE 单独恢复路径调用）。
     """
-    try:
-        toks = sqlglot.Dialect.get_or_raise(dialect).tokenizer_class().tokenize(sql)
-    except Exception:
-        return None, [], ""
-    if any(t.token_type == TokenType.SEMICOLON for t in toks):
-        return None, [], ""          # 多语句：调用方已有拆分能力，不猜测
-    _open, close_idx, table_name = _tdsql_table_def_bounds(toks)
-    if close_idx < 0:
-        return None, [], ""
     n = len(toks)
-    spans = []
+    tgt_spans = []
+    mask_spans = []
     seen_decl = False
-    i = close_idx + 1
+    i = start
     while i < n:
         tt = toks[i].token_type
         if tt == TokenType.PARTITION_BY:
-            nxt = _consume_partition_clause(toks, i)
+            nxt, msp = _consume_partition_clause(toks, i)
             if nxt < 0:
-                return None, [], ""  # 残缺/尾随垃圾的分区子句 → 失败关闭（BLOCK-G2）
+                return None, None
+            mask_spans.extend(msp)
             i = nxt
             continue
         if _is_bare_kw(toks[i], "TDSQL_DISTRIBUTED"):
             if seen_decl:
-                return None, [], ""
+                return None, None
             if not (i + 1 < n and _is_bare_kw(toks[i + 1], "BY")):
-                return None, [], ""
-            if not (i + 2 < n and toks[i + 2].token_type not in _NON_KEYWORD_TOKENS
+                return None, None
+            if not (i + 2 < n and _is_bare_kw(toks[i + 2])
                     and (toks[i + 2].text or "").upper() in _TDSQL_SHARD_METHODS):
-                return None, [], ""
-            if not (i + 3 < n and toks[i + 3].token_type == TokenType.L_PAREN):
-                return None, [], ""
-            if not (i + 4 < n and toks[i + 4].token_type in _IDENT_TOKENS):
-                return None, [], ""
-            if not (i + 5 < n and toks[i + 5].token_type == TokenType.R_PAREN):
-                return None, [], ""
-            spans.append((toks[i].start, toks[i + 5].end))
+                return None, None
+            # TDSQL 官方：`TDSQL_DISTRIBUTED BY range|list (column_name)` —— **单列**。
+            # 多列分片只有 `shardkey=(a,b)` 一种写法（见 _consume_table_option）。
+            # 且 v1.6.1.9 冻结的 _extract_tdsql_hash_key() 也只提取单个分片键。
+            j = i + 3
+            if not (j < n and toks[j].token_type == TokenType.L_PAREN
+                    and j + 2 < n and toks[j + 1].token_type in _IDENT_TOKENS
+                    and toks[j + 2].token_type == TokenType.R_PAREN):
+                return None, None
+            j += 3
+            end_tok = j - 1
+            if j < n and toks[j].token_type == TokenType.L_PAREN:
+                # TDSQL 官方：range/list 分片声明后可直接跟分片定义表
+                j2, msp = _consume_partition_defs(toks, j)
+                if j2 < 0:
+                    return None, None
+                mask_spans.extend(msp)
+                end_tok = j2 - 1
+                j = j2
+            tgt_spans.append((toks[i].start, toks[end_tok].end))
             seen_decl = True
-            i += 6
+            i = j
             continue
         if _is_bare_kw(toks[i], "BROADCAST"):
             if seen_decl:
-                return None, [], ""
-            spans.append((toks[i].start, toks[i].end))
+                return None, None
+            tgt_spans.append((toks[i].start, toks[i].end))
             seen_decl = True
             i += 1
             continue
         nxt = _consume_table_option(toks, i)
         if nxt < 0:
-            return None, [], ""      # 残缺/未知表选项 → 失败关闭（BLOCK-F1）
+            return None, None                # 残缺/未知表选项 → 失败关闭
         i = nxt
-    if not spans:
-        return None, [], ""
-    buf = list(sql)
-    for s, e in spans:
-        if not (0 <= s <= e < len(buf)):
-            return None, [], ""
-        for q in range(s, e + 1):
-            if buf[q] != "\n":
-                buf[q] = " "
-    return "".join(buf), spans, table_name
+    if want_dialect and not tgt_spans:
+        return None, None
+    return tgt_spans, mask_spans
 
 
 def _same_table_name(node, expected: str) -> bool:
@@ -1025,6 +1258,211 @@ def _same_table_name(node, expected: str) -> bool:
 # 各自是完整单元，因此列注释里出现的伪 SQL（例如
 #   b VARCHAR(255) COMMENT 'see UNIQUE KEY fake (a) COMMENT ''x'''
 # ）在结构上不可见，不可能被误改。全局正则做不到这一点。
+
+
+def _scan_definition_list(toks, open_idx, close_idx):
+    """普查定义列表的顶层定义项，并顺带收集 UNIQUE COMMENT / ASC-DESC 的可掩码 span。
+
+    第八轮 BLOCK-H1：Rev.H 只验证目标 UNIQUE 自身，其他定义项完全不看；
+    `KEY k ()`（空索引）、`id INT,,`（空定义项）被 sqlglot 静默丢弃后仍返回 Create。
+
+    返回 `(顶层定义项数, UNIQUE COMMENT span 列表, 需掩码的官方语法 span 列表)`；
+    任一定义项不合规返回 `(-1, [], [])`。
+
+    校验内容：
+      * 顶层定义项**不得为空**（拒绝前导/尾随/连续逗号）；
+      * 索引类定义项（`[UNIQUE|PRIMARY|FULLTEXT] KEY|INDEX`）的键值列表必须
+        由完整 key_part 组成（`_consume_index_key_parts`）；
+      * 索引选项区只接受 TDSQL 官方 `USING BTREE` 与 `COMMENT STRING`；
+      * 列定义项必须以标识符开头且**带数据类型**。
+    """
+    n = len(toks)
+    ndef = 0
+    uq_spans = []
+    mask_spans = []
+    i = open_idx + 1
+    while i < close_idx:
+        item_start = i
+        # ── 定义项前缀：CONSTRAINT name / UNIQUE / PRIMARY / FULLTEXT / SPATIAL ──
+        j = i
+        is_index = False
+        is_unique_top = False
+        if j < close_idx and toks[j].token_type == TokenType.CONSTRAINT:
+            j += 1
+            if j < close_idx and toks[j].token_type in _IDENT_TOKENS:
+                j += 1
+        if j < close_idx and toks[j].token_type == TokenType.UNIQUE:
+            is_index = True
+            is_unique_top = (j == item_start)      # 仅"定义项起点即 UNIQUE"才是目标
+            j += 1
+        elif j < close_idx and toks[j].token_type == TokenType.PRIMARY_KEY:
+            is_index = True
+            j += 1
+        elif j < close_idx and _is_bare_kw(toks[j]) and (toks[j].text or "").upper() in ("FULLTEXT", "SPATIAL"):
+            is_index = True
+            j += 1
+        if j < close_idx and toks[j].token_type in (TokenType.KEY, TokenType.INDEX):
+            is_index = True
+            j += 1
+        if is_index:
+            if j < close_idx and toks[j].token_type in _IDENT_TOKENS:
+                j += 1                                    # 索引名（可选）
+            if j < close_idx and toks[j].token_type == TokenType.USING:   # index_type 前置
+                if not (j + 1 < close_idx and _is_bare_kw(toks[j + 1])
+                        and (toks[j + 1].text or "").upper() in _TDSQL_INDEX_TYPES):
+                    return -1, [], []
+                j += 2
+            j2, asc_spans = _consume_index_key_parts(toks, j)
+            if j2 < 0:
+                return -1, [], []                         # 空/残缺键值列表（BLOCK-G1）
+            mask_spans.extend(asc_spans)
+            j = j2
+            # ── 索引选项区：TDSQL 官方只有 USING BTREE 与 COMMENT ──
+            while j < close_idx and toks[j].token_type not in (TokenType.COMMA,):
+                tj = toks[j].token_type
+                if tj == TokenType.USING:
+                    if not (j + 1 < close_idx and _is_bare_kw(toks[j + 1])
+                            and (toks[j + 1].text or "").upper() in _TDSQL_INDEX_TYPES):
+                        return -1, [], []                 # USING HASH 等 → 失败关闭
+                    j += 2
+                    continue
+                if tj == TokenType.COMMENT:
+                    if not (j + 1 < close_idx and toks[j + 1].token_type == TokenType.STRING):
+                        return -1, [], []
+                    if is_unique_top:
+                        uq_spans.append((toks[j].start, toks[j + 1].end))
+                    j += 2
+                    continue
+                return -1, [], []                         # 未知索引选项 → 失败关闭
+        else:
+            # ── 列定义项：标识符 + 数据类型 + 其余到顶层逗号 ──
+            if j >= close_idx or toks[j].token_type not in _IDENT_TOKENS:
+                return -1, [], []                         # 空定义项 / 非法起点
+            j += 1
+            if j >= close_idx or toks[j].token_type == TokenType.COMMA:
+                return -1, [], []                         # 列缺数据类型 → 失败关闭
+            depth = 0
+            while j < close_idx:
+                tt = toks[j].token_type
+                if tt == TokenType.L_PAREN:
+                    depth += 1
+                elif tt == TokenType.R_PAREN:
+                    depth -= 1
+                elif tt == TokenType.COMMA and depth == 0:
+                    break
+                j += 1
+        if j > close_idx:
+            return -1, [], []
+        ndef += 1
+        if j < close_idx and toks[j].token_type == TokenType.COMMA:
+            j += 1
+            if j >= close_idx:
+                return -1, [], []                         # 尾随逗号 → 失败关闭
+        elif j < close_idx:
+            return -1, [], []                             # 定义项未在逗号处收尾
+        i = j
+    return (ndef, uq_spans, mask_spans) if ndef else (-1, [], [])
+
+
+def _plan_recovery(sql: str, dialect: str = "mysql"):
+    """统一恢复规划器：一次性验证**整条建表语句**，并给出全部可改写 span。
+
+    这是第八轮 BLOCK-H1 的核心整改——把"目标 UNIQUE 看起来完整"升级为
+    "整条 CREATE TABLE 都按 TDSQL 官方语法验证通过"。
+
+    返回 `(表名, 顶层定义项数, uq_spans, dialect_spans, mask_spans)`；
+    任一环节不能证明完整时返回 `(None, -1, [], [], [])` —— 失败关闭。
+
+    * `uq_spans`   ：目标 UNIQUE 索引 COMMENT（DEF-2 的修复目标）
+    * `dialect_spans`：TDSQL 分片声明（sqlglot 不认的方言）
+    * `mask_spans` ：TDSQL **官方合法**但 sqlglot 30.x 解析不了的形态
+                     （key_part 的 ASC/DESC、分区定义的 ENGINE/COMMENT 选项）
+    """
+    try:
+        toks = sqlglot.Dialect.get_or_raise(dialect).tokenizer_class().tokenize(sql)
+    except Exception:
+        return None, -1, [], [], []
+    if any(t.token_type == TokenType.SEMICOLON for t in toks):
+        return None, -1, [], [], []          # 多语句：调用方已有拆分能力，不猜测
+    open_idx, close_idx, table_name = _tdsql_table_def_bounds(toks)
+    if open_idx < 0:
+        return None, -1, [], [], []
+    ndef, uq_spans, mask_a = _scan_definition_list(toks, open_idx, close_idx)
+    if ndef < 0:
+        return None, -1, [], [], []
+    tgt_spans, mask_b = _scan_table_tail(toks, close_idx + 1, want_dialect=False)
+    if tgt_spans is None:
+        return None, -1, [], [], []
+    return table_name, ndef, uq_spans, tgt_spans, (mask_a + mask_b)
+
+
+def _blank_spans(sql: str, spans):
+    """把给定 span 等长置空（保留换行），返回新串；越界返回 None。"""
+    if not spans:
+        return sql
+    buf = list(sql)
+    for s, e in spans:
+        if not (0 <= s <= e < len(buf)):
+            return None
+        for q in range(s, e + 1):
+            if buf[q] != "\n":
+                buf[q] = " "
+    return "".join(buf)
+
+
+# 分区保真门禁用：候选 AST 中代表二级分区的 properties 节点名前缀
+_PARTITION_PROP_PREFIX = "PartitionBy"
+
+
+def _had_partition(sql: str, dialect: str = "mysql") -> bool:
+    """原文 token 流中是否出现 `PARTITION BY`（供分区保真门禁使用）。"""
+    try:
+        toks = sqlglot.Dialect.get_or_raise(dialect).tokenizer_class().tokenize(sql)
+    except Exception:
+        return False
+    return any(t.token_type == TokenType.PARTITION_BY for t in toks)
+
+
+def _validate_recovery_candidate(node, expected_table, ndef, had_partition):
+    """候选 AST 结构保真门禁（第八轮 BLOCK-H1 第 4 条）。
+
+    span 门禁只能证明"改写没越界"，证明不了"候选 AST 没有把原文结构静默丢掉"。
+    sqlglot 对多种非法结构采取宽松恢复：丢弃后仍返回同表名 `exp.Create`。
+    本函数在 span 门禁**之外**再加一道结构校验：
+
+      ① 必须是 `exp.Create` 且 `kind == TABLE`、表名与原文一致；
+      ② 候选定义项数必须与原文顶层定义项数**严格相等**（防静默丢定义项）；
+      ③ 每个列定义必须有数据类型；每个索引类定义必须有非空键列（防空结构）；
+      ④ 原文含 `PARTITION BY` 时，候选必须仍保留分区 property（防静默丢分区）。
+
+    任一条不成立返回 False —— 保持原异常/E999，不得仅凭
+    "`exp.Create` + 同表名" 接纳。
+    """
+    if not isinstance(node, exp.Create):
+        return False
+    if str(node.args.get("kind") or "").upper() != "TABLE":
+        return False
+    if not _same_table_name(node, expected_table):
+        return False
+    schema = node.this
+    if not isinstance(schema, exp.Schema):
+        return False
+    items = list(schema.expressions or [])
+    if len(items) != ndef:
+        return False                                  # ② 定义项数不符 → 丢结构
+    for it in items:                                  # ③ 必要结构非空
+        if isinstance(it, exp.ColumnDef):
+            if it.args.get("kind") is None:
+                return False                          # 列缺数据类型
+        else:
+            if not list(it.find_all(exp.Column)) and not list(it.find_all(exp.Identifier)):
+                return False                          # 空索引 / 空约束
+    if had_partition:                                 # ④ 分区必须被保留
+        props = node.args.get("properties")
+        names = [type(p).__name__ for p in (props.expressions if props else [])]
+        if not any(nm.startswith(_PARTITION_PROP_PREFIX) for nm in names):
+            return False
+    return True
 ```
 
 **与被删正则的本质区别**：定义体（列、索引、注释、DEFAULT）在**位置上**就不在扫描范围内
@@ -1037,110 +1475,7 @@ def _same_table_name(node, expected: str) -> bool:
 `@dataclass class ParsedSQL` 之前（`_TDSQL_DIALECT_RE` 已按 §3.0b 删除，不再作为锚点）。
 
 ```python
-def _strip_unique_index_comments(sql: str, dialect: str = "mysql"):
-    """剥离**第一条** CREATE TABLE 顶层定义项上 UNIQUE 索引的 COMMENT 子句。
-
-    返回 (改写后SQL, 已抹除的span列表, 从原文提取的表名)。
-    任一环节无法证明安全时返回 (None, [], "") —— 失败关闭，绝不猜测性改写。
-
-    安全性质分两层（缺一不可）：
-      * 词法完整性：差异只落在词法器给出的 token 区间内；
-      * **语法作用域完整性**：每个 span 必须来自第一条 CREATE TABLE 定义列表的
-        顶层、且**以 UNIQUE 开头**的定义项。为此显式维护 at_def_start 状态——
-        只有"定义列表左括号之后"或"深度 1 的逗号之后"的第一个真实 token 才算
-        定义项起点。`CONSTRAINT x UNIQUE (...)`（起点是 CONSTRAINT）、
-        定义项中部的 UNIQUE、以及第一个定义列表闭合之后的一切内容，均不进入。
-    """
-    try:
-        tokenizer = sqlglot.Dialect.get_or_raise(dialect).tokenizer_class()
-        toks = tokenizer.tokenize(sql)
-    except Exception:
-        return None, [], ""
-    # 复用与方言剥离器**同一个**严格头部定位器：CREATE [TEMPORARY] TABLE
-    # [IF NOT EXISTS] <名>[.<名>] ( ... —— 表名只接受 VAR/IDENTIFIER，
-    # STRING（单/双引号表名）一律拒绝；CTAS / LIKE 因表名后非左括号而被拒。
-    # 两个剥离器共用同一定位器，避免两套安全模型各自漂移（第五轮 §5.2.4）。
-    open_idx, close_idx, table_name = _tdsql_table_def_bounds(toks)
-    if open_idx < 0:
-        return None, [], ""
-    n = len(toks)
-
-    spans = []
-    depth = 1                      # 已越过定义列表左括号
-    at_def_start = True            # 左括号之后即为第一个定义项的起点
-    i = open_idx + 1
-    while i < n:
-        tt = toks[i].token_type
-        if tt == TokenType.L_PAREN:
-            depth += 1
-            at_def_start = False
-            i += 1
-            continue
-        if tt == TokenType.R_PAREN:
-            depth -= 1
-            if depth == 0:
-                break              # 第一个定义列表闭合 → 立即停止，不扫后续内容
-            at_def_start = False
-            i += 1
-            continue
-        if depth == 1 and tt == TokenType.COMMA:
-            at_def_start = True    # 顶层逗号之后是下一个定义项的起点
-            i += 1
-            continue
-        # 仅当"顶层定义项起点恰为 UNIQUE"时才进入
-        if depth == 1 and at_def_start and tt == TokenType.UNIQUE:
-            j = i + 1
-            if j < n and toks[j].token_type in (TokenType.KEY, TokenType.INDEX):
-                j += 1
-            if j < n and toks[j].token_type in (TokenType.VAR, TokenType.IDENTIFIER):
-                j += 1
-            if j < n and toks[j].token_type == TokenType.L_PAREN:
-                # 键值列表**必须被完整消费**（第七轮 BLOCK-G1）：
-                # 空列表 / 前导、尾随、连续逗号 / STRING / NUMBER / 函数键
-                # 一律失败关闭，不再只做括号配平。
-                j = _consume_index_key_parts(toks, j)
-                if j < 0:
-                    return None, [], ""
-                # 索引选项区：**必须被完整消费**。第六轮 BLOCK-F2 的整改——
-                # 原实现"看到不认识的 token 就 j += 1 继续找 COMMENT"，导致
-                # `USING`（缺 BTREE/HASH）这类残缺选项被跳过；删掉 COMMENT 后
-                # sqlglot 又宽松接纳孤立 USING，于是原 E999 被抹掉。
-                # 现在只接受两种完整 atom：USING (BTREE|HASH) 与 COMMENT STRING；
-                # 其余（VISIBLE / KEY_BLOCK_SIZE / WITH PARSER / 残缺 USING …）
-                # 一律失败关闭。
-                while j < n:
-                    tj = toks[j].token_type
-                    if tj in (TokenType.COMMA, TokenType.R_PAREN):
-                        break
-                    if tj == TokenType.USING:
-                        if not (j + 1 < n and toks[j + 1].token_type == TokenType.VAR
-                                and (toks[j + 1].text or "").upper() in ("BTREE", "HASH")):
-                            return None, [], ""      # 残缺 USING → 失败关闭
-                        j += 2
-                        continue
-                    if tj == TokenType.COMMENT:
-                        if not (j + 1 < n and toks[j + 1].token_type == TokenType.STRING):
-                            return None, [], ""      # COMMENT 后非字符串 → 失败关闭
-                        spans.append((toks[j].start, toks[j + 1].end))
-                        j += 2
-                        continue
-                    return None, [], ""              # 未知索引选项 → 失败关闭
-                i = j
-                at_def_start = False
-                continue
-        at_def_start = False
-        i += 1
-
-    if not spans:
-        return None, [], ""
-    buf = list(sql)
-    for s, e in spans:
-        if not (0 <= s <= e < len(buf)):
-            return None, [], ""
-        for q in range(s, e + 1):
-            if buf[q] != "\n":
-                buf[q] = " "                     # 等长空格，保留换行
-    return "".join(buf), spans, table_name
+# （Rev.I：本函数已并入 §3.0c 的统一规划器，见上方 _plan_recovery / _scan_definition_list）
 ```
 
 **Rev.C 相对 Rev.B 的三处关键变化**（对应 O 第二轮 BLOCK-B2a/B2b、MAJOR-B1）：
@@ -1159,7 +1494,7 @@ def _strip_unique_index_comments(sql: str, dialect: str = "mysql"):
 | ② 正确处理 `''`、`\'`、`\\`、``` `` ``` 转义 | 同上，词法器负责；实测 4 类转义全部通过 |
 | ③ 只进入顶层 `CREATE TABLE (...)` 定义列表 | 首两个 token 必须是 `CREATE`+`TABLE`；只在 `depth == 1` 识别 |
 | ④ 只处理定义项开头的真实 `UNIQUE [KEY\|INDEX]` token | 在 `depth == 1` 上按 token 类型判定，非文本匹配 |
-| ⑤ 用括号深度取完整键值部分，支持 `a(20)`、多列、嵌套函数 | `d2` 深度配对；实测前缀索引/多列前缀均恢复 |
+| ⑤ 按 **TDSQL 官方 `key_part`** 逐项消费键值列表：`col [(length)] [ASC|DESC]`，逗号只能在两个完整 key-part 之间 | `_consume_index_key_parts()`；**函数 / 表达式索引失败关闭**（旧口径“支持嵌套函数”已被第七轮 BLOCK-G1 推翻）；`ASC/DESC` 作可掩码 span |
 | ⑥ **只在整个索引定义被完整消费之后**才移除 `COMMENT '...'` | 键值列表逐 key-part 消费（`_consume_index_key_parts()`）；选项区只接受 `USING (BTREE\|HASH)` 与 `COMMENT STRING` 两种完整 atom，**其余一律失败关闭**（不是"保留"，是"整体放弃"）；只在 `COMMENT`+`STRING` token 对上记 span |
 | ⑦ 支持一个语句内多个 UNIQUE 索引 | 循环 `continue`；实测双 UNIQUE 记 2 处 span |
 | ⑧ 无法证明边界时返回 `None`，不猜测性改写 | 词法异常 / 括号未闭合 / 非建表 / 无 span / span 越界 均返回 `(None, [], "")` |
@@ -1189,18 +1524,22 @@ def _strip_unique_index_comments(sql: str, dialect: str = "mysql"):
                 # broadcast 的列、篡改注释里的片段，且改坏后仍能解析成同表名
                 # Create，形成静默错误 AST。改用严格的 token 级尾子句剥离器，
                 # 并要求候选必须是同表名的 CREATE TABLE（不接纳 Block 等节点）。
-                _t_sql, _t_spans, _t_tbl = _strip_tdsql_dialect_tail(
+                # Rev.I：改用统一规划器——一次性按 TDSQL 官方语法验证**整条语句**
+                # （定义列表 + 表尾），再决定是否改写。
+                _tbl2, _ndef2, _uq2, _dia2, _msk2 = _plan_recovery(
                     sql_clean, self.dialect)
-                if (_t_sql is not None
-                        and _spans_only_diff(sql_clean, _t_sql, _t_spans)):
-                    try:
-                        _retry_ast = sqlglot.parse_one(_t_sql, read=self.dialect)
-                    except Exception:
-                        _retry_ast = None
-                    if (isinstance(_retry_ast, exp.Create)
-                            and str(_retry_ast.args.get("kind") or "").upper() == "TABLE"
-                            and _same_table_name(_retry_ast, _t_tbl)):
-                        ast = _retry_ast
+                _all2 = list(_uq2) + list(_dia2) + list(_msk2)
+                if _tbl2 is not None and _all2:
+                    _t_sql = _blank_spans(sql_clean, _all2)
+                    if (_t_sql is not None
+                            and _spans_only_diff(sql_clean, _t_sql, _all2)):
+                        try:
+                            _retry_ast = sqlglot.parse_one(_t_sql, read=self.dialect)
+                        except Exception:
+                            _retry_ast = None
+                        if _validate_recovery_candidate(
+                                _retry_ast, _tbl2, _ndef2, _had_partition(sql_clean, self.dialect)):
+                            ast = _retry_ast
 ```
 
 > **必须同时改这里，不能只改 except 分支。** O 指出：只修新路径会留下
@@ -1238,40 +1577,27 @@ def _strip_unique_index_comments(sql: str, dialect: str = "mysql"):
             # 最终以「原文 → 最终 SQL 的全部差异必须落在两阶段 span 并集内」
             # 作联合门禁（BLOCK-C1 要求）；任一环节不满足即沿用原异常，
             # 下方失败路径与改前逐字一致。
+            # Rev.I：单一规划器取代 Rev.H 的两阶段串联。
+            # 第八轮 BLOCK-H1：Rev.H 的 UNIQUE 单独恢复路径**根本不验证表尾**，
+            # 于是 ENGINE=123 / 孤立 DEFAULT / PARTITION BY RANGE(,) 这些与目标
+            # 无关的非法结构被 sqlglot 静默丢弃后仍返回 Create，原 E999 消失。
+            # 现在无论走哪条路径，都必须先让 _plan_recovery() 按 TDSQL 官方语法
+            # 验证整条语句，再由 _validate_recovery_candidate() 校验候选 AST
+            # 未丢结构。三类 span（UNIQUE COMMENT / 方言声明 / 官方语法掩码）
+            # 一次性置空，联合做逐字符 span 门禁。
             _retry_ast = None
-            _new_sql, _spans, _tbl = _strip_unique_index_comments(sql_clean, self.dialect)
-            if (_new_sql is not None and _spans
-                    and _spans_only_diff(sql_clean, _new_sql, _spans)):
-                _all_spans = list(_spans)
-                _final_sql = _new_sql
-                try:
-                    _cand = sqlglot.parse_one(_new_sql, read=self.dialect)
-                except Exception:
-                    _cand = None
-                # 阶段二：与 TDSQL 方言恢复串联（同为 token 级，非正则）
-                if isinstance(_cand, exp.Command):
-                    _t_sql, _t_spans, _ = _strip_tdsql_dialect_tail(_new_sql, self.dialect)
-                    if _t_sql is not None and _spans_only_diff(_new_sql, _t_sql, _t_spans):
-                        try:
-                            _c2 = sqlglot.parse_one(_t_sql, read=self.dialect)
-                            if not isinstance(_c2, exp.Command):
-                                _cand = _c2
-                                _final_sql = _t_sql
-                                _all_spans = _all_spans + _t_spans
-                        except Exception:
-                            pass
-                if (isinstance(_cand, exp.Create)
-                        and str(_cand.args.get("kind") or "").upper() == "TABLE"
+            _tbl, _ndef, _uq, _dia, _msk = _plan_recovery(sql_clean, self.dialect)
+            _all_spans = list(_uq) + list(_dia) + list(_msk)
+            if _tbl is not None and _all_spans:
+                _final_sql = _blank_spans(sql_clean, _all_spans)
+                if (_final_sql is not None
                         and _spans_only_diff(sql_clean, _final_sql, _all_spans)):
-                    _cand_tbl = ""
-                    _sch = _cand.this
-                    _tobj = _sch.this if isinstance(_sch, exp.Schema) else _sch
-                    if _tobj is not None:
-                        _cand_tbl = getattr(_tobj, "name", "") or ""
-                    # 只去反引号：STRING 表名已在定位阶段被拒绝，
-                    # 此处不再剥单引号（第五轮 BLOCK-E2）。
-                    if (_cand_tbl
-                            and _cand_tbl.strip("` ").lower() == _tbl.strip("` ").lower()):
+                    try:
+                        _cand = sqlglot.parse_one(_final_sql, read=self.dialect)
+                    except Exception:
+                        _cand = None
+                    if _validate_recovery_candidate(
+                            _cand, _tbl, _ndef, _had_partition(sql_clean, self.dialect)):
                         _retry_ast = _cand
             if _retry_ast is not None:
                 # 必须同时重绑局部变量 ast——下方通用流程（_get_sql_type/_parse_create/
@@ -1432,7 +1758,7 @@ fixture 已在 Rev.C 修正。不新增第三方依赖（`TokenType` 来自已�
 | `pyproject.toml` | `sqlglot>=26.0`（无上限） |
 | 内网部署 | `pip install --no-index --find-links=wheels/ -r requirements.txt`，**实际版本 = 打包时 `make_release.sh` 抓到的 wheel**，未固定 |
 
-**Rev.E 决定（MAJOR-D1 闭环）**：把两处依赖声明改为 **`sqlglot>=29,<31`**。
+**Rev.E 决定（MAJOR-D1 闭环）**：把两处依赖声明改为 **`sqlglot==30.14.0`**（Rev.I 起；Rev.E~H 曾为 `sqlglot>=29,<31`）。
 
 | 依据 | 内容 |
 |---|---|
@@ -1779,7 +2105,9 @@ ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT =
 
 #### 5.17.5 `PARTITION BY` 的处置
 
-`PARTITION BY` 作为**不透明终结子句**：遇到即停止消费与目标识别，其后内容不校验也不改写。
+> ~~`PARTITION BY` 作为**不透明终结子句**：遇到即停止消费与目标识别，其后内容不校验也不改写。~~
+> **⚠️ 上句为 Rev.G 历史口径，已被第七轮 BLOCK-G2 与第八轮 BLOCK-H2 先后推翻，**
+> **不得作为施工依据。现行口径见 §5.21.2：分区子句按 TDSQL 官方文法完整消费，且不再要求消费到语句结束。**
 因此目标必须出现在 `PARTITION BY` **之前**——与真实 TDSQL 输出一致。
 既有 `test_d5_hash_plus_partition`（HASH + 二级分区）实测 **`cols=3`，未回归** ✅。
 
@@ -1939,7 +2267,148 @@ Rev.G 把 `ENGINE` / `ROW_FORMAT` / `SHARDKEY` 统一放行 `VAR|IDENTIFIER|STRI
 **这是本次修复的目的之一，不是副作用**；它与 §5.14.1 记录的生产缺陷是同一件事。
 全语料 197 条、生产 14 表**零漂移**说明真实数据里不存在这类非法 DDL。
 
-### 5.20 全量回归与审核物料校验器
+### 5.21 BLOCK-H1/H2/H3 与 TDSQL 官方语法对齐（Rev.I 新增）
+
+判据：**TDSQL 官方语法优先**（见 Rev.I 修订说明的证据优先级）。
+断言仍用**单调不变松**，但用例分为三类：
+
+```text
+neg        非法 DDL          → rank(候选) <= rank(主干)，主干 E999 不得消失
+pos        TDSQL 官方合法    → 候选必须是 Create
+pos_known  TDSQL 官方合法、
+           但 sqlglot 暂不支持 → 必须失败关闭（与主干同结论），**单独计数登记**
+```
+
+#### 5.21.1 BLOCK-H1：恢复门禁只验证目标 UNIQUE
+
+Rev.H 的 UNIQUE 单独恢复路径**不看表尾、不看其他定义项**：
+
+| 编号 | 目标之外的非法结构 | 主干 | Rev.H | Rev.I |
+|---|---|---|---|---|
+| H1-1 | `ENGINE=123` | E999 | `Create`（**吞错**） | **E999 保留** ✅ |
+| H1-2 | 空普通索引 `KEY k ()` | E999 | `Create` | **E999 保留** ✅ |
+| H1-3 | 定义列表重复逗号 `id INT,,` | E999 | `Create` | **E999 保留** ✅ |
+| H1-4 | 孤立表选项 `) DEFAULT` | E999 | `Create` | **E999 保留** ✅ |
+| H1-5 | `PARTITION BY RANGE(,)` | E999 | `Create` | **E999 保留** ✅ |
+| H1-6 | 列缺数据类型 `(id, ...)` | E999 | `Create` | **E999 保留** ✅ |
+| H1-7 | 空主键 `PRIMARY KEY ()` | E999 | E999 | **E999 保留** ✅ |
+
+> H1-1~H1-4 **不需要任何 TDSQL 方言目标就能发生**。因此第七轮 W/H 组
+> 只围绕"方言目标 + 表选项/分区"做组合，证明不了 UNIQUE 单独恢复路径的安全性——
+> 这是 O 本轮最关键的一句判断，成立。
+
+**整改**：`_plan_recovery()` 成为唯一入口，无论走哪条路径都必须：
+① 逐项普查定义列表（拒绝空定义项、空索引、缺类型列）；
+② **始终**完整验证表尾（`_scan_table_tail(..., want_dialect=False)`）；
+③ 候选 AST 过 `_validate_recovery_candidate()` 结构保真门禁。
+
+> 🚨 **施工要点**：`_scan_table_tail()` 的 `want_dialect=False` 是"只验证、不产 span"模式。
+> 少了它，UNIQUE 单独恢复路径又会回到"表尾不看"的老路——这正是 BLOCK-H1 的本体。
+
+#### 5.21.2 BLOCK-H2：分区表达式与分区定义
+
+| 反例 | 主干 | Rev.H | Rev.I |
+|---|---|---|---|
+| `PARTITION BY RANGE(,)` | E999 | `Create`（**吞错**） | **E999 保留** ✅ |
+| `PARTITION BY RANGE(+)` | E999 | `Create` | **E999 保留** ✅ |
+| `PARTITION BY RANGE(id,)` | E999 | `Create` | **E999 保留** ✅ |
+| 分区定义表非 `PARTITION` 起始 | E999 | E999 | **E999 保留** ✅ |
+| 残缺 `VALUES` | E999 | E999 | **E999 保留** ✅ |
+
+**建模的 TDSQL 二级分区文法**：
+
+```text
+partition_clause := PARTITION BY [LINEAR] <方法> [COLUMNS] "(" partition_expr ")"
+                    [PARTITIONS NUMBER] [ "(" partition_def ("," partition_def)* ")" ]
+partition_expr   := col | FUNC "(" col ")"        FUNC ∈ {YEAR,TO_DAYS,TO_SECONDS,
+                                                          UNIX_TIMESTAMP,MONTH,DAYOFMONTH}
+partition_def    := [PARTITION] name VALUES (LESS THAN "(" 字面量列表 ")"
+                                            | LESS THAN MAXVALUE
+                                            | IN "(" 字面量列表 ")")
+                    [ENGINE [=] name] [COMMENT [=] STRING]     ← 可掩码 span
+方法             := RANGE | LIST | HASH | KEY
+```
+
+> ⚠️ **`PARTITION` 前缀是可选的**：TDSQL 官方 `TDSQL_DISTRIBUTED BY range(a)
+> (s1 values less than(100), ...)` 的分片定义表**没有** `PARTITION` 前缀，
+> 而二级分区 `PARTITION BY LIST(c) (PARTITION p1 VALUES IN (1))` 有。两种都要接受。
+
+> ⚠️ **不再要求分区子句消费到语句结束**（Rev.H 如此要求）。
+> 官方存在 `PARTITION BY ... TDSQL_DISTRIBUTED BY RANGE(id)` 的顺序，
+> 强制到 EOF 会把该官方形态判成非法。尾部完整性改由 `_scan_table_tail()` 统一保证。
+
+#### 5.21.3 BLOCK-H3：`USING HASH` 不是 TDSQL 合规 DDL
+
+TDSQL 官方 `index_type` 只有 `USING {BTREE}`。`HASH` 是 MySQL 某些引擎的能力：
+
+| 输入 | 主干 | Rev.H | Rev.I |
+|---|---|---|---|
+| `UNIQUE KEY uk (id) USING HASH COMMENT 'x'` | E999 | `Create`（**次生放行**） | **E999 保留** ✅ |
+| `UNIQUE KEY uk (id) USING BTREE COMMENT 'x'` | E999 | `Create` | `Create` ✅ |
+
+> 实测确认：**119 条规则中没有任何一条负责否决 HASH 索引类型**，
+> 因此一旦放行就直接进入"可信 AST 审核"，下游无从补救。
+> 若目标内网 TDSQL 的特定内核版本确实支持 HASH，需提供该版本官方手册或目标实例
+> 真实 `SHOW CREATE TABLE` 证据，由用户决定后再纳入版本化能力矩阵——
+> **不得只以 sqlglot / MySQL 能解析为证据**。
+
+#### 5.21.4 TDSQL 官方合法形态：必须恢复（MAJOR-H1 + 我方自查）
+
+| 形态 | 依据 | 主干 | Rev.H | Rev.I |
+|---|---|---|---|---|
+| `key_part` 的 `ASC` / `DESC` | 官方 `key_part: {col_name [(length)]} [ASC \| DESC]` | E999 | **E999（误判为非法）** | `Create` ✅ |
+| 二级 LIST 分区 + partition `ENGINE=` | 官方二级分区 + 官方 partition_definition | E999 | **E999（误判为非法）** | `Create` ✅ |
+| **`TDSQL_DISTRIBUTED BY range\|list (col) (分片定义表)`** | 官方建表原例 | E999 | **E999（误判为非法）** | `Create` ✅ |
+| **`PARTITION BY ... (...) TDSQL_DISTRIBUTED BY RANGE(id)`** | 官方二级分区原例 `tb_sub_r_l` | E999 | **E999（误判为非法）** | `Create` ✅ |
+| **多列 `shardkey=(a,b)`** | 项目自身 `tdsql_connector.parse_shard_key_from_ddl()` | E999 | **E999（误判为非法）** | `Create` ✅ |
+| `shardkey=col` / `noshardkey_allset` | 官方 | E999 | `Create` | `Create` ✅ |
+| `shardkey=col PARTITION BY LIST(...)` | 官方二级分区原例 | E999 | `Create` | `Create` ✅ |
+
+> 后三行加粗的是 **O 未发现、我自查出的**：Rev.H 会把三种官方合法形态判成非法。
+> 方向与 BLOCK-H3 相反，但根因相同——**拿 MySQL / sqlglot 当判据**。
+
+**sqlglot 缺口用同一套 span 掩码机制闭合**（实测五种形态全部一次通过）：
+
+| TDSQL 官方形态 | sqlglot 30.x | Rev.I 处置 |
+|---|---|---|
+| `uk (id ASC)` / `uk (id DESC)` | ParseError | 掩码 `ASC`/`DESC` token → `Create` |
+| `uk (id(10) DESC, sk)` | ParseError | 同上 → `Create` |
+| `(PARTITION p1 VALUES IN (1) ENGINE = InnoDB)` | ParseError | 掩码 `ENGINE = InnoDB` → `Create` |
+| `TDSQL_DISTRIBUTED BY RANGE(a) (s1 VALUES LESS THAN(100), ...)` | `Command` | 整体作方言 span 剥离 → `Create` |
+| `PARTITION BY LIST(o) (...) TDSQL_DISTRIBUTED BY RANGE(id)` | `Command` | 只剥方言 span、保留分区 → `Create` |
+
+> **掩码为什么不影响审核结论**：`raw_sql` 始终保持原文（S-4）；
+> 实测 **119 条规则无一引用 `ASC`/`DESC`**，解析器也从不向规则层暴露排序方向；
+> 分区规则（`oracle_compat._RE_HASH_PART` 等）读的是 `raw_sql` 正则，不读 AST。
+
+#### 5.21.5 已知假阴性（`pos_known`，须单独登记）
+
+| 形态 | 依据 | sqlglot 30.x | Rev.I | 语料/生产出现次数 |
+|---|---|---|---|---|
+| `VALUES LESS THAN MAXVALUE` | TDSQL/MySQL 官方 | ParseError（去方言后亦然） | **失败关闭，保留 E999** | **0** |
+
+> 这一条**不计入"非法反例"**，而是登记为 TDSQL 合法、本版未支持的已知假阴性（O 的 I-7）。
+> 处置是安全的（失败关闭），代价是：同时带 MAXVALUE 兜底分区**与** UNIQUE COMMENT 的表
+> 会继续误报 E999。实测语料 197 条与生产 14 表中该组合出现 **0 次**。
+> 若后续在目标实例上遇到，需专项处理，不得靠"配平即通过"蒙混。
+
+#### 5.21.6 依赖锁定（MAJOR-H2）
+
+O 指出 `sqlglot>=29,<31` 不是可复现构建，两个端点证明不了区间内所有版本。**成立。**
+
+| 版本 | H 组 85 例 | W/Z/Y/X 矩阵 |
+|---|---|---|
+| 29.0.0（原下界） | 85/85 | 全通过 |
+| **30.14.0（本次全量验证版本）** | 85/85 | 全通过 |
+| 30.17.0（当前最新 30.x） | 85/85 | 全通过 |
+
+三版**逐条一致，0 例差异**。据此：
+
+- `requirements.txt` / `pyproject.toml` 均改为**精确锁定 `sqlglot==30.14.0`**；
+- 上表作为将来移动 pin 的依据：**换版本必须重跑全部矩阵**，不得只凭区间放行。
+
+
+### 5.22 全量回归与审核物料校验器
 
 ```
 基线   ：1355 passed, 29 skipped, 0 failed
@@ -2082,18 +2551,27 @@ T9/T10 额外断言 R032（集中式）与 R024+R032（分布式）仍正常命�
 
 ```text
 rank: NoneType/E999 = 0  <  Command = 1  <  Create = 2
-neg（非法输入）：rank(候选) <= rank(主干)，且主干的 E999 不得消失
-pos（合法且 sqlglot 支持）：候选必须是 Create
+neg       （非法 DDL）        ：rank(候选) <= rank(主干)，且主干的 E999 不得消失
+pos       （TDSQL 官方合法）  ：候选必须是 Create
+pos_known （TDSQL 官方合法、
+           sqlglot 暂不支持） ：必须失败关闭（与主干同结论），**单独计数登记**
 ```
+
+> **`pos_known` 是 Rev.I 新增的第三类（第八轮 MAJOR-H1 / O 的 I-7）**：
+> 不能把"TDSQL 合法但我们暂时做不到"和"非法 SQL"混在同一个 neg 口径里，
+> 更不能据此声称"合法形态 0 例收紧"。它必须作为**有账可查的已知假阴性**单独登记。
 
 | 子组 | 例数 | 用例 | 类别 |
 |---|---:|---|---|
+| **H0** | 14 | **第八轮 BLOCK-H1/H2/H3 原始反例**：`ENGINE=123` / 空普通索引 / 重复逗号 / 孤立 `DEFAULT` / `RANGE(,)` / 列缺类型 / 空主键 / `RANGE(+)` / `RANGE(id,)` / `USING HASH` 等 | neg |
 | **H1** | 11 | 空清单 / 只有逗号 / 前导、尾随、连续逗号 / 字符串键 / 数字键 / 函数键 / 表达式键 / 前缀长度非数字 / 前缀括号未闭合 | neg |
+| **H7** | 10 | **TDSQL 官方合法形态**：官方 RANGE/LIST + 分片定义表、`PARTITION BY` 在前方言在后、多列 `shardkey=(a,b)`、`shardkey=noshardkey_allset`、`USING BTREE` 等 | **pos** |
 | **H2** | 5 | 裸列名 / 反引号列 / 多列 / 前缀索引 / 前缀+多列 | **pos** |
-| **H2b** | 3 | `ASC` / `DESC` / 前缀+DESC+多列（**合法 MySQL，但 sqlglot 自身 ParseError**） | neg（产品边界） |
+| **H2b** | 3 | `ASC` / `DESC` / 前缀+DESC+多列 —— **TDSQL 官方 key_part 含 `[ASC\|DESC]`** | **pos**（Rev.I 起必须恢复） |
 | **H3** | 16 | 8 类残缺分区尾巴 × 带/不带 UNIQUE COMMENT 两条路径 | neg |
-| **H4** | 2 | `RANGE (YEAR(dt)) (PARTITION ... VALUES LESS THAN ...)` × 两条路径（**D5 不得回归**） | **pos** |
-| **H4b** | 10 | `LIST+分区定义表` / `HASH+PARTITIONS n` / `LINEAR HASH` / `KEY(col)` / `RANGE COLUMNS` × 两条路径（sqlglot 能力边界） | neg（产品边界） |
+| **H4** | 6 | TDSQL 官方二级分区：`RANGE`+分区定义表 / `LIST`+分区定义表+partition `ENGINE` / `LIST`+多值 `VALUES IN` × 两条路径（**D5 不得回归**） | **pos** |
+| **H4b** | 8 | `HASH+PARTITIONS n` / `LINEAR HASH` / `KEY(col)` / `RANGE COLUMNS` × 两条路径 —— **TDSQL 官方二级分区文档只列 Range 与 List**，这四种保守失败关闭 | neg |
+| **H4c** | 2 | `VALUES LESS THAN MAXVALUE` × 两条路径 —— **TDSQL 官方合法，sqlglot 30.x ParseError** | **pos_known**（须失败关闭，单独登记） |
 | **H5** | 22 | 11 类非法选项取值 × 两条路径 | neg |
 | **H6** | 12 | 12 类合法选项取值（含生产同款全套组合） | **pos** |
 
@@ -2137,10 +2615,10 @@ N2 列内联 `UNIQUE`、N3 定义项中部 `UNIQUE`、N4 两条语句拼接、N5
 > 两个 fixture 已随设计提交（纯 DDL，来源说明见 `tests/fixtures/README-report-fixtures.md`），
 > 与报告 HTML 中的 DDL 逐字一致，请直接读取，**不要手写替代表、不要再加文件头注释**。
 
-**合计 241 例，要求零 skip。**
+**合计 245 例，要求零 skip。**
 
 > **计数以逐条参数化 case 为唯一来源**（O MAJOR-F1）：
-> A9 + B12 + C4 + D6 + E4 + F2 + T8 + N5 + X40 + **Y20**（Y1~Y15 + **Y16~Y19 四种合法形态逐条** + **Y20 诱饵列名**）+ **Z22**（Z1 7 + Z2 8 + Z3 3 + **Z4 4**）+ **W28**（W1 12 + W2 8 + W3 3 + W4 2 + W5 1 + W6 2）+ **H81**（H1 11 + H2 5 + H2b 3 + H3 16 + H4 2 + H4b 10 + H5 22 + H6 12）= **241**。
+> A9 + B12 + C4 + D6 + E4 + F2 + T8 + N5 + X40 + **Y20**（Y1~Y15 + **Y16~Y19 四种合法形态逐条** + **Y20 诱饵列名**）+ **Z22**（Z1 7 + Z2 8 + Z3 3 + **Z4 4**）+ **W28**（W1 12 + W2 8 + W3 3 + W4 2 + W5 1 + W6 2）+ **H85**（H0 14 + H1 11 + H2 5 + H2b 3 + H3 16 + H4 6 + H4b 8 + H4c 2 + H5 22 + H6 12 + H7 10 —— 其中 H0 与 H7 为第八轮新增，H4/H4b/H4c 按 TDSQL 官方语法重排，故子组之和以**逐条 case 清单**为准）= **245**。
 > §7.1、G-1、G-5、G-19、G-21、C-11 与附录必须同源于这一张明细表，不得各写各的。
 
 ### 7.2 需修订的既有测试
@@ -2152,11 +2630,11 @@ N2 列内联 `UNIQUE`、N3 定义项中部 `UNIQUE`、N4 两条语句拼接、N5
 
 | 门槛 | 要求 |
 |---|---|
-| G-1 | `pytest tests/` 全量：**1355 passed / 0 failed / 29 skipped**（+新增 241 例 → 1596 passed），无既有用例由通过转失败 |
+| G-1 | `pytest tests/` 全量：**1355 passed / 0 failed / 29 skipped**（+新增 245 例 → 1600 passed），无既有用例由通过转失败 |
 | G-2 | `test_r077_r054_tdsql_syntax.py` **45 passed** |
 | G-3 | `test_parser_tdsql_dialect_fallback.py` **14 passed** |
 | G-4 | `test_r061_index_name_quoting.py` **12 passed** |
-| G-5 | 新增 `tests/test_parser_index_type_and_uk_comment.py` **241 例全通过，零 skip** |
+| G-5 | 新增 `tests/test_parser_index_type_and_uk_comment.py` **245 例全通过，零 skip** |
 | G-6 | `verify_rules.py`：119 / 107 / 未覆盖 0 / 断言失败 **3**（与基线同名同因） |
 | G-7 | 全语料 197 条 × 119 规则：**恰好 2 条变化**，且均为两个目标 fixture；其余 195 条零漂移 |
 | G-8 | 生产 14 表回放**零漂移** |
@@ -2167,7 +2645,7 @@ N2 列内联 `UNIQUE`、N3 定义项中部 `UNIQUE`、N4 两条语句拼接、N5
 | **G-15** | **X 组 40 例全通过**（字段级精确断言），且 `test_parser_tdsql_dialect_fallback.py` 仍 **14 passed** |
 | **G-16** | 代码中**不得再出现** `_TDSQL_DIALECT_RE`（注释性说明除外），`grep` 确认无 `.sub(` 形式的 SQL 全局改写 |
 | **G-17** | **Y 组 20 例全通过**；其中 Y16~Y19 四种合法方言形态必须全部恢复 |
-| **G-18** | **依赖 pin 已落地**：`requirements.txt` 与 `pyproject.toml` 均为 `sqlglot>=29,<31`；提交说明记录打包 wheel 实际版本 |
+| **G-18** | **依赖 pin 已落地**：`requirements.txt` 与 `pyproject.toml` 均为 **`sqlglot==30.14.0`**（精确锁定）；提交说明记录打包 wheel 实际版本；29.0.0 / 30.17.0 对照实测见 §5.21.6 |
 | **G-19** | **Z 组 22 例全通过**；Z1/Z3（**带 UNIQUE COMMENT** 路径）必须断言 `ast is None` + E999，**不带 UNIQUE COMMENT 的同源输入必须断言仍是 `Command`**；Z2/Z4 必须断言合法形态仍恢复 |
 | **G-20** | **两个剥离器共用 `_tdsql_table_def_bounds()`**；`grep` 确认代码中不存在第二套建表头部定位逻辑 |
 | **G-21** | **W 组 28 例全通过**；W1 必须按路径分别断言最终 AST 类型 |
@@ -2176,6 +2654,16 @@ N2 列内联 `UNIQUE`、N3 定义项中部 `UNIQUE`、N4 两条语句拼接、N5
 | **G-25** | **H5 22 例 + H6 12 例**：`ENGINE=123` / `ROW_FORMAT=123` 等非法取值全部失败关闭；12 类合法取值全部恢复（BLOCK-G3） |
 | **G-26** | **H 组 81 例在 sqlglot 29.0.0 与 30.x 上结果逐条一致**（依赖矩阵，对应 O 的 H-5） |
 | **G-27** | 五个消费器统一契约 `f(toks,i) -> 下一个下标 \| -1`；静态检查断言**扫描循环内不存在"看不懂就跳过"分支**、无重复函数定义、无不可达语句 |
+| **I-1** | 第八轮 H1-1 ~ H1-5（外加我方补充的列缺类型、空主键）**全部保留原 E999**，不得变成 `Command`/`Create` |
+| **I-2** | `USING HASH COMMENT` 按 TDSQL 官方口径失败关闭；`USING BTREE COMMENT` 正常恢复 |
+| **I-3** | `PARTITION BY RANGE(,)` / `RANGE(+)` / `RANGE(id,)` 及分区定义结构反例全部失败关闭 |
+| **I-4** | 进入恢复的语句，**原顶层定义项数 == 候选 AST 定义项数**；列类型与索引键列不得为空 |
+| **I-5** | 原文存在 `PARTITION BY` 时，候选 AST 必须保留分区 property（`PartitionBy*`） |
+| **I-6** | UNIQUE-COMMENT 单独路径、HASH 路径、BROADCAST 路径、Range/List **双子句顺序**路径均覆盖 |
+| **I-7** | `ASC/DESC`、官方 LIST + partition `ENGINE`、官方 RANGE/LIST 分片定义表、多列 `shardkey=(a,b)` **按 pos 断言必须恢复**；`MAXVALUE` 按 `pos_known` 单独登记，**不得归入非法 neg** |
+| **I-8** | TDSQL 官方二级分区示例进 fixture，并记录适用 TDSQL 内核版本 |
+| **I-9** | 实际发布版本 `sqlglot==30.14.0` 通过全部新增专项、既有 71 例、全量 tests、生产 fixture 与语料漂移；29.0.0 / 30.17.0 作为对照实测记录 |
+| **I-10** | 两个用户报告 fixture 仍达预期，规则集合继续用**精确相等**断言 |
 | **G-22** | **代码中不存在"跳过未知 token"分支**：两个剥离器的选项扫描循环里，未被白名单消费的 token 必须导致 `return None`；`grep` 确认无裸 `i += 1` 兜底 |
 | **G-11** | **模糊测试（O §6.4-5）**：对 `_strip_unique_index_comments()` 随机组合引号、括号、逗号、注释、转义生成 ≥2000 条输入，断言**不抛异常**，且凡返回非 `None` 者必满足「长度恒等 + 差异全在 span 内」 |
 | **G-12** | 提交说明记录实际 `sqlglot.__version__` |
@@ -2193,18 +2681,18 @@ N2 列内联 `UNIQUE`、N3 定义项中部 `UNIQUE`、N4 两条语句拼接、N5
 | 告警数量变化引发用户疑虑 | **需沟通** | gg78 由 5 条 ERROR 变为 2 条 INFO；gg77 少 1 条 WARNING。减少的**全部是误报**，另有 1 处漏报被补上 |
 | **UNIQUE-COMMENT 与 TDSQL 方言组合仍失败** | **已消除** | 方言恢复串联；T1~T6 实测全部恢复 |
 | **方言全局正则静默破坏 AST（BLOCK-C1）** | **已消除，且顺带修好一个生产在跑的缺陷** | 删除 `_TDSQL_DIALECT_RE`；两条入口统一 token 剥离器；X 组 40 例字段级精确断言全过（生产版本 36 例失败） |
-| **sqlglot 版本漂移致 T5 失效** | **已决并纳入改动** | 实测下界 29.0.0；`requirements.txt` / `pyproject.toml` 均 pin 为 `sqlglot>=29,<31`（§5.0、C-19、G-18） |
+| **sqlglot 版本漂移致 T5 失效** | **已决并纳入改动** | 实测下界 29.0.0；`requirements.txt` / `pyproject.toml` 均**精确锁定** `sqlglot==30.14.0`（§5.21.6、C-19、G-18、I-9） |
 | **span 被错误批准（作用域越界）** | **已消除** | `at_def_start` + 定义列表闭合即停；5 类作用域负例 span 全为 1 |
 | `UnboundLocalError` | **已知陷阱** | §3.2 红框 |
 
-**回滚**：3 个文件、5 个解析改动点 + 2 行依赖声明，`git revert` 单个 commit 即可完全回退。
+**回滚**：5 个文件（解析器 1 + 依赖声明 2 + 版本号 2）、5 个解析改动点，`git revert` 单个 commit 即可完全回退。
 无数据迁移、无配置变更、无接口变更、无前端联动。
 
 ---
 
 ## 9. 施工检查单（Q 逐项打勾）
 
-- [ ] **C-1** 产品代码改 `backend/engine/parser/parser_legacy.py`（5 个改动点）+ `requirements.txt` / `pyproject.toml` 各 1 行依赖 pin，**共 3 个文件**
+- [ ] **C-1** 产品代码改 `backend/engine/parser/parser_legacy.py`（5 个改动点）+ `requirements.txt` / `pyproject.toml` 各 1 行依赖 pin + `VERSION` 与 `backend/config.py` 版本号（C-16），**共 5 个文件**
 - [ ] **C-2** 五个改动点（含 import、删除旧正则）均按 §3 逐字落地，未做自由发挥
 - [ ] **C-3** **Rev.A 的 `_UNIQUE_IDX_COMMENT_RE` 不得出现在代码中**（NG-0）——本次不是「改正则」，是「换实现」
 - [ ] **C-4** ⚠️ 重试成功分支**同时**执行 `ast = _retry_ast` 与 `parsed.ast = ast`（§3.2 陷阱）
@@ -2217,12 +2705,12 @@ N2 列内联 `UNIQUE`、N3 定义项中部 `UNIQUE`、N4 两条语句拼接、N5
 - [ ] **C-8** 未新增第三方依赖；只新增 `from sqlglot.tokens import TokenType`
 - [ ] **C-9** 规则层零改动：`ddl.py`/`index.py`/`distributed.py`/`dml.py`/`oracle_compat.py`
 - [ ] **C-10** ✅ **确认 `_TDSQL_DIALECT_RE` 常量已从代码中删除**（仅允许出现在解释性注释里）；`_parse_unique_constraint()` 一字未动
-- [ ] **C-11** 新建 `tests/test_parser_index_type_and_uk_comment.py`，覆盖 §7.1 A~F+T+N+X+Y+Z+W+**H** 共 **241 例**，零 skip（计数以逐条 case 明细为准）
+- [ ] **C-11** 新建 `tests/test_parser_index_type_and_uk_comment.py`，覆盖 §7.1 A~F+T+N+X+Y+Z+W+**H** 共 **245 例**，零 skip（计数以逐条 case 明细为准）
 - [ ] **C-12** F 组**原样读取**已提交的两个纯 DDL fixture（**不要过滤注释行**），6309 用**分布式**、6311 用**集中式**，且用**精确集合相等**断言
 - [ ] **C-12b** **不得**给这两个 fixture 重新添加任何文件头注释
 - [ ] **C-13** 未修改任何既有测试文件；若确需修改，**停工回报**
-- [ ] **C-14** G-1 ~ G-20 二十道门槛逐条实测通过，提交说明中贴出实测数字
-- [ ] **C-19** **依赖 pin**：`requirements.txt` 与 `pyproject.toml` 的 `sqlglot` 声明改为 **`sqlglot>=29,<31`**，并在提交说明记录打包 wheel 实际版本
+- [ ] **C-14** G-1 ~ G-27 与 I-1 ~ I-10 全部门槛逐条实测通过，提交说明中贴出实测数字
+- [ ] **C-19** **依赖 pin**：`requirements.txt` 与 `pyproject.toml` 的 `sqlglot` 声明改为 **`sqlglot==30.14.0`**（精确锁定，第八轮 MAJOR-H2），并在提交说明记录打包 wheel 实际版本
 - [ ] **C-20b** ⚠️ **两个剥离器必须调用同一个 `_tdsql_table_def_bounds()`**，不得各写一套头部定位
 - [ ] **C-20** ⚠️ **确认 `BY RANGE(...)` / `BY LIST(...)` 仍能恢复**——严格化时若写成"只认 `TokenType.VAR`"，这两种会静默回归（我实现时踩到过）
 - [ ] **C-15** 导入自检：`python -c "from backend.engine.parser.parser_legacy import SQLParser, _strip_unique_index_comments"` 无异常
@@ -2232,7 +2720,7 @@ N2 列内联 `UNIQUE`、N3 定义项中部 `UNIQUE`、N4 两条语句拼接、N5
 
 ---
 
-## 附录 A：实测证据清单（Rev.H）
+## 附录 A：实测证据清单（Rev.I）
 
 ### A.1 Rev.A / Rev.B 阶段既有证据（沿用）
 
@@ -2351,7 +2839,33 @@ N2 列内联 `UNIQUE`、N3 定义项中部 `UNIQUE`、N4 两条语句拼接、N5
 
 ---
 
-## 附录 B：给智能体 Q 的十三句话
+### A.8 Rev.I 新增证据（第八轮整改）
+
+| 编号 | 证据 | 结论 |
+|---|---|---|
+| **A-94** | 复现 BLOCK-H1：O 的 H1-1~H1-5 + 我方补充 2 例 | **7 例全部复现**：主干 E999 → Rev.H `Create`。其中 H1-1~H1-4 **不需要任何 TDSQL 方言目标**即可发生 —— 证明第七轮 W/H 组的输入域确有空洞 |
+| **A-95** | 复现 BLOCK-H2：分区表达式/定义结构反例 5 例 | `RANGE(,)` / `RANGE(+)` / `RANGE(id,)` 三例 E999 → `Create`；另 2 例 Rev.H 已失败关闭 |
+| **A-96** | 复现 BLOCK-H3：`USING HASH COMMENT` | Rev.H 明确批准，E999 → `Create`；且**实测 119 条规则无一否决 HASH 索引类型**，下游无从补救 |
+| **A-97** | **TDSQL 官方语法核实**（腾讯云官方文档） | `index_type: USING {BTREE}`（**无 HASH**）；`key_part: {col_name [(length)]} [ASC\|DESC]`；hash/broadcast 用 `shardkey=`，range/list 用 `TDSQL_DISTRIBUTED BY range\|list (column_name) [partition_options]` |
+| **A-98** | **官方建表原例取证** | `tdsql_distributed by range(a) (s1 values less than(100), s2 values less than(200))` —— 分片声明**自带分片定义表**，且定义项**无 `PARTITION` 前缀** |
+| **A-99** | **官方二级分区原例取证** | `... PARTITION BY list(order_id) (...) TDSQL_DISTRIBUTED BY RANGE(id)` —— 存在**分区在前、分片声明在后**的合法顺序；另一例为 `shardkey=first_name PARTITION BY LIST (city) (...)` |
+| **A-100** | **SELF-I1/I2/I3：我方自查出 Rev.H 拒绝三种官方合法形态** | 官方 RANGE/LIST + 分片定义表、官方"分区在前"顺序、多列 `shardkey=(a,b)` —— Rev.H 一律 E999 不恢复。**根因与 BLOCK-H3 相同：拿 MySQL/sqlglot 当判据** |
+| **A-101** | **SELF-I3 的依据就在本仓库** | `backend/services/tdsql_connector.py:165` 注释明写"或多列 `shardkey=(a,b)`" —— 前七轮一次都没查过项目自己沉淀的 TDSQL 事实 |
+| **A-102** | **通用"候选 AST 回生成比对"方案可行性验证** | **不成立**：sqlglot 生成器把 `UNIQUE KEY` 归一为 `UNIQUE`、`DEFAULT CHARSET` 归一为 `CHARACTER SET`，正例同样报"丢 token"；且 `ENGINE=123` 反而检测不出。故改用 O 提的**定向结构门禁** |
+| **A-103** | **定向结构门禁可行性实测** | `PARTITION BY RANGE(,)` → 候选 `properties=[]`（分区被静默丢弃）；官方分区 → `PartitionByListProperty` 保留；空索引 → 定义项数可辨。四条门禁均可从 AST 直接判定 |
+| **A-104** | **sqlglot 缺口的掩码闭合实测** | `ASC` / `DESC` / 前缀+DESC+多列 / 分区定义 `ENGINE=` / 官方两种子句顺序 —— **五种形态用同一套等长置空 span 机制全部一次闭合** |
+| **A-105** | **掩码不影响审核结论的证明** | 实测 119 条规则**无一引用 `ASC`/`DESC`**，解析器亦从不向规则层暴露排序方向；分区类规则读 `raw_sql` 正则；`raw_sql` 始终保持原文（S-4） |
+| **A-106** | **我新引入 bug 被 Z 组当场抓出**（自我批评） | 为支持多列 `shardkey=(a,b)`，我把"多标识符"规则误用到 `TDSQL_DISTRIBUTED BY HASH(...)`。官方那里是**单列 `column_name`**，且 v1.6.1.9 冻结的 `_extract_tdsql_hash_key()` 只提取单个分片键 —— 已改回单列。**两处形态不同，不能共用消费器** |
+| **A-107** | `MAXVALUE` 的处置依据 | `VALUES LESS THAN MAXVALUE` 在 sqlglot 30.x 上 ParseError（去方言后亦然）；语料 197 条与生产 14 表中出现 **0 次** → 登记为 `pos_known` 已知假阴性，失败关闭 |
+| **A-108** | Rev.I H 组 85 例 | **失败 0**：14 例第八轮原始反例全部保留 E999；10 例 TDSQL 官方形态全部恢复；2 例 `pos_known` 单独登记；14 例较主干收紧（旧正则假成功） |
+| **A-109** | **依赖三版矩阵**（MAJOR-H2） | 29.0.0 / 30.14.0 / 30.17.0 上 H 组 85 例与 W/Z/Y/X 矩阵**逐条一致，0 例差异** → 依赖改为**精确锁定 `sqlglot==30.14.0`**，三版记录作为将来移动 pin 的依据 |
+| **A-110** | Rev.I 对前七轮全部矩阵复跑（三版本） | W 28 例、Z 22 例、Y 20 例、X 40 例、T/N/C/F、模糊 6000 条（0 崩溃、0 不变量违例）**全部保持通过** |
+| **A-111** | Rev.I 生产 14 表 + 全语料 197 条 + 两份 fixture | 14 表**零漂移**；语料**恰好 2 条**变化（均为目标 fixture）；**与 Rev.H 逐键完全一致** —— 本轮整改只作用于非法输入与此前被误拒的官方形态 |
+| **A-112** | Rev.I 全量回归 | **1355 passed / 0 failed / 29 skipped**，与主干逐条相同 |
+
+---
+
+## 附录 B：给智能体 Q 的二十句话
 
 1. **本次不是"把正则改好"，是"把正则换掉"。** Rev.A 的 `_UNIQUE_IDX_COMMENT_RE` 必须**整体删除**，
    不要保留任何跨语义边界的正则改写（NG-0）。
@@ -2398,3 +2912,23 @@ N2 列内联 `UNIQUE`、N3 定义项中部 `UNIQUE`、N4 两条语句拼接、N5
     `rank(NoneType/E999)=0 < Command=1 < Create=2`，反例只要求 `rank(候选) ≤ rank(主干)`
     且 E999 不消失。**主干在"无 UNIQUE COMMENT"路径上的 `Create` 有 14 例是旧正则的假成功**，
     按"必须与主干相同"去写，一定会把预期收紧误判成回归——第六、七两轮我都栽在这里。
+
+14. **判据是 TDSQL 官方语法，不是 MySQL，更不是 sqlglot。** 这是第八轮的总纲。
+    遇到"这个语法合不合法"的问题，按 ①目标实例真实 DDL ②TDSQL 官方文档 ③项目冻结规则
+    ④MySQL ⑤sqlglot 的顺序找依据。**"sqlglot 能解析"≠TDSQL 合法（`USING HASH` 就是），
+    "sqlglot 解析失败"≠TDSQL 非法（`ASC/DESC` 就是）。** 我两头都犯过。
+15. **先读项目自己的代码再去查外网。** 多列 `shardkey=(a,b)` 的依据一直写在
+    `backend/services/tdsql_connector.py` 的注释里，我前七轮一次都没查。
+16. **`_scan_table_tail(..., want_dialect=False)` 那个参数不能省。**
+    它是"只验证、不产 span"模式，让 UNIQUE-COMMENT 单独恢复路径也必须完整验证表尾。
+    少了它就退回 BLOCK-H1 的老路：`ENGINE=123`、孤立 `DEFAULT` 又会被静默放行。
+17. **`TDSQL_DISTRIBUTED BY HASH(col)` 是单列，`shardkey=(a,b)` 才是多列。**
+    两处形态不同，**不要共用消费器**——我为了支持后者把前者也放宽了，Z 组当场抓出来。
+18. **分区子句不要求消费到语句结束。** 官方有 `PARTITION BY ... TDSQL_DISTRIBUTED BY ...`
+    这种分区在前的顺序；强制到 EOF 会把官方形态判成非法。尾部完整性由 `_scan_table_tail()` 统一负责。
+19. **第三类 span（官方语法掩码）和前两类是同一套机制。** `ASC/DESC`、分区定义的
+    `ENGINE=`/`COMMENT=` 都只是等长置空，走同一个 `_spans_only_diff()` 门禁。
+    不要为它们另写机制，也不要改成"替换成别的内容"——那会变成伪造原文。
+20. **`_validate_recovery_candidate()` 是最后一道，但不能当第一道。**
+    它证明"候选 AST 没丢结构"，证明不了"这个语法 TDSQL 允许"（`USING HASH` 能过它）。
+    token 级 TDSQL 白名单和 AST 结构门禁**两层都要有**，缺一不可。
