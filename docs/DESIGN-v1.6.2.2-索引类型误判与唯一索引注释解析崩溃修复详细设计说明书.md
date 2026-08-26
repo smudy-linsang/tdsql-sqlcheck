@@ -2,7 +2,7 @@
 
 | 项目 | 内容 |
 |---|---|
-| 文档版本 | **Rev.K**（O 十轮深度复审；本版按 BLOCK-J1~J5、MAJOR-J1/J2 落地 **TDSQL 官方规范表 + 显式迁移表 + 指纹守恒**，并据复审方提供的官方文档离线摘要更正取证错误） |
+| 文档版本 | **Rev.L**（在 Rev.K 基础上，按用户确认的目标实例事实新增 **DEF-3：`PRIMARY KEY … COMMENT` 解析崩溃**；原 KFN-2 登记撤销） |
 | 目标版本 | **v1.6.2.2** |
 | 缺陷来源 | 内网人工扫描报告 #6309（gg77）、#6311（gg78） |
 | 缺陷编号 | **DEF-1 = DEF-R054-FAKEUNIQUE**；**DEF-2 = DEF-PARSE-UKCOMMENT** |
@@ -37,6 +37,66 @@ O 第三轮指出的 BLOCK-C1，我复现后发现它**不是 Rev.C 引入的**�
 > 依据：内网目前"用关键字作列名"的情形还不多，暴露面有限。
 > 本条已决，后续评审与施工**不必再把它作为独立待办重新提出**——
 > 只需确保 v1.6.2.2 把它修好（门槛 G-15、X 组 40 例）。
+
+---
+
+## Rev.L 修订说明（用户确认：目标实例存在 `PRIMARY KEY … COMMENT` 形态）
+
+**这一版不是复审驱动，是用户提供了新的目标实例事实。**
+
+Rev.K 把 `PRIMARY KEY (col) COMMENT '…'` 登记为 **KFN-2**（TDSQL 官方合法、
+sqlglot 30.x 解析不了、语料出现 0 次，故失败关闭并留待确认）。
+用户确认 **内网实际存在这种表**，因此该形态从"已知假阴性"转为**必须修复**，
+KFN-2 登记随之撤销。
+
+### DEF-3：PRIMARY 索引 COMMENT 导致解析崩溃
+
+与 DEF-2 **同一缺陷类、同一修复机制**，只是索引 kind 不同：
+
+| | 主干 v1.6.2.1 / Rev.K | Rev.L |
+|---|---|---|
+| `PRIMARY KEY (id) COMMENT '主键索引'` 的表 | `E999_SYNTAX_ERROR` + **R003 / R004 / R005 / R028 四条连带误报** | 正常解析，只剩正确结论 |
+| 解析产物 | `ast=None`、`cols=0`、`has_primary_key=False` | `ast=Create`、`cols=4`、`has_primary_key=True` |
+
+实测一张典型内网形态的表（4 列 + `PRIMARY KEY (id) COMMENT`）：
+
+```text
+主干 / Rev.K ：['E999_SYNTAX_ERROR', 'R003', 'R004', 'R005', 'R028']
+Rev.L        ：['R037']
+```
+
+**这与 gg78 的误报形态完全一致**——`has_primary_key=False` 触发 R003/R004，
+列信息全丢触发 R005/R028。
+
+### 改动
+
+`_consume_index_definition()` 的索引 COMMENT 分流由两支改为三支：
+
+| 索引 kind + COMMENT | sqlglot 30.x 实测 | Rev.K | Rev.L |
+|---|---|---|---|
+| `UNIQUE KEY u (a) COMMENT` | ParseError | 主目标，记 span | 主目标，记 span |
+| **`PRIMARY KEY (a) COMMENT`** | **ParseError** | **失败关闭（KFN-2）** | **主目标，记 span** ✅ |
+| `KEY` / `INDEX` / `FULLTEXT` … `COMMENT` | 可解析 | 原样保留 | 原样保留 |
+
+改动只有这一处判断，**不新增机制**：掩码、span 门禁、结构指纹守恒全部沿用 DEF-2 的既有链路。
+实测掩码后 `PRIMARY KEY (a)`、`PRIMARY KEY (a,b)`、`PRIMARY KEY (a) USING BTREE`
+以及 **PRIMARY 与 UNIQUE 双注释共存** 四种形态均可解析。
+
+### 爆炸半径
+
+| 检查项 | 结果 |
+|---|---|
+| 全语料 197 条 | **恰好 2 条**变化，与 Rev.K **逐键完全一致**（语料中无 PRIMARY COMMENT 表） |
+| 生产 14 表 | **零漂移** |
+| 两份生产 fixture | 规则集合**精确相等** |
+| 第十轮全部反例 | `PRIMARY KEY pk(id)`（PRIMARY 后带名）等**仍全部失败关闭** |
+| 全量回归 | 0 failed |
+
+新增 **P 组 14 例**（8 正例 + 6 非法近邻），在 sqlglot **29.0.0 / 30.14.0 / 30.17.0** 三版全通过。
+
+> ⚠️ 需要留意的一点：本改动**扩大了进入恢复链的语句范围**——带 `PRIMARY … COMMENT`
+> 的表此前一律停在 E999，现在会走完整条恢复链。所有安全性质（S-1~S-4、S-2c）
+> 与门禁对它一视同仁，P2 的 6 例非法近邻即为此设的边界证明。
 
 ---
 
@@ -1285,14 +1345,13 @@ def _consume_index_definition(toks, i, stop):
                 return -1, [], [], ""
             seen_opt.append("COMMENT")
             # 索引 COMMENT 按 kind 分流（依据：sqlglot 30.x 原生能力实测）：
-            #   UNIQUE           → ParseError，**是本次 DEF-2 的主目标**，记 span 掩码
-            #   PRIMARY          → ParseError，本版不作目标 → 失败关闭（KFN-2 已登记）
-            #   NORMAL/FULLTEXT/ → sqlglot 可解析，**原样保留、不掩码**
-            #   SPATIAL             （生产 fixture gg78 的 `KEY … COMMENT` 即此形态）
-            if kind == "UNIQUE":
+            #   UNIQUE  → ParseError，**DEF-2 主目标**，记 span 掩码
+            #   PRIMARY → ParseError，**同为主目标**（用户确认目标实例存在该形态，
+            #             原 KFN-2 登记已撤销）。掩码后实测可解析，与 UNIQUE 共存亦可。
+            #   NORMAL / FULLTEXT / SPATIAL → sqlglot 可解析，**原样保留、不掩码**
+            #             （生产 fixture gg78 的 `KEY … COMMENT` 即此形态）
+            if kind in ("UNIQUE", "PRIMARY"):
                 uq_spans.append((toks[j].start, toks[j + 1].end))
-            elif kind == "PRIMARY":
-                return -1, [], [], ""                  # KFN-2：PRIMARY COMMENT 本版不支持
             j += 2
             continue
         return -1, [], [], ""
@@ -2167,7 +2226,7 @@ def _validate_recovery_candidate(node, plan):
 | 2 | `parse()` 的 `except` 分支 | 两阶段受限重试 + **联合 span 门禁** |
 | 3 | `_parse_index_constraint()` | 类型判据改读 `kind` 白名单映射 |
 
-**产品代码：`parser_legacy.py` 一个文件，`git diff --stat` 实测 `1216 insertions(+), 39 deletions(-)`。
+**产品代码：`parser_legacy.py` 一个文件，`git diff --stat` 实测 `1215 insertions(+), 39 deletions(-)`。
 fixture 已在 Rev.C 修正。不新增第三方依赖（`TokenType` 来自已在用的 sqlglot），规则层一行不动。**
 
 > 本版改动量明显大于 Rev.C——因为 NG-4 被撤销，v1.6.2.0 的方言处理被纳入修复范围。
@@ -2858,7 +2917,7 @@ TDSQL 官方 `index_type` 只有 `USING {BTREE}`。`HASH` 是 MySQL 某些引擎
 | 编号 | 形态 | 合法性依据 | 受阻于 | 本版处置 | 语料/生产出现 | 用户批准 |
 |---|---|---|---|---|---|---|
 | **KFN-1** | `PARTITION ... VALUES LESS THAN MAXVALUE` | TDSQL / MySQL 官方 partition_definition | **sqlglot 30.x ParseError**（去掉方言尾子句后亦然，非本方案所致） | 失败关闭，**保留原 E999** | **0 次** | ✅ 2026-08-26 |
-| **KFN-2** | `PRIMARY KEY (col) COMMENT '…'` | TDSQL 官方 index_option 适用于 PRIMARY/UNIQUE/普通索引 | **sqlglot 30.x ParseError**（同 UNIQUE COMMENT） | 失败关闭，**保留原 E999** | **0 次** | 待用户确认（第十轮 MAJOR-J2 新增登记） |
+| ~~**KFN-2**~~ | ~~`PRIMARY KEY (col) COMMENT '…'`~~ | —— | —— | **登记已撤销** | —— | ❌ **2026-08-26 用户确认目标实例存在该形态 → 转为 DEF-3 修复**，见 Rev.L 修订说明与 §5.27 |
 
 **KFN-1 的确切代价**：一张表**同时**满足下面两个条件时，会继续误报 `E999_SYNTAX_ERROR`
 及其连带的 R003/R004/R005/R028 等：
@@ -3134,7 +3193,68 @@ Rev.J §5.23.4 曾如实记录："`cloud.tencent.com` 被出口代理拦截，�
 > 抓住它的是两份 fixture 的**精确规则集合断言**，这条断言必须永久保留在回归里。
 
 
-### 5.26 全量回归与审核物料校验器
+### 5.27 DEF-3：PRIMARY 索引 COMMENT（Rev.L 新增）
+
+#### 5.27.1 缺陷形态与影响
+
+用户确认目标实例存在 `PRIMARY KEY (col) COMMENT '…'` 形态的表。
+实测一张典型内网形态的表（4 列 + `PRIMARY KEY (id) COMMENT '主键索引'`）：
+
+| | `ast` | E999 | `cols` | `has_primary_key` | 集中式规则集合 |
+|---|---|---|---|---|---|
+| 主干 v1.6.2.1 | `None` | 有 | 0 | `False` | `E999, R003, R004, R005, R028` |
+| Rev.K（KFN-2 登记态） | `None` | 有 | 0 | `False` | 同上 |
+| **Rev.L** | **`Create`** | **无** | **4** | **`True`** | **`R037`** |
+
+**误报机理与 gg78 完全一致**：解析崩溃 → `has_primary_key=False` 触发 R003/R004、
+列信息全丢触发 R005/R028。四条全是误报。
+
+#### 5.27.2 修复机制（不新增机制）
+
+`_consume_index_definition()` 的索引 COMMENT 分流由两支扩为三支，**只改一处判断**：
+
+```text
+UNIQUE  → ParseError → 主目标，记 span 掩码        （DEF-2，既有）
+PRIMARY → ParseError → 主目标，记 span 掩码        （DEF-3，本版新增）
+NORMAL / FULLTEXT / SPATIAL → 可解析 → 原样保留     （既有）
+```
+
+掩码、`_spans_only_diff()` span 门禁、`_validate_recovery_candidate()` 结构指纹守恒
+**全部沿用 DEF-2 的既有链路**。实测掩码后可解析的形态：
+
+| 形态 | 原文 | 掩码后 |
+|---|---|---|
+| `PRIMARY KEY (a) COMMENT 'pk'` | ParseError | `Create` ✅ |
+| `PRIMARY KEY (a,b) COMMENT 'pk'` | ParseError | `Create` ✅ |
+| `PRIMARY KEY (a) USING BTREE COMMENT 'pk'` | ParseError | `Create` ✅ |
+| `PRIMARY KEY (a) COMMENT 'pk', UNIQUE KEY u (b) COMMENT 'uk'` | ParseError | `Create` ✅ |
+
+#### 5.27.3 边界（P2 组）
+
+本改动**扩大了进入恢复链的语句范围**，故必须证明边界未被放松：
+
+| 非法近邻 | Rev.L |
+|---|---|
+| `PRIMARY KEY \`pk\` (id) COMMENT 'x'`（PRIMARY 后带索引名） | **E999 保留** ✅ |
+| `PRIMARY KEY () COMMENT 'x'`（空键列） | **E999 保留** ✅ |
+| ``PRIMARY KEY (id) COMMENT `x` ``（COMMENT 非字符串） | **E999 保留** ✅ |
+| `PRIMARY KEY (id) COMMENT 'a' COMMENT 'b'`（重复） | **E999 保留** ✅ |
+| `PRIMARY KEY (id) USING HASH COMMENT 'x'`（TDSQL 官方只有 BTREE） | **E999 保留** ✅ |
+| `PRIMARY KEY USING BTREE (id) USING BTREE COMMENT 'x'`（前后置 USING） | **E999 保留** ✅ |
+
+#### 5.27.4 爆炸半径
+
+| 检查项 | 结果 |
+|---|---|
+| 全语料 197 条 | 恰好 2 条变化，**与 Rev.K 逐键完全一致**（语料中无 PRIMARY COMMENT 表） |
+| 生产 14 表 | **零漂移** |
+| 两份生产 fixture | 规则集合**精确相等** |
+| 前十轮全部矩阵 | W / Z / Y / X / T / N / C / F、模糊 6000 条**全部保持通过** |
+| 三版本 | sqlglot 29.0.0 / 30.14.0 / 30.17.0 上 P 组一致 |
+| 全量回归 | 0 failed |
+
+
+### 5.28 全量回归与审核物料校验器
 
 ```
 基线   ：1355 passed, 29 skipped, 0 failed
@@ -3338,6 +3458,21 @@ characterization_...    锁定用户决策（ADJ-6），不代表 TDSQL 合法
 > ⚠️ **期望值一律由 TDSQL 规范/目标契约推导**；当前主干的行为只记入
 > `baseline_observation`，**不参与 pass/fail 判定**（第九轮 BLOCK-X1、第十轮 MAJOR-J1）。
 
+
+### 7.1b P 组用例清单（DEF-3：PRIMARY 索引 COMMENT，Rev.L 新增）
+
+| 子组 | 例数 | 分类构成 |
+|---|---:|---|
+| **P1** | 8 | pos×8 |
+| **P2** | 6 | neg×6 |
+| **合计** | **14** | —— |
+
+- **P1** —— TDSQL 官方合法的 `PRIMARY KEY … COMMENT` 形态（单列 / 多列 / `USING BTREE` /
+  与 `shardkey` `BROADCAST` `TDSQL_DISTRIBUTED` 组合 / 与 UNIQUE 双注释共存 / 与普通索引共存），
+  **必须恢复为 `Create`**；
+- **P2** —— 非法近邻（PRIMARY 后带索引名、空键列、COMMENT 非字符串、重复 COMMENT、
+  `USING HASH`、前后置 USING），**必须仍失败关闭** —— 它们是本次扩大恢复范围的边界证明。
+
 **合计以 §7.1a 与各组逐条清单为准；施工后以 `pytest --collect-only -q` 实际收集数为证，要求零 skip。**
 
 > **计数以逐条参数化 case 为唯一来源**（O MAJOR-F1）：
@@ -3413,6 +3548,11 @@ characterization_...    锁定用户决策（ADJ-6），不代表 TDSQL 合法
 | **K-10** | 索引按 kind 分支：`PRIMARY KEY pk(id)` 失败关闭；前后置 `USING` 共用 seen；索引 COMMENT 按 kind 分流（UNIQUE 掩码 / PRIMARY 失败关闭 KFN-2 / 普通与 FULLTEXT 原样保留） |
 | **K-11** | **两份生产 fixture 的规则集合精确相等断言必须常驻回归**——它是本轮唯一抓住 `KEY … COMMENT` 回归的断言 |
 | **K-12** | H 组数量由 §7.1a 参数化清单生成；准出以 `pytest --collect-only -q` 实际收集数为证，**不得硬编码任何单一环境的 passed/skipped 分布** |
+| **L-1** | **DEF-3**：`PRIMARY KEY (col) COMMENT '…'` 必须恢复为 `Create`，且 `has_primary_key == True`、列信息完整；连带的 R003/R004/R005/R028 误报必须消失 |
+| **L-2** | P1 的 8 种官方形态（含 PRIMARY 与 UNIQUE 双注释共存、与三种分布声明组合）全部恢复 |
+| **L-3** | P2 的 6 例非法近邻全部失败关闭 —— 扩大恢复范围**不得**放松任何既有边界 |
+| **L-4** | P 组在 sqlglot 29.0.0 / 30.14.0 / 30.17.0 三版结果一致 |
+| **L-5** | 全语料与生产 14 表相对 Rev.K **逐键无变化**（语料中无 PRIMARY COMMENT 表，故本改动对既有数据零影响） |
 | **G-22** | **代码中不存在"跳过未知 token"分支**：统一规划器的选项扫描循环里，未被白名单消费的 token 必须导致 `return None`；`grep` 确认无裸 `i += 1` 兜底 |
 | **G-11** | **模糊测试（O §6.4-5）**：对 `_plan_recovery()` 随机组合引号、括号、逗号、注释、转义生成 ≥2000 条输入，断言**不抛异常**，且凡返回非 `None` 者必满足「长度恒等 + 差异全在 span 内」 |
 | **G-12** | 提交说明记录实际 `sqlglot.__version__` |
@@ -3470,7 +3610,7 @@ characterization_...    锁定用户决策（ADJ-6），不代表 TDSQL 合法
 
 ---
 
-## 附录 A：实测证据清单（Rev.K）
+## 附录 A：实测证据清单（Rev.L）
 
 ### A.1 Rev.A / Rev.B 阶段既有证据（沿用）
 
@@ -3662,7 +3802,20 @@ characterization_...    锁定用户决策（ADJ-6），不代表 TDSQL 合法
 
 ---
 
-## 附录 B：给智能体 Q 的二十五句话
+### A.11 Rev.L 新增证据（DEF-3）
+
+| 编号 | 证据 | 结论 |
+|---|---|---|
+| **A-146** | **用户确认目标实例存在 `PRIMARY KEY … COMMENT` 形态** | KFN-2 由"已知假阴性"转为**必须修复**，登记撤销 |
+| **A-147** | 典型内网形态实测（4 列 + PRIMARY COMMENT） | 主干/Rev.K：`E999, R003, R004, R005, R028`（四条连带误报）→ Rev.L：`R037`。**误报机理与 gg78 完全一致** |
+| **A-148** | 掩码路径实测 | `PRIMARY KEY (a)` / `(a,b)` / `USING BTREE` / **与 UNIQUE 双注释共存** 四种形态掩码后**全部可解析** |
+| **A-149** | P 组 14 例（8 正例 + 6 非法近邻） | **失败 0**；6 例非法近邻全部保持失败关闭，证明扩大恢复范围未放松边界 |
+| **A-150** | P 组三版本 | sqlglot 29.0.0 / 30.14.0 / 30.17.0 **一致** |
+| **A-151** | Rev.L 爆炸半径 | 全语料 197 条与生产 14 表**相对 Rev.K 逐键无变化**；两份 fixture 精确相等；前十轮全部矩阵通过；全量回归 0 failed |
+
+---
+
+## 附录 B：给智能体 Q 的二十八句话
 
 1. **本次不是"把正则改好"，是"把正则换掉"。** Rev.A 的 `_UNIQUE_IDX_COMMENT_RE` 必须**整体删除**，
    不要保留任何跨语义边界的正则改写（NG-0）。
@@ -3743,3 +3896,12 @@ characterization_...    锁定用户决策（ADJ-6），不代表 TDSQL 合法
     PROJECT_ACCEPTED / ADJ-6 各是各的依据，混用等于没有依据。
 25. **数量只有一个真源：参数化清单 + `pytest --collect-only -q`。**
     不要在正文、门槛、checklist 三处各写一遍——第十轮 MAJOR-J1 就是这么来的。
+
+26. **DEF-3 和 DEF-2 是同一件事，只是索引 kind 不同。** `PRIMARY KEY … COMMENT`
+    与 `UNIQUE KEY … COMMENT` 在 sqlglot 30.x 上都是 ParseError，掩码后都能解析。
+    **不要为它另写一套机制**——只是在索引 COMMENT 分流处多认一个 kind。
+27. **但普通 `KEY`/`INDEX`/`FULLTEXT` 的 COMMENT 绝不能一起掩码。** 它们 sqlglot
+    本来就能解析，掩码等于无谓改写原文；生产 fixture gg78 就是这一支。
+28. **扩大恢复范围时，必须同时补"非法近邻"用例。** P2 那 6 例（PRIMARY 后带名、
+    空键列、重复 COMMENT、`USING HASH`、前后置 USING）就是 DEF-3 的边界证明；
+    只加正例不加反例，等于把范围放开了却没有证明边界还在。
