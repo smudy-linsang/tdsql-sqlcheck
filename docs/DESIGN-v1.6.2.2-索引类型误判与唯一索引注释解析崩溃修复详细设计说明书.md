@@ -2381,16 +2381,59 @@ TDSQL 官方 `index_type` 只有 `USING {BTREE}`。`HASH` 是 MySQL 某些引擎
 > 实测 **119 条规则无一引用 `ASC`/`DESC`**，解析器也从不向规则层暴露排序方向；
 > 分区规则（`oracle_compat._RE_HASH_PART` 等）读的是 `raw_sql` 正则，不读 AST。
 
-#### 5.21.5 已知假阴性（`pos_known`，须单独登记）
+#### 5.21.5 已知假阴性登记表（`pos_known`，O 的 I-7）
 
-| 形态 | 依据 | sqlglot 30.x | Rev.I | 语料/生产出现次数 |
-|---|---|---|---|---|
-| `VALUES LESS THAN MAXVALUE` | TDSQL/MySQL 官方 | ParseError（去方言后亦然） | **失败关闭，保留 E999** | **0** |
+**用户决策（2026-08-26）**：MAXVALUE 一项**按 O 的要求单独登记为已知假阴性**，
+本版不补实现，失败关闭（保留 E999）。以下为完整登记。
 
-> 这一条**不计入"非法反例"**，而是登记为 TDSQL 合法、本版未支持的已知假阴性（O 的 I-7）。
-> 处置是安全的（失败关闭），代价是：同时带 MAXVALUE 兜底分区**与** UNIQUE COMMENT 的表
-> 会继续误报 E999。实测语料 197 条与生产 14 表中该组合出现 **0 次**。
-> 若后续在目标实例上遇到，需专项处理，不得靠"配平即通过"蒙混。
+##### A. 已知假阴性：TDSQL 官方合法，本版未支持
+
+| 编号 | 形态 | 合法性依据 | 受阻于 | 本版处置 | 语料/生产出现 | 用户批准 |
+|---|---|---|---|---|---|---|
+| **KFN-1** | `PARTITION ... VALUES LESS THAN MAXVALUE` | TDSQL / MySQL 官方 partition_definition | **sqlglot 30.x ParseError**（去掉方言尾子句后亦然，非本方案所致） | 失败关闭，**保留原 E999** | **0 次** | ✅ 2026-08-26 |
+
+**KFN-1 的确切代价**：一张表**同时**满足下面两个条件时，会继续误报 `E999_SYNTAX_ERROR`
+及其连带的 R003/R004/R005/R028 等：
+
+1. 分区定义中含 `VALUES LESS THAN MAXVALUE` 兜底分区；**且**
+2. 该表带 UNIQUE 索引 COMMENT（即本次 DEF-2 的修复目标）。
+
+只满足其一都不受影响：无 UNIQUE COMMENT 的 MAXVALUE 分区表本就走首次解析路径；
+有 UNIQUE COMMENT 但无 MAXVALUE 的表按 §5.21.4 正常恢复。
+
+**适用版本**：sqlglot `30.14.0`（本版锁定版本）。实测 `29.0.0` / `30.17.0` 行为相同。
+若将来 sqlglot 支持该语法，本条自动失效——**移动依赖 pin 时须复测本条并更新登记**。
+
+**复检触发条件**（满足任一即须专项处理，不得沿用本登记）：
+
+- 目标内网实例出现同时含 MAXVALUE 兜底分区与 UNIQUE COMMENT 的表；
+- 语料或生产回放中该组合出现次数由 0 变为非 0；
+- 依赖 pin 移动到支持该语法的 sqlglot 版本。
+
+> 🚫 **不得**为了消除本条而放宽分区定义消费器（例如退回"非空配平即通过"）——
+> 那正是第八轮 BLOCK-H2。宁可保留这条有账可查的假阴性。
+
+##### B. 合法性待确认：官方文档未列，保守失败关闭
+
+以下形态**不是**已知假阴性，也**不是**已确认的非法语法，而是 TDSQL 官方二级分区文档
+（只列 Range 与 List）未覆盖的形态。本版按 S-3 保守失败关闭，并在此登记以免下轮
+再被当成"已确认非法"或"已确认合法"：
+
+| 编号 | 形态 | 现状 | 本版处置 |
+|---|---|---|---|
+| **UNK-1** | `PARTITION BY HASH(col) PARTITIONS n` | 官方二级分区文档未列；sqlglot 亦降级为 `Command` | 失败关闭 |
+| **UNK-2** | `PARTITION BY LINEAR HASH(col)` | 同上 | 失败关闭 |
+| **UNK-3** | `PARTITION BY KEY(col)` | 同上 | 失败关闭 |
+| **UNK-4** | `PARTITION BY RANGE COLUMNS(col)` | 同上；sqlglot ParseError | 失败关闭 |
+
+> 这四条与主干结论一致（不产生任何行为变化），因此**不构成本次修改引入的假阴性**。
+> 若需支持，须先提供目标实例真实 `SHOW CREATE TABLE` 或官方手册证据，
+> 由用户决定后纳入版本化能力矩阵——**不得只以 MySQL 合法或 sqlglot 能解析为依据**。
+
+##### C. 既有产品边界（非本次引入，沿用 §5.4）
+
+`UNIQUE KEY uk USING BTREE (a)`（index_type 前置于键值列表）、函数/表达式索引、
+`VISIBLE`、`KEY_BLOCK_SIZE` 等四类，见 §5.4，本版未改变其行为。
 
 #### 5.21.6 依赖锁定（MAJOR-H2）
 
@@ -2571,7 +2614,7 @@ pos_known （TDSQL 官方合法、
 | **H3** | 16 | 8 类残缺分区尾巴 × 带/不带 UNIQUE COMMENT 两条路径 | neg |
 | **H4** | 6 | TDSQL 官方二级分区：`RANGE`+分区定义表 / `LIST`+分区定义表+partition `ENGINE` / `LIST`+多值 `VALUES IN` × 两条路径（**D5 不得回归**） | **pos** |
 | **H4b** | 8 | `HASH+PARTITIONS n` / `LINEAR HASH` / `KEY(col)` / `RANGE COLUMNS` × 两条路径 —— **TDSQL 官方二级分区文档只列 Range 与 List**，这四种保守失败关闭 | neg |
-| **H4c** | 2 | `VALUES LESS THAN MAXVALUE` × 两条路径 —— **TDSQL 官方合法，sqlglot 30.x ParseError** | **pos_known**（须失败关闭，单独登记） |
+| **H4c** | 2 | `VALUES LESS THAN MAXVALUE` × 两条路径 —— **TDSQL 官方合法，sqlglot 30.x ParseError** | **pos_known**（须失败关闭；登记为 **KFN-1**，见 §5.21.5） |
 | **H5** | 22 | 11 类非法选项取值 × 两条路径 | neg |
 | **H6** | 12 | 12 类合法选项取值（含生产同款全套组合） | **pos** |
 
@@ -2660,7 +2703,7 @@ N2 列内联 `UNIQUE`、N3 定义项中部 `UNIQUE`、N4 两条语句拼接、N5
 | **I-4** | 进入恢复的语句，**原顶层定义项数 == 候选 AST 定义项数**；列类型与索引键列不得为空 |
 | **I-5** | 原文存在 `PARTITION BY` 时，候选 AST 必须保留分区 property（`PartitionBy*`） |
 | **I-6** | UNIQUE-COMMENT 单独路径、HASH 路径、BROADCAST 路径、Range/List **双子句顺序**路径均覆盖 |
-| **I-7** | `ASC/DESC`、官方 LIST + partition `ENGINE`、官方 RANGE/LIST 分片定义表、多列 `shardkey=(a,b)` **按 pos 断言必须恢复**；`MAXVALUE` 按 `pos_known` 单独登记，**不得归入非法 neg** |
+| **I-7** | `ASC/DESC`、官方 LIST + partition `ENGINE`、官方 RANGE/LIST 分片定义表、多列 `shardkey=(a,b)` **按 pos 断言必须恢复**；`MAXVALUE` 按 `pos_known` 单独登记为 **KFN-1**，**不得归入非法 neg**。§5.21.5 已记录**剩余误报的确切条件、适用 sqlglot 版本、复检触发条件与用户批准（2026-08-26）** |
 | **I-8** | TDSQL 官方二级分区示例进 fixture，并记录适用 TDSQL 内核版本 |
 | **I-9** | 实际发布版本 `sqlglot==30.14.0` 通过全部新增专项、既有 71 例、全量 tests、生产 fixture 与语料漂移；29.0.0 / 30.17.0 作为对照实测记录 |
 | **I-10** | 两个用户报告 fixture 仍达预期，规则集合继续用**精确相等**断言 |
@@ -2683,7 +2726,8 @@ N2 列内联 `UNIQUE`、N3 定义项中部 `UNIQUE`、N4 两条语句拼接、N5
 | **方言全局正则静默破坏 AST（BLOCK-C1）** | **已消除，且顺带修好一个生产在跑的缺陷** | 删除 `_TDSQL_DIALECT_RE`；两条入口统一 token 剥离器；X 组 40 例字段级精确断言全过（生产版本 36 例失败） |
 | **sqlglot 版本漂移致 T5 失效** | **已决并纳入改动** | 实测下界 29.0.0；`requirements.txt` / `pyproject.toml` 均**精确锁定** `sqlglot==30.14.0`（§5.21.6、C-19、G-18、I-9） |
 | **span 被错误批准（作用域越界）** | **已消除** | `at_def_start` + 定义列表闭合即停；5 类作用域负例 span 全为 1 |
-| `UnboundLocalError` | **已知陷阱** | §3.2 红框 |
+| `UnboundLocalError` | **已知陷阱** | §3.2 红框；自验证断言 `except` 内存在 `ast = _retry_ast` 重绑 |
+| **KFN-1：MAXVALUE 兜底分区 + UNIQUE COMMENT 仍误报 E999** | **已登记并经用户批准** | 受阻于 sqlglot 30.x 自身（非本方案所致）。语料 197 条 / 生产 14 表出现 **0 次**；确切代价、适用版本、复检触发条件见 §5.21.5。**移动依赖 pin 时须复测本条** |
 
 **回滚**：5 个文件（解析器 1 + 依赖声明 2 + 版本号 2）、5 个解析改动点，`git revert` 单个 commit 即可完全回退。
 无数据迁移、无配置变更、无接口变更、无前端联动。
@@ -2856,7 +2900,7 @@ N2 列内联 `UNIQUE`、N3 定义项中部 `UNIQUE`、N4 两条语句拼接、N5
 | **A-104** | **sqlglot 缺口的掩码闭合实测** | `ASC` / `DESC` / 前缀+DESC+多列 / 分区定义 `ENGINE=` / 官方两种子句顺序 —— **五种形态用同一套等长置空 span 机制全部一次闭合** |
 | **A-105** | **掩码不影响审核结论的证明** | 实测 119 条规则**无一引用 `ASC`/`DESC`**，解析器亦从不向规则层暴露排序方向；分区类规则读 `raw_sql` 正则；`raw_sql` 始终保持原文（S-4） |
 | **A-106** | **我新引入 bug 被 Z 组当场抓出**（自我批评） | 为支持多列 `shardkey=(a,b)`，我把"多标识符"规则误用到 `TDSQL_DISTRIBUTED BY HASH(...)`。官方那里是**单列 `column_name`**，且 v1.6.1.9 冻结的 `_extract_tdsql_hash_key()` 只提取单个分片键 —— 已改回单列。**两处形态不同，不能共用消费器** |
-| **A-107** | `MAXVALUE` 的处置依据 | `VALUES LESS THAN MAXVALUE` 在 sqlglot 30.x 上 ParseError（去方言后亦然）；语料 197 条与生产 14 表中出现 **0 次** → 登记为 `pos_known` 已知假阴性，失败关闭 |
+| **A-107** | `MAXVALUE` 的处置依据与用户决策 | `VALUES LESS THAN MAXVALUE` 在 sqlglot 30.x 上 ParseError（去方言后亦然，非本方案所致）；语料 197 条与生产 14 表中出现 **0 次**。**用户 2026-08-26 决定按 O 的要求单独登记为已知假阴性、本版不补实现** → §5.21.5 KFN-1 |
 | **A-108** | Rev.I H 组 85 例 | **失败 0**：14 例第八轮原始反例全部保留 E999；10 例 TDSQL 官方形态全部恢复；2 例 `pos_known` 单独登记；14 例较主干收紧（旧正则假成功） |
 | **A-109** | **依赖三版矩阵**（MAJOR-H2） | 29.0.0 / 30.14.0 / 30.17.0 上 H 组 85 例与 W/Z/Y/X 矩阵**逐条一致，0 例差异** → 依赖改为**精确锁定 `sqlglot==30.14.0`**，三版记录作为将来移动 pin 的依据 |
 | **A-110** | Rev.I 对前七轮全部矩阵复跑（三版本） | W 28 例、Z 22 例、Y 20 例、X 40 例、T/N/C/F、模糊 6000 条（0 崩溃、0 不变量违例）**全部保持通过** |
