@@ -180,12 +180,15 @@ add("T", "T10 TEMPORARY（分布式）", _TT, "pos", "PROJECT_ACCEPTED",
     "R024+R032 仍命中", instance_type="distributed", rule_hit="R032")
 
 # ══════════════════════════════════════════════════════════════════════════
-# N 组 —— 作用域负向（断言 span 数恰为 1 或 0）
+# N 组 —— 作用域负向 / 已知保真缺口
 # ══════════════════════════════════════════════════════════════════════════
+add("N", "N1 CONSTRAINT ... UNIQUE",
+    "CREATE TABLE `t` (`a` int NOT NULL COMMENT 'x',\n CONSTRAINT `uq` UNIQUE (`a`) COMMENT 'cc',\n"
+    " UNIQUE KEY `uk` (`a`) COMMENT 'real'\n) ENGINE=InnoDB",
+    "pos_known", "USER_DECISION",
+    "Rev.P：CONSTRAINT UNIQUE 本期不扩支持，三条解析路径均由 KFN-6 + E999 阻断",
+    kfn="KFN-6-CONSTRAINT-UNIQUE", e999=True)
 for lbl, sql, n in [
-    ("N1 CONSTRAINT ... UNIQUE",
-     "CREATE TABLE `t` (`a` int NOT NULL COMMENT 'x',\n CONSTRAINT `uq` UNIQUE (`a`) COMMENT 'cc',\n"
-     " UNIQUE KEY `uk` (`a`) COMMENT 'real'\n) ENGINE=InnoDB", 1),
     ("N2 列内联 UNIQUE",
      "CREATE TABLE `t` (`a` int NOT NULL UNIQUE COMMENT 'inline',\n `b` int COMMENT 'y',\n"
      " UNIQUE KEY `uk` (`b`) COMMENT 'real'\n) ENGINE=InnoDB", 1),
@@ -866,7 +869,7 @@ _TY12_CASES = [
     ("CHARACTER VARYING(10)", "pos", "CHARACTER VARYING 是 VARCHAR 官方别名"),
     ("NCHAR(256)", "neg", "别名沿用 CHAR 的 0..255 边界"),
     ("NVARCHAR", "neg", "VARCHAR 系列长度必填"),
-    ("SERIAL", "pos", "SERIAL 是官方别名，sqlglot 原样保留"),
+    ("SERIAL", "pos_known", "SERIAL 隐含 UNIQUE/NOT NULL/AUTO_INCREMENT，本期 KFN-5 阻断"),
     ("SERIAL(10)", "neg", "SERIAL 不带参数"),
     # ENUM / SET 成员数上界
     ("SET(%s)" % ",".join("'m%d'" % i for i in range(64)), "pos", "SET 成员数上界 64"),
@@ -882,8 +885,11 @@ _TY12_CASES = [
     ("INT DEFAULT .", "neg", "残缺小数点"),
 ]
 for _t, _k, _why in _TY12_CASES:
+    _extra = {}
+    if _t == "SERIAL":
+        _extra = {"kfn": "KFN-5-SERIAL", "e999": True}
     add("R12-TY", _t if len(_t) <= 40 else _t[:37] + "…", _TY12 % _t, _k,
-        "OFFICIAL" if _k == "pos" else "REVIEW_12", _why)
+        "OFFICIAL" if _k in ("pos", "pos_known") else "REVIEW_12", _why, **_extra)
 # 官方合法但锁定版 sqlglot 解析不了 → KFN-A，必须失败关闭且**具名登记**
 for _t, _why in [
     ("INT SIGNED", "SIGNED 属性：三版 sqlglot 一致 ParseError"),
@@ -922,9 +928,72 @@ add("R12-CN", "无名 CONSTRAINT PRIMARY KEY",
     "KFN-4：官方允许省略 symbol，但三版 sqlglot 一致 ParseError → 失败关闭并具名登记")
 add("R12-CN", "CONSTRAINT symbol UNIQUE（NG-10 冻结，不作恢复目标）",
     "CREATE TABLE `t` (`id` INT, `sk` INT, CONSTRAINT `uq` UNIQUE (`id`), "
-    "UNIQUE KEY `uk` (`sk`) COMMENT 'u') ENGINE=InnoDB", "pos", "PROJECT_ACCEPTED",
-    "NG-10/ADJ-11 冻结：消费以完成整句校验，但其 COMMENT 不作掩码目标；"
-    "本例不含 CONSTRAINT 内注释，故整句仍可恢复")
+    "UNIQUE KEY `uk` (`sk`) COMMENT 'u') ENGINE=InnoDB", "pos_known", "USER_DECISION",
+    "Rev.P：NG-10/ADJ-11 冻结；KFN-6 覆盖恢复路径并保留 E999",
+    kfn="KFN-6-CONSTRAINT-UNIQUE", e999=True)
+
+# ══════════════════════════════════════════════════════════════════════════
+# R14 组 —— 第十四轮：UNIQUE 隔离通道、全路径 KFN、legacy 零漂移
+# ══════════════════════════════════════════════════════════════════════════
+_R14_BASE = ("CREATE TABLE t (id INT NOT NULL, sk INT NOT NULL%s, c INT, d INT, "
+             "PRIMARY KEY(id,sk)%s) ENGINE=InnoDB %s")
+_R14_UQ_RULES_BASE = {"R005", "R028", "R029", "R036", "R037"}
+add("R14-UQ", "列级合规 + 两个表级（后一违规）",
+    _R14_BASE % (" UNIQUE", ", UNIQUE KEY u1(sk,c), UNIQUE KEY u2(c,d)", "shardkey=sk"),
+    "pos", "REVIEW_14", "完整 UNIQUE 只进隔离通道；R054 必须命中 u2",
+    needs_recovery=False, unique_names=["sk", "u1", "u2"],
+    unique_columns=[["sk"], ["sk", "c"], ["c", "d"]], legacy_unique_count=0,
+    unique_complete=True, rules_exact=_R14_UQ_RULES_BASE | {"R054"})
+add("R14-UQ", "列级与表级全部含 shardkey",
+    _R14_BASE % (" UNIQUE", ", UNIQUE KEY u1(sk,c), UNIQUE KEY u2(sk,d)", "shardkey=sk"),
+    "pos", "REVIEW_14", "R054 双向反例：全部合规时不得命中",
+    needs_recovery=False, unique_names=["sk", "u1", "u2"],
+    unique_columns=[["sk"], ["sk", "c"], ["sk", "d"]], legacy_unique_count=0,
+    unique_complete=True, rules_exact=_R14_UQ_RULES_BASE)
+add("R14-UQ", "表级前缀索引只保留基列",
+    _R14_BASE % ("", ", UNIQUE KEY u1(sk,c(10))", "shardkey=sk"),
+    "pos", "REVIEW_14", "前缀长度不是列名的一部分",
+    needs_recovery=False, unique_names=["u1"], unique_columns=[["sk", "c"]],
+    legacy_unique_count=0, unique_complete=True, rules_exact=_R14_UQ_RULES_BASE)
+add("R14-UQ", "重复列级 UNIQUE 不得伪装语义完整",
+    _R14_BASE % (" UNIQUE UNIQUE", "", "shardkey=sk"),
+    "fail_closed", "REVIEW_14", "sqlglot 原生接受该异常结构时也必须标记 incomplete 并产生 E999",
+    unique_complete=False, legacy_unique_count=0,
+    rules_exact=_R14_UQ_RULES_BASE | {"E999_SYNTAX_ERROR"})
+
+_KFN_RULES_NATIVE = {"E999_SYNTAX_ERROR", "R005", "R028", "R029", "R036", "R037"}
+_KFN_RULES_COMMAND = {"E999_SYNTAX_ERROR", "R005", "R028"}
+_KFN_RULES_EXCEPT = {"E999_SYNTAX_ERROR", "R003", "R004", "R005", "R028"}
+for _group, _label, _definition, _kfn in [
+    ("R14-KFN-CU", "CONSTRAINT UNIQUE", "CONSTRAINT uq UNIQUE(c)", "KFN-6-CONSTRAINT-UNIQUE"),
+    ("R14-KFN-SE", "SERIAL", "id SERIAL", "KFN-5-SERIAL"),
+]:
+    if _label == "CONSTRAINT UNIQUE":
+        _head = "id INT NOT NULL, sk INT NOT NULL, c INT, PRIMARY KEY(id,sk), " + _definition
+    else:
+        _head = _definition + ", sk INT NOT NULL, c INT, PRIMARY KEY(id,sk)"
+    add(_group, _label + " / native Create",
+        "CREATE TABLE t (%s) ENGINE=InnoDB shardkey=sk" % _head,
+        "pos_known", "REVIEW_14", "原生成功路径也必须被 source preflight 阻断",
+        kfn=_kfn, e999=True, plan_required=False, rules_exact=_KFN_RULES_NATIVE)
+    add(_group, _label + " / dialect Command",
+        "CREATE TABLE t (%s) ENGINE=InnoDB TDSQL_DISTRIBUTED BY HASH(sk)" % _head,
+        "pos_known", "REVIEW_14", "Command 路径不得停在无 E999 的空结构",
+        kfn=_kfn, e999=True, rules_exact=_KFN_RULES_COMMAND)
+    add(_group, _label + " / UNIQUE COMMENT ParseError",
+        "CREATE TABLE t (%s, UNIQUE KEY u2(sk) COMMENT 'x') ENGINE=InnoDB shardkey=sk" % _head,
+        "pos_known", "REVIEW_14", "except 恢复路径必须被同一 KFN 阻断",
+        kfn=_kfn, e999=True, rules_exact=_KFN_RULES_EXCEPT)
+
+for _label, _frag, _pk in [
+    ("列 COMMENT 中的关键字", "id INT COMMENT 'SERIAL CONSTRAINT uq UNIQUE(c)'", "id,sk"),
+    ("DEFAULT 字符串中的关键字", "id VARCHAR(80) DEFAULT 'SERIAL CONSTRAINT uq UNIQUE(c)'", "id,sk"),
+    ("反引号标识符中的关键字", "`SERIAL` INT COMMENT 'x'", "`SERIAL`,sk"),
+]:
+    add("R14-KFN-DECOY", _label,
+        "CREATE TABLE t (%s, sk INT, PRIMARY KEY(%s)) ENGINE=InnoDB shardkey=sk" % (_frag, _pk),
+        "pos", "REVIEW_14", "tokenizer 必须隔离字面量/标识符，preflight 不得误阻断",
+        needs_recovery=False, kfn_absent=True)
 
 # ── M-CREATE / M-TAIL / M-PARTITION：CreateShape 顶层与表尾的单点变异 ──────
 #    第十二轮 BLOCK-12-04：Rev.M 的 M 组只覆盖定义列表，下面 13 种单点变异

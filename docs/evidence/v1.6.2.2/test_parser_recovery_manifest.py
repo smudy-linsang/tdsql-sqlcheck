@@ -111,10 +111,33 @@ def _check_sql_case(case):
         if ex.get("index_type"):
             assert ex["index_type"] in [i.get("type") for i in (parsed.indexes or [])]
         inst = ex.get("instance_type", "distributed")
+        if ex.get("kfn_absent"):
+            assert not parsed.known_fidelity_failures, (
+                "literal/identifier decoy must not trigger source preflight: %s" %
+                (parsed.known_fidelity_failures,))
+        if "unique_complete" in ex:
+            assert parsed.unique_constraints_complete is ex["unique_complete"]
+        if "unique_names" in ex:
+            assert [x.get("name") for x in parsed.unique_constraints] == ex["unique_names"]
+        if "unique_columns" in ex:
+            assert [x.get("columns") for x in parsed.unique_constraints] == ex["unique_columns"]
+        if "legacy_unique_count" in ex:
+            legacy = [x for x in (list(parsed.indexes) + list(parsed.index_definitions))
+                      if (x.get("type") or "").upper() == "UNIQUE"]
+            assert len(legacy) == ex["legacy_unique_count"]
+        rules = _rid(case.sql, inst)
+        if ex.get("rules_contains"):
+            assert set(ex["rules_contains"]) <= set(rules)
+        if ex.get("rules_excludes"):
+            assert not (set(ex["rules_excludes"]) & set(rules))
+        if ex.get("rules_exact") is not None:
+            assert set(rules) == set(ex["rules_exact"]), (
+                "exact rules differ: got=%s want=%s" %
+                (sorted(rules), sorted(ex["rules_exact"])))
         if ex.get("rule_hit"):
-            assert ex["rule_hit"] in _rid(case.sql, inst)
+            assert ex["rule_hit"] in rules
         if ex.get("rule_miss"):
-            assert ex["rule_miss"] not in _rid(case.sql, inst)
+            assert ex["rule_miss"] not in rules
         if ex.get("equal_ruleset_without_comment"):
             bare = case.sql.replace(" COMMENT '唯一索引说明'", "").replace(" COMMENT 'z'", "")
             assert _rid(case.sql, inst) == _rid(bare, inst), (
@@ -130,8 +153,37 @@ def _check_sql_case(case):
             assert ast == ex["ast"]
         return
 
+    if case.klass == "fail_closed":
+        assert e999, "结构语义不完整时必须产生 E999"
+        if "unique_complete" in ex:
+            assert parsed.unique_constraints_complete is ex["unique_complete"]
+        if "legacy_unique_count" in ex:
+            legacy = [x for x in (list(parsed.indexes) + list(parsed.index_definitions))
+                      if (x.get("type") or "").upper() == "UNIQUE"]
+            assert len(legacy) == ex["legacy_unique_count"]
+        rules = _rid(case.sql, ex.get("instance_type", "distributed"))
+        if ex.get("rules_contains"):
+            assert set(ex["rules_contains"]) <= set(rules)
+        if ex.get("rules_exact") is not None:
+            assert set(rules) == set(ex["rules_exact"])
+        return
+
     if case.klass in ("pos_known", "unsupported_unproven"):
-        assert ast != "Create", "必须失败关闭（既不冒充合法，也不冒充非法）"
+        if ex.get("kfn"):
+            preflight = PL._preflight_known_fidelity_failures(case.sql, "mysql")
+            assert ex["kfn"] in preflight, "source preflight KFN mismatch: %s" % (preflight,)
+            assert ex["kfn"] in parsed.known_fidelity_failures
+            assert e999, "known fidelity gap must produce E999 on every parse path"
+            if ex.get("plan_required", True):
+                assert plan is not None, "case requires a RecoveryPlan carrying the KFN"
+                assert ex["kfn"] in plan.get("known_false_negatives", ())
+            if ex.get("rules_exact") is not None:
+                got = set(_rid(case.sql, ex.get("instance_type", "distributed")))
+                assert got == set(ex["rules_exact"]), (
+                    "exact KFN rules differ: got=%s want=%s" %
+                    (sorted(got), sorted(ex["rules_exact"])))
+            return
+        assert ast != "Create", "must fail closed (not claimed supported or invalid)"
         if ex.get("ast"):
             assert ast == ex["ast"]
         return
@@ -162,8 +214,9 @@ def test_gate_is_conservative(suite):
     for label, msql in suite["muts"]:
         try:
             cand = sqlglot.parse_one(msql, dialect="mysql")
-        except Exception:
-            continue                                   # 解析不出来 → 不可能成为候选
+        except Exception as exc:
+            pytest.fail("%s / %s: mutation candidate is unparseable: %s" % (
+                suite["title"], label, exc))
         assert PL._validate_recovery_candidate(cand, plan) is False, (
             "%s / %s：变异候选被门禁放行" % (suite["title"], label))
 

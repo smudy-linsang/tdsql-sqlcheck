@@ -1,19 +1,8 @@
 # -*- coding: utf-8 -*-
-"""v1.6.2.2 证据面一键复现（第十二轮 BLOCK-12-05）。
+"""One-command Rev.P evidence runner with design and implementation modes."""
+from __future__ import annotations
 
-    python docs/evidence/v1.6.2.2/run_all.py [--keep]
-
-在**临时目录**里完成全部工作，绝不触碰工作区，也不需要 `git stash`：
-
-  1. 把仓库拷进临时目录，按设计说明书的代码块重建 `parser_legacy.py`；
-  2. 校验重建结果的 SHA256 与设计说明书登记的目标哈希一致；
-  3. 在临时树上跑 manifest 全量（用例 + 变异断言 + 模糊）；
-  4. 跑 `manifest_doc.py` / `codestat.py`，把输出与设计说明书正文逐字比对；
-  5. 打印汇总。任一步失败即以非零码退出。
-
-`--keep` 保留临时目录以便排查。
-"""
-import hashlib
+import argparse
 import io
 import os
 import re
@@ -21,92 +10,176 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from pathlib import Path
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-DOCS = os.path.dirname(os.path.dirname(HERE))
-REPO = os.path.dirname(DOCS)
-DESIGN = os.path.join(DOCS, "DESIGN-v1.6.2.2-索引类型误判与唯一索引注释解析崩溃修复详细设计说明书.md")
-REL_PARSER = os.path.join("backend", "engine", "parser", "parser_legacy.py")
-HASH_MARK = "重建目标 SHA256"
-
-
-def _design_text():
-    return io.open(DESIGN, encoding="utf-8").read()
+from rebuild_from_design import (
+    BASELINE_COMMIT, DESIGN, DISTRIBUTED, PARSER, PYPROJECT, REPO,
+    REQUIREMENTS, TARGET_FILES, bundle_sha256, normalized_sha256,
+    rebuild_texts, write_target,
+)
 
 
-def expected_hash(doc):
-    m = re.search(HASH_MARK + r"[^`]*`([0-9a-f]{64})`", doc)
-    return m.group(1) if m else None
+RELEASE_SQLGLOT = "30.14.0"
+MATRIX_SQLGLOT = ("29.0.0", RELEASE_SQLGLOT, "30.17.0")
+HASH_LABEL = "design_bundle_normalized_sha256"
+ENV = dict(os.environ, PYTHONUTF8="1", PYTHONIOENCODING="utf-8")
 
 
-def main():
-    keep = "--keep" in sys.argv
-    doc = _design_text()
-    tmp = tempfile.mkdtemp(prefix="v1622-evidence-")
-    failures = []
+def _ascii(value: str) -> str:
+    return value.encode("ascii", "backslashreplace").decode("ascii")
+
+
+def _run(cmd, cwd: Path, label: str, failures: list[str], check=True):
+    proc = subprocess.run(cmd, cwd=str(cwd), env=ENV, capture_output=True, text=True,
+                          encoding="utf-8", errors="replace")
+    lines = [x for x in (proc.stdout + "\n" + proc.stderr).splitlines() if x.strip()]
+    tail = " | ".join(lines[-3:]) if lines else "no-output"
+    print("STEP %s rc=%d tail=%s" % (label, proc.returncode, _ascii(tail)))
+    if check and proc.returncode != 0:
+        failures.append("%s rc=%d" % (label, proc.returncode))
+    return proc
+
+
+def _copy_repo(dst: Path) -> None:
+    shutil.copytree(
+        REPO, dst, dirs_exist_ok=True,
+        ignore=shutil.ignore_patterns(".git", "__pycache__", "node_modules", "*.pyc"),
+    )
+
+
+def _venv_python(root: Path, version: str, failures: list[str]) -> Path:
+    safe = version.replace(".", "_")
+    venv = root / ("venv_" + safe)
+    proc = _run([sys.executable, "-m", "venv", "--system-site-packages", str(venv)],
+                REPO, "venv-" + version, failures)
+    if proc.returncode != 0:
+        return Path(sys.executable)
+    py = venv / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+    _run([str(py), "-m", "pip", "install", "--disable-pip-version-check", "--quiet",
+          "sqlglot==" + version], REPO, "pip-sqlglot-" + version, failures)
+    return py
+
+
+def _expected_hash(doc: str):
+    match = re.search(HASH_LABEL + r"\s*=\s*([0-9a-f]{64})", doc)
+    return match.group(1) if match else None
+
+
+def _generator_checks(work: Path, python: Path, doc: str, target_files: dict[str, str],
+                      failures: list[str]) -> None:
+    evidence = work / "docs" / "evidence" / "v1.6.2.2"
+    manifest = _run([str(python), str(evidence / "manifest_doc.py")], work,
+                    "manifest-doc", failures, check=False)
+    if manifest.returncode != 0 or not manifest.stdout.strip() or manifest.stdout.rstrip("\n") not in doc:
+        failures.append("manifest generated section mismatch")
+    else:
+        print("CHECK manifest-section=OK")
+
+    baseline = work / ".evidence_baseline_parser.py"
+    baseline.write_text(
+        subprocess.run(["git", "show", "%s:%s" % (BASELINE_COMMIT, PARSER)],
+                       cwd=str(REPO), capture_output=True, check=True).stdout.decode("utf-8"),
+        encoding="utf-8", newline="\n",
+    )
+    codestat = _run(
+        [str(python), str(evidence / "codestat.py"), str(baseline), str(work / PARSER)],
+        work, "codestat", failures, check=False,
+    )
+    if codestat.returncode != 0 or not codestat.stdout.strip() or codestat.stdout.rstrip("\n") not in doc:
+        failures.append("codestat generated section mismatch")
+    else:
+        print("CHECK codestat-section=OK")
+
+    got = bundle_sha256(target_files)
+    want = _expected_hash(doc)
+    if want != got:
+        failures.append("design bundle hash mismatch want=%s got=%s" % (want, got))
+    else:
+        print("CHECK design-bundle-hash=OK value=%s" % got)
+
+
+def _run_matrix(work: Path, temp_root: Path, versions, failures: list[str], full_tests: bool) -> None:
+    evidence_test = work / "docs" / "evidence" / "v1.6.2.2" / "test_parser_recovery_manifest.py"
+    for version in versions:
+        py = _venv_python(temp_root, version, failures)
+        ver = _run([str(py), "-c", "import sqlglot; print(sqlglot.__version__)"],
+                   work, "runtime-version-" + version, failures)
+        actual = (ver.stdout or "").strip().splitlines()[-1:] or [""]
+        if actual[0] != version:
+            failures.append("runtime version mismatch want=%s got=%s" % (version, actual[0]))
+            continue
+        _run([str(py), "-m", "pytest", "-q", str(evidence_test)],
+             work, "manifest-" + version, failures)
+        if version == RELEASE_SQLGLOT:
+            _run([str(py), "-m", "pytest", "-q",
+                  "tests/test_r077_r054_tdsql_syntax.py",
+                  "tests/test_parser_tdsql_dialect_fallback.py",
+                  "tests/test_r061_index_name_quoting.py"],
+                 work, "frozen-71-release", failures)
+            if full_tests:
+                _run([str(py), "-m", "pytest", "-q", "tests/"],
+                     work, "full-tests-release", failures)
+
+
+def _current_texts() -> dict[str, str]:
+    return {rel: (REPO / rel).read_text(encoding="utf-8") for rel in TARGET_FILES}
+
+
+def main(argv=None) -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--mode", choices=("design", "implementation"), default="design")
+    ap.add_argument("--matrix", action="store_true")
+    ap.add_argument("--keep", action="store_true")
+    ap.add_argument("--skip-full-tests", action="store_true",
+                    help="diagnostic only; release evidence must not use this flag")
+    args = ap.parse_args(argv)
+
+    failures: list[str] = []
+    temp = Path(tempfile.mkdtemp(prefix="v1622-revp-evidence-"))
+    work = temp / "tree"
     try:
-        work = os.path.join(tmp, "tree")
-        shutil.copytree(REPO, work, ignore=shutil.ignore_patterns(
-            ".git", "__pycache__", "node_modules", "*.pyc"))
-        target = os.path.join(work, REL_PARSER)
-
-        print("═══ 1/4 从设计说明书重建产品代码 ═══")
-        r = subprocess.run([sys.executable, os.path.join(HERE, "rebuild_from_design.py"),
-                            target, DESIGN], capture_output=True, text=True)
-        sys.stdout.write(r.stdout)
-        sys.stdout.write(r.stderr)
-        if r.returncode != 0:
-            failures.append("重建失败")
-        got = hashlib.sha256(io.open(target, encoding="utf-8").read().encode("utf-8")).hexdigest()
-        want = expected_hash(doc)
-        if want is None:
-            failures.append("设计说明书里找不到登记的目标哈希")
-        elif got != want:
-            failures.append("重建结果哈希不符：设计登记 %s，实得 %s" % (want, got))
+        doc = io.open(DESIGN, encoding="utf-8").read()
+        design_files = rebuild_texts(REPO, DESIGN, BASELINE_COMMIT)
+        if args.mode == "design":
+            _copy_repo(work)
+            write_target(work, design_files)
+            print("MODE design baseline=%s" % BASELINE_COMMIT)
         else:
-            print("  SHA256 与设计说明书登记值一致 ✅")
+            current = _current_texts()
+            if bundle_sha256(current) != bundle_sha256(design_files):
+                print("STATUS NOT_IMPLEMENTED current_bundle=%s design_bundle=%s" % (
+                    bundle_sha256(current), bundle_sha256(design_files)))
+                return 3
+            _copy_repo(work)
+            print("MODE implementation bundle=%s" % bundle_sha256(current))
 
-        print("\n═══ 2/4 在重建树上跑 manifest 全量 ═══")
-        # ⚠️ 必须跑**临时树里那一份**测试文件：仓库 `pyproject.toml` 声明了
-        # `pythonpath = ["."]`，pytest 会把 rootdir 插到 sys.path 最前面。
-        # 若跑仓库路径下的测试文件，rootdir 就是仓库，`backend` 会解析到**未打补丁**的主干，
-        # 断言全部失败却与设计无关。
-        rel_here = os.path.relpath(HERE, REPO)
-        test_in_tree = os.path.join(work, rel_here, "test_parser_recovery_manifest.py")
-        r = subprocess.run([sys.executable, "-m", "pytest", "-q", test_in_tree],
-                           cwd=work, capture_output=True, text=True)
-        tail = [l for l in (r.stdout or "").strip().split("\n") if l.strip()][-1:]
-        print("  " + ("\n  ".join(tail) if tail else "(无输出)"))
-        if r.returncode != 0:
-            failures.append("manifest 未全绿")
-            sys.stdout.write(r.stdout[-4000:])
+        versions = MATRIX_SQLGLOT if args.matrix else (RELEASE_SQLGLOT,)
+        _run_matrix(work, temp, versions, failures, not args.skip_full_tests)
 
-        print("\n═══ 3/4 生成器输出与设计说明书正文逐字比对 ═══")
-        gen = subprocess.run([sys.executable, os.path.join(HERE, "manifest_doc.py")],
-                             cwd=HERE, capture_output=True, text=True).stdout.rstrip("\n")
-        print("  §7.1 用例表：%s" % ("一致 ✅" if gen and gen in doc else "不一致 ❌"))
-        if not (gen and gen in doc):
-            failures.append("§7.1 与 manifest_doc.py 输出不一致")
-        stat = subprocess.run([sys.executable, os.path.join(HERE, "codestat.py"),
-                               os.path.join(REPO, REL_PARSER), target],
-                              capture_output=True, text=True).stdout.rstrip("\n")
-        print("  §3.4 规模表：%s" % ("一致 ✅" if stat and stat in doc else "不一致 ❌"))
-        if not (stat and stat in doc):
-            failures.append("§3.4 与 codestat.py 输出不一致")
+        release_py = temp / "venv_30_14_0" / (
+            "Scripts/python.exe" if os.name == "nt" else "bin/python")
+        if release_py.is_file():
+            _generator_checks(work, release_py, doc, design_files, failures)
+        else:
+            failures.append("release venv unavailable; generator checks not run")
 
-        print("\n═══ 4/4 汇总 ═══")
+        for rel in (REQUIREMENTS, PYPROJECT):
+            text = design_files[rel]
+            if "sqlglot==30.14.0" not in text:
+                failures.append("release pin missing in %s" % rel)
         if failures:
-            for f in failures:
-                print("  ❌ " + f)
+            for failure in failures:
+                print("FAIL %s" % _ascii(failure))
+            print("RESULT FAIL count=%d" % len(failures))
             return 1
-        print("  全部通过 ✅")
+        print("RESULT PASS mode=%s versions=%s" % (args.mode, ",".join(versions)))
         return 0
     finally:
-        if keep:
-            print("\n临时目录保留：%s" % tmp)
+        if args.keep:
+            print("TEMP_KEEP %s" % _ascii(str(temp)))
         else:
-            shutil.rmtree(tmp, ignore_errors=True)
+            shutil.rmtree(temp, ignore_errors=True)
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())

@@ -1,67 +1,101 @@
-# v1.6.2.2 解析恢复链 —— 证据面资产
+# v1.6.2.2 解析恢复链——Rev.P 可执行证据
 
-本目录是设计说明书
+本目录是
 `docs/DESIGN-v1.6.2.2-索引类型误判与唯一索引注释解析崩溃修复详细设计说明书.md`
-的**可执行证据**。第十二轮复审 BLOCK-12-05 要求"唯一真源必须在仓库里、命令必须真实可执行"，
-本目录就是对该要求的落地。
+的唯一可执行证据面。Rev.P 把验证对象明确分成两类：设计态从不可变产品基线机械重建目标；
+实施态直接验证当前工作树产品。二者不能混用，也不能用临时重建物冒充已开发产品。
 
-## ⚠️ 这些是准出用例，不是现网回归用例
+本次 Rev.P 只修改设计文档与本目录证据，尚未修改产品代码。因此 design 模式应通过；
+implementation 模式当前应明确返回 `STATUS NOT_IMPLEMENTED` 和退出码 3。产品开发完成后，
+implementation 模式才允许变为通过。
 
-`test_parser_recovery_manifest.py` 断言的是 v1.6.2.2 修复**之后**的行为。
-主干 `backend/engine/parser/parser_legacy.py` 仍是 v1.6.2.1，直接对它跑必然大面积失败——
-**这正是它作为开发准入门槛的意义**。因此它放在 `docs/evidence/` 而不是 `tests/`，
-不会被 `pytest tests/` 收集、不影响现有 CI。
-施工方把设计补丁落到产品代码后，可把本目录整体迁进 `tests/` 转为常驻回归。
+## 固定身份
 
-## 一条命令跑通全部
-
-```bash
-python docs/evidence/v1.6.2.2/run_all.py
+```text
+baseline_commit = 03216b788412caa476bba49b9d8524de80919bf4
+release_sqlglot = 30.14.0
+design_bundle_normalized_sha256 = 3cd8756a327f7c18401fd174ebc19148bc01aea3110faafa12ba312db3914c38
+parser_normalized_utf8_sha256 = 185f43fcf835508f3ca0b52094cdf324cea4bb5b050df7fdade2aaed3219af9c
+distributed_normalized_utf8_sha256 = 5b1884bf0a08f44f2287375cec9a2e504b80ae80cb0fe4f04aedcf81701ad0f0
+requirements_normalized_utf8_sha256 = 36916e67bba0c05eaea18a64c80f63e82412b5233a3b9569a0293838d4c6a073
+pyproject_normalized_utf8_sha256 = 60785ef0b35ed49fd29d174530b8a6b380777473a948f0f9306f5be5ac3ec98b
 ```
 
-它在**临时目录**里完成四件事，全程不触碰工作区、不需要 `git stash`：
+bundle 包含以下四个文件，按相对路径字典序计算：
 
-1. 拷贝仓库到临时目录，按设计说明书的前 12 个 ```python 代码块重建 `parser_legacy.py`；
-2. 校验重建结果的 SHA256 与设计说明书登记的目标哈希一致；
-3. 在重建树上跑 manifest 全量（用例 + 变异断言 + 模糊测试）；
-4. 跑两个生成器，把输出与设计说明书正文**逐字比对**（§7.1 用例表、§3.4 规模表）。
+- `backend/engine/parser/parser_legacy.py`
+- `backend/engine/rules/distributed.py`
+- `requirements.txt`
+- `pyproject.toml`
 
-任一步失败即以非零码退出。加 `--keep` 保留临时目录便于排查。
+规范化哈希先把 CRLF/CR 统一为 LF，再按 UTF-8 编码。bundle 对每个文件依次输入
+`path + NUL + normalized_bytes + NUL` 后计算 SHA256。
+
+## 两条准出命令
+
+```powershell
+python docs/evidence/v1.6.2.2/run_all.py --mode design --matrix
+python docs/evidence/v1.6.2.2/run_all.py --mode implementation --matrix
+```
+
+`design` 模式从固定 commit 读取四个 baseline blob，只消费设计正文列明的 stable-id，写入临时
+目录后运行三版 sqlglot manifest；在发布 pin 上还运行冻结专项与 `pytest tests/` 全量，并核对
+manifest/codestat 生成区段、依赖 pin 和 bundle 哈希。
+
+`implementation` 模式禁止套用设计补丁。它先比较当前四个产品文件与设计目标 bundle；不一致时
+返回码 3。施工后一致时，才对当前产品副本运行与 design 相同的矩阵。
+
+runner 为每个 sqlglot 版本建立隔离 venv 并安装精确版本。需要当前 Python 能创建 venv、环境可安装
+指定依赖，并已可用 pytest。输出经过 ASCII 转义，默认 Windows/PowerShell 代码页无需额外设置
+`PYTHONUTF8`。
+
+## 退出码与诊断参数
+
+| 状态 | 含义 |
+|---|---|
+| `0` | 当前模式的全部门禁通过 |
+| `1` | 重建、语义、生成区段、哈希、pin、专项或全量任一失败 |
+| `3` | implementation 的当前产品 bundle 尚未达到设计目标，状态为 `NOT_IMPLEMENTED` |
+
+- `--keep`：保留临时目录，用于定位失败。
+- `--skip-full-tests`：只供快速诊断；使用该参数的结果不得作为准出证据。
+- 不加 `--matrix` 只跑发布 pin，供本地定位；正式评审/准出必须带 `--matrix`。
 
 ## 文件职责
 
 | 文件 | 职责 |
 |---|---|
-| `parser_recovery_manifest.py` | **唯一 case manifest**：纯数据，无判定逻辑。每条含稳定 `cid`、SQL、`klass`（判据）、`prov`（证据来源）、`note`（理由）与判据参数 |
-| `test_parser_recovery_manifest.py` | 参数化 pytest：判据全部来自 manifest，**不含任何用例数据** |
-| `manifest_doc.py` | 从 manifest 生成设计说明书 §7.1 的全部表格与计数 |
-| `codestat.py` | 从最终补丁生成 §3.4 的规模表、函数清单与唯一性检查 |
-| `rebuild_from_design.py` | 「照图施工」：把设计说明书的代码块重建成 `parser_legacy.py`，**只写指定输出路径** |
-| `run_all.py` | 上述四件事的一键编排 |
+| `parser_recovery_manifest.py` | 唯一 case manifest；含稳定 cid、SQL、分类、来源与结构化 oracle |
+| `test_parser_recovery_manifest.py` | 通用 oracle 执行器；无 cid 特判；异常不得静默跳过 |
+| `manifest_doc.py` | 生成 §7.1 唯一表格区段和 cases/suites/assertions/collect 计数；`--update-design` 可机械更新正文 |
+| `codestat.py` | 从固定 baseline 与设计目标生成 §3.4 规模/唯一性区段；`--update-design` 可机械更新正文 |
+| `rebuild_from_design.py` | 从固定四文件 blob 和 stable-id 动作机械重建设计目标，只写调用者指定目录 |
+| `run_all.py` | design/implementation 双模式、三版矩阵、哈希、生成区段、专项与全量统一编排 |
+| `README.md` | 固定身份、命令、失败码与阶段状态 |
 
-## 单独运行
+## 单项复现
 
-```bash
-# 只生成 §7.1 表格
+```powershell
+# 生成 manifest 正文区段
 python docs/evidence/v1.6.2.2/manifest_doc.py
 
-# 只生成 §3.4 规模表（需要一个已打补丁的目标文件）
-python docs/evidence/v1.6.2.2/codestat.py <基线 parser_legacy.py> <目标 parser_legacy.py>
+# 将 manifest 生成区段机械更新进设计文档
+python docs/evidence/v1.6.2.2/manifest_doc.py --update-design docs/DESIGN-v1.6.2.2-索引类型误判与唯一索引注释解析崩溃修复详细设计说明书.md
 
-# 只重建（写入你指定的副本，不改工作区）
-cp backend/engine/parser/parser_legacy.py /tmp/pl.py
-python docs/evidence/v1.6.2.2/rebuild_from_design.py /tmp/pl.py
+# codestat 更新需要显式给出固定 baseline parser、设计目标 parser 与设计文档
+python docs/evidence/v1.6.2.2/codestat.py <baseline-parser> <target-parser> --update-design docs/DESIGN-v1.6.2.2-索引类型误判与唯一索引注释解析崩溃修复详细设计说明书.md
+
+# 从固定基线重建到显式临时目录（不会修改工作区产品代码）
+New-Item -ItemType Directory -Force .tmp-revp-target | Out-Null
+python docs/evidence/v1.6.2.2/rebuild_from_design.py .tmp-revp-target
 ```
 
-## 计数口径（第十二轮 MINOR-12-01）
-
-三个数字含义不同，不要混用：
+## 计数口径
 
 | 口径 | 含义 |
 |---|---|
-| **用例数** | `len(CASES)`，manifest 里逐条 SQL 用例 |
-| **变异断言数** | 每套变异 = 1 个正确候选 + N 个变异候选，逐条 `assert` 的总数 |
-| **pytest collect 数** | 用例数 + 变异**套数** + 1（模糊测试整体是 1 个 item） |
+| manifest 用例数 | `len(CASES)`，逐条 SQL 用例 |
+| 变异断言数 | 每套变异中正确候选与所有定向变异候选的断言总数 |
+| pytest collect 数 | `len(CASES) + len(MUTATION_SUITES) + 1`；模糊测试整体为 1 个 item |
 
-准确数值以 `python docs/evidence/v1.6.2.2/manifest_doc.py`
-与 `pytest --collect-only -q` 的实际输出为准，任何章节都不得人工维护。
+准确数字只认 `manifest_doc.py` 与 `pytest --collect-only -q` 的实际输出，其他章节不得维护副本。
