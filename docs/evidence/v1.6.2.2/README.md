@@ -1,22 +1,26 @@
-# v1.6.2.2 解析恢复链——Rev.P 可执行证据
+# v1.6.2.2 解析恢复链——Rev.Q 可执行证据
 
 本目录是
 `docs/DESIGN-v1.6.2.2-索引类型误判与唯一索引注释解析崩溃修复详细设计说明书.md`
-的唯一可执行证据面。Rev.P 把验证对象明确分成两类：设计态从不可变产品基线机械重建目标；
+的唯一可执行证据面。Rev.Q 把验证对象明确分成两类：设计态从不可变产品基线机械重建目标；
 实施态直接验证当前工作树产品。二者不能混用，也不能用临时重建物冒充已开发产品。
 
-本次 Rev.P 只修改设计文档与本目录证据，尚未修改产品代码。因此 design 模式应通过；
+本次 Rev.Q 只修改设计文档与本目录证据，尚未修改产品代码。因此 design 模式应通过；
 implementation 模式当前应明确返回 `STATUS NOT_IMPLEMENTED` 和退出码 3。产品开发完成后，
 implementation 模式才允许变为通过。
+
+2026-08-27 Rev.Q 设计态实跑：三版 manifest 各 `680 passed`，发布 pin 冻结专项
+`71 passed`，仓库全量 `1384 passed / 0 skipped / 0 failed`；implementation 在产品尚未施工时
+按契约返回 `STATUS NOT_IMPLEMENTED` / 3。passed/skipped 只记录本次环境，硬门槛为 0 failed。
 
 ## 固定身份
 
 ```text
 baseline_commit = 03216b788412caa476bba49b9d8524de80919bf4
 release_sqlglot = 30.14.0
-design_bundle_normalized_sha256 = 3cd8756a327f7c18401fd174ebc19148bc01aea3110faafa12ba312db3914c38
-parser_normalized_utf8_sha256 = 185f43fcf835508f3ca0b52094cdf324cea4bb5b050df7fdade2aaed3219af9c
-distributed_normalized_utf8_sha256 = 5b1884bf0a08f44f2287375cec9a2e504b80ae80cb0fe4f04aedcf81701ad0f0
+design_bundle_normalized_sha256 = 6412e076871dcae15df8889c746819fc312729d7a69e9c4513334fdb274dfe89
+parser_normalized_utf8_sha256 = ab1843e2d6c5a21fe39a5013d9df18db248daf590547a7f0e2f19648a5cc4610
+distributed_normalized_utf8_sha256 = 46c2fb72f8fe704dac99648a903e1b4059208cb43b1b1fe3c2fe45f2738282ce
 requirements_normalized_utf8_sha256 = 36916e67bba0c05eaea18a64c80f63e82412b5233a3b9569a0293838d4c6a073
 pyproject_normalized_utf8_sha256 = 60785ef0b35ed49fd29d174530b8a6b380777473a948f0f9306f5be5ac3ec98b
 ```
@@ -86,8 +90,8 @@ python docs/evidence/v1.6.2.2/manifest_doc.py --update-design docs/DESIGN-v1.6.2
 python docs/evidence/v1.6.2.2/codestat.py <baseline-parser> <target-parser> --update-design docs/DESIGN-v1.6.2.2-索引类型误判与唯一索引注释解析崩溃修复详细设计说明书.md
 
 # 从固定基线重建到显式临时目录（不会修改工作区产品代码）
-New-Item -ItemType Directory -Force .tmp-revp-target | Out-Null
-python docs/evidence/v1.6.2.2/rebuild_from_design.py .tmp-revp-target
+New-Item -ItemType Directory -Force .tmp-revq-target | Out-Null
+python docs/evidence/v1.6.2.2/rebuild_from_design.py .tmp-revq-target
 ```
 
 ## 计数口径

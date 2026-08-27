@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Deterministically rebuild the Rev.P target from stable document markers.
+"""Deterministically rebuild the Rev.Q target from stable document markers.
 
 The tool reads immutable product blobs from ``baseline_commit`` and writes only
 below the caller-supplied output root. It never edits the working product tree.

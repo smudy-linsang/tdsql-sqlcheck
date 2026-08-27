@@ -2,24 +2,71 @@
 
 | 项目 | 内容 |
 |---|---|
-| 文档版本 | **Rev.P**（在 Rev.O 原文上修订，处理智能体 A 第十四轮开发准入复审的 **3 BLOCK + 3 MAJOR**；Rev.O 及更早章节保留为历史追溯，凡与 Rev.P 冲突均以 Rev.P 为准） |
+| 文档版本 | **Rev.Q**（在 Rev.P 原文上修订，关闭智能体 A 第十五轮开发准入复审仅余的 **1 BLOCK + 1 MINOR**；Rev.P 及更早章节保留为历史追溯，凡与 Rev.Q 冲突均以 Rev.Q 为准） |
 | 目标版本 | **v1.6.2.2** |
 | 缺陷来源 | 内网人工扫描报告 #6309（gg77）、#6311（gg78） |
 | 缺陷编号 | **DEF-1 = DEF-R054-FAKEUNIQUE**；**DEF-2 = DEF-PARSE-UKCOMMENT** |
 | 原始设计 | 智能体 A |
-| Rev.P 修订 | Codex |
-| Rev.P 评审 | 智能体 A（待第十五轮独立评审） |
-| 施工 | 待 Rev.P 通过后安排；本次修订**不改产品代码**，只修改设计说明书和 `docs/evidence/v1.6.2.2/` 设计证据 |
-| 基线 commit | `03216b788412caa476bba49b9d8524de80919bf4`（main，Rev.P design 模式的不可变施工前产品基线；其产品文件与 `4d6968a` 一致） |
-| 评审依据 | `docs/REVIEW-v1.6.2.2-索引解析修复设计Rev.O第十四轮开发准入独立复审报告-ClaudeA.md` |
-| Rev.P 预期改动范围 | `parser_legacy.py`：Rev.O 恢复规划器、索引类型补丁、独立 `unique_constraints` 完整语义通道及全路径 KFN 预检；`distributed.py`：**只修改 R054 专属助手 `_iter_unique_indexes()` 读取新通道，R077 类与既有 `indexes/index_definitions` 行为保持不动**；`requirements.txt` / `pyproject.toml` 精确 pin；`docs/evidence/v1.6.2.2/` 落实 design/implementation 双模式证据 |
-| 证据状态 | Rev.N 的 501 case / 511 pytest item 只作为**历史基线**。Rev.P design 实测：三版各 **524 passed**，发布版冻结专项 **71 passed**、全量 **1384 passed**，生成区段与 bundle 哈希一致；implementation 在产品未施工时按契约返回 `STATUS NOT_IMPLEMENTED` / 3，未伪装全绿 |
+| Rev.Q 修订 | Codex |
+| Rev.Q 评审 | 智能体 A（待第十六轮独立评审） |
+| 施工 | 待 Rev.Q 通过后安排；本次修订**不改产品代码**，只修改设计说明书和 `docs/evidence/v1.6.2.2/` 设计证据 |
+| 基线 commit | `03216b788412caa476bba49b9d8524de80919bf4`（main，Rev.Q design 模式的不可变施工前产品基线；其产品文件与 `4d6968a` 一致） |
+| 评审依据 | `docs/REVIEW-v1.6.2.2-索引解析修复设计Rev.P第十五轮开发准入独立复审报告-ClaudeA.md` |
+| Rev.Q 预期改动范围 | `parser_legacy.py`：Rev.P 全部目标 + **逐顶层定义项 KFN 预检** + **source 完整性独立信号**；`distributed.py`：仍然**只修改 R054 专属助手 `_iter_unique_indexes()`**，完整路径只读结构化条目，不完整路径合并逐项可信结构与 raw 补充；R077 类与 legacy `indexes/index_definitions` 行为不动；证据增加 13×5 KFN 与 13×7 支持域 UNIQUE 两个矩阵 |
+| 证据状态 | Rev.N 的 501 case / 511 item、Rev.P 的 514 case / 524 item 均只作**历史基线**。Rev.Q 当前设计目标为 **670 case / 680 pytest item**；最终三版、冻结专项、全量、哈希与 implementation 状态以 §7.4.5 和附录 C 的 runner 实测为准，禁止把 skip 计入 passed |
+
+---
+
+## Rev.Q 修订说明（针对智能体 A 第十五轮开发准入复审）
+
+> **本节是 Rev.Q 的规范入口。** 第十五轮“有条件放行、只剩 1 个 BLOCK”的判断及其
+> BLOCK-15-01 因果链经独立复现成立；本版接受该 BLOCK、MINOR 和三项观察，不采用会给所有
+> scanner 未知语句凭空制造 E999 的原型 A。具体施工以本节、§3.3c～§3.3d、§5.33、§7 和附录 C 为准。
+
+### 第十五轮意见裁定
+
+| 第十五轮项 | Rev.Q 裁定 | 处理结果 |
+|---|---|---|
+| **BLOCK-15-01** `unique_constraints_complete` fail-open | **完全认可问题；采用报告建议的“两半拆分”并补齐支持域合并** | 独立复现 A/B/C/D：B/C/D 在 Rev.P 均为 `KFN=()`、`complete=True`、R054/E999 全无。Rev.Q 逐定义识别 KFN，strict 全表结果另存 complete；未知项只关闭 complete，不制造 E999。不完整路径先消费已安全提取的列级/表级 UNIQUE，再用 raw 补充 KEY/INDEX 并去重，避免 raw 不识别列级/裸 UNIQUE 的次生漏报 |
+| **MINOR-15-01** 把 29 个 skipped 算成 passed | **认可** | 文档不再写 `1384 passed`；历史实测更正为 `1355 passed / 29 skipped / 0 failed`。跨环境门槛仍只硬性要求 0 failed，passed/skipped 原样记录 |
+| 观察 1：preflight 成本 18%～22% | **登记并约束本次实现** | `parse()` 只调用一次 `_preflight_create_definition_status()`，同时取得 KFN 与完整性，不二次 tokenize；逐项 KFN 扫描严格 O(n)，禁止逐前缀重解析导致 O(n²)。未来与 sqlglot 主解析复用 token 流登记为性能优化，不在本期扩域 |
+| 观察 2：KFN-4 当前被 sqlglot ParseError 偶然保护 | **认可** | 65 条矩阵直接断言 `_preflight_known_fidelity_failures()` 的精确 KFN，再断言最终 E999；不把当前 AST ParseError 当 preflight 有效证据 |
+| 观察 3：strict scanner 白名单缺口 | **认可并登记 ADJ-14** | 本期不贸然扩展 FOREIGN KEY/CHECK/GENERATED/VISIBLE/KEY_BLOCK_SIZE/函数索引等恢复能力；它们作为“source 未完整理解”关闭 UNIQUE complete，但不得自动等价为 SQL 非法或 KFN |
+
+### Rev.Q 不可拆分的双信号契约
+
+```text
+逐项 KFN = 每个顶层 definition 独立证明；未知邻项不能清空已证明结果
+source_complete = strict scanner 是否完整消费全部 definitions；默认 False，证明后才 True
+
+有 KFN                         → E999，unique complete=False
+无 KFN + source_complete=False → 不造 E999，unique complete=False，R054 合并逐项结构 + raw 补充
+无 KFN + source_complete=True  → 仍须 AST UNIQUE 遍历完整，方可 unique complete=True
+UNIQUE AST 自身看见但无法表达 → UNIQUE_SEMANTICS_INCOMPLETE + E999
+```
+
+`exp.Constraint`、`ForeignKey`、`Check` 以及未来未知顶层 AST 节点进入
+`_unique_ast_incomplete=True`，但不进入 `_unique_semantics_failed`。这两个标志不得合并：前者表达
+“当前通道不能证明闭世界”，后者表达“已看见目标 UNIQUE 却无法保真”。把前者也写成 E999 会重现
+第十五轮原型 A 的 5 条非目标漂移；忽略前者则会重现 Rev.P 的静默漏审。
+
+### Rev.Q 组合验收面
+
+1. **65 条 KFN 矩阵**：13 类伴生定义 × `CONSTRAINT UNIQUE`、
+   `CONSTRAINT UNIQUE KEY`、`SERIAL`、`SIGNED`、`VARCHAR BINARY`；逐条直接断言 preflight 编号、
+   `unique_constraints_complete=False` 与最终 E999。
+2. **91 条支持域 UNIQUE 通道矩阵**：13 组伴生定义 × 列级 `UNIQUE`/`UNIQUE KEY`、表级裸
+   `UNIQUE`/`UNIQUE KEY`/`UNIQUE INDEX`、违规前缀索引、含分片键的合规前缀索引；无伴生项必须 complete=True，其他项
+   complete=False，并由逐项结构 + raw 补充或整句 E999 覆盖，
+   禁止“无 R054 且无 E999”。
+3. **反向鉴别**：字符串、COMMENT、DEFAULT、反引号标识符中的同名字样不得生成 KFN；
+   legacy R077/R061、71 条冻结专项、生产 fixture 与语料非目标差分继续保持 Rev.P 门槛。
 
 ---
 
 ## Rev.P 修订说明（针对智能体 A 第十四轮开发准入复审）
 
-> **本节是 Rev.P 的规范入口。** Rev.O 及更早版本保留用于追溯；涉及 UNIQUE 供数目的地、
+> **历史记录，不是 Rev.Q 当前施工规范。** Rev.O 及更早版本保留用于追溯；涉及 UNIQUE 供数目的地、
 > `CONSTRAINT … UNIQUE`/SERIAL 的失败关闭入口、证据交付阶段和施工 marker 的内容，均以本节、
 > §3.3c～§3.3f、§5.32、§7.4 和附录 C 的 Rev.P 口径为准。
 
@@ -39,7 +86,8 @@
 1. **完整 UNIQUE 语义与 legacy 索引列表分离。** `unique_constraints` 是 R054 的结构化真源；
    `indexes/index_definitions` 继续保持 v1.6.2.1 输出域，不能借解析器修复唤醒 R077/R061 的历史死分支。
 2. **完整性必须显式。** 只有成功遍历完整 `exp.Create` 定义列表、每个支持域 UNIQUE 均精确提取后，
-   `unique_constraints_complete=True`；完整时 R054 禁止 raw 回退，不完整时才允许既有 raw 回退。
+   `unique_constraints_complete=True`；完整时 R054 禁止 raw 回退；不完整时保留已安全提取的逐项
+   结构化 UNIQUE，并以既有 raw 回退补足 AST 未表达的 KEY/INDEX。
 3. **KFN 是全路径审核阻断，不是恢复器的偶然副作用。** source preflight 与 RecoveryPlan 共用同一个
    definition scanner/KFN 编号真源；sqlglot 原生返回 `Create` 也不得绕过。
 4. **R077 冻结行为必须逐条守恒。** A 报告列出的 5 个现有测试必须恢复通过；裸索引名/反引号索引名
@@ -3275,7 +3323,7 @@ Rev.P 采用**独立、显式完整性标记的 UNIQUE 语义通道**：
 - `parsed.indexes/index_definitions`：严格维持 v1.6.2.1 输出域，R077/R061 等既有消费者不变；
 - `parsed.unique_constraints`：列级/表级 UNIQUE 的完整、逐索引结构，只由 R054 专属助手消费；
 - `parsed.unique_constraints_complete`：只有完整 `Create` schema 已遍历且每个支持域 UNIQUE 均成功
-  提取时才为 `True`。`True` 时禁止 raw 回退；`False` 时保留 Command/异常路径的既有 raw 回退。
+  提取时才为 `True`。`True` 时禁止 raw 回退；`False` 时逐项结构仍可消费，并保留 raw 补充。
 
 #### 3.3c.1 `ParsedSQL` 新字段
 
@@ -3293,13 +3341,17 @@ Rev.P 采用**独立、显式完整性标记的 UNIQUE 语义通道**：
     # R077/R061 等 legacy 消费者读取它；本期唯一消费者是 R054 助手。
     unique_constraints: list[dict] = field(default_factory=list)
     unique_constraints_complete: bool = False
+    # Rev.Q：source definition scanner 是否完整理解了每一个顶层定义项。
+    # 该字段只控制 UNIQUE 结构化通道能否宣称 complete；False 不是语法错误。
+    unique_source_definitions_complete: bool = False
     known_fidelity_failures: tuple[str, ...] = field(default_factory=tuple)
     table_options: dict = field(default_factory=dict)
 ```
 <!-- END CODE: PARSED-UNIQUE-FIELDS-AFTER -->
 
 `unique_constraints_complete=False` 不能解释为“没有 UNIQUE”，只能解释为“结构化真源不完整”；
-消费者必须据此选择 raw 回退。`True + []` 才表示已完整证明该表没有支持域 UNIQUE。
+消费者必须据此决定是否追加 raw 补充，不能丢掉已经安全提取的逐项结构。`True + []` 才表示已完整
+证明该表没有支持域 UNIQUE。
 
 #### 3.3c.2 表级 UNIQUE 提取
 
@@ -3447,6 +3499,7 @@ Rev.P 采用**独立、显式完整性标记的 UNIQUE 语义通道**：
 ```python
         # 解析列定义和索引定义
         _unique_semantics_failed = False
+        _unique_ast_incomplete = False
         if isinstance(schema, exp.Schema):
 ```
 <!-- END CODE: UNIQUE-INIT-AFTER -->
@@ -3491,6 +3544,9 @@ Rev.P 采用**独立、显式完整性标记的 UNIQUE 语义通道**：
                     if idx_info:
                         parsed.indexes.append(idx_info)
                         parsed.index_definitions.append(idx_info)
+                # 检查表级 COMMENT
+                elif type(col_def).__name__ in ("CommentColumnConstraint", "CommentColumnConstraint"):
+                    parsed.has_table_comment = True
 ```
 <!-- END CODE: TABLE-UNIQUE-WIRE-BEFORE -->
 
@@ -3503,6 +3559,14 @@ Rev.P 采用**独立、显式完整性标记的 UNIQUE 语义通道**：
                         parsed.unique_constraints.append(idx_info)
                     else:
                         _unique_semantics_failed = True
+                # 检查表级 COMMENT
+                elif type(col_def).__name__ in ("CommentColumnConstraint", "CommentColumnConstraint"):
+                    parsed.has_table_comment = True
+                else:
+                    # Rev.Q：exp.Constraint、ForeignKey、Check 以及未来未知顶层节点
+                    # 都证明 AST UNIQUE 遍历不是闭世界；只关闭 complete 并保留 raw
+                    # R054 回退，不能把“扫描器尚未覆盖”偷换成 SQL 非法或 E999。
+                    _unique_ast_incomplete = True
 ```
 <!-- END CODE: TABLE-UNIQUE-WIRE-AFTER -->
 
@@ -3524,7 +3588,10 @@ source preflight 没有 KFN 时置完整：
                     parsed.parse_error or "UNIQUE_SEMANTICS_INCOMPLETE"
                 )
             parsed.unique_constraints_complete = (
-                not _unique_semantics_failed and not parsed.known_fidelity_failures
+                parsed.unique_source_definitions_complete
+                and not _unique_ast_incomplete
+                and not _unique_semantics_failed
+                and not parsed.known_fidelity_failures
             )
 
         # 检查约束中的主键和外键
@@ -3565,15 +3632,41 @@ def _iter_unique_indexes(parsed: ParsedSQL, raw_sql: str):
 ```python
 def _iter_unique_indexes(parsed: ParsedSQL, raw_sql: str):
     """R054 专属：逐个产出完整唯一约束；不得被 R077 复用。"""
+    seen = set()
+    structured_column_sets = set()
+    # 每个结构化条目自身都已经通过严格 helper；全局 incomplete 只表示可能还有
+    # 条目未提取，不表示已提取条目不可信。先产出它们，覆盖列级/裸 UNIQUE。
+    for idx in parsed.unique_constraints:
+        name = idx.get("name") or "UNIQUE索引"
+        columns = {c.lower() for c in idx.get("columns", [])}
+        identity = (str(name).lower(), frozenset(columns))
+        if identity not in seen:
+            seen.add(identity)
+            structured_column_sets.add(frozenset(columns))
+            yield name, columns
     if getattr(parsed, "unique_constraints_complete", False):
-        for idx in parsed.unique_constraints:
-            yield (idx.get("name") or "UNIQUE索引",
-                   {c.lower() for c in idx.get("columns", [])})
         return
-    # Command/异常等结构不完整路径保留既有可信 raw 回退；完整结构下绝不混用两真源。
+    # 不完整路径再用既有 raw 回退补充 AST 未表达的 UNIQUE KEY/INDEX；按
+    # (规范名, 列集合) 去重，避免同一条约束被重复消费。
+    def _raw_base_column(fragment: str) -> str:
+        value = fragment.strip()
+        value = re.sub(r"\s+(?:asc|desc)\s*$", "", value, flags=re.IGNORECASE)
+        # `_UNIQUE_IDX_RE` 在前缀长度的内层 `)` 处停止，故右括号可有可无。
+        value = re.sub(r"\(\s*\d+\s*\)?$", "", value).strip()
+        return value.strip('`"\' ').lower()
+
     for m in _UNIQUE_IDX_RE.finditer(_strip_sql_noise(raw_sql)):
-        yield (m.group('qname') or m.group('bname') or "UNIQUE索引",
-               {c.strip('`"\' ').lower() for c in m.group(3).split(",")})
+        name = m.group('qname') or m.group('bname') or "UNIQUE索引"
+        # 既有正则在 `col(n)` 的内层右括号处停止；去掉末尾正整数前缀长度，
+        # 与结构化 helper 的“只保留基列”语义对齐，避免同一索引被误判成第二条。
+        columns = {
+            _raw_base_column(c)
+            for c in m.group(3).split(",")
+        }
+        identity = (str(name).lower(), frozenset(columns))
+        if identity not in seen and frozenset(columns) not in structured_column_sets:
+            seen.add(identity)
+            yield name, columns
 ```
 <!-- END CODE: R054-UNIQUE-ITER-AFTER -->
 
@@ -3586,15 +3679,22 @@ def _iter_unique_indexes(parsed: ParsedSQL, raw_sql: str):
   后两者不能都靠 truthy 判断。任何已看见却无法完整表达的列级/表级 UNIQUE 都设置
   `UNIQUE_SEMANTICS_INCOMPLETE`，最终由 Checker 形成 E999，不能只把 complete 置 False 后继续审核；
 - `CONSTRAINT symbol UNIQUE` 与 SERIAL 由 §3.3d 的全路径 preflight 阻断，不能把 incomplete 误标为 complete；
-- 新通道的本期消费者白名单只有 `_iter_unique_indexes()`；任何新增消费者都必须单独评审；
+- 新通道的本期消费者白名单只有 `_iter_unique_indexes()`；不完整路径必须保留逐项可信的结构化
+  UNIQUE（尤其列级/裸 UNIQUE），再以 raw 补充并去重；任何新增消费者都必须单独评审；
 - 预期索引名按数据库隐式命名规则为列名，但 R061 不读取本通道，故不会新增命名误报；
 - A 报告的 5 个冻结用例、三个专项文件 71 项和 201+14 表规则漂移是原子准出门，不能用更新旧期望掩盖。
 
-### 3.3d 改动点 3d：KFN 必须覆盖原生 Create / Command / except 三条路径（BLOCK-14-02）
+### 3.3d 改动点 3d：KFN 覆盖三路径且不受未知邻项拖累（BLOCK-14-02 / BLOCK-15-01）
 
 Rev.O 只在 RecoveryPlan 内拒绝 KFN，原生 `Create` 根本不会调用规划器。Rev.P 将 definition scanner
 提升为 source preflight 的共同真源：在调用 sqlglot 之前先词法化完整 `CREATE TABLE`，提取 KFN；
 普通注释、字符串与反引号标识符已由 tokenizer 隔离，不得用 raw 正则搜索关键字。
+
+Rev.Q 修正 Rev.P 的全有或全无错误：strict `_scan_definition_list()` 仍负责回答“全表是否完整理解”，
+但不再负责 KFN 是否可见。`_top_level_definition_ranges()` 只按顶层逗号/括号深度切项，随后
+`_definition_item_kfns()` 对每项独立证明 KFN；某个 FOREIGN KEY/CHECK 等项不在白名单，只会让
+`unique_source_definitions_complete=False`，不能清空其他项已经证明的 KFN。两份结果由一次
+`_preflight_create_definition_status()` 同时返回，`parse()` 不重复 tokenize。
 
 `_scan_definition_list()` 对具名 UNIQUE 不再返回不可区分的 `None`，而是完整消费并形成 constraint
 shape；`_definition_kfns()` 为其登记 `KFN-6-CONSTRAINT-UNIQUE`。它仍不是恢复目标：候选门禁拒绝，
@@ -3608,22 +3708,107 @@ def _strip_terminal_semicolon(toks):
 
 <!-- BEGIN CODE: SOURCE-PREFLIGHT-AFTER -->
 ```python
-def _preflight_known_fidelity_failures(sql: str, dialect: str = "mysql"):
-    """从原始 token 结构提取全路径 KFN；不是合法性黑名单正则。"""
+def _top_level_definition_ranges(toks, open_idx: int, close_idx: int):
+    """切分 CREATE TABLE 顶层定义项；不解释定义内容。"""
+    ranges = []
+    start = open_idx + 1
+    depth = 0
+    for i in range(start, close_idx):
+        token_type = toks[i].token_type
+        if token_type == TokenType.L_PAREN:
+            depth += 1
+        elif token_type == TokenType.R_PAREN:
+            if depth == 0:
+                return None
+            depth -= 1
+        elif token_type == TokenType.COMMA and depth == 0:
+            if start >= i:
+                return None
+            ranges.append((start, i))
+            start = i + 1
+    if depth != 0 or start >= close_idx:
+        return None
+    ranges.append((start, close_idx))
+    return tuple(ranges)
+
+
+def _definition_item_kfns(toks, start: int, stop: int):
+    """从一个顶层定义项提取可证明的 KFN，不要求完整消费邻接定义项。"""
+    if start >= stop:
+        return ()
+    found = []
+
+    # `[CONSTRAINT [symbol]] PRIMARY/UNIQUE ...`：这里只判定约束头；
+    # CONSTRAINT UNIQUE 整族已由 ADJ-11 冻结为 KFN，不需要先完整理解其尾部。
+    if toks[start].token_type == TokenType.CONSTRAINT:
+        i = start + 1
+        symbol = ""
+        if i < stop and toks[i].token_type in _IDENT_TOKENS:
+            symbol = _ident_text(toks[i])
+            i += 1
+        kind = _index_lead(toks, i, stop)
+        if kind == "UNIQUE":
+            found.append("KFN-6-CONSTRAINT-UNIQUE")
+        elif kind == "PRIMARY" and not symbol:
+            found.append("KFN-4-CONSTRAINT-PRIMARY-NO-SYMBOL")
+        return tuple(sorted(set(found)))
+
+    # 列定义：类型产生式本身即可证明 SERIAL / SIGNED / BINARY 等 KFN。
+    # `SERIAL DEFAULT VALUE` 只在列属性顶层识别；字符串是单 token，括号表达式
+    # 由 depth 隔离。全程 O(n)，不得用逐前缀重解析把 preflight 放大为 O(n²)。
+    if toks[start].token_type in _IDENT_TOKENS:
+        j, type_shape = _consume_data_type(toks, start + 1, stop)
+        if j >= 0 and type_shape is not None:
+            found.extend(type_shape[4] or ())
+            depth = 0
+            k = j
+            while k < stop:
+                token_type = toks[k].token_type
+                if token_type == TokenType.L_PAREN:
+                    depth += 1
+                elif token_type == TokenType.R_PAREN:
+                    if depth == 0:
+                        break
+                    depth -= 1
+                elif (depth == 0 and _is_bare_kw(toks[k], "SERIAL")
+                      and k + 2 < stop
+                      and toks[k + 1].token_type == TokenType.DEFAULT
+                      and _is_bare_kw(toks[k + 2], "VALUE")):
+                    found.append("KFN-5-SERIAL-DEFAULT-VALUE")
+                    k += 3
+                    continue
+                k += 1
+    return tuple(sorted(set(found)))
+
+
+def _preflight_create_definition_status(sql: str, dialect: str = "mysql"):
+    """一次词法化同时返回 `(逐项 KFN, 定义列表完整性)`。"""
     try:
         toks = sqlglot.Dialect.get_or_raise(dialect).tokenizer_class().tokenize(sql)
     except Exception:
-        return ()
+        return (), False
     toks = _strip_terminal_semicolon(toks)
     if toks is None:
-        return ()
+        return (), False
     open_idx, close_idx, _table_name, _head = _tdsql_table_def_bounds(toks)
     if open_idx < 0:
-        return ()
+        return (), False
+    ranges = _top_level_definition_ranges(toks, open_idx, close_idx)
+    if ranges is None:
+        return (), False
+
+    # KFN 与 strict scanner 的全表成功/失败解耦：任何一个未知伴生项都不得
+    # 清空其他项已经证明的 KFN。
+    known = []
+    for start, stop in ranges:
+        known.extend(_definition_item_kfns(toks, start, stop))
     defs, _primary, _auxiliary = _scan_definition_list(toks, open_idx, close_idx)
-    if defs is None:
-        return ()
-    return _definition_kfns(defs)
+    return tuple(sorted(set(known))), defs is not None
+
+
+def _preflight_known_fidelity_failures(sql: str, dialect: str = "mysql"):
+    """兼容测试/诊断入口；产品 parse() 使用同一 status 函数，避免重复词法化。"""
+    return _preflight_create_definition_status(sql, dialect)[0]
 
 
 def _strip_terminal_semicolon(toks):
@@ -3643,9 +3828,11 @@ KFN 写成稳定 `parse_error`，使 Checker 必然生成 E999。原生 Create �
 
 <!-- BEGIN CODE: PARSE-PREFLIGHT-AFTER -->
 ```python
-        # Rev.P / BLOCK-14-02：KFN 必须覆盖原生 Create、Command 与 except 三条路径。
-        parsed.known_fidelity_failures = _preflight_known_fidelity_failures(
-            sql_recover, self.dialect)
+        # Rev.Q：KFN 与全表定义完整性同源但不互相吞没；只词法化一次。
+        (parsed.known_fidelity_failures,
+         parsed.unique_source_definitions_complete) = (
+            _preflight_create_definition_status(sql_recover, self.dialect)
+        )
 
         # 尝试解析SQL
         try:
@@ -3734,7 +3921,7 @@ sqlglot==30.14.0
 | 2 | `parse()` 的 `except` 分支 | 两阶段受限重试 + **联合 span 门禁** |
 | 3 | `_parse_index_constraint()` | 类型判据改读 `kind` 白名单映射 |
 | **3c** | `ParsedSQL` + `_parse_create()` + UNIQUE helpers | 列级与表级 UNIQUE 进入隔离 `unique_constraints` 通道；legacy `indexes/index_definitions` 输出域不变；完整性显式标记 |
-| **3c-R054** | `distributed.py::_iter_unique_indexes()` | 本期唯一规则层行为改动：R054 优先消费完整隔离通道，不完整路径才走既有 raw 回退；R077 类不变 |
+| **3c-R054** | `distributed.py::_iter_unique_indexes()` | 本期唯一规则层行为改动：R054 总是消费逐项可信结构；不完整路径追加既有 raw 回退并去重；R077 类不变 |
 | **3d** | source preflight / RecoveryPlan / candidate gate / parse finalize | KFN 编号覆盖原生 Create、Command、except 三路径，最终必须有 E999 |
 | **3e** | `requirements.txt` / `pyproject.toml` | 两处均精确锁定 `sqlglot==30.14.0`，runner 再断言实际运行版本 |
 
@@ -3757,12 +3944,12 @@ sqlglot）。fixture 已在 Rev.C 修正。**
 
 | 项 | 基线 | 目标 | 变化 |
 |---|---:|---:|---:|
-| 文件行数 | 849 | 2884 | +2035 |
-| 模块级函数/类 | 2 | 51 | +49 |
+| 文件行数 | 849 | 2983 | +2134 |
+| 模块级函数/类 | 2 | 54 | +52 |
 | 模块级常量 | 1 | 34 | +33 |
-| diff 行 | —— | —— | +2109 / -74 |
+| diff 行 | —— | —— | +2208 / -74 |
 
-**新增函数（49 个）**
+**新增函数（52 个）**
 
 | 函数 | 起始行 | 行数 |
 |---|---:|---:|
@@ -3802,19 +3989,22 @@ sqlglot）。fixture 已在 Rev.C 修正。**
 | `_validate_executable_comments` | 1396 | 23 |
 | `_scan_definition_list` | 1421 | 49 |
 | `_definition_kfns` | 1472 | 22 |
-| `_preflight_known_fidelity_failures` | 1496 | 16 |
-| `_strip_terminal_semicolon` | 1514 | 9 |
-| `_plan_recovery` | 1525 | 64 |
-| `_same_table_name` | 1591 | 12 |
-| `_blank_spans` | 1605 | 12 |
-| `_canonical_default_from_sql` | 1640 | 14 |
-| `_ast_column_shape` | 1656 | 29 |
-| `_ast_index_using` | 1687 | 25 |
-| `_ast_index_shape` | 1714 | 34 |
-| `_tail_comparable` | 1760 | 24 |
-| `_ast_head_shape` | 1786 | 14 |
-| `_ast_tail_shape` | 1806 | 36 |
-| `_validate_recovery_candidate` | 1844 | 92 |
+| `_top_level_definition_ranges` | 1496 | 22 |
+| `_definition_item_kfns` | 1520 | 47 |
+| `_preflight_create_definition_status` | 1569 | 23 |
+| `_preflight_known_fidelity_failures` | 1594 | 3 |
+| `_strip_terminal_semicolon` | 1599 | 9 |
+| `_plan_recovery` | 1610 | 64 |
+| `_same_table_name` | 1676 | 12 |
+| `_blank_spans` | 1690 | 12 |
+| `_canonical_default_from_sql` | 1725 | 14 |
+| `_ast_column_shape` | 1741 | 29 |
+| `_ast_index_using` | 1772 | 25 |
+| `_ast_index_shape` | 1799 | 34 |
+| `_tail_comparable` | 1845 | 24 |
+| `_ast_head_shape` | 1871 | 14 |
+| `_ast_tail_shape` | 1891 | 36 |
+| `_validate_recovery_candidate` | 1929 | 92 |
 
 **删除函数（0 个）**：无
 
@@ -3822,8 +4012,8 @@ sqlglot）。fixture 已在 Rev.C 修正。**
 
 | 函数 | 基线行数 | 目标行数 |
 |---|---:|---:|
-| `class ParsedSQL` | 72 | 77 |
-| `class SQLParser` | 744 | 867 |
+| `class ParsedSQL` | 72 | 80 |
+| `class SQLParser` | 744 | 878 |
 
 **唯一性检查**
 
@@ -5321,7 +5511,7 @@ oracle = {
 - 自动生成正文使用唯一 BEGIN/END marker，marker 在全文出现次数必须恰好为 1，区段内容精确相等；
 - collect 公式固定为 `len(CASES) + len(MUTATION_SUITES) + 1 fuzz item`，变异内部 assertion 数只作独立统计。
 
-### 5.32 第十四轮整改机制（Rev.P 当前规范）
+### 5.32 第十四轮整改机制（Rev.P 历史规范；Rev.Q 增量见 §5.33）
 
 #### 5.32.1 UNIQUE 的“两域一真源”
 
@@ -5332,7 +5522,7 @@ oracle = {
 | 路径 | `unique_constraints_complete` | R054 来源 | R077 来源 |
 |---|---:|---|---|
 | 原生或恢复后的完整 `exp.Create` | `True` | `unique_constraints`，禁止 raw 混入 | legacy `indexes` + 既有 raw，行为冻结 |
-| `Command` / parse error / 未完整提取 | `False` | 既有 `_UNIQUE_IDX_RE` 回退 | 完全沿用既有行为 |
+| `Command` / parse error / 未完整提取 | `False` | 逐项可信 `unique_constraints` + `_UNIQUE_IDX_RE` 补充，按名/列去重 | 完全沿用既有行为 |
 | KFN-5/KFN-6 | `False` | 不把不完整语义冒充完整；E999 阻断 | 行为不作为放行依据 |
 
 双列表重复插入被禁止：任何 UNIQUE 出现在 `indexes/index_definitions` 都是测试失败；任何支持域
@@ -5372,6 +5562,62 @@ manifest 与正文生成区段。implementation 模式也必须实现，但在�
 状态 `NOT_IMPLEMENTED` 并非零退出；施工提交上才要求全绿。任何让 implementation 模式重新应用
 设计补丁的做法都属于验错对象。
 
+### 5.33 第十五轮整改机制（Rev.Q 当前规范）
+
+#### 5.33.1 发生原因
+
+Rev.P 把 `_scan_definition_list(...) is None` 转成空 KFN 元组，又只用
+`not _unique_semantics_failed and not known_fidelity_failures` 计算 complete。于是“扫描器看不懂
+某个伴生定义”同时伪装成“没有 KFN”和“UNIQUE 已完整遍历”。`exp.Constraint` 等未列入 AST 分支的
+节点又静默落空，三项叠加才形成 `complete=True → raw 回退提前关闭 → R054 静默漏审`。
+
+Rev.Q 第一次闭合后又做支持域反向审计，发现“complete=False 时只读 raw”仍不充分：既有 raw 正则
+只识别 `UNIQUE KEY/INDEX`，不识别本期已支持的列级 `col TYPE UNIQUE [KEY]` 和表级裸
+`UNIQUE name(cols)`。因此 complete 是“是否还需要补充 raw”的开关，不是“是否信任所有已提取
+结构”的开关；每个成功进入 `unique_constraints` 的条目都已由严格 helper 单独证明，可在不完整
+路径继续消费。
+
+#### 5.33.2 处理机制与数据流
+
+| 阶段 | 输出 | 失败语义 |
+|---|---|---|
+| 顶层切项 | `((start, stop), …)` | 括号/空项异常：KFN 空、source complete=False，后续 sqlglot 决定 E999 |
+| 逐项 KFN | 稳定去重的 KFN tuple | 只输出可由 token 结构证明的 KFN；未知项输出空，不影响其他项 |
+| strict 全表扫描 | `source_complete: bool` | `False` 只表示不能证明 UNIQUE 闭世界，不代表 SQL 非法 |
+| AST UNIQUE 遍历 | `unique_constraints`、`ast_incomplete`、`semantics_failed` | 未知顶层节点只置前者；看见 UNIQUE 但无法表达置后者并 E999 |
+| R054 消费 | structured + 可选 raw | 结构化逐项事实始终消费；仅四个完整性条件全真时禁 raw，否则追加 `_UNIQUE_IDX_RE` 并按规范名/列集合去重 |
+
+最终公式固定为：
+
+```python
+parsed.unique_constraints_complete = (
+    parsed.unique_source_definitions_complete
+    and not _unique_ast_incomplete
+    and not _unique_semantics_failed
+    and not parsed.known_fidelity_failures
+)
+```
+
+不得用 `defs is None → KFN-PREFLIGHT-UNSCANNABLE` 的整句黑名单替代该公式；第十五轮已证明它会给
+5 条非目标语料新增 E999。也不得仅补 `exp.Constraint`：那只能恢复 4 条净回归，仍保留 33/65 KFN
+泄漏。两半必须原子施工并由 stable marker、矩阵和目标 hash 一起校验。
+
+#### 5.33.3 复杂度与误命中护栏
+
+- 顶层切项和逐项 KFN 都是线性扫描，总复杂度 O(token 数)，额外空间 O(definition 数 + KFN 数)；
+- `CONSTRAINT UNIQUE` 只在 definition 首 token 为 `CONSTRAINT`、越过可选 symbol 后的约束头识别；
+- `SERIAL/SIGNED/BINARY` 来自 `_consume_data_type()` 的结构化 type shape；
+- `SERIAL DEFAULT VALUE` 只在列属性顶层、精确三 token 序列识别，括号深度隔离表达式，字符串本身
+  是单 token；禁止 `in raw_sql` 或逐前缀 O(n²) 重解析；
+- 发布 pin 当前对 SIGNED/BINARY 的 ParseError 不算通过依据；测试必须先直接断言 preflight KFN。
+
+#### 5.33.4 施工最小可达域
+
+产品目标仍只涉及 `parser_legacy.py` 的 source preflight、ParsedSQL 内部字段和 `_parse_create()`
+完整性接线，以及 Rev.P 已批准的 R054 专属读取点。R077/R061 及 legacy index 域、恢复规划器的
+语法支持白名单、其余 118 条规则判据均不扩展。ADJ-14 中的伴生结构只作为“未完整理解”测试输入，
+本期不宣称恢复支持，也不修改其合法性判据。
+
 ## 6. 与既有缺陷的交互 / ADJ 台账
 
 ### 6.1 ADJ-5 在 Rev.P 中的收敛边界
@@ -5407,6 +5653,7 @@ Rev.P 不让 UNIQUE 进入 legacy `parsed.indexes`，而把支持域切成两个
 | **ADJ-11** | **`CONSTRAINT c UNIQUE (col)` 形态的唯一索引完全不可见** | 🔒 用户决定本期不扩支持；Rev.P 以全路径 KFN-6 + E999 阻断，不再只依赖恢复规划器。以后若扩支持，必须补 ParsedSQL/R054 端到端语义 |
 | **ADJ-13** | **R077 只把 `TDSQL_DISTRIBUTED BY HASH` 认作分片键声明，`RANGE` / `LIST` 未纳入**，导致这两类分片表被判「未声明分片键」。实测基线上同一张表（无 UNIQUE COMMENT）同样命中 R077，属 **v1.6.1.9 既有口径**，与本次改动无关 | 🆕 **本次登记，不修**（超出本次范围，且涉及 v1.6.1.9 冻结代码） |
 | **ADJ-12** | E999 文案"可能是拉取截断/语法错误"对合法 MySQL 有误导 | 🆕 **本次登记，不修**（NG-9） |
+| **ADJ-14** | strict definition scanner 尚未覆盖 FOREIGN KEY、CHECK、GENERATED、VISIBLE/INVISIBLE、KEY_BLOCK_SIZE、函数索引、列级 REFERENCES/SRID 等伴生结构；其中哪些属于目标 TDSQL 版本的支持域，后续必须逐条以 TDSQL 官方语法或目标实例复核 | 🆕 **本次登记，不扩恢复支持**；Rev.Q 只映射为 complete=False，R054 合并逐项结构与 raw 补充，不自动判非法、不凭空制造 E999 |
 | R036 只认两个字面名 | 🔒 用户决策：维持现状 |
 | 字段级字符集检查 | 🔒 用户决策：本次不纳入（NG-7） |
 
@@ -5564,16 +5811,26 @@ contract              断言 sqlglot AST 契约；上游升级破坏该假设时
 | **R14-KFN-DECOY** | 3 | KFN 字面量/标识符反向鉴别 | pos×3 |
 | **合计** | **13** | —— | pos×6  pos_known×6  fail_closed×1 |
 
+**§7.1g R15 组（第十五轮 BLOCK-15-01）**
+
+| 子组 | 例数 | 说明 | 分类构成 |
+|---|---:|---|---|
+| **R15-KFN** | 65 | 逐定义 KFN × 13 种伴生结构（BLOCK-15-01） | kfn_guard×65 |
+| **R15-CH** | 91 | 7 种支持域 UNIQUE × 13 种伴生结构（BLOCK-15-01） | channel_guard×91 |
+| **合计** | **156** | —— | kfn_guard×65  channel_guard×91 |
+
 **全局计数（唯一真源）**
 
 | 项 | 值 |
 |---|---:|
-| manifest 用例总数 | **514** |
+| manifest 用例总数 | **670** |
 | 其中 `pos` | 269 |
 | 其中 `neg` | 179 |
 | 其中 `pos_known` | 32 |
 | 其中 `unsupported_unproven` | 16 |
 | 其中 `fail_closed` | 1 |
+| 其中 `kfn_guard` | 65 |
+| 其中 `channel_guard` | 91 |
 | 其中 `characterization` | 1 |
 | 其中 `ruleset` | 2 |
 | 其中 `spans` | 13 |
@@ -5581,7 +5838,7 @@ contract              断言 sqlglot AST 契约；上游升级破坏该假设时
 | 变异门禁：套数 | **9** |
 | 变异门禁：逐条断言数（每套 = 1 个正确候选 + N 个变异候选） | **53** |
 | 模糊测试（seed=20260826，整体计 1 个 pytest item） | **6000** 条输入 |
-| **`pytest --collect-only -q` 应收集** | **524** = 用例 514 + 变异套 9 + 模糊 1 |
+| **`pytest --collect-only -q` 应收集** | **680** = 用例 670 + 变异套 9 + 模糊 1 |
 
 > **三个口径不要混用**（第十二轮 MINOR-12-01）：`用例数` 是逐条 SQL；
 > `逐条断言数` 是变异测试内部的 `assert` 次数；`collect 数` 是 pytest item 数——
@@ -5592,6 +5849,7 @@ contract              断言 sqlglot AST 契约；上游升级破坏该假设时
 | provenance | 例数 |
 |---|---:|
 | `OFFICIAL` | 276 |
+| `REVIEW_15` | 156 |
 | `CORPUS` | 69 |
 | `REVIEW_12` | 47 |
 | `REVIEW_11` | 42 |
@@ -5749,7 +6007,7 @@ contract              断言 sqlglot AST 契约；上游升级破坏该假设时
 | **M-8** | **FULLTEXT/SPATIAL 入口一致（MAJOR-11-01）**：`_is_index_item()` 与 `_consume_index_definition()` 共用 `_index_lead()`；裸 `FULLTEXT (a)` / `SPATIAL (g)` 必须恢复；`` `fulltext` `` / `` `spatial` `` 反引号列名必须仍走列定义消费器 |
 | **M-9** | **capability profile（MAJOR-11-02）**：每条 SQL 完整匹配单一 profile，禁止跨 profile 拼接；`NEW_SECONDARY`（`TDSQL_PARTITION BY`）登记于 `_TAIL_PROFILES_UNPROVEN` 且**不参与匹配**，对应用例按 `unsupported_unproven` 断言失败关闭 |
 | **M-10** | **规模数字自动生成**：§3.4 的行数、函数清单、唯一性检查由 `python docs/evidence/v1.6.2.2/codestat.py <固定基线> <目标>` 生成；唯一性检查必须报告模块级函数/常量无重复定义 |
-| **M-11** | **照图施工可复现**：design 模式从不可变 baseline blob 应用 Rev.P 全部 stable-id 施工块，得到唯一目标；以四文件 bundle 的 `normalized_utf8_sha256` 校验，不再声称跨平台“文件逐字节相同” |
+| **M-11** | **照图施工可复现**：design 模式从不可变 baseline blob 应用 Rev.Q 全部 stable-id 施工块，得到唯一目标；以四文件 bundle 的 `normalized_utf8_sha256` 校验，不再声称跨平台“文件逐字节相同” |
 | **M-12** | **三版一致**：manifest 全量（用例 + 变异 + 模糊）在 **sqlglot 29.0.0 / 30.14.0 / 30.17.0** 上结果逐条一致 |
 | **N-1** | **Rev.O 已升级位置模型**：`_collect_executable_comments(sql,toks)` 返回原始字符 span + `left_idx/right_idx`；仅完整 atom 边界可合并，owner token 不再作为真源。R12-EC 与 R13-EC 全部走真实 `SQLParser.parse()` |
 | **N-2** | **语句终止符（BLOCK-12-02）**：`_plan_recovery()` / `_blank_spans()` / `_spans_only_diff()` 三处调用点全部接收 `sql.strip()`（**未删分号**）；0/1 个分号恢复，≥2 个、分号后接第二条语句端到端**不得恢复**；`grep` 确认恢复链不再引用 `sql_clean` |
@@ -5771,15 +6029,20 @@ contract              断言 sqlglot AST 契约；上游升级破坏该假设时
 | **O-6** | **证据工程**：默认 CP936/PowerShell 命令不因 Unicode 输出失败；design/implementation 两模式均可复现；30.14.0 pin 三重断言；三版隔离矩阵可运行 |
 | **O-7** | **证据无静默退化**：mutation parse error 不得 continue；生成 marker 唯一且精确；collect 公式正确；KFN 必须 plan 可达并核对编号 |
 | **O-8** | **开发准出顺序**：先 design 模式复现期望目标，再施工，再 implementation 模式验证当前提交，最后跑专项、全量、verify_rules、两份生产 fixture 与全语料漂移；任一步失败不得进入发布 |
-| **P-1** | **隔离通道完整性**：`unique_constraints_complete=True` 才允许 R054 只读结构化通道；完整路径中 raw 不得混入，不完整路径保留既有 raw 回退；UNIQUE 不得出现在 legacy 列表 |
+| **P-1** | **隔离通道完整性**：`unique_constraints_complete=True` 时 R054 只读结构化通道；完整路径 raw 不得混入，不完整路径合并逐项结构与 raw 补充并去重；UNIQUE 不得出现在 legacy 列表 |
 | **P-2** | **R077 冻结**：`distributed.py` 的 diff 只能落在 `_iter_unique_indexes()`；R077 类、正则、OR 判定逐字/哈希保持 baseline，五项冻结测试与全规则差分零漂移 |
 | **P-3** | **全路径 KFN**：CONSTRAINT UNIQUE=KFN-6、SERIAL=KFN-5；native Create、Command、except 三路最终均有 E999，且字面量/标识符 decoy 不误命中 |
 | **P-4** | **设计证据真实可执行**：stable-id 必须全部且只被消费一次；从固定四文件 blob 重建；bundle/hash/pin/生成区段/三版 manifest/发布版专项与全量全部非零即阻断 |
 | **P-5** | **实施态不伪绿**：产品尚未施工时 `--mode implementation --matrix` 必须返回 3 并输出 `STATUS NOT_IMPLEMENTED`；施工后才允许进入与 design 相同的语义矩阵及准出链 |
+| **Q-1** | **逐项 KFN 不泄漏**：13 类伴生定义 × 5 类 KFN 共 65 条，必须直接断言 preflight 精确编号、complete=False、最终 E999；不得依赖 sqlglot 当前 ParseError |
+| **Q-2** | **完整性不 fail-open**：7 种支持域 UNIQUE × 13 类伴生定义共 91 条；无伴生项 complete=True，其余 complete=False；违规项由逐项结构/raw 或 E999 覆盖，含分片键前缀索引不得因 raw 截断产生假 R054 |
+| **Q-3** | **未知不等于非法**：scanner/AST 未覆盖项只置 source/AST incomplete，不得写 `UNIQUE_SEMANTICS_INCOMPLETE`；只有 KFN 或已看见但无法表达的 UNIQUE 才 E999 |
+| **Q-4** | **线性且单次预检**：`parse()` 每条 SQL 只调用一次 status helper；逐项 KFN O(n)，代码中不得出现按 `cut` 逐前缀重解析的 O(n²) 循环 |
+| **Q-5** | **TDSQL 证据边界**：R15 伴生样本只证明组合安全性，不自动宣称全部属于目标 TDSQL 支持域；未来扩白名单须逐项引用 TDSQL 官方语法或目标实例证据 |
 
-### 7.4 证据面资产与复现命令（Rev.P 双模式）
+### 7.4 证据面资产与复现命令（Rev.Q 双模式）
 
-Rev.N 资产已在本版原目录、原文件名上升级为 Rev.P，未复制第二套真源。设计评审以 design 模式
+Rev.P 资产已在本版原目录、原文件名上升级为 Rev.Q，未复制第二套真源。设计评审以 design 模式
 复现目标；产品施工完成后以 implementation 模式验证当前提交。两者验证对象不同，不能互相替代。
 
 #### 7.4.1 评审设计模式
@@ -5791,7 +6054,7 @@ python docs/evidence/v1.6.2.2/run_all.py --mode design --matrix
 design 模式必须：
 
 1. 从文档登记的不可变 baseline commit/blob 读取 parser，不读取调用时工作树 parser 作前镜像；
-2. 在临时目录应用 Rev.P 明示的全部 stable-id 动作；每个 before 锚点出现次数恰好为 1，未知或漏消费 marker 立即失败；
+2. 在临时目录应用 Rev.Q 明示的全部 stable-id 动作；每个 before 锚点出现次数恰好为 1，未知或漏消费 marker 立即失败；
 3. 计算并核对四个目标文件的规范化哈希与 bundle `design_bundle_normalized_sha256`；
 4. 校验 `requirements.txt`/`pyproject.toml` 的目标 pin，并在隔离环境运行三版矩阵；
 5. 执行 manifest、mutation、fuzz、生成区段精确比对和静态唯一性检查；
@@ -5810,9 +6073,9 @@ implementation 模式必须直接读取**当前提交**的 parser 与依赖声�
 
 #### 7.4.3 资产职责
 
-| 文件 | Rev.P 职责 |
+| 文件 | Rev.Q 职责 |
 |---|---|
-| `parser_recovery_manifest.py` | 唯一 case + oracle + expected_by_version；修订三条旧期望并新增 R14 四组 |
+| `parser_recovery_manifest.py` | 唯一 case + oracle + expected_by_version；保留 R14 四组并新增 R15 的 65+13 组合矩阵 |
 | `test_parser_recovery_manifest.py` | 通用 oracle 执行器；无 cid 特判；mutation parse error 不得静默跳过 |
 | `manifest_doc.py` | 生成并精确替换唯一 marker 区段；同时输出 cases/suites/assertions/collect 四种计数 |
 | `codestat.py` | 读取固定 baseline 与 design/implementation 目标，生成规模和重复定义检查 |
@@ -5826,20 +6089,20 @@ implementation 模式必须直接读取**当前提交**的 parser 与依赖声�
 - mutation assertions 单独统计；候选不可解析要么失败，要么是 manifest 明示分类；
 - 发布 pin 30.14.0 的所有 oracle 必须全绿；29.0.0/30.17.0 如有差异必须由
   `expected_by_version` 明示理由，禁止测试代码 `continue`；
-- Rev.P 首次运行后，把真实 cases/suites/assertions/collect 数和三版结果写回唯一自动生成区段；
+- Rev.Q 首次运行后，把真实 cases/suites/assertions/collect 数和三版结果写回唯一自动生成区段；
 - 全量 passed/skipped 数只记录本次输出，不成为跨环境固定门槛；失败必须为 0。
 
-#### 7.4.5 Rev.P 本次设计态实测（2026-08-27）
+#### 7.4.5 Rev.Q 本次设计态实测（2026-08-27）
 
 | 检查 | 实测结果 |
 |---|---|
-| design 三版 manifest | 29.0.0 / 30.14.0 / 30.17.0 各 `524 passed` |
+| design 三版 manifest | 29.0.0 / 30.14.0 / 30.17.0 各 `680 passed` |
 | 发布 pin 冻结专项 | `71 passed`（R077/R054、方言 fallback、R061） |
-| 发布 pin 全量 | `1384 passed`，0 failed |
+| 发布 pin 全量 | `1384 passed / 0 skipped / 0 failed`（Rev.Q 本机 runner 原样输出；不同环境分布不作硬门槛） |
 | 生成与身份 | manifest 区段、codestat 区段、bundle hash 全部一致 |
 | implementation 施工前状态 | `STATUS NOT_IMPLEMENTED`，退出码 3，current bundle 与 design bundle 不同 |
 
-本表证明 Rev.P 设计目标可机械重建且没有破坏现有测试；它不替代产品施工后必须再次执行的
+本表证明 Rev.Q 设计目标可机械重建且没有破坏现有测试；它不替代产品施工后必须再次执行的
 implementation、fixture、verify_rules 与全语料漂移证据。
 
 ## 8. 风险与回滚
@@ -5873,13 +6136,14 @@ implementation、fixture、verify_rules 与全语料漂移证据。
 
 ---
 
-## 9. Rev.P 施工检查单（逐项打勾）
+## 9. Rev.Q 施工检查单（逐项打勾）
 
 - [ ] **C-1 范围**：产品只改 parser、`distributed.py::_iter_unique_indexes()`、两份依赖声明和两份版本号；R077 类及其他规则文件零改动。证据资产在原 `docs/evidence/v1.6.2.2/` 升级，不新建第二套真源。
 - [ ] **C-2 Rev.N 基础机制**：删除 `_TDSQL_DIALECT_RE`，两条恢复入口统一 `_plan_recovery()`，`sql_recover` 保留真实终止分号，成功后同时重绑 `ast`/`parsed.ast`。
 - [ ] **C-3 R054 隔离供数**：新增 `unique_constraints` 与 `unique_constraints_complete`；列级/表级 UNIQUE 只进入隔离列表，混合顺序下逐项齐全；legacy `indexes/index_definitions` 的 UNIQUE 数始终为 0。
-- [ ] **C-4 支持域闭合**：CONSTRAINT UNIQUE 全路径 source preflight 命中 KFN-6；SERIAL 与 SERIAL DEFAULT VALUE 全路径命中 KFN-5；native Create、Command、except 最终均保留 E999。
-- [ ] **C-5 索引消费者**：R054 专属 `_iter_unique_indexes()` 是新通道唯一消费者；完整路径只读结构化 UNIQUE、不混 raw；不完整路径维持 raw 回退；R077/R061 及其他 legacy 消费者精确差分零漂移。
+- [ ] **C-4 支持域闭合**：CONSTRAINT UNIQUE 全路径 source preflight 命中 KFN-6；SERIAL 与 SERIAL DEFAULT VALUE 全路径命中 KFN-5；native Create、Command、except 最终均保留 E999；未知伴生定义不得清空这些 KFN。
+- [ ] **C-4a 完整性双信号**：`unique_source_definitions_complete`、`_unique_ast_incomplete`、`_unique_semantics_failed` 含义互斥清楚；91 条支持域 UNIQUE 组合覆盖违规命中与含分片键前缀索引不误报。
+- [ ] **C-5 索引消费者**：R054 专属 `_iter_unique_indexes()` 是新通道唯一消费者；完整路径只读结构化 UNIQUE、不混 raw；不完整路径先消费逐项结构，再追加 raw 并按规范名+列集合去重；R077/R061 及其他 legacy 消费者精确差分零漂移。
 - [ ] **C-6 类型产生式**：最长 3/2/1 token（含 token 文本自带空格）匹配；仅 TEXT/BLOB M 覆盖 65535 至 2^32−1，六种具名容量变体带参拒绝；TypeShape 含 family/KFN。
 - [ ] **C-7 列属性族**：`_consume_column_constraints(..., family)`；列/表级共用 `_charset_kw_end()`；非字符族 CHARACTER SET/COLLATE 全拒绝。
 - [ ] **C-8 可执行注释定位**：保存原始半开 span 与左右 token gap；不再以 owner_idx 判位置；终止分号之后的可执行注释拒绝。
@@ -6170,14 +6434,24 @@ implementation、fixture、verify_rules 与全语料漂移证据。
 | **A-188** | 按 Rev.O 把列级/表级 UNIQUE 写入 legacy `indexes/index_definitions` 后，5 项冻结测试失败且 7 条规则结果漂移；移除该供数后漂移消失 | BLOCK-14-01 因果链成立。不得收紧已冻结的 R077；必须用隔离 `unique_constraints` 通道，并只让 R054 专属助手消费 |
 | **A-189** | CONSTRAINT UNIQUE 在发布 pin 下可直接形成 native Create，旧 KFN 仅存在于 RecoveryPlan，故不会触发；Command 与 except 也存在无统一终结的路径 | BLOCK-14-02 成立。KFN-6/KFN-5 必须由 source preflight 覆盖三条控制流，并统一形成 E999 |
 | **A-190** | 从固定 commit 的 parser、distributed、requirements、pyproject 四个 blob 应用 Rev.P stable-id 块，重建 bundle 哈希为 `3cd8756a327f7c18401fd174ebc19148bc01aea3110faafa12ba312db3914c38`，parser/distributed 均通过 `py_compile` | 证明设计块可机械施工，但不等于工作树产品已开发；完整准出仍以附录 C 的 design/implementation 分阶段命令为准 |
-| **A-191** | `run_all.py --mode design --matrix` 实跑：三版 manifest 各 524 passed，发布版冻结专项 71 passed、全量 1384 passed；manifest/codestat/hash 均一致。implementation 实跑返回 `NOT_IMPLEMENTED/3` | BLOCK-14-03 的设计态证据已落成实物；产品施工准出仍未完成，A 第十五轮只能评审方案，不得据此批准产品发布 |
+| **A-191** | `run_all.py --mode design --matrix` 实跑：三版 manifest 各 524 passed，发布版冻结专项 71 passed、全量 **1355 passed / 29 skipped / 0 failed**；manifest/codestat/hash 均一致。implementation 实跑返回 `NOT_IMPLEMENTED/3` | BLOCK-14-03 的设计态证据已落成实物；原 Rev.P 把 29 skipped 合并写成 1384 passed，Rev.Q 已按 runner 原输出更正；产品施工准出仍未完成 |
 | **A-192** | Rev.P 收尾审计发现列级 helper 原先无法区分“无 UNIQUE”和“看见但无法表达”；重复 `UNIQUE UNIQUE` 在 29.0.0 与 30.x 的 AST 形态不同，旧草案会在 29.0.0 误标 complete | helper 改为三态，异常结构统一 `UNIQUE_SEMANTICS_INCOMPLETE` + E999；R14-UQ-04 三版通过，证明完整性标记不再依赖单一 sqlglot AST 形态 |
+
+### A.16 Rev.Q 设计阶段独立复现与证据义务（第十五轮整改）
+
+| 编号 | 独立复现 / 设计证据 | Rev.Q 结论 |
+|---|---|---|
+| **A-193** | Rev.P 目标树复现 A/B/C/D：A 命中 KFN-6/E999；B/C/D 因一个 FOREIGN KEY/CHECK 让 strict scanner 整体返回 None，最终 `known_kfn=()`、`complete=True`、R054/E999 同时缺失 | BLOCK-15-01 成立，是相对基线的核心规则净回归；必须同时修 KFN 可达性和 complete 可信度 |
+| **A-194** | 65 条“13 类伴生定义 × 5 类 KFN”逐项探针；Rev.Q 直接断言 preflight 精确编号，而不是借 sqlglot 的 SIGNED/BINARY ParseError 过关 | 逐定义项 KFN 已与未知邻项解耦；65 条全部 complete=False 且最终 E999 |
+| **A-195** | 91 条支持域矩阵：13 类伴生定义 × 5 种基本 UNIQUE + 违规/合规前缀索引；直接断言 complete、迭代条目数/基列集合及 R054/E999 双向结论 | 不完整路径不能只靠 raw；结构覆盖列级/裸 UNIQUE，raw 补充 KEY/INDEX；前缀长度归一、合并去重后既不漏审也不产生假 R054 |
+| **A-196** | 逐项 KFN 实现改为单次线性扫描；`parse()` 一次 status 调用同时取得 KFN/完整性；无逐前缀重解析 | 不在第十五轮已登记的 18%～22% preflight 成本上再引入 O(n²) 放大；未来 token 流复用仍为非阻断性能优化 |
+| **A-197** | Rev.Q design runner、三版矩阵、冻结专项、全量、生成区段、bundle hash 与 implementation 施工前状态 | 实测值见 §7.4.5 与 C.4；这仍是设计态证据，不能冒充产品已经施工 |
 
 ---
 
-## 附录 C：Rev.P 证据资产契约
+## 附录 C：Rev.Q 证据资产契约
 
-Rev.P 已在**同一目录、同一文件名**上升级 Rev.N 证据资产，没有复制 `evidence_rev_p/` 等第二
+Rev.Q 已在**同一目录、同一文件名**上升级 Rev.P 证据资产，没有复制 `evidence_rev_q/` 等第二
 真源。本附录与 `docs/evidence/v1.6.2.2/README.md`、runner 共同定义设计态和实施态的验证对象。
 
 ### C.1 两条唯一命令
@@ -6201,9 +6475,9 @@ target_paths = backend/engine/parser/parser_legacy.py
                requirements.txt
                pyproject.toml
 release_sqlglot = 30.14.0
-design_bundle_normalized_sha256 = 3cd8756a327f7c18401fd174ebc19148bc01aea3110faafa12ba312db3914c38
-parser_normalized_utf8_sha256 = 185f43fcf835508f3ca0b52094cdf324cea4bb5b050df7fdade2aaed3219af9c
-distributed_normalized_utf8_sha256 = 5b1884bf0a08f44f2287375cec9a2e504b80ae80cb0fe4f04aedcf81701ad0f0
+design_bundle_normalized_sha256 = 6412e076871dcae15df8889c746819fc312729d7a69e9c4513334fdb274dfe89
+parser_normalized_utf8_sha256 = ab1843e2d6c5a21fe39a5013d9df18db248daf590547a7f0e2f19648a5cc4610
+distributed_normalized_utf8_sha256 = 46c2fb72f8fe704dac99648a903e1b4059208cb43b1b1fe3c2fe45f2738282ce
 requirements_normalized_utf8_sha256 = 36916e67bba0c05eaea18a64c80f63e82412b5233a3b9569a0293838d4c6a073
 pyproject_normalized_utf8_sha256 = 60785ef0b35ed49fd29d174530b8a6b380777473a948f0f9306f5be5ac3ec98b
 ```
@@ -6233,7 +6507,7 @@ runner 内的动作清单必须逐项固定，不允许按出现顺序猜测：
 | `REPLACE_PAIR` | `COMMAND-RETRY`、`EXCEPT-RETRY`、`INDEX-TYPE`、`SEMICOLON` 的 BEFORE/AFTER | 每个 before：施工前 1、施工后 0；after：施工后 1 |
 | `REPLACE_PAIR` | `PARSED-UNIQUE-FIELDS`、`TABLE-UNIQUE`、`COLUMN-UNIQUE-METHOD` 的 BEFORE/AFTER | 新字段与 helper 各唯一；表级只读 `exp.Schema`；UNIQUE 输出目的地为隔离通道 |
 | `REPLACE_PAIR` | `UNIQUE-INIT`、`COLUMN-UNIQUE-WIRE`、`TABLE-UNIQUE-WIRE`、`UNIQUE-COMPLETE` 的 BEFORE/AFTER | 初始化、列/表接线与完整性闭合各恰好一次；legacy 列表不接收 UNIQUE |
-| `REPLACE_PAIR` | `SOURCE-PREFLIGHT`、`PARSE-PREFLIGHT` 的 BEFORE/AFTER | source 词法预检位于所有解析路径之前；结果接入 ParsedSQL |
+| `REPLACE_PAIR` | `SOURCE-PREFLIGHT`、`PARSE-PREFLIGHT` 的 BEFORE/AFTER | source 词法预检位于所有解析路径之前；一次调用同时把逐项 KFN 与全表完整性接入 ParsedSQL |
 | `REPLACE_LAST_WITHIN_METHOD` | `PARSE-KFN-FINALIZE-BEFORE/AFTER`；限定 `SQLParser.parse()` 最后返回点 | 命中 KFN 时统一设置 E999；不得误替换其他方法同文片段 |
 | `ASSERT_CONTAINED` | `KFN-GATE-ASSERT-CONTAINED` | 该片段已包含在 `RECOVERY-MODULE-AFTER` 中，**只校验一次，不二次插入** |
 | `REPLACE_PAIR` | `R054-UNIQUE-ITER-BEFORE/AFTER`（目标为 `distributed.py`） | 仅 `_iter_unique_indexes()` 变化；完整隔离通道优先，不完整才走 legacy/raw；R077 类逐字不动 |
@@ -6243,18 +6517,18 @@ runner 内的动作清单必须逐项固定，不允许按出现顺序猜测：
 或漏消费均非零退出。这样在正文前增加示例代码不会改变施工结果，也不会把解释性 KFN 片段重复
 插入产品代码。
 
-### C.4 Rev.P 评审交接状态
+### C.4 Rev.Q 评审交接状态
 
 本次 Codex 只修订详细设计说明书与设计证据，**未改产品代码，也未把 design 目标冒充成已完成
-开发**。交付 A 第十五轮评审前，`--mode design --matrix` 已从固定四文件 blob 重建并实测通过：
-三版各 524 passed、发布版冻结专项 71 passed、全量 1384 passed。当前产品仍是施工前基线，
-`--mode implementation --matrix` 已按契约返回 `STATUS NOT_IMPLEMENTED`/退出码 3。A 通过后才进入产品施工；施工提交必须把 implementation
+开发**。交付 A 第十六轮评审前，`--mode design --matrix` 从固定四文件 blob 重建的应验结果为：
+三版各 680 passed、发布版冻结专项 71 passed、全量 1384 passed / 0 skipped / 0 failed。当前产品仍是施工前基线，
+`--mode implementation --matrix` 必须按契约返回 `STATUS NOT_IMPLEMENTED`/退出码 3。A 通过后才进入产品施工；施工提交必须把 implementation
 模式、专项、全量、规则覆盖、fixture 与语料漂移全部跑绿。
 
-## 附录 B：历史施工要点与 Rev.P 追加红线
+## 附录 B：历史施工要点与 Rev.Q 追加红线
 
 > 1~42 为 Rev.N 沿革记录；凡涉及 owner token、SERIAL 可恢复、证据单模式或旧路径/计数，
-> 已由 43~56 和正文 Rev.P 规范取代。施工者不得只读历史条目。
+> 已由 43~61 和正文 Rev.Q 规范取代。施工者不得只读历史条目。
 
 1. **本次不是"把正则改好"，是"把正则换掉"。** Rev.A 的 `_UNIQUE_IDX_COMMENT_RE` 必须**整体删除**，
    不要保留任何跨语义边界的正则改写（NG-0）。
@@ -6431,3 +6705,14 @@ runner 内的动作清单必须逐项固定，不允许按出现顺序猜测：
     产品文件。施工前返回 `NOT_IMPLEMENTED` 是正确拒绝，套用设计补丁后再称 implementation 全绿是自证循环。
 56. **空值不是一种语义。** UNIQUE helper 必须三态区分“未出现”“成功提取”“已出现但不完整”；
     最后一种必须 E999。还要覆盖 sqlglot 29 折叠到节点 `this`、30.x 拆成多节点的版本差异。
+57. **看不懂不能解释成“没有”。** strict scanner 任一项失败时，source complete 必须 False；
+    不能把 `defs=None` 转成“无 KFN、UNIQUE 已完整”的双重 fail-open。
+58. **KFN 按定义项证明。** 一个 FOREIGN KEY/CHECK 等未知邻项不能抹掉另一个定义项已经证明的
+    CONSTRAINT UNIQUE/SERIAL/SIGNED/BINARY；65 条笛卡尔矩阵必须直接断言 preflight 输出。
+59. **未知不等于非法，incomplete 也不等于丢弃结构。** source/AST 未覆盖只关闭 complete；
+    R054 先消费逐项可信结构，再以 raw 补充。只有具名 KFN 或已看见但无法表达的 UNIQUE 才制造
+    E999，禁止退回“全句不可扫描即 E999”的原型 A。
+60. **预检不能从 O(n) 退化成 O(n²)。** 不得为寻找 KFN 对每个 definition 前缀反复调用完整
+    consumer；一次 token 流、一次切项、一次线性逐项检查同时产出 KFN 与完整性。
+61. **组合安全测试不等于 TDSQL 合法性背书。** R15 中 scanner 未覆盖的伴生样本只验证隔离机制；
+    未来把任一形态加入恢复白名单前，必须引用目标 TDSQL 官方语法或目标实例证据。

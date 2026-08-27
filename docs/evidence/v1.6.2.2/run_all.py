@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""One-command Rev.P evidence runner with design and implementation modes."""
+"""One-command Rev.Q evidence runner with design and implementation modes."""
 from __future__ import annotations
 
 import argparse
@@ -135,7 +135,7 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
 
     failures: list[str] = []
-    temp = Path(tempfile.mkdtemp(prefix="v1622-revp-evidence-"))
+    temp = Path(tempfile.mkdtemp(prefix="v1622-revq-evidence-"))
     work = temp / "tree"
     try:
         doc = io.open(DESIGN, encoding="utf-8").read()

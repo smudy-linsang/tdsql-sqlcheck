@@ -17,6 +17,10 @@ klass        分类，决定判据：
                                    必须失败关闭，单独计入已知假阴性（KFN-A）
              unsupported_unproven  无 TDSQL/目标实例证据 → 必须失败关闭（KFN-B），
                                    既不冒充合法也不冒充非法
+             kfn_guard              只验证 KFN 与未知邻项的组合安全性；不对整句
+                                    伴生语法是否属于目标 TDSQL 支持域作合法性背书
+             channel_guard          UNIQUE 完整性通道防漏报：按 source 完整性选择
+                                    结构化真源或 raw/E999，最终不得漏掉 R054 风险
              characterization      用户已冻结的表征行为，锁定当前结论，不代表 TDSQL 合法
              ruleset               断言规则命中集合精确相等（生产 fixture 回放）
              spans                 断言剥离 span 的数量与越界字符数
@@ -29,6 +33,7 @@ prov         证据来源：
              SQLGLOT_LIMIT     sqlglot 自身能力边界（修复前后行为一致）
              USER_DECISION     用户冻结决策
              REVIEW_11         第十一轮复审报告 §4~§9 的反例
+             REVIEW_15         第十五轮复审 BLOCK-15-01 的组合反例
 note         一句话理由
 extra        判据参数（期望 span 数、期望规则集合、fixture 名、instance_type 等）
 """
@@ -994,6 +999,74 @@ for _label, _frag, _pk in [
         "CREATE TABLE t (%s, sk INT, PRIMARY KEY(%s)) ENGINE=InnoDB shardkey=sk" % (_frag, _pk),
         "pos", "REVIEW_14", "tokenizer 必须隔离字面量/标识符，preflight 不得误阻断",
         needs_recovery=False, kfn_absent=True)
+
+# ══════════════════════════════════════════════════════════════════════════
+# R15 组 —— 第十五轮 BLOCK-15-01：逐定义 KFN × UNIQUE 完整性双通道
+#
+# 13 种伴生结构 × 5 种 KFN = 65 条。KFN 必须按定义项提取，不能因为
+# 任意另一个定义项不在 strict scanner 白名单里就退化成空元组。
+# 同一批 13 种伴生结构再与 7 种本期支持域 UNIQUE 组合成 91 条，验证
+# “未知项只关闭 complete + 结构化逐项事实/raw 补充”，不得静默漏掉 R054。
+# ══════════════════════════════════════════════════════════════════════════
+_R15_COMPANIONS = [
+    ("无伴生项", ""),
+    ("FOREIGN KEY", "FOREIGN KEY (c) REFERENCES parent_t(c)"),
+    ("具名 FOREIGN KEY", "CONSTRAINT fk_c FOREIGN KEY (c) REFERENCES parent_t(c)"),
+    ("CHECK", "CHECK (c > 0)"),
+    ("具名 CHECK", "CONSTRAINT ck_c CHECK (c > 0)"),
+    ("KEY_BLOCK_SIZE", "KEY idx_c (c) KEY_BLOCK_SIZE=8"),
+    ("VISIBLE", "KEY idx_c (c) VISIBLE"),
+    ("INVISIBLE", "KEY idx_c (c) INVISIBLE"),
+    ("函数索引", "KEY idx_fun ((lower(v)))"),
+    ("GENERATED", "g INT GENERATED ALWAYS AS (c + 1) STORED"),
+    ("列级 CHECK", "g INT CHECK (g > 0)"),
+    ("列级 REFERENCES", "g INT REFERENCES parent_t(c)"),
+    ("SRID", "g GEOMETRY SRID 4326"),
+]
+_R15_KFNS = [
+    ("CONSTRAINT UNIQUE", "CONSTRAINT uq UNIQUE (c)",
+     "KFN-6-CONSTRAINT-UNIQUE"),
+    ("CONSTRAINT UNIQUE KEY", "CONSTRAINT uq UNIQUE KEY uk (c)",
+     "KFN-6-CONSTRAINT-UNIQUE"),
+    ("SERIAL", "x SERIAL", "KFN-5-SERIAL"),
+    ("SIGNED", "x INT SIGNED", "KFN-4-SIGNED"),
+    ("BINARY", "x VARCHAR(20) BINARY", "KFN-4-CHAR-BINARY"),
+]
+_R15_SUPPORTED_UNIQUES = [
+    ("列级 UNIQUE", "u INT UNIQUE", ("u",), True),
+    ("列级 UNIQUE KEY", "u INT UNIQUE KEY", ("u",), True),
+    ("表级裸 UNIQUE", "UNIQUE uk_c (c)", ("c",), True),
+    ("表级 UNIQUE KEY", "UNIQUE KEY uk_c (c)", ("c",), True),
+    ("表级 UNIQUE INDEX", "UNIQUE INDEX uk_c (c)", ("c",), True),
+    ("表级前缀 UNIQUE KEY", "UNIQUE KEY uk_c (`c` (10))", ("c",), True),
+    ("表级前缀 UNIQUE KEY 含分片键", "UNIQUE KEY uk_c (`sk`,`c` (10))", ("sk", "c"), False),
+]
+
+
+def _r15_sql(extra_defs):
+    defs = ["id INT NOT NULL", "sk INT NOT NULL", "c INT", "v VARCHAR(20)"]
+    defs.extend(x for x in extra_defs if x)
+    defs.append("PRIMARY KEY(id,sk)")
+    return "CREATE TABLE t (%s) ENGINE=InnoDB shardkey=sk" % ", ".join(defs)
+
+
+for _companion_label, _companion in _R15_COMPANIONS:
+    for _kfn_label, _kfn_def, _expected_kfn in _R15_KFNS:
+        add("R15-KFN", "%s × %s" % (_companion_label, _kfn_label),
+            _r15_sql((_companion, _kfn_def)), "kfn_guard", "REVIEW_15",
+            "逐定义 KFN 不得被未知/伴生定义项抹除；所有解析路径最终 E999",
+            kfn=_expected_kfn, e999=True, plan_required=False,
+            unique_complete=False)
+
+for _companion_label, _companion in _R15_COMPANIONS:
+    for (_unique_label, _unique_def, _unique_cols,
+         _expect_r054) in _R15_SUPPORTED_UNIQUES:
+        add("R15-CH", "%s × %s" % (_companion_label, _unique_label),
+            _r15_sql((_companion, _unique_def)),
+            "channel_guard", "REVIEW_15",
+            "strict scanner 不完整时保留逐项结构化 UNIQUE，并以 raw 补充",
+            unique_complete=not bool(_companion), unique_columns=set(_unique_cols),
+            expect_r054=_expect_r054)
 
 # ── M-CREATE / M-TAIL / M-PARTITION：CreateShape 顶层与表尾的单点变异 ──────
 #    第十二轮 BLOCK-12-04：Rev.M 的 M 组只覆盖定义列表，下面 13 种单点变异

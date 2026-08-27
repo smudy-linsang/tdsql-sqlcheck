@@ -10,6 +10,7 @@
 设计补丁并跑通全部断言，不触碰工作区。
 """
 import io
+import inspect
 import os
 import sys
 
@@ -22,6 +23,7 @@ import sqlglot
 from backend.engine.checker import RuleChecker
 from backend.engine.parser import parser_legacy as PL
 from backend.engine.parser.parser_legacy import SQLParser
+from backend.engine.rules.distributed import _iter_unique_indexes
 from parser_recovery_manifest import CASES, FUZZ, MUTATIONS
 
 _sp = SQLParser()
@@ -66,6 +68,14 @@ def _check_contract():
         "sqlglot %s 的建表 AST 契约已变化：%s" % (sqlglot.__version__, got))
     assert kinds == ["FULLTEXT", "SPATIAL"], (
         "sqlglot %s 的索引 kind 契约已变化：%s" % (sqlglot.__version__, kinds))
+    parse_src = inspect.getsource(SQLParser.parse)
+    item_src = inspect.getsource(PL._definition_item_kfns)
+    assert parse_src.count("_preflight_create_definition_status(") == 1, (
+        "parse() 必须以一次 status 调用同时取得 KFN 与 source 完整性")
+    assert "_preflight_known_fidelity_failures(" not in parse_src, (
+        "产品 parse() 不得为兼容 wrapper 再次 tokenize")
+    assert "for cut in range" not in item_src, (
+        "逐项 KFN 不得通过前缀重解析退化为 O(n²)")
 
 
 def _check_ruleset(case):
@@ -168,12 +178,14 @@ def _check_sql_case(case):
             assert set(rules) == set(ex["rules_exact"])
         return
 
-    if case.klass in ("pos_known", "unsupported_unproven"):
+    if case.klass in ("pos_known", "unsupported_unproven", "kfn_guard"):
         if ex.get("kfn"):
             preflight = PL._preflight_known_fidelity_failures(case.sql, "mysql")
             assert ex["kfn"] in preflight, "source preflight KFN mismatch: %s" % (preflight,)
             assert ex["kfn"] in parsed.known_fidelity_failures
             assert e999, "known fidelity gap must produce E999 on every parse path"
+            if "unique_complete" in ex:
+                assert parsed.unique_constraints_complete is ex["unique_complete"]
             if ex.get("plan_required", True):
                 assert plan is not None, "case requires a RecoveryPlan carrying the KFN"
                 assert ex["kfn"] in plan.get("known_false_negatives", ())
@@ -186,6 +198,30 @@ def _check_sql_case(case):
         assert ast != "Create", "must fail closed (not claimed supported or invalid)"
         if ex.get("ast"):
             assert ast == ex["ast"]
+        return
+
+    if case.klass == "channel_guard":
+        assert not parsed.known_fidelity_failures, (
+            "普通 UNIQUE + 伴生结构不得伪造 KFN：%s" %
+            (parsed.known_fidelity_failures,))
+        assert parsed.unique_constraints_complete is ex["unique_complete"]
+        rules = set(_rid(case.sql, ex.get("instance_type", "distributed")))
+        if not ex["expect_r054"]:
+            assert "R054" not in rules, (
+                "含分片键的前缀 UNIQUE 不得被 raw 补充伪造成违规：%s" %
+                sorted(rules))
+        if e999:
+            assert "E999_SYNTAX_ERROR" in rules
+        else:
+            assert ast == "Create", "无 E999 时必须保有 Create AST"
+            if ex["expect_r054"]:
+                assert "R054" in rules, (
+                    "结构化通道不完整时必须覆盖违规 UNIQUE；实得 %s" %
+                    sorted(rules))
+            unique_items = list(_iter_unique_indexes(parsed, parsed.raw_sql))
+            assert len(unique_items) == 1, (
+                "逐项结构与 raw 补充必须去重，实得 %s" % (unique_items,))
+            assert unique_items[0][1] == ex["unique_columns"]
         return
 
     raise AssertionError("未知 klass: %s" % case.klass)

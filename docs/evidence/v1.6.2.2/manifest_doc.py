@@ -8,7 +8,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from parser_recovery_manifest import CASES, MUTATIONS, FUZZ
 
 KLASS_ORDER = ["pos", "neg", "pos_known", "unsupported_unproven",
-               "fail_closed", "characterization", "ruleset", "spans", "contract"]
+               "fail_closed", "kfn_guard", "channel_guard", "characterization",
+               "ruleset", "spans", "contract"]
 GROUP_TITLE = {
     "A": "DEF-1 索引类型判据 + AST 契约", "B": "DEF-2 正向恢复",
     "C": "DEF-2 产品边界（sqlglot 能力边界）", "D": "负向 / 防次生灾害",
@@ -35,6 +36,8 @@ GROUP_TITLE = {
     "R14-KFN-CU": "CONSTRAINT UNIQUE 三路径 KFN",
     "R14-KFN-SE": "SERIAL 三路径 KFN",
     "R14-KFN-DECOY": "KFN 字面量/标识符反向鉴别",
+    "R15-KFN": "逐定义 KFN × 13 种伴生结构（BLOCK-15-01）",
+    "R15-CH": "7 种支持域 UNIQUE × 13 种伴生结构（BLOCK-15-01）",
 }
 
 
@@ -62,7 +65,8 @@ def main():
             seen.add(g); groups.append(g)
     main_g = [g for g in groups if not (g.startswith("H") or g.startswith("P")
                                         or g.startswith("R11") or g.startswith("R12")
-                                        or g.startswith("R14") or g.startswith("TY"))]
+                                        or g.startswith("R14") or g.startswith("R15")
+                                        or g.startswith("TY"))]
     print("<!-- 本节由 docs/evidence/v1.6.2.2/manifest_doc.py 生成，请勿手改 -->\n")
     print(table(main_g, "§7.1 主用例表"))
     print()
@@ -77,6 +81,8 @@ def main():
     print(table([g for g in groups if g.startswith("R12")], "§7.1e R12 组（第十二轮复审反例，按维度生成）"))
     print()
     print(table([g for g in groups if g.startswith("R14")], "§7.1f R14 组（第十四轮复审反例）"))
+    print()
+    print(table([g for g in groups if g.startswith("R15")], "§7.1g R15 组（第十五轮 BLOCK-15-01）"))
     print()
     kc = collections.Counter(x.klass for x in CASES)
     pc = collections.Counter(x.prov for x in CASES)
