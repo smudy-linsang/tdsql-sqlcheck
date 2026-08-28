@@ -1,0 +1,83 @@
+- banner:
+  - img "logo"
+  - generic: TDSQL数据库SQL审核工具
+  - button "U UAT-O 管理员 系统管理员":
+    - generic: U
+    - generic: UAT-O 管理员
+    - generic: 系统管理员
+- complementary:
+  - menubar:
+    - menuitem "治理概览":
+      - generic: 治理概览
+    - menuitem "SQL审核":
+      - generic: SQL审核
+    - menuitem "慢SQL治理" [expanded]:
+      - generic: 慢SQL治理
+      - menu:
+        - menuitem "扫描任务"
+        - menuitem "慢SQL记录"
+        - menuitem "EXPLAIN分析"
+    - menuitem "实例体检" [expanded]:
+      - generic: 实例体检
+      - menu:
+        - menuitem "上线检查"
+        - menuitem "大表治理"
+    - menuitem "深度诊断":
+      - generic: 深度诊断
+    - menuitem "平台治理" [expanded]:
+      - generic: 平台治理
+      - menu:
+        - menuitem "实例管理"
+        - menuitem "审核规则库"
+        - menuitem "评估规则集"
+    - menuitem "系统管理" [expanded]:
+      - generic: 系统管理
+      - menu:
+        - menuitem "用户管理"
+        - menuitem "角色管理"
+        - menuitem "权限矩阵"
+        - menuitem "数据保留"
+        - menuitem "操作审计"
+        - menuitem "系统信息"
+- navigation "面包屑":
+  - link "系统管理"
+  - text: /
+  - link "用户管理"
+- text: "* *"
+- generic: 用户管理
+- textbox "搜索用户名/姓名": uat_o_auditor
+- button "搜索" [active]:
+  - generic: 搜索
+- button "+ 新建用户":
+  - generic: + 新建用户
+- table:
+  - rowgroup:
+    - row "用户名 姓名 角色 状态 操作":
+      - columnheader "用户名":
+        - generic: 用户名
+      - columnheader "姓名":
+        - generic: 姓名
+      - columnheader "角色":
+        - generic: 角色
+      - columnheader "状态":
+        - generic: 状态
+      - columnheader "操作":
+        - generic: 操作
+- table:
+  - rowgroup:
+    - row "uat_o_auditor UAT-O auditor 审计员 正常 重置口令 禁用 删除":
+      - cell "uat_o_auditor":
+        - generic: uat_o_auditor
+      - cell "UAT-O auditor":
+        - generic: UAT-O auditor
+      - cell "审计员":
+        - generic: 审计员
+      - cell "正常":
+        - generic: 正常
+      - cell "重置口令 禁用 删除":
+        - button "重置口令":
+          - generic: 重置口令
+        - button "禁用":
+          - generic: 禁用
+        - button "删除":
+          - generic: 删除

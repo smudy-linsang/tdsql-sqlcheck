@@ -1,0 +1,76 @@
+- banner:
+  - img "logo"
+  - generic: TDSQL数据库SQL审核工具
+  - button "U UAT-O dba DBA":
+    - generic: U
+    - generic: UAT-O dba
+    - generic: DBA
+- complementary:
+  - menubar:
+    - menuitem "治理概览":
+      - generic: 治理概览
+    - menuitem "SQL审核" [expanded]:
+      - generic: SQL审核
+      - menu:
+        - menuitem "即时审核"
+        - menuitem "文件审核"
+        - menuitem "在线元数据审核"
+    - menuitem "慢SQL治理":
+      - generic: 慢SQL治理
+    - menuitem "实例体检":
+      - generic: 实例体检
+    - menuitem "深度诊断":
+      - generic: 深度诊断
+    - menuitem "平台治理" [expanded]:
+      - generic: 平台治理
+      - menu:
+        - menuitem "实例管理"
+        - menuitem "审核规则库"
+        - menuitem "评估规则集"
+    - menuitem "系统管理":
+      - generic: 系统管理
+- navigation "面包屑":
+  - link "SQL审核"
+  - text: /
+  - link "文件审核"
+- tablist:
+  - tab "文件上传" [selected]
+  - tab "审核报告"
+- tabpanel "文件上传":
+  - generic: 上传文件审核
+  - text: 规则适用架构：
+  - radiogroup "radio-group":
+    - radio "分布式规则" [checked]
+    - generic: 分布式规则
+    - radio "集中式规则"
+    - generic: 集中式规则
+  - text: 拖拽文件到此处或
+  - emphasis: 点击上传
+  - generic: 支持 .xml (MyBatis)、.sql 文件
+  - generic: 审核结果
+  - table:
+    - rowgroup:
+      - row "SQL总数 3 通过 1 未通过 2 通过率 33.3% 规则架构 分布式":
+        - cell "SQL总数"
+        - cell "3"
+        - cell "通过"
+        - cell "1"
+        - cell "未通过"
+        - cell "2"
+        - cell "通过率"
+        - cell "33.3%"
+        - cell "规则架构"
+        - cell "分布式":
+          - generic: 分布式
+  - button "#1 SELECT 通过":
+    - strong: "#1"
+    - text: SELECT
+    - generic: 通过
+  - button "#2 DELETE 4项违规":
+    - strong: "#2"
+    - text: DELETE
+    - generic: 4项违规
+  - button "#3 SELECT 1项违规":
+    - strong: "#3"
+    - text: SELECT
+    - generic: 1项违规

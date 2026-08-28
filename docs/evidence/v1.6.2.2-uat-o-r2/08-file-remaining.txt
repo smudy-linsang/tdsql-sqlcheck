@@ -1,0 +1,86 @@
+- banner:
+  - img "logo"
+  - generic: TDSQL数据库SQL审核工具
+  - button "U UAT-O 管理员 系统管理员":
+    - generic: U
+    - generic: UAT-O 管理员
+    - generic: 系统管理员
+- complementary:
+  - menubar:
+    - menuitem "治理概览":
+      - generic: 治理概览
+    - menuitem "SQL审核" [expanded]:
+      - generic: SQL审核
+      - menu:
+        - menuitem "即时审核"
+        - menuitem "文件审核"
+        - menuitem "在线元数据审核"
+    - menuitem "慢SQL治理":
+      - generic: 慢SQL治理
+    - menuitem "实例体检":
+      - generic: 实例体检
+    - menuitem "深度诊断":
+      - generic: 深度诊断
+    - menuitem "平台治理":
+      - generic: 平台治理
+    - menuitem "系统管理":
+      - generic: 系统管理
+- navigation "面包屑":
+  - link "SQL审核"
+  - text: /
+  - link "文件审核"
+- tablist:
+  - tab "文件上传" [selected]
+  - tab "审核报告"
+- tabpanel "文件上传":
+  - generic: 上传文件审核
+  - text: 规则适用架构：
+  - radiogroup "radio-group":
+    - radio "分布式规则" [checked]
+    - generic: 分布式规则
+    - radio "集中式规则"
+    - generic: 集中式规则
+  - text: 拖拽文件到此处或
+  - emphasis: 点击上传
+  - generic: 支持 .xml (MyBatis)、.sql 文件
+  - generic: 审核结果
+  - table:
+    - rowgroup:
+      - row "SQL总数 1 通过 0 未通过 1 通过率 0.0% 规则架构 分布式":
+        - cell "SQL总数"
+        - cell "1"
+        - cell "通过"
+        - cell "0"
+        - cell "未通过"
+        - cell "1"
+        - cell "通过率"
+        - cell "0.0%"
+        - cell "规则架构"
+        - cell "分布式":
+          - generic: 分布式
+  - button "#1 CREATE TABLE 5项违规" [expanded] [active]:
+    - strong: "#1"
+    - text: CREATE TABLE
+    - generic: 5项违规
+  - region "#1 CREATE TABLE 5项违规":
+    - generic: CREATE TABLE t_guard (id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',PRIMARY KEY(id,sk),s INT SERIAL DEFAULT VALUE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='LOAD DATA' shardkey=sk
+    - text: "[R003]"
+    - generic: ERROR
+    - text: CREATE TABLE 未指定主键，TDSQL 要求每个表必须有主键
+    - generic: "💡 建议添加自增主键: id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY"
+    - text: "[R004]"
+    - generic: ERROR
+    - text: 未指定存储引擎，TDSQL 要求使用 InnoDB 引擎
+    - generic: "💡 请在 DDL 中添加: ENGINE=InnoDB"
+    - text: "[R005]"
+    - generic: ERROR
+    - text: 未指定字符集，TDSQL 要求使用 utf8mb4
+    - generic: "💡 请在 DDL 中添加: DEFAULT CHARSET=utf8mb4"
+    - text: "[R028]"
+    - generic: ERROR
+    - text: 表 t_guard 缺少表级别COMMENT
+    - generic: 💡 请添加 COMMENT '表用途说明' 到CREATE TABLE语句中
+    - text: "[R042]"
+    - generic: ERROR
+    - text: 禁止使用LOAD DATA INFILE/LOAD XML，存在安全风险
+    - generic: 💡 请在应用层批量导入数据

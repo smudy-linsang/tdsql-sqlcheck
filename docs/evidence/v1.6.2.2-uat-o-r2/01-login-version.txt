@@ -1,0 +1,8 @@
+- generic: 浅色
+- heading "TDSQL数据库SQL审核工具" [level=1]
+- generic: V1.6.2.1 · Design by Linsang
+- generic: 用户登录
+- textbox "用户名"
+- textbox "口令"
+- button "登 录":
+  - generic: 登 录

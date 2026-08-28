@@ -1,0 +1,58 @@
+- banner:
+  - img "logo"
+  - generic: TDSQL数据库SQL审核工具
+  - button "U UAT-O developer 开发":
+    - generic: U
+    - generic: UAT-O developer
+    - generic: 开发
+- complementary:
+  - menubar:
+    - menuitem "治理概览":
+      - generic: 治理概览
+    - menuitem "SQL审核" [expanded]:
+      - generic: SQL审核
+      - menu:
+        - menuitem "即时审核"
+        - menuitem "文件审核"
+        - menuitem "在线元数据审核"
+    - menuitem "慢SQL治理":
+      - generic: 慢SQL治理
+    - menuitem "实例体检":
+      - generic: 实例体检
+    - menuitem "深度诊断":
+      - generic: 深度诊断
+    - menuitem "平台治理" [expanded]:
+      - generic: 平台治理
+      - menu:
+        - menuitem "审核规则库"
+        - menuitem "评估规则集"
+- navigation "面包屑":
+  - link "SQL审核"
+  - text: /
+  - link "在线元数据审核"
+- tablist:
+  - tab "即时元数据提取与审核" [selected]
+  - tab "历史元数据审核记录"
+  - tab "扫描对比"
+  - tab "对比留档报告"
+- tabpanel "即时元数据提取与审核":
+  - generic: 在线元数据提取与文件审核
+  - combobox [expanded] [active]
+  - generic: 选择目标实例
+  - textbox "目标数据库(留空默认)"
+  - group "checkbox-group":
+    - checkbox "表结构" [checked]
+    - generic: 表结构
+    - checkbox "索引/主键" [checked]
+    - generic: 索引/主键
+    - checkbox "视图定义" [checked]
+    - generic: 视图定义
+    - checkbox "分片键" [checked]
+    - generic: 分片键
+  - button "🚀 拉取元数据并执行文件审核" [disabled]:
+    - generic: 🚀 拉取元数据并执行文件审核
+  - generic: 自动从选择的 SIT/UAT 测试库中提取当前最新表、索引、视图 DDL 元数据，拼接生成完整的 .sql 描述文件，并自动提交文件审核引擎进行规则评价。
+- tooltip:
+  - listbox:
+    - option "UAT-O 本地集中式样本 (127.0.0.1:13306)"
+    - option "UAT-O 离线失败样本 (127.0.0.1:1)"

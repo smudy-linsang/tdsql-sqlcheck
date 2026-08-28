@@ -1,0 +1,4216 @@
+{
+  "before_commit": "6957499",
+  "tested_commit": "d12fe8c16ab9861b85eea41e05e498a9ba305c7d",
+  "baseline_temp": "C:\\Users\\linsa\\AppData\\Local\\Temp\\uat-o-r2-before-wastxn26",
+  "rules_equal": true,
+  "case_count": 1000,
+  "changes": [
+    {
+      "id": "kfn_literal:1",
+      "before": [
+        "R030",
+        "R036",
+        "R037"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R030",
+        "R036",
+        "R037"
+      ]
+    },
+    {
+      "id": "kfn_literal:2",
+      "before": [
+        "R030",
+        "R036",
+        "R037"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R030",
+        "R036",
+        "R037"
+      ]
+    },
+    {
+      "id": "kfn_literal:3",
+      "before": [
+        "R030",
+        "R031",
+        "R036",
+        "R037"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R030",
+        "R031",
+        "R036",
+        "R037"
+      ]
+    },
+    {
+      "id": "kfn_literal:4",
+      "before": [
+        "R030",
+        "R036",
+        "R037"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R030",
+        "R036",
+        "R037"
+      ]
+    },
+    {
+      "id": "kfn_literal:5",
+      "before": [
+        "R036",
+        "R037",
+        "R042"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R036",
+        "R037",
+        "R042"
+      ]
+    },
+    {
+      "id": "kfn_literal:6",
+      "before": [
+        "R036",
+        "R037",
+        "R042"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R036",
+        "R037",
+        "R042"
+      ]
+    },
+    {
+      "id": "kfn_literal:8",
+      "before": [
+        "R029",
+        "R030",
+        "R036",
+        "R037"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R029",
+        "R030",
+        "R036",
+        "R037"
+      ]
+    },
+    {
+      "id": "kfn_literal:9",
+      "before": [
+        "R029",
+        "R030",
+        "R036",
+        "R037"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R029",
+        "R030",
+        "R036",
+        "R037"
+      ]
+    },
+    {
+      "id": "kfn_literal:10",
+      "before": [
+        "R029",
+        "R030",
+        "R031",
+        "R036",
+        "R037"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R029",
+        "R030",
+        "R031",
+        "R036",
+        "R037"
+      ]
+    },
+    {
+      "id": "kfn_literal:11",
+      "before": [
+        "R029",
+        "R030",
+        "R036",
+        "R037"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R029",
+        "R030",
+        "R036",
+        "R037"
+      ]
+    },
+    {
+      "id": "kfn_literal:12",
+      "before": [
+        "R029",
+        "R036",
+        "R037",
+        "R042"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R029",
+        "R036",
+        "R037",
+        "R042"
+      ]
+    },
+    {
+      "id": "kfn_literal:13",
+      "before": [
+        "R029",
+        "R036",
+        "R037",
+        "R042"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R029",
+        "R036",
+        "R037",
+        "R042"
+      ]
+    },
+    {
+      "id": "kfn_literal:15",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ]
+    },
+    {
+      "id": "kfn_literal:16",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ]
+    },
+    {
+      "id": "kfn_literal:17",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031"
+      ]
+    },
+    {
+      "id": "kfn_literal:18",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ]
+    },
+    {
+      "id": "kfn_comment:0:block",
+      "before": [],
+      "after": [
+        "E999_SYNTAX_ERROR"
+      ]
+    },
+    {
+      "id": "kfn_comment:1:line",
+      "before": [],
+      "after": [
+        "E999_SYNTAX_ERROR"
+      ]
+    },
+    {
+      "id": "kfn_comment:2:quoted_block",
+      "before": [],
+      "after": [
+        "E999_SYNTAX_ERROR"
+      ]
+    },
+    {
+      "id": "kfn_comment:3:block",
+      "before": [],
+      "after": [
+        "E999_SYNTAX_ERROR"
+      ]
+    },
+    {
+      "id": "kfn_comment:4:line",
+      "before": [],
+      "after": [
+        "E999_SYNTAX_ERROR"
+      ]
+    },
+    {
+      "id": "kfn_comment:5:quoted_block",
+      "before": [],
+      "after": [
+        "E999_SYNTAX_ERROR"
+      ]
+    },
+    {
+      "id": "kfn_comment:6:block",
+      "before": [],
+      "after": [
+        "E999_SYNTAX_ERROR"
+      ]
+    },
+    {
+      "id": "kfn_comment:7:line",
+      "before": [],
+      "after": [
+        "E999_SYNTAX_ERROR"
+      ]
+    },
+    {
+      "id": "kfn_comment:8:quoted_block",
+      "before": [],
+      "after": [
+        "E999_SYNTAX_ERROR"
+      ]
+    },
+    {
+      "id": "kfn_comment:9:block",
+      "before": [],
+      "after": [
+        "E999_SYNTAX_ERROR"
+      ]
+    },
+    {
+      "id": "kfn_comment:10:line",
+      "before": [],
+      "after": [
+        "E999_SYNTAX_ERROR"
+      ]
+    },
+    {
+      "id": "kfn_comment:11:quoted_block",
+      "before": [],
+      "after": [
+        "E999_SYNTAX_ERROR"
+      ]
+    },
+    {
+      "id": "kfn_comment:12:block",
+      "before": [],
+      "after": [
+        "E999_SYNTAX_ERROR"
+      ]
+    },
+    {
+      "id": "kfn_comment:13:line",
+      "before": [],
+      "after": [
+        "E999_SYNTAX_ERROR"
+      ]
+    },
+    {
+      "id": "kfn_comment:14:quoted_block",
+      "before": [],
+      "after": [
+        "E999_SYNTAX_ERROR"
+      ]
+    },
+    {
+      "id": "kfn_comment:15:block",
+      "before": [],
+      "after": [
+        "E999_SYNTAX_ERROR"
+      ]
+    },
+    {
+      "id": "kfn_comment:16:line",
+      "before": [],
+      "after": [
+        "E999_SYNTAX_ERROR"
+      ]
+    },
+    {
+      "id": "kfn_comment:17:quoted_block",
+      "before": [],
+      "after": [
+        "E999_SYNTAX_ERROR"
+      ]
+    },
+    {
+      "id": "kfn_comment:18:block",
+      "before": [
+        "R029"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R029"
+      ]
+    },
+    {
+      "id": "kfn_comment:19:line",
+      "before": [
+        "R029"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R029"
+      ]
+    },
+    {
+      "id": "kfn_comment:20:quoted_block",
+      "before": [
+        "R029"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R029"
+      ]
+    },
+    {
+      "id": "kfn_comment:21:block",
+      "before": [
+        "R029"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R029"
+      ]
+    },
+    {
+      "id": "kfn_comment:22:line",
+      "before": [
+        "R029"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R029"
+      ]
+    },
+    {
+      "id": "kfn_comment:23:quoted_block",
+      "before": [
+        "R029"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R029"
+      ]
+    },
+    {
+      "id": "kfn_comment:24:block",
+      "before": [
+        "R029"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R029"
+      ]
+    },
+    {
+      "id": "kfn_comment:25:line",
+      "before": [
+        "R029"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R029"
+      ]
+    },
+    {
+      "id": "kfn_comment:26:quoted_block",
+      "before": [
+        "R029"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R029"
+      ]
+    },
+    {
+      "id": "kfn_comment:27:block",
+      "before": [
+        "R029"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R029"
+      ]
+    },
+    {
+      "id": "kfn_comment:28:line",
+      "before": [
+        "R029"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R029"
+      ]
+    },
+    {
+      "id": "kfn_comment:29:quoted_block",
+      "before": [
+        "R029"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R029"
+      ]
+    },
+    {
+      "id": "kfn_comment:30:block",
+      "before": [
+        "R029"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R029"
+      ]
+    },
+    {
+      "id": "kfn_comment:31:line",
+      "before": [
+        "R029"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R029"
+      ]
+    },
+    {
+      "id": "kfn_comment:32:quoted_block",
+      "before": [
+        "R029"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R029"
+      ]
+    },
+    {
+      "id": "kfn_comment:33:block",
+      "before": [
+        "R029"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R029"
+      ]
+    },
+    {
+      "id": "kfn_comment:34:line",
+      "before": [
+        "R029"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R029"
+      ]
+    },
+    {
+      "id": "kfn_comment:35:quoted_block",
+      "before": [
+        "R029"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R029"
+      ]
+    },
+    {
+      "id": "kfn_comment:36:block",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028"
+      ]
+    },
+    {
+      "id": "kfn_comment:37:line",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028"
+      ]
+    },
+    {
+      "id": "kfn_comment:38:quoted_block",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028"
+      ]
+    },
+    {
+      "id": "kfn_comment:39:block",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028"
+      ]
+    },
+    {
+      "id": "kfn_comment:40:line",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028"
+      ]
+    },
+    {
+      "id": "kfn_comment:41:quoted_block",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028"
+      ]
+    },
+    {
+      "id": "kfn_comment:42:block",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028"
+      ]
+    },
+    {
+      "id": "kfn_comment:43:line",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028"
+      ]
+    },
+    {
+      "id": "kfn_comment:44:quoted_block",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028"
+      ]
+    },
+    {
+      "id": "kfn_comment:45:block",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028"
+      ]
+    },
+    {
+      "id": "kfn_comment:46:line",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028"
+      ]
+    },
+    {
+      "id": "kfn_comment:47:quoted_block",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028"
+      ]
+    },
+    {
+      "id": "kfn_comment:48:block",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028"
+      ]
+    },
+    {
+      "id": "kfn_comment:49:line",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028"
+      ]
+    },
+    {
+      "id": "kfn_comment:50:quoted_block",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028"
+      ]
+    },
+    {
+      "id": "kfn_comment:51:block",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028"
+      ]
+    },
+    {
+      "id": "kfn_comment:52:line",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028"
+      ]
+    },
+    {
+      "id": "kfn_comment:53:quoted_block",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028"
+      ]
+    }
+  ],
+  "remaining_failures": [
+    {
+      "id": "corpus:01_naming_ddl.sql:R023_01:distributed",
+      "kind": "corpus_exact",
+      "missing": [
+        "R036",
+        "R037"
+      ],
+      "extra": []
+    },
+    {
+      "id": "corpus:01_naming_ddl.sql:R098_01:distributed",
+      "kind": "corpus_exact",
+      "missing": [
+        "R036",
+        "R037"
+      ],
+      "extra": []
+    },
+    {
+      "id": "corpus:01_naming_ddl.sql:R116_01:distributed",
+      "kind": "corpus_exact",
+      "missing": [
+        "R036",
+        "R037"
+      ],
+      "extra": []
+    },
+    {
+      "id": "kfn_literal:19",
+      "kind": "must_have",
+      "missing": [
+        "E999_SYNTAX_ERROR"
+      ]
+    },
+    {
+      "id": "kfn_literal:20",
+      "kind": "must_have",
+      "missing": [
+        "E999_SYNTAX_ERROR"
+      ]
+    }
+  ],
+  "edge_changes": [
+    {
+      "id": "kfn-path:0:0:0:1",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE VIEW' shardkey=sk;",
+      "before": [
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "KNOWN_FIDELITY_GAP[KFN-6-CONSTRAINT-UNIQUE]"
+    },
+    {
+      "id": "kfn-path:0:0:0:2",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE PROCEDURE' shardkey=sk;",
+      "before": [
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "KNOWN_FIDELITY_GAP[KFN-6-CONSTRAINT-UNIQUE]"
+    },
+    {
+      "id": "kfn-path:0:0:0:3",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE FUNCTION' shardkey=sk;",
+      "before": [
+        "R030",
+        "R031"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R030",
+        "R031"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "KNOWN_FIDELITY_GAP[KFN-6-CONSTRAINT-UNIQUE]"
+    },
+    {
+      "id": "kfn-path:0:0:0:4",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE TRIGGER' shardkey=sk;",
+      "before": [
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "KNOWN_FIDELITY_GAP[KFN-6-CONSTRAINT-UNIQUE]"
+    },
+    {
+      "id": "kfn-path:0:0:0:5",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='LOAD DATA' shardkey=sk;",
+      "before": [
+        "R042"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R042"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "KNOWN_FIDELITY_GAP[KFN-6-CONSTRAINT-UNIQUE]"
+    },
+    {
+      "id": "kfn-path:0:0:0:6",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='LOAD XML' shardkey=sk;",
+      "before": [
+        "R042"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R042"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "KNOWN_FIDELITY_GAP[KFN-6-CONSTRAINT-UNIQUE]"
+    },
+    {
+      "id": "kfn-path:0:0:1:1",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u)) ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE VIEW' shardkey=sk;",
+      "before": [
+        "R004",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R004",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "KNOWN_FIDELITY_GAP[KFN-6-CONSTRAINT-UNIQUE]"
+    },
+    {
+      "id": "kfn-path:0:0:1:2",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u)) ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE PROCEDURE' shardkey=sk;",
+      "before": [
+        "R004",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R004",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "KNOWN_FIDELITY_GAP[KFN-6-CONSTRAINT-UNIQUE]"
+    },
+    {
+      "id": "kfn-path:0:0:1:3",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u)) ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE FUNCTION' shardkey=sk;",
+      "before": [
+        "R004",
+        "R030",
+        "R031"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R004",
+        "R030",
+        "R031"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "KNOWN_FIDELITY_GAP[KFN-6-CONSTRAINT-UNIQUE]"
+    },
+    {
+      "id": "kfn-path:0:0:1:4",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u)) ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE TRIGGER' shardkey=sk;",
+      "before": [
+        "R004",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R004",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "KNOWN_FIDELITY_GAP[KFN-6-CONSTRAINT-UNIQUE]"
+    },
+    {
+      "id": "kfn-path:0:0:1:5",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u)) ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='LOAD DATA' shardkey=sk;",
+      "before": [
+        "R004",
+        "R042"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R004",
+        "R042"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "KNOWN_FIDELITY_GAP[KFN-6-CONSTRAINT-UNIQUE]"
+    },
+    {
+      "id": "kfn-path:0:0:1:6",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u)) ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='LOAD XML' shardkey=sk;",
+      "before": [
+        "R004",
+        "R042"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R004",
+        "R042"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "KNOWN_FIDELITY_GAP[KFN-6-CONSTRAINT-UNIQUE]"
+    },
+    {
+      "id": "kfn-path:0:0:2:1",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u)) ENGINE=InnoDB DEFAULT COMMENT='CREATE VIEW' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Parser.<lambda>() got an unexpected keyword argument 'default'"
+    },
+    {
+      "id": "kfn-path:0:0:2:2",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u)) ENGINE=InnoDB DEFAULT COMMENT='CREATE PROCEDURE' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Parser.<lambda>() got an unexpected keyword argument 'default'"
+    },
+    {
+      "id": "kfn-path:0:0:2:3",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u)) ENGINE=InnoDB DEFAULT COMMENT='CREATE FUNCTION' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Parser.<lambda>() got an unexpected keyword argument 'default'"
+    },
+    {
+      "id": "kfn-path:0:0:2:4",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u)) ENGINE=InnoDB DEFAULT COMMENT='CREATE TRIGGER' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Parser.<lambda>() got an unexpected keyword argument 'default'"
+    },
+    {
+      "id": "kfn-path:0:0:3:1",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LESS THAN(10)) COMMENT='CREATE VIEW' shardkey=sk;",
+      "before": [
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "KNOWN_FIDELITY_GAP[KFN-6-CONSTRAINT-UNIQUE]"
+    },
+    {
+      "id": "kfn-path:0:0:3:2",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LESS THAN(10)) COMMENT='CREATE PROCEDURE' shardkey=sk;",
+      "before": [
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "KNOWN_FIDELITY_GAP[KFN-6-CONSTRAINT-UNIQUE]"
+    },
+    {
+      "id": "kfn-path:0:0:3:3",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LESS THAN(10)) COMMENT='CREATE FUNCTION' shardkey=sk;",
+      "before": [
+        "R030",
+        "R031"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R030",
+        "R031"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "KNOWN_FIDELITY_GAP[KFN-6-CONSTRAINT-UNIQUE]"
+    },
+    {
+      "id": "kfn-path:0:0:3:4",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LESS THAN(10)) COMMENT='CREATE TRIGGER' shardkey=sk;",
+      "before": [
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "KNOWN_FIDELITY_GAP[KFN-6-CONSTRAINT-UNIQUE]"
+    },
+    {
+      "id": "kfn-path:0:0:3:5",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LESS THAN(10)) COMMENT='LOAD DATA' shardkey=sk;",
+      "before": [
+        "R042"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R042"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "KNOWN_FIDELITY_GAP[KFN-6-CONSTRAINT-UNIQUE]"
+    },
+    {
+      "id": "kfn-path:0:0:3:6",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LESS THAN(10)) COMMENT='LOAD XML' shardkey=sk;",
+      "before": [
+        "R042"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R042"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "KNOWN_FIDELITY_GAP[KFN-6-CONSTRAINT-UNIQUE]"
+    },
+    {
+      "id": "kfn-path:0:1:0:1",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u),UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE VIEW' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 298.\n  s_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u),UNIQUE KEY uk_extra(u) \u001b[4mCOMMENT\u001b[0m 'index note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE VIEW' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:0:1:0:2",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u),UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE PROCEDURE' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 298.\n  s_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u),UNIQUE KEY uk_extra(u) \u001b[4mCOMMENT\u001b[0m 'index note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE PROCEDURE' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:0:1:0:3",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u),UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE FUNCTION' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031",
+        "R054"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031",
+        "R054"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 298.\n  s_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u),UNIQUE KEY uk_extra(u) \u001b[4mCOMMENT\u001b[0m 'index note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE FUNCTION' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:0:1:0:4",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u),UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE TRIGGER' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 298.\n  s_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u),UNIQUE KEY uk_extra(u) \u001b[4mCOMMENT\u001b[0m 'index note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE TRIGGER' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:0:1:1:1",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u),UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE VIEW' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 298.\n  s_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u),UNIQUE KEY uk_extra(u) \u001b[4mCOMMENT\u001b[0m 'index note') ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE VIEW' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:0:1:1:2",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u),UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE PROCEDURE' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 298.\n  s_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u),UNIQUE KEY uk_extra(u) \u001b[4mCOMMENT\u001b[0m 'index note') ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE PROCEDURE' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:0:1:1:3",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u),UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE FUNCTION' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031",
+        "R054"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031",
+        "R054"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 298.\n  s_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u),UNIQUE KEY uk_extra(u) \u001b[4mCOMMENT\u001b[0m 'index note') ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE FUNCTION' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:0:1:1:4",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u),UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE TRIGGER' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 298.\n  s_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u),UNIQUE KEY uk_extra(u) \u001b[4mCOMMENT\u001b[0m 'index note') ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE TRIGGER' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:0:1:2:1",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u),UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=InnoDB DEFAULT COMMENT='CREATE VIEW' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 298.\n  s_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u),UNIQUE KEY uk_extra(u) \u001b[4mCOMMENT\u001b[0m 'index note') ENGINE=InnoDB DEFAULT COMMENT='CREATE VIEW' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:0:1:2:2",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u),UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=InnoDB DEFAULT COMMENT='CREATE PROCEDURE' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 298.\n  s_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u),UNIQUE KEY uk_extra(u) \u001b[4mCOMMENT\u001b[0m 'index note') ENGINE=InnoDB DEFAULT COMMENT='CREATE PROCEDURE' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:0:1:2:3",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u),UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=InnoDB DEFAULT COMMENT='CREATE FUNCTION' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031",
+        "R054"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031",
+        "R054"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 298.\n  s_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u),UNIQUE KEY uk_extra(u) \u001b[4mCOMMENT\u001b[0m 'index note') ENGINE=InnoDB DEFAULT COMMENT='CREATE FUNCTION' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:0:1:2:4",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u),UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=InnoDB DEFAULT COMMENT='CREATE TRIGGER' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 298.\n  s_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u),UNIQUE KEY uk_extra(u) \u001b[4mCOMMENT\u001b[0m 'index note') ENGINE=InnoDB DEFAULT COMMENT='CREATE TRIGGER' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:0:1:3:1",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u),UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LESS THAN(10)) COMMENT='CREATE VIEW' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 298.\n  s_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u),UNIQUE KEY uk_extra(u) \u001b[4mCOMMENT\u001b[0m 'index note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LES"
+    },
+    {
+      "id": "kfn-path:0:1:3:2",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u),UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LESS THAN(10)) COMMENT='CREATE PROCEDURE' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 298.\n  s_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u),UNIQUE KEY uk_extra(u) \u001b[4mCOMMENT\u001b[0m 'index note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LES"
+    },
+    {
+      "id": "kfn-path:0:1:3:3",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u),UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LESS THAN(10)) COMMENT='CREATE FUNCTION' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031",
+        "R054"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031",
+        "R054"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 298.\n  s_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u),UNIQUE KEY uk_extra(u) \u001b[4mCOMMENT\u001b[0m 'index note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LES"
+    },
+    {
+      "id": "kfn-path:0:1:3:4",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u),UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LESS THAN(10)) COMMENT='CREATE TRIGGER' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 298.\n  s_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u),UNIQUE KEY uk_extra(u) \u001b[4mCOMMENT\u001b[0m 'index note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LES"
+    },
+    {
+      "id": "kfn-path:0:2:0:1",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',CONSTRAINT uk_u UNIQUE(u),PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE VIEW' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 275.\n  IME COMMENT 'updated',is_deleted INT COMMENT 'deleted',CONSTRAINT uk_u UNIQUE(u),PRIMARY KEY(id,sk) \u001b[4mCOMMENT\u001b[0m 'pk note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE VIEW' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:0:2:0:2",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',CONSTRAINT uk_u UNIQUE(u),PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE PROCEDURE' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 275.\n  IME COMMENT 'updated',is_deleted INT COMMENT 'deleted',CONSTRAINT uk_u UNIQUE(u),PRIMARY KEY(id,sk) \u001b[4mCOMMENT\u001b[0m 'pk note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE PROCEDURE' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:0:2:0:3",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',CONSTRAINT uk_u UNIQUE(u),PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE FUNCTION' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 275.\n  IME COMMENT 'updated',is_deleted INT COMMENT 'deleted',CONSTRAINT uk_u UNIQUE(u),PRIMARY KEY(id,sk) \u001b[4mCOMMENT\u001b[0m 'pk note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE FUNCTION' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:0:2:0:4",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',CONSTRAINT uk_u UNIQUE(u),PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE TRIGGER' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 275.\n  IME COMMENT 'updated',is_deleted INT COMMENT 'deleted',CONSTRAINT uk_u UNIQUE(u),PRIMARY KEY(id,sk) \u001b[4mCOMMENT\u001b[0m 'pk note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE TRIGGER' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:0:2:1:1",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',CONSTRAINT uk_u UNIQUE(u),PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE VIEW' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 275.\n  IME COMMENT 'updated',is_deleted INT COMMENT 'deleted',CONSTRAINT uk_u UNIQUE(u),PRIMARY KEY(id,sk) \u001b[4mCOMMENT\u001b[0m 'pk note') ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE VIEW' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:0:2:1:2",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',CONSTRAINT uk_u UNIQUE(u),PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE PROCEDURE' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 275.\n  IME COMMENT 'updated',is_deleted INT COMMENT 'deleted',CONSTRAINT uk_u UNIQUE(u),PRIMARY KEY(id,sk) \u001b[4mCOMMENT\u001b[0m 'pk note') ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE PROCEDURE' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:0:2:1:3",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',CONSTRAINT uk_u UNIQUE(u),PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE FUNCTION' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 275.\n  IME COMMENT 'updated',is_deleted INT COMMENT 'deleted',CONSTRAINT uk_u UNIQUE(u),PRIMARY KEY(id,sk) \u001b[4mCOMMENT\u001b[0m 'pk note') ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE FUNCTION' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:0:2:1:4",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',CONSTRAINT uk_u UNIQUE(u),PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE TRIGGER' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 275.\n  IME COMMENT 'updated',is_deleted INT COMMENT 'deleted',CONSTRAINT uk_u UNIQUE(u),PRIMARY KEY(id,sk) \u001b[4mCOMMENT\u001b[0m 'pk note') ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE TRIGGER' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:0:2:2:1",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',CONSTRAINT uk_u UNIQUE(u),PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=InnoDB DEFAULT COMMENT='CREATE VIEW' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 275.\n  IME COMMENT 'updated',is_deleted INT COMMENT 'deleted',CONSTRAINT uk_u UNIQUE(u),PRIMARY KEY(id,sk) \u001b[4mCOMMENT\u001b[0m 'pk note') ENGINE=InnoDB DEFAULT COMMENT='CREATE VIEW' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:0:2:2:2",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',CONSTRAINT uk_u UNIQUE(u),PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=InnoDB DEFAULT COMMENT='CREATE PROCEDURE' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 275.\n  IME COMMENT 'updated',is_deleted INT COMMENT 'deleted',CONSTRAINT uk_u UNIQUE(u),PRIMARY KEY(id,sk) \u001b[4mCOMMENT\u001b[0m 'pk note') ENGINE=InnoDB DEFAULT COMMENT='CREATE PROCEDURE' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:0:2:2:3",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',CONSTRAINT uk_u UNIQUE(u),PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=InnoDB DEFAULT COMMENT='CREATE FUNCTION' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 275.\n  IME COMMENT 'updated',is_deleted INT COMMENT 'deleted',CONSTRAINT uk_u UNIQUE(u),PRIMARY KEY(id,sk) \u001b[4mCOMMENT\u001b[0m 'pk note') ENGINE=InnoDB DEFAULT COMMENT='CREATE FUNCTION' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:0:2:2:4",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',CONSTRAINT uk_u UNIQUE(u),PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=InnoDB DEFAULT COMMENT='CREATE TRIGGER' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 275.\n  IME COMMENT 'updated',is_deleted INT COMMENT 'deleted',CONSTRAINT uk_u UNIQUE(u),PRIMARY KEY(id,sk) \u001b[4mCOMMENT\u001b[0m 'pk note') ENGINE=InnoDB DEFAULT COMMENT='CREATE TRIGGER' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:0:2:3:1",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',CONSTRAINT uk_u UNIQUE(u),PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LESS THAN(10)) COMMENT='CREATE VIEW' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 275.\n  IME COMMENT 'updated',is_deleted INT COMMENT 'deleted',CONSTRAINT uk_u UNIQUE(u),PRIMARY KEY(id,sk) \u001b[4mCOMMENT\u001b[0m 'pk note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LESS T"
+    },
+    {
+      "id": "kfn-path:0:2:3:2",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',CONSTRAINT uk_u UNIQUE(u),PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LESS THAN(10)) COMMENT='CREATE PROCEDURE' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 275.\n  IME COMMENT 'updated',is_deleted INT COMMENT 'deleted',CONSTRAINT uk_u UNIQUE(u),PRIMARY KEY(id,sk) \u001b[4mCOMMENT\u001b[0m 'pk note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LESS T"
+    },
+    {
+      "id": "kfn-path:0:2:3:3",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',CONSTRAINT uk_u UNIQUE(u),PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LESS THAN(10)) COMMENT='CREATE FUNCTION' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 275.\n  IME COMMENT 'updated',is_deleted INT COMMENT 'deleted',CONSTRAINT uk_u UNIQUE(u),PRIMARY KEY(id,sk) \u001b[4mCOMMENT\u001b[0m 'pk note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LESS T"
+    },
+    {
+      "id": "kfn-path:0:2:3:4",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',CONSTRAINT uk_u UNIQUE(u),PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LESS THAN(10)) COMMENT='CREATE TRIGGER' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 275.\n  IME COMMENT 'updated',is_deleted INT COMMENT 'deleted',CONSTRAINT uk_u UNIQUE(u),PRIMARY KEY(id,sk) \u001b[4mCOMMENT\u001b[0m 'pk note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LESS T"
+    },
+    {
+      "id": "kfn-path:1:0:0:1",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE VIEW' shardkey=sk;",
+      "before": [
+        "R029",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R029",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "KNOWN_FIDELITY_GAP[KFN-5-SERIAL]"
+    },
+    {
+      "id": "kfn-path:1:0:0:2",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE PROCEDURE' shardkey=sk;",
+      "before": [
+        "R029",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R029",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "KNOWN_FIDELITY_GAP[KFN-5-SERIAL]"
+    },
+    {
+      "id": "kfn-path:1:0:0:3",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE FUNCTION' shardkey=sk;",
+      "before": [
+        "R029",
+        "R030",
+        "R031"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R029",
+        "R030",
+        "R031"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "KNOWN_FIDELITY_GAP[KFN-5-SERIAL]"
+    },
+    {
+      "id": "kfn-path:1:0:0:4",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE TRIGGER' shardkey=sk;",
+      "before": [
+        "R029",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R029",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "KNOWN_FIDELITY_GAP[KFN-5-SERIAL]"
+    },
+    {
+      "id": "kfn-path:1:0:0:5",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='LOAD DATA' shardkey=sk;",
+      "before": [
+        "R029",
+        "R042"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R029",
+        "R042"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "KNOWN_FIDELITY_GAP[KFN-5-SERIAL]"
+    },
+    {
+      "id": "kfn-path:1:0:0:6",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='LOAD XML' shardkey=sk;",
+      "before": [
+        "R029",
+        "R042"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R029",
+        "R042"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "KNOWN_FIDELITY_GAP[KFN-5-SERIAL]"
+    },
+    {
+      "id": "kfn-path:1:0:1:1",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL) ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE VIEW' shardkey=sk;",
+      "before": [
+        "R004",
+        "R029",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R004",
+        "R029",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "KNOWN_FIDELITY_GAP[KFN-5-SERIAL]"
+    },
+    {
+      "id": "kfn-path:1:0:1:2",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL) ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE PROCEDURE' shardkey=sk;",
+      "before": [
+        "R004",
+        "R029",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R004",
+        "R029",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "KNOWN_FIDELITY_GAP[KFN-5-SERIAL]"
+    },
+    {
+      "id": "kfn-path:1:0:1:3",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL) ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE FUNCTION' shardkey=sk;",
+      "before": [
+        "R004",
+        "R029",
+        "R030",
+        "R031"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R004",
+        "R029",
+        "R030",
+        "R031"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "KNOWN_FIDELITY_GAP[KFN-5-SERIAL]"
+    },
+    {
+      "id": "kfn-path:1:0:1:4",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL) ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE TRIGGER' shardkey=sk;",
+      "before": [
+        "R004",
+        "R029",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R004",
+        "R029",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "KNOWN_FIDELITY_GAP[KFN-5-SERIAL]"
+    },
+    {
+      "id": "kfn-path:1:0:1:5",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL) ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='LOAD DATA' shardkey=sk;",
+      "before": [
+        "R004",
+        "R029",
+        "R042"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R004",
+        "R029",
+        "R042"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "KNOWN_FIDELITY_GAP[KFN-5-SERIAL]"
+    },
+    {
+      "id": "kfn-path:1:0:1:6",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL) ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='LOAD XML' shardkey=sk;",
+      "before": [
+        "R004",
+        "R029",
+        "R042"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R004",
+        "R029",
+        "R042"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "KNOWN_FIDELITY_GAP[KFN-5-SERIAL]"
+    },
+    {
+      "id": "kfn-path:1:0:2:1",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL) ENGINE=InnoDB DEFAULT COMMENT='CREATE VIEW' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Parser.<lambda>() got an unexpected keyword argument 'default'"
+    },
+    {
+      "id": "kfn-path:1:0:2:2",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL) ENGINE=InnoDB DEFAULT COMMENT='CREATE PROCEDURE' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Parser.<lambda>() got an unexpected keyword argument 'default'"
+    },
+    {
+      "id": "kfn-path:1:0:2:3",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL) ENGINE=InnoDB DEFAULT COMMENT='CREATE FUNCTION' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Parser.<lambda>() got an unexpected keyword argument 'default'"
+    },
+    {
+      "id": "kfn-path:1:0:2:4",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL) ENGINE=InnoDB DEFAULT COMMENT='CREATE TRIGGER' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Parser.<lambda>() got an unexpected keyword argument 'default'"
+    },
+    {
+      "id": "kfn-path:1:0:3:1",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LESS THAN(10)) COMMENT='CREATE VIEW' shardkey=sk;",
+      "before": [
+        "R029",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R029",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "KNOWN_FIDELITY_GAP[KFN-5-SERIAL]"
+    },
+    {
+      "id": "kfn-path:1:0:3:2",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LESS THAN(10)) COMMENT='CREATE PROCEDURE' shardkey=sk;",
+      "before": [
+        "R029",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R029",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "KNOWN_FIDELITY_GAP[KFN-5-SERIAL]"
+    },
+    {
+      "id": "kfn-path:1:0:3:3",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LESS THAN(10)) COMMENT='CREATE FUNCTION' shardkey=sk;",
+      "before": [
+        "R029",
+        "R030",
+        "R031"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R029",
+        "R030",
+        "R031"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "KNOWN_FIDELITY_GAP[KFN-5-SERIAL]"
+    },
+    {
+      "id": "kfn-path:1:0:3:4",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LESS THAN(10)) COMMENT='CREATE TRIGGER' shardkey=sk;",
+      "before": [
+        "R029",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R029",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "KNOWN_FIDELITY_GAP[KFN-5-SERIAL]"
+    },
+    {
+      "id": "kfn-path:1:0:3:5",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LESS THAN(10)) COMMENT='LOAD DATA' shardkey=sk;",
+      "before": [
+        "R029",
+        "R042"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R029",
+        "R042"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "KNOWN_FIDELITY_GAP[KFN-5-SERIAL]"
+    },
+    {
+      "id": "kfn-path:1:0:3:6",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LESS THAN(10)) COMMENT='LOAD XML' shardkey=sk;",
+      "before": [
+        "R029",
+        "R042"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R029",
+        "R042"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "KNOWN_FIDELITY_GAP[KFN-5-SERIAL]"
+    },
+    {
+      "id": "kfn-path:1:1:0:1",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL,UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE VIEW' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 281.\n  MMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL,UNIQUE KEY uk_extra(u) \u001b[4mCOMMENT\u001b[0m 'index note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE VIEW' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:1:1:0:2",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL,UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE PROCEDURE' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 281.\n  MMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL,UNIQUE KEY uk_extra(u) \u001b[4mCOMMENT\u001b[0m 'index note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE PROCEDURE' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:1:1:0:3",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL,UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE FUNCTION' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031",
+        "R054"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031",
+        "R054"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 281.\n  MMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL,UNIQUE KEY uk_extra(u) \u001b[4mCOMMENT\u001b[0m 'index note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE FUNCTION' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:1:1:0:4",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL,UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE TRIGGER' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 281.\n  MMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL,UNIQUE KEY uk_extra(u) \u001b[4mCOMMENT\u001b[0m 'index note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE TRIGGER' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:1:1:1:1",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL,UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE VIEW' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 281.\n  MMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL,UNIQUE KEY uk_extra(u) \u001b[4mCOMMENT\u001b[0m 'index note') ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE VIEW' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:1:1:1:2",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL,UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE PROCEDURE' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 281.\n  MMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL,UNIQUE KEY uk_extra(u) \u001b[4mCOMMENT\u001b[0m 'index note') ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE PROCEDURE' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:1:1:1:3",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL,UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE FUNCTION' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031",
+        "R054"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031",
+        "R054"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 281.\n  MMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL,UNIQUE KEY uk_extra(u) \u001b[4mCOMMENT\u001b[0m 'index note') ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE FUNCTION' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:1:1:1:4",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL,UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE TRIGGER' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 281.\n  MMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL,UNIQUE KEY uk_extra(u) \u001b[4mCOMMENT\u001b[0m 'index note') ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE TRIGGER' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:1:1:2:1",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL,UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=InnoDB DEFAULT COMMENT='CREATE VIEW' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 281.\n  MMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL,UNIQUE KEY uk_extra(u) \u001b[4mCOMMENT\u001b[0m 'index note') ENGINE=InnoDB DEFAULT COMMENT='CREATE VIEW' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:1:1:2:2",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL,UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=InnoDB DEFAULT COMMENT='CREATE PROCEDURE' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 281.\n  MMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL,UNIQUE KEY uk_extra(u) \u001b[4mCOMMENT\u001b[0m 'index note') ENGINE=InnoDB DEFAULT COMMENT='CREATE PROCEDURE' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:1:1:2:3",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL,UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=InnoDB DEFAULT COMMENT='CREATE FUNCTION' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031",
+        "R054"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031",
+        "R054"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 281.\n  MMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL,UNIQUE KEY uk_extra(u) \u001b[4mCOMMENT\u001b[0m 'index note') ENGINE=InnoDB DEFAULT COMMENT='CREATE FUNCTION' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:1:1:2:4",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL,UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=InnoDB DEFAULT COMMENT='CREATE TRIGGER' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 281.\n  MMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL,UNIQUE KEY uk_extra(u) \u001b[4mCOMMENT\u001b[0m 'index note') ENGINE=InnoDB DEFAULT COMMENT='CREATE TRIGGER' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:1:1:3:1",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL,UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LESS THAN(10)) COMMENT='CREATE VIEW' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 281.\n  MMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL,UNIQUE KEY uk_extra(u) \u001b[4mCOMMENT\u001b[0m 'index note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LES"
+    },
+    {
+      "id": "kfn-path:1:1:3:2",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL,UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LESS THAN(10)) COMMENT='CREATE PROCEDURE' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 281.\n  MMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL,UNIQUE KEY uk_extra(u) \u001b[4mCOMMENT\u001b[0m 'index note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LES"
+    },
+    {
+      "id": "kfn-path:1:1:3:3",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL,UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LESS THAN(10)) COMMENT='CREATE FUNCTION' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031",
+        "R054"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031",
+        "R054"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 281.\n  MMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL,UNIQUE KEY uk_extra(u) \u001b[4mCOMMENT\u001b[0m 'index note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LES"
+    },
+    {
+      "id": "kfn-path:1:1:3:4",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL,UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LESS THAN(10)) COMMENT='CREATE TRIGGER' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 281.\n  MMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s SERIAL,UNIQUE KEY uk_extra(u) \u001b[4mCOMMENT\u001b[0m 'index note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LES"
+    },
+    {
+      "id": "kfn-path:1:2:0:1",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s SERIAL,PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE VIEW' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 258.\n  update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s SERIAL,PRIMARY KEY(id,sk) \u001b[4mCOMMENT\u001b[0m 'pk note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE VIEW' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:1:2:0:2",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s SERIAL,PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE PROCEDURE' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 258.\n  update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s SERIAL,PRIMARY KEY(id,sk) \u001b[4mCOMMENT\u001b[0m 'pk note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE PROCEDURE' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:1:2:0:3",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s SERIAL,PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE FUNCTION' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 258.\n  update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s SERIAL,PRIMARY KEY(id,sk) \u001b[4mCOMMENT\u001b[0m 'pk note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE FUNCTION' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:1:2:0:4",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s SERIAL,PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE TRIGGER' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 258.\n  update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s SERIAL,PRIMARY KEY(id,sk) \u001b[4mCOMMENT\u001b[0m 'pk note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE TRIGGER' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:1:2:1:1",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s SERIAL,PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE VIEW' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 258.\n  update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s SERIAL,PRIMARY KEY(id,sk) \u001b[4mCOMMENT\u001b[0m 'pk note') ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE VIEW' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:1:2:1:2",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s SERIAL,PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE PROCEDURE' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 258.\n  update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s SERIAL,PRIMARY KEY(id,sk) \u001b[4mCOMMENT\u001b[0m 'pk note') ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE PROCEDURE' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:1:2:1:3",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s SERIAL,PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE FUNCTION' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 258.\n  update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s SERIAL,PRIMARY KEY(id,sk) \u001b[4mCOMMENT\u001b[0m 'pk note') ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE FUNCTION' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:1:2:1:4",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s SERIAL,PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE TRIGGER' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 258.\n  update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s SERIAL,PRIMARY KEY(id,sk) \u001b[4mCOMMENT\u001b[0m 'pk note') ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE TRIGGER' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:1:2:2:1",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s SERIAL,PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=InnoDB DEFAULT COMMENT='CREATE VIEW' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 258.\n  update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s SERIAL,PRIMARY KEY(id,sk) \u001b[4mCOMMENT\u001b[0m 'pk note') ENGINE=InnoDB DEFAULT COMMENT='CREATE VIEW' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:1:2:2:2",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s SERIAL,PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=InnoDB DEFAULT COMMENT='CREATE PROCEDURE' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 258.\n  update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s SERIAL,PRIMARY KEY(id,sk) \u001b[4mCOMMENT\u001b[0m 'pk note') ENGINE=InnoDB DEFAULT COMMENT='CREATE PROCEDURE' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:1:2:2:3",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s SERIAL,PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=InnoDB DEFAULT COMMENT='CREATE FUNCTION' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 258.\n  update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s SERIAL,PRIMARY KEY(id,sk) \u001b[4mCOMMENT\u001b[0m 'pk note') ENGINE=InnoDB DEFAULT COMMENT='CREATE FUNCTION' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:1:2:2:4",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s SERIAL,PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=InnoDB DEFAULT COMMENT='CREATE TRIGGER' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 258.\n  update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s SERIAL,PRIMARY KEY(id,sk) \u001b[4mCOMMENT\u001b[0m 'pk note') ENGINE=InnoDB DEFAULT COMMENT='CREATE TRIGGER' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:1:2:3:1",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s SERIAL,PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LESS THAN(10)) COMMENT='CREATE VIEW' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 258.\n  update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s SERIAL,PRIMARY KEY(id,sk) \u001b[4mCOMMENT\u001b[0m 'pk note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LESS T"
+    },
+    {
+      "id": "kfn-path:1:2:3:2",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s SERIAL,PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LESS THAN(10)) COMMENT='CREATE PROCEDURE' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 258.\n  update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s SERIAL,PRIMARY KEY(id,sk) \u001b[4mCOMMENT\u001b[0m 'pk note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LESS T"
+    },
+    {
+      "id": "kfn-path:1:2:3:3",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s SERIAL,PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LESS THAN(10)) COMMENT='CREATE FUNCTION' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 258.\n  update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s SERIAL,PRIMARY KEY(id,sk) \u001b[4mCOMMENT\u001b[0m 'pk note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LESS T"
+    },
+    {
+      "id": "kfn-path:1:2:3:4",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s SERIAL,PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LESS THAN(10)) COMMENT='CREATE TRIGGER' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 258.\n  update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s SERIAL,PRIMARY KEY(id,sk) \u001b[4mCOMMENT\u001b[0m 'pk note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LESS T"
+    },
+    {
+      "id": "kfn-path:2:0:0:1",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT SERIAL DEFAULT VALUE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE VIEW' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 254.\n  d',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT \u001b[4mSERIAL\u001b[0m DEFAULT VALUE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE VIEW' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:2:0:0:2",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT SERIAL DEFAULT VALUE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE PROCEDURE' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 254.\n  d',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT \u001b[4mSERIAL\u001b[0m DEFAULT VALUE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE PROCEDURE' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:2:0:0:3",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT SERIAL DEFAULT VALUE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE FUNCTION' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 254.\n  d',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT \u001b[4mSERIAL\u001b[0m DEFAULT VALUE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE FUNCTION' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:2:0:0:4",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT SERIAL DEFAULT VALUE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE TRIGGER' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 254.\n  d',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT \u001b[4mSERIAL\u001b[0m DEFAULT VALUE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE TRIGGER' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:2:0:1:1",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT SERIAL DEFAULT VALUE) ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE VIEW' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 254.\n  d',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT \u001b[4mSERIAL\u001b[0m DEFAULT VALUE) ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE VIEW' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:2:0:1:2",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT SERIAL DEFAULT VALUE) ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE PROCEDURE' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 254.\n  d',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT \u001b[4mSERIAL\u001b[0m DEFAULT VALUE) ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE PROCEDURE' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:2:0:1:3",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT SERIAL DEFAULT VALUE) ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE FUNCTION' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 254.\n  d',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT \u001b[4mSERIAL\u001b[0m DEFAULT VALUE) ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE FUNCTION' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:2:0:1:4",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT SERIAL DEFAULT VALUE) ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE TRIGGER' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 254.\n  d',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT \u001b[4mSERIAL\u001b[0m DEFAULT VALUE) ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE TRIGGER' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:2:0:2:1",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT SERIAL DEFAULT VALUE) ENGINE=InnoDB DEFAULT COMMENT='CREATE VIEW' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 254.\n  d',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT \u001b[4mSERIAL\u001b[0m DEFAULT VALUE) ENGINE=InnoDB DEFAULT COMMENT='CREATE VIEW' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:2:0:2:2",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT SERIAL DEFAULT VALUE) ENGINE=InnoDB DEFAULT COMMENT='CREATE PROCEDURE' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 254.\n  d',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT \u001b[4mSERIAL\u001b[0m DEFAULT VALUE) ENGINE=InnoDB DEFAULT COMMENT='CREATE PROCEDURE' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:2:0:2:3",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT SERIAL DEFAULT VALUE) ENGINE=InnoDB DEFAULT COMMENT='CREATE FUNCTION' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 254.\n  d',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT \u001b[4mSERIAL\u001b[0m DEFAULT VALUE) ENGINE=InnoDB DEFAULT COMMENT='CREATE FUNCTION' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:2:0:2:4",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT SERIAL DEFAULT VALUE) ENGINE=InnoDB DEFAULT COMMENT='CREATE TRIGGER' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 254.\n  d',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT \u001b[4mSERIAL\u001b[0m DEFAULT VALUE) ENGINE=InnoDB DEFAULT COMMENT='CREATE TRIGGER' shardkey=sk"
+    },
+    {
+      "id": "kfn-path:2:0:3:1",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT SERIAL DEFAULT VALUE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LESS THAN(10)) COMMENT='CREATE VIEW' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 254.\n  d',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT \u001b[4mSERIAL\u001b[0m DEFAULT VALUE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LE"
+    },
+    {
+      "id": "kfn-path:2:0:3:2",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT SERIAL DEFAULT VALUE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LESS THAN(10)) COMMENT='CREATE PROCEDURE' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 254.\n  d',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT \u001b[4mSERIAL\u001b[0m DEFAULT VALUE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LE"
+    },
+    {
+      "id": "kfn-path:2:0:3:3",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT SERIAL DEFAULT VALUE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LESS THAN(10)) COMMENT='CREATE FUNCTION' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 254.\n  d',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT \u001b[4mSERIAL\u001b[0m DEFAULT VALUE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LE"
+    },
+    {
+      "id": "kfn-path:2:0:3:4",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT SERIAL DEFAULT VALUE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LESS THAN(10)) COMMENT='CREATE TRIGGER' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 254.\n  d',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT \u001b[4mSERIAL\u001b[0m DEFAULT VALUE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LE"
+    },
+    {
+      "id": "kfn-path:2:1:0:1",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT SERIAL DEFAULT VALUE,UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE VIEW' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 254.\n  d',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT \u001b[4mSERIAL\u001b[0m DEFAULT VALUE,UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 CO"
+    },
+    {
+      "id": "kfn-path:2:1:0:2",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT SERIAL DEFAULT VALUE,UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE PROCEDURE' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 254.\n  d',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT \u001b[4mSERIAL\u001b[0m DEFAULT VALUE,UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 CO"
+    },
+    {
+      "id": "kfn-path:2:1:0:3",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT SERIAL DEFAULT VALUE,UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE FUNCTION' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031",
+        "R054"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031",
+        "R054"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 254.\n  d',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT \u001b[4mSERIAL\u001b[0m DEFAULT VALUE,UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 CO"
+    },
+    {
+      "id": "kfn-path:2:1:0:4",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT SERIAL DEFAULT VALUE,UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE TRIGGER' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 254.\n  d',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT \u001b[4mSERIAL\u001b[0m DEFAULT VALUE,UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 CO"
+    },
+    {
+      "id": "kfn-path:2:1:1:1",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT SERIAL DEFAULT VALUE,UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE VIEW' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 254.\n  d',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT \u001b[4mSERIAL\u001b[0m DEFAULT VALUE,UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=123 DEFAULT CHARSET=utf8mb4 COMME"
+    },
+    {
+      "id": "kfn-path:2:1:1:2",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT SERIAL DEFAULT VALUE,UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE PROCEDURE' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 254.\n  d',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT \u001b[4mSERIAL\u001b[0m DEFAULT VALUE,UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=123 DEFAULT CHARSET=utf8mb4 COMME"
+    },
+    {
+      "id": "kfn-path:2:1:1:3",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT SERIAL DEFAULT VALUE,UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE FUNCTION' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031",
+        "R054"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031",
+        "R054"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 254.\n  d',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT \u001b[4mSERIAL\u001b[0m DEFAULT VALUE,UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=123 DEFAULT CHARSET=utf8mb4 COMME"
+    },
+    {
+      "id": "kfn-path:2:1:1:4",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT SERIAL DEFAULT VALUE,UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE TRIGGER' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 254.\n  d',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT \u001b[4mSERIAL\u001b[0m DEFAULT VALUE,UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=123 DEFAULT CHARSET=utf8mb4 COMME"
+    },
+    {
+      "id": "kfn-path:2:1:2:1",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT SERIAL DEFAULT VALUE,UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=InnoDB DEFAULT COMMENT='CREATE VIEW' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 254.\n  d',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT \u001b[4mSERIAL\u001b[0m DEFAULT VALUE,UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=InnoDB DEFAULT COMMENT='CREATE VI"
+    },
+    {
+      "id": "kfn-path:2:1:2:2",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT SERIAL DEFAULT VALUE,UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=InnoDB DEFAULT COMMENT='CREATE PROCEDURE' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 254.\n  d',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT \u001b[4mSERIAL\u001b[0m DEFAULT VALUE,UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=InnoDB DEFAULT COMMENT='CREATE PR"
+    },
+    {
+      "id": "kfn-path:2:1:2:3",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT SERIAL DEFAULT VALUE,UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=InnoDB DEFAULT COMMENT='CREATE FUNCTION' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031",
+        "R054"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031",
+        "R054"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 254.\n  d',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT \u001b[4mSERIAL\u001b[0m DEFAULT VALUE,UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=InnoDB DEFAULT COMMENT='CREATE FU"
+    },
+    {
+      "id": "kfn-path:2:1:2:4",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT SERIAL DEFAULT VALUE,UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=InnoDB DEFAULT COMMENT='CREATE TRIGGER' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 254.\n  d',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT \u001b[4mSERIAL\u001b[0m DEFAULT VALUE,UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=InnoDB DEFAULT COMMENT='CREATE TR"
+    },
+    {
+      "id": "kfn-path:2:1:3:1",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT SERIAL DEFAULT VALUE,UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LESS THAN(10)) COMMENT='CREATE VIEW' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 254.\n  d',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT \u001b[4mSERIAL\u001b[0m DEFAULT VALUE,UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PA"
+    },
+    {
+      "id": "kfn-path:2:1:3:2",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT SERIAL DEFAULT VALUE,UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LESS THAN(10)) COMMENT='CREATE PROCEDURE' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 254.\n  d',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT \u001b[4mSERIAL\u001b[0m DEFAULT VALUE,UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PA"
+    },
+    {
+      "id": "kfn-path:2:1:3:3",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT SERIAL DEFAULT VALUE,UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LESS THAN(10)) COMMENT='CREATE FUNCTION' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031",
+        "R054"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031",
+        "R054"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 254.\n  d',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT \u001b[4mSERIAL\u001b[0m DEFAULT VALUE,UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PA"
+    },
+    {
+      "id": "kfn-path:2:1:3:4",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT SERIAL DEFAULT VALUE,UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LESS THAN(10)) COMMENT='CREATE TRIGGER' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R054"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 254.\n  d',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',PRIMARY KEY(id,sk),s INT \u001b[4mSERIAL\u001b[0m DEFAULT VALUE,UNIQUE KEY uk_extra(u) COMMENT 'index note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PA"
+    },
+    {
+      "id": "kfn-path:2:2:0:1",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s INT SERIAL DEFAULT VALUE,PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE VIEW' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 235.\n  IME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s INT \u001b[4mSERIAL\u001b[0m DEFAULT VALUE,PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='"
+    },
+    {
+      "id": "kfn-path:2:2:0:2",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s INT SERIAL DEFAULT VALUE,PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE PROCEDURE' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 235.\n  IME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s INT \u001b[4mSERIAL\u001b[0m DEFAULT VALUE,PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='"
+    },
+    {
+      "id": "kfn-path:2:2:0:3",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s INT SERIAL DEFAULT VALUE,PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE FUNCTION' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 235.\n  IME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s INT \u001b[4mSERIAL\u001b[0m DEFAULT VALUE,PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='"
+    },
+    {
+      "id": "kfn-path:2:2:0:4",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s INT SERIAL DEFAULT VALUE,PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CREATE TRIGGER' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 235.\n  IME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s INT \u001b[4mSERIAL\u001b[0m DEFAULT VALUE,PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='"
+    },
+    {
+      "id": "kfn-path:2:2:1:1",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s INT SERIAL DEFAULT VALUE,PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE VIEW' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 235.\n  IME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s INT \u001b[4mSERIAL\u001b[0m DEFAULT VALUE,PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CRE"
+    },
+    {
+      "id": "kfn-path:2:2:1:2",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s INT SERIAL DEFAULT VALUE,PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE PROCEDURE' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 235.\n  IME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s INT \u001b[4mSERIAL\u001b[0m DEFAULT VALUE,PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CRE"
+    },
+    {
+      "id": "kfn-path:2:2:1:3",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s INT SERIAL DEFAULT VALUE,PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE FUNCTION' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 235.\n  IME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s INT \u001b[4mSERIAL\u001b[0m DEFAULT VALUE,PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CRE"
+    },
+    {
+      "id": "kfn-path:2:2:1:4",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s INT SERIAL DEFAULT VALUE,PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CREATE TRIGGER' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 235.\n  IME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s INT \u001b[4mSERIAL\u001b[0m DEFAULT VALUE,PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=123 DEFAULT CHARSET=utf8mb4 COMMENT='CRE"
+    },
+    {
+      "id": "kfn-path:2:2:2:1",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s INT SERIAL DEFAULT VALUE,PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=InnoDB DEFAULT COMMENT='CREATE VIEW' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 235.\n  IME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s INT \u001b[4mSERIAL\u001b[0m DEFAULT VALUE,PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=InnoDB DEFAULT COMMENT='CREATE VIEW' sha"
+    },
+    {
+      "id": "kfn-path:2:2:2:2",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s INT SERIAL DEFAULT VALUE,PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=InnoDB DEFAULT COMMENT='CREATE PROCEDURE' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 235.\n  IME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s INT \u001b[4mSERIAL\u001b[0m DEFAULT VALUE,PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=InnoDB DEFAULT COMMENT='CREATE PROCEDURE"
+    },
+    {
+      "id": "kfn-path:2:2:2:3",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s INT SERIAL DEFAULT VALUE,PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=InnoDB DEFAULT COMMENT='CREATE FUNCTION' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 235.\n  IME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s INT \u001b[4mSERIAL\u001b[0m DEFAULT VALUE,PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=InnoDB DEFAULT COMMENT='CREATE FUNCTION'"
+    },
+    {
+      "id": "kfn-path:2:2:2:4",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s INT SERIAL DEFAULT VALUE,PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=InnoDB DEFAULT COMMENT='CREATE TRIGGER' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 235.\n  IME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s INT \u001b[4mSERIAL\u001b[0m DEFAULT VALUE,PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=InnoDB DEFAULT COMMENT='CREATE TRIGGER' "
+    },
+    {
+      "id": "kfn-path:2:2:3:1",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s INT SERIAL DEFAULT VALUE,PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LESS THAN(10)) COMMENT='CREATE VIEW' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 235.\n  IME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s INT \u001b[4mSERIAL\u001b[0m DEFAULT VALUE,PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION"
+    },
+    {
+      "id": "kfn-path:2:2:3:2",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s INT SERIAL DEFAULT VALUE,PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LESS THAN(10)) COMMENT='CREATE PROCEDURE' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 235.\n  IME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s INT \u001b[4mSERIAL\u001b[0m DEFAULT VALUE,PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION"
+    },
+    {
+      "id": "kfn-path:2:2:3:3",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s INT SERIAL DEFAULT VALUE,PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LESS THAN(10)) COMMENT='CREATE FUNCTION' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 235.\n  IME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s INT \u001b[4mSERIAL\u001b[0m DEFAULT VALUE,PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION"
+    },
+    {
+      "id": "kfn-path:2:2:3:4",
+      "sql": "CREATE TABLE t_guard(id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s INT SERIAL DEFAULT VALUE,PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION BY RANGE(id) (PARTITION p0 VALUES LESS THAN(10)) COMMENT='CREATE TRIGGER' shardkey=sk;",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 235.\n  IME COMMENT 'created',update_time DATETIME COMMENT 'updated',is_deleted INT COMMENT 'deleted',s INT \u001b[4mSERIAL\u001b[0m DEFAULT VALUE,PRIMARY KEY(id,sk) COMMENT 'pk note') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 PARTITION"
+    },
+    {
+      "id": "ordinary-error:4:1",
+      "sql": "CREATE TABLE t (id INT, u INT COMMENT 'CREATE VIEW'",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R077"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R077"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 51.\n  CREATE TABLE t (id INT, u INT COMMENT \u001b[4m'CREATE VIEW'\u001b[0m"
+    },
+    {
+      "id": "ordinary-error:4:2",
+      "sql": "CREATE TABLE t (id INT, u INT COMMENT 'CREATE PROCEDURE'",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R077"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R077"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 56.\n  CREATE TABLE t (id INT, u INT COMMENT \u001b[4m'CREATE PROCEDURE'\u001b[0m"
+    },
+    {
+      "id": "ordinary-error:4:3",
+      "sql": "CREATE TABLE t (id INT, u INT COMMENT 'CREATE FUNCTION'",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031",
+        "R077"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R031",
+        "R077"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 55.\n  CREATE TABLE t (id INT, u INT COMMENT \u001b[4m'CREATE FUNCTION'\u001b[0m"
+    },
+    {
+      "id": "ordinary-error:4:4",
+      "sql": "CREATE TABLE t (id INT, u INT COMMENT 'CREATE TRIGGER'",
+      "before": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R077"
+      ],
+      "after": [
+        "E999_SYNTAX_ERROR",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R077"
+      ],
+      "sql_type": "CREATE TABLE",
+      "parse_error": "Expecting ). Line 1, Col: 54.\n  CREATE TABLE t (id INT, u INT COMMENT \u001b[4m'CREATE TRIGGER'\u001b[0m"
+    }
+  ]
+}

@@ -1,0 +1,183 @@
+- banner:
+  - img "logo"
+  - generic: TDSQL数据库SQL审核工具
+  - button "U UAT-O 管理员 系统管理员":
+    - generic: U
+    - generic: UAT-O 管理员
+    - generic: 系统管理员
+- complementary:
+  - menubar:
+    - menuitem "治理概览":
+      - generic: 治理概览
+    - menuitem "SQL审核":
+      - generic: SQL审核
+    - menuitem "慢SQL治理" [expanded]:
+      - generic: 慢SQL治理
+      - menu:
+        - menuitem "扫描任务"
+        - menuitem "慢SQL记录"
+        - menuitem "EXPLAIN分析"
+    - menuitem "实例体检" [expanded]:
+      - generic: 实例体检
+      - menu:
+        - menuitem "上线检查"
+        - menuitem "大表治理"
+    - menuitem "深度诊断":
+      - generic: 深度诊断
+    - menuitem "平台治理" [expanded]:
+      - generic: 平台治理
+      - menu:
+        - menuitem "实例管理"
+        - menuitem "审核规则库"
+        - menuitem "评估规则集"
+    - menuitem "系统管理":
+      - generic: 系统管理
+- navigation "面包屑":
+  - link "平台治理"
+  - text: /
+  - link "实例管理"
+- text: "*"
+- generic: 实例管理
+- button "ZK发现配置":
+  - generic: ZK发现配置
+- button "从 ZK 自动发现":
+  - generic: 从 ZK 自动发现
+- button "+ 新建连接":
+  - generic: + 新建连接
+- textbox "连接名（模糊）"
+- textbox "地址"
+- combobox
+- generic: 类型
+- generic: 共 2 / 2 条
+- table:
+  - rowgroup:
+    - row "连接名 地址 用户名 类型 状态 默认 ERROR上限 WARNING上限 操作":
+      - columnheader "连接名":
+        - generic: 连接名
+      - columnheader "地址":
+        - generic: 地址
+      - columnheader "用户名":
+        - generic: 用户名
+      - columnheader "类型":
+        - generic: 类型
+      - columnheader "状态":
+        - generic: 状态
+      - columnheader "默认":
+        - generic: 默认
+      - columnheader "ERROR上限":
+        - generic: ERROR上限
+      - columnheader "WARNING上限":
+        - generic: WARNING上限
+      - columnheader "操作":
+        - generic: 操作
+- table:
+  - rowgroup:
+    - row "UAT-O 本地集中式样本 127.0.0.1:13306/tdsql_uat_o_target_1622 root 集中式·声明 ? ● 已连接 默认 0 默认 不限 编辑 探测类型 锁定类型 探测诊断 删除":
+      - cell "UAT-O 本地集中式样本":
+        - generic: UAT-O 本地集中式样本
+      - cell "127.0.0.1:13306/tdsql_uat_o_target_1622":
+        - generic: 127.0.0.1:13306/tdsql_uat_o_target_1622
+      - cell "root":
+        - generic: root
+      - cell "集中式·声明 ?":
+        - generic: 集中式·声明
+        - text: "?"
+      - cell "● 已连接":
+        - generic: ● 已连接
+      - cell "默认":
+        - generic: 默认
+      - cell "0 默认":
+        - text: "0"
+        - generic: 默认
+      - cell "不限":
+        - generic: 不限
+      - cell "编辑 探测类型 锁定类型 探测诊断 删除":
+        - button "编辑":
+          - generic: 编辑
+        - button "探测类型":
+          - generic: 探测类型
+        - button "锁定类型":
+          - generic: 锁定类型
+        - button "探测诊断":
+          - generic: 探测诊断
+        - button "删除":
+          - generic: 删除
+    - row "UAT-O 离线失败样本 127.0.0.1:1/uat_o_offline synthetic 分布式·声明 ? ● 未连接 0 默认 不限 连接 设为默认 编辑 探测类型 锁定类型 探测诊断 删除":
+      - cell "UAT-O 离线失败样本":
+        - generic: UAT-O 离线失败样本
+      - cell "127.0.0.1:1/uat_o_offline":
+        - generic: 127.0.0.1:1/uat_o_offline
+      - cell "synthetic":
+        - generic: synthetic
+      - cell "分布式·声明 ?":
+        - generic: 分布式·声明
+        - text: "?"
+      - cell "● 未连接":
+        - generic: ● 未连接
+      - cell
+      - cell "0 默认":
+        - text: "0"
+        - generic: 默认
+      - cell "不限":
+        - generic: 不限
+      - cell "连接 设为默认 编辑 探测类型 锁定类型 探测诊断 删除":
+        - button "连接":
+          - generic: 连接
+        - button "设为默认":
+          - generic: 设为默认
+        - button "编辑":
+          - generic: 编辑
+        - button "探测类型":
+          - generic: 探测类型
+        - button "锁定类型":
+          - generic: 锁定类型
+        - button "探测诊断":
+          - generic: 探测诊断
+        - button "删除":
+          - generic: 删除
+- generic: 共 2 条
+- button "上一页" [disabled]:
+- list:
+  - listitem "第 1 页": "1"
+- button "下一页" [disabled]:
+- combobox
+- generic: 20条/页
+- dialog "从 ZooKeeper 自动发现实例":
+  - banner:
+    - heading "从 ZooKeeper 自动发现实例" [level=2]
+    - button "el.dialog.close":
+  - alert:
+    - generic: 扫描使用管理员已保存的 ZK 配置。扫描失败会明确提示，不会返回模拟实例。
+  - button "ZK发现配置":
+    - generic: ZK发现配置
+  - button "开始扫描":
+    - generic: 开始扫描
+  - table:
+    - rowgroup:
+      - row "实例 ID 实例名称 业务库 主 Proxy 实例形态 SET 列表 Proxy数 状态":
+        - columnheader:
+          - checkbox [disabled]
+        - columnheader "实例 ID":
+          - generic: 实例 ID
+        - columnheader "实例名称":
+          - generic: 实例名称
+        - columnheader "业务库":
+          - generic: 业务库
+        - columnheader "主 Proxy":
+          - generic: 主 Proxy
+        - columnheader "实例形态":
+          - generic: 实例形态
+        - columnheader "SET 列表":
+          - generic: SET 列表
+        - columnheader "Proxy数":
+          - generic: Proxy数
+        - columnheader "状态":
+          - generic: 状态
+  - table:
+    - rowgroup
+  - generic: 暂无数据
+  - contentinfo:
+    - button "取消":
+      - generic: 取消
+    - button "配置导入并生成预览" [disabled]:
+      - generic: 配置导入并生成预览

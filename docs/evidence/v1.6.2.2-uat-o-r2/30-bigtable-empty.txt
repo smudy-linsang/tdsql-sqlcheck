@@ -1,0 +1,69 @@
+- banner:
+  - img "logo"
+  - generic: TDSQL数据库SQL审核工具
+  - button "U UAT-O 管理员 系统管理员":
+    - generic: U
+    - generic: UAT-O 管理员
+    - generic: 系统管理员
+- complementary:
+  - menubar:
+    - menuitem "治理概览":
+      - generic: 治理概览
+    - menuitem "SQL审核":
+      - generic: SQL审核
+    - menuitem "慢SQL治理" [expanded]:
+      - generic: 慢SQL治理
+      - menu:
+        - menuitem "扫描任务"
+        - menuitem "慢SQL记录"
+        - menuitem "EXPLAIN分析"
+    - menuitem "实例体检" [expanded]:
+      - generic: 实例体检
+      - menu:
+        - menuitem "上线检查"
+        - menuitem "大表治理"
+    - menuitem "深度诊断":
+      - generic: 深度诊断
+    - menuitem "平台治理":
+      - generic: 平台治理
+    - menuitem "系统管理":
+      - generic: 系统管理
+- navigation "面包屑":
+  - link "实例体检"
+  - text: /
+  - link "大表治理"
+- text: "*"
+- tablist:
+  - tab "大表治理" [selected]
+  - tab "扫描历史对比"
+  - tab "已留档对比报告"
+- tabpanel "大表治理":
+  - generic: 大表治理
+  - combobox
+  - generic: UAT-O 本地集中式样本 (127.0.0.1:13306)
+  - button "刷新清单":
+    - generic: 刷新清单
+  - button "采集大表清单":
+    - generic: 采集大表清单
+  - generic: 提示：分区表可点击「表名」就地展开查看每个分区的大小与合理性分析
+  - table:
+    - rowgroup:
+      - row "库 表名 大小(GB) 行数 级别 分区 分片键":
+        - columnheader
+        - columnheader "库":
+          - generic: 库
+        - columnheader "表名":
+          - generic: 表名
+        - columnheader "大小(GB)":
+          - generic: 大小(GB)
+        - columnheader "行数":
+          - generic: 行数
+        - columnheader "级别":
+          - generic: 级别
+        - columnheader "分区":
+          - generic: 分区
+        - columnheader "分片键":
+          - generic: 分片键
+  - table:
+    - rowgroup
+  - generic: 暂无数据

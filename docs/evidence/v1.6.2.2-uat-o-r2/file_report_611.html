@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TDSQL SQL审核报告 - uat_core_rule_corpus.sql</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:"Microsoft YaHei","Segoe UI",Arial,sans-serif; background:#f0f2f5; color:#303030; padding:20px; }
+.container { max-width:900px; margin:0 auto; background:#fff; border-radius:8px; box-shadow:0 2px 12px rgba(0,0,0,0.08); overflow:hidden; }
+.header { background:#1a1a2e; color:#fff; padding:24px 32px; }
+.header h1 { font-size:22px; margin-bottom:6px; }
+.header .sub { font-size:13px; color:#a0aec0; }
+.meta { display:flex; flex-wrap:wrap; gap:24px; padding:20px 32px; background:#f7f8fa; border-bottom:1px solid #ebeef5; }
+.meta-item { font-size:14px; }
+.meta-item .label { color:#909399; margin-right:6px; }
+.meta-item .value { font-weight:600; }
+.summary { display:flex; gap:16px; padding:24px 32px; flex-wrap:wrap; }
+.sc { flex:1; min-width:100px; text-align:center; padding:16px; border-radius:6px; }
+.sc.total { background:#e8f4fd; } .sc.pass { background:#e8f7e8; } .sc.fail { background:#fde8e8; }
+.sc.rate.pass { background:#e8f7e8; } .sc.rate.warn { background:#fdf6e8; } .sc.rate.fail { background:#fde8e8; }
+.sc .num { font-size:28px; font-weight:700; } .sc .lbl { font-size:12px; color:#606266; margin-top:4px; }
+.stitle { padding:16px 32px 8px; font-size:16px; font-weight:600; border-top:1px solid #ebeef5; }
+.sql-item { margin:0 32px 16px; padding:16px; border:1px solid #ebeef5; border-radius:6px; }
+.sql-item .sh { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+.sql-text { font-family:Consolas,Courier New,monospace; font-size:13px; background:#f5f7fa; padding:8px 12px; border-radius:4px; margin:8px 0; white-space:pre-wrap; word-break:break-all; }
+.badge { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600; }
+.badge.ERROR { background:#fde8e8; color:#f56c6c; } .badge.WARNING { background:#fdf6e8; color:#e6a23c; } .badge.INFO { background:#f4f4f5; color:#909399; } .badge.PASS { background:#e8f7e8; color:#67c23a; }
+.viol { margin:6px 0; padding:8px 12px; border-left:3px solid #909399; background:#f4f4f5; border-radius:0 4px 4px 0; font-size:13px; }
+.viol.error { border-left-color:#f56c6c; background:#fef0f0; }
+.viol.warn { border-left-color:#e6a23c; background:#fdf6ec; }
+.viol.info { border-left-color:#909399; background:#f4f4f5; }
+.viol .vr { font-weight:600; color:#303133; }
+.viol.error .vr { color:#f56c6c; }
+.viol.warn .vr { color:#e6a23c; }
+.viol.info .vr { color:#606266; }
+.viol .vm { color:#606266; margin:2px 0; } .viol .vs { color:#67c23a; font-size:12px; }
+.footer { padding:16px 32px; text-align:center; font-size:12px; color:#909399; border-top:1px solid #ebeef5; }
+.no-data { padding:32px; text-align:center; color:#909399; }
+</style></head><body>
+<div class="container">
+<div class="header"><h1>TDSQL SQL审核平台 - 文件审核报告</h1><div class="sub">TDSQL SQL Audit Platform / File Audit Report</div></div>
+<div class="meta">
+<div class="meta-item"><span class="label">审核人:</span><span class="value">admin</span></div>
+<div class="meta-item"><span class="label">文件名:</span><span class="value">uat_core_rule_corpus.sql</span></div>
+<div class="meta-item"><span class="label">规则架构:</span><span class="value" style="color:#2563eb">分布式规则</span></div>
+<div class="meta-item"><span class="label">审核时间:</span><span class="value">2026-08-28 18:17:26</span></div>
+<div class="meta-item"><span class="label">报告ID:</span><span class="value">#611</span></div>
+</div>
+<div class="summary">
+<div class="sc total"><div class="num">100</div><div class="lbl">SQL总数</div></div>
+<div class="sc pass"><div class="num">2</div><div class="lbl">通过</div></div>
+<div class="sc fail"><div class="num">98</div><div class="lbl">未通过</div></div>
+<div class="sc rate fail"><div class="num">2.0%</div><div class="lbl">通过率</div></div>
+<div class="sc total"><div class="num" style="color:#f56c6c">124</div><div class="lbl">ERROR</div></div>
+<div class="sc total"><div class="num" style="color:#e6a23c">63</div><div class="lbl">WARNING</div></div>
+</div>
+<div class="stitle">逐条审核结果（共 100 条）</div>
+<div class="sql-item"><div class="sh"><span><strong>#1</strong> CREATE TABLE | 行号: 1</span><span class="badge ERROR">2项违规</span></div><div class="sql-text">CREATE TABLE User_Profile (
+    id BIGINT NOT NULL COMMENT &#x27;主键&#x27;,
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;创建时间&#x27;,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;更新时间&#x27;,
+    is_deleted TINYINT DEFAULT 0 COMMENT &#x27;逻辑删除&#x27;,
+    PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=&#x27;用户档案&#x27;</div>
+<div class="viol error"><div class="vr">[R001] ERROR</div><div class="vm">表/库名 'User_Profile' 不符合命名规范：必须以小写字母开头，仅包含小写字母、数字和下划线</div><div class="vs">建议: 建议修改为: user_profile</div></div>
+<div class="viol error"><div class="vr">[R077] ERROR</div><div class="vm">建表语句未声明分片键(SHARDKEY)或广播表标记(BROADCAST)，TDSQL分布式实例上不允许创建单表（表 User_Profile）。分片表必须通过 SHARDKEY=列名 声明分片键，广播表必须通过 BROADCAST 声明</div><div class="vs">建议: 请按目标实例支持的形态声明分片键或广播表。示例:
+  CREATE TABLE t1 (...) ENGINE=InnoDB SHARDKEY=user_id
+  CREATE TABLE t1 (...) ENGINE=InnoDB TDSQL_DISTRIBUTED BY HASH(`user_id`)
+  CREATE TABLE t1 (...) ENGINE=InnoDB BROADCAST
+  CREATE TABLE t1 (...) ENGINE=InnoDB shardkey=noshardkey_allset
+分片表的分片键必须是主键(或主键的一部分)，且必须包含在每一个唯一索引中。</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#2</strong> CREATE TABLE | 行号: 8</span><span class="badge ERROR">2项违规</span></div><div class="sql-text">CREATE TABLE `order` (
+    order_id BIGINT NOT NULL COMMENT &#x27;订单号&#x27;,
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;创建时间&#x27;,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;更新时间&#x27;,
+    is_deleted TINYINT DEFAULT 0 COMMENT &#x27;逻辑删除&#x27;,
+    PRIMARY KEY (order_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=&#x27;订单表&#x27;</div>
+<div class="viol error"><div class="vr">[R002] ERROR</div><div class="vm">表名 'order' 是 TDSQL/MySQL 保留关键字，禁止使用</div><div class="vs">建议: 建议为表名添加前缀或后缀，如: t_order, order_tbl</div></div>
+<div class="viol error"><div class="vr">[R077] ERROR</div><div class="vm">建表语句未声明分片键(SHARDKEY)或广播表标记(BROADCAST)，TDSQL分布式实例上不允许创建单表（表 `order`）。分片表必须通过 SHARDKEY=列名 声明分片键，广播表必须通过 BROADCAST 声明</div><div class="vs">建议: 请按目标实例支持的形态声明分片键或广播表。示例:
+  CREATE TABLE t1 (...) ENGINE=InnoDB SHARDKEY=user_id
+  CREATE TABLE t1 (...) ENGINE=InnoDB TDSQL_DISTRIBUTED BY HASH(`user_id`)
+  CREATE TABLE t1 (...) ENGINE=InnoDB BROADCAST
+  CREATE TABLE t1 (...) ENGINE=InnoDB shardkey=noshardkey_allset
+分片表的分片键必须是主键(或主键的一部分)，且必须包含在每一个唯一索引中。</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#3</strong> CREATE TABLE | 行号: 16</span><span class="badge ERROR">8项违规</span></div><div class="sql-text">CREATE TABLE t_bare (
+    col1 INT
+)</div>
+<div class="viol error"><div class="vr">[R003] ERROR</div><div class="vm">CREATE TABLE 未指定主键，TDSQL 要求每个表必须有主键</div><div class="vs">建议: 建议添加自增主键: id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY</div></div>
+<div class="viol error"><div class="vr">[R004] ERROR</div><div class="vm">未指定存储引擎，TDSQL 要求使用 InnoDB 引擎</div><div class="vs">建议: 请在 DDL 中添加: ENGINE=InnoDB</div></div>
+<div class="viol error"><div class="vr">[R005] ERROR</div><div class="vm">未指定字符集，TDSQL 要求使用 utf8mb4</div><div class="vs">建议: 请在 DDL 中添加: DEFAULT CHARSET=utf8mb4</div></div>
+<div class="viol error"><div class="vr">[R028] ERROR</div><div class="vm">表 t_bare 缺少表级别COMMENT</div><div class="vs">建议: 请添加 COMMENT '表用途说明' 到CREATE TABLE语句中</div></div>
+<div class="viol warn"><div class="vr">[R029] WARNING</div><div class="vm">字段 'col1' 缺少COMMENT注释</div><div class="vs">建议: 请为每个字段添加COMMENT，如: col_name INT COMMENT '字段说明'</div></div>
+<div class="viol info"><div class="vr">[R036] INFO</div><div class="vm">建议表包含 create_time 和 update_time 字段用于数据追踪</div><div class="vs">建议: 建议添加: create_time DATETIME DEFAULT CURRENT_TIMESTAMP, update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP</div></div>
+<div class="viol info"><div class="vr">[R037] INFO</div><div class="vm">建议添加逻辑删除字段(如 is_deleted)替代物理删除</div><div class="vs">建议: 建议添加: is_deleted TINYINT DEFAULT 0 COMMENT '逻辑删除标记'</div></div>
+<div class="viol error"><div class="vr">[R077] ERROR</div><div class="vm">建表语句未声明分片键(SHARDKEY)或广播表标记(BROADCAST)，TDSQL分布式实例上不允许创建单表（表 t_bare）。分片表必须通过 SHARDKEY=列名 声明分片键，广播表必须通过 BROADCAST 声明</div><div class="vs">建议: 请按目标实例支持的形态声明分片键或广播表。示例:
+  CREATE TABLE t1 (...) ENGINE=InnoDB SHARDKEY=user_id
+  CREATE TABLE t1 (...) ENGINE=InnoDB TDSQL_DISTRIBUTED BY HASH(`user_id`)
+  CREATE TABLE t1 (...) ENGINE=InnoDB BROADCAST
+  CREATE TABLE t1 (...) ENGINE=InnoDB shardkey=noshardkey_allset
+分片表的分片键必须是主键(或主键的一部分)，且必须包含在每一个唯一索引中。</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#4</strong> CREATE TABLE | 行号: 20</span><span class="badge ERROR">2项违规</span></div><div class="sql-text">CREATE TABLE t_engine_bad (
+    id BIGINT NOT NULL COMMENT &#x27;主键&#x27;,
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;创建时间&#x27;,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;更新时间&#x27;,
+    is_deleted TINYINT DEFAULT 0 COMMENT &#x27;逻辑删除&#x27;,
+    PRIMARY KEY (id)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COMMENT=&#x27;引擎不合规&#x27;</div>
+<div class="viol error"><div class="vr">[R004] ERROR</div><div class="vm">存储引擎 'MYISAM' 不符合规范，TDSQL 要求使用 InnoDB</div><div class="vs">建议: 请在 DDL 中添加: ENGINE=InnoDB</div></div>
+<div class="viol error"><div class="vr">[R077] ERROR</div><div class="vm">建表语句未声明分片键(SHARDKEY)或广播表标记(BROADCAST)，TDSQL分布式实例上不允许创建单表（表 t_engine_bad）。分片表必须通过 SHARDKEY=列名 声明分片键，广播表必须通过 BROADCAST 声明</div><div class="vs">建议: 请按目标实例支持的形态声明分片键或广播表。示例:
+  CREATE TABLE t1 (...) ENGINE=InnoDB SHARDKEY=user_id
+  CREATE TABLE t1 (...) ENGINE=InnoDB TDSQL_DISTRIBUTED BY HASH(`user_id`)
+  CREATE TABLE t1 (...) ENGINE=InnoDB BROADCAST
+  CREATE TABLE t1 (...) ENGINE=InnoDB shardkey=noshardkey_allset
+分片表的分片键必须是主键(或主键的一部分)，且必须包含在每一个唯一索引中。</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#5</strong> CREATE TABLE | 行号: 28</span><span class="badge ERROR">2项违规</span></div><div class="sql-text">CREATE TABLE t_charset_bad (
+    id BIGINT NOT NULL COMMENT &#x27;主键&#x27;,
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;创建时间&#x27;,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;更新时间&#x27;,
+    is_deleted TINYINT DEFAULT 0 COMMENT &#x27;逻辑删除&#x27;,
+    PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COMMENT=&#x27;字符集不合规&#x27;</div>
+<div class="viol error"><div class="vr">[R005] ERROR</div><div class="vm">字符集 'LATIN1' 不符合规范，TDSQL 要求使用 utf8mb4</div><div class="vs">建议: 请在 DDL 中添加: DEFAULT CHARSET=utf8mb4</div></div>
+<div class="viol error"><div class="vr">[R077] ERROR</div><div class="vm">建表语句未声明分片键(SHARDKEY)或广播表标记(BROADCAST)，TDSQL分布式实例上不允许创建单表（表 t_charset_bad）。分片表必须通过 SHARDKEY=列名 声明分片键，广播表必须通过 BROADCAST 声明</div><div class="vs">建议: 请按目标实例支持的形态声明分片键或广播表。示例:
+  CREATE TABLE t1 (...) ENGINE=InnoDB SHARDKEY=user_id
+  CREATE TABLE t1 (...) ENGINE=InnoDB TDSQL_DISTRIBUTED BY HASH(`user_id`)
+  CREATE TABLE t1 (...) ENGINE=InnoDB BROADCAST
+  CREATE TABLE t1 (...) ENGINE=InnoDB shardkey=noshardkey_allset
+分片表的分片键必须是主键(或主键的一部分)，且必须包含在每一个唯一索引中。</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#6</strong> CREATE TABLE | 行号: 36</span><span class="badge ERROR">2项违规</span></div><div class="sql-text">CREATE TABLE t_enum (
+    id BIGINT NOT NULL COMMENT &#x27;主键&#x27;,
+    status ENUM(&#x27;A&#x27;,&#x27;B&#x27;,&#x27;C&#x27;) NOT NULL COMMENT &#x27;状态枚举&#x27;,
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;创建时间&#x27;,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;更新时间&#x27;,
+    is_deleted TINYINT DEFAULT 0 COMMENT &#x27;逻辑删除&#x27;,
+    PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=&#x27;枚举类型表&#x27;</div>
+<div class="viol error"><div class="vr">[R006] ERROR</div><div class="vm">字段 'status' 使用了 ENUM 类型，TDSQL 禁止使用 ENUM/SET</div><div class="vs">建议: 建议改为 VARCHAR 或 TINYINT 类型</div></div>
+<div class="viol error"><div class="vr">[R077] ERROR</div><div class="vm">建表语句未声明分片键(SHARDKEY)或广播表标记(BROADCAST)，TDSQL分布式实例上不允许创建单表（表 t_enum）。分片表必须通过 SHARDKEY=列名 声明分片键，广播表必须通过 BROADCAST 声明</div><div class="vs">建议: 请按目标实例支持的形态声明分片键或广播表。示例:
+  CREATE TABLE t1 (...) ENGINE=InnoDB SHARDKEY=user_id
+  CREATE TABLE t1 (...) ENGINE=InnoDB TDSQL_DISTRIBUTED BY HASH(`user_id`)
+  CREATE TABLE t1 (...) ENGINE=InnoDB BROADCAST
+  CREATE TABLE t1 (...) ENGINE=InnoDB shardkey=noshardkey_allset
+分片表的分片键必须是主键(或主键的一部分)，且必须包含在每一个唯一索引中。</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#7</strong> CREATE TABLE | 行号: 45</span><span class="badge ERROR">3项违规</span></div><div class="sql-text">CREATE TABLE t_ts (
+    id BIGINT NOT NULL COMMENT &#x27;主键&#x27;,
+    log_time TIMESTAMP NOT NULL COMMENT &#x27;日志时间&#x27;,
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;创建时间&#x27;,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;更新时间&#x27;,
+    is_deleted TINYINT DEFAULT 0 COMMENT &#x27;逻辑删除&#x27;,
+    PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=&#x27;时间戳类型表&#x27;</div>
+<div class="viol error"><div class="vr">[R007] ERROR</div><div class="vm">字段 'log_time' 使用了 TIMESTAMP 类型，TDSQL 禁止使用</div><div class="vs">建议: 建议改为 DATETIME 类型</div></div>
+<div class="viol warn"><div class="vr">[R033] WARNING</div><div class="vm">表名 't_ts' 为复数形式，建议使用单数</div><div class="vs">建议: 建议将表名改为单数形式</div></div>
+<div class="viol error"><div class="vr">[R077] ERROR</div><div class="vm">建表语句未声明分片键(SHARDKEY)或广播表标记(BROADCAST)，TDSQL分布式实例上不允许创建单表（表 t_ts）。分片表必须通过 SHARDKEY=列名 声明分片键，广播表必须通过 BROADCAST 声明</div><div class="vs">建议: 请按目标实例支持的形态声明分片键或广播表。示例:
+  CREATE TABLE t1 (...) ENGINE=InnoDB SHARDKEY=user_id
+  CREATE TABLE t1 (...) ENGINE=InnoDB TDSQL_DISTRIBUTED BY HASH(`user_id`)
+  CREATE TABLE t1 (...) ENGINE=InnoDB BROADCAST
+  CREATE TABLE t1 (...) ENGINE=InnoDB shardkey=noshardkey_allset
+分片表的分片键必须是主键(或主键的一部分)，且必须包含在每一个唯一索引中。</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#8</strong> CREATE TABLE | 行号: 54</span><span class="badge ERROR">2项违规</span></div><div class="sql-text">CREATE TABLE t_order_rel (
+    id BIGINT NOT NULL PRIMARY KEY COMMENT &#x27;主键&#x27;,
+    cust_id BIGINT NOT NULL COMMENT &#x27;客户ID&#x27;,
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;创建时间&#x27;,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;更新时间&#x27;,
+    is_deleted TINYINT DEFAULT 0 COMMENT &#x27;逻辑删除&#x27;,
+    FOREIGN KEY (cust_id) REFERENCES t_customer (cust_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=&#x27;外键表&#x27;</div>
+<div class="viol error"><div class="vr">[R008] ERROR</div><div class="vm">禁止使用外键约束，TDSQL 分布式架构下外键无法跨分片</div><div class="vs">建议: 请移除外键约束，在应用层通过代码保证数据一致性</div></div>
+<div class="viol error"><div class="vr">[R077] ERROR</div><div class="vm">建表语句未声明分片键(SHARDKEY)或广播表标记(BROADCAST)，TDSQL分布式实例上不允许创建单表（表 t_order_rel）。分片表必须通过 SHARDKEY=列名 声明分片键，广播表必须通过 BROADCAST 声明</div><div class="vs">建议: 请按目标实例支持的形态声明分片键或广播表。示例:
+  CREATE TABLE t1 (...) ENGINE=InnoDB SHARDKEY=user_id
+  CREATE TABLE t1 (...) ENGINE=InnoDB TDSQL_DISTRIBUTED BY HASH(`user_id`)
+  CREATE TABLE t1 (...) ENGINE=InnoDB BROADCAST
+  CREATE TABLE t1 (...) ENGINE=InnoDB shardkey=noshardkey_allset
+分片表的分片键必须是主键(或主键的一部分)，且必须包含在每一个唯一索引中。</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#9</strong> CREATE TABLE | 行号: 63</span><span class="badge ERROR">2项违规</span></div><div class="sql-text">CREATE TABLE t_finance (
+    id BIGINT NOT NULL COMMENT &#x27;主键&#x27;,
+    amount DOUBLE NOT NULL COMMENT &#x27;金额&#x27;,
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;创建时间&#x27;,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;更新时间&#x27;,
+    is_deleted TINYINT DEFAULT 0 COMMENT &#x27;逻辑删除&#x27;,
+    PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=&#x27;财务表&#x27;</div>
+<div class="viol error"><div class="vr">[R009] ERROR</div><div class="vm">财务字段 'amount' 禁止使用 DOUBLE 类型，存在精度丢失风险</div><div class="vs">建议: 建议改为 DECIMAL 类型，如 DECIMAL(18,2)</div></div>
+<div class="viol error"><div class="vr">[R077] ERROR</div><div class="vm">建表语句未声明分片键(SHARDKEY)或广播表标记(BROADCAST)，TDSQL分布式实例上不允许创建单表（表 t_finance）。分片表必须通过 SHARDKEY=列名 声明分片键，广播表必须通过 BROADCAST 声明</div><div class="vs">建议: 请按目标实例支持的形态声明分片键或广播表。示例:
+  CREATE TABLE t1 (...) ENGINE=InnoDB SHARDKEY=user_id
+  CREATE TABLE t1 (...) ENGINE=InnoDB TDSQL_DISTRIBUTED BY HASH(`user_id`)
+  CREATE TABLE t1 (...) ENGINE=InnoDB BROADCAST
+  CREATE TABLE t1 (...) ENGINE=InnoDB shardkey=noshardkey_allset
+分片表的分片键必须是主键(或主键的一部分)，且必须包含在每一个唯一索引中。</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#10</strong> CREATE TABLE | 行号: 72</span><span class="badge ERROR">2项违规</span></div><div class="sql-text">CREATE TABLE t_longvarchar (
+    id BIGINT NOT NULL COMMENT &#x27;主键&#x27;,
+    remark VARCHAR(3000) NOT NULL COMMENT &#x27;备注&#x27;,
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;创建时间&#x27;,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;更新时间&#x27;,
+    is_deleted TINYINT DEFAULT 0 COMMENT &#x27;逻辑删除&#x27;,
+    PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=&#x27;超长字段表&#x27;</div>
+<div class="viol warn"><div class="vr">[R010] WARNING</div><div class="vm">字段 'remark' VARCHAR(3000) 超过建议长度 2000</div><div class="vs">建议: 请评估是否需要如此长度，超长字段建议使用 TEXT 类型</div></div>
+<div class="viol error"><div class="vr">[R077] ERROR</div><div class="vm">建表语句未声明分片键(SHARDKEY)或广播表标记(BROADCAST)，TDSQL分布式实例上不允许创建单表（表 t_longvarchar）。分片表必须通过 SHARDKEY=列名 声明分片键，广播表必须通过 BROADCAST 声明</div><div class="vs">建议: 请按目标实例支持的形态声明分片键或广播表。示例:
+  CREATE TABLE t1 (...) ENGINE=InnoDB SHARDKEY=user_id
+  CREATE TABLE t1 (...) ENGINE=InnoDB TDSQL_DISTRIBUTED BY HASH(`user_id`)
+  CREATE TABLE t1 (...) ENGINE=InnoDB BROADCAST
+  CREATE TABLE t1 (...) ENGINE=InnoDB shardkey=noshardkey_allset
+分片表的分片键必须是主键(或主键的一部分)，且必须包含在每一个唯一索引中。</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#11</strong> CREATE TABLE | 行号: 81</span><span class="badge ERROR">2项违规</span></div><div class="sql-text">CREATE TABLE t_text (
+    id BIGINT NOT NULL COMMENT &#x27;主键&#x27;,
+    content TEXT NOT NULL COMMENT &#x27;正文&#x27;,
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;创建时间&#x27;,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;更新时间&#x27;,
+    is_deleted TINYINT DEFAULT 0 COMMENT &#x27;逻辑删除&#x27;,
+    PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=&#x27;大字段表&#x27;</div>
+<div class="viol warn"><div class="vr">[R011] WARNING</div><div class="vm">字段 'content' 使用了 TEXT 类型，活跃表不建议使用</div><div class="vs">建议: 建议拆分到独立扩展表或使用 VARCHAR 限定长度</div></div>
+<div class="viol error"><div class="vr">[R077] ERROR</div><div class="vm">建表语句未声明分片键(SHARDKEY)或广播表标记(BROADCAST)，TDSQL分布式实例上不允许创建单表（表 t_text）。分片表必须通过 SHARDKEY=列名 声明分片键，广播表必须通过 BROADCAST 声明</div><div class="vs">建议: 请按目标实例支持的形态声明分片键或广播表。示例:
+  CREATE TABLE t1 (...) ENGINE=InnoDB SHARDKEY=user_id
+  CREATE TABLE t1 (...) ENGINE=InnoDB TDSQL_DISTRIBUTED BY HASH(`user_id`)
+  CREATE TABLE t1 (...) ENGINE=InnoDB BROADCAST
+  CREATE TABLE t1 (...) ENGINE=InnoDB shardkey=noshardkey_allset
+分片表的分片键必须是主键(或主键的一部分)，且必须包含在每一个唯一索引中。</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#12</strong> CREATE TABLE | 行号: 90</span><span class="badge ERROR">5项违规</span></div><div class="sql-text">CREATE TABLE t_copy AS SELECT cust_id, cust_name FROM t_customer</div>
+<div class="viol error"><div class="vr">[R003] ERROR</div><div class="vm">CREATE TABLE 未指定主键，TDSQL 要求每个表必须有主键</div><div class="vs">建议: 建议添加自增主键: id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY</div></div>
+<div class="viol error"><div class="vr">[R004] ERROR</div><div class="vm">未指定存储引擎，TDSQL 要求使用 InnoDB 引擎</div><div class="vs">建议: 请在 DDL 中添加: ENGINE=InnoDB</div></div>
+<div class="viol error"><div class="vr">[R005] ERROR</div><div class="vm">未指定字符集，TDSQL 要求使用 utf8mb4</div><div class="vs">建议: 请在 DDL 中添加: DEFAULT CHARSET=utf8mb4</div></div>
+<div class="viol error"><div class="vr">[R023] ERROR</div><div class="vm">检测到CREATE TABLE ... SELECT语句，TDSQL分布式实例不支持此语法</div><div class="vs">建议: 请拆分为CREATE TABLE + INSERT INTO ... SELECT两步执行</div></div>
+<div class="viol error"><div class="vr">[R028] ERROR</div><div class="vm">表 t_copy 缺少表级别COMMENT</div><div class="vs">建议: 请添加 COMMENT '表用途说明' 到CREATE TABLE语句中</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#13</strong> CREATE TABLE | 行号: 92</span><span class="badge ERROR">5项违规</span></div><div class="sql-text">CREATE TEMPORARY TABLE tmp_calc (
+    id BIGINT NOT NULL COMMENT &#x27;主键&#x27;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=&#x27;临时表&#x27;</div>
+<div class="viol error"><div class="vr">[R003] ERROR</div><div class="vm">CREATE TABLE 未指定主键，TDSQL 要求每个表必须有主键</div><div class="vs">建议: 建议添加自增主键: id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY</div></div>
+<div class="viol error"><div class="vr">[R024] ERROR</div><div class="vm">检测到CREATE TEMPORARY TABLE语句，TDSQL分布式实例不支持临时表</div><div class="vs">建议: 请使用普通表或应用内存缓存替代临时表</div></div>
+<div class="viol error"><div class="vr">[R032] ERROR</div><div class="vm">禁止使用临时表，分布式环境下影响性能</div><div class="vs">建议: 请使用应用层内存缓存或普通表替代</div></div>
+<div class="viol info"><div class="vr">[R036] INFO</div><div class="vm">建议表包含 create_time 和 update_time 字段用于数据追踪</div><div class="vs">建议: 建议添加: create_time DATETIME DEFAULT CURRENT_TIMESTAMP, update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP</div></div>
+<div class="viol info"><div class="vr">[R037] INFO</div><div class="vm">建议添加逻辑删除字段(如 is_deleted)替代物理删除</div><div class="vs">建议: 建议添加: is_deleted TINYINT DEFAULT 0 COMMENT '逻辑删除标记'</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#14</strong> ALTER | 行号: 96</span><span class="badge ERROR">2项违规</span></div><div class="sql-text">ALTER TABLE t_customer MODIFY COLUMN phone VARCHAR(10) NOT NULL COMMENT &#x27;手机号&#x27;</div>
+<div class="viol error"><div class="vr">[R026] ERROR</div><div class="vm">ALTER TABLE MODIFY/CHANGE可能缩短字段长度，请确认无数据截断风险</div><div class="vs">建议: 如需缩短字段长度，请先确认无超长数据，并通过DBA审核</div></div>
+<div class="viol warn"><div class="vr">[R073] WARNING</div><div class="vm">ALTER TABLE操作需确认已备份表结构和数据，且在低峰期执行</div><div class="vs">建议: 请在执行DDL前备份表结构和数据</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#15</strong> DROP | 行号: 98</span><span class="badge ERROR">2项违规</span></div><div class="sql-text">DROP DATABASE legacy_db</div>
+<div class="viol error"><div class="vr">[R027] ERROR</div><div class="vm">禁止使用DROP DATABASE/SCHEMA语句，此操作不可逆</div><div class="vs">建议: 如需清理数据库请联系DBA处理</div></div>
+<div class="viol warn"><div class="vr">[R073] WARNING</div><div class="vm">DROP操作需确认已备份，且通过DBA审批</div><div class="vs">建议: 请在执行DDL前备份表结构和数据</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#16</strong> CREATE TABLE | 行号: 100</span><span class="badge ERROR">2项违规</span></div><div class="sql-text">CREATE TABLE users (
+    id BIGINT NOT NULL COMMENT &#x27;主键&#x27;,
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;创建时间&#x27;,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;更新时间&#x27;,
+    is_deleted TINYINT DEFAULT 0 COMMENT &#x27;逻辑删除&#x27;,
+    PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=&#x27;用户表复数&#x27;</div>
+<div class="viol warn"><div class="vr">[R033] WARNING</div><div class="vm">表名 'users' 为复数形式，建议使用单数</div><div class="vs">建议: 建议将表名改为单数形式</div></div>
+<div class="viol error"><div class="vr">[R077] ERROR</div><div class="vm">建表语句未声明分片键(SHARDKEY)或广播表标记(BROADCAST)，TDSQL分布式实例上不允许创建单表（表 users）。分片表必须通过 SHARDKEY=列名 声明分片键，广播表必须通过 BROADCAST 声明</div><div class="vs">建议: 请按目标实例支持的形态声明分片键或广播表。示例:
+  CREATE TABLE t1 (...) ENGINE=InnoDB SHARDKEY=user_id
+  CREATE TABLE t1 (...) ENGINE=InnoDB TDSQL_DISTRIBUTED BY HASH(`user_id`)
+  CREATE TABLE t1 (...) ENGINE=InnoDB BROADCAST
+  CREATE TABLE t1 (...) ENGINE=InnoDB shardkey=noshardkey_allset
+分片表的分片键必须是主键(或主键的一部分)，且必须包含在每一个唯一索引中。</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#17</strong> CREATE TABLE | 行号: 108</span><span class="badge ERROR">2项违规</span></div><div class="sql-text">CREATE TABLE t_order_bak (
+    id BIGINT NOT NULL COMMENT &#x27;主键&#x27;,
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;创建时间&#x27;,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;更新时间&#x27;,
+    is_deleted TINYINT DEFAULT 0 COMMENT &#x27;逻辑删除&#x27;,
+    PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=&#x27;备份表&#x27;</div>
+<div class="viol warn"><div class="vr">[R034] WARNING</div><div class="vm">备份表 't_order_bak' 命名缺少日期后缀(YYYYMMDD)</div><div class="vs">建议: 备份表命名格式: 原表名_bak_YYYYMMDD</div></div>
+<div class="viol error"><div class="vr">[R077] ERROR</div><div class="vm">建表语句未声明分片键(SHARDKEY)或广播表标记(BROADCAST)，TDSQL分布式实例上不允许创建单表（表 t_order_bak）。分片表必须通过 SHARDKEY=列名 声明分片键，广播表必须通过 BROADCAST 声明</div><div class="vs">建议: 请按目标实例支持的形态声明分片键或广播表。示例:
+  CREATE TABLE t1 (...) ENGINE=InnoDB SHARDKEY=user_id
+  CREATE TABLE t1 (...) ENGINE=InnoDB TDSQL_DISTRIBUTED BY HASH(`user_id`)
+  CREATE TABLE t1 (...) ENGINE=InnoDB BROADCAST
+  CREATE TABLE t1 (...) ENGINE=InnoDB shardkey=noshardkey_allset
+分片表的分片键必须是主键(或主键的一部分)，且必须包含在每一个唯一索引中。</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#18</strong> CREATE FUNCTION | 行号: 116</span><span class="badge ERROR">2项违规</span></div><div class="sql-text">CREATE FUNCTION fn_calc(a INT, b INT) RETURNS INT BEGIN RETURN a + b; END</div>
+<div class="viol error"><div class="vr">[R030] ERROR</div><div class="vm">禁止创建视图/存储过程/触发器/自定义函数，TDSQL分布式架构下不推荐使用</div><div class="vs">建议: 请在应用层实现相应逻辑</div></div>
+<div class="viol error"><div class="vr">[R031] ERROR</div><div class="vm">禁止创建自定义函数，请在应用层实现</div><div class="vs">建议: 请在应用层实现函数逻辑</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#19</strong> CREATE TRIGGER | 行号: 118</span><span class="badge ERROR">1项违规</span></div><div class="sql-text">CREATE TRIGGER trg_audit BEFORE INSERT ON t_customer FOR EACH ROW SET NEW.create_time = NOW()</div>
+<div class="viol error"><div class="vr">[R030] ERROR</div><div class="vm">禁止创建视图/存储过程/触发器/自定义函数，TDSQL分布式架构下不推荐使用</div><div class="vs">建议: 请在应用层实现相应逻辑</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#20</strong> CREATE TABLE | 行号: 120</span><span class="badge ERROR">2项违规</span></div><div class="sql-text">CREATE TABLE t_oratype (
+    id BIGINT NOT NULL COMMENT &#x27;主键&#x27;,
+    amt NUMBER(18,2) NOT NULL COMMENT &#x27;金额&#x27;,
+    code VARCHAR2(32) NOT NULL COMMENT &#x27;编码&#x27;,
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;创建时间&#x27;,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;更新时间&#x27;,
+    is_deleted TINYINT DEFAULT 0 COMMENT &#x27;逻辑删除&#x27;,
+    PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=&#x27;Oracle类型表&#x27;</div>
+<div class="viol error"><div class="vr">[R077] ERROR</div><div class="vm">建表语句未声明分片键(SHARDKEY)或广播表标记(BROADCAST)，TDSQL分布式实例上不允许创建单表（表 t_oratype）。分片表必须通过 SHARDKEY=列名 声明分片键，广播表必须通过 BROADCAST 声明</div><div class="vs">建议: 请按目标实例支持的形态声明分片键或广播表。示例:
+  CREATE TABLE t1 (...) ENGINE=InnoDB SHARDKEY=user_id
+  CREATE TABLE t1 (...) ENGINE=InnoDB TDSQL_DISTRIBUTED BY HASH(`user_id`)
+  CREATE TABLE t1 (...) ENGINE=InnoDB BROADCAST
+  CREATE TABLE t1 (...) ENGINE=InnoDB shardkey=noshardkey_allset
+分片表的分片键必须是主键(或主键的一部分)，且必须包含在每一个唯一索引中。</div></div>
+<div class="viol error"><div class="vr">[R078] ERROR</div><div class="vm">检测到Oracle专有数据类型，需转换为TDSQL对等类型</div><div class="vs">建议: NUMBER→DECIMAL(p,s)或INT/BIGINT（注意：历史number放整型标志字段的，转换后勿带精度，避免Java取值类型错误）；VARCHAR2→VARCHAR；CLOB→TEXT/LONGTEXT；RAW→VARBINARY；DATE→DATETIME</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#21</strong> CREATE TABLE | 行号: 130</span><span class="badge ERROR">2项违规</span></div><div class="sql-text">CREATE TABLE t_deffunc (
+    id BIGINT NOT NULL COMMENT &#x27;主键&#x27;,
+    data_dt CHAR(8) DEFAULT (DATE_FORMAT(NOW(), &#x27;%Y%m%d&#x27;)) COMMENT &#x27;数据日期&#x27;,
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;创建时间&#x27;,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;更新时间&#x27;,
+    is_deleted TINYINT DEFAULT 0 COMMENT &#x27;逻辑删除&#x27;,
+    PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=&#x27;默认值函数表&#x27;</div>
+<div class="viol error"><div class="vr">[R077] ERROR</div><div class="vm">建表语句未声明分片键(SHARDKEY)或广播表标记(BROADCAST)，TDSQL分布式实例上不允许创建单表（表 t_deffunc）。分片表必须通过 SHARDKEY=列名 声明分片键，广播表必须通过 BROADCAST 声明</div><div class="vs">建议: 请按目标实例支持的形态声明分片键或广播表。示例:
+  CREATE TABLE t1 (...) ENGINE=InnoDB SHARDKEY=user_id
+  CREATE TABLE t1 (...) ENGINE=InnoDB TDSQL_DISTRIBUTED BY HASH(`user_id`)
+  CREATE TABLE t1 (...) ENGINE=InnoDB BROADCAST
+  CREATE TABLE t1 (...) ENGINE=InnoDB shardkey=noshardkey_allset
+分片表的分片键必须是主键(或主键的一部分)，且必须包含在每一个唯一索引中。</div></div>
+<div class="viol error"><div class="vr">[R097] ERROR</div><div class="vm">字段 data_dt 的DEFAULT值使用了函数表达式，TDSQL不支持</div><div class="vs">建议: 如 data_dt char(8) default date_format(…)→改为 data_dt char(8) not null，默认值由应用层赋值</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#22</strong> CREATE TABLE | 行号: 139</span><span class="badge ERROR">2项违规</span></div><div class="sql-text">CREATE TABLE t_hashpart (
+    id BIGINT NOT NULL COMMENT &#x27;主键&#x27;,
+    region_code VARCHAR(16) NOT NULL COMMENT &#x27;地区码&#x27;,
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;创建时间&#x27;,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;更新时间&#x27;,
+    is_deleted TINYINT DEFAULT 0 COMMENT &#x27;逻辑删除&#x27;,
+    PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=&#x27;哈希分区表&#x27;
+PARTITION BY HASH(region_code) PARTITIONS 4</div>
+<div class="viol error"><div class="vr">[R077] ERROR</div><div class="vm">建表语句未声明分片键(SHARDKEY)或广播表标记(BROADCAST)，TDSQL分布式实例上不允许创建单表（表 t_hashpart）。分片表必须通过 SHARDKEY=列名 声明分片键，广播表必须通过 BROADCAST 声明</div><div class="vs">建议: 请按目标实例支持的形态声明分片键或广播表。示例:
+  CREATE TABLE t1 (...) ENGINE=InnoDB SHARDKEY=user_id
+  CREATE TABLE t1 (...) ENGINE=InnoDB TDSQL_DISTRIBUTED BY HASH(`user_id`)
+  CREATE TABLE t1 (...) ENGINE=InnoDB BROADCAST
+  CREATE TABLE t1 (...) ENGINE=InnoDB shardkey=noshardkey_allset
+分片表的分片键必须是主键(或主键的一部分)，且必须包含在每一个唯一索引中。</div></div>
+<div class="viol error"><div class="vr">[R098] ERROR</div><div class="vm">HASH分区字段 region_code 类型为VARCHAR，非整型，请改用KEY分区</div><div class="vs">建议: 方案1：partition by hash(murmurHashCodeAndMod(col,N))；方案2：改用KEY分区（支持非整型）</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#23</strong> CREATE TABLE | 行号: 149</span><span class="badge ERROR">4项违规</span></div><div class="sql-text">CREATE TABLE t_longpk (
+    biz_key VARCHAR(300) NOT NULL PRIMARY KEY COMMENT &#x27;业务主键&#x27;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=&#x27;长主键表&#x27;</div>
+<div class="viol info"><div class="vr">[R036] INFO</div><div class="vm">建议表包含 create_time 和 update_time 字段用于数据追踪</div><div class="vs">建议: 建议添加: create_time DATETIME DEFAULT CURRENT_TIMESTAMP, update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP</div></div>
+<div class="viol info"><div class="vr">[R037] INFO</div><div class="vm">建议添加逻辑删除字段(如 is_deleted)替代物理删除</div><div class="vs">建议: 建议添加: is_deleted TINYINT DEFAULT 0 COMMENT '逻辑删除标记'</div></div>
+<div class="viol error"><div class="vr">[R077] ERROR</div><div class="vm">建表语句未声明分片键(SHARDKEY)或广播表标记(BROADCAST)，TDSQL分布式实例上不允许创建单表（表 t_longpk）。分片表必须通过 SHARDKEY=列名 声明分片键，广播表必须通过 BROADCAST 声明</div><div class="vs">建议: 请按目标实例支持的形态声明分片键或广播表。示例:
+  CREATE TABLE t1 (...) ENGINE=InnoDB SHARDKEY=user_id
+  CREATE TABLE t1 (...) ENGINE=InnoDB TDSQL_DISTRIBUTED BY HASH(`user_id`)
+  CREATE TABLE t1 (...) ENGINE=InnoDB BROADCAST
+  CREATE TABLE t1 (...) ENGINE=InnoDB shardkey=noshardkey_allset
+分片表的分片键必须是主键(或主键的一部分)，且必须包含在每一个唯一索引中。</div></div>
+<div class="viol warn"><div class="vr">[R115] WARNING</div><div class="vm">主键字段 biz_key 长度300超过250(utf8mb4)，update/delete..limit将受限</div><div class="vs">建议: 需要使用update/delete…limit语法的表，主键varchar长度限制在250以内(utf8mb4)/333以内(utf8)</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#24</strong> CREATE TABLE | 行号: 153</span><span class="badge ERROR">1项违规</span></div><div class="sql-text">CREATE TABLE t_multishard (
+    id BIGINT NOT NULL COMMENT &#x27;主键&#x27;,
+    cust_id BIGINT NOT NULL COMMENT &#x27;客户ID&#x27;,
+    region_id INT NOT NULL COMMENT &#x27;地区ID&#x27;,
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;创建时间&#x27;,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;更新时间&#x27;,
+    is_deleted TINYINT DEFAULT 0 COMMENT &#x27;逻辑删除&#x27;,
+    PRIMARY KEY (id, cust_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=&#x27;多字段分片键表&#x27; SHARDKEY=cust_id,region_id</div>
+<div class="viol error"><div class="vr">[R116] ERROR</div><div class="vm">分片键只支持一个字段，不支持多字段联合分片键</div><div class="vs">建议: 选择最常用于查询过滤/关联的单一字段作为shardkey</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#25</strong> CREATE TABLE | 行号: 163</span><span class="badge ERROR">1项违规</span></div><div class="sql-text">CREATE TABLE t_shardtype (
+    id BIGINT NOT NULL COMMENT &#x27;主键&#x27;,
+    amt_key DECIMAL(18,2) NOT NULL COMMENT &#x27;金额分片键&#x27;,
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;创建时间&#x27;,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;更新时间&#x27;,
+    is_deleted TINYINT DEFAULT 0 COMMENT &#x27;逻辑删除&#x27;,
+    PRIMARY KEY (id, amt_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=&#x27;分片键类型表&#x27; SHARDKEY=amt_key</div>
+<div class="viol error"><div class="vr">[R117] ERROR</div><div class="vm">shardkey字段 amt_key 类型为DECIMAL，不在许可类型(int/bigint/smallint/char/varchar)内</div><div class="vs">建议: shardkey改用int/bigint/smallint/char/varchar类型；另注意：shardkey值不应含中文</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#26</strong> CREATE TABLE | 行号: 172</span><span class="badge ERROR">3项违规</span></div><div class="sql-text">CREATE TABLE t_shardnull (
+    id BIGINT NOT NULL COMMENT &#x27;主键&#x27;,
+    cust_id BIGINT COMMENT &#x27;客户ID分片键&#x27;,
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;创建时间&#x27;,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;更新时间&#x27;,
+    is_deleted TINYINT DEFAULT 0 COMMENT &#x27;逻辑删除&#x27;,
+    PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=&#x27;分片键可空表&#x27; SHARDKEY=cust_id</div>
+<div class="viol warn"><div class="vr">[R054] WARNING</div><div class="vm">分片键 'cust_id' 不在主键中，TDSQL要求分片键必须是主键的一部分</div><div class="vs">建议: 请将分片键字段加入主键，如: PRIMARY KEY (shard_key, id)；同时确保所有UNIQUE索引也包含分片键</div></div>
+<div class="viol error"><div class="vr">[R077] ERROR</div><div class="vm">分片键 'cust_id' 不在主键或唯一索引中，TDSQL要求分片键必须是主键或唯一索引的一个字段</div><div class="vs">建议: 请将分片键 'cust_id' 加入主键，如: PRIMARY KEY (cust_id, id)，或为该列创建唯一索引</div></div>
+<div class="viol error"><div class="vr">[R118] ERROR</div><div class="vm">shardkey字段 cust_id 未声明NOT NULL，分片键值不能为NULL</div><div class="vs">建议: shardkey字段加NOT NULL；同时提醒：分片键值不能更新（已有R021约束DML侧）</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#27</strong> SELECT | 行号: 181</span><span class="badge ERROR">1项违规</span></div><div class="sql-text">SELECT * FROM t_customer WHERE cust_id = 1001</div>
+<div class="viol error"><div class="vr">[R012] ERROR</div><div class="vm">禁止使用 SELECT *（涉及表: t_customer），应指定具体字段</div><div class="vs">建议: 请明确列出需要的字段，如: SELECT col1, col2, col3 FROM ...</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#28</strong> UPDATE | 行号: 183</span><span class="badge ERROR">3项违规</span></div><div class="sql-text">UPDATE t_customer SET cust_level = &#x27;gold&#x27;</div>
+<div class="viol error"><div class="vr">[R013] ERROR</div><div class="vm">禁止不带 WHERE 条件的 UPDATE 操作，可能导致全表数据变更</div><div class="vs">建议: 请添加 WHERE 条件限定影响范围</div></div>
+<div class="viol error"><div class="vr">[R014] ERROR</div><div class="vm">危险操作: 不带 WHERE 的 UPDATE 将影响整张表</div><div class="vs">建议: 请添加 WHERE 条件，或使用 LIMIT 限制影响行数</div></div>
+<div class="viol warn"><div class="vr">[R070] WARNING</div><div class="vm">无WHERE条件的UPDATE/DELETE在大事务中会锁定大量行，请分批操作</div><div class="vs">建议: 大批量操作请分批提交，每批≤10000行</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#29</strong> SELECT | 行号: 185</span><span class="badge ERROR">2项违规</span></div><div class="sql-text">SELECT cust_id FROM t_customer WHERE cust_id IN (
+    SELECT cust_id FROM t_account WHERE account_no IN (
+        SELECT account_no FROM t_transaction WHERE txn_id IN (
+            SELECT txn_id FROM t_audit_log WHERE log_id IN (
+                SELECT log_id FROM t_deposit WHERE deposit_no = &#x27;D1&#x27;
+            )
+        )
+    )
+)</div>
+<div class="viol error"><div class="vr">[R015] ERROR</div><div class="vm">子查询嵌套深度为 8 层，超过允许的 3 层</div><div class="vs">建议: 建议将子查询改写为 JOIN 或临时表，降低嵌套层级</div></div>
+<div class="viol warn"><div class="vr">[R020] WARNING</div><div class="vm">多表关联查询请确认是否在WHERE/ON条件中包含分片键字段，避免广播到所有SET导致性能下降</div><div class="vs">建议: 建议在WHERE条件中添加分片键字段，如: WHERE shard_key = ? AND ...</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#30</strong> SELECT | 行号: 195</span><span class="badge ERROR">1项违规</span></div><div class="sql-text">SELECT cust_id, cust_name FROM t_customer WHERE DATE_FORMAT(create_time, &#x27;%Y%m%d&#x27;) = &#x27;20240101&#x27;</div>
+<div class="viol warn"><div class="vr">[R016] WARNING</div><div class="vm">WHERE 条件中包含函数/计算/LIKE/OR条件，可能导致索引失效</div><div class="vs">建议: 1)函数:用范围查询替代 2)全模糊LIKE:改为前缀匹配 3)OR:改写为UNION ALL</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#31</strong> SELECT | 行号: 197</span><span class="badge ERROR">1项违规</span></div><div class="sql-text">SELECT cust_id, cust_name FROM t_customer WHERE cust_level = &#x27;gold&#x27; ORDER BY RAND() LIMIT 10</div>
+<div class="viol error"><div class="vr">[R017] ERROR</div><div class="vm">禁止使用 ORDER BY RAND()，会导致全表扫描和临时表排序</div><div class="vs">建议: 替代方案: 使用应用层随机或预生成随机列</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#32</strong> SELECT | 行号: 199</span><span class="badge ERROR">3项违规</span></div><div class="sql-text">SELECT a.account_no, c.cust_name
+FROM t_account a
+JOIN t_customer c ON a.cust_id = c.cust_id
+WHERE a.balance &gt; 1000</div>
+<div class="viol warn"><div class="vr">[R020] WARNING</div><div class="vm">多表关联查询请确认是否在WHERE/ON条件中包含分片键字段，避免广播到所有SET导致性能下降</div><div class="vs">建议: 建议在WHERE条件中添加分片键字段，如: WHERE shard_key = ? AND ...</div></div>
+<div class="viol error"><div class="vr">[R053] ERROR</div><div class="vm">多表JOIN请确保在分片键上关联，避免跨SET广播JOIN</div><div class="vs">建议: 请确保JOIN条件包含分片键等值关联，如: JOIN t2 ON t1.shard_key = t2.shard_key。关联条件均为分片键且有固定值→完全下推；无固定值→join下推并尽量过滤；小配置表设为广播表使join下推；均不可下推时按日期拆分请求/用单分片中间表落数据后再join；子查询表尽量把过滤条件写入子查询内</div></div>
+<div class="viol warn"><div class="vr">[R068] WARNING</div><div class="vm">多表JOIN查询，请确保JOIN关联字段已建索引</div><div class="vs">建议: 为JOIN ON条件中的字段创建索引</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#33</strong> UPDATE | 行号: 204</span><span class="badge ERROR">1项违规</span></div><div class="sql-text">UPDATE t_shard_demo SET shard_key = 999 WHERE id = 1</div>
+<div class="viol error"><div class="vr">[R021] ERROR</div><div class="vm">禁止更新分片键字段（检测到 'shard_key' 在SET子句中）</div><div class="vs">建议: 分片键决定数据路由，更新分片键会导致数据迁移，必须通过DBA审核</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#34</strong> DELETE | 行号: 206</span><span class="badge ERROR">1项违规</span></div><div class="sql-text">DELETE FROM t_transaction WHERE txn_time &gt; &#x27;2020-01-01&#x27;</div>
+<div class="viol error"><div class="vr">[R022] ERROR</div><div class="vm">DELETE/UPDATE语句的WHERE条件中未发现等值查询条件，在分布式场景下可能导致全SET扫描</div><div class="vs">建议: 建议添加分片键的等值条件，并限制单次操作行数（建议≤1000行），如: DELETE FROM ... WHERE shard_key = ? AND ... LIMIT 1000</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#35</strong> SELECT | 行号: 208</span><span class="badge ERROR">3项违规</span></div><div class="sql-text">SELECT cust_id, cust_name FROM t_customer WHERE cust_id = 1 INTO OUTFILE &#x27;/tmp/cust.csv&#x27;</div>
+<div class="viol error"><div class="vr">[E999_SYNTAX_ERROR] ERROR</div><div class="vm">SQL 语句无法解析或结构不完整（可能是拉取截断/语法错误）: Invalid expression / Unexpected token. Line 1, Col: 64.
+  SELECT cust_id, cust_name FROM t_customer WHERE cust_id = 1 [4mINTO[0m OUTFILE '/tmp/cust.csv'</div></div>
+<div class="viol error"><div class="vr">[R039] ERROR</div><div class="vm">禁止使用SELECT ... INTO OUTFILE/DUMPFILE，存在安全风险</div><div class="vs">建议: 请在应用层导出数据，禁止数据库直接写文件</div></div>
+<div class="viol warn"><div class="vr">[R051] WARNING</div><div class="vm">SELECT语句无WHERE条件，将导致全表扫描</div><div class="vs">建议: 请添加WHERE条件限制查询范围</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#36</strong> INSERT | 行号: 210</span><span class="badge ERROR">2项违规</span></div><div class="sql-text">INSERT DELAYED INTO t_audit_log (log_id, cust_id) VALUES (1, 1001)</div>
+<div class="viol error"><div class="vr">[E999_SYNTAX_ERROR] ERROR</div><div class="vm">SQL 语句无法解析或结构不完整（可能是拉取截断/语法错误）: Invalid expression / Unexpected token. Line 1, Col: 19.
+  INSERT DELAYED [4mINTO[0m t_audit_log (log_id, cust_id) VALUES (1, 1001)</div></div>
+<div class="viol warn"><div class="vr">[R040] WARNING</div><div class="vm">禁止使用DELAYED/LOW_PRIORITY关键字，TDSQL不支持</div><div class="vs">建议: 请移除DELAYED/LOW_PRIORITY关键字</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#37</strong> INSERT | 行号: 212</span><span class="badge ERROR">1项违规</span></div><div class="sql-text">INSERT INTO t_dict VALUES (1, &#x27;k&#x27;, &#x27;v&#x27;)</div>
+<div class="viol error"><div class="vr">[R041] ERROR</div><div class="vm">INSERT/REPLACE语句未指定列名，请显式指定列名列表</div><div class="vs">建议: 请改为 INSERT INTO table_name(col1, col2, ...) VALUES(...)</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#38</strong> LOAD | 行号: 214</span><span class="badge ERROR">1项违规</span></div><div class="sql-text">LOAD DATA INFILE &#x27;/tmp/data.csv&#x27; INTO TABLE t_dict</div>
+<div class="viol error"><div class="vr">[R042] ERROR</div><div class="vm">禁止使用LOAD DATA INFILE/LOAD XML，存在安全风险</div><div class="vs">建议: 请在应用层批量导入数据</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#39</strong> UPDATE | 行号: 216</span><span class="badge ERROR">6项违规</span></div><div class="sql-text">UPDATE t_account a JOIN t_customer c ON a.cust_id = c.cust_id SET a.account_type = &#x27;vip&#x27;</div>
+<div class="viol error"><div class="vr">[R013] ERROR</div><div class="vm">禁止不带 WHERE 条件的 UPDATE 操作，可能导致全表数据变更</div><div class="vs">建议: 请添加 WHERE 条件限定影响范围</div></div>
+<div class="viol error"><div class="vr">[R014] ERROR</div><div class="vm">危险操作: 不带 WHERE 的 UPDATE 将影响整张表</div><div class="vs">建议: 请添加 WHERE 条件，或使用 LIMIT 限制影响行数</div></div>
+<div class="viol error"><div class="vr">[R043] ERROR</div><div class="vm">禁止使用多表联表UPDATE，分布式环境下可能导致跨SET操作</div><div class="vs">建议: 请拆分为单表操作，在应用层维护数据一致性</div></div>
+<div class="viol error"><div class="vr">[R053] ERROR</div><div class="vm">多表JOIN请确保在分片键上关联，避免跨SET广播JOIN</div><div class="vs">建议: 请确保JOIN条件包含分片键等值关联，如: JOIN t2 ON t1.shard_key = t2.shard_key。关联条件均为分片键且有固定值→完全下推；无固定值→join下推并尽量过滤；小配置表设为广播表使join下推；均不可下推时按日期拆分请求/用单分片中间表落数据后再join；子查询表尽量把过滤条件写入子查询内</div></div>
+<div class="viol warn"><div class="vr">[R068] WARNING</div><div class="vm">多表JOIN查询，请确保JOIN关联字段已建索引</div><div class="vs">建议: 为JOIN ON条件中的字段创建索引</div></div>
+<div class="viol warn"><div class="vr">[R070] WARNING</div><div class="vm">无WHERE条件的UPDATE/DELETE在大事务中会锁定大量行，请分批操作</div><div class="vs">建议: 大批量操作请分批提交，每批≤10000行</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#40</strong> SELECT | 行号: 218</span><span class="badge ERROR">1项违规</span></div><div class="sql-text">SELECT cust_id, cust_name FROM t_customer FORCE INDEX (idx_cust_level) WHERE cust_level = &#x27;gold&#x27;</div>
+<div class="viol warn"><div class="vr">[R044] WARNING</div><div class="vm">禁止使用索引提示(USE/FORCE/IGNORE INDEX)，应通过优化SQL解决</div><div class="vs">建议: 请优化SQL和索引设计，不要强制指定索引</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#41</strong> HANDLER | 行号: 220</span><span class="badge ERROR">2项违规</span></div><div class="sql-text">HANDLER t_customer OPEN</div>
+<div class="viol error"><div class="vr">[E999_SYNTAX_ERROR] ERROR</div><div class="vm">SQL 语句无法解析或结构不完整（可能是拉取截断/语法错误）: Invalid expression / Unexpected token. Line 1, Col: 23.
+  HANDLER t_customer [4mOPEN[0m</div></div>
+<div class="viol error"><div class="vr">[R045] ERROR</div><div class="vm">禁止使用HANDLER语句，TDSQL不支持</div><div class="vs">建议: 请使用标准SELECT语句替代HANDLER</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#42</strong> LOCK | 行号: 222</span><span class="badge ERROR">1项违规</span></div><div class="sql-text">LOCK TABLES t_customer WRITE</div>
+<div class="viol error"><div class="vr">[R046] ERROR</div><div class="vm">禁止使用LOCK TABLES语句，TDSQL分布式不支持</div><div class="vs">建议: DBA运维操作请通过管理工具完成</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#43</strong> DELETE | 行号: 224</span><span class="badge ERROR">4项违规</span></div><div class="sql-text">DELETE FROM t_audit_log</div>
+<div class="viol error"><div class="vr">[R013] ERROR</div><div class="vm">禁止不带 WHERE 条件的 DELETE 操作，可能导致全表数据变更</div><div class="vs">建议: 请添加 WHERE 条件限定影响范围</div></div>
+<div class="viol error"><div class="vr">[R014] ERROR</div><div class="vm">危险操作: 不带 WHERE 的 DELETE 将影响整张表</div><div class="vs">建议: 请添加 WHERE 条件，或使用 LIMIT 限制影响行数</div></div>
+<div class="viol warn"><div class="vr">[R047] WARNING</div><div class="vm">全表DELETE建议改为TRUNCATE TABLE，效率更高且释放空间</div><div class="vs">建议: 请使用 TRUNCATE TABLE table_name 替代 DELETE FROM table_name</div></div>
+<div class="viol warn"><div class="vr">[R070] WARNING</div><div class="vm">无WHERE条件的UPDATE/DELETE在大事务中会锁定大量行，请分批操作</div><div class="vs">建议: 大批量操作请分批提交，每批≤10000行</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#44</strong> SELECT | 行号: 226</span><span class="badge ERROR">1项违规</span></div><div class="sql-text">SELECT cust_id, cust_name FROM t_customer WHERE cust_id IN (1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124,125,126,127,128,129,130,131,132,133,134,135,136,137,138,139,140,141,142,143,144,145,146,147,148,149,150,151,152,153,154,155,156,157,158,159,160,161,162,163,164,165,166,167,168,169,170,171,172,173,174,175,176,177,178,179,180,181,182,183,184,185,186,187,188,189,190,191,192,193,194,195,196,197,198,199,200,201,202,203,204,205)</div>
+<div class="viol warn"><div class="vr">[R050] WARNING</div><div class="vm">IN列表包含 205 个元素，超过建议的 200 个</div><div class="vs">建议: IN列表过多时建议使用临时表关联或分批查询</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#45</strong> SELECT | 行号: 228</span><span class="badge ERROR">1项违规</span></div><div class="sql-text">SELECT cust_id, cust_name FROM t_customer</div>
+<div class="viol warn"><div class="vr">[R051] WARNING</div><div class="vm">SELECT语句无WHERE条件，将导致全表扫描</div><div class="vs">建议: 请添加WHERE条件限制查询范围</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#46</strong> SELECT | 行号: 230</span><span class="badge ERROR">1项违规</span></div><div class="sql-text">SELECT cust_id, cust_name FROM t_customer WHERE cust_id = &#x27;1001&#x27;</div>
+<div class="viol error"><div class="vr">[R052] ERROR</div><div class="vm">WHERE条件中字段 'cust_id' 与字符串字面量 '1001' 比较，存在隐式类型转换风险，可能导致索引失效</div><div class="vs">建议: 请确保WHERE条件等号两侧类型一致</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#47</strong> SELECT | 行号: 232</span><span class="badge ERROR">3项违规</span></div><div class="sql-text">SELECT a.account_no, c.cust_name
+FROM t_account a
+INNER JOIN t_customer c ON a.cust_id = c.cust_id
+WHERE a.balance &gt; 0</div>
+<div class="viol warn"><div class="vr">[R020] WARNING</div><div class="vm">多表关联查询请确认是否在WHERE/ON条件中包含分片键字段，避免广播到所有SET导致性能下降</div><div class="vs">建议: 建议在WHERE条件中添加分片键字段，如: WHERE shard_key = ? AND ...</div></div>
+<div class="viol error"><div class="vr">[R053] ERROR</div><div class="vm">多表JOIN请确保在分片键上关联，避免跨SET广播JOIN</div><div class="vs">建议: 请确保JOIN条件包含分片键等值关联，如: JOIN t2 ON t1.shard_key = t2.shard_key。关联条件均为分片键且有固定值→完全下推；无固定值→join下推并尽量过滤；小配置表设为广播表使join下推；均不可下推时按日期拆分请求/用单分片中间表落数据后再join；子查询表尽量把过滤条件写入子查询内</div></div>
+<div class="viol warn"><div class="vr">[R068] WARNING</div><div class="vm">多表JOIN查询，请确保JOIN关联字段已建索引</div><div class="vs">建议: 为JOIN ON条件中的字段创建索引</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#48</strong> UPDATE | 行号: 237</span><span class="badge PASS">通过</span></div><div class="sql-text">UPDATE t_customer SET cust_level = &#x27;silver&#x27; WHERE cust_level = &#x27;normal&#x27;</div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#49</strong> BEGIN | 行号: 239</span><span class="badge ERROR">2项违规</span></div><div class="sql-text">BEGIN</div>
+<div class="viol warn"><div class="vr">[R069] WARNING</div><div class="vm">BEGIN/START TRANSACTION后请尽快COMMIT，避免长事务导致锁等待和MDL阻塞</div><div class="vs">建议: 缩短事务范围，将非必要操作移出事务</div></div>
+<div class="viol warn"><div class="vr">[R071] WARNING</div><div class="vm">检测到BEGIN但未见COMMIT/ROLLBACK，请确保事务显式结束</div><div class="vs">建议: 确保每个BEGIN都有对应的COMMIT/ROLLBACK</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#50</strong> START | 行号: 241</span><span class="badge ERROR">2项违规</span></div><div class="sql-text">START TRANSACTION</div>
+<div class="viol warn"><div class="vr">[R069] WARNING</div><div class="vm">BEGIN/START TRANSACTION后请尽快COMMIT，避免长事务导致锁等待和MDL阻塞</div><div class="vs">建议: 缩短事务范围，将非必要操作移出事务</div></div>
+<div class="viol warn"><div class="vr">[R071] WARNING</div><div class="vm">检测到BEGIN但未见COMMIT/ROLLBACK，请确保事务显式结束</div><div class="vs">建议: 确保每个BEGIN都有对应的COMMIT/ROLLBACK</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#51</strong> SELECT | 行号: 243</span><span class="badge ERROR">1项违规</span></div><div class="sql-text">SELECT balance FROM t_account WHERE account_no = &#x27;A001&#x27; FOR UPDATE</div>
+<div class="viol warn"><div class="vr">[R072] WARNING</div><div class="vm">SELECT...FOR UPDATE在事务中会导致行锁等待，请评估是否必要</div><div class="vs">建议: 考虑使用乐观锁或缩短事务范围</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#52</strong> SELECT | 行号: 245</span><span class="badge ERROR">2项违规</span></div><div class="sql-text">GRANT SELECT ON tdsql_check.t_customer TO &#x27;appuser&#x27;@&#x27;%&#x27;</div>
+<div class="viol warn"><div class="vr">[R051] WARNING</div><div class="vm">SELECT语句无WHERE条件，将导致全表扫描</div><div class="vs">建议: 请添加WHERE条件限制查询范围</div></div>
+<div class="viol error"><div class="vr">[R074] ERROR</div><div class="vm">禁止在应用SQL中使用GRANT/REVOKE，权限管理由DBA操作</div><div class="vs">建议: 权限管理由DBA通过管理工具操作</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#53</strong> TRUNCATE | 行号: 247</span><span class="badge ERROR">1项违规</span></div><div class="sql-text">TRUNCATE TABLE t_audit_log</div>
+<div class="viol error"><div class="vr">[R075] ERROR</div><div class="vm">TRUNCATE TABLE操作不可回滚，请确认表名正确且已备份</div><div class="vs">建议: TRUNCATE会清空全表数据且不可回滚，请确认后执行</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#54</strong> SELECT | 行号: 249</span><span class="badge ERROR">1项违规</span></div><div class="sql-text">SELECT cust_id, cust_name FROM t_customer WHERE cust_name = &#x27;${custName}&#x27;</div>
+<div class="viol error"><div class="vr">[R076] ERROR</div><div class="vm">检测到MyBatis ${}动态拼接，存在SQL注入风险，请使用#{}参数化</div><div class="vs">建议: 使用参数化查询(#{}), 避免SQL字符串拼接(${}})</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#55</strong> SELECT | 行号: 251</span><span class="badge ERROR">1项违规</span></div><div class="sql-text">SELECT cust_name || phone AS contact FROM t_customer WHERE cust_id = 1001</div>
+<div class="viol warn"><div class="vr">[R084] WARNING</div><div class="vm">检测到||运算符，MySQL/TDSQL语义为逻辑OR，字符串拼接请改用CONCAT()</div><div class="vs">建议: '%'||v||'%' → CONCAT('%',v,'%')</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#56</strong> SELECT | 行号: 253</span><span class="badge ERROR">2项违规</span></div><div class="sql-text">WITH recent_cust AS (SELECT cust_id, cust_name FROM t_customer WHERE cust_level = &#x27;gold&#x27;)
+SELECT cust_id FROM recent_cust</div>
+<div class="viol warn"><div class="vr">[R051] WARNING</div><div class="vm">SELECT语句无WHERE条件，将导致全表扫描</div><div class="vs">建议: 请添加WHERE条件限制查询范围</div></div>
+<div class="viol error"><div class="vr">[R092] ERROR</div><div class="vm">检测到WITH AS(CTE)，分布式实例不支持，请改写为子查询或JOIN</div><div class="vs">建议: WITH a AS(SELECT…) SELECT * FROM a JOIN b → SELECT * FROM (SELECT…) a JOIN b；复杂多关联+union all场景建议拆查询/引入中间表</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#57</strong> SELECT | 行号: 256</span><span class="badge ERROR">3项违规</span></div><div class="sql-text">SELECT cust_id FROM t_customer WHERE cust_level = &#x27;gold&#x27;
+MINUS
+SELECT cust_id FROM t_account WHERE balance &gt; 0</div>
+<div class="viol error"><div class="vr">[E999_SYNTAX_ERROR] ERROR</div><div class="vm">SQL 语句无法解析或结构不完整（可能是拉取截断/语法错误）: Invalid expression / Unexpected token. Line 2, Col: 5.
+  SELECT cust_id FROM t_customer WHERE cust_level = 'gold'
+[4mMINUS[0m
+SELECT cust_id FROM t_account WHERE balance > 0</div></div>
+<div class="viol warn"><div class="vr">[R051] WARNING</div><div class="vm">SELECT语句无WHERE条件，将导致全表扫描</div><div class="vs">建议: 请添加WHERE条件限制查询范围</div></div>
+<div class="viol error"><div class="vr">[R095] ERROR</div><div class="vm">检测到MINUS集合运算，TDSQL不支持，请改用LEFT JOIN...IS NULL</div><div class="vs">建议: A minus B→select a.* from A a left join B b on a.id=b.id where b.id is null（注意minus含去重语义，必要时补distinct）</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#58</strong> SELECT | 行号: 260</span><span class="badge ERROR">4项违规</span></div><div class="sql-text">SELECT a.account_no, c.cust_name
+FROM t_account a FULL JOIN t_customer c ON a.cust_id = c.cust_id</div>
+<div class="viol warn"><div class="vr">[R051] WARNING</div><div class="vm">SELECT语句无WHERE条件，将导致全表扫描</div><div class="vs">建议: 请添加WHERE条件限制查询范围</div></div>
+<div class="viol error"><div class="vr">[R053] ERROR</div><div class="vm">多表JOIN请确保在分片键上关联，避免跨SET广播JOIN</div><div class="vs">建议: 请确保JOIN条件包含分片键等值关联，如: JOIN t2 ON t1.shard_key = t2.shard_key。关联条件均为分片键且有固定值→完全下推；无固定值→join下推并尽量过滤；小配置表设为广播表使join下推；均不可下推时按日期拆分请求/用单分片中间表落数据后再join；子查询表尽量把过滤条件写入子查询内</div></div>
+<div class="viol warn"><div class="vr">[R068] WARNING</div><div class="vm">多表JOIN查询，请确保JOIN关联字段已建索引</div><div class="vs">建议: 为JOIN ON条件中的字段创建索引</div></div>
+<div class="viol error"><div class="vr">[R096] ERROR</div><div class="vm">检测到FULL JOIN，MySQL/TDSQL不支持，请改写为LEFT JOIN UNION RIGHT JOIN</div><div class="vs">建议: select * from A full join B on…→ select…left join…UNION select…right join…</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#59</strong> DELETE | 行号: 263</span><span class="badge ERROR">1项违规</span></div><div class="sql-text">DELETE FROM t_audit_log a WHERE a.log_id = 1</div>
+<div class="viol error"><div class="vr">[R100] ERROR</div><div class="vm">DELETE语句中对被删表设置了别名，分布式实例不支持</div><div class="vs">建议: DELETE FROM T1 a WHERE EXISTS(...)→DELETE FROM T1 WHERE EXISTS(引用T1.id)</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#60</strong> INSERT | 行号: 265</span><span class="badge ERROR">2项违规</span></div><div class="sql-text">INSERT INTO t_audit_record (log_id, cust_id) SELECT log_id, cust_id FROM t_deposit_src</div>
+<div class="viol error"><div class="vr">[R001] ERROR</div><div class="vm">表/库名 't_audit_record (log_id, cust_id)' 不符合命名规范：必须以小写字母开头，仅包含小写字母、数字和下划线</div><div class="vs">建议: 建议修改为: t_audit_record__log_id__cust_id</div></div>
+<div class="viol warn"><div class="vr">[R107] WARNING</div><div class="vm">INSERT INTO…SELECT在目标表含自增列或分区时不支持，请确认目标表结构</div><div class="vs">建议: 确认目标表无自增列且未分区；受限场景改为程序分批SELECT后INSERT VALUES</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#61</strong> UPDATE | 行号: 267</span><span class="badge ERROR">1项违规</span></div><div class="sql-text">UPDATE t_customer SET cust_level = &#x27;gold&#x27;, cust_level = CASE WHEN cust_level = &#x27;gold&#x27; THEN &#x27;vip&#x27; ELSE cust_level END WHERE cust_id = 1001</div>
+<div class="viol warn"><div class="vr">[R109] WARNING</div><div class="vm">UPDATE中后续SET引用了前面已赋值字段的新值，TDSQL与Oracle行为不同</div><div class="vs">建议: 将修改判断条件字段（如stcd）的CASE WHEN赋值移到SET列表最后，或拆分为多条UPDATE</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#62</strong> SELECT | 行号: 269</span><span class="badge ERROR">1项违规</span></div><div class="sql-text">SELECT cust_id, cust_name FROM t_customer WHERE cust_level = &#x27;gold&#x27; ORDER BY cust_id LIMIT 20000, 20</div>
+<div class="viol warn"><div class="vr">[R114] WARNING</div><div class="vm">LIMIT偏移量20000超过10000，深分页需扫描并丢弃前20000行，代价高</div><div class="vs">建议: 强排序分页→利用索引有序性；不排序分页→随机选分片返回单页；叠加日期/分类条件缩减初筛量级；最优为键集翻页where col>lastval limit N</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#63</strong> CREATE TABLE | 行号: 271</span><span class="badge ERROR">2项违规</span></div><div class="sql-text">CREATE TABLE t_manyidx (
+    id BIGINT NOT NULL COMMENT &#x27;主键&#x27;,
+    c1 INT NOT NULL COMMENT &#x27;列1&#x27;,
+    c2 INT NOT NULL COMMENT &#x27;列2&#x27;,
+    c3 INT NOT NULL COMMENT &#x27;列3&#x27;,
+    c4 INT NOT NULL COMMENT &#x27;列4&#x27;,
+    c5 INT NOT NULL COMMENT &#x27;列5&#x27;,
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;创建时间&#x27;,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;更新时间&#x27;,
+    is_deleted TINYINT DEFAULT 0 COMMENT &#x27;逻辑删除&#x27;,
+    PRIMARY KEY (id),
+    INDEX idx_c1 (c1),
+    INDEX idx_c2 (c2),
+    INDEX idx_c3 (c3),
+    INDEX idx_c4 (c4),
+    INDEX idx_c5 (c5)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=&#x27;多索引表&#x27;</div>
+<div class="viol warn"><div class="vr">[R018] WARNING</div><div class="vm">表索引数量为 6，超过建议的 5 个</div><div class="vs">建议: 过多索引会降低写入性能，建议合并冗余索引或移除不常用索引</div></div>
+<div class="viol error"><div class="vr">[R077] ERROR</div><div class="vm">建表语句未声明分片键(SHARDKEY)或广播表标记(BROADCAST)，TDSQL分布式实例上不允许创建单表（表 t_manyidx）。分片表必须通过 SHARDKEY=列名 声明分片键，广播表必须通过 BROADCAST 声明</div><div class="vs">建议: 请按目标实例支持的形态声明分片键或广播表。示例:
+  CREATE TABLE t1 (...) ENGINE=InnoDB SHARDKEY=user_id
+  CREATE TABLE t1 (...) ENGINE=InnoDB TDSQL_DISTRIBUTED BY HASH(`user_id`)
+  CREATE TABLE t1 (...) ENGINE=InnoDB BROADCAST
+  CREATE TABLE t1 (...) ENGINE=InnoDB shardkey=noshardkey_allset
+分片表的分片键必须是主键(或主键的一部分)，且必须包含在每一个唯一索引中。</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#64</strong> CREATE TABLE | 行号: 289</span><span class="badge ERROR">2项违规</span></div><div class="sql-text">CREATE TABLE t_redundant (
+    id BIGINT NOT NULL COMMENT &#x27;主键&#x27;,
+    c1 INT NOT NULL COMMENT &#x27;列1&#x27;,
+    c2 INT NOT NULL COMMENT &#x27;列2&#x27;,
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;创建时间&#x27;,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;更新时间&#x27;,
+    is_deleted TINYINT DEFAULT 0 COMMENT &#x27;逻辑删除&#x27;,
+    PRIMARY KEY (id),
+    INDEX idx_a (c1),
+    INDEX idx_ab (c1, c2)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=&#x27;冗余索引表&#x27;</div>
+<div class="viol warn"><div class="vr">[R019] WARNING</div><div class="vm">索引 'idx_a' (c1) 是 'idx_ab' (c1,c2) 的前缀，存在冗余</div><div class="vs">建议: 建议移除冗余索引</div></div>
+<div class="viol error"><div class="vr">[R077] ERROR</div><div class="vm">建表语句未声明分片键(SHARDKEY)或广播表标记(BROADCAST)，TDSQL分布式实例上不允许创建单表（表 t_redundant）。分片表必须通过 SHARDKEY=列名 声明分片键，广播表必须通过 BROADCAST 声明</div><div class="vs">建议: 请按目标实例支持的形态声明分片键或广播表。示例:
+  CREATE TABLE t1 (...) ENGINE=InnoDB SHARDKEY=user_id
+  CREATE TABLE t1 (...) ENGINE=InnoDB TDSQL_DISTRIBUTED BY HASH(`user_id`)
+  CREATE TABLE t1 (...) ENGINE=InnoDB BROADCAST
+  CREATE TABLE t1 (...) ENGINE=InnoDB shardkey=noshardkey_allset
+分片表的分片键必须是主键(或主键的一部分)，且必须包含在每一个唯一索引中。</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#65</strong> CREATE TABLE | 行号: 301</span><span class="badge ERROR">2项违规</span></div><div class="sql-text">CREATE TABLE t_idxname (
+    id BIGINT NOT NULL COMMENT &#x27;主键&#x27;,
+    c1 INT NOT NULL COMMENT &#x27;列1&#x27;,
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;创建时间&#x27;,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;更新时间&#x27;,
+    is_deleted TINYINT DEFAULT 0 COMMENT &#x27;逻辑删除&#x27;,
+    PRIMARY KEY (id),
+    INDEX my_index (c1)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=&#x27;索引命名表&#x27;</div>
+<div class="viol error"><div class="vr">[R077] ERROR</div><div class="vm">建表语句未声明分片键(SHARDKEY)或广播表标记(BROADCAST)，TDSQL分布式实例上不允许创建单表（表 t_idxname）。分片表必须通过 SHARDKEY=列名 声明分片键，广播表必须通过 BROADCAST 声明</div><div class="vs">建议: 请按目标实例支持的形态声明分片键或广播表。示例:
+  CREATE TABLE t1 (...) ENGINE=InnoDB SHARDKEY=user_id
+  CREATE TABLE t1 (...) ENGINE=InnoDB TDSQL_DISTRIBUTED BY HASH(`user_id`)
+  CREATE TABLE t1 (...) ENGINE=InnoDB BROADCAST
+  CREATE TABLE t1 (...) ENGINE=InnoDB shardkey=noshardkey_allset
+分片表的分片键必须是主键(或主键的一部分)，且必须包含在每一个唯一索引中。</div></div>
+<div class="viol warn"><div class="vr">[R061] WARNING</div><div class="vm">普通索引 'my_index' 应以 idx_ 开头</div><div class="vs">建议: 普通索引以idx_开头，唯一索引以uk_开头，主键以pk_开头</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#66</strong> CREATE TABLE | 行号: 311</span><span class="badge ERROR">2项违规</span></div><div class="sql-text">CREATE TABLE t_idxorder (
+    id BIGINT NOT NULL COMMENT &#x27;主键&#x27;,
+    status INT NOT NULL COMMENT &#x27;状态&#x27;,
+    cust_id BIGINT NOT NULL COMMENT &#x27;客户ID&#x27;,
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;创建时间&#x27;,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;更新时间&#x27;,
+    is_deleted TINYINT DEFAULT 0 COMMENT &#x27;逻辑删除&#x27;,
+    PRIMARY KEY (id),
+    INDEX idx_status_cust (status, cust_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=&#x27;索引顺序表&#x27;</div>
+<div class="viol error"><div class="vr">[R077] ERROR</div><div class="vm">建表语句未声明分片键(SHARDKEY)或广播表标记(BROADCAST)，TDSQL分布式实例上不允许创建单表（表 t_idxorder）。分片表必须通过 SHARDKEY=列名 声明分片键，广播表必须通过 BROADCAST 声明</div><div class="vs">建议: 请按目标实例支持的形态声明分片键或广播表。示例:
+  CREATE TABLE t1 (...) ENGINE=InnoDB SHARDKEY=user_id
+  CREATE TABLE t1 (...) ENGINE=InnoDB TDSQL_DISTRIBUTED BY HASH(`user_id`)
+  CREATE TABLE t1 (...) ENGINE=InnoDB BROADCAST
+  CREATE TABLE t1 (...) ENGINE=InnoDB shardkey=noshardkey_allset
+分片表的分片键必须是主键(或主键的一部分)，且必须包含在每一个唯一索引中。</div></div>
+<div class="viol warn"><div class="vr">[R062] WARNING</div><div class="vm">复合索引(status,cust_id)字段顺序不合理，区分度低的字段'status'在前</div><div class="vs">建议: 建议调整为: (cust_id,status)</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#67</strong> CREATE TABLE | 行号: 322</span><span class="badge ERROR">2项违规</span></div><div class="sql-text">CREATE TABLE t_lowcard (
+    id BIGINT NOT NULL COMMENT &#x27;主键&#x27;,
+    status INT NOT NULL COMMENT &#x27;状态&#x27;,
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;创建时间&#x27;,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;更新时间&#x27;,
+    is_deleted TINYINT DEFAULT 0 COMMENT &#x27;逻辑删除&#x27;,
+    PRIMARY KEY (id),
+    INDEX idx_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=&#x27;低区分度索引表&#x27;</div>
+<div class="viol error"><div class="vr">[R077] ERROR</div><div class="vm">建表语句未声明分片键(SHARDKEY)或广播表标记(BROADCAST)，TDSQL分布式实例上不允许创建单表（表 t_lowcard）。分片表必须通过 SHARDKEY=列名 声明分片键，广播表必须通过 BROADCAST 声明</div><div class="vs">建议: 请按目标实例支持的形态声明分片键或广播表。示例:
+  CREATE TABLE t1 (...) ENGINE=InnoDB SHARDKEY=user_id
+  CREATE TABLE t1 (...) ENGINE=InnoDB TDSQL_DISTRIBUTED BY HASH(`user_id`)
+  CREATE TABLE t1 (...) ENGINE=InnoDB BROADCAST
+  CREATE TABLE t1 (...) ENGINE=InnoDB shardkey=noshardkey_allset
+分片表的分片键必须是主键(或主键的一部分)，且必须包含在每一个唯一索引中。</div></div>
+<div class="viol warn"><div class="vr">[R063] WARNING</div><div class="vm">字段 'status' 区分度低，不建议单独建索引</div><div class="vs">建议: 建议将该字段放入复合索引</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#68</strong> CREATE TABLE | 行号: 332</span><span class="badge ERROR">3项违规</span></div><div class="sql-text">CREATE TABLE t_idxcols (
+    id BIGINT NOT NULL COMMENT &#x27;主键&#x27;,
+    c1 INT NOT NULL COMMENT &#x27;列1&#x27;,
+    c2 INT NOT NULL COMMENT &#x27;列2&#x27;,
+    c3 INT NOT NULL COMMENT &#x27;列3&#x27;,
+    c4 INT NOT NULL COMMENT &#x27;列4&#x27;,
+    c5 INT NOT NULL COMMENT &#x27;列5&#x27;,
+    c6 INT NOT NULL COMMENT &#x27;列6&#x27;,
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;创建时间&#x27;,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;更新时间&#x27;,
+    is_deleted TINYINT DEFAULT 0 COMMENT &#x27;逻辑删除&#x27;,
+    PRIMARY KEY (id),
+    INDEX idx_many (c1, c2, c3, c4, c5, c6)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=&#x27;多字段索引表&#x27;</div>
+<div class="viol warn"><div class="vr">[R033] WARNING</div><div class="vm">表名 't_idxcols' 为复数形式，建议使用单数</div><div class="vs">建议: 建议将表名改为单数形式</div></div>
+<div class="viol error"><div class="vr">[R077] ERROR</div><div class="vm">建表语句未声明分片键(SHARDKEY)或广播表标记(BROADCAST)，TDSQL分布式实例上不允许创建单表（表 t_idxcols）。分片表必须通过 SHARDKEY=列名 声明分片键，广播表必须通过 BROADCAST 声明</div><div class="vs">建议: 请按目标实例支持的形态声明分片键或广播表。示例:
+  CREATE TABLE t1 (...) ENGINE=InnoDB SHARDKEY=user_id
+  CREATE TABLE t1 (...) ENGINE=InnoDB TDSQL_DISTRIBUTED BY HASH(`user_id`)
+  CREATE TABLE t1 (...) ENGINE=InnoDB BROADCAST
+  CREATE TABLE t1 (...) ENGINE=InnoDB shardkey=noshardkey_allset
+分片表的分片键必须是主键(或主键的一部分)，且必须包含在每一个唯一索引中。</div></div>
+<div class="viol warn"><div class="vr">[R065] WARNING</div><div class="vm">索引 'idx_many' 包含 6 个字段，超过建议的 5 个</div><div class="vs">建议: 复合索引字段过多会增加索引体积和维护成本，建议精简</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#69</strong> CREATE TABLE | 行号: 347</span><span class="badge ERROR">3项违规</span></div><div class="sql-text">CREATE TABLE t_blobidx (
+    id BIGINT NOT NULL COMMENT &#x27;主键&#x27;,
+    content TEXT NOT NULL COMMENT &#x27;正文&#x27;,
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;创建时间&#x27;,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;更新时间&#x27;,
+    is_deleted TINYINT DEFAULT 0 COMMENT &#x27;逻辑删除&#x27;,
+    PRIMARY KEY (id),
+    INDEX idx_content (content)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=&#x27;大字段索引表&#x27;</div>
+<div class="viol warn"><div class="vr">[R011] WARNING</div><div class="vm">字段 'content' 使用了 TEXT 类型，活跃表不建议使用</div><div class="vs">建议: 建议拆分到独立扩展表或使用 VARCHAR 限定长度</div></div>
+<div class="viol error"><div class="vr">[R077] ERROR</div><div class="vm">建表语句未声明分片键(SHARDKEY)或广播表标记(BROADCAST)，TDSQL分布式实例上不允许创建单表（表 t_blobidx）。分片表必须通过 SHARDKEY=列名 声明分片键，广播表必须通过 BROADCAST 声明</div><div class="vs">建议: 请按目标实例支持的形态声明分片键或广播表。示例:
+  CREATE TABLE t1 (...) ENGINE=InnoDB SHARDKEY=user_id
+  CREATE TABLE t1 (...) ENGINE=InnoDB TDSQL_DISTRIBUTED BY HASH(`user_id`)
+  CREATE TABLE t1 (...) ENGINE=InnoDB BROADCAST
+  CREATE TABLE t1 (...) ENGINE=InnoDB shardkey=noshardkey_allset
+分片表的分片键必须是主键(或主键的一部分)，且必须包含在每一个唯一索引中。</div></div>
+<div class="viol error"><div class="vr">[R066] ERROR</div><div class="vm">字段 'content' 类型为 TEXT，禁止建索引</div><div class="vs">建议: 大字段不支持直接索引，如需全文检索请使用FULLTEXT索引</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#70</strong> CREATE TABLE | 行号: 357</span><span class="badge ERROR">2项违规</span></div><div class="sql-text">CREATE TABLE t_prefixidx (
+    id BIGINT NOT NULL COMMENT &#x27;主键&#x27;,
+    cust_name VARCHAR(200) NOT NULL COMMENT &#x27;客户名&#x27;,
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;创建时间&#x27;,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;更新时间&#x27;,
+    is_deleted TINYINT DEFAULT 0 COMMENT &#x27;逻辑删除&#x27;,
+    PRIMARY KEY (id),
+    INDEX idx_name (cust_name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=&#x27;前缀索引表&#x27;</div>
+<div class="viol error"><div class="vr">[R077] ERROR</div><div class="vm">建表语句未声明分片键(SHARDKEY)或广播表标记(BROADCAST)，TDSQL分布式实例上不允许创建单表（表 t_prefixidx）。分片表必须通过 SHARDKEY=列名 声明分片键，广播表必须通过 BROADCAST 声明</div><div class="vs">建议: 请按目标实例支持的形态声明分片键或广播表。示例:
+  CREATE TABLE t1 (...) ENGINE=InnoDB SHARDKEY=user_id
+  CREATE TABLE t1 (...) ENGINE=InnoDB TDSQL_DISTRIBUTED BY HASH(`user_id`)
+  CREATE TABLE t1 (...) ENGINE=InnoDB BROADCAST
+  CREATE TABLE t1 (...) ENGINE=InnoDB shardkey=noshardkey_allset
+分片表的分片键必须是主键(或主键的一部分)，且必须包含在每一个唯一索引中。</div></div>
+<div class="viol info"><div class="vr">[R067] INFO</div><div class="vm">字段 'cust_name' VARCHAR长度>100，建议使用前缀索引</div><div class="vs">建议: 如: INDEX idx_name (col_name(20)) 使用前20字符建索引</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#71</strong> CREATE TABLE | 行号: 367</span><span class="badge ERROR">1项违规</span></div><div class="sql-text">CREATE TABLE t_noshard (
+    id BIGINT NOT NULL COMMENT &#x27;主键&#x27;,
+    cust_id BIGINT NOT NULL COMMENT &#x27;客户ID&#x27;,
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;创建时间&#x27;,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;更新时间&#x27;,
+    is_deleted TINYINT DEFAULT 0 COMMENT &#x27;逻辑删除&#x27;,
+    PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=&#x27;缺分片键表&#x27;</div>
+<div class="viol error"><div class="vr">[R077] ERROR</div><div class="vm">建表语句未声明分片键(SHARDKEY)或广播表标记(BROADCAST)，TDSQL分布式实例上不允许创建单表（表 t_noshard）。分片表必须通过 SHARDKEY=列名 声明分片键，广播表必须通过 BROADCAST 声明</div><div class="vs">建议: 请按目标实例支持的形态声明分片键或广播表。示例:
+  CREATE TABLE t1 (...) ENGINE=InnoDB SHARDKEY=user_id
+  CREATE TABLE t1 (...) ENGINE=InnoDB TDSQL_DISTRIBUTED BY HASH(`user_id`)
+  CREATE TABLE t1 (...) ENGINE=InnoDB BROADCAST
+  CREATE TABLE t1 (...) ENGINE=InnoDB shardkey=noshardkey_allset
+分片表的分片键必须是主键(或主键的一部分)，且必须包含在每一个唯一索引中。</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#72</strong> CREATE TABLE | 行号: 376</span><span class="badge ERROR">2项违规</span></div><div class="sql-text">CREATE TABLE t_shard_notpk (
+    id BIGINT NOT NULL COMMENT &#x27;主键&#x27;,
+    cust_id BIGINT NOT NULL COMMENT &#x27;客户ID&#x27;,
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;创建时间&#x27;,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;更新时间&#x27;,
+    is_deleted TINYINT DEFAULT 0 COMMENT &#x27;逻辑删除&#x27;,
+    PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=&#x27;分片键非主键表&#x27; SHARDKEY=cust_id</div>
+<div class="viol warn"><div class="vr">[R054] WARNING</div><div class="vm">分片键 'cust_id' 不在主键中，TDSQL要求分片键必须是主键的一部分</div><div class="vs">建议: 请将分片键字段加入主键，如: PRIMARY KEY (shard_key, id)；同时确保所有UNIQUE索引也包含分片键</div></div>
+<div class="viol error"><div class="vr">[R077] ERROR</div><div class="vm">分片键 'cust_id' 不在主键或唯一索引中，TDSQL要求分片键必须是主键或唯一索引的一个字段</div><div class="vs">建议: 请将分片键 'cust_id' 加入主键，如: PRIMARY KEY (cust_id, id)，或为该列创建唯一索引</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#73</strong> CREATE TABLE | 行号: 385</span><span class="badge PASS">通过</span></div><div class="sql-text">CREATE TABLE t_shard_ok (
+    id BIGINT NOT NULL COMMENT &#x27;主键&#x27;,
+    cust_id BIGINT NOT NULL COMMENT &#x27;客户ID&#x27;,
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;创建时间&#x27;,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT &#x27;更新时间&#x27;,
+    is_deleted TINYINT DEFAULT 0 COMMENT &#x27;逻辑删除&#x27;,
+    PRIMARY KEY (id, cust_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=&#x27;合规分片表&#x27; SHARDKEY=cust_id</div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#74</strong> SELECT | 行号: 394</span><span class="badge ERROR">1项违规</span></div><div class="sql-text">SELECT cust_id, cust_name FROM t_customer WHERE ROWNUM &lt;= 10</div>
+<div class="viol error"><div class="vr">[R079] ERROR</div><div class="vm">检测到ROWNUM，TDSQL不支持，请改用LIMIT分页</div><div class="vs">建议: SELECT * FROM t WHERE 条件 LIMIT n（LIMIT n 等价 LIMIT 0,n）；需排序时LIMIT置于ORDER BY之后：… ORDER BY 字段 LIMIT m,n</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#75</strong> SELECT | 行号: 396</span><span class="badge ERROR">1项违规</span></div><div class="sql-text">SELECT cust_id, NVL(email, &#x27;none&#x27;) AS email FROM t_customer WHERE cust_id = 1001</div>
+<div class="viol error"><div class="vr">[R080] ERROR</div><div class="vm">检测到NVL函数，TDSQL不支持，请改用IFNULL或COALESCE</div><div class="vs">建议: NVL(a,b)→IFNULL(a,b)；多条件嵌套或多参用COALESCE(e1,e2,...)；示例：select IFNULL(max(tempa),0) from t</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#76</strong> SELECT | 行号: 398</span><span class="badge ERROR">1项违规</span></div><div class="sql-text">SELECT cust_id, DECODE(cust_level, &#x27;gold&#x27;, &#x27;金&#x27;, &#x27;silver&#x27;, &#x27;银&#x27;, &#x27;其他&#x27;) AS lvl FROM t_customer WHERE cust_id = 1001</div>
+<div class="viol error"><div class="vr">[R081] ERROR</div><div class="vm">检测到DECODE函数，TDSQL不支持，请改用CASE WHEN或IF()</div><div class="vs">建议: decode(x,'A','1','B','2',缺省)→CASE x WHEN 'A' THEN '1' WHEN 'B' THEN '2' ELSE 缺省 END；两分支简单场景可用IF(cond,v1,v2)</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#77</strong> SELECT | 行号: 400</span><span class="badge ERROR">1项违规</span></div><div class="sql-text">SELECT cust_id, TO_CHAR(create_time, &#x27;YYYYMMDD&#x27;) AS dt FROM t_customer WHERE cust_id = 1001</div>
+<div class="viol error"><div class="vr">[R082] ERROR</div><div class="vm">检测到TO_CHAR函数，TDSQL不支持，请改用DATE_FORMAT/CONVERT/CAST</div><div class="vs">建议: 日期→DATE_FORMAT(col,'%Y%m%d')；类型转换→CONVERT(value,type)（type: BINARY/CHAR()/DATE/TIME/DATETIME/DECIMAL/SIGNED/UNSIGNED）；含'FM9999.0999'类精度进位格式的，用LPAD/FORMAT改写，需逐格式核实进位方式（估值/额度/费用计算场景重点复核）</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#78</strong> SELECT | 行号: 402</span><span class="badge ERROR">2项违规</span></div><div class="sql-text">SELECT cust_id FROM t_customer WHERE cust_id = TO_NUMBER(&#x27;1001&#x27;)</div>
+<div class="viol warn"><div class="vr">[R016] WARNING</div><div class="vm">WHERE 条件中包含函数/计算/LIKE/OR条件，可能导致索引失效</div><div class="vs">建议: 1)函数:用范围查询替代 2)全模糊LIKE:改为前缀匹配 3)OR:改写为UNION ALL</div></div>
+<div class="viol error"><div class="vr">[R083] ERROR</div><div class="vm">检测到TO_NUMBER函数，TDSQL不支持，请改用CAST</div><div class="vs">建议: cast(x as unsigned int)/cast(x as decimal(10,2))；注意：cast('11a' as unsigned int)=11（截断），不像to_number直接报错，涉及数据校验的需应用侧兜底</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#79</strong> SELECT | 行号: 404</span><span class="badge ERROR">2项违规</span></div><div class="sql-text">SELECT cust_id FROM t_customer WHERE create_time &gt; TO_DATE(&#x27;20240101&#x27;, &#x27;YYYYMMDD&#x27;)</div>
+<div class="viol warn"><div class="vr">[R016] WARNING</div><div class="vm">WHERE 条件中包含函数/计算/LIKE/OR条件，可能导致索引失效</div><div class="vs">建议: 1)函数:用范围查询替代 2)全模糊LIKE:改为前缀匹配 3)OR:改写为UNION ALL</div></div>
+<div class="viol error"><div class="vr">[R085] ERROR</div><div class="vm">检测到TO_DATE函数，TDSQL不支持，请改用STR_TO_DATE</div><div class="vs">建议: to_date(v,'YYYYMMDD')→str_to_date(v,'%Y%m%d')；格式符对照：YYYY→%Y，MM→%m，DD→%d，HH24→%H，MI→%i，SS→%s</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#80</strong> SELECT | 行号: 406</span><span class="badge ERROR">1项违规</span></div><div class="sql-text">SELECT cust_id, TRUNC(balance, 2) AS bal FROM t_account WHERE account_no = &#x27;A001&#x27;</div>
+<div class="viol error"><div class="vr">[R086] ERROR</div><div class="vm">检测到TRUNC函数，TDSQL不支持，数值截断用TRUNCATE，日期截断用DATE_FORMAT</div><div class="vs">建议: TRUNC(x,2)→TRUNCATE(x,2)；TRUNC(sysdate)→DATE_FORMAT(sysdate(),'%Y%m%d')；TRUNC(sysdate,'mm')→DATE_FORMAT(sysdate(),'%Y%m01')</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#81</strong> SELECT | 行号: 408</span><span class="badge ERROR">1项违规</span></div><div class="sql-text">SELECT cust_id, LTRIM(phone, &#x27;0&#x27;) AS phone FROM t_customer WHERE cust_id = 1001</div>
+<div class="viol error"><div class="vr">[R087] ERROR</div><div class="vm">检测到LTRIM/RTRIM双参数用法，TDSQL不支持，请改用TRIM(LEADING/TRAILING ... FROM ...)</div><div class="vs">建议: ltrim(s,'0')→TRIM(LEADING '0' FROM s)；rtrim(s,'x')→TRIM(TRAILING 'x' FROM s)；注意TDSQL的remstr是整串匹配而非Oracle的字符集合匹配</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#82</strong> SELECT | 行号: 410</span><span class="badge ERROR">1项违规</span></div><div class="sql-text">SELECT cust_id, ADD_MONTHS(create_time, -1) AS prev FROM t_customer WHERE cust_id = 1001</div>
+<div class="viol error"><div class="vr">[R088] ERROR</div><div class="vm">检测到ADD_MONTHS函数，TDSQL不支持，请改用ADDDATE(... INTERVAL ... MONTH)</div><div class="vs">建议: add_months(d,-1)→adddate(d, INTERVAL -1 MONTH)；unit支持SECOND/MINUTE/HOUR/DAY/MONTH/YEAR</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#83</strong> SELECT | 行号: 412</span><span class="badge ERROR">1项违规</span></div><div class="sql-text">SELECT cust_id, SUBSTR(id_no, 0, 6) AS prefix FROM t_customer WHERE cust_id = 1001</div>
+<div class="viol error"><div class="vr">[R089] ERROR</div><div class="vm">SUBSTR起始位置为0，TDSQL中start=0返回空串，请改为从1开始</div><div class="vs">建议: substr(c,0,9)→substr(c,1,9)（Oracle中0与1等效，TDSQL必须从1开始）</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#84</strong> SELECT | 行号: 414</span><span class="badge ERROR">1项违规</span></div><div class="sql-text">SELECT cust_id FROM t_customer WHERE create_time &lt; SYSDATE</div>
+<div class="viol error"><div class="vr">[R090] ERROR</div><div class="vm">检测到SYSDATE裸用，TDSQL需使用sysdate()函数（带括号）</div><div class="vs">建议: SYSDATE→sysdate()；SYSTIMESTAMP→NOW(3)/sysdate(3)；截取日期用DATE_FORMAT(sysdate(),'%Y%m%d')</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#85</strong> UPDATE | 行号: 416</span><span class="badge ERROR">4项违规</span></div><div class="sql-text">MERGE INTO t_customer c USING t_deposit d ON (c.cust_id = d.cust_id)
+WHEN MATCHED THEN UPDATE SET c.cust_level = &#x27;gold&#x27;</div>
+<div class="viol error"><div class="vr">[R013] ERROR</div><div class="vm">禁止不带 WHERE 条件的 UPDATE 操作，可能导致全表数据变更</div><div class="vs">建议: 请添加 WHERE 条件限定影响范围</div></div>
+<div class="viol error"><div class="vr">[R014] ERROR</div><div class="vm">危险操作: 不带 WHERE 的 UPDATE 将影响整张表</div><div class="vs">建议: 请添加 WHERE 条件，或使用 LIMIT 限制影响行数</div></div>
+<div class="viol warn"><div class="vr">[R070] WARNING</div><div class="vm">无WHERE条件的UPDATE/DELETE在大事务中会锁定大量行，请分批操作</div><div class="vs">建议: 大批量操作请分批提交，每批≤10000行</div></div>
+<div class="viol error"><div class="vr">[R091] ERROR</div><div class="vm">检测到MERGE INTO，TDSQL不支持，请改用INSERT...ON DUPLICATE KEY UPDATE或拆分SQL</div><div class="vs">建议: 关联字段为主键/唯一键（集中式）→INSERT INTO … ON DUPLICATE KEY UPDATE；仅更新不插入→UPDATE a JOIN b ON a.id=b.id SET a.xx=b.xx；其余场景拆SQL由程序实现</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#86</strong> SELECT | 行号: 419</span><span class="badge ERROR">2项违规</span></div><div class="sql-text">SELECT cust_id FROM t_customer WHERE LENGTH(cust_name) &gt; 10</div>
+<div class="viol warn"><div class="vr">[R016] WARNING</div><div class="vm">WHERE 条件中包含函数/计算/LIKE/OR条件，可能导致索引失效</div><div class="vs">建议: 1)函数:用范围查询替代 2)全模糊LIKE:改为前缀匹配 3)OR:改写为UNION ALL</div></div>
+<div class="viol warn"><div class="vr">[R093] WARNING</div><div class="vm">LENGTH()在TDSQL中返回字节数，中文场景需改用CHAR_LENGTH()获取字符数</div><div class="vs">建议: select length(c)→select char_length(c)（需要字符数时）；确认确需字节数的可保留并在工单注明</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#87</strong> SELECT | 行号: 421</span><span class="badge ERROR">1项违规</span></div><div class="sql-text">SELECT cust_level, LISTAGG(cust_name, &#x27;,&#x27;) WITHIN GROUP (ORDER BY cust_name) AS names
+FROM t_customer WHERE cust_level = &#x27;gold&#x27; GROUP BY cust_level</div>
+<div class="viol error"><div class="vr">[R094] ERROR</div><div class="vm">检测到LISTAGG/WITHIN GROUP，TDSQL不支持，请改用GROUP_CONCAT</div><div class="vs">建议: LISTAGG(a||':'||b,'|') WITHIN GROUP(ORDER BY a,b)→GROUP_CONCAT(a,':',b ORDER BY a,b SEPARATOR '|')</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#88</strong> SELECT | 行号: 424</span><span class="badge ERROR">1项违规</span></div><div class="sql-text">SELECT cust_id FROM (SELECT cust_id FROM t_customer WHERE cust_level = &#x27;gold&#x27;) WHERE cust_id &gt; 0</div>
+<div class="viol error"><div class="vr">[R099] ERROR</div><div class="vm">FROM后的子查询（派生表）未指定别名，TDSQL会报错</div><div class="vs">建议: select * from (select * from t)→select * from (select * from t) B</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#89</strong> SELECT | 行号: 426</span><span class="badge ERROR">1项违规</span></div><div class="sql-text">SELECT condition FROM t_rule_demo WHERE id = 1</div>
+<div class="viol error"><div class="vr">[R101] ERROR</div><div class="vm">使用了CONDITION保留字作为标识符，需加反引号 `CONDITION`</div><div class="vs">建议: select `CONDITION` from t（加反引号）；别名nextVal/minValue等sequence特殊词改为普通词</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#90</strong> SELECT | 行号: 428</span><span class="badge ERROR">3项违规</span></div><div class="sql-text">SELECT cust_id FROM t_customer WHERE cust_name LIKE &#x27;%\_%&#x27; ESCAPE &#x27;\&#x27;</div>
+<div class="viol error"><div class="vr">[E999_SYNTAX_ERROR] ERROR</div><div class="vm">SQL 语句无法解析或结构不完整（可能是拉取截断/语法错误）: Error tokenizing 'M t_customer WHERE cust_name LIKE '%\_%' ESCAPE '\'</div></div>
+<div class="viol warn"><div class="vr">[R051] WARNING</div><div class="vm">SELECT语句无WHERE条件，将导致全表扫描</div><div class="vs">建议: 请添加WHERE条件限制查询范围</div></div>
+<div class="viol warn"><div class="vr">[R102] WARNING</div><div class="vm">LIKE...ESCAPE '\'在TDSQL中行为不一致，建议改用'/'等转义符</div><div class="vs">建议: LIKE '%\_%' ESCAPE '\' → LIKE '%/_%' ESCAPE '/'</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#91</strong> SELECT | 行号: 430</span><span class="badge ERROR">3项违规</span></div><div class="sql-text">SELECT cust_id FROM t_customer WHERE cust_id &lt; = 1000</div>
+<div class="viol error"><div class="vr">[E999_SYNTAX_ERROR] ERROR</div><div class="vm">SQL 语句无法解析或结构不完整（可能是拉取截断/语法错误）: Required keyword: 'expression' missing for <class 'sqlglot.expressions.core.LT'>. Line 1, Col: 48.
+  SELECT cust_id FROM t_customer WHERE cust_id < [4m=[0m 1000</div></div>
+<div class="viol warn"><div class="vr">[R051] WARNING</div><div class="vm">SELECT语句无WHERE条件，将导致全表扫描</div><div class="vs">建议: 请添加WHERE条件限制查询范围</div></div>
+<div class="viol error"><div class="vr">[R103] ERROR</div><div class="vm">比较运算符中间含空格（如< =、> =），TDSQL会语法报错</div><div class="vs">建议: "< =" → "<="；"> =" → ">="；"! =" → "!="；"< >" → "<>"</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#92</strong> SELECT | 行号: 432</span><span class="badge ERROR">1项违规</span></div><div class="sql-text">SELECT COUNT（cust_id） FROM t_customer WHERE cust_level = &#x27;gold&#x27;</div>
+<div class="viol error"><div class="vr">[R104] ERROR</div><div class="vm">检测到全角括号（），请改为半角括号()</div><div class="vs">建议: SUM (→SUM(；COUNT （→COUNT(；全角（）改半角()</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#93</strong> SELECT | 行号: 434</span><span class="badge ERROR">4项违规</span></div><div class="sql-text">SELECT a.account_no, c.cust_name
+FROM t_account a, t_customer c
+WHERE a.cust_id = c.cust_id(+)</div>
+<div class="viol warn"><div class="vr">[R016] WARNING</div><div class="vm">WHERE 条件中包含函数/计算/LIKE/OR条件，可能导致索引失效</div><div class="vs">建议: 1)函数:用范围查询替代 2)全模糊LIKE:改为前缀匹配 3)OR:改写为UNION ALL</div></div>
+<div class="viol warn"><div class="vr">[R020] WARNING</div><div class="vm">多表关联查询请确认是否在WHERE/ON条件中包含分片键字段，避免广播到所有SET导致性能下降</div><div class="vs">建议: 建议在WHERE条件中添加分片键字段，如: WHERE shard_key = ? AND ...</div></div>
+<div class="viol error"><div class="vr">[R053] ERROR</div><div class="vm">多表JOIN请确保在分片键上关联，避免跨SET广播JOIN</div><div class="vs">建议: 请确保JOIN条件包含分片键等值关联，如: JOIN t2 ON t1.shard_key = t2.shard_key。关联条件均为分片键且有固定值→完全下推；无固定值→join下推并尽量过滤；小配置表设为广播表使join下推；均不可下推时按日期拆分请求/用单分片中间表落数据后再join；子查询表尽量把过滤条件写入子查询内</div></div>
+<div class="viol error"><div class="vr">[R105] ERROR</div><div class="vm">检测到Oracle(+)外连接语法，TDSQL不支持，请改写为LEFT/RIGHT JOIN</div><div class="vs">建议: WHERE a.k=b.k(+)→FROM a LEFT JOIN b ON a.k=b.k（(+)在等号右侧为LEFT JOIN，在左侧为RIGHT JOIN）</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#94</strong> SELECT | 行号: 438</span><span class="badge ERROR">2项违规</span></div><div class="sql-text">SELECT cust_id, cust_name FROM t_customer
+START WITH cust_id = 1 CONNECT BY PRIOR cust_id = cust_id</div>
+<div class="viol warn"><div class="vr">[R051] WARNING</div><div class="vm">SELECT语句无WHERE条件，将导致全表扫描</div><div class="vs">建议: 请添加WHERE条件限制查询范围</div></div>
+<div class="viol error"><div class="vr">[R106] ERROR</div><div class="vm">检测到CONNECT BY层级查询，TDSQL不支持，请改用WITH RECURSIVE（集中式）或应用代码递归</div><div class="vs">建议: 集中式8.0→WITH RECURSIVE（注意：返回为层次遍历序，Oracle为前序遍历）；分布式→应用先查必要信息再递归调用</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#95</strong> SELECT | 行号: 441</span><span class="badge ERROR">1项违规</span></div><div class="sql-text">SELECT seq_order.nextval FROM t_order WHERE order_id &lt; 100</div>
+<div class="viol error"><div class="vr">[R108] ERROR</div><div class="vm">TDSQL的sequence在多行查询中不支持批量递增获取，请改用其他方案</div><div class="vs">建议: 方案1：改自增序列；方案2：先insert into select落中间表，代码批量取序列二次赋值；方案3：预生成批量序列表</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#96</strong> SELECT | 行号: 443</span><span class="badge ERROR">1项违规</span></div><div class="sql-text">SELECT USERENV(&#x27;INSTANCE&#x27;) AS inst FROM t_customer WHERE cust_id = 1</div>
+<div class="viol error"><div class="vr">[R110] ERROR</div><div class="vm">检测到USERENV()，TDSQL不支持，请从应用侧获取系统级参数</div><div class="vs">建议: USERENV('INSTANCE')/USERENV('SID')等逻辑迁移到应用侧实现</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#97</strong> SELECT | 行号: 445</span><span class="badge ERROR">1项违规</span></div><div class="sql-text">SELECT cust_id, ROW_NUMBER() OVER (ORDER BY create_time) AS rn
+FROM t_customer WHERE cust_level = &#x27;gold&#x27;</div>
+<div class="viol error"><div class="vr">[R111] ERROR</div><div class="vm">检测到窗口函数(xxx() OVER())，分布式实例不支持，请改写为分组+嵌套查询</div><div class="vs">建议: 普通查询→分组/嵌套查询+排序改写；复杂嵌套→拆解落中间表；或JDK8 stream在应用侧sort/distinct</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#98</strong> SELECT | 行号: 448</span><span class="badge ERROR">3项违规</span></div><div class="sql-text">DECLARE cur_cust CURSOR FOR SELECT cust_id FROM t_customer</div>
+<div class="viol error"><div class="vr">[E999_SYNTAX_ERROR] ERROR</div><div class="vm">SQL 语句无法解析或结构不完整（可能是拉取截断/语法错误）: Invalid expression / Unexpected token. Line 1, Col: 23.
+  DECLARE cur_cust [4mCURSOR[0m FOR SELECT cust_id FROM t_customer</div></div>
+<div class="viol warn"><div class="vr">[R051] WARNING</div><div class="vm">SELECT语句无WHERE条件，将导致全表扫描</div><div class="vs">建议: 请添加WHERE条件限制查询范围</div></div>
+<div class="viol error"><div class="vr">[R112] ERROR</div><div class="vm">检测到游标用法，TDSQL分布式不支持，请改用键集翻页或流式查询</div><div class="vs">建议: 方案1：WHERE cond AND col>lastval ORDER BY col LIMIT N键集翻页；方案2：JDBC/ODBC流式查询；方案3：分片透传；方案4：TDSQL-PG版</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#99</strong> ALTER | 行号: 450</span><span class="badge ERROR">2项违规</span></div><div class="sql-text">ALTER TABLE t_transaction DROP PARTITION p202401</div>
+<div class="viol error"><div class="vr">[E999_SYNTAX_ERROR] ERROR</div><div class="vm">SQL 语句无法解析或结构不完整（可能是拉取截断/语法错误）: Expecting (. Line 1, Col: 48.
+  ALTER TABLE t_transaction DROP PARTITION [4mp202401[0m</div></div>
+<div class="viol info"><div class="vr">[R113] INFO</div><div class="vm">DROP PARTITION在高并发下可能与proxy路由元数据更新存在间隙，建议逐表执行并配置重试</div><div class="vs">建议: 将多表批量drop partition后统一analyze，改为逐表"drop partition→analyze table"循环</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#100</strong> SELECT | 行号: 452</span><span class="badge ERROR">2项违规</span></div><div class="sql-text">SELECT cust_id FROM t_customer WHERE create_time &gt; sysdate()-15</div>
+<div class="viol warn"><div class="vr">[R016] WARNING</div><div class="vm">WHERE 条件中包含函数/计算/LIKE/OR条件，可能导致索引失效</div><div class="vs">建议: 1)函数:用范围查询替代 2)全模糊LIKE:改为前缀匹配 3)OR:改写为UNION ALL</div></div>
+<div class="viol warn"><div class="vr">[R119] WARNING</div><div class="vm">日期函数直接±数字，TDSQL语义与Oracle不同，请改用DATE_ADD/DATE_SUB(... INTERVAL n DAY)</div><div class="vs">建议: date_format(sysdate()-15,'%Y%m%d')→date_format(date_add(sysdate(), interval -15 day),'%Y%m%d')</div></div>
+</div>
+<div class="footer">TDSQL SQL审核平台 V2.0 | 报告生成时间: 2026-08-28 18:21:32 | 报告ID: #611</div></div></body></html>

@@ -1,0 +1,83 @@
+- banner:
+  - img "logo"
+  - generic: TDSQL数据库SQL审核工具
+  - button "U UAT-O auditor 审计员":
+    - generic: U
+    - generic: UAT-O auditor
+    - generic: 审计员
+- complementary:
+  - menubar:
+    - menuitem "治理概览":
+      - generic: 治理概览
+    - menuitem "SQL审核":
+      - generic: SQL审核
+    - menuitem "慢SQL治理":
+      - generic: 慢SQL治理
+    - menuitem "实例体检":
+      - generic: 实例体检
+    - menuitem "深度诊断":
+      - generic: 深度诊断
+    - menuitem "平台治理" [expanded]:
+      - generic: 平台治理
+      - menu:
+        - menuitem "实例管理"
+        - menuitem "审核规则库"
+        - menuitem "评估规则集"
+    - menuitem "系统管理":
+      - generic: 系统管理
+- navigation "面包屑":
+  - link "平台治理"
+  - text: /
+  - link "实例管理"
+- generic: 实例管理
+- textbox "连接名（模糊）" [active]: 离线
+- textbox "地址"
+- combobox
+- generic: 类型
+- generic: 共 1 / 2 条
+- table:
+  - rowgroup:
+    - row "连接名 地址 用户名 类型 状态 默认 ERROR上限 WARNING上限":
+      - columnheader "连接名":
+        - generic: 连接名
+      - columnheader "地址":
+        - generic: 地址
+      - columnheader "用户名":
+        - generic: 用户名
+      - columnheader "类型":
+        - generic: 类型
+      - columnheader "状态":
+        - generic: 状态
+      - columnheader "默认":
+        - generic: 默认
+      - columnheader "ERROR上限":
+        - generic: ERROR上限
+      - columnheader "WARNING上限":
+        - generic: WARNING上限
+- table:
+  - rowgroup:
+    - row "UAT-O 离线失败样本 127.0.0.1:1/uat_o_offline synthetic 分布式·声明 ? ● 未连接 0 默认 不限":
+      - cell "UAT-O 离线失败样本":
+        - generic: UAT-O 离线失败样本
+      - cell "127.0.0.1:1/uat_o_offline":
+        - generic: 127.0.0.1:1/uat_o_offline
+      - cell "synthetic":
+        - generic: synthetic
+      - cell "分布式·声明 ?":
+        - generic: 分布式·声明
+        - text: "?"
+      - cell "● 未连接":
+        - generic: ● 未连接
+      - cell
+      - cell "0 默认":
+        - text: "0"
+        - generic: 默认
+      - cell "不限":
+        - generic: 不限
+- generic: 共 1 条
+- button "上一页" [disabled]:
+- list:
+  - listitem "第 1 页": "1"
+- button "下一页" [disabled]:
+- combobox
+- generic: 20条/页

@@ -1,0 +1,68 @@
+- banner:
+  - img "logo"
+  - generic: TDSQL数据库SQL审核工具
+  - button "U UAT-O 管理员 系统管理员":
+    - generic: U
+    - generic: UAT-O 管理员
+    - generic: 系统管理员
+- complementary:
+  - menubar:
+    - menuitem "治理概览":
+      - generic: 治理概览
+    - menuitem "SQL审核":
+      - generic: SQL审核
+    - menuitem "慢SQL治理" [expanded]:
+      - generic: 慢SQL治理
+      - menu:
+        - menuitem "扫描任务"
+        - menuitem "慢SQL记录"
+        - menuitem "EXPLAIN分析"
+    - menuitem "实例体检" [expanded]:
+      - generic: 实例体检
+      - menu:
+        - menuitem "上线检查"
+        - menuitem "大表治理"
+    - menuitem "深度诊断":
+      - generic: 深度诊断
+    - menuitem "平台治理" [expanded]:
+      - generic: 平台治理
+      - menu:
+        - menuitem "实例管理"
+        - menuitem "审核规则库"
+        - menuitem "评估规则集"
+    - menuitem "系统管理" [expanded]:
+      - generic: 系统管理
+      - menu:
+        - menuitem "用户管理"
+        - menuitem "角色管理"
+        - menuitem "权限矩阵"
+        - menuitem "数据保留"
+        - menuitem "操作审计"
+        - menuitem "系统信息"
+- navigation "面包屑":
+  - link "系统管理"
+  - text: /
+  - link "系统信息"
+- text: "* *"
+- generic: 系统信息
+- table:
+  - rowgroup:
+    - row "版本 1.6.2.2 认证开关":
+      - cell "版本"
+      - cell "1.6.2.2"
+      - cell "认证开关"
+      - cell:
+        - switch [checked]
+    - row "脱敏开关 指标开关":
+      - cell "脱敏开关"
+      - cell:
+        - switch [checked]
+      - cell "指标开关"
+      - cell:
+        - switch [checked]
+- generic: Logo自定义
+- button "上传Logo":
+  - generic: 上传Logo
+- button "恢复默认":
+  - generic: 恢复默认
+- generic: "建议尺寸: 28x28px ~ 64x64px，支持 PNG/JPG/SVG/ICO，不超过2MB"

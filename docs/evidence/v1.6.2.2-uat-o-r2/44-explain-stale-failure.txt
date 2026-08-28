@@ -1,0 +1,61 @@
+- banner:
+  - img "logo"
+  - generic: TDSQL数据库SQL审核工具
+  - button "U UAT-O 管理员 系统管理员":
+    - generic: U
+    - generic: UAT-O 管理员
+    - generic: 系统管理员
+- complementary:
+  - menubar:
+    - menuitem "治理概览":
+      - generic: 治理概览
+    - menuitem "SQL审核":
+      - generic: SQL审核
+    - menuitem "慢SQL治理" [expanded]:
+      - generic: 慢SQL治理
+      - menu:
+        - menuitem "扫描任务"
+        - menuitem "慢SQL记录"
+        - menuitem "EXPLAIN分析"
+    - menuitem "实例体检" [expanded]:
+      - generic: 实例体检
+      - menu:
+        - menuitem "上线检查"
+        - menuitem "大表治理"
+    - menuitem "深度诊断":
+      - generic: 深度诊断
+    - menuitem "平台治理" [expanded]:
+      - generic: 平台治理
+      - menu:
+        - menuitem "实例管理"
+        - menuitem "审核规则库"
+        - menuitem "评估规则集"
+    - menuitem "系统管理" [expanded]:
+      - generic: 系统管理
+      - menu:
+        - menuitem "用户管理"
+        - menuitem "角色管理"
+        - menuitem "权限矩阵"
+        - menuitem "数据保留"
+        - menuitem "操作审计"
+        - menuitem "系统信息"
+- navigation "面包屑":
+  - link "慢SQL治理"
+  - text: /
+  - link "EXPLAIN分析"
+- text: "*"
+- generic: EXPLAIN执行计划分析
+- radiogroup "radio-group":
+  - radio "SQL直连" [checked]
+  - generic: SQL直连
+  - radio "JSON粘贴"
+  - generic: JSON粘贴
+- textbox "输入SQL语句": SELECT id FROM tdsql_uat_o_target_1622.t_uat_order WHERE customer_id = 1
+- combobox
+- generic: UAT-O 本地集中式样本 (127.0.0.1:13306)
+- button "分析":
+  - generic: 分析
+- text: "*"
+- alert:
+  - heading "服务异常" [level=2]
+  - paragraph: 数据库不存在，请检查连接配置中的数据库名

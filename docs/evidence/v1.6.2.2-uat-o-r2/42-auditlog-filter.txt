@@ -1,0 +1,346 @@
+- banner:
+  - img "logo"
+  - generic: TDSQL数据库SQL审核工具
+  - button "U UAT-O 管理员 系统管理员":
+    - generic: U
+    - generic: UAT-O 管理员
+    - generic: 系统管理员
+- complementary:
+  - menubar:
+    - menuitem "治理概览":
+      - generic: 治理概览
+    - menuitem "SQL审核":
+      - generic: SQL审核
+    - menuitem "慢SQL治理" [expanded]:
+      - generic: 慢SQL治理
+      - menu:
+        - menuitem "扫描任务"
+        - menuitem "慢SQL记录"
+        - menuitem "EXPLAIN分析"
+    - menuitem "实例体检" [expanded]:
+      - generic: 实例体检
+      - menu:
+        - menuitem "上线检查"
+        - menuitem "大表治理"
+    - menuitem "深度诊断":
+      - generic: 深度诊断
+    - menuitem "平台治理" [expanded]:
+      - generic: 平台治理
+      - menu:
+        - menuitem "实例管理"
+        - menuitem "审核规则库"
+        - menuitem "评估规则集"
+    - menuitem "系统管理" [expanded]:
+      - generic: 系统管理
+      - menu:
+        - menuitem "用户管理"
+        - menuitem "角色管理"
+        - menuitem "权限矩阵"
+        - menuitem "数据保留"
+        - menuitem "操作审计"
+        - menuitem "系统信息"
+- navigation "面包屑":
+  - link "系统管理"
+  - text: /
+  - link "操作审计"
+- text: "* *"
+- generic: 操作审计日志
+- textbox "操作人": admin
+- combobox
+- generic: 操作类型
+- combobox
+- generic: 目标类型
+- textbox "开始"
+- generic: 至
+- textbox "结束"
+- button "筛选" [active]:
+  - generic: 筛选
+- button "重置":
+  - generic: 重置
+- table:
+  - rowgroup:
+    - row "操作人 操作类型 目标类型 详情 IP 时间":
+      - columnheader "操作人":
+        - generic: 操作人
+      - columnheader "操作类型":
+        - generic: 操作类型
+      - columnheader "目标类型":
+        - generic: 目标类型
+      - columnheader "详情":
+        - generic: 详情
+      - columnheader "IP":
+        - generic: IP
+      - columnheader "时间":
+        - generic: 时间
+- table:
+  - rowgroup:
+    - row "admin POST /api/v1/slow-queries/analyze-explain-by-sql api status=200 127.0.0.1 2026-08-28 18:30":
+      - cell "admin":
+        - generic: admin
+      - cell "POST /api/v1/slow-queries/analyze-explain-by-sql":
+        - generic: POST /api/v1/slow-queries/analyze-explain-by-sql
+      - cell "api":
+        - generic: api
+      - cell "status=200":
+        - generic: status=200
+      - cell "127.0.0.1":
+        - generic: 127.0.0.1
+      - cell "2026-08-28 18:30":
+        - generic: 2026-08-28 18:30
+    - row "admin POST /api/v1/slow-queries/analyze-explain-by-sql api status=500 127.0.0.1 2026-08-28 18:30":
+      - cell "admin":
+        - generic: admin
+      - cell "POST /api/v1/slow-queries/analyze-explain-by-sql":
+        - generic: POST /api/v1/slow-queries/analyze-explain-by-sql
+      - cell "api":
+        - generic: api
+      - cell "status=500":
+        - generic: status=500
+      - cell "127.0.0.1":
+        - generic: 127.0.0.1
+      - cell "2026-08-28 18:30":
+        - generic: 2026-08-28 18:30
+    - row "admin POST /api/v1/slow-queries/analyze-explain-by-sql api status=200 127.0.0.1 2026-08-28 18:30":
+      - cell "admin":
+        - generic: admin
+      - cell "POST /api/v1/slow-queries/analyze-explain-by-sql":
+        - generic: POST /api/v1/slow-queries/analyze-explain-by-sql
+      - cell "api":
+        - generic: api
+      - cell "status=200":
+        - generic: status=200
+      - cell "127.0.0.1":
+        - generic: 127.0.0.1
+      - cell "2026-08-28 18:30":
+        - generic: 2026-08-28 18:30
+    - row "admin login_success user 127.0.0.1 2026-08-28 18:30":
+      - cell "admin":
+        - generic: admin
+      - cell "login_success":
+        - generic: login_success
+      - cell "user":
+        - generic: user
+      - cell
+      - cell "127.0.0.1":
+        - generic: 127.0.0.1
+      - cell "2026-08-28 18:30":
+        - generic: 2026-08-28 18:30
+    - row "admin POST /api/v1/inspection/schema-check api status=200 127.0.0.1 2026-08-28 18:28":
+      - cell "admin":
+        - generic: admin
+      - cell "POST /api/v1/inspection/schema-check":
+        - generic: POST /api/v1/inspection/schema-check
+      - cell "api":
+        - generic: api
+      - cell "status=200":
+        - generic: status=200
+      - cell "127.0.0.1":
+        - generic: 127.0.0.1
+      - cell "2026-08-28 18:28":
+        - generic: 2026-08-28 18:28
+    - row "admin POST /api/v1/tdsql/slow-queries/fetch api status=200 127.0.0.1 2026-08-28 18:28":
+      - cell "admin":
+        - generic: admin
+      - cell "POST /api/v1/tdsql/slow-queries/fetch":
+        - generic: POST /api/v1/tdsql/slow-queries/fetch
+      - cell "api":
+        - generic: api
+      - cell "status=200":
+        - generic: status=200
+      - cell "127.0.0.1":
+        - generic: 127.0.0.1
+      - cell "2026-08-28 18:28":
+        - generic: 2026-08-28 18:28
+    - row "admin POST /api/v1/slow-queries/analyze-explain-by-sql api status=500 127.0.0.1 2026-08-28 18:27":
+      - cell "admin":
+        - generic: admin
+      - cell "POST /api/v1/slow-queries/analyze-explain-by-sql":
+        - generic: POST /api/v1/slow-queries/analyze-explain-by-sql
+      - cell "api":
+        - generic: api
+      - cell "status=500":
+        - generic: status=500
+      - cell "127.0.0.1":
+        - generic: 127.0.0.1
+      - cell "2026-08-28 18:27":
+        - generic: 2026-08-28 18:27
+    - row "admin POST /api/v1/slow-queries/analyze-explain api status=200 127.0.0.1 2026-08-28 18:27":
+      - cell "admin":
+        - generic: admin
+      - cell "POST /api/v1/slow-queries/analyze-explain":
+        - generic: POST /api/v1/slow-queries/analyze-explain
+      - cell "api":
+        - generic: api
+      - cell "status=200":
+        - generic: status=200
+      - cell "127.0.0.1":
+        - generic: 127.0.0.1
+      - cell "2026-08-28 18:27":
+        - generic: 2026-08-28 18:27
+    - row "admin POST /api/v1/slow-queries/analyze-explain-by-sql api status=500 127.0.0.1 2026-08-28 18:27":
+      - cell "admin":
+        - generic: admin
+      - cell "POST /api/v1/slow-queries/analyze-explain-by-sql":
+        - generic: POST /api/v1/slow-queries/analyze-explain-by-sql
+      - cell "api":
+        - generic: api
+      - cell "status=500":
+        - generic: status=500
+      - cell "127.0.0.1":
+        - generic: 127.0.0.1
+      - cell "2026-08-28 18:27":
+        - generic: 2026-08-28 18:27
+    - row "admin POST /api/v1/sql-stats/analyze api status=400 127.0.0.1 2026-08-28 18:26":
+      - cell "admin":
+        - generic: admin
+      - cell "POST /api/v1/sql-stats/analyze":
+        - generic: POST /api/v1/sql-stats/analyze
+      - cell "api":
+        - generic: api
+      - cell "status=400":
+        - generic: status=400
+      - cell "127.0.0.1":
+        - generic: 127.0.0.1
+      - cell "2026-08-28 18:26":
+        - generic: 2026-08-28 18:26
+    - row "admin POST /api/v1/emergency/run api status=200 127.0.0.1 2026-08-28 18:26":
+      - cell "admin":
+        - generic: admin
+      - cell "POST /api/v1/emergency/run":
+        - generic: POST /api/v1/emergency/run
+      - cell "api":
+        - generic: api
+      - cell "status=200":
+        - generic: status=200
+      - cell "127.0.0.1":
+        - generic: 127.0.0.1
+      - cell "2026-08-28 18:26":
+        - generic: 2026-08-28 18:26
+    - row "admin POST /api/v1/schema-diff/run api status=200 127.0.0.1 2026-08-28 18:25":
+      - cell "admin":
+        - generic: admin
+      - cell "POST /api/v1/schema-diff/run":
+        - generic: POST /api/v1/schema-diff/run
+      - cell "api":
+        - generic: api
+      - cell "status=200":
+        - generic: status=200
+      - cell "127.0.0.1":
+        - generic: 127.0.0.1
+      - cell "2026-08-28 18:25":
+        - generic: 2026-08-28 18:25
+    - row "admin POST /api/v1/index-audit/run api status=200 127.0.0.1 2026-08-28 18:25":
+      - cell "admin":
+        - generic: admin
+      - cell "POST /api/v1/index-audit/run":
+        - generic: POST /api/v1/index-audit/run
+      - cell "api":
+        - generic: api
+      - cell "status=200":
+        - generic: status=200
+      - cell "127.0.0.1":
+        - generic: 127.0.0.1
+      - cell "2026-08-28 18:25":
+        - generic: 2026-08-28 18:25
+    - row "admin POST /api/v1/sql-stats/analyze api status=400 127.0.0.1 2026-08-28 18:21":
+      - cell "admin":
+        - generic: admin
+      - cell "POST /api/v1/sql-stats/analyze":
+        - generic: POST /api/v1/sql-stats/analyze
+      - cell "api":
+        - generic: api
+      - cell "status=400":
+        - generic: status=400
+      - cell "127.0.0.1":
+        - generic: 127.0.0.1
+      - cell "2026-08-28 18:21":
+        - generic: 2026-08-28 18:21
+    - row "admin POST /api/v1/cluster-inspect/run api status=400 127.0.0.1 2026-08-28 18:21":
+      - cell "admin":
+        - generic: admin
+      - cell "POST /api/v1/cluster-inspect/run":
+        - generic: POST /api/v1/cluster-inspect/run
+      - cell "api":
+        - generic: api
+      - cell "status=400":
+        - generic: status=400
+      - cell "127.0.0.1":
+        - generic: 127.0.0.1
+      - cell "2026-08-28 18:21":
+        - generic: 2026-08-28 18:21
+    - row "admin login_success user 127.0.0.1 2026-08-28 18:21":
+      - cell "admin":
+        - generic: admin
+      - cell "login_success":
+        - generic: login_success
+      - cell "user":
+        - generic: user
+      - cell
+      - cell "127.0.0.1":
+        - generic: 127.0.0.1
+      - cell "2026-08-28 18:21":
+        - generic: 2026-08-28 18:21
+    - row "admin POST /api/v1/gateway-log/upload api status=200 127.0.0.1 2026-08-28 18:20":
+      - cell "admin":
+        - generic: admin
+      - cell "POST /api/v1/gateway-log/upload":
+        - generic: POST /api/v1/gateway-log/upload
+      - cell "api":
+        - generic: api
+      - cell "status=200":
+        - generic: status=200
+      - cell "127.0.0.1":
+        - generic: 127.0.0.1
+      - cell "2026-08-28 18:20":
+        - generic: 2026-08-28 18:20
+    - row "admin POST /api/v1/cluster-inspect/run api status=400 127.0.0.1 2026-08-28 18:20":
+      - cell "admin":
+        - generic: admin
+      - cell "POST /api/v1/cluster-inspect/run":
+        - generic: POST /api/v1/cluster-inspect/run
+      - cell "api":
+        - generic: api
+      - cell "status=400":
+        - generic: status=400
+      - cell "127.0.0.1":
+        - generic: 127.0.0.1
+      - cell "2026-08-28 18:20":
+        - generic: 2026-08-28 18:20
+    - row "admin POST /api/v1/audit/extract-and-audit api status=200 127.0.0.1 2026-08-28 18:19":
+      - cell "admin":
+        - generic: admin
+      - cell "POST /api/v1/audit/extract-and-audit":
+        - generic: POST /api/v1/audit/extract-and-audit
+      - cell "api":
+        - generic: api
+      - cell "status=200":
+        - generic: status=200
+      - cell "127.0.0.1":
+        - generic: 127.0.0.1
+      - cell "2026-08-28 18:19":
+        - generic: 2026-08-28 18:19
+    - row "admin POST /api/v1/audit/file api status=200 127.0.0.1 2026-08-28 18:17":
+      - cell "admin":
+        - generic: admin
+      - cell "POST /api/v1/audit/file":
+        - generic: POST /api/v1/audit/file
+      - cell "api":
+        - generic: api
+      - cell "status=200":
+        - generic: status=200
+      - cell "127.0.0.1":
+        - generic: 127.0.0.1
+      - cell "2026-08-28 18:17":
+        - generic: 2026-08-28 18:17
+- generic: 共 633 条
+- button "上一页" [disabled]:
+- list:
+  - listitem "第 1 页": "1"
+  - listitem "第 2 页": "2"
+  - listitem "第 3 页": "3"
+  - listitem "第 4 页": "4"
+  - listitem "第 5 页": "5"
+  - listitem "第 6 页": "6"
+  - listitem "向后 5 页":
+  - listitem "第 32 页": "32"
+- button "下一页":

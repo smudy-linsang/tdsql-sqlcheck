@@ -1,0 +1,346 @@
+- banner:
+  - img "logo"
+  - generic: TDSQL数据库SQL审核工具
+  - button "U UAT-O 管理员 系统管理员":
+    - generic: U
+    - generic: UAT-O 管理员
+    - generic: 系统管理员
+- complementary:
+  - menubar:
+    - menuitem "治理概览":
+      - generic: 治理概览
+    - menuitem "SQL审核":
+      - generic: SQL审核
+    - menuitem "慢SQL治理" [expanded]:
+      - generic: 慢SQL治理
+      - menu:
+        - menuitem "扫描任务"
+        - menuitem "慢SQL记录"
+        - menuitem "EXPLAIN分析"
+    - menuitem "实例体检" [expanded]:
+      - generic: 实例体检
+      - menu:
+        - menuitem "上线检查"
+        - menuitem "大表治理"
+    - menuitem "深度诊断":
+      - generic: 深度诊断
+    - menuitem "平台治理" [expanded]:
+      - generic: 平台治理
+      - menu:
+        - menuitem "实例管理"
+        - menuitem "审核规则库"
+        - menuitem "评估规则集"
+    - menuitem "系统管理" [expanded]:
+      - generic: 系统管理
+      - menu:
+        - menuitem "用户管理"
+        - menuitem "角色管理"
+        - menuitem "权限矩阵"
+        - menuitem "数据保留"
+        - menuitem "操作审计"
+        - menuitem "系统信息"
+- navigation "面包屑":
+  - link "系统管理"
+  - text: /
+  - link "权限矩阵"
+- text: "* *"
+- generic: 角色权限矩阵
+- table:
+  - rowgroup:
+    - row "角色 治理概览 即时审核 文件审核 在线元数据审核 扫描任务 慢SQL记录 EXPLAIN分析 上线检查 大表治理 深度诊断 深度诊断-集群巡检 深度诊断-日常巡检与对比报告 深度诊断-索引体检 深度诊断-结构比对 深度诊断-应急诊断 深度诊断-SQL分析 深度诊断-网关日志分析 深度诊断-PDF报告与大屏 深度诊断-运维工具箱 实例管理 审核规则库 评估规则集 用户管理 角色管理 权限矩阵 数据保留 操作审计 系统信息":
+      - columnheader "角色":
+        - generic: 角色
+      - columnheader "治理概览":
+        - generic: 治理概览
+      - columnheader "即时审核":
+        - generic: 即时审核
+      - columnheader "文件审核":
+        - generic: 文件审核
+      - columnheader "在线元数据审核":
+        - generic: 在线元数据审核
+      - columnheader "扫描任务":
+        - generic: 扫描任务
+      - columnheader "慢SQL记录":
+        - generic: 慢SQL记录
+      - columnheader "EXPLAIN分析":
+        - generic: EXPLAIN分析
+      - columnheader "上线检查":
+        - generic: 上线检查
+      - columnheader "大表治理":
+        - generic: 大表治理
+      - columnheader "深度诊断":
+        - generic: 深度诊断
+      - columnheader "深度诊断-集群巡检":
+        - generic: 深度诊断-集群巡检
+      - columnheader "深度诊断-日常巡检与对比报告":
+        - generic: 深度诊断-日常巡检与对比报告
+      - columnheader "深度诊断-索引体检":
+        - generic: 深度诊断-索引体检
+      - columnheader "深度诊断-结构比对":
+        - generic: 深度诊断-结构比对
+      - columnheader "深度诊断-应急诊断":
+        - generic: 深度诊断-应急诊断
+      - columnheader "深度诊断-SQL分析":
+        - generic: 深度诊断-SQL分析
+      - columnheader "深度诊断-网关日志分析":
+        - generic: 深度诊断-网关日志分析
+      - columnheader "深度诊断-PDF报告与大屏":
+        - generic: 深度诊断-PDF报告与大屏
+      - columnheader "深度诊断-运维工具箱":
+        - generic: 深度诊断-运维工具箱
+      - columnheader "实例管理":
+        - generic: 实例管理
+      - columnheader "审核规则库":
+        - generic: 审核规则库
+      - columnheader "评估规则集":
+        - generic: 评估规则集
+      - columnheader "用户管理":
+        - generic: 用户管理
+      - columnheader "角色管理":
+        - generic: 角色管理
+      - columnheader "权限矩阵":
+        - generic: 权限矩阵
+      - columnheader "数据保留":
+        - generic: 数据保留
+      - columnheader "操作审计":
+        - generic: 操作审计
+      - columnheader "系统信息":
+        - generic: 系统信息
+- table:
+  - rowgroup:
+    - row "系统管理员":
+      - cell "系统管理员":
+        - generic: 系统管理员
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+    - row "审计员":
+      - cell "审计员":
+        - generic: 审计员
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch
+      - cell:
+        - switch
+      - cell:
+        - switch
+      - cell:
+        - switch
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+    - row "数据库管理员":
+      - cell "数据库管理员":
+        - generic: 数据库管理员
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch
+      - cell:
+        - switch [checked]
+    - row "开发人员":
+      - cell "开发人员":
+        - generic: 开发人员
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch [checked]
+      - cell:
+        - switch
+      - cell:
+        - switch
+      - cell:
+        - switch
+      - cell:
+        - switch
+      - cell:
+        - switch
+      - cell:
+        - switch

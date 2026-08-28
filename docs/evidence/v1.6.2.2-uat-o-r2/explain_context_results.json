@@ -1,0 +1,98 @@
+[
+  {
+    "request": {
+      "connection_id": "uat_o_local",
+      "sql": "SELECT id FROM tdsql_uat_o_target_1622.t_uat_order WHERE customer_id = 1"
+    },
+    "status": 200,
+    "response": {
+      "summary": "未发现明显问题",
+      "analyses": [],
+      "explain_rows": [
+        {
+          "id": 1,
+          "select_type": "SIMPLE",
+          "table": "t_uat_order",
+          "partitions": "",
+          "type": "ref",
+          "possible_keys": "idx_customer",
+          "key": "idx_customer",
+          "key_len": "8",
+          "ref": "const",
+          "rows": 1,
+          "filtered": 100.0,
+          "extra": "Using index"
+        }
+      ],
+      "explain_columns": [
+        "id",
+        "select_type",
+        "table",
+        "partitions",
+        "type",
+        "possible_keys",
+        "key",
+        "key_len",
+        "ref",
+        "rows",
+        "filtered",
+        "extra"
+      ],
+      "executed_sql": "SELECT id FROM tdsql_uat_o_target_1622.t_uat_order WHERE customer_id = 1"
+    }
+  },
+  {
+    "request": {
+      "connection_id": "uat_o_local",
+      "sql": "SELECT id FROM tdsql_uat_o_target_1622.t_uat_order WHERE customer_id = 1",
+      "db_name": "uat_o_r2_workflow"
+    },
+    "status": 500,
+    "response": {
+      "detail": "数据库不存在，请检查连接配置中的数据库名"
+    }
+  },
+  {
+    "request": {
+      "connection_id": "uat_o_local",
+      "sql": "SELECT id FROM tdsql_uat_o_target_1622.t_uat_order WHERE customer_id = 1",
+      "db_name": "tdsql_uat_o_target_1622"
+    },
+    "status": 200,
+    "response": {
+      "summary": "未发现明显问题",
+      "analyses": [],
+      "explain_rows": [
+        {
+          "id": 1,
+          "select_type": "SIMPLE",
+          "table": "t_uat_order",
+          "partitions": "",
+          "type": "ref",
+          "possible_keys": "idx_customer",
+          "key": "idx_customer",
+          "key_len": "8",
+          "ref": "const",
+          "rows": 1,
+          "filtered": 100.0,
+          "extra": "Using index"
+        }
+      ],
+      "explain_columns": [
+        "id",
+        "select_type",
+        "table",
+        "partitions",
+        "type",
+        "possible_keys",
+        "key",
+        "key_len",
+        "ref",
+        "rows",
+        "filtered",
+        "extra"
+      ],
+      "executed_sql": "SELECT id FROM tdsql_uat_o_target_1622.t_uat_order WHERE customer_id = 1"
+    }
+  }
+]

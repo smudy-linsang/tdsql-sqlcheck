@@ -1,0 +1,217 @@
+- banner:
+  - img "logo"
+  - generic: TDSQL数据库SQL审核工具
+  - button "U UAT-O developer 开发":
+    - generic: U
+    - generic: UAT-O developer
+    - generic: 开发
+- complementary:
+  - menubar:
+    - menuitem "治理概览":
+      - generic: 治理概览
+    - menuitem "SQL审核":
+      - generic: SQL审核
+    - menuitem "慢SQL治理":
+      - generic: 慢SQL治理
+    - menuitem "实例体检":
+      - generic: 实例体检
+    - menuitem "深度诊断":
+      - generic: 深度诊断
+    - menuitem "平台治理" [expanded]:
+      - generic: 平台治理
+      - menu:
+        - menuitem "审核规则库"
+        - menuitem "评估规则集"
+- navigation "面包屑":
+  - link "工作台"
+  - text: /
+  - link "治理概览"
+- generic: "612"
+- generic: 今日审核
+- generic: 通过 3 / 拦截 609
+- generic: 0.5%
+- generic: 今日通过率
+- generic: ERROR 2114 / WARNING 369
+- generic: "51"
+- generic: 待处理慢SQL
+- generic: 严重 1
+- generic: "0"
+- generic: 已优化慢SQL
+- generic: 近7天审核趋势
+- generic: 高频违规规则 TOP5
+- table:
+  - rowgroup:
+    - row "规则ID 级别 描述 命中":
+      - columnheader "规则ID":
+        - generic: 规则ID
+      - columnheader "级别":
+        - generic: 级别
+      - columnheader "描述":
+        - generic: 描述
+      - columnheader "命中":
+        - generic: 命中
+- table:
+  - rowgroup:
+    - row "E999_SYNTAX_ERROR E999_SYNTAX_ERROR 298":
+      - cell "E999_SYNTAX_ERROR":
+        - generic: E999_SYNTAX_ERROR
+      - cell
+      - cell "E999_SYNTAX_ERROR":
+        - generic: E999_SYNTAX_ERROR
+      - cell "298":
+        - generic: "298"
+    - row "R004 ERROR 必须指定存储引擎为 InnoDB 292":
+      - cell "R004":
+        - generic: R004
+      - cell "ERROR":
+        - generic: ERROR
+      - cell "必须指定存储引擎为 InnoDB":
+        - generic: 必须指定存储引擎为 InnoDB
+      - cell "292":
+        - generic: "292"
+    - row "R028 ERROR 建表必须显式指定表级别COMMENT 279":
+      - cell "R028":
+        - generic: R028
+      - cell "ERROR":
+        - generic: ERROR
+      - cell "建表必须显式指定表级别COMMENT":
+        - generic: 建表必须显式指定表级别COMMENT
+      - cell "279":
+        - generic: "279"
+    - row "R005 ERROR 必须指定字符集为 utf8mb4 278":
+      - cell "R005":
+        - generic: R005
+      - cell "ERROR":
+        - generic: ERROR
+      - cell "必须指定字符集为 utf8mb4":
+        - generic: 必须指定字符集为 utf8mb4
+      - cell "278":
+        - generic: "278"
+    - row "R003 ERROR CREATE TABLE 必须显式指定主键 277":
+      - cell "R003":
+        - generic: R003
+      - cell "ERROR":
+        - generic: ERROR
+      - cell "CREATE TABLE 必须显式指定主键":
+        - generic: CREATE TABLE 必须显式指定主键
+      - cell "277":
+        - generic: "277"
+- generic: Top3 高耗时慢SQL
+- table:
+  - rowgroup:
+    - row "SQL指纹 平均耗时(ms) 执行次数":
+      - columnheader "SQL指纹":
+        - generic: SQL指纹
+      - columnheader "平均耗时(ms)":
+        - generic: 平均耗时(ms)
+      - columnheader "执行次数":
+        - generic: 执行次数
+- table:
+  - rowgroup:
+    - row "SELECT id FROM t_uat_order WHERE customer_id = ? 1200 10":
+      - cell "SELECT id FROM t_uat_order WHERE customer_id = ?":
+        - generic: SELECT id FROM t_uat_order WHERE customer_id = ?
+      - cell "1200":
+        - generic: "1200"
+      - cell "10":
+        - generic: "10"
+    - 'row "ALTER TABLE `scan_snapshots` ADD COLUMN `rule_set_id` VARCHARACTER (?) DEFAULT ? 475.3 1"':
+      - 'cell "ALTER TABLE `scan_snapshots` ADD COLUMN `rule_set_id` VARCHARACTER (?) DEFAULT ?"':
+        - generic: "ALTER TABLE `scan_snapshots` ADD COLUMN `rule_set_id` VARCHARACTER (?) DEFAULT ?"
+      - cell "475.3":
+        - generic: "475.3"
+      - cell "1":
+        - generic: "1"
+    - 'row "ALTER TABLE `zk_discovery_config` ADD COLUMN `monitor_host` VARCHARACTER (?) NOT NULL DEFAULT ? 395.9 1"':
+      - 'cell "ALTER TABLE `zk_discovery_config` ADD COLUMN `monitor_host` VARCHARACTER (?) NOT NULL DEFAULT ?"':
+        - generic: "ALTER TABLE `zk_discovery_config` ADD COLUMN `monitor_host` VARCHARACTER (?) NOT NULL DEFAULT ?"
+      - cell "395.9":
+        - generic: "395.9"
+      - cell "1":
+        - generic: "1"
+- generic: 今日审核记录
+- table:
+  - rowgroup:
+    - row "来源 SQL数 通过率 时间":
+      - columnheader "来源":
+        - generic: 来源
+      - columnheader "SQL数":
+        - generic: SQL数
+      - columnheader "通过率":
+        - generic: 通过率
+      - columnheader "时间":
+        - generic: 时间
+- table:
+  - rowgroup:
+    - row "extracted_tdsql_uat_o_target_1622_20260828_181943.sql 2 0.0% 2026-08-28 18:19":
+      - cell "extracted_tdsql_uat_o_target_1622_20260828_181943.sql":
+        - generic: extracted_tdsql_uat_o_target_1622_20260828_181943.sql
+      - cell "2":
+        - generic: "2"
+      - cell "0.0%":
+        - generic: 0.0%
+      - cell "2026-08-28 18:19":
+        - generic: 2026-08-28 18:19
+    - row "uat_core_rule_corpus.sql 100 2.0% 2026-08-28 18:17":
+      - cell "uat_core_rule_corpus.sql":
+        - generic: uat_core_rule_corpus.sql
+      - cell "100":
+        - generic: "100"
+      - cell "2.0%":
+        - generic: 2.0%
+      - cell "2026-08-28 18:17":
+        - generic: 2026-08-28 18:17
+    - row "uat_r2_remaining.sql 1 0.0% 2026-08-28 18:17":
+      - cell "uat_r2_remaining.sql":
+        - generic: uat_r2_remaining.sql
+      - cell "1":
+        - generic: "1"
+      - cell "0.0%":
+        - generic: 0.0%
+      - cell "2026-08-28 18:17":
+        - generic: 2026-08-28 18:17
+    - row "uat_kfn_comment.sql 1 0.0% 2026-08-28 18:16":
+      - cell "uat_kfn_comment.sql":
+        - generic: uat_kfn_comment.sql
+      - cell "1":
+        - generic: "1"
+      - cell "0.0%":
+        - generic: 0.0%
+      - cell "2026-08-28 18:16":
+        - generic: 2026-08-28 18:16
+    - row "uat_r2_guard.sql 1 0.0% 2026-08-28 18:16":
+      - cell "uat_r2_guard.sql":
+        - generic: uat_r2_guard.sql
+      - cell "1":
+        - generic: "1"
+      - cell "0.0%":
+        - generic: 0.0%
+      - cell "2026-08-28 18:16":
+        - generic: 2026-08-28 18:16
+    - row "uat_r2_guard.sql 1 0.0% 2026-08-28 18:16":
+      - cell "uat_r2_guard.sql":
+        - generic: uat_r2_guard.sql
+      - cell "1":
+        - generic: "1"
+      - cell "0.0%":
+        - generic: 0.0%
+      - cell "2026-08-28 18:16":
+        - generic: 2026-08-28 18:16
+    - row "uat_r2_guard.sql 1 0.0% 2026-08-28 18:16":
+      - cell "uat_r2_guard.sql":
+        - generic: uat_r2_guard.sql
+      - cell "1":
+        - generic: "1"
+      - cell "0.0%":
+        - generic: 0.0%
+      - cell "2026-08-28 18:16":
+        - generic: 2026-08-28 18:16
+    - row "uat_r2_guard.sql 1 0.0% 2026-08-28 18:16":
+      - cell "uat_r2_guard.sql":
+        - generic: uat_r2_guard.sql
+      - cell "1":
+        - generic: "1"
+      - cell "0.0%":
+        - generic: 0.0%
+      - cell "2026-08-28 18:16":
+        - generic: 2026-08-28 18:16

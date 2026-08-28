@@ -1,0 +1,329 @@
+[
+  {
+    "database_version": "8.0.45"
+  },
+  {
+    "inspection_rows": 0
+  },
+  {
+    "bigtable_rows": 0
+  },
+  {
+    "endpoint": "/health",
+    "status": 200,
+    "body": {
+      "status": "ok",
+      "version": "1.6.2.2"
+    }
+  },
+  {
+    "endpoint": "/api/v1/ppt-report/dashboard?connection_id=uat_o_local",
+    "status": 200,
+    "body": {
+      "score": 89,
+      "total_alerts": 0,
+      "inspection": {
+        "source_file": "monitordb_kv",
+        "summary": {
+          "instance_count": 3,
+          "avg_cpu": 34.5,
+          "avg_memory": 68.2,
+          "total_slow_queries": 45,
+          "alert_count": 0,
+          "cpu_alerts": []
+        },
+        "top_slow_queries": [
+          {
+            "name": "set_1",
+            "count": 28
+          },
+          {
+            "name": "set_2",
+            "count": 17
+          }
+        ]
+      },
+      "index": {
+        "summary": {
+          "total_indexes": 348,
+          "unique_tables": 45,
+          "duplicate_count": 3,
+          "prefix_redundant_count": 5,
+          "unused_count": 12,
+          "fragmented_tables": 2,
+          "pk_count": 45,
+          "unique_count": 12,
+          "normal_count": 291
+        },
+        "duplicate_indexes": [
+          {
+            "schema": "biz",
+            "table": "t_user",
+            "index1": "idx_name",
+            "index2": "idx_name_2",
+            "columns": "name"
+          }
+        ]
+      },
+      "sql": {
+        "summary": {
+          "total_sql_types": 1,
+          "total_count": 10,
+          "full_scan_count": 0,
+          "total_time": 12.0
+        },
+        "type_distribution": {
+          "SELECT": 10
+        },
+        "top_slow_sql": [
+          {
+            "service": "uat_o_local",
+            "schema": "uat_o_r2_workflow",
+            "digest_text": "SELECT id FROM t_uat_order WHERE customer_id = ?",
+            "avg_time": 1.2,
+            "count": 10
+          }
+        ]
+      },
+      "gateway": {
+        "source_file": "uat_gateway_interf.txt",
+        "summary": {
+          "total_requests": 2,
+          "daily_count": 1,
+          "error_count": 1
+        },
+        "daily_stats": [
+          {
+            "date": "2026-08-28",
+            "count": 2
+          }
+        ],
+        "timecost_distribution": {
+          "0-100ms": 1,
+          "100-500ms": 0,
+          ">500ms": 1
+        },
+        "error_codes": {}
+      }
+    }
+  },
+  {
+    "endpoint": "/api/v1/gateway-log/reports?connection_id=uat_o_local",
+    "status": 200,
+    "body": [
+      {
+        "id": 1,
+        "connection_id": "uat_o_local",
+        "log_file_name": "uat_gateway_interf.txt",
+        "log_type": "interf",
+        "total_queries": 2,
+        "slow_queries": 1,
+        "max_time_ms": 1500.2,
+        "avg_time_ms": 756.35,
+        "created_at": "2026-08-28T18:20:40"
+      }
+    ]
+  },
+  {
+    "gateway_report_id": 1,
+    "html_chars": 8349,
+    "has_h1": false
+  },
+  {
+    "endpoint": "/api/v1/audit/file-reports",
+    "status": 200,
+    "body": {
+      "items": [
+        {
+          "id": 611,
+          "source": "uat_core_rule_corpus.sql",
+          "total_sql": 100,
+          "passed": 2,
+          "failed": 98,
+          "error_count": 124,
+          "warning_count": 63,
+          "pass_rate": 2.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T18:17:26",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 610,
+          "source": "uat_r2_remaining.sql",
+          "total_sql": 1,
+          "passed": 0,
+          "failed": 1,
+          "error_count": 5,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T18:17:05",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 609,
+          "source": "uat_kfn_comment.sql",
+          "total_sql": 1,
+          "passed": 0,
+          "failed": 1,
+          "error_count": 1,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T18:16:55",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 603,
+          "source": "uat_r2_guard.sql",
+          "total_sql": 1,
+          "passed": 0,
+          "failed": 1,
+          "error_count": 1,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T18:16:46",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 604,
+          "source": "uat_r2_guard.sql",
+          "total_sql": 1,
+          "passed": 0,
+          "failed": 1,
+          "error_count": 1,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T18:16:46",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 605,
+          "source": "uat_r2_guard.sql",
+          "total_sql": 1,
+          "passed": 0,
+          "failed": 1,
+          "error_count": 5,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T18:16:46",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 606,
+          "source": "uat_r2_guard.sql",
+          "total_sql": 1,
+          "passed": 0,
+          "failed": 1,
+          "error_count": 5,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T18:16:46",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 607,
+          "source": "uat_r2_guard.sql",
+          "total_sql": 1,
+          "passed": 0,
+          "failed": 1,
+          "error_count": 5,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T18:16:46",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 608,
+          "source": "uat_r2_guard.sql",
+          "total_sql": 1,
+          "passed": 0,
+          "failed": 1,
+          "error_count": 5,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T18:16:46",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        }
+      ],
+      "total": 9
+    }
+  },
+  {
+    "file_report_id": 611,
+    "html_export_status": 200,
+    "bytes": 109900
+  },
+  {
+    "file_report_id": 610,
+    "html_export_status": 200,
+    "bytes": 6016
+  },
+  {
+    "file_report_id": 609,
+    "html_export_status": 200,
+    "bytes": 5386
+  },
+  {
+    "endpoint": "/api/v1/audit/extracted-reports",
+    "status": 200,
+    "body": {
+      "total": 1,
+      "reports": [
+        {
+          "id": 612,
+          "audit_type": "extracted_schema",
+          "source": "extracted_tdsql_uat_o_target_1622_20260828_181943.sql",
+          "total_sql": 2,
+          "passed": 0,
+          "failed": 2,
+          "error_count": 0,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T18:19:43",
+          "connection_id": "uat_o_local",
+          "db_name": "tdsql_uat_o_target_1622",
+          "connection_name": "UAT-O 本地集中式样本",
+          "instance_type": "centralized",
+          "instance_type_source": "declared",
+          "skipped_rules_count": 27
+        }
+      ]
+    }
+  },
+  {
+    "endpoint": "/api/v1/cluster-inspect/run",
+    "status": 400,
+    "body": {
+      "detail": "monitordb(15001)不可用: (2003, \"Can't connect to MySQL server on '127.0.0.1' ([WinError 10061] 由于目标计算机积极拒绝，无法连接。)\")"
+    }
+  },
+  {
+    "endpoint": "/api/v1/sql-stats/analyze",
+    "status": 400,
+    "body": {
+      "detail": "monitordb不可用"
+    }
+  },
+  {
+    "pdf_status": 200,
+    "bytes": 5417,
+    "is_pdf": true
+  }
+]

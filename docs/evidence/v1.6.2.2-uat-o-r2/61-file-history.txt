@@ -1,0 +1,299 @@
+- banner:
+  - img "logo"
+  - generic: TDSQL数据库SQL审核工具
+  - button "U UAT-O dba DBA":
+    - generic: U
+    - generic: UAT-O dba
+    - generic: DBA
+- complementary:
+  - menubar:
+    - menuitem "治理概览":
+      - generic: 治理概览
+    - menuitem "SQL审核" [expanded]:
+      - generic: SQL审核
+      - menu:
+        - menuitem "即时审核"
+        - menuitem "文件审核"
+        - menuitem "在线元数据审核"
+    - menuitem "慢SQL治理":
+      - generic: 慢SQL治理
+    - menuitem "实例体检":
+      - generic: 实例体检
+    - menuitem "深度诊断":
+      - generic: 深度诊断
+    - menuitem "平台治理" [expanded]:
+      - generic: 平台治理
+      - menu:
+        - menuitem "实例管理"
+        - menuitem "审核规则库"
+        - menuitem "评估规则集"
+    - menuitem "系统管理":
+      - generic: 系统管理
+- navigation "面包屑":
+  - link "SQL审核"
+  - text: /
+  - link "文件审核"
+- tablist:
+  - tab "文件上传"
+  - tab "审核报告" [selected]
+- tabpanel "审核报告":
+  - generic: 文件审核报告历史
+  - button "🗑️ 批量删除" [disabled]:
+    - generic: 🗑️ 批量删除
+  - button "刷新":
+    - generic: 刷新
+  - textbox "搜索文件名 / 审核人 / 报告ID..."
+  - combobox
+  - generic: 规则架构
+  - combobox
+  - generic: 审核结果
+  - textbox "开始日期"
+  - generic: 至
+  - textbox "结束日期"
+  - button "查询":
+    - generic: 查询
+  - button "重置":
+    - generic: 重置
+  - table:
+    - rowgroup:
+      - row "文件名 规则架构 审核人 SQL数 通过/失败 通过率 时间 操作":
+        - columnheader:
+          - checkbox
+        - columnheader "文件名":
+          - generic: 文件名
+        - columnheader "规则架构":
+          - generic: 规则架构
+        - columnheader "审核人":
+          - generic: 审核人
+        - columnheader "SQL数":
+          - generic: SQL数
+        - columnheader "通过/失败":
+          - generic: 通过/失败
+        - columnheader "通过率":
+          - generic: 通过率
+        - columnheader "时间":
+          - generic: 时间
+        - columnheader "操作":
+          - generic: 操作
+  - table:
+    - rowgroup:
+      - row "uat_mybatis.xml 分布式 uat_o_dba 3 1 / 2 33.3% 2026-08-28 18:34 下载HTML 删除":
+        - cell:
+          - checkbox
+        - cell "uat_mybatis.xml":
+          - generic: uat_mybatis.xml
+        - cell "分布式":
+          - generic: 分布式
+        - cell "uat_o_dba":
+          - generic: uat_o_dba
+        - cell "3":
+          - generic: "3"
+        - cell "1 / 2":
+          - generic: 1 / 2
+        - cell "33.3%":
+          - generic: 33.3%
+        - cell "2026-08-28 18:34":
+          - generic: 2026-08-28 18:34
+        - cell "下载HTML 删除":
+          - button "下载HTML":
+            - generic: 下载HTML
+          - button "删除":
+            - generic: 删除
+      - row "uat_core_rule_corpus.sql 分布式 admin 100 2 / 98 2.0% 2026-08-28 18:17 下载HTML 删除":
+        - cell:
+          - checkbox
+        - cell "uat_core_rule_corpus.sql":
+          - generic: uat_core_rule_corpus.sql
+        - cell "分布式":
+          - generic: 分布式
+        - cell "admin":
+          - generic: admin
+        - cell "100":
+          - generic: "100"
+        - cell "2 / 98":
+          - generic: 2 / 98
+        - cell "2.0%":
+          - generic: 2.0%
+        - cell "2026-08-28 18:17":
+          - generic: 2026-08-28 18:17
+        - cell "下载HTML 删除":
+          - button "下载HTML":
+            - generic: 下载HTML
+          - button "删除":
+            - generic: 删除
+      - row "uat_r2_remaining.sql 分布式 admin 1 0 / 1 0.0% 2026-08-28 18:17 下载HTML 删除":
+        - cell:
+          - checkbox
+        - cell "uat_r2_remaining.sql":
+          - generic: uat_r2_remaining.sql
+        - cell "分布式":
+          - generic: 分布式
+        - cell "admin":
+          - generic: admin
+        - cell "1":
+          - generic: "1"
+        - cell "0 / 1":
+          - generic: 0 / 1
+        - cell "0.0%":
+          - generic: 0.0%
+        - cell "2026-08-28 18:17":
+          - generic: 2026-08-28 18:17
+        - cell "下载HTML 删除":
+          - button "下载HTML":
+            - generic: 下载HTML
+          - button "删除":
+            - generic: 删除
+      - row "uat_kfn_comment.sql 分布式 admin 1 0 / 1 0.0% 2026-08-28 18:16 下载HTML 删除":
+        - cell:
+          - checkbox
+        - cell "uat_kfn_comment.sql":
+          - generic: uat_kfn_comment.sql
+        - cell "分布式":
+          - generic: 分布式
+        - cell "admin":
+          - generic: admin
+        - cell "1":
+          - generic: "1"
+        - cell "0 / 1":
+          - generic: 0 / 1
+        - cell "0.0%":
+          - generic: 0.0%
+        - cell "2026-08-28 18:16":
+          - generic: 2026-08-28 18:16
+        - cell "下载HTML 删除":
+          - button "下载HTML":
+            - generic: 下载HTML
+          - button "删除":
+            - generic: 删除
+      - row "uat_r2_guard.sql 分布式 admin 1 0 / 1 0.0% 2026-08-28 18:16 下载HTML 删除":
+        - cell:
+          - checkbox
+        - cell "uat_r2_guard.sql":
+          - generic: uat_r2_guard.sql
+        - cell "分布式":
+          - generic: 分布式
+        - cell "admin":
+          - generic: admin
+        - cell "1":
+          - generic: "1"
+        - cell "0 / 1":
+          - generic: 0 / 1
+        - cell "0.0%":
+          - generic: 0.0%
+        - cell "2026-08-28 18:16":
+          - generic: 2026-08-28 18:16
+        - cell "下载HTML 删除":
+          - button "下载HTML":
+            - generic: 下载HTML
+          - button "删除":
+            - generic: 删除
+      - row "uat_r2_guard.sql 分布式 admin 1 0 / 1 0.0% 2026-08-28 18:16 下载HTML 删除":
+        - cell:
+          - checkbox
+        - cell "uat_r2_guard.sql":
+          - generic: uat_r2_guard.sql
+        - cell "分布式":
+          - generic: 分布式
+        - cell "admin":
+          - generic: admin
+        - cell "1":
+          - generic: "1"
+        - cell "0 / 1":
+          - generic: 0 / 1
+        - cell "0.0%":
+          - generic: 0.0%
+        - cell "2026-08-28 18:16":
+          - generic: 2026-08-28 18:16
+        - cell "下载HTML 删除":
+          - button "下载HTML":
+            - generic: 下载HTML
+          - button "删除":
+            - generic: 删除
+      - row "uat_r2_guard.sql 分布式 admin 1 0 / 1 0.0% 2026-08-28 18:16 下载HTML 删除":
+        - cell:
+          - checkbox
+        - cell "uat_r2_guard.sql":
+          - generic: uat_r2_guard.sql
+        - cell "分布式":
+          - generic: 分布式
+        - cell "admin":
+          - generic: admin
+        - cell "1":
+          - generic: "1"
+        - cell "0 / 1":
+          - generic: 0 / 1
+        - cell "0.0%":
+          - generic: 0.0%
+        - cell "2026-08-28 18:16":
+          - generic: 2026-08-28 18:16
+        - cell "下载HTML 删除":
+          - button "下载HTML":
+            - generic: 下载HTML
+          - button "删除":
+            - generic: 删除
+      - row "uat_r2_guard.sql 分布式 admin 1 0 / 1 0.0% 2026-08-28 18:16 下载HTML 删除":
+        - cell:
+          - checkbox
+        - cell "uat_r2_guard.sql":
+          - generic: uat_r2_guard.sql
+        - cell "分布式":
+          - generic: 分布式
+        - cell "admin":
+          - generic: admin
+        - cell "1":
+          - generic: "1"
+        - cell "0 / 1":
+          - generic: 0 / 1
+        - cell "0.0%":
+          - generic: 0.0%
+        - cell "2026-08-28 18:16":
+          - generic: 2026-08-28 18:16
+        - cell "下载HTML 删除":
+          - button "下载HTML":
+            - generic: 下载HTML
+          - button "删除":
+            - generic: 删除
+      - row "uat_r2_guard.sql 分布式 admin 1 0 / 1 0.0% 2026-08-28 18:16 下载HTML 删除":
+        - cell:
+          - checkbox
+        - cell "uat_r2_guard.sql":
+          - generic: uat_r2_guard.sql
+        - cell "分布式":
+          - generic: 分布式
+        - cell "admin":
+          - generic: admin
+        - cell "1":
+          - generic: "1"
+        - cell "0 / 1":
+          - generic: 0 / 1
+        - cell "0.0%":
+          - generic: 0.0%
+        - cell "2026-08-28 18:16":
+          - generic: 2026-08-28 18:16
+        - cell "下载HTML 删除":
+          - button "下载HTML":
+            - generic: 下载HTML
+          - button "删除":
+            - generic: 删除
+      - row "uat_r2_guard.sql 分布式 admin 1 0 / 1 0.0% 2026-08-28 18:16 下载HTML 删除":
+        - cell:
+          - checkbox
+        - cell "uat_r2_guard.sql":
+          - generic: uat_r2_guard.sql
+        - cell "分布式":
+          - generic: 分布式
+        - cell "admin":
+          - generic: admin
+        - cell "1":
+          - generic: "1"
+        - cell "0 / 1":
+          - generic: 0 / 1
+        - cell "0.0%":
+          - generic: 0.0%
+        - cell "2026-08-28 18:16":
+          - generic: 2026-08-28 18:16
+        - cell "下载HTML 删除":
+          - button "下载HTML":
+            - generic: 下载HTML
+          - button "删除":
+            - generic: 删除

@@ -1,0 +1,50 @@
+{
+  "metadata_database": "tdsql_uat_o_r2_1622_20260828",
+  "connections": [
+    {
+      "id": "618d9bed",
+      "name": "UAT-O-R2-DBA临时连接-已编辑",
+      "host": "127.0.0.1",
+      "port": 1,
+      "database": "uat_o_r2_offline"
+    },
+    {
+      "id": "uat_o_local",
+      "name": "UAT-O 本地集中式样本",
+      "host": "127.0.0.1",
+      "port": 13306,
+      "database": "tdsql_uat_o_target_1622"
+    },
+    {
+      "id": "uat_o_offline",
+      "name": "UAT-O 离线失败样本",
+      "host": "127.0.0.1",
+      "port": 1,
+      "database": "uat_o_offline"
+    }
+  ],
+  "users": [
+    {
+      "username": "uat_o_dba",
+      "role": "dba"
+    },
+    {
+      "username": "uat_o_developer",
+      "role": "developer"
+    },
+    {
+      "username": "uat_o_auditor",
+      "role": "auditor"
+    },
+    {
+      "username": "admin",
+      "role": "admin"
+    }
+  ],
+  "slow_queries": {
+    "records": 51
+  },
+  "scan_tasks": {
+    "records": 1
+  }
+}

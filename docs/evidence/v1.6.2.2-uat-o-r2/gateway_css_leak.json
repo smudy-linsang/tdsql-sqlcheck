@@ -1,0 +1,10 @@
+{
+  "before": {
+    "bodyPadding": "0px",
+    "styleCount": 0
+  },
+  "afterClose": {
+    "bodyPadding": "20px",
+    "styleCount": 1
+  }
+}

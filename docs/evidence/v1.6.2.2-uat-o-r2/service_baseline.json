@@ -1,0 +1,327 @@
+[
+  {
+    "id": "corpus:01_naming_ddl.sql:R030_R031_01:distributed",
+    "sql": "CREATE FUNCTION fn_calc(a INT, b INT) RETURNS INT BEGIN RETURN a + b; END;",
+    "scope": "distributed",
+    "direct": [
+      "R030",
+      "R031"
+    ],
+    "service": [
+      "R001",
+      "R003",
+      "R004",
+      "R005",
+      "R028",
+      "R030",
+      "R031",
+      "R077"
+    ],
+    "statement_count": 2
+  },
+  {
+    "id": "corpus:01_naming_ddl.sql:R030_R031_01:centralized",
+    "sql": "CREATE FUNCTION fn_calc(a INT, b INT) RETURNS INT BEGIN RETURN a + b; END;",
+    "scope": "centralized",
+    "direct": [
+      "R030",
+      "R031"
+    ],
+    "service": [
+      "R001",
+      "R003",
+      "R004",
+      "R005",
+      "R028",
+      "R030",
+      "R031"
+    ],
+    "statement_count": 2
+  },
+  {
+    "id": "real-object:0:4",
+    "sql": "CREATE /* ordinary */ PROCEDURE p() BEGIN SELECT 1; END",
+    "scope": "distributed",
+    "direct": [
+      "R001",
+      "R003",
+      "R004",
+      "R005",
+      "R028",
+      "R030",
+      "R071",
+      "R077"
+    ],
+    "service": [
+      "R001",
+      "R003",
+      "R004",
+      "R005",
+      "R028",
+      "R030",
+      "R077"
+    ],
+    "statement_count": 2
+  },
+  {
+    "id": "real-object:1:0",
+    "sql": "CREATE PROCEDURE p() BEGIN DECLARE x INT DEFAULT 0; SET x=1; SELECT x; END",
+    "scope": "distributed",
+    "direct": [
+      "R001",
+      "R003",
+      "R004",
+      "R005",
+      "R028",
+      "R030",
+      "R077"
+    ],
+    "service": [
+      "R030",
+      "R051"
+    ],
+    "statement_count": 4
+  },
+  {
+    "id": "real-object:1:1",
+    "sql": "CREATE\nPROCEDURE p() BEGIN DECLARE x INT DEFAULT 0; SET x=1; SELECT x; END",
+    "scope": "distributed",
+    "direct": [
+      "R001",
+      "R003",
+      "R004",
+      "R005",
+      "R028",
+      "R030",
+      "R077"
+    ],
+    "service": [
+      "R030",
+      "R051"
+    ],
+    "statement_count": 4
+  },
+  {
+    "id": "real-object:1:2",
+    "sql": "CREATE\tPROCEDURE p() BEGIN DECLARE x INT DEFAULT 0; SET x=1; SELECT x; END",
+    "scope": "distributed",
+    "direct": [
+      "R001",
+      "R003",
+      "R004",
+      "R005",
+      "R028",
+      "R030",
+      "R077"
+    ],
+    "service": [
+      "R030",
+      "R051"
+    ],
+    "statement_count": 4
+  },
+  {
+    "id": "real-object:1:3",
+    "sql": "CREATE  PROCEDURE p() BEGIN DECLARE x INT DEFAULT 0; SET x=1; SELECT x; END",
+    "scope": "distributed",
+    "direct": [
+      "R001",
+      "R003",
+      "R004",
+      "R005",
+      "R028",
+      "R030",
+      "R077"
+    ],
+    "service": [
+      "R030",
+      "R051"
+    ],
+    "statement_count": 4
+  },
+  {
+    "id": "real-object:1:4",
+    "sql": "CREATE /* ordinary */ PROCEDURE p() BEGIN DECLARE x INT DEFAULT 0; SET x=1; SELECT x; END",
+    "scope": "distributed",
+    "direct": [
+      "R001",
+      "R003",
+      "R004",
+      "R005",
+      "R028",
+      "R030",
+      "R071",
+      "R077"
+    ],
+    "service": [
+      "R030",
+      "R051"
+    ],
+    "statement_count": 4
+  },
+  {
+    "id": "real-object:2:0",
+    "sql": "CREATE PROCEDURE p() BEGIN DECLARE x INT DEFAULT 0; WHILE x<3 DO SET x=x+1; END WHILE; SELECT x; END",
+    "scope": "distributed",
+    "direct": [
+      "R001",
+      "R003",
+      "R004",
+      "R005",
+      "R028",
+      "R030",
+      "R077"
+    ],
+    "service": [
+      "R030",
+      "R051"
+    ],
+    "statement_count": 5
+  },
+  {
+    "id": "real-object:2:1",
+    "sql": "CREATE\nPROCEDURE p() BEGIN DECLARE x INT DEFAULT 0; WHILE x<3 DO SET x=x+1; END WHILE; SELECT x; END",
+    "scope": "distributed",
+    "direct": [
+      "R001",
+      "R003",
+      "R004",
+      "R005",
+      "R028",
+      "R030",
+      "R077"
+    ],
+    "service": [
+      "R030",
+      "R051"
+    ],
+    "statement_count": 5
+  },
+  {
+    "id": "real-object:2:2",
+    "sql": "CREATE\tPROCEDURE p() BEGIN DECLARE x INT DEFAULT 0; WHILE x<3 DO SET x=x+1; END WHILE; SELECT x; END",
+    "scope": "distributed",
+    "direct": [
+      "R001",
+      "R003",
+      "R004",
+      "R005",
+      "R028",
+      "R030",
+      "R077"
+    ],
+    "service": [
+      "R030",
+      "R051"
+    ],
+    "statement_count": 5
+  },
+  {
+    "id": "real-object:2:3",
+    "sql": "CREATE  PROCEDURE p() BEGIN DECLARE x INT DEFAULT 0; WHILE x<3 DO SET x=x+1; END WHILE; SELECT x; END",
+    "scope": "distributed",
+    "direct": [
+      "R001",
+      "R003",
+      "R004",
+      "R005",
+      "R028",
+      "R030",
+      "R077"
+    ],
+    "service": [
+      "R030",
+      "R051"
+    ],
+    "statement_count": 5
+  },
+  {
+    "id": "real-object:2:4",
+    "sql": "CREATE /* ordinary */ PROCEDURE p() BEGIN DECLARE x INT DEFAULT 0; WHILE x<3 DO SET x=x+1; END WHILE; SELECT x; END",
+    "scope": "distributed",
+    "direct": [
+      "R001",
+      "R003",
+      "R004",
+      "R005",
+      "R028",
+      "R030",
+      "R071",
+      "R077"
+    ],
+    "service": [
+      "R030",
+      "R051"
+    ],
+    "statement_count": 5
+  },
+  {
+    "id": "real-object:3:4",
+    "sql": "CREATE /* ordinary */ FUNCTION f() RETURNS INT DETERMINISTIC BEGIN DECLARE x INT DEFAULT 1; RETURN x; END",
+    "scope": "distributed",
+    "direct": [
+      "R030",
+      "R031",
+      "R071"
+    ],
+    "service": [
+      "R030",
+      "R031"
+    ],
+    "statement_count": 3
+  },
+  {
+    "id": "marker-literal:0",
+    "sql": "CREATE PROCEDURE p() BEGIN DECLARE x VARCHAR(80) DEFAULT 'plain'; WHILE x <> '' DO SET x=''; END WHILE; END",
+    "scope": "distributed",
+    "direct": [
+      "R001",
+      "R003",
+      "R004",
+      "R005",
+      "R028",
+      "R030",
+      "R077"
+    ],
+    "service": [
+      "R030"
+    ],
+    "statement_count": 4
+  },
+  {
+    "id": "marker-literal:1",
+    "sql": "CREATE PROCEDURE p() BEGIN DECLARE x VARCHAR(80) DEFAULT 'KNOWN_FIDELITY_GAP'; WHILE x <> '' DO SET x=''; END WHILE; END",
+    "scope": "distributed",
+    "direct": [
+      "R001",
+      "R003",
+      "R004",
+      "R005",
+      "R028",
+      "R030",
+      "R077"
+    ],
+    "service": [
+      "R030"
+    ],
+    "statement_count": 4
+  },
+  {
+    "id": "marker-literal:2",
+    "sql": "CREATE PROCEDURE p() BEGIN DECLARE x VARCHAR(80) DEFAULT 'UNIQUE_SEMANTICS_INCOMPLETE'; WHILE x <> '' DO SET x=''; END WHILE; END",
+    "scope": "distributed",
+    "direct": [
+      "R001",
+      "R003",
+      "R004",
+      "R005",
+      "R028",
+      "R030",
+      "R077"
+    ],
+    "service": [
+      "R030"
+    ],
+    "statement_count": 4
+  }
+]

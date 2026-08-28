@@ -1,0 +1,71 @@
+{
+  "kind": "offline_evidence_validation_not_product_retest",
+  "validated_at": "2026-08-28T10:45:17.538338+00:00",
+  "tested_commit": "d12fe8c16ab9861b85eea41e05e498a9ba305c7d",
+  "baseline_commit": "6957499",
+  "browser_checkpoint_pairs": 64,
+  "registered_rules": 119,
+  "fired_rules": 114,
+  "injected_metadata_only_rules": [
+    "R048",
+    "R055",
+    "R056",
+    "R057",
+    "R058",
+    "R060",
+    "R064"
+  ],
+  "unfired_rules": [
+    "R025",
+    "R035",
+    "R038",
+    "R049",
+    "R059"
+  ],
+  "core_inputs": 1000,
+  "changed_rule_id_sets": 70,
+  "unchanged_rule_id_sets": 930,
+  "independent_oracle_failures": {
+    "corpus_exact": 3,
+    "must_have": 2
+  },
+  "edge_versions": [
+    {
+      "sqlglot": "29.0.0",
+      "inputs": 324,
+      "kfn_without_e999": 60
+    },
+    {
+      "sqlglot": "30.14.0",
+      "inputs": 324,
+      "kfn_without_e999": 60
+    },
+    {
+      "sqlglot": "30.17.0",
+      "inputs": 324,
+      "kfn_without_e999": 60
+    }
+  ],
+  "http_first_batch": 614,
+  "http_status_counts": {
+    "200": 611,
+    "403": 3
+  },
+  "http_engine_mismatches": 17,
+  "service_differences_same_as_baseline": true,
+  "later_explain_statuses": [
+    200,
+    500,
+    200
+  ],
+  "pytest_passed": 1384,
+  "matrix_passed": true,
+  "links_valid": true,
+  "credential_pattern_scan": "no_matches",
+  "unclosed_defects": {
+    "BLOCK": 1,
+    "MAJOR": 6,
+    "MINOR": 1
+  },
+  "verdict": "NO_GO; mandatory E999 path still incomplete; see report for scope and other findings"
+}
