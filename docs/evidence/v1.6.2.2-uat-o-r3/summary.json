@@ -1,0 +1,81 @@
+{
+  "tested_commit": "1596e8b4819d17beb6507914c4592b0be184a29c",
+  "rule_count": 119,
+  "rules_equal": true,
+  "fired_rule_count": 116,
+  "unverified_rules": [
+    "R025",
+    "R038",
+    "R049"
+  ],
+  "corpus_count": 1000,
+  "corpus_oracle_failures": [
+    {
+      "id": "corpus:01_naming_ddl.sql:R023_01:distributed",
+      "kind": "corpus_exact",
+      "missing": [
+        "R036",
+        "R037"
+      ],
+      "extra": []
+    },
+    {
+      "id": "corpus:01_naming_ddl.sql:R098_01:distributed",
+      "kind": "corpus_exact",
+      "missing": [
+        "R036",
+        "R037"
+      ],
+      "extra": []
+    },
+    {
+      "id": "corpus:01_naming_ddl.sql:R116_01:distributed",
+      "kind": "corpus_exact",
+      "missing": [
+        "R036",
+        "R037"
+      ],
+      "extra": []
+    }
+  ],
+  "corpus_hitset_changes": 6,
+  "edge_cases": 324,
+  "edge_changes": {
+    "kfn-path": 72,
+    "ordinary-error": 22
+  },
+  "edge_kfn": 252,
+  "edge_kfn_without_e999": [],
+  "http_count": 614,
+  "http_statuses": {
+    "200": 611,
+    "403": 3
+  },
+  "http_engine_differences": 17,
+  "service_same_as_before": true,
+  "pytest": {
+    "tests": 1417,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "browser_evidence_groups": 63,
+  "load": {
+    "baseline": {
+      "missing_r042": 0,
+      "false_pass": 0
+    },
+    "29.0.0": {
+      "missing_r042": 12,
+      "false_pass": 4
+    },
+    "30.14.0": {
+      "missing_r042": 12,
+      "false_pass": 4
+    },
+    "30.17.0": {
+      "missing_r042": 12,
+      "false_pass": 4
+    }
+  }
+}

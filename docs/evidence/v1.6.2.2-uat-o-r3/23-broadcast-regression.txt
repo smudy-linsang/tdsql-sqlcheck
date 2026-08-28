@@ -1,0 +1,81 @@
+- banner:
+  - img "logo"
+  - generic: TDSQL数据库SQL审核工具
+  - button "U UAT-O 管理员 系统管理员":
+    - generic: U
+    - generic: UAT-O 管理员
+    - generic: 系统管理员
+- complementary:
+  - menubar:
+    - menuitem "治理概览":
+      - generic: 治理概览
+    - menuitem "SQL审核" [expanded]:
+      - generic: SQL审核
+      - menu:
+        - menuitem "即时审核"
+        - menuitem "文件审核"
+        - menuitem "在线元数据审核"
+    - menuitem "慢SQL治理" [expanded]:
+      - generic: 慢SQL治理
+      - menu:
+        - menuitem "扫描任务"
+        - menuitem "慢SQL记录"
+        - menuitem "EXPLAIN分析"
+    - menuitem "实例体检":
+      - generic: 实例体检
+    - menuitem "深度诊断":
+      - generic: 深度诊断
+    - menuitem "平台治理":
+      - generic: 平台治理
+    - menuitem "系统管理":
+      - generic: 系统管理
+- navigation "面包屑":
+  - link "SQL审核"
+  - text: /
+  - link "即时审核"
+- generic: 即时SQL审核
+- text: 规则适用架构：
+- radiogroup "radio-group":
+  - radio "分布式规则" [checked]
+  - generic: 分布式规则
+  - radio "集中式规则"
+  - generic: 集中式规则
+- textbox "粘贴SQL语句，Ctrl+Enter 快速审核": "-- 生产报告 6297 #5: cus_name_list_type（原样形态，非 idx_ 前缀索引——R061 真实违规） -- 注意：本 fixture 与 report_05_cus_name_list_type.sql 不同——后者是 v1.6.1.9 为 -- R077/R054 广播表测试造的简化版（无任何索引），本文件保留了真实的非 idx_ 前缀索引。 CREATE TABLE `cus_name_list_type` ( `id` bigint NOT NULL AUTO_INCREMENT, `type_name` varchar(128) NOT NULL, `type_code` varchar(64) NOT NULL, `remark` varchar(256) DEFAULT NULL, PRIMARY KEY (`id`), KEY `CUS_NAME_LIST_TYPE_IDX1` (`type_name`) ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='名单类型表' shardkey=noshardkey_allset"
+- button "开始审核":
+  - generic: 开始审核
+- button "示例":
+  - generic: 示例
+- alert:
+  - generic: 发现 7 项违规
+  - paragraph:
+    - text: "SQL类型: CREATE TABLE"
+    - text: "适用架构:"
+    - generic: 分布式
+- text: "[R029]"
+- generic: WARNING
+- text: 字段 'id', 'type_name', 'type_code', 'remark' 缺少COMMENT注释
+- generic: "💡 请为每个字段添加COMMENT，如: col_name INT COMMENT '字段说明'"
+- text: "[R036]"
+- generic: INFO
+- text: 建议表包含 create_time 和 update_time 字段用于数据追踪
+- generic: "💡 建议添加: create_time DATETIME DEFAULT CURRENT_TIMESTAMP, update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"
+- text: "[R037]"
+- generic: INFO
+- text: 建议添加逻辑删除字段(如 is_deleted)替代物理删除
+- generic: "💡 建议添加: is_deleted TINYINT DEFAULT 0 COMMENT '逻辑删除标记'"
+- text: "[R061]"
+- generic: WARNING
+- text: 普通索引 'CUS_NAME_LIST_TYPE_IDX1' 应以 idx_ 开头
+- generic: 💡 普通索引以idx_开头，唯一索引以uk_开头，主键以pk_开头
+- text: "[R063]"
+- generic: WARNING
+- text: 字段 'type_name' 区分度低，不建议单独建索引
+- generic: 💡 建议将该字段放入复合索引
+- text: "[R067]"
+- generic: INFO
+- text: 字段 'type_name' VARCHAR长度>100，建议使用前缀索引
+- generic: "💡 如: INDEX idx_name (col_name(20)) 使用前20字符建索引"
+- text: "[R104]"
+- generic: ERROR
+- text: 检测到全角括号（），请改为半角括号()
+- generic: 💡 SUM (→SUM(；COUNT （→COUNT(；全角（）改半角()

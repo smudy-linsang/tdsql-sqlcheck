@@ -1,0 +1,10 @@
+{
+  "kind": "offline evidence integrity, NOT product acceptance",
+  "product_uat": "NOT_APPROVED",
+  "checks": 397,
+  "passed": 397,
+  "failed": [],
+  "browser_groups": 63,
+  "manifest_files": 227,
+  "secret_scan_matches": []
+}

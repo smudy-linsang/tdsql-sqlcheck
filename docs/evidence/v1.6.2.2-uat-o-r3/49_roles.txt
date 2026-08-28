@@ -1,0 +1,112 @@
+- banner:
+  - img "logo"
+  - generic: TDSQL数据库SQL审核工具
+  - button "U UAT-O 管理员 系统管理员":
+    - generic: U
+    - generic: UAT-O 管理员
+    - generic: 系统管理员
+- complementary:
+  - menubar:
+    - menuitem "治理概览":
+      - generic: 治理概览
+    - menuitem "SQL审核":
+      - generic: SQL审核
+    - menuitem "慢SQL治理":
+      - generic: 慢SQL治理
+    - menuitem "实例体检":
+      - generic: 实例体检
+    - menuitem "深度诊断":
+      - generic: 深度诊断
+    - menuitem "平台治理" [expanded]:
+      - generic: 平台治理
+      - menu:
+        - menuitem "实例管理"
+        - menuitem "审核规则库"
+        - menuitem "评估规则集"
+    - menuitem "系统管理" [expanded]:
+      - generic: 系统管理
+      - menu:
+        - menuitem "用户管理"
+        - menuitem "角色管理"
+        - menuitem "权限矩阵"
+        - menuitem "数据保留"
+        - menuitem "操作审计"
+        - menuitem "系统信息"
+- navigation "面包屑":
+  - link "系统管理"
+  - text: /
+  - link "角色管理"
+- generic: 角色管理
+- button "+ 新建角色":
+  - generic: + 新建角色
+- table:
+  - rowgroup:
+    - row "角色ID 名称 内置 描述 操作":
+      - columnheader "角色ID":
+        - generic: 角色ID
+      - columnheader "名称":
+        - generic: 名称
+      - columnheader "内置":
+        - generic: 内置
+      - columnheader "描述":
+        - generic: 描述
+      - columnheader "操作":
+        - generic: 操作
+- table:
+  - rowgroup:
+    - row "admin 系统管理员 是 拥有全部权限 编辑 删除":
+      - cell "admin":
+        - generic: admin
+      - cell "系统管理员":
+        - generic: 系统管理员
+      - cell "是":
+        - generic: 是
+      - cell "拥有全部权限":
+        - generic: 拥有全部权限
+      - cell "编辑 删除":
+        - button "编辑":
+          - generic: 编辑
+        - button "删除" [disabled]:
+          - generic: 删除
+    - row "auditor 审计员 是 只读审计/操作日志/报告导出 编辑 删除":
+      - cell "auditor":
+        - generic: auditor
+      - cell "审计员":
+        - generic: 审计员
+      - cell "是":
+        - generic: 是
+      - cell "只读审计/操作日志/报告导出":
+        - generic: 只读审计/操作日志/报告导出
+      - cell "编辑 删除":
+        - button "编辑":
+          - generic: 编辑
+        - button "删除" [disabled]:
+          - generic: 删除
+    - row "dba 数据库管理员 是 管理实例/扫描/规则集/门禁 编辑 删除":
+      - cell "dba":
+        - generic: dba
+      - cell "数据库管理员":
+        - generic: 数据库管理员
+      - cell "是":
+        - generic: 是
+      - cell "管理实例/扫描/规则集/门禁":
+        - generic: 管理实例/扫描/规则集/门禁
+      - cell "编辑 删除":
+        - button "编辑":
+          - generic: 编辑
+        - button "删除" [disabled]:
+          - generic: 删除
+    - row "developer 开发人员 是 SQL审核/EXPLAIN分析 编辑 删除":
+      - cell "developer":
+        - generic: developer
+      - cell "开发人员":
+        - generic: 开发人员
+      - cell "是":
+        - generic: 是
+      - cell "SQL审核/EXPLAIN分析":
+        - generic: SQL审核/EXPLAIN分析
+      - cell "编辑 删除":
+        - button "编辑":
+          - generic: 编辑
+        - button "删除" [disabled]:
+          - generic: 删除

@@ -1,0 +1,63 @@
+- banner:
+  - img "logo"
+  - generic: TDSQL数据库SQL审核工具
+  - button "U UAT-O 管理员 系统管理员":
+    - generic: U
+    - generic: UAT-O 管理员
+    - generic: 系统管理员
+- complementary:
+  - menubar:
+    - menuitem "治理概览":
+      - generic: 治理概览
+    - menuitem "SQL审核" [expanded]:
+      - generic: SQL审核
+      - menu:
+        - menuitem "即时审核"
+        - menuitem "文件审核"
+        - menuitem "在线元数据审核"
+    - menuitem "慢SQL治理" [expanded]:
+      - generic: 慢SQL治理
+      - menu:
+        - menuitem "扫描任务"
+        - menuitem "慢SQL记录"
+        - menuitem "EXPLAIN分析"
+    - menuitem "实例体检" [expanded]:
+      - generic: 实例体检
+      - menu:
+        - menuitem "上线检查"
+        - menuitem "大表治理"
+    - menuitem "深度诊断":
+      - generic: 深度诊断
+    - menuitem "平台治理":
+      - generic: 平台治理
+    - menuitem "系统管理":
+      - generic: 系统管理
+- navigation "面包屑":
+  - link "实例体检"
+  - text: /
+  - link "上线检查"
+- text: "*"
+- tablist:
+  - tab "上线检查" [selected]
+  - tab "扫描历史对比"
+  - tab "已留档对比报告"
+- tabpanel "上线检查":
+  - generic: 数据库上线检查
+  - combobox
+  - generic: UAT-O 本地集中式样本 (127.0.0.1:13306)
+  - button "执行上线检查" [disabled]:
+    - generic: 执行上线检查
+  - generic: 根据 12 项上线规范检查规则，针对已连接数据库进行建表合规性及设计隐患扫描。
+  - generic: "0"
+  - generic: 问题总数
+  - generic: "0"
+  - generic: ERROR
+  - generic: "0"
+  - generic: WARNING
+  - generic: "0"
+  - generic: INFO
+  - generic: "0"
+  - generic: 通过项
+  - button "导出报告" [disabled]:
+    - text: 导出报告
+  - generic: HTML格式

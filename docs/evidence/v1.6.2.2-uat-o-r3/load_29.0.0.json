@@ -1,0 +1,319 @@
+{
+  "version": "29.0.0",
+  "count": 27,
+  "missing_r042": [
+    "load:1:0",
+    "load:1:1",
+    "load:1:2",
+    "load:2:0",
+    "load:2:1",
+    "load:2:2",
+    "load:3:0",
+    "load:3:1",
+    "load:3:2",
+    "load:8:0",
+    "load:8:1",
+    "load:8:2"
+  ],
+  "false_pass": [
+    "load:1:0",
+    "load:2:0",
+    "load:3:0",
+    "load:8:0"
+  ],
+  "rows": [
+    {
+      "id": "load:0:0",
+      "sql": "LOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+      "parse_error": null,
+      "ast": "Command",
+      "has_load_data": true,
+      "passed": false,
+      "fired": [
+        "R042"
+      ]
+    },
+    {
+      "id": "load:0:1",
+      "sql": "LOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t",
+      "parse_error": "Required keyword: 'inpath' missing for <class 'sqlglot.expressions.LoadData'>. Line 1, Col: 37.\n  LOAD DATA INFILE \u001b[4m'/tmp/synthetic.csv'\u001b[0m INTO TABLE t",
+      "ast": "NoneType",
+      "has_load_data": true,
+      "passed": false,
+      "fired": [
+        "R042"
+      ]
+    },
+    {
+      "id": "load:0:2",
+      "sql": "LOAD DATA LOCAL INFILE '/tmp/synthetic.csv' INTO TABLE t",
+      "parse_error": "Required keyword: 'inpath' missing for <class 'sqlglot.expressions.LoadData'>. Line 1, Col: 43.\n  LOAD DATA LOCAL INFILE \u001b[4m'/tmp/synthetic.csv'\u001b[0m INTO TABLE t",
+      "ast": "NoneType",
+      "has_load_data": true,
+      "passed": false,
+      "fired": [
+        "R042"
+      ]
+    },
+    {
+      "id": "load:1:0",
+      "sql": "# operator's note\nLOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+      "parse_error": null,
+      "ast": "Command",
+      "has_load_data": false,
+      "passed": true,
+      "fired": []
+    },
+    {
+      "id": "load:1:1",
+      "sql": "# operator's note\nLOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t",
+      "parse_error": "Required keyword: 'inpath' missing for <class 'sqlglot.expressions.LoadData'>. Line 2, Col: 37.\n  # operator's note\nLOAD DATA INFILE \u001b[4m'/tmp/synthetic.csv'\u001b[0m INTO TABLE t",
+      "ast": "NoneType",
+      "has_load_data": false,
+      "passed": false,
+      "fired": [
+        "E999_SYNTAX_ERROR"
+      ]
+    },
+    {
+      "id": "load:1:2",
+      "sql": "# operator's note\nLOAD DATA LOCAL INFILE '/tmp/synthetic.csv' INTO TABLE t",
+      "parse_error": "Required keyword: 'inpath' missing for <class 'sqlglot.expressions.LoadData'>. Line 2, Col: 43.\n  # operator's note\nLOAD DATA LOCAL INFILE \u001b[4m'/tmp/synthetic.csv'\u001b[0m INTO TABLE t",
+      "ast": "NoneType",
+      "has_load_data": false,
+      "passed": false,
+      "fired": [
+        "E999_SYNTAX_ERROR"
+      ]
+    },
+    {
+      "id": "load:2:0",
+      "sql": "# double \" note\nLOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+      "parse_error": null,
+      "ast": "Command",
+      "has_load_data": false,
+      "passed": true,
+      "fired": []
+    },
+    {
+      "id": "load:2:1",
+      "sql": "# double \" note\nLOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t",
+      "parse_error": "Required keyword: 'inpath' missing for <class 'sqlglot.expressions.LoadData'>. Line 2, Col: 37.\n  # double \" note\nLOAD DATA INFILE \u001b[4m'/tmp/synthetic.csv'\u001b[0m INTO TABLE t",
+      "ast": "NoneType",
+      "has_load_data": false,
+      "passed": false,
+      "fired": [
+        "E999_SYNTAX_ERROR"
+      ]
+    },
+    {
+      "id": "load:2:2",
+      "sql": "# double \" note\nLOAD DATA LOCAL INFILE '/tmp/synthetic.csv' INTO TABLE t",
+      "parse_error": "Required keyword: 'inpath' missing for <class 'sqlglot.expressions.LoadData'>. Line 2, Col: 43.\n  # double \" note\nLOAD DATA LOCAL INFILE \u001b[4m'/tmp/synthetic.csv'\u001b[0m INTO TABLE t",
+      "ast": "NoneType",
+      "has_load_data": false,
+      "passed": false,
+      "fired": [
+        "E999_SYNTAX_ERROR"
+      ]
+    },
+    {
+      "id": "load:3:0",
+      "sql": "# tick ` note\nLOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+      "parse_error": null,
+      "ast": "Command",
+      "has_load_data": false,
+      "passed": true,
+      "fired": []
+    },
+    {
+      "id": "load:3:1",
+      "sql": "# tick ` note\nLOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t",
+      "parse_error": "Required keyword: 'inpath' missing for <class 'sqlglot.expressions.LoadData'>. Line 2, Col: 37.\n  # tick ` note\nLOAD DATA INFILE \u001b[4m'/tmp/synthetic.csv'\u001b[0m INTO TABLE t",
+      "ast": "NoneType",
+      "has_load_data": false,
+      "passed": false,
+      "fired": [
+        "E999_SYNTAX_ERROR"
+      ]
+    },
+    {
+      "id": "load:3:2",
+      "sql": "# tick ` note\nLOAD DATA LOCAL INFILE '/tmp/synthetic.csv' INTO TABLE t",
+      "parse_error": "Required keyword: 'inpath' missing for <class 'sqlglot.expressions.LoadData'>. Line 2, Col: 43.\n  # tick ` note\nLOAD DATA LOCAL INFILE \u001b[4m'/tmp/synthetic.csv'\u001b[0m INTO TABLE t",
+      "ast": "NoneType",
+      "has_load_data": false,
+      "passed": false,
+      "fired": [
+        "E999_SYNTAX_ERROR"
+      ]
+    },
+    {
+      "id": "load:4:0",
+      "sql": "# two ' quotes '\nLOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+      "parse_error": null,
+      "ast": "Command",
+      "has_load_data": true,
+      "passed": false,
+      "fired": [
+        "R042"
+      ]
+    },
+    {
+      "id": "load:4:1",
+      "sql": "# two ' quotes '\nLOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t",
+      "parse_error": "Required keyword: 'inpath' missing for <class 'sqlglot.expressions.LoadData'>. Line 2, Col: 37.\n  # two ' quotes '\nLOAD DATA INFILE \u001b[4m'/tmp/synthetic.csv'\u001b[0m INTO TABLE t",
+      "ast": "NoneType",
+      "has_load_data": true,
+      "passed": false,
+      "fired": [
+        "E999_SYNTAX_ERROR",
+        "R042"
+      ]
+    },
+    {
+      "id": "load:4:2",
+      "sql": "# two ' quotes '\nLOAD DATA LOCAL INFILE '/tmp/synthetic.csv' INTO TABLE t",
+      "parse_error": "Required keyword: 'inpath' missing for <class 'sqlglot.expressions.LoadData'>. Line 2, Col: 43.\n  # two ' quotes '\nLOAD DATA LOCAL INFILE \u001b[4m'/tmp/synthetic.csv'\u001b[0m INTO TABLE t",
+      "ast": "NoneType",
+      "has_load_data": true,
+      "passed": false,
+      "fired": [
+        "E999_SYNTAX_ERROR",
+        "R042"
+      ]
+    },
+    {
+      "id": "load:5:0",
+      "sql": "-- operator's note\nLOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+      "parse_error": null,
+      "ast": "Command",
+      "has_load_data": true,
+      "passed": false,
+      "fired": [
+        "R042"
+      ]
+    },
+    {
+      "id": "load:5:1",
+      "sql": "-- operator's note\nLOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t",
+      "parse_error": "Required keyword: 'inpath' missing for <class 'sqlglot.expressions.LoadData'>. Line 2, Col: 37.\n  -- operator's note\nLOAD DATA INFILE \u001b[4m'/tmp/synthetic.csv'\u001b[0m INTO TABLE t",
+      "ast": "NoneType",
+      "has_load_data": true,
+      "passed": false,
+      "fired": [
+        "R042"
+      ]
+    },
+    {
+      "id": "load:5:2",
+      "sql": "-- operator's note\nLOAD DATA LOCAL INFILE '/tmp/synthetic.csv' INTO TABLE t",
+      "parse_error": "Required keyword: 'inpath' missing for <class 'sqlglot.expressions.LoadData'>. Line 2, Col: 43.\n  -- operator's note\nLOAD DATA LOCAL INFILE \u001b[4m'/tmp/synthetic.csv'\u001b[0m INTO TABLE t",
+      "ast": "NoneType",
+      "has_load_data": true,
+      "passed": false,
+      "fired": [
+        "R042"
+      ]
+    },
+    {
+      "id": "load:6:0",
+      "sql": "/* operator's note */\nLOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+      "parse_error": null,
+      "ast": "Command",
+      "has_load_data": true,
+      "passed": false,
+      "fired": [
+        "R042"
+      ]
+    },
+    {
+      "id": "load:6:1",
+      "sql": "/* operator's note */\nLOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t",
+      "parse_error": "Required keyword: 'inpath' missing for <class 'sqlglot.expressions.LoadData'>. Line 2, Col: 37.\n  /* operator's note */\nLOAD DATA INFILE \u001b[4m'/tmp/synthetic.csv'\u001b[0m INTO TABLE t",
+      "ast": "NoneType",
+      "has_load_data": true,
+      "passed": false,
+      "fired": [
+        "R042"
+      ]
+    },
+    {
+      "id": "load:6:2",
+      "sql": "/* operator's note */\nLOAD DATA LOCAL INFILE '/tmp/synthetic.csv' INTO TABLE t",
+      "parse_error": "Required keyword: 'inpath' missing for <class 'sqlglot.expressions.LoadData'>. Line 2, Col: 43.\n  /* operator's note */\nLOAD DATA LOCAL INFILE \u001b[4m'/tmp/synthetic.csv'\u001b[0m INTO TABLE t",
+      "ast": "NoneType",
+      "has_load_data": true,
+      "passed": false,
+      "fired": [
+        "R042"
+      ]
+    },
+    {
+      "id": "load:7:0",
+      "sql": "# ordinary\r\nLOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+      "parse_error": null,
+      "ast": "Command",
+      "has_load_data": true,
+      "passed": false,
+      "fired": [
+        "R042"
+      ]
+    },
+    {
+      "id": "load:7:1",
+      "sql": "# ordinary\r\nLOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t",
+      "parse_error": "Required keyword: 'inpath' missing for <class 'sqlglot.expressions.LoadData'>. Line 2, Col: 37.\n  # ordinary\r\nLOAD DATA INFILE \u001b[4m'/tmp/synthetic.csv'\u001b[0m INTO TABLE t",
+      "ast": "NoneType",
+      "has_load_data": true,
+      "passed": false,
+      "fired": [
+        "E999_SYNTAX_ERROR",
+        "R042"
+      ]
+    },
+    {
+      "id": "load:7:2",
+      "sql": "# ordinary\r\nLOAD DATA LOCAL INFILE '/tmp/synthetic.csv' INTO TABLE t",
+      "parse_error": "Required keyword: 'inpath' missing for <class 'sqlglot.expressions.LoadData'>. Line 2, Col: 43.\n  # ordinary\r\nLOAD DATA LOCAL INFILE \u001b[4m'/tmp/synthetic.csv'\u001b[0m INTO TABLE t",
+      "ast": "NoneType",
+      "has_load_data": true,
+      "passed": false,
+      "fired": [
+        "E999_SYNTAX_ERROR",
+        "R042"
+      ]
+    },
+    {
+      "id": "load:8:0",
+      "sql": "# operator's note\r\nLOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+      "parse_error": null,
+      "ast": "Command",
+      "has_load_data": false,
+      "passed": true,
+      "fired": []
+    },
+    {
+      "id": "load:8:1",
+      "sql": "# operator's note\r\nLOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t",
+      "parse_error": "Required keyword: 'inpath' missing for <class 'sqlglot.expressions.LoadData'>. Line 2, Col: 37.\n  # operator's note\r\nLOAD DATA INFILE \u001b[4m'/tmp/synthetic.csv'\u001b[0m INTO TABLE t",
+      "ast": "NoneType",
+      "has_load_data": false,
+      "passed": false,
+      "fired": [
+        "E999_SYNTAX_ERROR"
+      ]
+    },
+    {
+      "id": "load:8:2",
+      "sql": "# operator's note\r\nLOAD DATA LOCAL INFILE '/tmp/synthetic.csv' INTO TABLE t",
+      "parse_error": "Required keyword: 'inpath' missing for <class 'sqlglot.expressions.LoadData'>. Line 2, Col: 43.\n  # operator's note\r\nLOAD DATA LOCAL INFILE \u001b[4m'/tmp/synthetic.csv'\u001b[0m INTO TABLE t",
+      "ast": "NoneType",
+      "has_load_data": false,
+      "passed": false,
+      "fired": [
+        "E999_SYNTAX_ERROR"
+      ]
+    }
+  ]
+}

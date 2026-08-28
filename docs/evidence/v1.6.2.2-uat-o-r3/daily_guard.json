@@ -1,0 +1,26 @@
+[
+  {
+    "date": "2026-08-28",
+    "status": 400,
+    "body": {
+      "detail": "monitordb不可用: (2003, \"Can't connect to MySQL server on '127.0.0.1' ([WinError 10061] 由于目标计算机积极拒绝，无法连接。)\")"
+    }
+  },
+  {
+    "date": "2026-08-29",
+    "status": 400,
+    "body": {
+      "detail": "monitordb不可用: (2003, \"Can't connect to MySQL server on '127.0.0.1' ([WinError 10061] 由于目标计算机积极拒绝，无法连接。)\")"
+    }
+  },
+  {
+    "action": "compare",
+    "status": 200,
+    "body": {
+      "date1": "2026-08-28",
+      "date2": "2026-08-29",
+      "instance_diffs": [],
+      "server_diffs": []
+    }
+  }
+]

@@ -1,0 +1,176 @@
+- banner:
+  - img "logo"
+  - generic: TDSQL数据库SQL审核工具
+  - button "U UAT-O 管理员 系统管理员":
+    - generic: U
+    - generic: UAT-O 管理员
+    - generic: 系统管理员
+- complementary:
+  - menubar:
+    - menuitem "治理概览":
+      - generic: 治理概览
+    - menuitem "SQL审核":
+      - generic: SQL审核
+    - menuitem "慢SQL治理":
+      - generic: 慢SQL治理
+    - menuitem "实例体检":
+      - generic: 实例体检
+    - menuitem "深度诊断":
+      - generic: 深度诊断
+    - menuitem "平台治理" [expanded]:
+      - generic: 平台治理
+      - menu:
+        - menuitem "实例管理"
+        - menuitem "审核规则库"
+        - menuitem "评估规则集"
+    - menuitem "系统管理" [expanded]:
+      - generic: 系统管理
+      - menu:
+        - menuitem "用户管理"
+        - menuitem "角色管理"
+        - menuitem "权限矩阵"
+        - menuitem "数据保留"
+        - menuitem "操作审计"
+        - menuitem "系统信息"
+- navigation "面包屑":
+  - link "系统管理"
+  - text: /
+  - link "数据保留"
+- generic: 数据保留策略
+- button "+ 新增策略":
+  - generic: + 新增策略
+- button "立即清理":
+  - generic: 立即清理
+- table:
+  - rowgroup:
+    - row "数据表 保留天数 启用 操作":
+      - columnheader "数据表":
+        - generic: 数据表
+      - columnheader "保留天数":
+        - generic: 保留天数
+      - columnheader "启用":
+        - generic: 启用
+      - columnheader "操作":
+        - generic: 操作
+- table:
+  - rowgroup:
+    - row "告警记录 90 是 编辑":
+      - cell "告警记录":
+        - generic: 告警记录
+      - cell "90":
+        - generic: "90"
+      - cell "是":
+        - generic: 是
+      - cell "编辑":
+        - button "编辑":
+          - generic: 编辑
+    - row "审核历史 365 是 编辑":
+      - cell "审核历史":
+        - generic: 审核历史
+      - cell "365":
+        - generic: "365"
+      - cell "是":
+        - generic: 是
+      - cell "编辑":
+        - button "编辑":
+          - generic: 编辑
+    - row "SQL指纹统计 180 是 编辑":
+      - cell "SQL指纹统计":
+        - generic: SQL指纹统计
+      - cell "180":
+        - generic: "180"
+      - cell "是":
+        - generic: 是
+      - cell "编辑":
+        - button "编辑":
+          - generic: 编辑
+    - row "门禁审计日志 365 是 编辑":
+      - cell "门禁审计日志":
+        - generic: 门禁审计日志
+      - cell "365":
+        - generic: "365"
+      - cell "是":
+        - generic: 是
+      - cell "编辑":
+        - button "编辑":
+          - generic: 编辑
+    - row "inspection_tasks 180 是 编辑":
+      - cell "inspection_tasks":
+        - generic: inspection_tasks
+      - cell "180":
+        - generic: "180"
+      - cell "是":
+        - generic: 是
+      - cell "编辑":
+        - button "编辑":
+          - generic: 编辑
+    - row "操作日志 365 是 编辑":
+      - cell "操作日志":
+        - generic: 操作日志
+      - cell "365":
+        - generic: "365"
+      - cell "是":
+        - generic: 是
+      - cell "编辑":
+        - button "编辑":
+          - generic: 编辑
+    - row "scan_compare_reports 365 是 编辑":
+      - cell "scan_compare_reports":
+        - generic: scan_compare_reports
+      - cell "365":
+        - generic: "365"
+      - cell "是":
+        - generic: 是
+      - cell "编辑":
+        - button "编辑":
+          - generic: 编辑
+    - row "scan_snapshots 365 是 编辑":
+      - cell "scan_snapshots":
+        - generic: scan_snapshots
+      - cell "365":
+        - generic: "365"
+      - cell "是":
+        - generic: 是
+      - cell "编辑":
+        - button "编辑":
+          - generic: 编辑
+    - row "扫描任务 180 是 编辑":
+      - cell "扫描任务":
+        - generic: 扫描任务
+      - cell "180":
+        - generic: "180"
+      - cell "是":
+        - generic: 是
+      - cell "编辑":
+        - button "编辑":
+          - generic: 编辑
+    - row "原始慢日志运行记录 90 是 编辑":
+      - cell "原始慢日志运行记录":
+        - generic: 原始慢日志运行记录
+      - cell "90":
+        - generic: "90"
+      - cell "是":
+        - generic: 是
+      - cell "编辑":
+        - button "编辑":
+          - generic: 编辑
+    - row "原始慢日志事件 30 是 编辑":
+      - cell "原始慢日志事件":
+        - generic: 原始慢日志事件
+      - cell "30":
+        - generic: "30"
+      - cell "是":
+        - generic: 是
+      - cell "编辑":
+        - button "编辑":
+          - generic: 编辑
+    - row "慢SQL记录 180 是 编辑":
+      - cell "慢SQL记录":
+        - generic: 慢SQL记录
+      - cell "180":
+        - generic: "180"
+      - cell "是":
+        - generic: 是
+      - cell "编辑":
+        - button "编辑":
+          - generic: 编辑

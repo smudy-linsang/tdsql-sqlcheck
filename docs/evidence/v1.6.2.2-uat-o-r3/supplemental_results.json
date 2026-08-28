@@ -1,0 +1,952 @@
+[
+  {
+    "database_version": "8.0.45"
+  },
+  {
+    "inspection_rows": 0
+  },
+  {
+    "bigtable_rows": 0
+  },
+  {
+    "endpoint": "/health",
+    "status": 200,
+    "body": {
+      "status": "ok",
+      "version": "1.6.2.2"
+    }
+  },
+  {
+    "endpoint": "/api/v1/ppt-report/dashboard?connection_id=uat_o_local",
+    "status": 200,
+    "body": {
+      "score": 100,
+      "score_status": "ok",
+      "total_alerts": 0,
+      "inspection": {
+        "data_status": "no_data",
+        "source_file": null,
+        "summary": {
+          "instance_count": 0,
+          "avg_cpu": null,
+          "avg_memory": null,
+          "total_slow_queries": 0,
+          "alert_count": 0,
+          "cpu_alerts": []
+        },
+        "top_slow_queries": []
+      },
+      "index": {
+        "data_status": "no_data",
+        "summary": {
+          "total_indexes": 0,
+          "unique_tables": 0,
+          "duplicate_count": 0,
+          "prefix_redundant_count": 0,
+          "unused_count": 0,
+          "fragmented_tables": 0,
+          "pk_count": 0,
+          "unique_count": 0,
+          "normal_count": 0
+        },
+        "duplicate_indexes": []
+      },
+      "sql": {
+        "data_status": "ok",
+        "summary": {
+          "total_sql_types": 20,
+          "total_count": 151,
+          "full_scan_count": 0,
+          "total_time": 32.2085
+        },
+        "type_distribution": {
+          "SELECT": 10,
+          "OTHER": 137,
+          "INSERT": 4
+        },
+        "top_slow_sql": [
+          {
+            "service": "uat_o_local",
+            "schema": "uat_o_r3_workflow",
+            "digest_text": "SELECT id FROM t_uat_order WHERE customer_id = ?",
+            "avg_time": 1.2,
+            "count": 10
+          },
+          {
+            "service": "uat_o_local",
+            "schema": "tdsqlpcloud_monitor_test",
+            "digest_text": "CREATE TABLE `proxy_classes_analysis` ( `id` INT8 UNSIGNED AUTO_INCREMENT PRIMARY KEY , `set_name` VARCHARACTER (?) , `set_ip` VARCHARACTER (?) , `set_port` INTEGER , `timestramp` TIMESTAMP DEFAULT NOW , MASTER TINYINT , `example_sql` TEXT , `example_query_time` FLOAT4 , `example_time` DATETIME NULL , SYSTEM_USER VARCHARACTER (?) , HOST VARCHARACTER (?) , `db` VARCHARACTER (?) , CHECKSUM INT8 UNSIGNED , `fingerprint` TEXT , `ts_min` DATETIME , `ts_max` DATETIME , `query_count` FLOAT4 , `query_time_sum` FLOAT4 , `query_time_median` FLOAT4 , `query_time_avg` FLOAT4 , `query_time_min` FLOAT4 , `query_time_max` FLOAT4 , `lock_time_sum` FLOAT4 , `lock_time_median` FLOAT4 , `lock_time_avg` FLOAT4 , `lock_time_min` FLOAT4 , `lock_time_max` FLOAT4 , `rows_sent_sum` FLOAT4 , `rows_examined_sum` FLOAT4 , `rows_affected_sum` FLOAT4 , `rows_affected_max` FLOAT4 )",
+            "avg_time": 0.109,
+            "count": 45
+          },
+          {
+            "service": "uat_o_local",
+            "schema": "idxaudit_test",
+            "digest_text": "CREATE TABLE `t_manyidx` ( `id` INTEGER PRIMARY KEY , `c0` INTEGER , `c1` INTEGER , `c2` INTEGER , `c3` INTEGER , `c4` INTEGER , `c5` INTEGER , `c6` INTEGER , `c7` INTEGER , `c8` INTEGER , KEY `k0` ( `c0` ) , KEY `k1` ( `c1` ) , KEY `k2` ( `c2` ) , KEY `k3` ( `c3` ) , KEY `k4` ( `c4` ) , KEY `k5` ( `c5` ) , KEY `k6` ( `c6` ) , KEY `k7` ( `c7` ) , KEY `k8` ( `c8` ) )",
+            "avg_time": 0.2947000000000001,
+            "count": 9
+          },
+          {
+            "service": "uat_o_local",
+            "schema": "tdsqlpcloud_monitor_g4",
+            "digest_text": "CREATE TABLE `m_data_cur` ( `f_mid` VARCHARACTER (?) , `f_pmid` VARCHARACTER (?) , `f_key` VARCHARACTER (?) , `f_val` FLOAT8 , `f_type` INTEGER )",
+            "avg_time": 0.1014,
+            "count": 18
+          },
+          {
+            "service": "uat_o_local",
+            "schema": "tdsqlpcloud_monitor_g3",
+            "digest_text": "CREATE TABLE `m_data_cur` ( `f_mid` VARCHARACTER (?) , `f_pmid` VARCHARACTER (?) , `f_key` VARCHARACTER (?) , `f_val` FLOAT8 , `f_type` INTEGER )",
+            "avg_time": 0.1374,
+            "count": 9
+          },
+          {
+            "service": "uat_o_local",
+            "schema": "idxaudit_test",
+            "digest_text": "CREATE TABLE `t_prefix` ( `id` INTEGER PRIMARY KEY , `a` INTEGER , `b` INTEGER , KEY `ka` ( `a` ) , KEY `kab` ( `a` , `b` ) )",
+            "avg_time": 0.1356,
+            "count": 9
+          },
+          {
+            "service": "uat_o_local",
+            "schema": "idxaudit_test",
+            "digest_text": "CREATE TABLE `t_dup` ( `id` INTEGER PRIMARY KEY , `a` INTEGER , KEY `k1` ( `a` ) , KEY `k2` ( `a` ) )",
+            "avg_time": 0.1308,
+            "count": 9
+          },
+          {
+            "service": "uat_o_local",
+            "schema": "bank_enrich",
+            "digest_text": "CREATE TABLE `t_txn` ( `id` INTEGER PRIMARY KEY , `acct` VARCHARACTER (?) , `amount` DECIMAL (...) , `remark` VARCHARACTER (?) , KEY `idx_acct` ( `acct` ) )",
+            "avg_time": 0.1248,
+            "count": 9
+          },
+          {
+            "service": "uat_o_local",
+            "schema": "sdiff_prod",
+            "digest_text": "CREATE TABLE `t` ( `id` INTEGER PRIMARY KEY , NAME VARCHARACTER (?) , KEY `idx_name` ( NAME ) )",
+            "avg_time": 0.1144,
+            "count": 9
+          },
+          {
+            "service": "uat_o_local",
+            "schema": "idxaudit_test",
+            "digest_text": "CREATE TABLE `t_lowsel` ( `id` INTEGER PRIMARY KEY , STATUS INTEGER , KEY `ks` ( STATUS ) )",
+            "avg_time": 0.1035,
+            "count": 9
+          }
+        ]
+      },
+      "gateway": {
+        "data_status": "ok",
+        "source_file": "uat_gateway_interf.txt",
+        "summary": {
+          "total_requests": 2,
+          "daily_count": 1,
+          "error_count": null
+        },
+        "daily_stats": [
+          {
+            "date": "2026-08-28",
+            "count": 2
+          }
+        ],
+        "timecost_distribution": {
+          "<阈值": 1,
+          ">=阈值(慢)": 1
+        },
+        "error_codes": {},
+        "reports": [
+          {
+            "id": 1,
+            "log_file_name": "uat_gateway_interf.txt",
+            "analysis_time": "2026-08-28T23:56:43",
+            "total_queries": 2,
+            "slow_queries": 1,
+            "max_time_ms": 1500.2,
+            "avg_time_ms": 756.35
+          }
+        ]
+      }
+    }
+  },
+  {
+    "endpoint": "/api/v1/gateway-log/reports?connection_id=uat_o_local",
+    "status": 200,
+    "body": [
+      {
+        "id": 1,
+        "connection_id": "uat_o_local",
+        "log_file_name": "uat_gateway_interf.txt",
+        "log_type": "interf",
+        "total_queries": 2,
+        "slow_queries": 1,
+        "max_time_ms": 1500.2,
+        "avg_time_ms": 756.35,
+        "created_at": "2026-08-28T23:56:43"
+      }
+    ]
+  },
+  {
+    "gateway_report_id": 1,
+    "html_chars": 34250,
+    "has_h1": true
+  },
+  {
+    "endpoint": "/api/v1/audit/file-reports",
+    "status": 200,
+    "body": {
+      "items": [
+        {
+          "id": 673,
+          "source": "uat_mybatis.xml",
+          "total_sql": 3,
+          "passed": 1,
+          "failed": 2,
+          "error_count": 3,
+          "warning_count": 2,
+          "pass_rate": 33.33,
+          "created_by": "admin",
+          "created_at": "2026-08-29T00:04:31",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 672,
+          "source": "uat_core_rule_corpus.sql",
+          "total_sql": 100,
+          "passed": 2,
+          "failed": 98,
+          "error_count": 124,
+          "warning_count": 63,
+          "pass_rate": 2.0,
+          "created_by": "admin",
+          "created_at": "2026-08-29T00:04:20",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 671,
+          "source": "uat_r3_load_xml_guard.sql",
+          "total_sql": 1,
+          "passed": 1,
+          "failed": 0,
+          "error_count": 0,
+          "warning_count": 0,
+          "pass_rate": 100.0,
+          "created_by": "admin",
+          "created_at": "2026-08-29T00:03:54",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 651,
+          "source": "uat_o_load_guard.sql",
+          "total_sql": 0,
+          "passed": 0,
+          "failed": 0,
+          "error_count": 0,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T23:57:29",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 642,
+          "source": "uat_o_load_guard.sql",
+          "total_sql": 1,
+          "passed": 1,
+          "failed": 0,
+          "error_count": 0,
+          "warning_count": 0,
+          "pass_rate": 100.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T23:57:29",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 644,
+          "source": "uat_o_load_guard.sql",
+          "total_sql": 1,
+          "passed": 0,
+          "failed": 1,
+          "error_count": 2,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T23:57:29",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 645,
+          "source": "uat_o_load_guard.sql",
+          "total_sql": 1,
+          "passed": 0,
+          "failed": 1,
+          "error_count": 2,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T23:57:29",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 647,
+          "source": "uat_o_load_guard.sql",
+          "total_sql": 1,
+          "passed": 0,
+          "failed": 1,
+          "error_count": 1,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T23:57:29",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 648,
+          "source": "uat_o_load_guard.sql",
+          "total_sql": 1,
+          "passed": 0,
+          "failed": 1,
+          "error_count": 1,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T23:57:29",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 650,
+          "source": "uat_o_load_guard.sql",
+          "total_sql": 0,
+          "passed": 0,
+          "failed": 0,
+          "error_count": 0,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T23:57:29",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 653,
+          "source": "uat_o_load_guard.sql",
+          "total_sql": 1,
+          "passed": 0,
+          "failed": 1,
+          "error_count": 1,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T23:57:29",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 654,
+          "source": "uat_o_load_guard.sql",
+          "total_sql": 1,
+          "passed": 0,
+          "failed": 1,
+          "error_count": 1,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T23:57:29",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 656,
+          "source": "uat_o_load_guard.sql",
+          "total_sql": 1,
+          "passed": 0,
+          "failed": 1,
+          "error_count": 2,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T23:57:29",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 657,
+          "source": "uat_o_load_guard.sql",
+          "total_sql": 1,
+          "passed": 0,
+          "failed": 1,
+          "error_count": 2,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T23:57:29",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 659,
+          "source": "uat_o_load_guard.sql",
+          "total_sql": 1,
+          "passed": 0,
+          "failed": 1,
+          "error_count": 1,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T23:57:29",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 660,
+          "source": "uat_o_load_guard.sql",
+          "total_sql": 1,
+          "passed": 0,
+          "failed": 1,
+          "error_count": 1,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T23:57:29",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 662,
+          "source": "uat_o_load_guard.sql",
+          "total_sql": 1,
+          "passed": 0,
+          "failed": 1,
+          "error_count": 1,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T23:57:29",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 663,
+          "source": "uat_o_load_guard.sql",
+          "total_sql": 1,
+          "passed": 0,
+          "failed": 1,
+          "error_count": 1,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T23:57:29",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 632,
+          "source": "uat_o_load_guard.sql",
+          "total_sql": 1,
+          "passed": 0,
+          "failed": 1,
+          "error_count": 1,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T23:57:28",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 641,
+          "source": "uat_o_load_guard.sql",
+          "total_sql": 1,
+          "passed": 1,
+          "failed": 0,
+          "error_count": 0,
+          "warning_count": 0,
+          "pass_rate": 100.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T23:57:28",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 639,
+          "source": "uat_o_load_guard.sql",
+          "total_sql": 1,
+          "passed": 0,
+          "failed": 1,
+          "error_count": 1,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T23:57:28",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 638,
+          "source": "uat_o_load_guard.sql",
+          "total_sql": 1,
+          "passed": 0,
+          "failed": 1,
+          "error_count": 1,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T23:57:28",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 636,
+          "source": "uat_o_load_guard.sql",
+          "total_sql": 1,
+          "passed": 0,
+          "failed": 1,
+          "error_count": 1,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T23:57:28",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 635,
+          "source": "uat_o_load_guard.sql",
+          "total_sql": 1,
+          "passed": 0,
+          "failed": 1,
+          "error_count": 1,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T23:57:28",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 633,
+          "source": "uat_o_load_guard.sql",
+          "total_sql": 1,
+          "passed": 0,
+          "failed": 1,
+          "error_count": 1,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T23:57:28",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 630,
+          "source": "uat_o_load_guard.sql",
+          "total_sql": 1,
+          "passed": 0,
+          "failed": 1,
+          "error_count": 1,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T23:57:28",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 606,
+          "source": "uat_o_load_guard.sql",
+          "total_sql": 1,
+          "passed": 0,
+          "failed": 1,
+          "error_count": 1,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T23:57:28",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 608,
+          "source": "uat_o_load_guard.sql",
+          "total_sql": 1,
+          "passed": 0,
+          "failed": 1,
+          "error_count": 2,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T23:57:28",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 609,
+          "source": "uat_o_load_guard.sql",
+          "total_sql": 1,
+          "passed": 0,
+          "failed": 1,
+          "error_count": 2,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T23:57:28",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 611,
+          "source": "uat_o_load_guard.sql",
+          "total_sql": 1,
+          "passed": 0,
+          "failed": 1,
+          "error_count": 1,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T23:57:28",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 612,
+          "source": "uat_o_load_guard.sql",
+          "total_sql": 1,
+          "passed": 0,
+          "failed": 1,
+          "error_count": 1,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T23:57:28",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 614,
+          "source": "uat_o_load_guard.sql",
+          "total_sql": 1,
+          "passed": 0,
+          "failed": 1,
+          "error_count": 3,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T23:57:28",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 615,
+          "source": "uat_o_load_guard.sql",
+          "total_sql": 1,
+          "passed": 0,
+          "failed": 1,
+          "error_count": 3,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T23:57:28",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 617,
+          "source": "uat_o_load_guard.sql",
+          "total_sql": 1,
+          "passed": 0,
+          "failed": 1,
+          "error_count": 1,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T23:57:28",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 618,
+          "source": "uat_o_load_guard.sql",
+          "total_sql": 1,
+          "passed": 0,
+          "failed": 1,
+          "error_count": 1,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T23:57:28",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 620,
+          "source": "uat_o_load_guard.sql",
+          "total_sql": 0,
+          "passed": 0,
+          "failed": 0,
+          "error_count": 0,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T23:57:28",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 621,
+          "source": "uat_o_load_guard.sql",
+          "total_sql": 0,
+          "passed": 0,
+          "failed": 0,
+          "error_count": 0,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T23:57:28",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 623,
+          "source": "uat_o_load_guard.sql",
+          "total_sql": 1,
+          "passed": 0,
+          "failed": 1,
+          "error_count": 1,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T23:57:28",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 624,
+          "source": "uat_o_load_guard.sql",
+          "total_sql": 1,
+          "passed": 0,
+          "failed": 1,
+          "error_count": 1,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T23:57:28",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 626,
+          "source": "uat_o_load_guard.sql",
+          "total_sql": 1,
+          "passed": 0,
+          "failed": 1,
+          "error_count": 2,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T23:57:28",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 627,
+          "source": "uat_o_load_guard.sql",
+          "total_sql": 1,
+          "passed": 0,
+          "failed": 1,
+          "error_count": 2,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T23:57:28",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 629,
+          "source": "uat_o_load_guard.sql",
+          "total_sql": 1,
+          "passed": 0,
+          "failed": 1,
+          "error_count": 1,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T23:57:28",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 605,
+          "source": "uat_o_load_guard.sql",
+          "total_sql": 1,
+          "passed": 0,
+          "failed": 1,
+          "error_count": 1,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T23:57:27",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 598,
+          "source": "uat_r3_guard.sql",
+          "total_sql": 1,
+          "passed": 0,
+          "failed": 1,
+          "error_count": 1,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T23:55:00",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 603,
+          "source": "uat_r3_guard.sql",
+          "total_sql": 1,
+          "passed": 0,
+          "failed": 1,
+          "error_count": 5,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T23:55:00",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 602,
+          "source": "uat_r3_guard.sql",
+          "total_sql": 1,
+          "passed": 0,
+          "failed": 1,
+          "error_count": 5,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T23:55:00",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 601,
+          "source": "uat_r3_guard.sql",
+          "total_sql": 1,
+          "passed": 0,
+          "failed": 1,
+          "error_count": 5,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T23:55:00",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 600,
+          "source": "uat_r3_guard.sql",
+          "total_sql": 1,
+          "passed": 0,
+          "failed": 1,
+          "error_count": 5,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T23:55:00",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 599,
+          "source": "uat_r3_guard.sql",
+          "total_sql": 1,
+          "passed": 0,
+          "failed": 1,
+          "error_count": 1,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T23:55:00",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        }
+      ],
+      "total": 49
+    }
+  },
+  {
+    "file_report_id": 673,
+    "html_export_status": 200,
+    "bytes": 6299
+  },
+  {
+    "file_report_id": 672,
+    "html_export_status": 200,
+    "bytes": 109900
+  },
+  {
+    "file_report_id": 671,
+    "html_export_status": 200,
+    "bytes": 4728
+  },
+  {
+    "endpoint": "/api/v1/audit/extracted-reports",
+    "status": 200,
+    "body": {
+      "total": 1,
+      "reports": [
+        {
+          "id": 674,
+          "audit_type": "extracted_schema",
+          "source": "extracted_tdsql_uat_o_target_1622_20260829_000518.sql",
+          "total_sql": 2,
+          "passed": 0,
+          "failed": 2,
+          "error_count": 0,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-29T00:05:19",
+          "connection_id": "uat_o_local",
+          "db_name": "tdsql_uat_o_target_1622",
+          "connection_name": "UAT-O 本地集中式样本",
+          "instance_type": "centralized",
+          "instance_type_source": "declared",
+          "skipped_rules_count": 27
+        }
+      ]
+    }
+  },
+  {
+    "endpoint": "/api/v1/cluster-inspect/run",
+    "status": 400,
+    "body": {
+      "detail": "monitordb(15001)不可用: (2003, \"Can't connect to MySQL server on '127.0.0.1' ([WinError 10061] 由于目标计算机积极拒绝，无法连接。)\")"
+    }
+  },
+  {
+    "endpoint": "/api/v1/sql-stats/analyze",
+    "status": 400,
+    "body": {
+      "detail": "monitordb不可用"
+    }
+  },
+  {
+    "pdf_status": 200,
+    "bytes": 6327,
+    "is_pdf": true
+  }
+]

@@ -1,0 +1,38 @@
+[
+  {
+    "file": "actual_duplicate_index.pdf",
+    "pages": 1,
+    "bytes": 3773,
+    "text_chars": 376,
+    "has_gateway_record": false,
+    "has_false_excellent": true,
+    "unassessed": false
+  },
+  {
+    "file": "initial_uat_o_local.pdf",
+    "pages": 1,
+    "bytes": 4393,
+    "text_chars": 564,
+    "has_gateway_record": true,
+    "has_false_excellent": true,
+    "unassessed": false
+  },
+  {
+    "file": "initial_uat_o_offline.pdf",
+    "pages": 1,
+    "bytes": 3785,
+    "text_chars": 378,
+    "has_gateway_record": false,
+    "has_false_excellent": true,
+    "unassessed": true
+  },
+  {
+    "file": "ops_report.pdf",
+    "pages": 2,
+    "bytes": 6327,
+    "text_chars": 1558,
+    "has_gateway_record": true,
+    "has_false_excellent": true,
+    "unassessed": false
+  }
+]

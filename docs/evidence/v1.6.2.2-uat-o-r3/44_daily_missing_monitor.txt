@@ -1,0 +1,100 @@
+- banner:
+  - img "logo"
+  - generic: TDSQL数据库SQL审核工具
+  - button "U UAT-O 管理员 系统管理员":
+    - generic: U
+    - generic: UAT-O 管理员
+    - generic: 系统管理员
+- complementary:
+  - menubar:
+    - menuitem "治理概览":
+      - generic: 治理概览
+    - menuitem "SQL审核":
+      - generic: SQL审核
+    - menuitem "慢SQL治理":
+      - generic: 慢SQL治理
+    - menuitem "实例体检":
+      - generic: 实例体检
+    - menuitem "深度诊断":
+      - generic: 深度诊断
+    - menuitem "平台治理":
+      - generic: 平台治理
+    - menuitem "系统管理":
+      - generic: 系统管理
+- navigation "面包屑"
+- generic: 深度诊断
+- combobox
+- generic: UAT-O 本地集中式样本 (127.0.0.1:13306)
+- generic: 吸收 TDSQL 原厂工具能力：集群诊断 / 索引体检 / 结构比对 / 应急诊断 / SQL分析。深检绩效观 monitordb(15001)：只需操作。
+- tablist:
+  - tab "集群巡检"
+  - tab "日常巡检与对比报告" [selected]
+  - tab "索引体检"
+  - tab "结构比对"
+  - tab "应急诊断"
+  - tab "SQL分析"
+  - tab "网关日志分析"
+  - tab "PDF报告与大屏"
+  - tab "运维工具箱"
+- tabpanel "日常巡检与对比报告":
+  - textbox "开始日期": 2026-08-28
+  - generic: 至
+  - textbox "结束日期": 2026-08-29
+  - generic: "波动阈值倍数:"
+  - button "el.inputNumber.decrease":
+  - button "el.inputNumber.increase":
+  - spinbutton: "1.0"
+  - button "手动采集巡检数据":
+    - generic: 手动采集巡检数据
+  - button "开始差异比对":
+    - generic: 开始差异比对
+  - button "导出 HTML 对比大屏":
+    - generic: 导出 HTML 对比大屏
+  - generic: 指标多日历史趋势
+  - combobox
+  - generic: CPU 峰值
+  - combobox
+  - generic: 请选择
+  - tablist:
+    - tab "实例级指标比对" [selected]
+    - tab "服务器级别比对"
+  - tabpanel "实例级指标比对":
+    - combobox
+    - generic: 全部节点/分片
+    - textbox "搜索节点或指标..."
+    - checkbox "仅显示波动异常项 (⚠️)"
+    - generic: 仅显示波动异常项 (⚠️)
+    - table:
+      - rowgroup:
+        - row "节点/分片 巡检指标项 前期值 后期值 变动量 变动率 波动标记":
+          - columnheader "节点/分片":
+            - generic: 节点/分片
+          - columnheader "巡检指标项":
+            - generic: 巡检指标项
+          - columnheader "前期值":
+            - generic: 前期值
+          - columnheader "后期值":
+            - generic: 后期值
+          - columnheader "变动量":
+            - generic: 变动量
+          - columnheader "变动率":
+            - generic: 变动率
+          - columnheader "波动标记":
+            - generic: 波动标记
+    - table:
+      - rowgroup
+    - generic: 暂无数据
+    - generic: 共 0 条
+    - combobox
+    - generic: 15条/页
+    - button "上一页" [disabled]:
+    - list:
+      - listitem "第 1 页": "1"
+    - button "下一页" [disabled]:
+    - generic: 前往
+    - spinbutton "页": "1"
+    - generic: 页
+- alert:
+  - paragraph: 手动巡检数据采集已完成，正在生成比对分析大屏...
+- alert:
+  - paragraph: 差异比对完成

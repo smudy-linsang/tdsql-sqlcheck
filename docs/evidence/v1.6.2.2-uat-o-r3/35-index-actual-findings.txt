@@ -1,0 +1,138 @@
+- banner:
+  - img "logo"
+  - generic: TDSQL数据库SQL审核工具
+  - button "U UAT-O 管理员 系统管理员":
+    - generic: U
+    - generic: UAT-O 管理员
+    - generic: 系统管理员
+- complementary:
+  - menubar:
+    - menuitem "治理概览":
+      - generic: 治理概览
+    - menuitem "SQL审核":
+      - generic: SQL审核
+    - menuitem "慢SQL治理":
+      - generic: 慢SQL治理
+    - menuitem "实例体检":
+      - generic: 实例体检
+    - menuitem "深度诊断":
+      - generic: 深度诊断
+    - menuitem "平台治理":
+      - generic: 平台治理
+    - menuitem "系统管理":
+      - generic: 系统管理
+- navigation "面包屑"
+- generic: 深度诊断
+- combobox
+- generic: UAT-O-R3 索引重复样本 (127.0.0.1:13306)
+- generic: 吸收 TDSQL 原厂工具能力：集群诊断 / 索引体检 / 结构比对 / 应急诊断 / SQL分析。深检绩效观 monitordb(15001)：只需操作。
+- tablist:
+  - tab "集群巡检"
+  - tab "日常巡检与对比报告"
+  - tab "索引体检" [selected]
+  - tab "结构比对"
+  - tab "应急诊断"
+  - tab "SQL分析"
+  - tab "网关日志分析"
+  - tab "PDF报告与大屏"
+  - tab "运维工具箱"
+- tabpanel "索引体检":
+  - textbox "库名(空=全部业务库)": tdsql_uat_o_r3_index_target
+  - button "发起索引体检":
+    - generic: 发起索引体检
+  - generic: 表 1 / 索引 4 · ERROR 0 · WARNING 3
+  - table:
+    - rowgroup:
+      - row "等级 类型 库 表 详情 建议":
+        - columnheader "等级":
+          - generic: 等级
+        - columnheader "类型":
+          - generic: 类型
+        - columnheader "库":
+          - generic: 库
+        - columnheader "表":
+          - generic: 表
+        - columnheader "详情":
+          - generic: 详情
+        - columnheader "建议":
+          - generic: 建议
+  - table:
+    - rowgroup:
+      - row "WARNING 重复索引 tdsql_uat_o_r3_index_target t_uat_index 索引 idx_code 与 idx_code_copy 列完全相同(code) 删除其一（保留唯一性更强者）":
+        - cell "WARNING":
+          - generic: WARNING
+        - cell "重复索引":
+          - generic: 重复索引
+        - cell "tdsql_uat_o_r3_index_target":
+          - generic: tdsql_uat_o_r3_index_target
+        - cell "t_uat_index":
+          - generic: t_uat_index
+        - cell "索引 idx_code 与 idx_code_copy 列完全相同(code)":
+          - generic: 索引 idx_code 与 idx_code_copy 列完全相同(code)
+        - cell "删除其一（保留唯一性更强者）":
+          - generic: 删除其一（保留唯一性更强者）
+      - row "WARNING 前缀冗余索引 tdsql_uat_o_r3_index_target t_uat_index 索引 idx_code(code) 是 idx_code_id(code,id) 的前缀 可由 idx_code_id 覆盖，评估删除 idx_code":
+        - cell "WARNING":
+          - generic: WARNING
+        - cell "前缀冗余索引":
+          - generic: 前缀冗余索引
+        - cell "tdsql_uat_o_r3_index_target":
+          - generic: tdsql_uat_o_r3_index_target
+        - cell "t_uat_index":
+          - generic: t_uat_index
+        - cell "索引 idx_code(code) 是 idx_code_id(code,id) 的前缀":
+          - generic: 索引 idx_code(code) 是 idx_code_id(code,id) 的前缀
+        - cell "可由 idx_code_id 覆盖，评估删除 idx_code":
+          - generic: 可由 idx_code_id 覆盖，评估删除 idx_code
+      - row "WARNING 前缀冗余索引 tdsql_uat_o_r3_index_target t_uat_index 索引 idx_code_copy(code) 是 idx_code_id(code,id) 的前缀 可由 idx_code_id 覆盖，评估删除 idx_code_copy":
+        - cell "WARNING":
+          - generic: WARNING
+        - cell "前缀冗余索引":
+          - generic: 前缀冗余索引
+        - cell "tdsql_uat_o_r3_index_target":
+          - generic: tdsql_uat_o_r3_index_target
+        - cell "t_uat_index":
+          - generic: t_uat_index
+        - cell "索引 idx_code_copy(code) 是 idx_code_id(code,id) 的前缀":
+          - generic: 索引 idx_code_copy(code) 是 idx_code_id(code,id) 的前缀
+        - cell "可由 idx_code_id 覆盖，评估删除 idx_code_copy":
+          - generic: 可由 idx_code_id 覆盖，评估删除 idx_code_copy
+      - row "INFO 未使用索引 tdsql_uat_o_r3_index_target t_uat_index 索引 idx_code 自监控以来读取次数为0 确认后评估删除(注意运行时长)":
+        - cell "INFO":
+          - generic: INFO
+        - cell "未使用索引":
+          - generic: 未使用索引
+        - cell "tdsql_uat_o_r3_index_target":
+          - generic: tdsql_uat_o_r3_index_target
+        - cell "t_uat_index":
+          - generic: t_uat_index
+        - cell "索引 idx_code 自监控以来读取次数为0":
+          - generic: 索引 idx_code 自监控以来读取次数为0
+        - cell "确认后评估删除(注意运行时长)":
+          - generic: 确认后评估删除(注意运行时长)
+      - row "INFO 未使用索引 tdsql_uat_o_r3_index_target t_uat_index 索引 idx_code_copy 自监控以来读取次数为0 确认后评估删除(注意运行时长)":
+        - cell "INFO":
+          - generic: INFO
+        - cell "未使用索引":
+          - generic: 未使用索引
+        - cell "tdsql_uat_o_r3_index_target":
+          - generic: tdsql_uat_o_r3_index_target
+        - cell "t_uat_index":
+          - generic: t_uat_index
+        - cell "索引 idx_code_copy 自监控以来读取次数为0":
+          - generic: 索引 idx_code_copy 自监控以来读取次数为0
+        - cell "确认后评估删除(注意运行时长)":
+          - generic: 确认后评估删除(注意运行时长)
+      - row "INFO 未使用索引 tdsql_uat_o_r3_index_target t_uat_index 索引 idx_code_id 自监控以来读取次数为0 确认后评估删除(注意运行时长)":
+        - cell "INFO":
+          - generic: INFO
+        - cell "未使用索引":
+          - generic: 未使用索引
+        - cell "tdsql_uat_o_r3_index_target":
+          - generic: tdsql_uat_o_r3_index_target
+        - cell "t_uat_index":
+          - generic: t_uat_index
+        - cell "索引 idx_code_id 自监控以来读取次数为0":
+          - generic: 索引 idx_code_id 自监控以来读取次数为0
+        - cell "确认后评估删除(注意运行时长)":
+          - generic: 确认后评估删除(注意运行时长)

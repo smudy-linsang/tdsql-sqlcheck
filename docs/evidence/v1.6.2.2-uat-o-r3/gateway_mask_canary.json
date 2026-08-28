@@ -1,0 +1,14 @@
+{
+  "data_masking_enabled": true,
+  "status": 200,
+  "body": {
+    "status": "success",
+    "report_id": 6,
+    "total_queries": 1,
+    "slow_queries": 1,
+    "max_time_ms": 1500.2,
+    "avg_time_ms": 1500.2
+  },
+  "canary_occurrences_in_persisted_html": 2,
+  "has_masked_fingerprint": true
+}

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TDSQL SQL审核报告 - uat_mybatis.xml</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:"Microsoft YaHei","Segoe UI",Arial,sans-serif; background:#f0f2f5; color:#303030; padding:20px; }
+.container { max-width:900px; margin:0 auto; background:#fff; border-radius:8px; box-shadow:0 2px 12px rgba(0,0,0,0.08); overflow:hidden; }
+.header { background:#1a1a2e; color:#fff; padding:24px 32px; }
+.header h1 { font-size:22px; margin-bottom:6px; }
+.header .sub { font-size:13px; color:#a0aec0; }
+.meta { display:flex; flex-wrap:wrap; gap:24px; padding:20px 32px; background:#f7f8fa; border-bottom:1px solid #ebeef5; }
+.meta-item { font-size:14px; }
+.meta-item .label { color:#909399; margin-right:6px; }
+.meta-item .value { font-weight:600; }
+.summary { display:flex; gap:16px; padding:24px 32px; flex-wrap:wrap; }
+.sc { flex:1; min-width:100px; text-align:center; padding:16px; border-radius:6px; }
+.sc.total { background:#e8f4fd; } .sc.pass { background:#e8f7e8; } .sc.fail { background:#fde8e8; }
+.sc.rate.pass { background:#e8f7e8; } .sc.rate.warn { background:#fdf6e8; } .sc.rate.fail { background:#fde8e8; }
+.sc .num { font-size:28px; font-weight:700; } .sc .lbl { font-size:12px; color:#606266; margin-top:4px; }
+.stitle { padding:16px 32px 8px; font-size:16px; font-weight:600; border-top:1px solid #ebeef5; }
+.sql-item { margin:0 32px 16px; padding:16px; border:1px solid #ebeef5; border-radius:6px; }
+.sql-item .sh { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+.sql-text { font-family:Consolas,Courier New,monospace; font-size:13px; background:#f5f7fa; padding:8px 12px; border-radius:4px; margin:8px 0; white-space:pre-wrap; word-break:break-all; }
+.badge { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600; }
+.badge.ERROR { background:#fde8e8; color:#f56c6c; } .badge.WARNING { background:#fdf6e8; color:#e6a23c; } .badge.INFO { background:#f4f4f5; color:#909399; } .badge.PASS { background:#e8f7e8; color:#67c23a; }
+.viol { margin:6px 0; padding:8px 12px; border-left:3px solid #909399; background:#f4f4f5; border-radius:0 4px 4px 0; font-size:13px; }
+.viol.error { border-left-color:#f56c6c; background:#fef0f0; }
+.viol.warn { border-left-color:#e6a23c; background:#fdf6ec; }
+.viol.info { border-left-color:#909399; background:#f4f4f5; }
+.viol .vr { font-weight:600; color:#303133; }
+.viol.error .vr { color:#f56c6c; }
+.viol.warn .vr { color:#e6a23c; }
+.viol.info .vr { color:#606266; }
+.viol .vm { color:#606266; margin:2px 0; } .viol .vs { color:#67c23a; font-size:12px; }
+.footer { padding:16px 32px; text-align:center; font-size:12px; color:#909399; border-top:1px solid #ebeef5; }
+.no-data { padding:32px; text-align:center; color:#909399; }
+</style></head><body>
+<div class="container">
+<div class="header"><h1>TDSQL SQL审核平台 - 文件审核报告</h1><div class="sub">TDSQL SQL Audit Platform / File Audit Report</div></div>
+<div class="meta">
+<div class="meta-item"><span class="label">审核人:</span><span class="value">admin</span></div>
+<div class="meta-item"><span class="label">文件名:</span><span class="value">uat_mybatis.xml</span></div>
+<div class="meta-item"><span class="label">规则架构:</span><span class="value" style="color:#2563eb">分布式规则</span></div>
+<div class="meta-item"><span class="label">审核时间:</span><span class="value">2026-08-29 00:04:31</span></div>
+<div class="meta-item"><span class="label">报告ID:</span><span class="value">#673</span></div>
+</div>
+<div class="summary">
+<div class="sc total"><div class="num">3</div><div class="lbl">SQL总数</div></div>
+<div class="sc pass"><div class="num">1</div><div class="lbl">通过</div></div>
+<div class="sc fail"><div class="num">2</div><div class="lbl">未通过</div></div>
+<div class="sc rate fail"><div class="num">33.3%</div><div class="lbl">通过率</div></div>
+<div class="sc total"><div class="num" style="color:#f56c6c">3</div><div class="lbl">ERROR</div></div>
+<div class="sc total"><div class="num" style="color:#e6a23c">2</div><div class="lbl">WARNING</div></div>
+</div>
+<div class="stitle">逐条审核结果（共 3 条）</div>
+<div class="sql-item"><div class="sh"><span><strong>#1</strong> SELECT | 行号: 3</span><span class="badge PASS">通过</span></div><div class="sql-text">SELECT id FROM t_uat_order WHERE id = ?</div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#2</strong> DELETE | 行号: 4</span><span class="badge ERROR">4项违规</span></div><div class="sql-text">DELETE FROM t_uat_order</div>
+<div class="viol error"><div class="vr">[R013] ERROR</div><div class="vm">禁止不带 WHERE 条件的 DELETE 操作，可能导致全表数据变更</div><div class="vs">建议: 请添加 WHERE 条件限定影响范围</div></div>
+<div class="viol error"><div class="vr">[R014] ERROR</div><div class="vm">危险操作: 不带 WHERE 的 DELETE 将影响整张表</div><div class="vs">建议: 请添加 WHERE 条件，或使用 LIMIT 限制影响行数</div></div>
+<div class="viol warn"><div class="vr">[R047] WARNING</div><div class="vm">全表DELETE建议改为TRUNCATE TABLE，效率更高且释放空间</div><div class="vs">建议: 请使用 TRUNCATE TABLE table_name 替代 DELETE FROM table_name</div></div>
+<div class="viol warn"><div class="vr">[R070] WARNING</div><div class="vm">无WHERE条件的UPDATE/DELETE在大事务中会锁定大量行，请分批操作</div><div class="vs">建议: 大批量操作请分批提交，每批≤10000行</div></div>
+</div>
+<div class="sql-item"><div class="sh"><span><strong>#3</strong> SELECT | 行号: 5</span><span class="badge ERROR">1项违规</span></div><div class="sql-text">SELECT * FROM t_uat_order WHERE id = ?</div>
+<div class="viol error"><div class="vr">[R012] ERROR</div><div class="vm">禁止使用 SELECT *（涉及表: t_uat_order），应指定具体字段</div><div class="vs">建议: 请明确列出需要的字段，如: SELECT col1, col2, col3 FROM ...</div></div>
+</div>
+<div class="footer">TDSQL SQL审核平台 V2.0 | 报告生成时间: 2026-08-29 00:05:58 | 报告ID: #673</div></div></body></html>

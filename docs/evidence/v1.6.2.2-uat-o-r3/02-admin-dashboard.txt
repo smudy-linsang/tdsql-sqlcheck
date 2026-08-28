@@ -1,0 +1,88 @@
+- banner:
+  - img "logo"
+  - generic: TDSQL数据库SQL审核工具
+  - button "U UAT-O 管理员 系统管理员":
+    - generic: U
+    - generic: UAT-O 管理员
+    - generic: 系统管理员
+- complementary:
+  - menubar:
+    - menuitem "治理概览":
+      - generic: 治理概览
+    - menuitem "SQL审核":
+      - generic: SQL审核
+    - menuitem "慢SQL治理":
+      - generic: 慢SQL治理
+    - menuitem "实例体检":
+      - generic: 实例体检
+    - menuitem "深度诊断":
+      - generic: 深度诊断
+    - menuitem "平台治理":
+      - generic: 平台治理
+    - menuitem "系统管理":
+      - generic: 系统管理
+- navigation "面包屑":
+  - link "工作台"
+  - text: /
+  - link "治理概览"
+- generic: "0"
+- generic: 今日审核
+- generic: 通过 0 / 拦截 0
+- generic: 0.0%
+- generic: 今日通过率
+- generic: ERROR 0 / WARNING 0
+- generic: "1"
+- generic: 待处理慢SQL
+- generic: 严重 1
+- generic: "0"
+- generic: 已优化慢SQL
+- generic: 近7天审核趋势
+- generic: 高频违规规则 TOP5
+- table:
+  - rowgroup:
+    - row "规则ID 级别 描述 命中":
+      - columnheader "规则ID":
+        - generic: 规则ID
+      - columnheader "级别":
+        - generic: 级别
+      - columnheader "描述":
+        - generic: 描述
+      - columnheader "命中":
+        - generic: 命中
+- table:
+  - rowgroup
+- generic: 暂无数据
+- generic: Top3 高耗时慢SQL
+- table:
+  - rowgroup:
+    - row "SQL指纹 平均耗时(ms) 执行次数":
+      - columnheader "SQL指纹":
+        - generic: SQL指纹
+      - columnheader "平均耗时(ms)":
+        - generic: 平均耗时(ms)
+      - columnheader "执行次数":
+        - generic: 执行次数
+- table:
+  - rowgroup:
+    - row "SELECT id FROM t_uat_order WHERE customer_id = ? 1200 10":
+      - cell "SELECT id FROM t_uat_order WHERE customer_id = ?":
+        - generic: SELECT id FROM t_uat_order WHERE customer_id = ?
+      - cell "1200":
+        - generic: "1200"
+      - cell "10":
+        - generic: "10"
+- generic: 今日审核记录
+- table:
+  - rowgroup:
+    - row "来源 SQL数 通过率 时间":
+      - columnheader "来源":
+        - generic: 来源
+      - columnheader "SQL数":
+        - generic: SQL数
+      - columnheader "通过率":
+        - generic: 通过率
+      - columnheader "时间":
+        - generic: 时间
+- table:
+  - rowgroup
+- generic: 暂无数据

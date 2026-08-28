@@ -1,0 +1,323 @@
+- banner:
+  - img "logo"
+  - generic: TDSQL数据库SQL审核工具
+  - button "U UAT-O 管理员 系统管理员":
+    - generic: U
+    - generic: UAT-O 管理员
+    - generic: 系统管理员
+- complementary:
+  - menubar:
+    - menuitem "治理概览":
+      - generic: 治理概览
+    - menuitem "SQL审核":
+      - generic: SQL审核
+    - menuitem "慢SQL治理":
+      - generic: 慢SQL治理
+    - menuitem "实例体检":
+      - generic: 实例体检
+    - menuitem "深度诊断":
+      - generic: 深度诊断
+    - menuitem "平台治理":
+      - generic: 平台治理
+    - menuitem "系统管理":
+      - generic: 系统管理
+- navigation "面包屑"
+- generic: 深度诊断
+- combobox
+- generic: UAT-O 本地集中式样本 (127.0.0.1:13306)
+- generic: 吸收 TDSQL 原厂工具能力：集群诊断 / 索引体检 / 结构比对 / 应急诊断 / SQL分析。深检绩效观 monitordb(15001)：只需操作。
+- tablist:
+  - tab "集群巡检"
+  - tab "日常巡检与对比报告"
+  - tab "索引体检"
+  - tab "结构比对"
+  - tab "应急诊断"
+  - tab "SQL分析"
+  - tab "网关日志分析" [selected]
+  - tab "PDF报告与大屏"
+  - tab "运维工具箱"
+- tabpanel "网关日志分析":
+  - text: 将网关日志文件 (如 interf) 拖到此处，或
+  - emphasis: 点击上传
+  - table:
+    - rowgroup:
+      - row "日志文件名 总请求量 慢请求数 平均时耗(ms) 最大时耗(ms) 分析时间 操作":
+        - columnheader "日志文件名":
+          - generic: 日志文件名
+        - columnheader "总请求量":
+          - generic: 总请求量
+        - columnheader "慢请求数":
+          - generic: 慢请求数
+        - columnheader "平均时耗(ms)":
+          - generic: 平均时耗(ms)
+        - columnheader "最大时耗(ms)":
+          - generic: 最大时耗(ms)
+        - columnheader "分析时间":
+          - generic: 分析时间
+        - columnheader "操作":
+          - generic: 操作
+  - table:
+    - rowgroup:
+      - row "uat_gateway_interf.txt 2 1 756.35 1500.2 2026-08-28T23:56:43 查看报告":
+        - cell "uat_gateway_interf.txt":
+          - generic: uat_gateway_interf.txt
+        - cell "2":
+          - generic: "2"
+        - cell "1":
+          - generic: "1"
+        - cell "756.35":
+          - generic: "756.35"
+        - cell "1500.2":
+          - generic: "1500.2"
+        - cell "2026-08-28T23:56:43":
+          - generic: 2026-08-28T23:56:43
+        - cell "查看报告":
+          - button "查看报告":
+            - generic: 查看报告
+- dialog "网关日志分析报告":
+  - banner:
+    - heading "网关日志分析报告" [level=2]
+    - button "el.drawer.close":
+  - iframe [active]:
+    - heading "TDSQL Gateway 日志分析报告 - C:\\Users\\linsa\\AppData\\Local\\Temp\\tdsql_log_analysis_4s958z7m" [level=1]
+    - paragraph: "生成时间: 2026-08-28 23:56:43"
+    - heading "一、日志概览 ▾" [level=2]
+    - generic: 日期跨度
+    - generic: 1 天
+    - generic: 2026-08-28 ~ 2026-08-28
+    - generic: 文件总数
+    - generic: "1"
+    - generic: 总大小
+    - generic: 330.0B
+    - table:
+      - rowgroup:
+        - row "日志类型 说明 文件数 大小 端口":
+          - columnheader "日志类型"
+          - columnheader "说明"
+          - columnheader "文件数"
+          - columnheader "大小"
+          - columnheader "端口"
+        - row "interf_instance SQL接口层日志 1 330.0B 13306":
+          - cell "interf_instance":
+            - code: interf_instance
+          - cell "SQL接口层日志"
+          - cell "1"
+          - cell "330.0B"
+          - cell "13306"
+    - heading "二、每日请求量趋势 ▾" [level=2]
+    - table:
+      - rowgroup:
+        - row "日期 请求量 平均耗时(ms) 趋势":
+          - columnheader "日期"
+          - columnheader "请求量"
+          - columnheader "平均耗时(ms)"
+          - columnheader "趋势"
+        - row "2026-08-28 2 756.350":
+          - cell "2026-08-28"
+          - cell "2"
+          - cell "756.350"
+          - cell
+    - heading "三、每小时请求量分布 ▾" [level=2]
+    - table:
+      - rowgroup:
+        - row "时间 请求量 分布":
+          - columnheader "时间"
+          - columnheader "请求量"
+          - columnheader "分布"
+        - row "2026-08-28 09 2":
+          - cell "2026-08-28 09"
+          - cell "2"
+          - cell
+    - heading "最繁忙的分钟 Top 10" [level=3]
+    - table:
+      - rowgroup:
+        - row "时间(分钟) 请求量":
+          - columnheader "时间(分钟)"
+          - columnheader "请求量"
+        - row "2026-08-28 09:00 2":
+          - cell "2026-08-28 09:00"
+          - cell "2"
+    - heading "四、SQL 耗时分布 ▾" [level=2]
+    - table:
+      - rowgroup:
+        - row "耗时区间 数量 占比 分布":
+          - columnheader "耗时区间"
+          - columnheader "数量"
+          - columnheader "占比"
+          - columnheader "分布"
+        - row "<1ms 0 0.0%":
+          - cell "<1ms"
+          - cell "0"
+          - cell "0.0%"
+          - cell
+        - row "1-5ms 0 0.0%":
+          - cell "1-5ms"
+          - cell "0"
+          - cell "0.0%"
+          - cell
+        - row "5-10ms 0 0.0%":
+          - cell "5-10ms"
+          - cell "0"
+          - cell "0.0%"
+          - cell
+        - row "10-50ms 1 50.0%":
+          - cell "10-50ms"
+          - cell "1"
+          - cell "50.0%"
+          - cell
+        - row "50-100ms 0 0.0%":
+          - cell "50-100ms"
+          - cell "0"
+          - cell "0.0%"
+          - cell
+        - row "100-500ms 0 0.0%":
+          - cell "100-500ms"
+          - cell "0"
+          - cell "0.0%"
+          - cell
+        - row "500ms-1s 0 0.0%":
+          - cell "500ms-1s"
+          - cell "0"
+          - cell "0.0%"
+          - cell
+        - row "1-3s 1 50.0%":
+          - cell "1-3s"
+          - cell "1"
+          - cell "50.0%"
+          - cell
+        - row "3-10s 0 0.0%":
+          - cell "3-10s"
+          - cell "0"
+          - cell "0.0%"
+          - cell
+        - row ">10s 0 0.0%":
+          - cell ">10s"
+          - cell "0"
+          - cell "0.0%"
+          - cell
+    - heading "五、高耗时 SQL Top 20 ▾" [level=2]
+    - table:
+      - rowgroup:
+        - row "# 耗时(ms) 数据库 SQL 时间":
+          - columnheader "#"
+          - columnheader "耗时(ms)"
+          - columnheader "数据库"
+          - columnheader "SQL"
+          - columnheader "时间"
+        - row "1 1500.2 tdsql_uat_o_target_1622 select id from t_uat_order where customer_id=2 2026-08-28 09:00:02":
+          - cell "1"
+          - cell "1500.2"
+          - cell "tdsql_uat_o_target_1622"
+          - cell "select id from t_uat_order where customer_id=2":
+            - code: select id from t_uat_order where customer_id=2
+          - cell "2026-08-28 09:00:02"
+    - heading "六、高频 SQL 模式 Top 20 ▾" [level=2]
+    - table:
+      - rowgroup:
+        - row "# 次数 数据库 SQL模式":
+          - columnheader "#"
+          - columnheader "次数"
+          - columnheader "数据库"
+          - columnheader "SQL模式"
+        - row "1 1 tdsql_uat_o_target_1622 select id from t_uat_customer where id=?":
+          - cell "1"
+          - cell "1"
+          - cell "tdsql_uat_o_target_1622"
+          - cell "select id from t_uat_customer where id=?":
+            - code: select id from t_uat_customer where id=?
+        - row "2 1 tdsql_uat_o_target_1622 select id from t_uat_order where customer_id=?":
+          - cell "2"
+          - cell "1"
+          - cell "tdsql_uat_o_target_1622"
+          - cell "select id from t_uat_order where customer_id=?":
+            - code: select id from t_uat_order where customer_id=?
+    - heading "七、SQL 类型分布 ▾" [level=2]
+    - table:
+      - rowgroup:
+        - row "sql_type 含义 数量 占比 分布":
+          - columnheader "sql_type"
+          - columnheader "含义"
+          - columnheader "数量"
+          - columnheader "占比"
+          - columnheader "分布"
+    - heading "八、用户 & 数据库分布 ▾" [level=2]
+    - heading "用户分布" [level=3]
+    - table:
+      - rowgroup:
+        - row "用户 请求数 占比":
+          - columnheader "用户"
+          - columnheader "请求数"
+          - columnheader "占比"
+        - row "synthetic 2 100.0%":
+          - cell "synthetic"
+          - cell "2"
+          - cell "100.0%"
+    - heading "数据库分布" [level=3]
+    - table:
+      - rowgroup:
+        - row "数据库 请求数 占比":
+          - columnheader "数据库"
+          - columnheader "请求数"
+          - columnheader "占比"
+        - row "tdsql_uat_o_target_1622 2 100.0%":
+          - cell "tdsql_uat_o_target_1622"
+          - cell "2"
+          - cell "100.0%"
+    - heading "九、错误码分析 ▾" [level=2]
+    - table:
+      - rowgroup:
+        - row "错误码 含义 数量 占比":
+          - columnheader "错误码"
+          - columnheader "含义"
+          - columnheader "数量"
+          - columnheader "占比"
+    - heading "十、连接模式分析 ▾" [level=2]
+    - generic: 新建连接
+    - generic: "0"
+    - generic: 断开连接
+    - generic: "0"
+    - generic: new_connnum 累计
+    - generic: "0"
+    - generic: 总请求量
+    - generic: "2"
+    - generic: 连接建立占比
+    - generic: 0.0%
+    - heading "SQL 执行耗时火焰图 ▾" [level=2]
+    - paragraph:
+      - text: "数据点:"
+      - strong: "2"
+      - text: 个 （拖拽框选放大时间段 | 滚轮缩放 | 双击重置 | 点击散点查看 SQL 详情 | 放大后可横向滚动）
+    - generic: "时间范围:"
+    - textbox
+    - generic: ~
+    - textbox
+    - button "应用"
+    - button "1h"
+    - button "6h"
+    - button "1d"
+    - generic: ● ■ <1ms
+    - generic: ● ■ 1-10ms
+    - generic: ● ■ 10-100ms
+    - generic: ● ■ 100ms-1s
+    - generic: ● ■ >1s
+    - heading "十三、核心结论与建议 ▾" [level=2]
+    - table:
+      - rowgroup:
+        - row "# 发现 严重程度 建议":
+          - columnheader "#"
+          - columnheader "发现"
+          - columnheader "严重程度"
+          - columnheader "建议"
+        - 'row "1 存在超高耗时SQL: 1500ms (tdsql_uat_o_target_1622) 🔴 高 优化 SQL 或添加索引: select id from t_uat_order where customer_id=2"':
+          - cell "1"
+          - 'cell "存在超高耗时SQL: 1500ms (tdsql_uat_o_target_1622)"'
+          - cell "🔴 高":
+            - generic: 🔴 高
+          - 'cell "优化 SQL 或添加索引: select id from t_uat_order where customer_id=2"'
+    - separator
+    - contentinfo:
+      - paragraph:
+        - text: Generated by
+        - strong: TDSQL Gateway Log Analyzer
+        - text: v3.4
+      - paragraph: 2026-08-28 23:56:43

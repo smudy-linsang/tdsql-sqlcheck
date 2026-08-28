@@ -1,0 +1,57 @@
+{
+  "score": null,
+  "score_status": "no_data",
+  "total_alerts": 0,
+  "inspection": {
+    "data_status": "no_data",
+    "source_file": null,
+    "summary": {
+      "instance_count": 0,
+      "avg_cpu": null,
+      "avg_memory": null,
+      "total_slow_queries": 0,
+      "alert_count": 0,
+      "cpu_alerts": []
+    },
+    "top_slow_queries": []
+  },
+  "index": {
+    "data_status": "no_data",
+    "summary": {
+      "total_indexes": 0,
+      "unique_tables": 0,
+      "duplicate_count": 0,
+      "prefix_redundant_count": 0,
+      "unused_count": 0,
+      "fragmented_tables": 0,
+      "pk_count": 0,
+      "unique_count": 0,
+      "normal_count": 0
+    },
+    "duplicate_indexes": []
+  },
+  "sql": {
+    "data_status": "no_data",
+    "summary": {
+      "total_sql_types": 0,
+      "total_count": 0,
+      "full_scan_count": 0,
+      "total_time": 0.0
+    },
+    "type_distribution": {},
+    "top_slow_sql": []
+  },
+  "gateway": {
+    "data_status": "no_data",
+    "source_file": null,
+    "summary": {
+      "total_requests": 0,
+      "daily_count": 0,
+      "error_count": 0
+    },
+    "daily_stats": [],
+    "timecost_distribution": {},
+    "error_codes": {},
+    "reports": []
+  }
+}

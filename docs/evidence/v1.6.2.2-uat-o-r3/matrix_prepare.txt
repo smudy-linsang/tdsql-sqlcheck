@@ -1,0 +1,2 @@
+建表警告(可忽略): (1824, "Failed to open the referenced table 'tdsql_connections'")
+REGRESSION_PREREQUISITES_READY: admin + synthetic slow-query record

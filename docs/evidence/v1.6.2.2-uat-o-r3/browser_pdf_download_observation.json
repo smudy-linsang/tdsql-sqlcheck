@@ -1,0 +1,5 @@
+{
+  "action": "DBA click PDF export",
+  "observed": false,
+  "error": "Error: Timed out after 3000ms waiting for download."
+}

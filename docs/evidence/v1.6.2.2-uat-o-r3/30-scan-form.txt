@@ -1,0 +1,109 @@
+- banner:
+  - img "logo"
+  - generic: TDSQL数据库SQL审核工具
+  - button "U UAT-O 管理员 系统管理员":
+    - generic: U
+    - generic: UAT-O 管理员
+    - generic: 系统管理员
+- complementary:
+  - menubar:
+    - menuitem "治理概览":
+      - generic: 治理概览
+    - menuitem "SQL审核" [expanded]:
+      - generic: SQL审核
+      - menu:
+        - menuitem "即时审核"
+        - menuitem "文件审核"
+        - menuitem "在线元数据审核"
+    - menuitem "慢SQL治理" [expanded]:
+      - generic: 慢SQL治理
+      - menu:
+        - menuitem "扫描任务"
+        - menuitem "慢SQL记录"
+        - menuitem "EXPLAIN分析"
+    - menuitem "实例体检":
+      - generic: 实例体检
+    - menuitem "深度诊断":
+      - generic: 深度诊断
+    - menuitem "平台治理":
+      - generic: 平台治理
+    - menuitem "系统管理":
+      - generic: 系统管理
+- navigation "面包屑":
+  - link "慢SQL治理"
+  - text: /
+  - link "扫描任务"
+- tablist:
+  - tab "扫描任务" [selected]
+  - tab "扫描历史对比"
+  - tab "已留档对比报告"
+- tabpanel "扫描任务":
+  - generic: 扫描任务
+  - button "+ 新建扫描":
+    - generic: + 新建扫描
+  - combobox
+  - generic: 数据库实例
+  - textbox "目标库名"
+  - textbox "搜索任务名称 / 创建人 / ID..."
+  - combobox:
+    - textbox "开始日期"
+  - combobox:
+    - textbox "结束日期"
+  - button "查询":
+    - generic: 查询
+  - button "重置":
+    - generic: 重置
+  - table:
+    - rowgroup:
+      - row "任务名 数据源 抓取数 创建人 时间 操作":
+        - columnheader:
+          - checkbox [disabled]
+        - columnheader "任务名":
+          - generic: 任务名
+        - columnheader "数据源":
+          - generic: 数据源
+        - columnheader "抓取数":
+          - generic: 抓取数
+        - columnheader "创建人":
+          - generic: 创建人
+        - columnheader "时间":
+          - generic: 时间
+        - columnheader "操作":
+          - generic: 操作
+  - table:
+    - rowgroup
+  - generic: 暂无数据
+- dialog "新建扫描任务":
+  - banner:
+    - heading "新建扫描任务" [level=2]
+    - button "el.drawer.close":
+  - generic: "*目标实例"
+  - combobox "*目标实例"
+  - generic: UAT-O 本地集中式样本 (127.0.0.1:13306/tdsql_uat_o_target_1622)
+  - generic: 任务名称
+  - textbox "任务名称":
+    - /placeholder: 如：核心库晨间扫描
+    - text: UAT-O-R3累计摘要
+  - generic: 数据源
+  - radiogroup "数据源":
+    - radio "全网慢SQL(monitordb,推荐)"
+    - generic: 全网慢SQL(monitordb,推荐)
+    - radio "性能摘要（当前累计快照）" [checked] [active]
+    - generic: 性能摘要（当前累计快照）
+    - radio "实时进程(processlist)"
+    - generic: 实时进程(processlist)
+  - alert:
+    - generic: 当前累计性能摘要快照
+    - paragraph: 该数据源展示 performance_schema 自统计重置以来的累计 SQL 摘要；不支持按 SQL 执行日期或历史时间范围筛选。
+  - generic: 耗时阈值(秒)
+  - button "el.inputNumber.decrease":
+  - button "el.inputNumber.increase":
+  - spinbutton "耗时阈值(秒)": "0.1"
+  - generic: 抓取条数
+  - button "el.inputNumber.decrease":
+  - button "el.inputNumber.increase":
+  - spinbutton "抓取条数": "50"
+  - button "取消":
+    - generic: 取消
+  - button "开始扫描":
+    - generic: 开始扫描

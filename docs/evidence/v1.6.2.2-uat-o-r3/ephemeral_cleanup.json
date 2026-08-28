@@ -1,0 +1,25 @@
+{
+  "diagnostic_only_missing_import_supplied": true,
+  "rows": [
+    {
+      "sql": "SELECT id FROM tdsql_uat_o_target_1622.t_uat_order WHERE id=1",
+      "result": {
+        "ok": true,
+        "executed_sql": "SELECT id FROM tdsql_uat_o_target_1622.t_uat_order WHERE id=1"
+      },
+      "explicit_close_calls": 0,
+      "connection_open_after_return": true,
+      "saved_default_unchanged": true
+    },
+    {
+      "sql": "SELECT missing_column FROM tdsql_uat_o_target_1622.t_uat_order",
+      "result": {
+        "ok": false,
+        "error": "(1054, \"Unknown column 'missing_column' in 'field list'\")"
+      },
+      "explicit_close_calls": 0,
+      "connection_open_after_return": true,
+      "saved_default_unchanged": true
+    }
+  ]
+}

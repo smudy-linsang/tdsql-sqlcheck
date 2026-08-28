@@ -1,0 +1,153 @@
+{
+  "actual_browser_run": {
+    "id": 2,
+    "connection_id": "uat_o_index",
+    "database_filter": "tdsql_uat_o_r3_index_target",
+    "total_tables": 1,
+    "total_indexes": 4,
+    "total_findings": 6,
+    "error_count": 0,
+    "warning_count": 3,
+    "info_count": 3,
+    "created_by": "",
+    "created_at": "2026-08-29T00:08:32"
+  },
+  "actual_findings": [
+    {
+      "id": 1,
+      "audit_id": 2,
+      "db_name": "tdsql_uat_o_r3_index_target",
+      "table_name": "t_uat_index",
+      "index_name": "idx_code",
+      "finding_type": "重复索引",
+      "severity": "WARNING",
+      "detail": "索引 idx_code 与 idx_code_copy 列完全相同(code)",
+      "suggestion": "删除其一（保留唯一性更强者）",
+      "metric": "",
+      "created_at": "2026-08-29T00:08:32"
+    },
+    {
+      "id": 2,
+      "audit_id": 2,
+      "db_name": "tdsql_uat_o_r3_index_target",
+      "table_name": "t_uat_index",
+      "index_name": "idx_code",
+      "finding_type": "前缀冗余索引",
+      "severity": "WARNING",
+      "detail": "索引 idx_code(code) 是 idx_code_id(code,id) 的前缀",
+      "suggestion": "可由 idx_code_id 覆盖，评估删除 idx_code",
+      "metric": "",
+      "created_at": "2026-08-29T00:08:32"
+    },
+    {
+      "id": 3,
+      "audit_id": 2,
+      "db_name": "tdsql_uat_o_r3_index_target",
+      "table_name": "t_uat_index",
+      "index_name": "idx_code_copy",
+      "finding_type": "前缀冗余索引",
+      "severity": "WARNING",
+      "detail": "索引 idx_code_copy(code) 是 idx_code_id(code,id) 的前缀",
+      "suggestion": "可由 idx_code_id 覆盖，评估删除 idx_code_copy",
+      "metric": "",
+      "created_at": "2026-08-29T00:08:32"
+    },
+    {
+      "id": 4,
+      "audit_id": 2,
+      "db_name": "tdsql_uat_o_r3_index_target",
+      "table_name": "t_uat_index",
+      "index_name": "idx_code",
+      "finding_type": "未使用索引",
+      "severity": "INFO",
+      "detail": "索引 idx_code 自监控以来读取次数为0",
+      "suggestion": "确认后评估删除(注意运行时长)",
+      "metric": "0",
+      "created_at": "2026-08-29T00:08:32"
+    },
+    {
+      "id": 5,
+      "audit_id": 2,
+      "db_name": "tdsql_uat_o_r3_index_target",
+      "table_name": "t_uat_index",
+      "index_name": "idx_code_copy",
+      "finding_type": "未使用索引",
+      "severity": "INFO",
+      "detail": "索引 idx_code_copy 自监控以来读取次数为0",
+      "suggestion": "确认后评估删除(注意运行时长)",
+      "metric": "0",
+      "created_at": "2026-08-29T00:08:32"
+    },
+    {
+      "id": 6,
+      "audit_id": 2,
+      "db_name": "tdsql_uat_o_r3_index_target",
+      "table_name": "t_uat_index",
+      "index_name": "idx_code_id",
+      "finding_type": "未使用索引",
+      "severity": "INFO",
+      "detail": "索引 idx_code_id 自监控以来读取次数为0",
+      "suggestion": "确认后评估删除(注意运行时长)",
+      "metric": "0",
+      "created_at": "2026-08-29T00:08:32"
+    }
+  ],
+  "dashboard_status": 200,
+  "dashboard": {
+    "score": 100,
+    "score_status": "ok",
+    "total_alerts": 0,
+    "inspection": {
+      "data_status": "no_data",
+      "source_file": null,
+      "summary": {
+        "instance_count": 0,
+        "avg_cpu": null,
+        "avg_memory": null,
+        "total_slow_queries": 0,
+        "alert_count": 0,
+        "cpu_alerts": []
+      },
+      "top_slow_queries": []
+    },
+    "index": {
+      "data_status": "ok",
+      "summary": {
+        "total_indexes": null,
+        "unique_tables": 1,
+        "duplicate_count": 0,
+        "prefix_redundant_count": 0,
+        "unused_count": 0,
+        "fragmented_tables": 0,
+        "pk_count": null,
+        "unique_count": null,
+        "normal_count": null
+      },
+      "duplicate_indexes": []
+    },
+    "sql": {
+      "data_status": "no_data",
+      "summary": {
+        "total_sql_types": 0,
+        "total_count": 0,
+        "full_scan_count": 0,
+        "total_time": 0.0
+      },
+      "type_distribution": {},
+      "top_slow_sql": []
+    },
+    "gateway": {
+      "data_status": "no_data",
+      "source_file": null,
+      "summary": {
+        "total_requests": 0,
+        "daily_count": 0,
+        "error_count": 0
+      },
+      "daily_stats": [],
+      "timecost_distribution": {},
+      "error_codes": {},
+      "reports": []
+    }
+  }
+}

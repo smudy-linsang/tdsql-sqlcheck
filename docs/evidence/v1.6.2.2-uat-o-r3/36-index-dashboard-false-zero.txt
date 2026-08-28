@@ -1,0 +1,50 @@
+- banner:
+  - img "logo"
+  - generic: TDSQL数据库SQL审核工具
+  - button "U UAT-O 管理员 系统管理员":
+    - generic: U
+    - generic: UAT-O 管理员
+    - generic: 系统管理员
+- complementary:
+  - menubar:
+    - menuitem "治理概览":
+      - generic: 治理概览
+    - menuitem "SQL审核":
+      - generic: SQL审核
+    - menuitem "慢SQL治理":
+      - generic: 慢SQL治理
+    - menuitem "实例体检":
+      - generic: 实例体检
+    - menuitem "深度诊断":
+      - generic: 深度诊断
+    - menuitem "平台治理":
+      - generic: 平台治理
+    - menuitem "系统管理":
+      - generic: 系统管理
+- navigation "面包屑"
+- generic: 深度诊断
+- combobox
+- generic: UAT-O-R3 索引重复样本 (127.0.0.1:13306)
+- generic: 吸收 TDSQL 原厂工具能力：集群诊断 / 索引体检 / 结构比对 / 应急诊断 / SQL分析。深检绩效观 monitordb(15001)：只需操作。
+- tablist:
+  - tab "集群巡检"
+  - tab "日常巡检与对比报告"
+  - tab "索引体检"
+  - tab "结构比对"
+  - tab "应急诊断"
+  - tab "SQL分析"
+  - tab "网关日志分析"
+  - tab "PDF报告与大屏" [selected]
+  - tab "运维工具箱"
+- tabpanel "PDF报告与大屏":
+  - generic: 实例运维报告与总览大屏
+  - button "导出汇报 PDF":
+    - generic: 导出汇报 PDF
+  - generic: 健康得分
+  - generic: "100"
+  - generic: 活动告警数
+  - generic: "0"
+  - generic: 巡检实例数
+  - generic: 未采集
+  - generic: 重复索引组
+  - generic: "0"

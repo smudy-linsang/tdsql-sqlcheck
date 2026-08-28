@@ -1,0 +1,90 @@
+{
+  "fixture_only": true,
+  "persisted_completed_index_run": {
+    "id": 1,
+    "connection_id": "uat_o_r3_report_zero_fixture",
+    "database_filter": "synthetic_only",
+    "total_tables": 2,
+    "total_indexes": 4,
+    "total_findings": 0,
+    "error_count": 0,
+    "warning_count": 0,
+    "info_count": 0,
+    "created_by": "UAT-O-R3 fixture",
+    "created_at": "2026-08-29T00:03:39"
+  },
+  "report_modules": {
+    "daily_inspection": {
+      "data_status": "no_data",
+      "source_file": null,
+      "summary": {
+        "instance_count": 0,
+        "avg_cpu": null,
+        "avg_memory": null,
+        "total_slow_queries": 0,
+        "alert_count": 0,
+        "cpu_alerts": []
+      },
+      "top_slow_queries": []
+    },
+    "count_table_rows": {
+      "data_status": "no_data",
+      "summary": {
+        "total_tables": 0,
+        "total_rows": 0,
+        "snapshot_count": 0,
+        "distribution": {}
+      },
+      "tables_top20": []
+    },
+    "index_analysis": {
+      "data_status": "no_data",
+      "summary": {
+        "total_indexes": 0,
+        "unique_tables": 0,
+        "duplicate_count": 0,
+        "prefix_redundant_count": 0,
+        "unused_count": 0,
+        "fragmented_tables": 0,
+        "pk_count": 0,
+        "unique_count": 0,
+        "normal_count": 0
+      },
+      "duplicate_indexes": []
+    },
+    "sql_analysis": {
+      "data_status": "no_data",
+      "summary": {
+        "total_sql_types": 0,
+        "total_count": 0,
+        "full_scan_count": 0,
+        "total_time": 0.0
+      },
+      "type_distribution": {},
+      "top_slow_sql": []
+    },
+    "gateway_analysis": {
+      "data_status": "no_data",
+      "source_file": null,
+      "summary": {
+        "total_requests": 0,
+        "daily_count": 0,
+        "error_count": 0
+      },
+      "daily_stats": [],
+      "timecost_distribution": {},
+      "error_codes": {},
+      "reports": []
+    },
+    "schema_diff": {
+      "data_status": "no_data",
+      "summary": {
+        "prod_instances": 0,
+        "test_instances": 0,
+        "total_databases": 0,
+        "total_tables": 0,
+        "status": "未执行"
+      }
+    }
+  }
+}

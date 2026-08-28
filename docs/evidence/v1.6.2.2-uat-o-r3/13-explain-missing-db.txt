@@ -1,0 +1,48 @@
+- banner:
+  - img "logo"
+  - generic: TDSQL数据库SQL审核工具
+  - button "U UAT-O 管理员 系统管理员":
+    - generic: U
+    - generic: UAT-O 管理员
+    - generic: 系统管理员
+- complementary:
+  - menubar:
+    - menuitem "治理概览":
+      - generic: 治理概览
+    - menuitem "SQL审核":
+      - generic: SQL审核
+    - menuitem "慢SQL治理" [expanded]:
+      - generic: 慢SQL治理
+      - menu:
+        - menuitem "扫描任务"
+        - menuitem "慢SQL记录"
+        - menuitem "EXPLAIN分析"
+    - menuitem "实例体检":
+      - generic: 实例体检
+    - menuitem "深度诊断":
+      - generic: 深度诊断
+    - menuitem "平台治理":
+      - generic: 平台治理
+    - menuitem "系统管理":
+      - generic: 系统管理
+- navigation "面包屑":
+  - link "慢SQL治理"
+  - text: /
+  - link "EXPLAIN分析"
+- generic: EXPLAIN执行计划分析
+- radiogroup "radio-group":
+  - radio "SQL直连" [checked]
+  - generic: SQL直连
+  - radio "JSON粘贴"
+  - generic: JSON粘贴
+- textbox "输入SQL语句": SELECT id FROM t_uat_order WHERE customer_id = ?
+- combobox
+- generic: UAT-O 本地集中式样本 (127.0.0.1:13306)
+- textbox "数据库名（可选，留空用连接默认库）": uat_o_r3_workflow
+- button "分析":
+  - generic: 分析
+- alert:
+  - heading "服务异常" [level=2]
+  - paragraph: "EXPLAIN分析失败: name 'TDSQLConnectionPool' is not defined"
+- alert:
+  - paragraph: "分析失败: EXPLAIN分析失败: name 'TDSQLConnectionPool' is not defined"

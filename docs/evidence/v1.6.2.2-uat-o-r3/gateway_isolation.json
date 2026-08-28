@@ -1,0 +1,23 @@
+{
+  "before": {
+    "frames": 0,
+    "headStyles": 0,
+    "margin": "0px"
+  },
+  "open": {
+    "frames": [
+      {
+        "sandbox": "allow-scripts",
+        "srcdocLength": 34251,
+        "title": "网关日志分析报告"
+      }
+    ],
+    "headStyles": 0,
+    "margin": "0px"
+  },
+  "after": {
+    "frames": 0,
+    "headStyles": 0,
+    "margin": "0px"
+  }
+}

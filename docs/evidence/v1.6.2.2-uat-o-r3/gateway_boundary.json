@@ -1,0 +1,70 @@
+[
+  {
+    "name": "gateway_empty",
+    "bytes": 0,
+    "type": "interf",
+    "status": 200,
+    "response": {
+      "status": "success",
+      "report_id": 2,
+      "total_queries": 0,
+      "slow_queries": 0,
+      "max_time_ms": 0.0,
+      "avg_time_ms": 0.0
+    },
+    "report_chars": 12944,
+    "has_overview": true,
+    "has_0_requests": true
+  },
+  {
+    "name": "gateway_invalid",
+    "bytes": 34,
+    "type": "interf",
+    "status": 200,
+    "response": {
+      "status": "success",
+      "report_id": 3,
+      "total_queries": 2,
+      "slow_queries": 0,
+      "max_time_ms": 0.0,
+      "avg_time_ms": 0.0
+    },
+    "report_chars": 12946,
+    "has_overview": true,
+    "has_0_requests": true
+  },
+  {
+    "name": "gateway_concurrent_a",
+    "bytes": 330,
+    "type": "interf",
+    "status": 200,
+    "response": {
+      "status": "success",
+      "report_id": 5,
+      "total_queries": 2,
+      "slow_queries": 1,
+      "max_time_ms": 1500.2,
+      "avg_time_ms": 756.35
+    },
+    "report_chars": 34246,
+    "has_overview": true,
+    "has_0_requests": true
+  },
+  {
+    "name": "gateway_concurrent_b",
+    "bytes": 990,
+    "type": "interf",
+    "status": 200,
+    "response": {
+      "status": "success",
+      "report_id": 4,
+      "total_queries": 6,
+      "slow_queries": 3,
+      "max_time_ms": 1500.2,
+      "avg_time_ms": 756.35
+    },
+    "report_chars": 35012,
+    "has_overview": true,
+    "has_0_requests": true
+  }
+]

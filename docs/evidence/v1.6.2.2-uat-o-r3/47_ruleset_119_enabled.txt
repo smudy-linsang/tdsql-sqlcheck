@@ -1,0 +1,1794 @@
+- banner:
+  - img "logo"
+  - generic: TDSQL数据库SQL审核工具
+  - button "U UAT-O 管理员 系统管理员":
+    - generic: U
+    - generic: UAT-O 管理员
+    - generic: 系统管理员
+- complementary:
+  - menubar:
+    - menuitem "治理概览":
+      - generic: 治理概览
+    - menuitem "SQL审核":
+      - generic: SQL审核
+    - menuitem "慢SQL治理":
+      - generic: 慢SQL治理
+    - menuitem "实例体检":
+      - generic: 实例体检
+    - menuitem "深度诊断":
+      - generic: 深度诊断
+    - menuitem "平台治理" [expanded]:
+      - generic: 平台治理
+      - menu:
+        - menuitem "实例管理"
+        - menuitem "审核规则库"
+        - menuitem "评估规则集"
+    - menuitem "系统管理" [expanded]:
+      - generic: 系统管理
+      - menu:
+        - menuitem "用户管理"
+        - menuitem "角色管理"
+        - menuitem "权限矩阵"
+        - menuitem "数据保留"
+        - menuitem "操作审计"
+        - menuitem "系统信息"
+- navigation "面包屑":
+  - link "平台治理"
+  - text: /
+  - link "规则集"
+- generic: 评估规则集（全局）
+- button "+ 新建规则集":
+  - generic: + 新建规则集
+- alert:
+  - generic: 规则集是全系统唯一的评估尺度。管理员设为生效后，所有审核与扫描统一使用该规则集，最长 30 秒内全量生效。
+- table:
+  - rowgroup:
+    - row "名称 描述 规则数 状态 内置 创建人 操作":
+      - columnheader "名称":
+        - generic: 名称
+      - columnheader "描述":
+        - generic: 描述
+      - columnheader "规则数":
+        - generic: 规则数
+      - columnheader "状态":
+        - generic: 状态
+      - columnheader "内置":
+        - generic: 内置
+      - columnheader "创建人":
+        - generic: 创建人
+      - columnheader "操作":
+        - generic: 操作
+- table:
+  - rowgroup:
+    - row "默认规则集 全部规则按内置默认启停与级别执行 119 当前生效 是 system 查看规则 删除":
+      - cell "默认规则集":
+        - generic: 默认规则集
+      - cell "全部规则按内置默认启停与级别执行":
+        - generic: 全部规则按内置默认启停与级别执行
+      - cell "119":
+        - generic: "119"
+      - cell "当前生效":
+        - generic: 当前生效
+      - cell "是":
+        - generic: 是
+      - cell "system":
+        - generic: system
+      - cell "查看规则 删除":
+        - button "查看规则":
+          - generic: 查看规则
+        - button "删除" [disabled]:
+          - generic: 删除
+- 'dialog "⚙️ 配置规则集: 默认规则集"':
+  - banner:
+    - 'heading "⚙️ 配置规则集: 默认规则集" [level=2]'
+    - button "el.drawer.close":
+  - textbox "搜索规则ID或关键字..."
+  - radiogroup "radio-group":
+    - radio "全部 (119)" [checked]
+    - generic: 全部 (119)
+    - radio "naming (5)"
+    - generic: naming (5)
+    - radio "ddl (22)"
+    - generic: ddl (22)
+    - radio "dml (9)"
+    - generic: dml (9)
+    - radio "index (10)"
+    - generic: index (10)
+    - radio "distributed (14)"
+    - generic: distributed (14)
+    - radio "security (8)"
+    - generic: security (8)
+    - radio "performance (5)"
+    - generic: performance (5)
+    - radio "transaction (4)"
+    - generic: transaction (4)
+    - radio "oracle_compat (42)"
+    - generic: oracle_compat (42)
+  - alert:
+    - generic: 内置规则集为系统标准保护规则，仅供查看继承逻辑，不可修改保存。
+  - table:
+    - rowgroup:
+      - row "规则ID 分类 规则描述 默认级别 生效状态 覆盖级别 (Severity Override)":
+        - columnheader "规则ID":
+          - generic: 规则ID
+        - columnheader "分类":
+          - generic: 分类
+        - columnheader "规则描述":
+          - generic: 规则描述
+        - columnheader "默认级别":
+          - generic: 默认级别
+        - columnheader "生效状态":
+          - generic: 生效状态
+        - columnheader "覆盖级别 (Severity Override)":
+          - generic: 覆盖级别 (Severity Override)
+  - table:
+    - rowgroup:
+      - row "R001 naming 库名/表名字符限制32以内，必须以小写字母开头，仅包含小写字母、数字和下划线 ERROR 开 继承默认":
+        - cell "R001":
+          - generic: R001
+        - cell "naming":
+          - generic: naming
+        - cell "库名/表名字符限制32以内，必须以小写字母开头，仅包含小写字母、数字和下划线":
+          - generic: 库名/表名字符限制32以内，必须以小写字母开头，仅包含小写字母、数字和下划线
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R002 naming 库名、表名和列名不能使用 TDSQL/MySQL 保留关键字 ERROR 开 继承默认":
+        - cell "R002":
+          - generic: R002
+        - cell "naming":
+          - generic: naming
+        - cell "库名、表名和列名不能使用 TDSQL/MySQL 保留关键字":
+          - generic: 库名、表名和列名不能使用 TDSQL/MySQL 保留关键字
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R003 ddl CREATE TABLE 必须显式指定主键 ERROR 开 继承默认":
+        - cell "R003":
+          - generic: R003
+        - cell "ddl":
+          - generic: ddl
+        - cell "CREATE TABLE 必须显式指定主键":
+          - generic: CREATE TABLE 必须显式指定主键
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R004 ddl 必须指定存储引擎为 InnoDB ERROR 开 继承默认":
+        - cell "R004":
+          - generic: R004
+        - cell "ddl":
+          - generic: ddl
+        - cell "必须指定存储引擎为 InnoDB":
+          - generic: 必须指定存储引擎为 InnoDB
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R005 ddl 必须指定字符集为 utf8mb4 ERROR 开 继承默认":
+        - cell "R005":
+          - generic: R005
+        - cell "ddl":
+          - generic: ddl
+        - cell "必须指定字符集为 utf8mb4":
+          - generic: 必须指定字符集为 utf8mb4
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R006 ddl 禁止使用 ENUM/SET 数据类型 ERROR 开 继承默认":
+        - cell "R006":
+          - generic: R006
+        - cell "ddl":
+          - generic: ddl
+        - cell "禁止使用 ENUM/SET 数据类型":
+          - generic: 禁止使用 ENUM/SET 数据类型
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R007 ddl 禁止使用 TIMESTAMP 类型，建议使用 DATETIME ERROR 开 继承默认":
+        - cell "R007":
+          - generic: R007
+        - cell "ddl":
+          - generic: ddl
+        - cell "禁止使用 TIMESTAMP 类型，建议使用 DATETIME":
+          - generic: 禁止使用 TIMESTAMP 类型，建议使用 DATETIME
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R008 ddl 禁止使用外键约束，应用层保证数据一致性 ERROR 开 继承默认":
+        - cell "R008":
+          - generic: R008
+        - cell "ddl":
+          - generic: ddl
+        - cell "禁止使用外键约束，应用层保证数据一致性":
+          - generic: 禁止使用外键约束，应用层保证数据一致性
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R009 ddl 涉及金额/价格的字段禁止使用 FLOAT/DOUBLE，应使用 DECIMAL ERROR 开 继承默认":
+        - cell "R009":
+          - generic: R009
+        - cell "ddl":
+          - generic: ddl
+        - cell "涉及金额/价格的字段禁止使用 FLOAT/DOUBLE，应使用 DECIMAL":
+          - generic: 涉及金额/价格的字段禁止使用 FLOAT/DOUBLE，应使用 DECIMAL
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R010 ddl VARCHAR 长度建议不超过 2000，超长字段请评估是否合理 WARNING 开 继承默认":
+        - cell "R010":
+          - generic: R010
+        - cell "ddl":
+          - generic: ddl
+        - cell "VARCHAR 长度建议不超过 2000，超长字段请评估是否合理":
+          - generic: VARCHAR 长度建议不超过 2000，超长字段请评估是否合理
+        - cell "WARNING":
+          - generic: WARNING
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R011 ddl 禁止在活跃表使用 TEXT/BLOB 类型，影响性能 WARNING 开 继承默认":
+        - cell "R011":
+          - generic: R011
+        - cell "ddl":
+          - generic: ddl
+        - cell "禁止在活跃表使用 TEXT/BLOB 类型，影响性能":
+          - generic: 禁止在活跃表使用 TEXT/BLOB 类型，影响性能
+        - cell "WARNING":
+          - generic: WARNING
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R012 dml 禁止使用 SELECT *，应指定具体字段 ERROR 开 继承默认":
+        - cell "R012":
+          - generic: R012
+        - cell "dml":
+          - generic: dml
+        - cell "禁止使用 SELECT *，应指定具体字段":
+          - generic: 禁止使用 SELECT *，应指定具体字段
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R013 dml UPDATE/DELETE/INSERT...SELECT 必须带 WHERE 条件 ERROR 开 继承默认":
+        - cell "R013":
+          - generic: R013
+        - cell "dml":
+          - generic: dml
+        - cell "UPDATE/DELETE/INSERT...SELECT 必须带 WHERE 条件":
+          - generic: UPDATE/DELETE/INSERT...SELECT 必须带 WHERE 条件
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R014 dml 禁止不带 WHERE 的 UPDATE/DELETE，防止误操作全表 ERROR 开 继承默认":
+        - cell "R014":
+          - generic: R014
+        - cell "dml":
+          - generic: dml
+        - cell "禁止不带 WHERE 的 UPDATE/DELETE，防止误操作全表":
+          - generic: 禁止不带 WHERE 的 UPDATE/DELETE，防止误操作全表
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R015 dml 禁止嵌套超过3层子查询，影响可读性和性能 ERROR 开 继承默认":
+        - cell "R015":
+          - generic: R015
+        - cell "dml":
+          - generic: dml
+        - cell "禁止嵌套超过3层子查询，影响可读性和性能":
+          - generic: 禁止嵌套超过3层子查询，影响可读性和性能
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R016 dml WHERE 条件中禁止函数计算、全模糊LIKE、OR条件，会导致索引失效 WARNING 开 继承默认":
+        - cell "R016":
+          - generic: R016
+        - cell "dml":
+          - generic: dml
+        - cell "WHERE 条件中禁止函数计算、全模糊LIKE、OR条件，会导致索引失效":
+          - generic: WHERE 条件中禁止函数计算、全模糊LIKE、OR条件，会导致索引失效
+        - cell "WARNING":
+          - generic: WARNING
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R017 dml 禁止 ORDER BY RAND()，会导致全表扫描和临时表 ERROR 开 继承默认":
+        - cell "R017":
+          - generic: R017
+        - cell "dml":
+          - generic: dml
+        - cell "禁止 ORDER BY RAND()，会导致全表扫描和临时表":
+          - generic: 禁止 ORDER BY RAND()，会导致全表扫描和临时表
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R018 index 单表索引数量不超过5个（含主键） WARNING 开 继承默认":
+        - cell "R018":
+          - generic: R018
+        - cell "index":
+          - generic: index
+        - cell "单表索引数量不超过5个（含主键）":
+          - generic: 单表索引数量不超过5个（含主键）
+        - cell "WARNING":
+          - generic: WARNING
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R019 index 禁止创建冗余索引，如果索引A的列是索引B列的前缀，则A冗余 WARNING 开 继承默认":
+        - cell "R019":
+          - generic: R019
+        - cell "index":
+          - generic: index
+        - cell "禁止创建冗余索引，如果索引A的列是索引B列的前缀，则A冗余":
+          - generic: 禁止创建冗余索引，如果索引A的列是索引B列的前缀，则A冗余
+        - cell "WARNING":
+          - generic: WARNING
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R020 distributed 分布式表的SELECT/UPDATE/DELETE语句应在WHERE条件中包含分片键字段 WARNING 开 继承默认":
+        - cell "R020":
+          - generic: R020
+        - cell "distributed":
+          - generic: distributed
+        - cell "分布式表的SELECT/UPDATE/DELETE语句应在WHERE条件中包含分片键字段":
+          - generic: 分布式表的SELECT/UPDATE/DELETE语句应在WHERE条件中包含分片键字段
+        - cell "WARNING":
+          - generic: WARNING
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R021 distributed 禁止对分片键(shardkey)字段进行UPDATE操作 ERROR 开 继承默认":
+        - cell "R021":
+          - generic: R021
+        - cell "distributed":
+          - generic: distributed
+        - cell "禁止对分片键(shardkey)字段进行UPDATE操作":
+          - generic: 禁止对分片键(shardkey)字段进行UPDATE操作
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R022 distributed 分布式表禁止不带分片键的全局DELETE/UPDATE，防止跨所有SET执行 ERROR 开 继承默认":
+        - cell "R022":
+          - generic: R022
+        - cell "distributed":
+          - generic: distributed
+        - cell "分布式表禁止不带分片键的全局DELETE/UPDATE，防止跨所有SET执行":
+          - generic: 分布式表禁止不带分片键的全局DELETE/UPDATE，防止跨所有SET执行
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R023 ddl 禁止使用CREATE TABLE ... SELECT语句，TDSQL分布式不支持 ERROR 开 继承默认":
+        - cell "R023":
+          - generic: R023
+        - cell "ddl":
+          - generic: ddl
+        - cell "禁止使用CREATE TABLE ... SELECT语句，TDSQL分布式不支持":
+          - generic: 禁止使用CREATE TABLE ... SELECT语句，TDSQL分布式不支持
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R024 ddl 禁止使用CREATE TEMPORARY TABLE，分布式实例不支持 ERROR 开 继承默认":
+        - cell "R024":
+          - generic: R024
+        - cell "ddl":
+          - generic: ddl
+        - cell "禁止使用CREATE TEMPORARY TABLE，分布式实例不支持":
+          - generic: 禁止使用CREATE TEMPORARY TABLE，分布式实例不支持
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R025 distributed 禁止通过ALTER TABLE修改分片键字段 ERROR 开 继承默认":
+        - cell "R025":
+          - generic: R025
+        - cell "distributed":
+          - generic: distributed
+        - cell "禁止通过ALTER TABLE修改分片键字段":
+          - generic: 禁止通过ALTER TABLE修改分片键字段
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R026 ddl ALTER TABLE修改字段时禁止缩短字段长度，可能导致数据截断 ERROR 开 继承默认":
+        - cell "R026":
+          - generic: R026
+        - cell "ddl":
+          - generic: ddl
+        - cell "ALTER TABLE修改字段时禁止缩短字段长度，可能导致数据截断":
+          - generic: ALTER TABLE修改字段时禁止缩短字段长度，可能导致数据截断
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R027 ddl 禁止使用DROP DATABASE/SCHEMA语句 ERROR 开 继承默认":
+        - cell "R027":
+          - generic: R027
+        - cell "ddl":
+          - generic: ddl
+        - cell "禁止使用DROP DATABASE/SCHEMA语句":
+          - generic: 禁止使用DROP DATABASE/SCHEMA语句
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R028 ddl 建表必须显式指定表级别COMMENT ERROR 开 继承默认":
+        - cell "R028":
+          - generic: R028
+        - cell "ddl":
+          - generic: ddl
+        - cell "建表必须显式指定表级别COMMENT":
+          - generic: 建表必须显式指定表级别COMMENT
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R029 ddl 建表时每个字段应显式指定COMMENT WARNING 开 继承默认":
+        - cell "R029":
+          - generic: R029
+        - cell "ddl":
+          - generic: ddl
+        - cell "建表时每个字段应显式指定COMMENT":
+          - generic: 建表时每个字段应显式指定COMMENT
+        - cell "WARNING":
+          - generic: WARNING
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R030 ddl 禁止使用视图、存储过程、触发器、自定义函数 ERROR 开 继承默认":
+        - cell "R030":
+          - generic: R030
+        - cell "ddl":
+          - generic: ddl
+        - cell "禁止使用视图、存储过程、触发器、自定义函数":
+          - generic: 禁止使用视图、存储过程、触发器、自定义函数
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R031 ddl 禁止创建自定义函数 ERROR 开 继承默认":
+        - cell "R031":
+          - generic: R031
+        - cell "ddl":
+          - generic: ddl
+        - cell "禁止创建自定义函数":
+          - generic: 禁止创建自定义函数
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R032 ddl 禁止使用临时表进行复杂业务逻辑 ERROR 开 继承默认":
+        - cell "R032":
+          - generic: R032
+        - cell "ddl":
+          - generic: ddl
+        - cell "禁止使用临时表进行复杂业务逻辑":
+          - generic: 禁止使用临时表进行复杂业务逻辑
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R033 naming 表名建议使用单数形式 WARNING 开 继承默认":
+        - cell "R033":
+          - generic: R033
+        - cell "naming":
+          - generic: naming
+        - cell "表名建议使用单数形式":
+          - generic: 表名建议使用单数形式
+        - cell "WARNING":
+          - generic: WARNING
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R034 naming 备份表命名必须以_bak_或_bk_为前缀，并附日期后缀 WARNING 开 继承默认":
+        - cell "R034":
+          - generic: R034
+        - cell "naming":
+          - generic: naming
+        - cell "备份表命名必须以_bak_或_bk_为前缀，并附日期后缀":
+          - generic: 备份表命名必须以_bak_或_bk_为前缀，并附日期后缀
+        - cell "WARNING":
+          - generic: WARNING
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R035 ddl 多个数据表中相同业务含义字段的名称、类型、长度必须保持一致 ERROR 开 继承默认":
+        - cell "R035":
+          - generic: R035
+        - cell "ddl":
+          - generic: ddl
+        - cell "多个数据表中相同业务含义字段的名称、类型、长度必须保持一致":
+          - generic: 多个数据表中相同业务含义字段的名称、类型、长度必须保持一致
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R036 ddl 建议每张表包含create_time和update_time字段 INFO 开 继承默认":
+        - cell "R036":
+          - generic: R036
+        - cell "ddl":
+          - generic: ddl
+        - cell "建议每张表包含create_time和update_time字段":
+          - generic: 建议每张表包含create_time和update_time字段
+        - cell "INFO":
+          - generic: INFO
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R037 ddl 建议使用逻辑删除(is_deleted)替代物理删除(DELETE) INFO 开 继承默认":
+        - cell "R037":
+          - generic: R037
+        - cell "ddl":
+          - generic: ddl
+        - cell "建议使用逻辑删除(is_deleted)替代物理删除(DELETE)":
+          - generic: 建议使用逻辑删除(is_deleted)替代物理删除(DELETE)
+        - cell "INFO":
+          - generic: INFO
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R038 ddl 预期数据量超千万的表不建议使用AUTO_INCREMENT主键：自增锁在高并发写入下形成瓶颈，且分库分表/数据迁移/多源合并时主键易冲突 WARNING 开 继承默认":
+        - cell "R038":
+          - generic: R038
+        - cell "ddl":
+          - generic: ddl
+        - cell "预期数据量超千万的表不建议使用AUTO_INCREMENT主键：自增锁在高并发写入下形成瓶颈，且分库分表/数据迁移/多源合并时主键易冲突":
+          - generic: 预期数据量超千万的表不建议使用AUTO_INCREMENT主键：自增锁在高并发写入下形成瓶颈，且分库分表/数据迁移/多源合并时主键易冲突
+        - cell "WARNING":
+          - generic: WARNING
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R039 security 禁止使用SELECT ... INTO OUTFILE/DUMPFILE ERROR 开 继承默认":
+        - cell "R039":
+          - generic: R039
+        - cell "security":
+          - generic: security
+        - cell "禁止使用SELECT ... INTO OUTFILE/DUMPFILE":
+          - generic: 禁止使用SELECT ... INTO OUTFILE/DUMPFILE
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R040 dml 禁止使用DELAYED/LOW_PRIORITY关键字 WARNING 开 继承默认":
+        - cell "R040":
+          - generic: R040
+        - cell "dml":
+          - generic: dml
+        - cell "禁止使用DELAYED/LOW_PRIORITY关键字":
+          - generic: 禁止使用DELAYED/LOW_PRIORITY关键字
+        - cell "WARNING":
+          - generic: WARNING
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R041 dml INSERT/REPLACE语句必须显式指定列名 ERROR 开 继承默认":
+        - cell "R041":
+          - generic: R041
+        - cell "dml":
+          - generic: dml
+        - cell "INSERT/REPLACE语句必须显式指定列名":
+          - generic: INSERT/REPLACE语句必须显式指定列名
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R042 security 禁止使用LOAD DATA INFILE/LOAD XML ERROR 开 继承默认":
+        - cell "R042":
+          - generic: R042
+        - cell "security":
+          - generic: security
+        - cell "禁止使用LOAD DATA INFILE/LOAD XML":
+          - generic: 禁止使用LOAD DATA INFILE/LOAD XML
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R043 dml 禁止使用多表联表UPDATE/DELETE ERROR 开 继承默认":
+        - cell "R043":
+          - generic: R043
+        - cell "dml":
+          - generic: dml
+        - cell "禁止使用多表联表UPDATE/DELETE":
+          - generic: 禁止使用多表联表UPDATE/DELETE
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R044 performance 禁止使用USE INDEX/FORCE INDEX/IGNORE INDEX等索引提示 WARNING 开 继承默认":
+        - cell "R044":
+          - generic: R044
+        - cell "performance":
+          - generic: performance
+        - cell "禁止使用USE INDEX/FORCE INDEX/IGNORE INDEX等索引提示":
+          - generic: 禁止使用USE INDEX/FORCE INDEX/IGNORE INDEX等索引提示
+        - cell "WARNING":
+          - generic: WARNING
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R045 security 禁止使用HANDLER语句 ERROR 开 继承默认":
+        - cell "R045":
+          - generic: R045
+        - cell "security":
+          - generic: security
+        - cell "禁止使用HANDLER语句":
+          - generic: 禁止使用HANDLER语句
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R046 security 禁止使用FLUSH和LOCK TABLES语句 ERROR 开 继承默认":
+        - cell "R046":
+          - generic: R046
+        - cell "security":
+          - generic: security
+        - cell "禁止使用FLUSH和LOCK TABLES语句":
+          - generic: 禁止使用FLUSH和LOCK TABLES语句
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R047 performance 全表删除数据时建议使用TRUNCATE替代DELETE WARNING 开 继承默认":
+        - cell "R047":
+          - generic: R047
+        - cell "performance":
+          - generic: performance
+        - cell "全表删除数据时建议使用TRUNCATE替代DELETE":
+          - generic: 全表删除数据时建议使用TRUNCATE替代DELETE
+        - cell "WARNING":
+          - generic: WARNING
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R048 distributed 分布式实例执行INSERT/REPLACE时，字段列表必须包含分片键 ERROR 开 继承默认":
+        - cell "R048":
+          - generic: R048
+        - cell "distributed":
+          - generic: distributed
+        - cell "分布式实例执行INSERT/REPLACE时，字段列表必须包含分片键":
+          - generic: 分布式实例执行INSERT/REPLACE时，字段列表必须包含分片键
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R049 naming 多表关联时建议为每个表指定不同别名 INFO 开 继承默认":
+        - cell "R049":
+          - generic: R049
+        - cell "naming":
+          - generic: naming
+        - cell "多表关联时建议为每个表指定不同别名":
+          - generic: 多表关联时建议为每个表指定不同别名
+        - cell "INFO":
+          - generic: INFO
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R050 performance IN列表元素数量建议不超过200，过多会导致解析变慢 WARNING 开 继承默认":
+        - cell "R050":
+          - generic: R050
+        - cell "performance":
+          - generic: performance
+        - cell "IN列表元素数量建议不超过200，过多会导致解析变慢":
+          - generic: IN列表元素数量建议不超过200，过多会导致解析变慢
+        - cell "WARNING":
+          - generic: WARNING
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R051 performance SELECT语句建议包含WHERE条件，避免全表扫描 WARNING 开 继承默认":
+        - cell "R051":
+          - generic: R051
+        - cell "performance":
+          - generic: performance
+        - cell "SELECT语句建议包含WHERE条件，避免全表扫描":
+          - generic: SELECT语句建议包含WHERE条件，避免全表扫描
+        - cell "WARNING":
+          - generic: WARNING
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R052 performance WHERE条件等号两侧字段类型必须一致，禁止隐式类型转换 ERROR 开 继承默认":
+        - cell "R052":
+          - generic: R052
+        - cell "performance":
+          - generic: performance
+        - cell "WHERE条件等号两侧字段类型必须一致，禁止隐式类型转换":
+          - generic: WHERE条件等号两侧字段类型必须一致，禁止隐式类型转换
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R053 distributed 分布式表JOIN时必须在分片键上关联，避免跨SET广播JOIN ERROR 开 继承默认":
+        - cell "R053":
+          - generic: R053
+        - cell "distributed":
+          - generic: distributed
+        - cell "分布式表JOIN时必须在分片键上关联，避免跨SET广播JOIN":
+          - generic: 分布式表JOIN时必须在分片键上关联，避免跨SET广播JOIN
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R054 distributed 分片键必须包含在主键及所有唯一索引中（唯一索引不含分片键将无法创建） WARNING 开 继承默认":
+        - cell "R054":
+          - generic: R054
+        - cell "distributed":
+          - generic: distributed
+        - cell "分片键必须包含在主键及所有唯一索引中（唯一索引不含分片键将无法创建）":
+          - generic: 分片键必须包含在主键及所有唯一索引中（唯一索引不含分片键将无法创建）
+        - cell "WARNING":
+          - generic: WARNING
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R055 distributed 分布式表不建议仅依赖全局索引，应优先使用本地索引+分片键路由 WARNING 开 继承默认":
+        - cell "R055":
+          - generic: R055
+        - cell "distributed":
+          - generic: distributed
+        - cell "分布式表不建议仅依赖全局索引，应优先使用本地索引+分片键路由":
+          - generic: 分布式表不建议仅依赖全局索引，应优先使用本地索引+分片键路由
+        - cell "WARNING":
+          - generic: WARNING
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R056 distributed 分布式表ORDER BY建议包含分片键，避免跨SET排序 INFO 开 继承默认":
+        - cell "R056":
+          - generic: R056
+        - cell "distributed":
+          - generic: distributed
+        - cell "分布式表ORDER BY建议包含分片键，避免跨SET排序":
+          - generic: 分布式表ORDER BY建议包含分片键，避免跨SET排序
+        - cell "INFO":
+          - generic: INFO
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R057 distributed 批量INSERT/REPLACE必须包含分片键字段，否则无法路由到正确SET ERROR 开 继承默认":
+        - cell "R057":
+          - generic: R057
+        - cell "distributed":
+          - generic: distributed
+        - cell "批量INSERT/REPLACE必须包含分片键字段，否则无法路由到正确SET":
+          - generic: 批量INSERT/REPLACE必须包含分片键字段，否则无法路由到正确SET
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R058 distributed 分布式表批量UPDATE/DELETE建议加LIMIT限制单次影响行数(≤1000) WARNING 开 继承默认":
+        - cell "R058":
+          - generic: R058
+        - cell "distributed":
+          - generic: distributed
+        - cell "分布式表批量UPDATE/DELETE建议加LIMIT限制单次影响行数(≤1000)":
+          - generic: 分布式表批量UPDATE/DELETE建议加LIMIT限制单次影响行数(≤1000)
+        - cell "WARNING":
+          - generic: WARNING
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R059 distributed 避免跨SET分布式事务，单事务应只操作同一分片数据 WARNING 开 继承默认":
+        - cell "R059":
+          - generic: R059
+        - cell "distributed":
+          - generic: distributed
+        - cell "避免跨SET分布式事务，单事务应只操作同一分片数据":
+          - generic: 避免跨SET分布式事务，单事务应只操作同一分片数据
+        - cell "WARNING":
+          - generic: WARNING
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R060 distributed 建议对分布式表查询执行EXPLAIN查看是否命中单SET INFO 开 继承默认":
+        - cell "R060":
+          - generic: R060
+        - cell "distributed":
+          - generic: distributed
+        - cell "建议对分布式表查询执行EXPLAIN查看是否命中单SET":
+          - generic: 建议对分布式表查询执行EXPLAIN查看是否命中单SET
+        - cell "INFO":
+          - generic: INFO
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R077 distributed TDSQL分布式实例建表必须声明分片键或广播表标记，不允许创建单表；分片键必须是主键或唯一索引的字段。支持的分片键声明形态：SHARDKEY=列名、TDSQL_DISTRIBUTED BY HASH(列名)；广播表(全局表)形态：BROADCAST、shardkey=noshardkey_allset ERROR 开 继承默认":
+        - cell "R077":
+          - generic: R077
+        - cell "distributed":
+          - generic: distributed
+        - cell "TDSQL分布式实例建表必须声明分片键或广播表标记，不允许创建单表；分片键必须是主键或唯一索引的字段。支持的分片键声明形态：SHARDKEY=列名、TDSQL_DISTRIBUTED BY HASH(列名)；广播表(全局表)形态：BROADCAST、shardkey=noshardkey_allset":
+          - generic: TDSQL分布式实例建表必须声明分片键或广播表标记，不允许创建单表；分片键必须是主键或唯一索引的字段。支持的分片键声明形态：SHARDKEY=列名、TDSQL_DISTRIBUTED BY HASH(列名)；广播表(全局表)形态：BROADCAST、shardkey=noshardkey_allset
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - 'row "R061 index 索引命名应遵循规范: 普通索引idx_、唯一索引uk_、主键pk_ WARNING 开 继承默认"':
+        - cell "R061":
+          - generic: R061
+        - cell "index":
+          - generic: index
+        - 'cell "索引命名应遵循规范: 普通索引idx_、唯一索引uk_、主键pk_"':
+          - generic: "索引命名应遵循规范: 普通索引idx_、唯一索引uk_、主键pk_"
+        - cell "WARNING":
+          - generic: WARNING
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R062 index 复合索引字段顺序应遵循最左前缀原则，区分度高的字段放前面 WARNING 开 继承默认":
+        - cell "R062":
+          - generic: R062
+        - cell "index":
+          - generic: index
+        - cell "复合索引字段顺序应遵循最左前缀原则，区分度高的字段放前面":
+          - generic: 复合索引字段顺序应遵循最左前缀原则，区分度高的字段放前面
+        - cell "WARNING":
+          - generic: WARNING
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R063 index 区分度低的字段(如status/type/gender)不建议单独建索引 WARNING 开 继承默认":
+        - cell "R063":
+          - generic: R063
+        - cell "index":
+          - generic: index
+        - cell "区分度低的字段(如status/type/gender)不建议单独建索引":
+          - generic: 区分度低的字段(如status/type/gender)不建议单独建索引
+        - cell "WARNING":
+          - generic: WARNING
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R064 index 高频查询建议使用覆盖索引避免回表 INFO 开 继承默认":
+        - cell "R064":
+          - generic: R064
+        - cell "index":
+          - generic: index
+        - cell "高频查询建议使用覆盖索引避免回表":
+          - generic: 高频查询建议使用覆盖索引避免回表
+        - cell "INFO":
+          - generic: INFO
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R065 index 复合索引字段数量建议不超过5个 WARNING 开 继承默认":
+        - cell "R065":
+          - generic: R065
+        - cell "index":
+          - generic: index
+        - cell "复合索引字段数量建议不超过5个":
+          - generic: 复合索引字段数量建议不超过5个
+        - cell "WARNING":
+          - generic: WARNING
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R066 index TEXT/BLOB/JSON类型字段禁止建索引 ERROR 开 继承默认":
+        - cell "R066":
+          - generic: R066
+        - cell "index":
+          - generic: index
+        - cell "TEXT/BLOB/JSON类型字段禁止建索引":
+          - generic: TEXT/BLOB/JSON类型字段禁止建索引
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R067 index VARCHAR长度超过100的字段建议使用前缀索引 INFO 开 继承默认":
+        - cell "R067":
+          - generic: R067
+        - cell "index":
+          - generic: index
+        - cell "VARCHAR长度超过100的字段建议使用前缀索引":
+          - generic: VARCHAR长度超过100的字段建议使用前缀索引
+        - cell "INFO":
+          - generic: INFO
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R068 index JOIN关联字段建议建索引 WARNING 开 继承默认":
+        - cell "R068":
+          - generic: R068
+        - cell "index":
+          - generic: index
+        - cell "JOIN关联字段建议建索引":
+          - generic: JOIN关联字段建议建索引
+        - cell "WARNING":
+          - generic: WARNING
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R069 transaction 避免长事务，事务持续时间建议不超过5秒 WARNING 开 继承默认":
+        - cell "R069":
+          - generic: R069
+        - cell "transaction":
+          - generic: transaction
+        - cell "避免长事务，事务持续时间建议不超过5秒":
+          - generic: 避免长事务，事务持续时间建议不超过5秒
+        - cell "WARNING":
+          - generic: WARNING
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R070 transaction 单事务影响行数建议不超过10000行 WARNING 开 继承默认":
+        - cell "R070":
+          - generic: R070
+        - cell "transaction":
+          - generic: transaction
+        - cell "单事务影响行数建议不超过10000行":
+          - generic: 单事务影响行数建议不超过10000行
+        - cell "WARNING":
+          - generic: WARNING
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R071 transaction BEGIN后必须有显式COMMIT或ROLLBACK WARNING 开 继承默认":
+        - cell "R071":
+          - generic: R071
+        - cell "transaction":
+          - generic: transaction
+        - cell "BEGIN后必须有显式COMMIT或ROLLBACK":
+          - generic: BEGIN后必须有显式COMMIT或ROLLBACK
+        - cell "WARNING":
+          - generic: WARNING
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R072 transaction 事务中避免使用SELECT...FOR UPDATE导致锁等待 WARNING 开 继承默认":
+        - cell "R072":
+          - generic: R072
+        - cell "transaction":
+          - generic: transaction
+        - cell "事务中避免使用SELECT...FOR UPDATE导致锁等待":
+          - generic: 事务中避免使用SELECT...FOR UPDATE导致锁等待
+        - cell "WARNING":
+          - generic: WARNING
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R073 security ALTER/DROP TABLE操作需确认已备份 WARNING 开 继承默认":
+        - cell "R073":
+          - generic: R073
+        - cell "security":
+          - generic: security
+        - cell "ALTER/DROP TABLE操作需确认已备份":
+          - generic: ALTER/DROP TABLE操作需确认已备份
+        - cell "WARNING":
+          - generic: WARNING
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R074 security 禁止在应用SQL中使用GRANT/REVOKE权限操作 ERROR 开 继承默认":
+        - cell "R074":
+          - generic: R074
+        - cell "security":
+          - generic: security
+        - cell "禁止在应用SQL中使用GRANT/REVOKE权限操作":
+          - generic: 禁止在应用SQL中使用GRANT/REVOKE权限操作
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R075 security TRUNCATE TABLE需确认，该操作不可回滚 ERROR 开 继承默认":
+        - cell "R075":
+          - generic: R075
+        - cell "security":
+          - generic: security
+        - cell "TRUNCATE TABLE需确认，该操作不可回滚":
+          - generic: TRUNCATE TABLE需确认，该操作不可回滚
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - 'row "R076 security 检测到疑似SQL注入风险（${}拼接或动态表名） ERROR 开 继承默认"':
+        - cell "R076":
+          - generic: R076
+        - cell "security":
+          - generic: security
+        - 'cell "检测到疑似SQL注入风险（${}拼接或动态表名）"':
+          - generic: "检测到疑似SQL注入风险（${}拼接或动态表名）"
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R078 oracle_compat 建表/改表禁止使用Oracle专有数据类型（NUMBER/VARCHAR2/CLOB等），需转换为TDSQL对等类型 ERROR 开 继承默认":
+        - cell "R078":
+          - generic: R078
+        - cell "oracle_compat":
+          - generic: oracle_compat
+        - cell "建表/改表禁止使用Oracle专有数据类型（NUMBER/VARCHAR2/CLOB等），需转换为TDSQL对等类型":
+          - generic: 建表/改表禁止使用Oracle专有数据类型（NUMBER/VARCHAR2/CLOB等），需转换为TDSQL对等类型
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R079 oracle_compat TDSQL不支持Oracle伪列ROWNUM，请改用LIMIT分页 ERROR 开 继承默认":
+        - cell "R079":
+          - generic: R079
+        - cell "oracle_compat":
+          - generic: oracle_compat
+        - cell "TDSQL不支持Oracle伪列ROWNUM，请改用LIMIT分页":
+          - generic: TDSQL不支持Oracle伪列ROWNUM，请改用LIMIT分页
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R080 oracle_compat TDSQL不支持NVL函数，请改用IFNULL(expr1,expr2)或COALESCE ERROR 开 继承默认":
+        - cell "R080":
+          - generic: R080
+        - cell "oracle_compat":
+          - generic: oracle_compat
+        - cell "TDSQL不支持NVL函数，请改用IFNULL(expr1,expr2)或COALESCE":
+          - generic: TDSQL不支持NVL函数，请改用IFNULL(expr1,expr2)或COALESCE
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R081 oracle_compat TDSQL不支持DECODE函数，请改用CASE WHEN或IF() ERROR 开 继承默认":
+        - cell "R081":
+          - generic: R081
+        - cell "oracle_compat":
+          - generic: oracle_compat
+        - cell "TDSQL不支持DECODE函数，请改用CASE WHEN或IF()":
+          - generic: TDSQL不支持DECODE函数，请改用CASE WHEN或IF()
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R082 oracle_compat TDSQL不支持TO_CHAR函数，日期格式化用DATE_FORMAT，数值转换用CONVERT/CAST/FORMAT ERROR 开 继承默认":
+        - cell "R082":
+          - generic: R082
+        - cell "oracle_compat":
+          - generic: oracle_compat
+        - cell "TDSQL不支持TO_CHAR函数，日期格式化用DATE_FORMAT，数值转换用CONVERT/CAST/FORMAT":
+          - generic: TDSQL不支持TO_CHAR函数，日期格式化用DATE_FORMAT，数值转换用CONVERT/CAST/FORMAT
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R083 oracle_compat TDSQL不支持TO_NUMBER函数，请改用CAST；注意CAST对非法数字会截断而不报错 ERROR 开 继承默认":
+        - cell "R083":
+          - generic: R083
+        - cell "oracle_compat":
+          - generic: oracle_compat
+        - cell "TDSQL不支持TO_NUMBER函数，请改用CAST；注意CAST对非法数字会截断而不报错":
+          - generic: TDSQL不支持TO_NUMBER函数，请改用CAST；注意CAST对非法数字会截断而不报错
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R084 oracle_compat 检测到||运算符：MySQL/TDSQL默认语义为逻辑OR而非字符串拼接，Oracle迁移SQL请改用CONCAT() WARNING 开 继承默认":
+        - cell "R084":
+          - generic: R084
+        - cell "oracle_compat":
+          - generic: oracle_compat
+        - cell "检测到||运算符：MySQL/TDSQL默认语义为逻辑OR而非字符串拼接，Oracle迁移SQL请改用CONCAT()":
+          - generic: 检测到||运算符：MySQL/TDSQL默认语义为逻辑OR而非字符串拼接，Oracle迁移SQL请改用CONCAT()
+        - cell "WARNING":
+          - generic: WARNING
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R085 oracle_compat TDSQL不支持TO_DATE函数，请改用STR_TO_DATE(date,format) ERROR 开 继承默认":
+        - cell "R085":
+          - generic: R085
+        - cell "oracle_compat":
+          - generic: oracle_compat
+        - cell "TDSQL不支持TO_DATE函数，请改用STR_TO_DATE(date,format)":
+          - generic: TDSQL不支持TO_DATE函数，请改用STR_TO_DATE(date,format)
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R086 oracle_compat TDSQL不支持TRUNC函数：数值截断用TRUNCATE(X,D)，日期截断用DATE_FORMAT ERROR 开 继承默认":
+        - cell "R086":
+          - generic: R086
+        - cell "oracle_compat":
+          - generic: oracle_compat
+        - cell "TDSQL不支持TRUNC函数：数值截断用TRUNCATE(X,D)，日期截断用DATE_FORMAT":
+          - generic: TDSQL不支持TRUNC函数：数值截断用TRUNCATE(X,D)，日期截断用DATE_FORMAT
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - 'row "R087 oracle_compat TDSQL的LTRIM/RTRIM仅支持单参数去空格，去除指定字符请用TRIM({BOTH|LEADING|TRAILING} remstr FROM str) ERROR 开 继承默认"':
+        - cell "R087":
+          - generic: R087
+        - cell "oracle_compat":
+          - generic: oracle_compat
+        - 'cell "TDSQL的LTRIM/RTRIM仅支持单参数去空格，去除指定字符请用TRIM({BOTH|LEADING|TRAILING} remstr FROM str)"':
+          - generic: "TDSQL的LTRIM/RTRIM仅支持单参数去空格，去除指定字符请用TRIM({BOTH|LEADING|TRAILING} remstr FROM str)"
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R088 oracle_compat TDSQL不支持ADD_MONTHS函数，请改用ADDDATE(date, INTERVAL expr MONTH) ERROR 开 继承默认":
+        - cell "R088":
+          - generic: R088
+        - cell "oracle_compat":
+          - generic: oracle_compat
+        - cell "TDSQL不支持ADD_MONTHS函数，请改用ADDDATE(date, INTERVAL expr MONTH)":
+          - generic: TDSQL不支持ADD_MONTHS函数，请改用ADDDATE(date, INTERVAL expr MONTH)
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R089 oracle_compat TDSQL的SUBSTR起始位置只能从1开始，start=0将返回空串（Oracle中0按1处理），结果错误 ERROR 开 继承默认":
+        - cell "R089":
+          - generic: R089
+        - cell "oracle_compat":
+          - generic: oracle_compat
+        - cell "TDSQL的SUBSTR起始位置只能从1开始，start=0将返回空串（Oracle中0按1处理），结果错误":
+          - generic: TDSQL的SUBSTR起始位置只能从1开始，start=0将返回空串（Oracle中0按1处理），结果错误
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R090 oracle_compat Oracle的SYSDATE/SYSTIMESTAMP关键字用法不支持，TDSQL需使用sysdate()/NOW()函数（带括号） ERROR 开 继承默认":
+        - cell "R090":
+          - generic: R090
+        - cell "oracle_compat":
+          - generic: oracle_compat
+        - cell "Oracle的SYSDATE/SYSTIMESTAMP关键字用法不支持，TDSQL需使用sysdate()/NOW()函数（带括号）":
+          - generic: Oracle的SYSDATE/SYSTIMESTAMP关键字用法不支持，TDSQL需使用sysdate()/NOW()函数（带括号）
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R091 oracle_compat TDSQL不支持MERGE INTO：集中式且按主键/唯一键关联可用INSERT…ON DUPLICATE KEY UPDATE，分布式需拆分为程序逻辑 ERROR 开 继承默认":
+        - cell "R091":
+          - generic: R091
+        - cell "oracle_compat":
+          - generic: oracle_compat
+        - cell "TDSQL不支持MERGE INTO：集中式且按主键/唯一键关联可用INSERT…ON DUPLICATE KEY UPDATE，分布式需拆分为程序逻辑":
+          - generic: TDSQL不支持MERGE INTO：集中式且按主键/唯一键关联可用INSERT…ON DUPLICATE KEY UPDATE，分布式需拆分为程序逻辑
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R092 oracle_compat 分布式实例不支持WITH AS(CTE)，请改写为子查询或JOIN；集中式8.0递归场景可评估WITH RECURSIVE ERROR 开 继承默认":
+        - cell "R092":
+          - generic: R092
+        - cell "oracle_compat":
+          - generic: oracle_compat
+        - cell "分布式实例不支持WITH AS(CTE)，请改写为子查询或JOIN；集中式8.0递归场景可评估WITH RECURSIVE":
+          - generic: 分布式实例不支持WITH AS(CTE)，请改写为子查询或JOIN；集中式8.0递归场景可评估WITH RECURSIVE
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R093 oracle_compat TDSQL的LENGTH()返回字节数（Oracle为字符数），中文场景结果不一致；需字符数请用CHAR_LENGTH() WARNING 开 继承默认":
+        - cell "R093":
+          - generic: R093
+        - cell "oracle_compat":
+          - generic: oracle_compat
+        - cell "TDSQL的LENGTH()返回字节数（Oracle为字符数），中文场景结果不一致；需字符数请用CHAR_LENGTH()":
+          - generic: TDSQL的LENGTH()返回字节数（Oracle为字符数），中文场景结果不一致；需字符数请用CHAR_LENGTH()
+        - cell "WARNING":
+          - generic: WARNING
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R094 oracle_compat TDSQL不支持LISTAGG() WITHIN GROUP()，请改用GROUP_CONCAT ERROR 开 继承默认":
+        - cell "R094":
+          - generic: R094
+        - cell "oracle_compat":
+          - generic: oracle_compat
+        - cell "TDSQL不支持LISTAGG() WITHIN GROUP()，请改用GROUP_CONCAT":
+          - generic: TDSQL不支持LISTAGG() WITHIN GROUP()，请改用GROUP_CONCAT
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R095 oracle_compat TDSQL不支持MINUS集合运算，请改用LEFT JOIN…IS NULL或NOT EXISTS实现差集 ERROR 开 继承默认":
+        - cell "R095":
+          - generic: R095
+        - cell "oracle_compat":
+          - generic: oracle_compat
+        - cell "TDSQL不支持MINUS集合运算，请改用LEFT JOIN…IS NULL或NOT EXISTS实现差集":
+          - generic: TDSQL不支持MINUS集合运算，请改用LEFT JOIN…IS NULL或NOT EXISTS实现差集
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R096 oracle_compat 底层MySQL不支持FULL JOIN，请改写为LEFT JOIN UNION RIGHT JOIN ERROR 开 继承默认":
+        - cell "R096":
+          - generic: R096
+        - cell "oracle_compat":
+          - generic: oracle_compat
+        - cell "底层MySQL不支持FULL JOIN，请改写为LEFT JOIN UNION RIGHT JOIN":
+          - generic: 底层MySQL不支持FULL JOIN，请改写为LEFT JOIN UNION RIGHT JOIN
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R097 oracle_compat 分布式实例建表字段DEFAULT值不支持类型转换/函数表达式（Proxy报ERROR 1064），仅CURRENT_TIMESTAMP例外；集中式实例（MySQL 8.0.13+）原生支持表达式默认值，不受此限 ERROR 开 继承默认":
+        - cell "R097":
+          - generic: R097
+        - cell "oracle_compat":
+          - generic: oracle_compat
+        - cell "分布式实例建表字段DEFAULT值不支持类型转换/函数表达式（Proxy报ERROR 1064），仅CURRENT_TIMESTAMP例外；集中式实例（MySQL 8.0.13+）原生支持表达式默认值，不受此限":
+          - generic: 分布式实例建表字段DEFAULT值不支持类型转换/函数表达式（Proxy报ERROR 1064），仅CURRENT_TIMESTAMP例外；集中式实例（MySQL 8.0.13+）原生支持表达式默认值，不受此限
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R098 oracle_compat HASH分区要求分区字段为整型；char/varchar等非整型字段请改用KEY分区或murmurHashCodeAndMod改造 ERROR 开 继承默认":
+        - cell "R098":
+          - generic: R098
+        - cell "oracle_compat":
+          - generic: oracle_compat
+        - cell "HASH分区要求分区字段为整型；char/varchar等非整型字段请改用KEY分区或murmurHashCodeAndMod改造":
+          - generic: HASH分区要求分区字段为整型；char/varchar等非整型字段请改用KEY分区或murmurHashCodeAndMod改造
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R099 oracle_compat FROM后的子查询（派生表）必须指定别名，否则TDSQL报错 ERROR 开 继承默认":
+        - cell "R099":
+          - generic: R099
+        - cell "oracle_compat":
+          - generic: oracle_compat
+        - cell "FROM后的子查询（派生表）必须指定别名，否则TDSQL报错":
+          - generic: FROM后的子查询（派生表）必须指定别名，否则TDSQL报错
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R100 oracle_compat 分布式实例DELETE语句不支持对被删表设置别名，请使用真实表名 ERROR 开 继承默认":
+        - cell "R100":
+          - generic: R100
+        - cell "oracle_compat":
+          - generic: oracle_compat
+        - cell "分布式实例DELETE语句不支持对被删表设置别名，请使用真实表名":
+          - generic: 分布式实例DELETE语句不支持对被删表设置别名，请使用真实表名
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R101 oracle_compat 别名/标识符使用了TDSQL保留字（如CONDITION）或sequence特殊词（NEXTVAL/MINVALUE等），需加反引号或改用普通别名 ERROR 开 继承默认":
+        - cell "R101":
+          - generic: R101
+        - cell "oracle_compat":
+          - generic: oracle_compat
+        - cell "别名/标识符使用了TDSQL保留字（如CONDITION）或sequence特殊词（NEXTVAL/MINVALUE等），需加反引号或改用普通别名":
+          - generic: 别名/标识符使用了TDSQL保留字（如CONDITION）或sequence特殊词（NEXTVAL/MINVALUE等），需加反引号或改用普通别名
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R102 oracle_compat LIKE…ESCAPE '\\'在TDSQL中行为与Oracle不一致，建议改用其他转义符（如'/'） WARNING 开 继承默认":
+        - cell "R102":
+          - generic: R102
+        - cell "oracle_compat":
+          - generic: oracle_compat
+        - cell "LIKE…ESCAPE '\\'在TDSQL中行为与Oracle不一致，建议改用其他转义符（如'/'）":
+          - generic: LIKE…ESCAPE '\'在TDSQL中行为与Oracle不一致，建议改用其他转义符（如'/'）
+        - cell "WARNING":
+          - generic: WARNING
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R103 oracle_compat 比较运算符中间不能有空格（如\"< =\"、\"> =\"、\"! =\"、\"< >\"），TDSQL会语法报错 ERROR 开 继承默认":
+        - cell "R103":
+          - generic: R103
+        - cell "oracle_compat":
+          - generic: oracle_compat
+        - cell "比较运算符中间不能有空格（如\"< =\"、\"> =\"、\"! =\"、\"< >\"），TDSQL会语法报错":
+          - generic: 比较运算符中间不能有空格（如"< ="、"> ="、"! ="、"< >"），TDSQL会语法报错
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R104 oracle_compat 常用函数名与括号之间不能有空格（如SUM (、COUNT （），且禁止使用全角括号 ERROR 开 继承默认":
+        - cell "R104":
+          - generic: R104
+        - cell "oracle_compat":
+          - generic: oracle_compat
+        - cell "常用函数名与括号之间不能有空格（如SUM (、COUNT （），且禁止使用全角括号":
+          - generic: 常用函数名与括号之间不能有空格（如SUM (、COUNT （），且禁止使用全角括号
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R105 oracle_compat 不支持Oracle的(+)外连接语法，请改写为LEFT/RIGHT OUTER JOIN ERROR 开 继承默认":
+        - cell "R105":
+          - generic: R105
+        - cell "oracle_compat":
+          - generic: oracle_compat
+        - cell "不支持Oracle的(+)外连接语法，请改写为LEFT/RIGHT OUTER JOIN":
+          - generic: 不支持Oracle的(+)外连接语法，请改写为LEFT/RIGHT OUTER JOIN
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R106 oracle_compat 不支持Oracle层级查询START WITH…CONNECT BY：集中式可用WITH RECURSIVE改写，分布式需应用代码实现递归 ERROR 开 继承默认":
+        - cell "R106":
+          - generic: R106
+        - cell "oracle_compat":
+          - generic: oracle_compat
+        - cell "不支持Oracle层级查询START WITH…CONNECT BY：集中式可用WITH RECURSIVE改写，分布式需应用代码实现递归":
+          - generic: 不支持Oracle层级查询START WITH…CONNECT BY：集中式可用WITH RECURSIVE改写，分布式需应用代码实现递归
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R107 oracle_compat INSERT INTO…SELECT在目标表含自增列或分区时不支持，请执行前确认目标表结构 WARNING 开 继承默认":
+        - cell "R107":
+          - generic: R107
+        - cell "oracle_compat":
+          - generic: oracle_compat
+        - cell "INSERT INTO…SELECT在目标表含自增列或分区时不支持，请执行前确认目标表结构":
+          - generic: INSERT INTO…SELECT在目标表含自增列或分区时不支持，请执行前确认目标表结构
+        - cell "WARNING":
+          - generic: WARNING
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R108 oracle_compat TDSQL的sequence在多行SELECT/INSERT…SELECT中不支持批量递增获取（多行返回相同值或直接报错） ERROR 开 继承默认":
+        - cell "R108":
+          - generic: R108
+        - cell "oracle_compat":
+          - generic: oracle_compat
+        - cell "TDSQL的sequence在多行SELECT/INSERT…SELECT中不支持批量递增获取（多行返回相同值或直接报错）":
+          - generic: TDSQL的sequence在多行SELECT/INSERT…SELECT中不支持批量递增获取（多行返回相同值或直接报错）
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R109 oracle_compat UPDATE中后续SET的CASE WHEN会读到前面SET字段的新值（与Oracle读旧值不同），判断条件字段的赋值应放到最后 WARNING 开 继承默认":
+        - cell "R109":
+          - generic: R109
+        - cell "oracle_compat":
+          - generic: oracle_compat
+        - cell "UPDATE中后续SET的CASE WHEN会读到前面SET字段的新值（与Oracle读旧值不同），判断条件字段的赋值应放到最后":
+          - generic: UPDATE中后续SET的CASE WHEN会读到前面SET字段的新值（与Oracle读旧值不同），判断条件字段的赋值应放到最后
+        - cell "WARNING":
+          - generic: WARNING
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R110 oracle_compat TDSQL不支持USERENV()系统上下文函数，系统级参数请从应用侧获取 ERROR 开 继承默认":
+        - cell "R110":
+          - generic: R110
+        - cell "oracle_compat":
+          - generic: oracle_compat
+        - cell "TDSQL不支持USERENV()系统上下文函数，系统级参数请从应用侧获取":
+          - generic: TDSQL不支持USERENV()系统上下文函数，系统级参数请从应用侧获取
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R111 oracle_compat 分布式实例不支持窗口函数（row_number()/rank()等 OVER()），需改写为分组+嵌套查询或应用侧处理 ERROR 开 继承默认":
+        - cell "R111":
+          - generic: R111
+        - cell "oracle_compat":
+          - generic: oracle_compat
+        - cell "分布式实例不支持窗口函数（row_number()/rank()等 OVER()），需改写为分组+嵌套查询或应用侧处理":
+          - generic: 分布式实例不支持窗口函数（row_number()/rank()等 OVER()），需改写为分组+嵌套查询或应用侧处理
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R112 oracle_compat TDSQL分布式不支持游标（DECLARE…CURSOR/FETCH），请改用键集翻页或流式查询 ERROR 开 继承默认":
+        - cell "R112":
+          - generic: R112
+        - cell "oracle_compat":
+          - generic: oracle_compat
+        - cell "TDSQL分布式不支持游标（DECLARE…CURSOR/FETCH），请改用键集翻页或流式查询":
+          - generic: TDSQL分布式不支持游标（DECLARE…CURSOR/FETCH），请改用键集翻页或流式查询
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R113 oracle_compat 分布式实例高并发下DROP PARTITION与proxy路由元数据更新存在毫秒级间隙，小概率报分区不存在；请逐表执行drop+analyze并配置重试 INFO 开 继承默认":
+        - cell "R113":
+          - generic: R113
+        - cell "oracle_compat":
+          - generic: oracle_compat
+        - cell "分布式实例高并发下DROP PARTITION与proxy路由元数据更新存在毫秒级间隙，小概率报分区不存在；请逐表执行drop+analyze并配置重试":
+          - generic: 分布式实例高并发下DROP PARTITION与proxy路由元数据更新存在毫秒级间隙，小概率报分区不存在；请逐表执行drop+analyze并配置重试
+        - cell "INFO":
+          - generic: INFO
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R114 oracle_compat LIMIT大偏移分页需扫描并丢弃前N行，代价随偏移量线性增长；分布式实例还需proxy跨分片聚合，代价更高。请用索引有序性/键集翻页/条件初筛优化 WARNING 开 继承默认":
+        - cell "R114":
+          - generic: R114
+        - cell "oracle_compat":
+          - generic: oracle_compat
+        - cell "LIMIT大偏移分页需扫描并丢弃前N行，代价随偏移量线性增长；分布式实例还需proxy跨分片聚合，代价更高。请用索引有序性/键集翻页/条件初筛优化":
+          - generic: LIMIT大偏移分页需扫描并丢弃前N行，代价随偏移量线性增长；分布式实例还需proxy跨分片聚合，代价更高。请用索引有序性/键集翻页/条件初筛优化
+        - cell "WARNING":
+          - generic: WARNING
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R115 oracle_compat 分布式实例update/delete…limit依赖proxy内嵌myisam临时表（索引限1000字节），utf8mb4下主键varchar长度须<250 WARNING 开 继承默认":
+        - cell "R115":
+          - generic: R115
+        - cell "oracle_compat":
+          - generic: oracle_compat
+        - cell "分布式实例update/delete…limit依赖proxy内嵌myisam临时表（索引限1000字节），utf8mb4下主键varchar长度须<250":
+          - generic: 分布式实例update/delete…limit依赖proxy内嵌myisam临时表（索引限1000字节），utf8mb4下主键varchar长度须<250
+        - cell "WARNING":
+          - generic: WARNING
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R116 oracle_compat 分片键只支持一个字段，不支持多字段联合分片键 ERROR 开 继承默认":
+        - cell "R116":
+          - generic: R116
+        - cell "oracle_compat":
+          - generic: oracle_compat
+        - cell "分片键只支持一个字段，不支持多字段联合分片键":
+          - generic: 分片键只支持一个字段，不支持多字段联合分片键
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R117 oracle_compat shardkey字段类型必须是int/bigint/smallint/char/varchar ERROR 开 继承默认":
+        - cell "R117":
+          - generic: R117
+        - cell "oracle_compat":
+          - generic: oracle_compat
+        - cell "shardkey字段类型必须是int/bigint/smallint/char/varchar":
+          - generic: shardkey字段类型必须是int/bigint/smallint/char/varchar
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R118 oracle_compat shardkey字段的值不能为NULL，建表时必须显式NOT NULL约束 ERROR 开 继承默认":
+        - cell "R118":
+          - generic: R118
+        - cell "oracle_compat":
+          - generic: oracle_compat
+        - cell "shardkey字段的值不能为NULL，建表时必须显式NOT NULL约束":
+          - generic: shardkey字段的值不能为NULL，建表时必须显式NOT NULL约束
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+      - row "R119 oracle_compat 日期值直接±数字（如sysdate()-15）在TDSQL中语义与Oracle不同，请改用DATE_ADD/DATE_SUB(… INTERVAL n DAY) WARNING 开 继承默认":
+        - cell "R119":
+          - generic: R119
+        - cell "oracle_compat":
+          - generic: oracle_compat
+        - cell "日期值直接±数字（如sysdate()-15）在TDSQL中语义与Oracle不同，请改用DATE_ADD/DATE_SUB(… INTERVAL n DAY)":
+          - generic: 日期值直接±数字（如sysdate()-15）在TDSQL中语义与Oracle不同，请改用DATE_ADD/DATE_SUB(… INTERVAL n DAY)
+        - cell "WARNING":
+          - generic: WARNING
+        - cell "开":
+          - switch [checked] [disabled]
+          - generic: 开
+        - cell "继承默认":
+          - generic: 继承默认
+  - generic: "共计 119 条规则 | 已显式覆盖级别: 0 条 | 已显式禁用: 0 条"
+  - button "取消":
+    - generic: 取消

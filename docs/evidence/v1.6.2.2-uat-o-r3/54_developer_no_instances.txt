@@ -1,0 +1,221 @@
+- banner:
+  - img "logo"
+  - generic: TDSQL数据库SQL审核工具
+  - button "U UAT-O developer 开发":
+    - generic: U
+    - generic: UAT-O developer
+    - generic: 开发
+- complementary:
+  - menubar:
+    - menuitem "治理概览":
+      - generic: 治理概览
+    - menuitem "SQL审核" [expanded]:
+      - generic: SQL审核
+      - menu:
+        - menuitem "即时审核"
+        - menuitem "文件审核"
+        - menuitem "在线元数据审核"
+    - menuitem "慢SQL治理":
+      - generic: 慢SQL治理
+    - menuitem "实例体检":
+      - generic: 实例体检
+    - menuitem "深度诊断":
+      - generic: 深度诊断
+    - menuitem "平台治理" [expanded]:
+      - generic: 平台治理
+      - menu:
+        - menuitem "审核规则库"
+        - menuitem "评估规则集"
+- navigation "面包屑":
+  - link "工作台"
+  - text: /
+  - link "治理概览"
+- generic: "11"
+- generic: 今日审核
+- generic: 通过 2 / 拦截 9
+- generic: 18.2%
+- generic: 今日通过率
+- generic: ERROR 137 / WARNING 75
+- generic: "51"
+- generic: 待处理慢SQL
+- generic: 严重 1
+- generic: "0"
+- generic: 已优化慢SQL
+- generic: 近7天审核趋势
+- generic: 高频违规规则 TOP5
+- table:
+  - rowgroup:
+    - row "规则ID 级别 描述 命中":
+      - columnheader "规则ID":
+        - generic: 规则ID
+      - columnheader "级别":
+        - generic: 级别
+      - columnheader "描述":
+        - generic: 描述
+      - columnheader "命中":
+        - generic: 命中
+- table:
+  - rowgroup:
+    - row "R077 ERROR TDSQL分布式实例建表必须声明分片键或广播表标记，不允许创建单表；分片键必须是主键或唯一索引的字段。支持的分片键声明形态：SHARDKEY=列名、TDSQL_DISTRIBUTED BY HASH(列名)；广播表(全局表)形态：BROADCAST、shardkey=noshardkey_allset 28":
+      - cell "R077":
+        - generic: R077
+      - cell "ERROR":
+        - generic: ERROR
+      - cell "TDSQL分布式实例建表必须声明分片键或广播表标记，不允许创建单表；分片键必须是主键或唯一索引的字段。支持的分片键声明形态：SHARDKEY=列名、TDSQL_DISTRIBUTED BY HASH(列名)；广播表(全局表)形态：BROADCAST、shardkey=noshardkey_allset":
+        - generic: TDSQL分布式实例建表必须声明分片键或广播表标记，不允许创建单表；分片键必须是主键或唯一索引的字段。支持的分片键声明形态：SHARDKEY=列名、TDSQL_DISTRIBUTED BY HASH(列名)；广播表(全局表)形态：BROADCAST、shardkey=noshardkey_allset
+      - cell "28":
+        - generic: "28"
+    - row "R051 WARNING SELECT语句建议包含WHERE条件，避免全表扫描 10":
+      - cell "R051":
+        - generic: R051
+      - cell "WARNING":
+        - generic: WARNING
+      - cell "SELECT语句建议包含WHERE条件，避免全表扫描":
+        - generic: SELECT语句建议包含WHERE条件，避免全表扫描
+      - cell "10":
+        - generic: "10"
+    - row "R036 INFO 建议每张表包含create_time和update_time字段 9":
+      - cell "R036":
+        - generic: R036
+      - cell "INFO":
+        - generic: INFO
+      - cell "建议每张表包含create_time和update_time字段":
+        - generic: 建议每张表包含create_time和update_time字段
+      - cell "9":
+        - generic: "9"
+    - row "R037 INFO 建议使用逻辑删除(is_deleted)替代物理删除(DELETE) 9":
+      - cell "R037":
+        - generic: R037
+      - cell "INFO":
+        - generic: INFO
+      - cell "建议使用逻辑删除(is_deleted)替代物理删除(DELETE)":
+        - generic: 建议使用逻辑删除(is_deleted)替代物理删除(DELETE)
+      - cell "9":
+        - generic: "9"
+    - row "E999_SYNTAX_ERROR E999_SYNTAX_ERROR 9":
+      - cell "E999_SYNTAX_ERROR":
+        - generic: E999_SYNTAX_ERROR
+      - cell
+      - cell "E999_SYNTAX_ERROR":
+        - generic: E999_SYNTAX_ERROR
+      - cell "9":
+        - generic: "9"
+- generic: Top3 高耗时慢SQL
+- table:
+  - rowgroup:
+    - row "SQL指纹 平均耗时(ms) 执行次数":
+      - columnheader "SQL指纹":
+        - generic: SQL指纹
+      - columnheader "平均耗时(ms)":
+        - generic: 平均耗时(ms)
+      - columnheader "执行次数":
+        - generic: 执行次数
+- table:
+  - rowgroup:
+    - row "SELECT id FROM t_uat_order WHERE customer_id = ? 1200 10":
+      - cell "SELECT id FROM t_uat_order WHERE customer_id = ?":
+        - generic: SELECT id FROM t_uat_order WHERE customer_id = ?
+      - cell "1200":
+        - generic: "1200"
+      - cell "10":
+        - generic: "10"
+    - 'row "ALTER TABLE `scan_snapshots` ADD COLUMN `rule_set_id` VARCHARACTER (?) DEFAULT ? 475.3 1"':
+      - 'cell "ALTER TABLE `scan_snapshots` ADD COLUMN `rule_set_id` VARCHARACTER (?) DEFAULT ?"':
+        - generic: "ALTER TABLE `scan_snapshots` ADD COLUMN `rule_set_id` VARCHARACTER (?) DEFAULT ?"
+      - cell "475.3":
+        - generic: "475.3"
+      - cell "1":
+        - generic: "1"
+    - 'row "ALTER TABLE `zk_discovery_config` ADD COLUMN `monitor_host` VARCHARACTER (?) NOT NULL DEFAULT ? 395.9 1"':
+      - 'cell "ALTER TABLE `zk_discovery_config` ADD COLUMN `monitor_host` VARCHARACTER (?) NOT NULL DEFAULT ?"':
+        - generic: "ALTER TABLE `zk_discovery_config` ADD COLUMN `monitor_host` VARCHARACTER (?) NOT NULL DEFAULT ?"
+      - cell "395.9":
+        - generic: "395.9"
+      - cell "1":
+        - generic: "1"
+- generic: 今日审核记录
+- table:
+  - rowgroup:
+    - row "来源 SQL数 通过率 时间":
+      - columnheader "来源":
+        - generic: 来源
+      - columnheader "SQL数":
+        - generic: SQL数
+      - columnheader "通过率":
+        - generic: 通过率
+      - columnheader "时间":
+        - generic: 时间
+- table:
+  - rowgroup:
+    - row "extracted_tdsql_uat_o_target_1622_20260829_000518.sql 2 0.0% 2026-08-29 00:05":
+      - cell "extracted_tdsql_uat_o_target_1622_20260829_000518.sql":
+        - generic: extracted_tdsql_uat_o_target_1622_20260829_000518.sql
+      - cell "2":
+        - generic: "2"
+      - cell "0.0%":
+        - generic: 0.0%
+      - cell "2026-08-29 00:05":
+        - generic: 2026-08-29 00:05
+    - row "uat_mybatis.xml 3 33.3% 2026-08-29 00:04":
+      - cell "uat_mybatis.xml":
+        - generic: uat_mybatis.xml
+      - cell "3":
+        - generic: "3"
+      - cell "33.3%":
+        - generic: 33.3%
+      - cell "2026-08-29 00:04":
+        - generic: 2026-08-29 00:04
+    - row "uat_core_rule_corpus.sql 100 2.0% 2026-08-29 00:04":
+      - cell "uat_core_rule_corpus.sql":
+        - generic: uat_core_rule_corpus.sql
+      - cell "100":
+        - generic: "100"
+      - cell "2.0%":
+        - generic: 2.0%
+      - cell "2026-08-29 00:04":
+        - generic: 2026-08-29 00:04
+    - row "uat_r3_load_xml_guard.sql 1 100.0% 2026-08-29 00:03":
+      - cell "uat_r3_load_xml_guard.sql":
+        - generic: uat_r3_load_xml_guard.sql
+      - cell "1":
+        - generic: "1"
+      - cell "100.0%":
+        - generic: 100.0%
+      - cell "2026-08-29 00:03":
+        - generic: 2026-08-29 00:03
+    - row "api 1 0.0% 2026-08-29 00:03":
+      - cell "api":
+        - generic: api
+      - cell "1":
+        - generic: "1"
+      - cell "0.0%":
+        - generic: 0.0%
+      - cell "2026-08-29 00:03":
+        - generic: 2026-08-29 00:03
+    - row "api 1 0.0% 2026-08-29 00:02":
+      - cell "api":
+        - generic: api
+      - cell "1":
+        - generic: "1"
+      - cell "0.0%":
+        - generic: 0.0%
+      - cell "2026-08-29 00:02":
+        - generic: 2026-08-29 00:02
+    - row "api 1 0.0% 2026-08-29 00:02":
+      - cell "api":
+        - generic: api
+      - cell "1":
+        - generic: "1"
+      - cell "0.0%":
+        - generic: 0.0%
+      - cell "2026-08-29 00:02":
+        - generic: 2026-08-29 00:02
+    - row "api 1 0.0% 2026-08-29 00:02":
+      - cell "api":
+        - generic: api
+      - cell "1":
+        - generic: "1"
+      - cell "0.0%":
+        - generic: 0.0%
+      - cell "2026-08-29 00:02":
+        - generic: 2026-08-29 00:02

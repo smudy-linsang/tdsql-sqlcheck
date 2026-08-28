@@ -1,0 +1,380 @@
+[
+  {
+    "id": "01-login-version",
+    "note": "fresh login label V1.6.2.2",
+    "at": "2026-08-28T15:54:28.732Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "02-admin-dashboard",
+    "note": "admin home menus/version",
+    "at": "2026-08-28T15:54:56.740Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "03-dashboard-partial",
+    "note": "only synthetic slow SQL collected, other modules no_data",
+    "at": "2026-08-28T15:55:52.995Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "04-dashboard-no-data",
+    "note": "offline fixture has zero collected records: unassessed/no_data",
+    "at": "2026-08-28T15:56:07.530Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "05-gateway-upload",
+    "note": "two synthetic entries uploaded via native file chooser",
+    "at": "2026-08-28T15:56:54.505Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "06-gateway-html",
+    "note": "real HTML body and tables render in sandbox iframe",
+    "at": "2026-08-28T15:57:25.780Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "07-gateway-collapse",
+    "note": "Clicked section header; content remained visible; scripting requires further verification.",
+    "at": "2026-08-28T15:57:26.221Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "08-gateway-closed",
+    "note": "iframe removed on close; body margin0 and head style0 retained",
+    "at": "2026-08-28T15:57:42.250Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "09-slow-mark-dropdown",
+    "note": "mark menu opens without triggering detail drawer",
+    "at": "2026-08-28T15:58:09.458Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "10-slow-optimized",
+    "note": "mark optimized without detail opening",
+    "at": "2026-08-28T15:58:26.630Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "11-slow-ignored",
+    "note": "mark ignored without detail opening",
+    "at": "2026-08-28T15:58:27.445Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "12-slow-detail",
+    "note": "normal details contain source database",
+    "at": "2026-08-28T15:59:35.518Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "13-explain-missing-db",
+    "note": "explicit source database produces NameError instead of 4xx guidance",
+    "at": "2026-08-28T15:59:53.043Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "14-explain-existing-other-db",
+    "note": "existing alternate database also fails in new pool branch",
+    "at": "2026-08-28T15:59:53.467Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "15-explain-default-success",
+    "note": "First empty-fill attempt did not update the controlled input; NOT a passing observation; see16 after keyboard clear.",
+    "at": "2026-08-28T16:00:06.178Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "16-explain-default-success",
+    "note": "keyboard cleared database, native click completed: inspect actual result",
+    "at": "2026-08-28T16:01:26.555Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "17-load-xml-false-pass",
+    "note": "new regression: operator apostrophe in hash comment suppresses R042, UI passes",
+    "at": "2026-08-28T16:02:09.570Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "18-load-xml-control",
+    "note": "same statement without comment correctly triggers R042",
+    "at": "2026-08-28T16:02:23.199Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "19-gg77",
+    "note": "original gg77 distributed: verify no false R054",
+    "at": "2026-08-28T16:02:32.693Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "20-gg78",
+    "note": "original gg78 centralized retains R036/R037 without parse crash",
+    "at": "2026-08-28T16:02:43.028Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "21-kfn-fixed",
+    "note": "second-round remaining sample now includes mandatory E999",
+    "at": "2026-08-28T16:02:53.962Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "22-hash-regression",
+    "note": "repository HASH fixture: no target R077",
+    "at": "2026-08-28T16:03:20.973Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "23-broadcast-regression",
+    "note": "broadcast fixture no target R077/R054",
+    "at": "2026-08-28T16:03:39.053Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "24-load-file-false-pass",
+    "note": "native SQL file upload also reports 100 percent pass",
+    "at": "2026-08-28T16:04:19.305Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "25-file-corpus",
+    "note": "100 SQL corpus submitted via real file chooser",
+    "at": "2026-08-28T16:04:30.971Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "26-mybatis",
+    "note": "MyBatis XML result:3 statements,1 passed2 failed",
+    "at": "2026-08-28T16:04:46.257Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "27-file-history",
+    "note": "file results persist in history",
+    "at": "2026-08-28T16:04:46.653Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "28-online-admin",
+    "note": "admin actual metadata extraction of two synthetic tables",
+    "at": "2026-08-28T16:05:29.287Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "29-online-history",
+    "note": "online extraction history persists",
+    "at": "2026-08-28T16:05:29.680Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "30-scan-form",
+    "note": "native scan form configured for read-only performance digest",
+    "at": "2026-08-28T16:05:57.275Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "31-scan-completed",
+    "note": "performance digest scan completed; local MySQL cumulative test traffic",
+    "at": "2026-08-28T16:06:12.126Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "32-launch-check",
+    "note": "Launch check was still running when captured; final result is34.",
+    "at": "2026-08-28T16:07:24.106Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "33-bigtable",
+    "note": "local synthetic instance collection has no qualifying big tables",
+    "at": "2026-08-28T16:07:42.691Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "34-launch-completed",
+    "note": "revisited after completion; actual twelve-check result",
+    "at": "2026-08-28T16:07:47.807Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "35-index-actual-findings",
+    "note": "one table four indexes: inspect genuine duplicates and prefix redundancy",
+    "at": "2026-08-28T16:08:58.725Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "36-index-dashboard-false-zero",
+    "note": "actual duplicate1 prefix2 but dashboard duplicate0 score100",
+    "at": "2026-08-28T16:09:13.718Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "37_gateway_inert_controls",
+    "note": "Actual heading and 1h clicks; DOM unchanged, report inline scripts not functioning",
+    "at": "2026-08-28T16:13:46.496Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "38_cluster_environment_guard",
+    "note": "Native cluster inspection rejects missing monitordb configuration; real TDSQL cluster path blocked by environment",
+    "at": "2026-08-28T16:14:05.720Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "39_daily_environment_guard",
+    "note": "Daily collection action performed, capture environment outcome",
+    "at": "2026-08-28T16:14:23.914Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "40_schema_diff_zero",
+    "note": "Same local fixture database compared through native button; expected zero differences",
+    "at": "2026-08-28T16:14:50.236Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "41_emergency_readonly",
+    "note": "Native six-dimension emergency inspection on isolated local MySQL",
+    "at": "2026-08-28T16:15:07.328Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "42_sql_stats_guard",
+    "note": "Native SQL stats request on local environment; monitordb not provisioned",
+    "at": "2026-08-28T16:15:19.300Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "43_toolkit_list",
+    "note": "Toolkit list actual navigation; scripts not executed",
+    "at": "2026-08-28T16:15:23.882Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "44_daily_missing_monitor",
+    "note": "Selected dates 2026-08-28/29 and clicked collection; inspect actual user-facing result",
+    "at": "2026-08-28T16:15:44.750Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "45_rules_119",
+    "note": "Rules library native navigation; verify 119 count",
+    "at": "2026-08-28T16:16:17.972Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "46_ruleset_list",
+    "note": "Default ruleset viewed without altering active rules",
+    "at": "2026-08-28T16:16:22.859Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "47_ruleset_119_enabled",
+    "note": "Actual ruleset drawer, no modifications",
+    "at": "2026-08-28T16:16:35.222Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "48_users",
+    "note": "Admin user-list read smoke; no account edits",
+    "at": "2026-08-28T16:16:55.489Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "49_roles",
+    "note": "Admin role-list read smoke",
+    "at": "2026-08-28T16:17:05.427Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "50_permissions_matrix",
+    "note": "Permission matrix viewed; developer instances unchecked; no edits",
+    "at": "2026-08-28T16:17:12.308Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "51_retention_readonly",
+    "note": "Retention page read smoke; cleanup deliberately not executed",
+    "at": "2026-08-28T16:17:17.369Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "52_operation_audit",
+    "note": "Actual operation audit records populated",
+    "at": "2026-08-28T16:17:23.357Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "53_system_version",
+    "note": "System information actual page reports 1.6.2.2; settings not changed",
+    "at": "2026-08-28T16:17:29.105Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "54_developer_no_instances",
+    "note": "Developer platform menu lacks instance management, retains business menus",
+    "at": "2026-08-28T16:17:59.760Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "55_developer_instance_options",
+    "note": "Developer without instance-management module can see real connection choices",
+    "at": "2026-08-28T16:18:18.952Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "56_developer_extract_complete",
+    "note": "Native extraction succeeds for 2 local tables without instance-management permission",
+    "at": "2026-08-28T16:18:26.245Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "57_developer_scan_options",
+    "note": "Developer can select instances in scan creation; admin real scan already covered",
+    "at": "2026-08-28T16:19:09.137Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "58_developer_bigtable_options",
+    "note": "Developer sees and selects instance for bigtable module without management permission",
+    "at": "2026-08-28T16:19:51.421Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "59_auditor_instances_readonly",
+    "note": "Auditor instance list visible, no create/edit/delete actions",
+    "at": "2026-08-28T16:20:41.017Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "60_dba_instances_controls",
+    "note": "DBA instance management exposes intended management controls",
+    "at": "2026-08-28T16:21:20.616Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "61_dba_created_offline",
+    "note": "DBA saves new synthetic offline connection through browser, default unchanged",
+    "at": "2026-08-28T16:21:52.487Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "62_dba_edit_complete",
+    "note": "DBA created and renamed synthetic connection; quality gate disabled for DBA, default unchanged",
+    "at": "2026-08-28T16:23:07.885Z",
+    "url": "http://127.0.0.1:8003/"
+  },
+  {
+    "id": "63_dba_pdf_export",
+    "note": "DBA actual click PDF export; download event observation stored separately; API PDF content verified independently",
+    "at": "2026-08-28T16:28:29.034Z",
+    "url": "http://127.0.0.1:8003/"
+  }
+]

@@ -1,0 +1,73 @@
+- banner:
+  - img "logo"
+  - generic: TDSQL数据库SQL审核工具
+  - button "U UAT-O 管理员 系统管理员":
+    - generic: U
+    - generic: UAT-O 管理员
+    - generic: 系统管理员
+- complementary:
+  - menubar:
+    - menuitem "治理概览":
+      - generic: 治理概览
+    - menuitem "SQL审核":
+      - generic: SQL审核
+    - menuitem "慢SQL治理":
+      - generic: 慢SQL治理
+    - menuitem "实例体检":
+      - generic: 实例体检
+    - menuitem "深度诊断":
+      - generic: 深度诊断
+    - menuitem "平台治理" [expanded]:
+      - generic: 平台治理
+      - menu:
+        - menuitem "实例管理"
+        - menuitem "审核规则库"
+        - menuitem "评估规则集"
+    - menuitem "系统管理":
+      - generic: 系统管理
+- navigation "面包屑":
+  - link "平台治理"
+  - text: /
+  - link "规则集"
+- generic: 评估规则集（全局）
+- button "+ 新建规则集":
+  - generic: + 新建规则集
+- alert:
+  - generic: 规则集是全系统唯一的评估尺度。管理员设为生效后，所有审核与扫描统一使用该规则集，最长 30 秒内全量生效。
+- table:
+  - rowgroup:
+    - row "名称 描述 规则数 状态 内置 创建人 操作":
+      - columnheader "名称":
+        - generic: 名称
+      - columnheader "描述":
+        - generic: 描述
+      - columnheader "规则数":
+        - generic: 规则数
+      - columnheader "状态":
+        - generic: 状态
+      - columnheader "内置":
+        - generic: 内置
+      - columnheader "创建人":
+        - generic: 创建人
+      - columnheader "操作":
+        - generic: 操作
+- table:
+  - rowgroup:
+    - row "默认规则集 全部规则按内置默认启停与级别执行 119 当前生效 是 system 查看规则 删除":
+      - cell "默认规则集":
+        - generic: 默认规则集
+      - cell "全部规则按内置默认启停与级别执行":
+        - generic: 全部规则按内置默认启停与级别执行
+      - cell "119":
+        - generic: "119"
+      - cell "当前生效":
+        - generic: 当前生效
+      - cell "是":
+        - generic: 是
+      - cell "system":
+        - generic: system
+      - cell "查看规则 删除":
+        - button "查看规则":
+          - generic: 查看规则
+        - button "删除" [disabled]:
+          - generic: 删除

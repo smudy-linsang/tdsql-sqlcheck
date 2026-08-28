@@ -1,0 +1,2474 @@
+[
+  {
+    "id": "R025",
+    "sql": "ALTER TABLE t_customer MODIFY cust_id BIGINT",
+    "metadata": {
+      "t_customer": {
+        "shard_key": "cust_id"
+      }
+    },
+    "fired": [
+      "R026",
+      "R073"
+    ],
+    "parsed_columns": [],
+    "alter_actions": []
+  },
+  {
+    "id": "R035",
+    "sql": "CREATE TABLE t_customer(id BIGINT NOT NULL COMMENT 'id', PRIMARY KEY(id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='customer' shardkey=id",
+    "metadata": {
+      "existing_columns": {
+        "id": "VARCHAR(10)"
+      }
+    },
+    "fired": [
+      "R035",
+      "R036",
+      "R037"
+    ],
+    "parsed_columns": [
+      {
+        "name": "id",
+        "type": "BIGINT",
+        "raw_type": "BIGINT",
+        "is_primary_key": false,
+        "is_not_null": true,
+        "has_default": false,
+        "default_value": null,
+        "length": null,
+        "has_comment": false,
+        "comment": ""
+      }
+    ],
+    "alter_actions": []
+  },
+  {
+    "id": "R038",
+    "sql": "CREATE TABLE t_order_log(id BIGINT NOT NULL AUTO_INCREMENT COMMENT 'id', PRIMARY KEY(id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='log' shardkey=id",
+    "metadata": null,
+    "fired": [
+      "R036",
+      "R037"
+    ],
+    "parsed_columns": [
+      {
+        "name": "id",
+        "type": "BIGINT",
+        "raw_type": "BIGINT",
+        "is_primary_key": false,
+        "is_not_null": true,
+        "has_default": false,
+        "default_value": null,
+        "length": null,
+        "has_comment": false,
+        "comment": ""
+      }
+    ],
+    "alter_actions": []
+  },
+  {
+    "id": "R049",
+    "sql": "SELECT a.id FROM t_a a JOIN t_b a ON a.id=a.id",
+    "metadata": null,
+    "fired": [
+      "R051",
+      "R053",
+      "R068"
+    ],
+    "parsed_columns": [],
+    "alter_actions": []
+  },
+  {
+    "id": "R059",
+    "sql": "BEGIN",
+    "metadata": {
+      "t_customer": {
+        "shard_key": "cust_id"
+      }
+    },
+    "fired": [
+      "R059",
+      "R069",
+      "R071"
+    ],
+    "parsed_columns": [],
+    "alter_actions": []
+  },
+  {
+    "id": "head:4:0",
+    "sql": "LOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+    "route": "sql",
+    "status": 200,
+    "body": {
+      "passed": false,
+      "violations": [
+        {
+          "rule_id": "R042",
+          "category": "security",
+          "severity": "ERROR",
+          "message": "禁止使用LOAD DATA INFILE/LOAD XML，存在安全风险",
+          "suggestion": "请在应用层批量导入数据",
+          "line_number": null
+        }
+      ],
+      "sql_type": "LOAD",
+      "gate_result": null,
+      "rule_set_id": "default",
+      "rule_set_name": "默认规则集",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:4:0",
+    "sql": "LOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+    "route": "file",
+    "status": 200,
+    "body": {
+      "results": [
+        {
+          "sql": "LOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+          "sql_type": "LOAD",
+          "passed": false,
+          "violations": [
+            {
+              "rule_id": "R042",
+              "category": "security",
+              "severity": "ERROR",
+              "message": "禁止使用LOAD DATA INFILE/LOAD XML，存在安全风险",
+              "suggestion": "请在应用层批量导入数据",
+              "line_number": 1
+            }
+          ],
+          "file_path": "uat_o_load_guard.sql",
+          "line_number": 1
+        }
+      ],
+      "summary": {
+        "total_sql": 1,
+        "passed": 0,
+        "failed": 1,
+        "error_count": 1,
+        "warning_count": 0,
+        "pass_rate": 0.0
+      },
+      "gate_result": null,
+      "rule_set_id": "default",
+      "rule_set_name": "默认规则集",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:4:0",
+    "sql": "LOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+    "route": "upload",
+    "status": 200,
+    "body": {
+      "results": [
+        {
+          "sql": "LOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+          "sql_type": "LOAD",
+          "passed": false,
+          "violations": [
+            {
+              "rule_id": "R042",
+              "category": "security",
+              "severity": "ERROR",
+              "message": "禁止使用LOAD DATA INFILE/LOAD XML，存在安全风险",
+              "suggestion": "请在应用层批量导入数据",
+              "line_number": 1
+            }
+          ],
+          "file_path": "uat_o_load_guard.sql",
+          "line_number": 1
+        }
+      ],
+      "summary": {
+        "total_sql": 1,
+        "passed": 0,
+        "failed": 1,
+        "error_count": 1,
+        "warning_count": 0,
+        "pass_rate": 0.0
+      },
+      "gate_result": null,
+      "rule_set_id": "",
+      "rule_set_name": "",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:4:1",
+    "sql": "# ordinary\nLOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+    "route": "sql",
+    "status": 200,
+    "body": {
+      "passed": false,
+      "violations": [
+        {
+          "rule_id": "E999_SYNTAX_ERROR",
+          "category": "dml",
+          "severity": "ERROR",
+          "message": "SQL 语句无法解析或结构不完整（可能是拉取截断/语法错误）: Invalid expression / Unexpected token. Line 2, Col: 37.\n  # ordinary\nLOAD DATA INFILE \u001b[4m'/tmp/synthetic.csv'\u001b[0m INTO TABLE t FIELDS TERMINATED BY ','",
+          "suggestion": null,
+          "line_number": null
+        },
+        {
+          "rule_id": "R042",
+          "category": "security",
+          "severity": "ERROR",
+          "message": "禁止使用LOAD DATA INFILE/LOAD XML，存在安全风险",
+          "suggestion": "请在应用层批量导入数据",
+          "line_number": null
+        }
+      ],
+      "sql_type": "LOAD",
+      "gate_result": null,
+      "rule_set_id": "default",
+      "rule_set_name": "默认规则集",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:4:1",
+    "sql": "# ordinary\nLOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+    "route": "file",
+    "status": 200,
+    "body": {
+      "results": [
+        {
+          "sql": "# ordinary\nLOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+          "sql_type": "LOAD",
+          "passed": false,
+          "violations": [
+            {
+              "rule_id": "E999_SYNTAX_ERROR",
+              "category": "dml",
+              "severity": "ERROR",
+              "message": "SQL 语句无法解析或结构不完整（可能是拉取截断/语法错误）: Invalid expression / Unexpected token. Line 2, Col: 37.\n  # ordinary\nLOAD DATA INFILE \u001b[4m'/tmp/synthetic.csv'\u001b[0m INTO TABLE t FIELDS TERMINATED BY ','",
+              "suggestion": null,
+              "line_number": 1
+            },
+            {
+              "rule_id": "R042",
+              "category": "security",
+              "severity": "ERROR",
+              "message": "禁止使用LOAD DATA INFILE/LOAD XML，存在安全风险",
+              "suggestion": "请在应用层批量导入数据",
+              "line_number": 1
+            }
+          ],
+          "file_path": "uat_o_load_guard.sql",
+          "line_number": 1
+        }
+      ],
+      "summary": {
+        "total_sql": 1,
+        "passed": 0,
+        "failed": 1,
+        "error_count": 2,
+        "warning_count": 0,
+        "pass_rate": 0.0
+      },
+      "gate_result": null,
+      "rule_set_id": "default",
+      "rule_set_name": "默认规则集",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:4:1",
+    "sql": "# ordinary\nLOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+    "route": "upload",
+    "status": 200,
+    "body": {
+      "results": [
+        {
+          "sql": "# ordinary\nLOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+          "sql_type": "LOAD",
+          "passed": false,
+          "violations": [
+            {
+              "rule_id": "E999_SYNTAX_ERROR",
+              "category": "dml",
+              "severity": "ERROR",
+              "message": "SQL 语句无法解析或结构不完整（可能是拉取截断/语法错误）: Invalid expression / Unexpected token. Line 2, Col: 37.\n  # ordinary\nLOAD DATA INFILE \u001b[4m'/tmp/synthetic.csv'\u001b[0m INTO TABLE t FIELDS TERMINATED BY ','",
+              "suggestion": null,
+              "line_number": 1
+            },
+            {
+              "rule_id": "R042",
+              "category": "security",
+              "severity": "ERROR",
+              "message": "禁止使用LOAD DATA INFILE/LOAD XML，存在安全风险",
+              "suggestion": "请在应用层批量导入数据",
+              "line_number": 1
+            }
+          ],
+          "file_path": "uat_o_load_guard.sql",
+          "line_number": 1
+        }
+      ],
+      "summary": {
+        "total_sql": 1,
+        "passed": 0,
+        "failed": 1,
+        "error_count": 2,
+        "warning_count": 0,
+        "pass_rate": 0.0
+      },
+      "gate_result": null,
+      "rule_set_id": "",
+      "rule_set_name": "",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:4:2",
+    "sql": "# unmatched single quote '\nLOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+    "route": "sql",
+    "status": 200,
+    "body": {
+      "passed": false,
+      "violations": [
+        {
+          "rule_id": "E999_SYNTAX_ERROR",
+          "category": "dml",
+          "severity": "ERROR",
+          "message": "SQL 语句无法解析或结构不完整（可能是拉取截断/语法错误）: Invalid expression / Unexpected token. Line 2, Col: 37.\n  # unmatched single quote '\nLOAD DATA INFILE \u001b[4m'/tmp/synthetic.csv'\u001b[0m INTO TABLE t FIELDS TERMINATED BY ','",
+          "suggestion": null,
+          "line_number": null
+        }
+      ],
+      "sql_type": "LOAD",
+      "gate_result": null,
+      "rule_set_id": "default",
+      "rule_set_name": "默认规则集",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:4:2",
+    "sql": "# unmatched single quote '\nLOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+    "route": "file",
+    "status": 200,
+    "body": {
+      "results": [
+        {
+          "sql": "# unmatched single quote '\nLOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+          "sql_type": "LOAD",
+          "passed": false,
+          "violations": [
+            {
+              "rule_id": "E999_SYNTAX_ERROR",
+              "category": "dml",
+              "severity": "ERROR",
+              "message": "SQL 语句无法解析或结构不完整（可能是拉取截断/语法错误）: Invalid expression / Unexpected token. Line 2, Col: 37.\n  # unmatched single quote '\nLOAD DATA INFILE \u001b[4m'/tmp/synthetic.csv'\u001b[0m INTO TABLE t FIELDS TERMINATED BY ','",
+              "suggestion": null,
+              "line_number": 1
+            }
+          ],
+          "file_path": "uat_o_load_guard.sql",
+          "line_number": 1
+        }
+      ],
+      "summary": {
+        "total_sql": 1,
+        "passed": 0,
+        "failed": 1,
+        "error_count": 1,
+        "warning_count": 0,
+        "pass_rate": 0.0
+      },
+      "gate_result": null,
+      "rule_set_id": "default",
+      "rule_set_name": "默认规则集",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:4:2",
+    "sql": "# unmatched single quote '\nLOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+    "route": "upload",
+    "status": 200,
+    "body": {
+      "results": [
+        {
+          "sql": "# unmatched single quote '\nLOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+          "sql_type": "LOAD",
+          "passed": false,
+          "violations": [
+            {
+              "rule_id": "E999_SYNTAX_ERROR",
+              "category": "dml",
+              "severity": "ERROR",
+              "message": "SQL 语句无法解析或结构不完整（可能是拉取截断/语法错误）: Invalid expression / Unexpected token. Line 2, Col: 37.\n  # unmatched single quote '\nLOAD DATA INFILE \u001b[4m'/tmp/synthetic.csv'\u001b[0m INTO TABLE t FIELDS TERMINATED BY ','",
+              "suggestion": null,
+              "line_number": 1
+            }
+          ],
+          "file_path": "uat_o_load_guard.sql",
+          "line_number": 1
+        }
+      ],
+      "summary": {
+        "total_sql": 1,
+        "passed": 0,
+        "failed": 1,
+        "error_count": 1,
+        "warning_count": 0,
+        "pass_rate": 0.0
+      },
+      "gate_result": null,
+      "rule_set_id": "",
+      "rule_set_name": "",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:4:3",
+    "sql": "# decoy CREATE VIEW\nLOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+    "route": "sql",
+    "status": 200,
+    "body": {
+      "passed": false,
+      "violations": [
+        {
+          "rule_id": "E999_SYNTAX_ERROR",
+          "category": "ddl",
+          "severity": "ERROR",
+          "message": "SQL 语句无法解析或结构不完整（可能是拉取截断/语法错误）: Invalid expression / Unexpected token. Line 2, Col: 37.\n  # decoy CREATE VIEW\nLOAD DATA INFILE \u001b[4m'/tmp/synthetic.csv'\u001b[0m INTO TABLE t FIELDS TERMINATED BY ','",
+          "suggestion": null,
+          "line_number": null
+        },
+        {
+          "rule_id": "R030",
+          "category": "ddl",
+          "severity": "ERROR",
+          "message": "禁止创建视图/存储过程/触发器/自定义函数，TDSQL分布式架构下不推荐使用",
+          "suggestion": "请在应用层实现相应逻辑",
+          "line_number": null
+        },
+        {
+          "rule_id": "R042",
+          "category": "security",
+          "severity": "ERROR",
+          "message": "禁止使用LOAD DATA INFILE/LOAD XML，存在安全风险",
+          "suggestion": "请在应用层批量导入数据",
+          "line_number": null
+        }
+      ],
+      "sql_type": "CREATE VIEW",
+      "gate_result": null,
+      "rule_set_id": "default",
+      "rule_set_name": "默认规则集",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:4:3",
+    "sql": "# decoy CREATE VIEW\nLOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+    "route": "file",
+    "status": 200,
+    "body": {
+      "results": [
+        {
+          "sql": "# decoy CREATE VIEW\nLOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+          "sql_type": "CREATE VIEW",
+          "passed": false,
+          "violations": [
+            {
+              "rule_id": "E999_SYNTAX_ERROR",
+              "category": "ddl",
+              "severity": "ERROR",
+              "message": "SQL 语句无法解析或结构不完整（可能是拉取截断/语法错误）: Invalid expression / Unexpected token. Line 2, Col: 37.\n  # decoy CREATE VIEW\nLOAD DATA INFILE \u001b[4m'/tmp/synthetic.csv'\u001b[0m INTO TABLE t FIELDS TERMINATED BY ','",
+              "suggestion": null,
+              "line_number": 1
+            },
+            {
+              "rule_id": "R030",
+              "category": "ddl",
+              "severity": "ERROR",
+              "message": "禁止创建视图/存储过程/触发器/自定义函数，TDSQL分布式架构下不推荐使用",
+              "suggestion": "请在应用层实现相应逻辑",
+              "line_number": 1
+            },
+            {
+              "rule_id": "R042",
+              "category": "security",
+              "severity": "ERROR",
+              "message": "禁止使用LOAD DATA INFILE/LOAD XML，存在安全风险",
+              "suggestion": "请在应用层批量导入数据",
+              "line_number": 1
+            }
+          ],
+          "file_path": "uat_o_load_guard.sql",
+          "line_number": 1
+        }
+      ],
+      "summary": {
+        "total_sql": 1,
+        "passed": 0,
+        "failed": 1,
+        "error_count": 3,
+        "warning_count": 0,
+        "pass_rate": 0.0
+      },
+      "gate_result": null,
+      "rule_set_id": "default",
+      "rule_set_name": "默认规则集",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:4:3",
+    "sql": "# decoy CREATE VIEW\nLOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+    "route": "upload",
+    "status": 200,
+    "body": {
+      "results": [
+        {
+          "sql": "# decoy CREATE VIEW\nLOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+          "sql_type": "CREATE VIEW",
+          "passed": false,
+          "violations": [
+            {
+              "rule_id": "E999_SYNTAX_ERROR",
+              "category": "ddl",
+              "severity": "ERROR",
+              "message": "SQL 语句无法解析或结构不完整（可能是拉取截断/语法错误）: Invalid expression / Unexpected token. Line 2, Col: 37.\n  # decoy CREATE VIEW\nLOAD DATA INFILE \u001b[4m'/tmp/synthetic.csv'\u001b[0m INTO TABLE t FIELDS TERMINATED BY ','",
+              "suggestion": null,
+              "line_number": 1
+            },
+            {
+              "rule_id": "R030",
+              "category": "ddl",
+              "severity": "ERROR",
+              "message": "禁止创建视图/存储过程/触发器/自定义函数，TDSQL分布式架构下不推荐使用",
+              "suggestion": "请在应用层实现相应逻辑",
+              "line_number": 1
+            },
+            {
+              "rule_id": "R042",
+              "category": "security",
+              "severity": "ERROR",
+              "message": "禁止使用LOAD DATA INFILE/LOAD XML，存在安全风险",
+              "suggestion": "请在应用层批量导入数据",
+              "line_number": 1
+            }
+          ],
+          "file_path": "uat_o_load_guard.sql",
+          "line_number": 1
+        }
+      ],
+      "summary": {
+        "total_sql": 1,
+        "passed": 0,
+        "failed": 1,
+        "error_count": 3,
+        "warning_count": 0,
+        "pass_rate": 0.0
+      },
+      "gate_result": null,
+      "rule_set_id": "",
+      "rule_set_name": "",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:4:4",
+    "sql": "-- ordinary\nLOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+    "route": "sql",
+    "status": 200,
+    "body": {
+      "passed": false,
+      "violations": [
+        {
+          "rule_id": "R042",
+          "category": "security",
+          "severity": "ERROR",
+          "message": "禁止使用LOAD DATA INFILE/LOAD XML，存在安全风险",
+          "suggestion": "请在应用层批量导入数据",
+          "line_number": null
+        }
+      ],
+      "sql_type": "LOAD",
+      "gate_result": null,
+      "rule_set_id": "default",
+      "rule_set_name": "默认规则集",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:4:4",
+    "sql": "-- ordinary\nLOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+    "route": "file",
+    "status": 200,
+    "body": {
+      "results": [
+        {
+          "sql": "-- ordinary\nLOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+          "sql_type": "LOAD",
+          "passed": false,
+          "violations": [
+            {
+              "rule_id": "R042",
+              "category": "security",
+              "severity": "ERROR",
+              "message": "禁止使用LOAD DATA INFILE/LOAD XML，存在安全风险",
+              "suggestion": "请在应用层批量导入数据",
+              "line_number": 1
+            }
+          ],
+          "file_path": "uat_o_load_guard.sql",
+          "line_number": 1
+        }
+      ],
+      "summary": {
+        "total_sql": 1,
+        "passed": 0,
+        "failed": 1,
+        "error_count": 1,
+        "warning_count": 0,
+        "pass_rate": 0.0
+      },
+      "gate_result": null,
+      "rule_set_id": "default",
+      "rule_set_name": "默认规则集",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:4:4",
+    "sql": "-- ordinary\nLOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+    "route": "upload",
+    "status": 200,
+    "body": {
+      "results": [
+        {
+          "sql": "-- ordinary\nLOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+          "sql_type": "LOAD",
+          "passed": false,
+          "violations": [
+            {
+              "rule_id": "R042",
+              "category": "security",
+              "severity": "ERROR",
+              "message": "禁止使用LOAD DATA INFILE/LOAD XML，存在安全风险",
+              "suggestion": "请在应用层批量导入数据",
+              "line_number": 1
+            }
+          ],
+          "file_path": "uat_o_load_guard.sql",
+          "line_number": 1
+        }
+      ],
+      "summary": {
+        "total_sql": 1,
+        "passed": 0,
+        "failed": 1,
+        "error_count": 1,
+        "warning_count": 0,
+        "pass_rate": 0.0
+      },
+      "gate_result": null,
+      "rule_set_id": "",
+      "rule_set_name": "",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:4:5",
+    "sql": "-- ordinary\rLOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+    "route": "sql",
+    "status": 200,
+    "body": {
+      "passed": false,
+      "violations": [
+        {
+          "rule_id": "E999_SYNTAX_ERROR",
+          "category": "dml",
+          "severity": "ERROR",
+          "message": "SQL 语句无法解析或结构不完整（可能是拉取截断/语法错误）: Invalid expression / Unexpected token. Line 2, Col: 37.\n  -- ordinary\rLOAD DATA INFILE \u001b[4m'/tmp/synthetic.csv'\u001b[0m INTO TABLE t FIELDS TERMINATED BY ','",
+          "suggestion": null,
+          "line_number": null
+        }
+      ],
+      "sql_type": "UNKNOWN",
+      "gate_result": null,
+      "rule_set_id": "default",
+      "rule_set_name": "默认规则集",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:4:5",
+    "sql": "-- ordinary\rLOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+    "route": "file",
+    "status": 200,
+    "body": {
+      "results": [],
+      "summary": {
+        "total_sql": 0,
+        "passed": 0,
+        "failed": 0,
+        "error_count": 0,
+        "warning_count": 0,
+        "pass_rate": 0.0
+      },
+      "gate_result": null,
+      "rule_set_id": "default",
+      "rule_set_name": "默认规则集",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:4:5",
+    "sql": "-- ordinary\rLOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+    "route": "upload",
+    "status": 200,
+    "body": {
+      "results": [],
+      "summary": {
+        "total_sql": 0,
+        "passed": 0,
+        "failed": 0,
+        "error_count": 0,
+        "warning_count": 0,
+        "pass_rate": 0.0
+      },
+      "gate_result": null,
+      "rule_set_id": "",
+      "rule_set_name": "",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:4:6",
+    "sql": "/* ordinary */\nLOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+    "route": "sql",
+    "status": 200,
+    "body": {
+      "passed": false,
+      "violations": [
+        {
+          "rule_id": "R042",
+          "category": "security",
+          "severity": "ERROR",
+          "message": "禁止使用LOAD DATA INFILE/LOAD XML，存在安全风险",
+          "suggestion": "请在应用层批量导入数据",
+          "line_number": null
+        }
+      ],
+      "sql_type": "LOAD",
+      "gate_result": null,
+      "rule_set_id": "default",
+      "rule_set_name": "默认规则集",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:4:6",
+    "sql": "/* ordinary */\nLOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+    "route": "file",
+    "status": 200,
+    "body": {
+      "results": [
+        {
+          "sql": "/* ordinary */\nLOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+          "sql_type": "LOAD",
+          "passed": false,
+          "violations": [
+            {
+              "rule_id": "R042",
+              "category": "security",
+              "severity": "ERROR",
+              "message": "禁止使用LOAD DATA INFILE/LOAD XML，存在安全风险",
+              "suggestion": "请在应用层批量导入数据",
+              "line_number": 1
+            }
+          ],
+          "file_path": "uat_o_load_guard.sql",
+          "line_number": 1
+        }
+      ],
+      "summary": {
+        "total_sql": 1,
+        "passed": 0,
+        "failed": 1,
+        "error_count": 1,
+        "warning_count": 0,
+        "pass_rate": 0.0
+      },
+      "gate_result": null,
+      "rule_set_id": "default",
+      "rule_set_name": "默认规则集",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:4:6",
+    "sql": "/* ordinary */\nLOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+    "route": "upload",
+    "status": 200,
+    "body": {
+      "results": [
+        {
+          "sql": "/* ordinary */\nLOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+          "sql_type": "LOAD",
+          "passed": false,
+          "violations": [
+            {
+              "rule_id": "R042",
+              "category": "security",
+              "severity": "ERROR",
+              "message": "禁止使用LOAD DATA INFILE/LOAD XML，存在安全风险",
+              "suggestion": "请在应用层批量导入数据",
+              "line_number": 1
+            }
+          ],
+          "file_path": "uat_o_load_guard.sql",
+          "line_number": 1
+        }
+      ],
+      "summary": {
+        "total_sql": 1,
+        "passed": 0,
+        "failed": 1,
+        "error_count": 1,
+        "warning_count": 0,
+        "pass_rate": 0.0
+      },
+      "gate_result": null,
+      "rule_set_id": "",
+      "rule_set_name": "",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:4:7",
+    "sql": "; LOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+    "route": "sql",
+    "status": 200,
+    "body": {
+      "passed": false,
+      "violations": [
+        {
+          "rule_id": "E999_SYNTAX_ERROR",
+          "category": "dml",
+          "severity": "ERROR",
+          "message": "SQL 语句无法解析或结构不完整（可能是拉取截断/语法错误）: Invalid expression / Unexpected token. Line 1, Col: 39.\n  ; LOAD DATA INFILE \u001b[4m'/tmp/synthetic.csv'\u001b[0m INTO TABLE t FIELDS TERMINATED BY ','",
+          "suggestion": null,
+          "line_number": null
+        },
+        {
+          "rule_id": "R042",
+          "category": "security",
+          "severity": "ERROR",
+          "message": "禁止使用LOAD DATA INFILE/LOAD XML，存在安全风险",
+          "suggestion": "请在应用层批量导入数据",
+          "line_number": null
+        }
+      ],
+      "sql_type": "LOAD",
+      "gate_result": null,
+      "rule_set_id": "default",
+      "rule_set_name": "默认规则集",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:4:7",
+    "sql": "; LOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+    "route": "file",
+    "status": 200,
+    "body": {
+      "results": [
+        {
+          "sql": "; LOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+          "sql_type": "LOAD",
+          "passed": false,
+          "violations": [
+            {
+              "rule_id": "E999_SYNTAX_ERROR",
+              "category": "dml",
+              "severity": "ERROR",
+              "message": "SQL 语句无法解析或结构不完整（可能是拉取截断/语法错误）: Invalid expression / Unexpected token. Line 1, Col: 39.\n  ; LOAD DATA INFILE \u001b[4m'/tmp/synthetic.csv'\u001b[0m INTO TABLE t FIELDS TERMINATED BY ','",
+              "suggestion": null,
+              "line_number": 1
+            },
+            {
+              "rule_id": "R042",
+              "category": "security",
+              "severity": "ERROR",
+              "message": "禁止使用LOAD DATA INFILE/LOAD XML，存在安全风险",
+              "suggestion": "请在应用层批量导入数据",
+              "line_number": 1
+            }
+          ],
+          "file_path": "uat_o_load_guard.sql",
+          "line_number": 1
+        }
+      ],
+      "summary": {
+        "total_sql": 1,
+        "passed": 0,
+        "failed": 1,
+        "error_count": 2,
+        "warning_count": 0,
+        "pass_rate": 0.0
+      },
+      "gate_result": null,
+      "rule_set_id": "default",
+      "rule_set_name": "默认规则集",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:4:7",
+    "sql": "; LOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+    "route": "upload",
+    "status": 200,
+    "body": {
+      "results": [
+        {
+          "sql": "; LOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+          "sql_type": "LOAD",
+          "passed": false,
+          "violations": [
+            {
+              "rule_id": "E999_SYNTAX_ERROR",
+              "category": "dml",
+              "severity": "ERROR",
+              "message": "SQL 语句无法解析或结构不完整（可能是拉取截断/语法错误）: Invalid expression / Unexpected token. Line 1, Col: 39.\n  ; LOAD DATA INFILE \u001b[4m'/tmp/synthetic.csv'\u001b[0m INTO TABLE t FIELDS TERMINATED BY ','",
+              "suggestion": null,
+              "line_number": 1
+            },
+            {
+              "rule_id": "R042",
+              "category": "security",
+              "severity": "ERROR",
+              "message": "禁止使用LOAD DATA INFILE/LOAD XML，存在安全风险",
+              "suggestion": "请在应用层批量导入数据",
+              "line_number": 1
+            }
+          ],
+          "file_path": "uat_o_load_guard.sql",
+          "line_number": 1
+        }
+      ],
+      "summary": {
+        "total_sql": 1,
+        "passed": 0,
+        "failed": 1,
+        "error_count": 2,
+        "warning_count": 0,
+        "pass_rate": 0.0
+      },
+      "gate_result": null,
+      "rule_set_id": "",
+      "rule_set_name": "",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:4:8",
+    "sql": "'decoy' LOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+    "route": "sql",
+    "status": 200,
+    "body": {
+      "passed": false,
+      "violations": [
+        {
+          "rule_id": "R042",
+          "category": "security",
+          "severity": "ERROR",
+          "message": "禁止使用LOAD DATA INFILE/LOAD XML，存在安全风险",
+          "suggestion": "请在应用层批量导入数据",
+          "line_number": null
+        }
+      ],
+      "sql_type": "LOAD",
+      "gate_result": null,
+      "rule_set_id": "default",
+      "rule_set_name": "默认规则集",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:4:8",
+    "sql": "'decoy' LOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+    "route": "file",
+    "status": 200,
+    "body": {
+      "results": [
+        {
+          "sql": "'decoy' LOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+          "sql_type": "LOAD",
+          "passed": false,
+          "violations": [
+            {
+              "rule_id": "R042",
+              "category": "security",
+              "severity": "ERROR",
+              "message": "禁止使用LOAD DATA INFILE/LOAD XML，存在安全风险",
+              "suggestion": "请在应用层批量导入数据",
+              "line_number": 1
+            }
+          ],
+          "file_path": "uat_o_load_guard.sql",
+          "line_number": 1
+        }
+      ],
+      "summary": {
+        "total_sql": 1,
+        "passed": 0,
+        "failed": 1,
+        "error_count": 1,
+        "warning_count": 0,
+        "pass_rate": 0.0
+      },
+      "gate_result": null,
+      "rule_set_id": "default",
+      "rule_set_name": "默认规则集",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:4:8",
+    "sql": "'decoy' LOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+    "route": "upload",
+    "status": 200,
+    "body": {
+      "results": [
+        {
+          "sql": "'decoy' LOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+          "sql_type": "LOAD",
+          "passed": false,
+          "violations": [
+            {
+              "rule_id": "R042",
+              "category": "security",
+              "severity": "ERROR",
+              "message": "禁止使用LOAD DATA INFILE/LOAD XML，存在安全风险",
+              "suggestion": "请在应用层批量导入数据",
+              "line_number": 1
+            }
+          ],
+          "file_path": "uat_o_load_guard.sql",
+          "line_number": 1
+        }
+      ],
+      "summary": {
+        "total_sql": 1,
+        "passed": 0,
+        "failed": 1,
+        "error_count": 1,
+        "warning_count": 0,
+        "pass_rate": 0.0
+      },
+      "gate_result": null,
+      "rule_set_id": "",
+      "rule_set_name": "",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:4:9",
+    "sql": "`decoy` LOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+    "route": "sql",
+    "status": 200,
+    "body": {
+      "passed": false,
+      "violations": [
+        {
+          "rule_id": "R042",
+          "category": "security",
+          "severity": "ERROR",
+          "message": "禁止使用LOAD DATA INFILE/LOAD XML，存在安全风险",
+          "suggestion": "请在应用层批量导入数据",
+          "line_number": null
+        }
+      ],
+      "sql_type": "LOAD",
+      "gate_result": null,
+      "rule_set_id": "default",
+      "rule_set_name": "默认规则集",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:4:9",
+    "sql": "`decoy` LOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+    "route": "file",
+    "status": 200,
+    "body": {
+      "results": [
+        {
+          "sql": "`decoy` LOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+          "sql_type": "LOAD",
+          "passed": false,
+          "violations": [
+            {
+              "rule_id": "R042",
+              "category": "security",
+              "severity": "ERROR",
+              "message": "禁止使用LOAD DATA INFILE/LOAD XML，存在安全风险",
+              "suggestion": "请在应用层批量导入数据",
+              "line_number": 1
+            }
+          ],
+          "file_path": "uat_o_load_guard.sql",
+          "line_number": 1
+        }
+      ],
+      "summary": {
+        "total_sql": 1,
+        "passed": 0,
+        "failed": 1,
+        "error_count": 1,
+        "warning_count": 0,
+        "pass_rate": 0.0
+      },
+      "gate_result": null,
+      "rule_set_id": "default",
+      "rule_set_name": "默认规则集",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:4:9",
+    "sql": "`decoy` LOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+    "route": "upload",
+    "status": 200,
+    "body": {
+      "results": [
+        {
+          "sql": "`decoy` LOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+          "sql_type": "LOAD",
+          "passed": false,
+          "violations": [
+            {
+              "rule_id": "R042",
+              "category": "security",
+              "severity": "ERROR",
+              "message": "禁止使用LOAD DATA INFILE/LOAD XML，存在安全风险",
+              "suggestion": "请在应用层批量导入数据",
+              "line_number": 1
+            }
+          ],
+          "file_path": "uat_o_load_guard.sql",
+          "line_number": 1
+        }
+      ],
+      "summary": {
+        "total_sql": 1,
+        "passed": 0,
+        "failed": 1,
+        "error_count": 1,
+        "warning_count": 0,
+        "pass_rate": 0.0
+      },
+      "gate_result": null,
+      "rule_set_id": "",
+      "rule_set_name": "",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:5:0",
+    "sql": "LOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+    "route": "sql",
+    "status": 200,
+    "body": {
+      "passed": false,
+      "violations": [
+        {
+          "rule_id": "R042",
+          "category": "security",
+          "severity": "ERROR",
+          "message": "禁止使用LOAD DATA INFILE/LOAD XML，存在安全风险",
+          "suggestion": "请在应用层批量导入数据",
+          "line_number": null
+        }
+      ],
+      "sql_type": "LOAD",
+      "gate_result": null,
+      "rule_set_id": "default",
+      "rule_set_name": "默认规则集",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:5:0",
+    "sql": "LOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+    "route": "file",
+    "status": 200,
+    "body": {
+      "results": [
+        {
+          "sql": "LOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+          "sql_type": "LOAD",
+          "passed": false,
+          "violations": [
+            {
+              "rule_id": "R042",
+              "category": "security",
+              "severity": "ERROR",
+              "message": "禁止使用LOAD DATA INFILE/LOAD XML，存在安全风险",
+              "suggestion": "请在应用层批量导入数据",
+              "line_number": 1
+            }
+          ],
+          "file_path": "uat_o_load_guard.sql",
+          "line_number": 1
+        }
+      ],
+      "summary": {
+        "total_sql": 1,
+        "passed": 0,
+        "failed": 1,
+        "error_count": 1,
+        "warning_count": 0,
+        "pass_rate": 0.0
+      },
+      "gate_result": null,
+      "rule_set_id": "default",
+      "rule_set_name": "默认规则集",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:5:0",
+    "sql": "LOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+    "route": "upload",
+    "status": 200,
+    "body": {
+      "results": [
+        {
+          "sql": "LOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+          "sql_type": "LOAD",
+          "passed": false,
+          "violations": [
+            {
+              "rule_id": "R042",
+              "category": "security",
+              "severity": "ERROR",
+              "message": "禁止使用LOAD DATA INFILE/LOAD XML，存在安全风险",
+              "suggestion": "请在应用层批量导入数据",
+              "line_number": 1
+            }
+          ],
+          "file_path": "uat_o_load_guard.sql",
+          "line_number": 1
+        }
+      ],
+      "summary": {
+        "total_sql": 1,
+        "passed": 0,
+        "failed": 1,
+        "error_count": 1,
+        "warning_count": 0,
+        "pass_rate": 0.0
+      },
+      "gate_result": null,
+      "rule_set_id": "",
+      "rule_set_name": "",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:5:1",
+    "sql": "# ordinary\nLOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+    "route": "sql",
+    "status": 200,
+    "body": {
+      "passed": false,
+      "violations": [
+        {
+          "rule_id": "R042",
+          "category": "security",
+          "severity": "ERROR",
+          "message": "禁止使用LOAD DATA INFILE/LOAD XML，存在安全风险",
+          "suggestion": "请在应用层批量导入数据",
+          "line_number": null
+        }
+      ],
+      "sql_type": "LOAD",
+      "gate_result": null,
+      "rule_set_id": "default",
+      "rule_set_name": "默认规则集",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:5:1",
+    "sql": "# ordinary\nLOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+    "route": "file",
+    "status": 200,
+    "body": {
+      "results": [
+        {
+          "sql": "# ordinary\nLOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+          "sql_type": "LOAD",
+          "passed": false,
+          "violations": [
+            {
+              "rule_id": "R042",
+              "category": "security",
+              "severity": "ERROR",
+              "message": "禁止使用LOAD DATA INFILE/LOAD XML，存在安全风险",
+              "suggestion": "请在应用层批量导入数据",
+              "line_number": 1
+            }
+          ],
+          "file_path": "uat_o_load_guard.sql",
+          "line_number": 1
+        }
+      ],
+      "summary": {
+        "total_sql": 1,
+        "passed": 0,
+        "failed": 1,
+        "error_count": 1,
+        "warning_count": 0,
+        "pass_rate": 0.0
+      },
+      "gate_result": null,
+      "rule_set_id": "default",
+      "rule_set_name": "默认规则集",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:5:1",
+    "sql": "# ordinary\nLOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+    "route": "upload",
+    "status": 200,
+    "body": {
+      "results": [
+        {
+          "sql": "# ordinary\nLOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+          "sql_type": "LOAD",
+          "passed": false,
+          "violations": [
+            {
+              "rule_id": "R042",
+              "category": "security",
+              "severity": "ERROR",
+              "message": "禁止使用LOAD DATA INFILE/LOAD XML，存在安全风险",
+              "suggestion": "请在应用层批量导入数据",
+              "line_number": 1
+            }
+          ],
+          "file_path": "uat_o_load_guard.sql",
+          "line_number": 1
+        }
+      ],
+      "summary": {
+        "total_sql": 1,
+        "passed": 0,
+        "failed": 1,
+        "error_count": 1,
+        "warning_count": 0,
+        "pass_rate": 0.0
+      },
+      "gate_result": null,
+      "rule_set_id": "",
+      "rule_set_name": "",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:5:2",
+    "sql": "# unmatched single quote '\nLOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+    "route": "sql",
+    "status": 200,
+    "body": {
+      "passed": true,
+      "violations": [],
+      "sql_type": "LOAD",
+      "gate_result": null,
+      "rule_set_id": "default",
+      "rule_set_name": "默认规则集",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:5:2",
+    "sql": "# unmatched single quote '\nLOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+    "route": "file",
+    "status": 200,
+    "body": {
+      "results": [
+        {
+          "sql": "# unmatched single quote '\nLOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+          "sql_type": "LOAD",
+          "passed": true,
+          "violations": [],
+          "file_path": "uat_o_load_guard.sql",
+          "line_number": 1
+        }
+      ],
+      "summary": {
+        "total_sql": 1,
+        "passed": 1,
+        "failed": 0,
+        "error_count": 0,
+        "warning_count": 0,
+        "pass_rate": 100.0
+      },
+      "gate_result": null,
+      "rule_set_id": "default",
+      "rule_set_name": "默认规则集",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:5:2",
+    "sql": "# unmatched single quote '\nLOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+    "route": "upload",
+    "status": 200,
+    "body": {
+      "results": [
+        {
+          "sql": "# unmatched single quote '\nLOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+          "sql_type": "LOAD",
+          "passed": true,
+          "violations": [],
+          "file_path": "uat_o_load_guard.sql",
+          "line_number": 1
+        }
+      ],
+      "summary": {
+        "total_sql": 1,
+        "passed": 1,
+        "failed": 0,
+        "error_count": 0,
+        "warning_count": 0,
+        "pass_rate": 100.0
+      },
+      "gate_result": null,
+      "rule_set_id": "",
+      "rule_set_name": "",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:5:3",
+    "sql": "# decoy CREATE VIEW\nLOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+    "route": "sql",
+    "status": 200,
+    "body": {
+      "passed": false,
+      "violations": [
+        {
+          "rule_id": "R030",
+          "category": "ddl",
+          "severity": "ERROR",
+          "message": "禁止创建视图/存储过程/触发器/自定义函数，TDSQL分布式架构下不推荐使用",
+          "suggestion": "请在应用层实现相应逻辑",
+          "line_number": null
+        },
+        {
+          "rule_id": "R042",
+          "category": "security",
+          "severity": "ERROR",
+          "message": "禁止使用LOAD DATA INFILE/LOAD XML，存在安全风险",
+          "suggestion": "请在应用层批量导入数据",
+          "line_number": null
+        }
+      ],
+      "sql_type": "CREATE VIEW",
+      "gate_result": null,
+      "rule_set_id": "default",
+      "rule_set_name": "默认规则集",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:5:3",
+    "sql": "# decoy CREATE VIEW\nLOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+    "route": "file",
+    "status": 200,
+    "body": {
+      "results": [
+        {
+          "sql": "# decoy CREATE VIEW\nLOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+          "sql_type": "CREATE VIEW",
+          "passed": false,
+          "violations": [
+            {
+              "rule_id": "R030",
+              "category": "ddl",
+              "severity": "ERROR",
+              "message": "禁止创建视图/存储过程/触发器/自定义函数，TDSQL分布式架构下不推荐使用",
+              "suggestion": "请在应用层实现相应逻辑",
+              "line_number": 1
+            },
+            {
+              "rule_id": "R042",
+              "category": "security",
+              "severity": "ERROR",
+              "message": "禁止使用LOAD DATA INFILE/LOAD XML，存在安全风险",
+              "suggestion": "请在应用层批量导入数据",
+              "line_number": 1
+            }
+          ],
+          "file_path": "uat_o_load_guard.sql",
+          "line_number": 1
+        }
+      ],
+      "summary": {
+        "total_sql": 1,
+        "passed": 0,
+        "failed": 1,
+        "error_count": 2,
+        "warning_count": 0,
+        "pass_rate": 0.0
+      },
+      "gate_result": null,
+      "rule_set_id": "default",
+      "rule_set_name": "默认规则集",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:5:3",
+    "sql": "# decoy CREATE VIEW\nLOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+    "route": "upload",
+    "status": 200,
+    "body": {
+      "results": [
+        {
+          "sql": "# decoy CREATE VIEW\nLOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+          "sql_type": "CREATE VIEW",
+          "passed": false,
+          "violations": [
+            {
+              "rule_id": "R030",
+              "category": "ddl",
+              "severity": "ERROR",
+              "message": "禁止创建视图/存储过程/触发器/自定义函数，TDSQL分布式架构下不推荐使用",
+              "suggestion": "请在应用层实现相应逻辑",
+              "line_number": 1
+            },
+            {
+              "rule_id": "R042",
+              "category": "security",
+              "severity": "ERROR",
+              "message": "禁止使用LOAD DATA INFILE/LOAD XML，存在安全风险",
+              "suggestion": "请在应用层批量导入数据",
+              "line_number": 1
+            }
+          ],
+          "file_path": "uat_o_load_guard.sql",
+          "line_number": 1
+        }
+      ],
+      "summary": {
+        "total_sql": 1,
+        "passed": 0,
+        "failed": 1,
+        "error_count": 2,
+        "warning_count": 0,
+        "pass_rate": 0.0
+      },
+      "gate_result": null,
+      "rule_set_id": "",
+      "rule_set_name": "",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:5:4",
+    "sql": "-- ordinary\nLOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+    "route": "sql",
+    "status": 200,
+    "body": {
+      "passed": false,
+      "violations": [
+        {
+          "rule_id": "R042",
+          "category": "security",
+          "severity": "ERROR",
+          "message": "禁止使用LOAD DATA INFILE/LOAD XML，存在安全风险",
+          "suggestion": "请在应用层批量导入数据",
+          "line_number": null
+        }
+      ],
+      "sql_type": "LOAD",
+      "gate_result": null,
+      "rule_set_id": "default",
+      "rule_set_name": "默认规则集",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:5:4",
+    "sql": "-- ordinary\nLOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+    "route": "file",
+    "status": 200,
+    "body": {
+      "results": [
+        {
+          "sql": "-- ordinary\nLOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+          "sql_type": "LOAD",
+          "passed": false,
+          "violations": [
+            {
+              "rule_id": "R042",
+              "category": "security",
+              "severity": "ERROR",
+              "message": "禁止使用LOAD DATA INFILE/LOAD XML，存在安全风险",
+              "suggestion": "请在应用层批量导入数据",
+              "line_number": 1
+            }
+          ],
+          "file_path": "uat_o_load_guard.sql",
+          "line_number": 1
+        }
+      ],
+      "summary": {
+        "total_sql": 1,
+        "passed": 0,
+        "failed": 1,
+        "error_count": 1,
+        "warning_count": 0,
+        "pass_rate": 0.0
+      },
+      "gate_result": null,
+      "rule_set_id": "default",
+      "rule_set_name": "默认规则集",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:5:4",
+    "sql": "-- ordinary\nLOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+    "route": "upload",
+    "status": 200,
+    "body": {
+      "results": [
+        {
+          "sql": "-- ordinary\nLOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+          "sql_type": "LOAD",
+          "passed": false,
+          "violations": [
+            {
+              "rule_id": "R042",
+              "category": "security",
+              "severity": "ERROR",
+              "message": "禁止使用LOAD DATA INFILE/LOAD XML，存在安全风险",
+              "suggestion": "请在应用层批量导入数据",
+              "line_number": 1
+            }
+          ],
+          "file_path": "uat_o_load_guard.sql",
+          "line_number": 1
+        }
+      ],
+      "summary": {
+        "total_sql": 1,
+        "passed": 0,
+        "failed": 1,
+        "error_count": 1,
+        "warning_count": 0,
+        "pass_rate": 0.0
+      },
+      "gate_result": null,
+      "rule_set_id": "",
+      "rule_set_name": "",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:5:5",
+    "sql": "-- ordinary\rLOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+    "route": "sql",
+    "status": 200,
+    "body": {
+      "passed": true,
+      "violations": [],
+      "sql_type": "UNKNOWN",
+      "gate_result": null,
+      "rule_set_id": "default",
+      "rule_set_name": "默认规则集",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:5:5",
+    "sql": "-- ordinary\rLOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+    "route": "file",
+    "status": 200,
+    "body": {
+      "results": [],
+      "summary": {
+        "total_sql": 0,
+        "passed": 0,
+        "failed": 0,
+        "error_count": 0,
+        "warning_count": 0,
+        "pass_rate": 0.0
+      },
+      "gate_result": null,
+      "rule_set_id": "default",
+      "rule_set_name": "默认规则集",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:5:5",
+    "sql": "-- ordinary\rLOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+    "route": "upload",
+    "status": 200,
+    "body": {
+      "results": [],
+      "summary": {
+        "total_sql": 0,
+        "passed": 0,
+        "failed": 0,
+        "error_count": 0,
+        "warning_count": 0,
+        "pass_rate": 0.0
+      },
+      "gate_result": null,
+      "rule_set_id": "",
+      "rule_set_name": "",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:5:6",
+    "sql": "/* ordinary */\nLOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+    "route": "sql",
+    "status": 200,
+    "body": {
+      "passed": false,
+      "violations": [
+        {
+          "rule_id": "R042",
+          "category": "security",
+          "severity": "ERROR",
+          "message": "禁止使用LOAD DATA INFILE/LOAD XML，存在安全风险",
+          "suggestion": "请在应用层批量导入数据",
+          "line_number": null
+        }
+      ],
+      "sql_type": "LOAD",
+      "gate_result": null,
+      "rule_set_id": "default",
+      "rule_set_name": "默认规则集",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:5:6",
+    "sql": "/* ordinary */\nLOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+    "route": "file",
+    "status": 200,
+    "body": {
+      "results": [
+        {
+          "sql": "/* ordinary */\nLOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+          "sql_type": "LOAD",
+          "passed": false,
+          "violations": [
+            {
+              "rule_id": "R042",
+              "category": "security",
+              "severity": "ERROR",
+              "message": "禁止使用LOAD DATA INFILE/LOAD XML，存在安全风险",
+              "suggestion": "请在应用层批量导入数据",
+              "line_number": 1
+            }
+          ],
+          "file_path": "uat_o_load_guard.sql",
+          "line_number": 1
+        }
+      ],
+      "summary": {
+        "total_sql": 1,
+        "passed": 0,
+        "failed": 1,
+        "error_count": 1,
+        "warning_count": 0,
+        "pass_rate": 0.0
+      },
+      "gate_result": null,
+      "rule_set_id": "default",
+      "rule_set_name": "默认规则集",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:5:6",
+    "sql": "/* ordinary */\nLOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+    "route": "upload",
+    "status": 200,
+    "body": {
+      "results": [
+        {
+          "sql": "/* ordinary */\nLOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+          "sql_type": "LOAD",
+          "passed": false,
+          "violations": [
+            {
+              "rule_id": "R042",
+              "category": "security",
+              "severity": "ERROR",
+              "message": "禁止使用LOAD DATA INFILE/LOAD XML，存在安全风险",
+              "suggestion": "请在应用层批量导入数据",
+              "line_number": 1
+            }
+          ],
+          "file_path": "uat_o_load_guard.sql",
+          "line_number": 1
+        }
+      ],
+      "summary": {
+        "total_sql": 1,
+        "passed": 0,
+        "failed": 1,
+        "error_count": 1,
+        "warning_count": 0,
+        "pass_rate": 0.0
+      },
+      "gate_result": null,
+      "rule_set_id": "",
+      "rule_set_name": "",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:5:7",
+    "sql": "; LOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+    "route": "sql",
+    "status": 200,
+    "body": {
+      "passed": false,
+      "violations": [
+        {
+          "rule_id": "E999_SYNTAX_ERROR",
+          "category": "dml",
+          "severity": "ERROR",
+          "message": "SQL 语句无法解析或结构不完整（可能是拉取截断/语法错误）: No expression was parsed from '; LOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t'",
+          "suggestion": null,
+          "line_number": null
+        },
+        {
+          "rule_id": "R042",
+          "category": "security",
+          "severity": "ERROR",
+          "message": "禁止使用LOAD DATA INFILE/LOAD XML，存在安全风险",
+          "suggestion": "请在应用层批量导入数据",
+          "line_number": null
+        }
+      ],
+      "sql_type": "LOAD",
+      "gate_result": null,
+      "rule_set_id": "default",
+      "rule_set_name": "默认规则集",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:5:7",
+    "sql": "; LOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+    "route": "file",
+    "status": 200,
+    "body": {
+      "results": [
+        {
+          "sql": "; LOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+          "sql_type": "LOAD",
+          "passed": false,
+          "violations": [
+            {
+              "rule_id": "E999_SYNTAX_ERROR",
+              "category": "dml",
+              "severity": "ERROR",
+              "message": "SQL 语句无法解析或结构不完整（可能是拉取截断/语法错误）: No expression was parsed from '; LOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t'",
+              "suggestion": null,
+              "line_number": 1
+            },
+            {
+              "rule_id": "R042",
+              "category": "security",
+              "severity": "ERROR",
+              "message": "禁止使用LOAD DATA INFILE/LOAD XML，存在安全风险",
+              "suggestion": "请在应用层批量导入数据",
+              "line_number": 1
+            }
+          ],
+          "file_path": "uat_o_load_guard.sql",
+          "line_number": 1
+        }
+      ],
+      "summary": {
+        "total_sql": 1,
+        "passed": 0,
+        "failed": 1,
+        "error_count": 2,
+        "warning_count": 0,
+        "pass_rate": 0.0
+      },
+      "gate_result": null,
+      "rule_set_id": "default",
+      "rule_set_name": "默认规则集",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:5:7",
+    "sql": "; LOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+    "route": "upload",
+    "status": 200,
+    "body": {
+      "results": [
+        {
+          "sql": "; LOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+          "sql_type": "LOAD",
+          "passed": false,
+          "violations": [
+            {
+              "rule_id": "E999_SYNTAX_ERROR",
+              "category": "dml",
+              "severity": "ERROR",
+              "message": "SQL 语句无法解析或结构不完整（可能是拉取截断/语法错误）: No expression was parsed from '; LOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t'",
+              "suggestion": null,
+              "line_number": 1
+            },
+            {
+              "rule_id": "R042",
+              "category": "security",
+              "severity": "ERROR",
+              "message": "禁止使用LOAD DATA INFILE/LOAD XML，存在安全风险",
+              "suggestion": "请在应用层批量导入数据",
+              "line_number": 1
+            }
+          ],
+          "file_path": "uat_o_load_guard.sql",
+          "line_number": 1
+        }
+      ],
+      "summary": {
+        "total_sql": 1,
+        "passed": 0,
+        "failed": 1,
+        "error_count": 2,
+        "warning_count": 0,
+        "pass_rate": 0.0
+      },
+      "gate_result": null,
+      "rule_set_id": "",
+      "rule_set_name": "",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:5:8",
+    "sql": "'decoy' LOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+    "route": "sql",
+    "status": 200,
+    "body": {
+      "passed": false,
+      "violations": [
+        {
+          "rule_id": "R042",
+          "category": "security",
+          "severity": "ERROR",
+          "message": "禁止使用LOAD DATA INFILE/LOAD XML，存在安全风险",
+          "suggestion": "请在应用层批量导入数据",
+          "line_number": null
+        }
+      ],
+      "sql_type": "LOAD",
+      "gate_result": null,
+      "rule_set_id": "default",
+      "rule_set_name": "默认规则集",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:5:8",
+    "sql": "'decoy' LOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+    "route": "file",
+    "status": 200,
+    "body": {
+      "results": [
+        {
+          "sql": "'decoy' LOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+          "sql_type": "LOAD",
+          "passed": false,
+          "violations": [
+            {
+              "rule_id": "R042",
+              "category": "security",
+              "severity": "ERROR",
+              "message": "禁止使用LOAD DATA INFILE/LOAD XML，存在安全风险",
+              "suggestion": "请在应用层批量导入数据",
+              "line_number": 1
+            }
+          ],
+          "file_path": "uat_o_load_guard.sql",
+          "line_number": 1
+        }
+      ],
+      "summary": {
+        "total_sql": 1,
+        "passed": 0,
+        "failed": 1,
+        "error_count": 1,
+        "warning_count": 0,
+        "pass_rate": 0.0
+      },
+      "gate_result": null,
+      "rule_set_id": "default",
+      "rule_set_name": "默认规则集",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:5:8",
+    "sql": "'decoy' LOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+    "route": "upload",
+    "status": 200,
+    "body": {
+      "results": [
+        {
+          "sql": "'decoy' LOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+          "sql_type": "LOAD",
+          "passed": false,
+          "violations": [
+            {
+              "rule_id": "R042",
+              "category": "security",
+              "severity": "ERROR",
+              "message": "禁止使用LOAD DATA INFILE/LOAD XML，存在安全风险",
+              "suggestion": "请在应用层批量导入数据",
+              "line_number": 1
+            }
+          ],
+          "file_path": "uat_o_load_guard.sql",
+          "line_number": 1
+        }
+      ],
+      "summary": {
+        "total_sql": 1,
+        "passed": 0,
+        "failed": 1,
+        "error_count": 1,
+        "warning_count": 0,
+        "pass_rate": 0.0
+      },
+      "gate_result": null,
+      "rule_set_id": "",
+      "rule_set_name": "",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:5:9",
+    "sql": "`decoy` LOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+    "route": "sql",
+    "status": 200,
+    "body": {
+      "passed": false,
+      "violations": [
+        {
+          "rule_id": "R042",
+          "category": "security",
+          "severity": "ERROR",
+          "message": "禁止使用LOAD DATA INFILE/LOAD XML，存在安全风险",
+          "suggestion": "请在应用层批量导入数据",
+          "line_number": null
+        }
+      ],
+      "sql_type": "LOAD",
+      "gate_result": null,
+      "rule_set_id": "default",
+      "rule_set_name": "默认规则集",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:5:9",
+    "sql": "`decoy` LOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+    "route": "file",
+    "status": 200,
+    "body": {
+      "results": [
+        {
+          "sql": "`decoy` LOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+          "sql_type": "LOAD",
+          "passed": false,
+          "violations": [
+            {
+              "rule_id": "R042",
+              "category": "security",
+              "severity": "ERROR",
+              "message": "禁止使用LOAD DATA INFILE/LOAD XML，存在安全风险",
+              "suggestion": "请在应用层批量导入数据",
+              "line_number": 1
+            }
+          ],
+          "file_path": "uat_o_load_guard.sql",
+          "line_number": 1
+        }
+      ],
+      "summary": {
+        "total_sql": 1,
+        "passed": 0,
+        "failed": 1,
+        "error_count": 1,
+        "warning_count": 0,
+        "pass_rate": 0.0
+      },
+      "gate_result": null,
+      "rule_set_id": "default",
+      "rule_set_name": "默认规则集",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "head:5:9",
+    "sql": "`decoy` LOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+    "route": "upload",
+    "status": 200,
+    "body": {
+      "results": [
+        {
+          "sql": "`decoy` LOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+          "sql_type": "LOAD",
+          "passed": false,
+          "violations": [
+            {
+              "rule_id": "R042",
+              "category": "security",
+              "severity": "ERROR",
+              "message": "禁止使用LOAD DATA INFILE/LOAD XML，存在安全风险",
+              "suggestion": "请在应用层批量导入数据",
+              "line_number": 1
+            }
+          ],
+          "file_path": "uat_o_load_guard.sql",
+          "line_number": 1
+        }
+      ],
+      "summary": {
+        "total_sql": 1,
+        "passed": 0,
+        "failed": 1,
+        "error_count": 1,
+        "warning_count": 0,
+        "pass_rate": 0.0
+      },
+      "gate_result": null,
+      "rule_set_id": "",
+      "rule_set_name": "",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  }
+]

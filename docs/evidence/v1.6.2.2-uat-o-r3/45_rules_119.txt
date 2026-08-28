@@ -1,0 +1,51 @@
+- banner:
+  - img "logo"
+  - generic: TDSQL数据库SQL审核工具
+  - button "U UAT-O 管理员 系统管理员":
+    - generic: U
+    - generic: UAT-O 管理员
+    - generic: 系统管理员
+- complementary:
+  - menubar:
+    - menuitem "治理概览":
+      - generic: 治理概览
+    - menuitem "SQL审核":
+      - generic: SQL审核
+    - menuitem "慢SQL治理":
+      - generic: 慢SQL治理
+    - menuitem "实例体检":
+      - generic: 实例体检
+    - menuitem "深度诊断":
+      - generic: 深度诊断
+    - menuitem "平台治理" [expanded]:
+      - generic: 平台治理
+      - menu:
+        - menuitem "实例管理"
+        - menuitem "审核规则库"
+        - menuitem "评估规则集"
+    - menuitem "系统管理":
+      - generic: 系统管理
+- navigation "面包屑":
+  - link "平台治理"
+  - text: /
+  - link "审核规则库"
+- generic: 审核规则库（共 119 条）
+- textbox "搜索规则..."
+- button "命名规范 (5)":
+  - text: 命名规范 (5)
+- button "DDL规范 (22)":
+  - text: DDL规范 (22)
+- button "DML规范 (9)":
+  - text: DML规范 (9)
+- button "索引规范 (10)":
+  - text: 索引规范 (10)
+- button "分布式规范 (14)":
+  - text: 分布式规范 (14)
+- button "安全规范 (8)":
+  - text: 安全规范 (8)
+- button "性能规范 (5)":
+  - text: 性能规范 (5)
+- button "事务规范 (4)":
+  - text: 事务规范 (4)
+- button "Oracle迁移兼容 (42)":
+  - text: Oracle迁移兼容 (42)

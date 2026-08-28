@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TDSQL Gateway 日志分析报告</title>
+<style>
+:root {
+  --bg: #f8f9fa; --card: #fff; --border: #e0e0e0; --text: #212529;
+  --primary: #0d6efd; --success: #198754; --warning: #ffc107;
+  --danger: #dc3545; --info: #0dcaf0; --muted: #6c757d;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+       background: var(--bg); color: var(--text); line-height: 1.6; padding: 20px; }
+.container { max-width: 1200px; margin: 0 auto; }
+h1 { color: var(--primary); border-bottom: 3px solid var(--primary); padding-bottom: 10px; margin: 30px 0 10px; font-size: 1.8em; }
+h2 { color: #333; margin: 28px 0 14px; font-size: 1.35em; border-left: 4px solid var(--primary); padding-left: 12px; }
+h3 { color: #444; margin: 18px 0 10px; font-size: 1.1em; }
+p.meta { color: var(--muted); font-size: 0.9em; margin-bottom: 20px; }
+table { border-collapse: collapse; width: 100%; margin: 10px 0 18px; background: var(--card);
+        box-shadow: 0 1px 3px rgba(0,0,0,0.08); border-radius: 6px; overflow: hidden; }
+th { background: #f1f3f5; color: #333; font-weight: 600; text-align: left; padding: 10px 14px;
+     border-bottom: 2px solid var(--border); font-size: 0.9em; white-space: nowrap; }
+td { padding: 8px 14px; border-bottom: 1px solid #f0f0f0; font-size: 0.88em; vertical-align: top; }
+tr:hover td { background: #f8f9ff; }
+tr:last-child td { border-bottom: none; }
+code { background: #e9ecef; padding: 2px 6px; border-radius: 3px; font-size: 0.85em; word-break: break-all; }
+.bar-container { display: inline-block; min-width: 200px; }
+.bar { display: inline-block; height: 16px; background: linear-gradient(90deg, var(--primary), #4dabf7);
+       border-radius: 3px; vertical-align: middle; min-width: 2px; }
+.bar-danger { background: linear-gradient(90deg, var(--danger), #e8726c); }
+.bar-warning { background: linear-gradient(90deg, var(--warning), #ffda6a); }
+.bar-success { background: linear-gradient(90deg, var(--success), #40c057); }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 0.78em; font-weight: 600; color: #fff; }
+.badge-high { background: var(--danger); }
+.badge-mid { background: var(--warning); color: #333; }
+.badge-low { background: var(--info); color: #333; }
+.badge-ok { background: var(--success); }
+.alert { padding: 12px 16px; border-radius: 6px; margin: 10px 0; font-size: 0.9em; }
+.alert-warning { background: #fff3cd; border: 1px solid #ffc107; color: #664d03; }
+.alert-danger { background: #f8d7da; border: 1px solid #f5c2c7; color: #842029; }
+.summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin: 12px 0 18px; }
+.summary-card { background: var(--card); border-radius: 8px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+                text-align: center; }
+.summary-card .label { font-size: 0.82em; color: var(--muted); }
+.summary-card .value { font-size: 1.5em; font-weight: 700; color: var(--primary); }
+.num { text-align: right; font-variant-numeric: tabular-nums; }
+hr { border: none; border-top: 2px solid var(--border); margin: 40px 0; }
+.report-footer { text-align: center; padding: 30px 0 10px; color: var(--muted); font-size: 0.85em;
+                 border-top: 2px solid var(--border); margin-top: 40px; }
+.report-footer p { margin: 4px 0; }
+/* TOC 目录 */
+.toc { position: fixed; top: 20px; right: 20px; width: 260px; max-height: calc(100vh - 40px);
+       background: var(--card); border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.12);
+       z-index: 1000; overflow: hidden; transition: all 0.3s ease; }
+.toc.collapsed { width: 44px; max-height: 44px; border-radius: 22px; cursor: pointer; }
+.toc-toggle { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px;
+              background: var(--primary); color: #fff; cursor: pointer; font-size: 0.9em; font-weight: 600;
+              user-select: none; }
+.toc-toggle .toc-icon { font-size: 1.1em; transition: transform 0.3s; }
+.toc.collapsed .toc-toggle { justify-content: center; padding: 10px; }
+.toc.collapsed .toc-title, .toc.collapsed .toc-icon { display: none; }
+.toc.collapsed .toc-toggle::after { content: "\1F4D1"; font-size: 1.3em; }
+.toc-body { overflow-y: auto; max-height: calc(100vh - 84px); padding: 8px 0; }
+.toc.collapsed .toc-body { display: none; }
+.toc-body a { display: block; padding: 6px 16px; color: var(--text); text-decoration: none;
+              font-size: 0.82em; line-height: 1.4; border-left: 3px solid transparent; transition: all 0.15s; }
+.toc-body a:hover { background: #f1f3f5; border-left-color: var(--primary); color: var(--primary); }
+.toc-body a.active { background: #e7f1ff; border-left-color: var(--primary); color: var(--primary); font-weight: 600; }
+.toc-group { padding: 8px 16px 4px; font-size: 0.78em; font-weight: 700; color: var(--primary);
+             text-transform: uppercase; letter-spacing: 0.5px; border-top: 1px solid #e9ecef;
+             margin-top: 4px; background: #f8f9fa; }
+/* 章节折叠 */
+.section { margin-bottom: 4px; }
+.section-header { cursor: pointer; user-select: none; position: relative; }
+.section-header::after { content: "▾"; position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+                         font-size: 0.8em; color: var(--muted); transition: transform 0.2s; }
+.section.collapsed .section-header::after { transform: translateY(-50%) rotate(-90deg); }
+.section-content { overflow: hidden; transition: max-height 0.3s ease; }
+.section.collapsed .section-content { max-height: 0 !important; }
+@media (max-width: 768px) {
+  body { padding: 10px; }
+  table { font-size: 0.82em; }
+  .summary-grid { grid-template-columns: repeat(2, 1fr); }
+  .toc { position: static; width: 100%; max-height: none; margin-bottom: 20px; border-radius: 8px; }
+  .toc.collapsed { width: 100%; max-height: 44px; border-radius: 8px; }
+  .toc-body { max-height: 300px; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+<h1 id="top">TDSQL Gateway 日志分析报告 - C:\Users\linsa\AppData\Local\Temp\tdsql_log_analysis_4s958z7m</h1>
+<p class="meta">生成时间: 2026-08-28 23:56:43</p>
+<div class="section" id="sec-overview">
+<h2 class="section-header">一、日志概览</h2>
+<div class="section-content">
+<div class="summary-grid">
+<div class="summary-card"><div class="label">日期跨度</div><div class="value">1 天</div><div class="label">2026-08-28 ~ 2026-08-28</div></div>
+<div class="summary-card"><div class="label">文件总数</div><div class="value">1</div></div>
+<div class="summary-card"><div class="label">总大小</div><div class="value">330.0B</div></div>
+</div>
+<table><tr><th>日志类型</th><th>说明</th><th>文件数</th><th>大小</th><th>端口</th></tr>
+<tr><td><code>interf_instance</code></td><td>SQL接口层日志</td><td class="num">1</td><td class="num">330.0B</td><td>13306</td></tr>
+</table>
+</div></div>
+<div class="section" id="sec-daily">
+<h2 class="section-header">二、每日请求量趋势</h2>
+<div class="section-content">
+<table><tr><th>日期</th><th>请求量</th><th>平均耗时(ms)</th><th>趋势</th></tr>
+<tr><td>2026-08-28</td><td class="num">2</td><td class="num">756.350</td><td><div class="bar-container"><span class="bar" style="width:150px"></span></div></td></tr>
+</table>
+
+</div></div>
+<div class="section" id="sec-hourly">
+<h2 class="section-header">三、每小时请求量分布</h2>
+<div class="section-content">
+<table><tr><th>时间</th><th>请求量</th><th>分布</th></tr>
+<tr><td>2026-08-28 09</td><td class="num">2</td><td><div class="bar-container"><span class="bar" style="width:250px"></span></div></td></tr>
+</table>
+
+<h3>最繁忙的分钟 Top 10</h3>
+<table><tr><th>时间(分钟)</th><th>请求量</th></tr>
+<tr><td>2026-08-28 09:00</td><td class="num">2</td></tr>
+</table>
+
+</div></div>
+<div class="section" id="sec-timecost">
+<h2 class="section-header">四、SQL 耗时分布</h2>
+<div class="section-content">
+<table><tr><th>耗时区间</th><th>数量</th><th>占比</th><th>分布</th></tr>
+<tr><td>&lt;1ms</td><td class="num">0</td><td class="num">0.0%</td><td><div class="bar-container"><span class="bar bar-success" style="width:0px"></span></div></td></tr>
+<tr><td>1-5ms</td><td class="num">0</td><td class="num">0.0%</td><td><div class="bar-container"><span class="bar bar-success" style="width:0px"></span></div></td></tr>
+<tr><td>5-10ms</td><td class="num">0</td><td class="num">0.0%</td><td><div class="bar-container"><span class="bar" style="width:0px"></span></div></td></tr>
+<tr><td>10-50ms</td><td class="num">1</td><td class="num">50.0%</td><td><div class="bar-container"><span class="bar" style="width:125px"></span></div></td></tr>
+<tr><td>50-100ms</td><td class="num">0</td><td class="num">0.0%</td><td><div class="bar-container"><span class="bar bar-warning" style="width:0px"></span></div></td></tr>
+<tr><td>100-500ms</td><td class="num">0</td><td class="num">0.0%</td><td><div class="bar-container"><span class="bar bar-warning" style="width:0px"></span></div></td></tr>
+<tr><td>500ms-1s</td><td class="num">0</td><td class="num">0.0%</td><td><div class="bar-container"><span class="bar bar-danger" style="width:0px"></span></div></td></tr>
+<tr><td>1-3s</td><td class="num">1</td><td class="num">50.0%</td><td><div class="bar-container"><span class="bar bar-danger" style="width:125px"></span></div></td></tr>
+<tr><td>3-10s</td><td class="num">0</td><td class="num">0.0%</td><td><div class="bar-container"><span class="bar bar-danger" style="width:0px"></span></div></td></tr>
+<tr><td>&gt;10s</td><td class="num">0</td><td class="num">0.0%</td><td><div class="bar-container"><span class="bar bar-danger" style="width:0px"></span></div></td></tr>
+</table>
+
+</div></div>
+<div class="section" id="sec-high-tc">
+<h2 class="section-header">五、高耗时 SQL Top 20</h2>
+<div class="section-content">
+<table><tr><th>#</th><th>耗时(ms)</th><th>数据库</th><th>SQL</th><th>时间</th></tr>
+<tr><td>1</td><td class="num">1500.2</td><td>tdsql_uat_o_target_1622</td><td><code>select id from t_uat_order where customer_id=2</code></td><td>2026-08-28 09:00:02</td></tr>
+</table>
+
+</div></div>
+<div class="section" id="sec-patterns">
+<h2 class="section-header">六、高频 SQL 模式 Top 20</h2>
+<div class="section-content">
+<table><tr><th>#</th><th>次数</th><th>数据库</th><th>SQL模式</th></tr>
+<tr><td>1</td><td class="num">1</td><td class="db">tdsql_uat_o_target_1622</td><td><code>select id from t_uat_customer where id=?</code></td></tr>
+<tr><td>2</td><td class="num">1</td><td class="db">tdsql_uat_o_target_1622</td><td><code>select id from t_uat_order where customer_id=?</code></td></tr>
+</table>
+
+</div></div>
+<div class="section" id="sec-sql-type">
+<h2 class="section-header">七、SQL 类型分布</h2>
+<div class="section-content">
+<table><tr><th>sql_type</th><th>含义</th><th>数量</th><th>占比</th><th>分布</th></tr>
+</table>
+
+</div></div>
+<div class="section" id="sec-user-db">
+<h2 class="section-header">八、用户 &amp; 数据库分布</h2>
+<div class="section-content">
+<h3>用户分布</h3>
+<table><tr><th>用户</th><th>请求数</th><th>占比</th></tr>
+<tr><td>synthetic</td><td class="num">2</td><td class="num">100.0%</td></tr>
+</table>
+
+<h3>数据库分布</h3>
+<table><tr><th>数据库</th><th>请求数</th><th>占比</th></tr>
+<tr><td>tdsql_uat_o_target_1622</td><td class="num">2</td><td class="num">100.0%</td></tr>
+</table>
+
+</div></div>
+<div class="section" id="sec-errors">
+<h2 class="section-header">九、错误码分析</h2>
+<div class="section-content">
+<table><tr><th>错误码</th><th>含义</th><th>数量</th><th>占比</th></tr>
+</table>
+
+</div></div>
+<div class="section" id="sec-conn">
+<h2 class="section-header">十、连接模式分析</h2>
+<div class="section-content">
+<div class="summary-grid">
+<div class="summary-card"><div class="label">新建连接</div><div class="value">0</div></div>
+<div class="summary-card"><div class="label">断开连接</div><div class="value">0</div></div>
+<div class="summary-card"><div class="label">new_connnum 累计</div><div class="value">0</div></div>
+<div class="summary-card"><div class="label">总请求量</div><div class="value">2</div></div>
+<div class="summary-card"><div class="label">连接建立占比</div><div class="value">0.0%</div></div>
+</div>
+</div></div>
+<div class="section" id="sec-flame">
+<h2 class="section-header">SQL 执行耗时火焰图</h2>
+<div class="section-content">
+<p>数据点: <strong>2</strong> 个 <span style="color:#888;font-size:0.85em;">（拖拽框选放大时间段 | 滚轮缩放 | 双击重置 | 点击散点查看 SQL 详情 | 放大后可横向滚动）</span></p>
+<div id="flameTimeRange" style="display:flex;align-items:center;gap:8px;margin:10px 0;flex-wrap:wrap;font-size:0.85em;">
+<span style="color:#64748b;font-weight:600;">时间范围:</span>
+<input type="datetime-local" id="flameStart" step="1" style="padding:4px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:0.9em;color:#334155;background:#fff;">
+<span style="color:#94a3b8;">~</span>
+<input type="datetime-local" id="flameEnd" step="1" style="padding:4px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:0.9em;color:#334155;background:#fff;">
+<button id="flameApplyRange" style="background:#0d6efd;color:#fff;border:none;padding:5px 14px;border-radius:6px;font-size:0.85em;cursor:pointer;font-weight:600;" onclick="document.dispatchEvent(new CustomEvent('flameApplyRange_f0'))">应用</button>
+<button id="flameQuick1h" style="background:#e2e8f0;color:#334155;border:none;padding:5px 10px;border-radius:6px;font-size:0.82em;cursor:pointer;" onclick="document.dispatchEvent(new CustomEvent('flameQuick_f0',{detail:3600000}))">1h</button>
+<button id="flameQuick6h" style="background:#e2e8f0;color:#334155;border:none;padding:5px 10px;border-radius:6px;font-size:0.82em;cursor:pointer;" onclick="document.dispatchEvent(new CustomEvent('flameQuick_f0',{detail:21600000}))">6h</button>
+<button id="flameQuick1d" style="background:#e2e8f0;color:#334155;border:none;padding:5px 10px;border-radius:6px;font-size:0.82em;cursor:pointer;" onclick="document.dispatchEvent(new CustomEvent('flameQuick_f0',{detail:86400000}))">1d</button>
+</div>
+<div id="flameOuter" style="width:100%;background:var(--card);border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.06);padding:20px;margin:10px 0;">
+<div style="display:flex;gap:16px;margin-bottom:12px;font-size:0.8em;color:#888;flex-wrap:wrap;"><span>● <span style="color:#22c55e">■</span> &lt;1ms</span><span>● <span style="color:#3b82f6">■</span> 1-10ms</span><span>● <span style="color:#f59e0b">■</span> 10-100ms</span><span>● <span style="color:#ef4444">■</span> 100ms-1s</span><span>● <span style="color:#7c1d1d">■</span> &gt;1s</span></div>
+<div id="flameToolbar" style="display:flex;align-items:center;gap:10px;margin-bottom:8px;"><button id="flameReset" style="display:none;background:#0d6efd;color:#fff;border:none;padding:4px 12px;border-radius:6px;font-size:0.78em;cursor:pointer;" onclick="document.dispatchEvent(new CustomEvent('flameReset_f0'))">↩ 重置缩放 Reset Zoom</button><span id="flameZoomInfo" style="display:none;font-size:0.78em;color:#64748b;"></span></div>
+<div id="flameScroll" style="width:100%;overflow-x:auto;position:relative;">
+<div id="flameWrap" style="position:relative;min-width:100%;">
+<canvas id="flameChart" style="width:100%;cursor:crosshair;"></canvas>
+<canvas id="flameOverlay" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></canvas>
+<div id="flameTip" style="display:none;position:absolute;background:rgba(30,30,30,0.92);color:#fff;padding:8px 14px;border-radius:8px;font-size:0.82em;pointer-events:none;z-index:10;box-shadow:0 4px 12px rgba(0,0,0,0.3);max-width:400px;line-height:1.5;backdrop-filter:blur(4px);"></div>
+</div></div>
+</div>
+<div id="sqlModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;
+background:rgba(0,0,0,0.5);z-index:9999;backdrop-filter:blur(2px);"
+onclick="if(event.target===this)this.style.display='none'">
+<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+background:#fff;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,0.3);
+width:min(90vw,720px);max-height:80vh;overflow:hidden;">
+<div style="display:flex;justify-content:space-between;align-items:center;padding:16px 24px;
+border-bottom:1px solid #eee;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;border-radius:16px 16px 0 0;">
+<div><strong style="font-size:1.1em;">SQL 详情</strong>
+<span id="sqlModalTime" style="margin-left:12px;opacity:0.85;font-size:0.9em;"></span></div>
+<button onclick="document.getElementById('sqlModal').style.display='none'"
+style="background:rgba(255,255,255,0.2);border:none;color:#fff;width:32px;height:32px;
+border-radius:50%;cursor:pointer;font-size:16px;display:flex;align-items:center;
+justify-content:center;">✕</button></div>
+<div style="padding:20px 24px;overflow-y:auto;max-height:calc(80vh - 120px);">
+<div style="display:flex;gap:16px;margin-bottom:16px;">
+<div style="flex:1;background:#f0f9ff;border-radius:10px;padding:12px 16px;text-align:center;">
+<div style="color:#64748b;font-size:0.8em;margin-bottom:4px;">耗时 Latency</div>
+<div id="sqlModalCost" style="font-size:1.4em;font-weight:700;color:#1e40af;"></div></div>
+<div style="flex:1;background:#fefce8;border-radius:10px;padding:12px 16px;text-align:center;">
+<div style="color:#64748b;font-size:0.8em;margin-bottom:4px;">数据库 Database</div>
+<div id="sqlModalDb" style="font-size:1.1em;font-weight:600;color:#854d0e;word-break:break-all;"></div></div></div>
+<div style="background:#1e293b;border-radius:10px;padding:16px;position:relative;">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+<span style="color:#94a3b8;font-size:0.8em;">SQL Statement</span>
+<button onclick="var t=document.getElementById('sqlModalText').textContent;navigator.clipboard.writeText(t)
+.then(function(){this.textContent='\u2713 Copied'}.bind(this))"
+style="background:#334155;border:1px solid #475569;color:#e2e8f0;padding:4px 12px;border-radius:6px;
+cursor:pointer;font-size:0.78em;">复制 Copy</button></div>
+<pre id="sqlModalText" style="margin:0;color:#e2e8f0;font-family:'SF Mono',Consolas,'Courier New',monospace;
+font-size:0.88em;line-height:1.6;white-space:pre-wrap;word-break:break-all;max-height:300px;overflow-y:auto;"></pre>
+</div></div></div></div>
+<script>var _fTs_f0=["2026-08-28 09:00:01", "2026-08-28 09:00:02"],_fTc_f0=[12.5, 1500.2],_fSql_f0=["select id from t_uat_customer where id=1", "select id from t_uat_order where customer_id=2"],_fDb_f0=["tdsql_uat_o_target_1622", "tdsql_uat_o_target_1622"];</script>
+<script>
+(function(){
+  var cv=document.getElementById('flameChart');if(!cv)return;
+  var overlay=document.getElementById('flameOverlay');
+  var tip=document.getElementById('flameTip'),
+      modal=document.getElementById('sqlModal'),
+      mTime=document.getElementById('sqlModalTime'),
+      mCost=document.getElementById('sqlModalCost'),
+      mDb=document.getElementById('sqlModalDb'),
+      mSql=document.getElementById('sqlModalText'),
+      resetBtn=document.getElementById('flameReset'),
+      zoomInfo=document.getElementById('flameZoomInfo'),
+      scrollBox=document.getElementById('flameScroll'),
+      wrapBox=document.getElementById('flameWrap'),
+      outerBox=document.getElementById('flameOuter'),
+      startInput=document.getElementById('flameStart'),
+      endInput=document.getElementById('flameEnd');
+  var dpr=window.devicePixelRatio||1;
+  var ts=_fTs_f0,tc=_fTc_f0,sql=_fSql_f0,db=_fDb_f0,n=ts.length;
+  if(!n)return;
+
+  function parseT(s){var p=s.split(/[- :]/);return new Date(+p[0],+p[1]-1,+p[2],+p[3]||0,+p[4]||0,+p[5]||0).getTime();}
+
+  var tV=new Float64Array(n),cV=new Float64Array(n);
+  var tMinAll=Infinity,tMaxAll=-Infinity,cMax=0;
+  for(var i=0;i<n;i++){
+    var t=parseT(ts[i]);tV[i]=t;cV[i]=tc[i];
+    if(t<tMinAll)tMinAll=t;if(t>tMaxAll)tMaxAll=t;if(tc[i]>cMax)cMax=tc[i];
+  }
+  if(tMaxAll===tMinAll)tMaxAll=tMinAll+1;if(cMax<1)cMax=1;
+  var logMax=Math.log10(1+cMax);
+
+  var vMin=tMinAll,vMax=tMaxAll;
+  var zoomStack=[];
+
+  // 初始化时间输入框
+  function toLocalISO(t){
+    var d=new Date(t);
+    return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2)+'T'+
+           ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2)+':'+('0'+d.getSeconds()).slice(-2);
+  }
+  function syncInputs(){
+    if(startInput) startInput.value=toLocalISO(vMin);
+    if(endInput) endInput.value=toLocalISO(vMax);
+  }
+  syncInputs();
+
+  function buildYTicks(maxVal){
+    var ticks=[0];
+    var candidates=[0.1,0.2,0.5,1,2,5,10,20,50,100,200,500,1000,2000,5000,10000,30000,60000];
+    for(var i=0;i<candidates.length;i++){
+      if(candidates[i]<=maxVal*1.3) ticks.push(candidates[i]);
+    }
+    if(ticks[ticks.length-1]<maxVal) ticks.push(Math.ceil(maxVal));
+    return ticks;
+  }
+  var yTicks=buildYTicks(cMax);
+
+  function dotColor(ms){
+    if(ms<1) return {r:34,g:197,b:94,a:0.7};
+    if(ms<10) return {r:59,g:130,b:246,a:0.65};
+    if(ms<100) return {r:245,g:158,b:11,a:0.7};
+    if(ms<1000) return {r:239,g:68,b:68,a:0.7};
+    return {r:153,g:27,b:27,a:0.8};
+  }
+  function dotRadius(ms){
+    if(ms<1) return 1.5;
+    var r=Math.log10(1+ms)/logMax;
+    return Math.min(Math.max(r*5,2),8);
+  }
+  function fmtMs(v){
+    if(v>=60000) return (v/60000).toFixed(1)+'min';
+    if(v>=1000) return (v/1000).toFixed(1)+'s';
+    if(v<0.1) return v.toFixed(3)+'ms';
+    if(v<1) return v.toFixed(2)+'ms';
+    return v.toFixed(1)+'ms';
+  }
+  function fmtLabel(v){
+    if(v>=60000) return (v/60000).toFixed(0)+'min';
+    if(v>=1000) return (v/1000).toFixed(v>=10000?0:1)+'s';
+    return v+'ms';
+  }
+  function fmtDate(t){
+    var d=new Date(t);
+    return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2)+' '+
+           ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
+  }
+
+  var baseW,H=460,pad={t:30,r:30,b:60,l:80},pw,ph,W;
+
+  function calcCanvasWidth(){
+    var containerW=outerBox.clientWidth-40;
+    baseW=Math.max(containerW,300);
+    var totalSpan=tMaxAll-tMinAll;
+    var viewSpan=vMax-vMin;
+    if(viewSpan<=0) viewSpan=1;
+    var zoomRatio=totalSpan/viewSpan;
+    if(zoomRatio>1.1){
+      W=Math.max(Math.round(baseW*zoomRatio),baseW);
+    }else{
+      W=baseW;
+    }
+  }
+
+  function toY(v){return pad.t+ph-(Math.log10(1+v)/logMax)*ph;}
+  function toX(t){return pad.l+((t-vMin)/(vMax-vMin))*pw;}
+  function fromX(px){return vMin+(px-pad.l)/pw*(vMax-vMin);}
+
+  function updateUI(){
+    var isZoomed=(vMin>tMinAll+1||vMax<tMaxAll-1);
+    resetBtn.style.display=isZoomed?'inline-block':'none';
+    if(isZoomed){
+      zoomInfo.style.display='inline';
+      zoomInfo.textContent=fmtDate(vMin)+' ~ '+fmtDate(vMax);
+    } else {
+      zoomInfo.style.display='none';
+    }
+    syncInputs();
+  }
+
+  function draw(){
+    calcCanvasWidth();
+    cv.width=W*dpr;cv.height=H*dpr;
+    cv.style.width=W+'px';cv.style.height=H+'px';
+    wrapBox.style.width=W+'px';
+    if(overlay){overlay.width=W*dpr;overlay.height=H*dpr;overlay.style.width=W+'px';overlay.style.height=H+'px';}
+    var ctx=cv.getContext('2d');ctx.scale(dpr,dpr);
+    pw=W-pad.l-pad.r;ph=H-pad.t-pad.b;
+    ctx.fillStyle='#fafbfc';ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#fff';ctx.fillRect(pad.l,pad.t,pw,ph);
+    ctx.textBaseline='middle';
+    yTicks.forEach(function(v){
+      var y=toY(v);
+      ctx.strokeStyle=v===0?'#ccc':'#f0f0f0';ctx.lineWidth=v===0?1:0.5;
+      ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(pad.l+pw,y);ctx.stroke();
+      ctx.fillStyle='#64748b';ctx.font='11px -apple-system,system-ui,sans-serif';ctx.textAlign='right';
+      ctx.fillText(fmtLabel(v),pad.l-10,y);
+    });
+    var xSteps=Math.max(Math.min(Math.ceil(pw/120),30),4);
+    ctx.textBaseline='top';
+    for(var i=0;i<=xSteps;i++){
+      var t=vMin+(vMax-vMin)*i/xSteps,x=toX(t),d=new Date(t);
+      ctx.strokeStyle='#f0f0f0';ctx.lineWidth=0.5;
+      ctx.beginPath();ctx.moveTo(x,pad.t);ctx.lineTo(x,pad.t+ph);ctx.stroke();
+      ctx.fillStyle='#64748b';ctx.font='11px -apple-system,system-ui,sans-serif';ctx.textAlign='center';
+      var lbl=(d.getMonth()+1)+'/'+d.getDate()+' '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
+      ctx.fillText(lbl,x,pad.t+ph+10);
+    }
+    ctx.strokeStyle='#e2e8f0';ctx.lineWidth=1;
+    ctx.strokeRect(pad.l,pad.t,pw,ph);
+    ctx.save();ctx.beginPath();ctx.rect(pad.l,pad.t,pw,ph);ctx.clip();
+    var idx=new Array(n);for(var i=0;i<n;i++)idx[i]=i;
+    idx.sort(function(a,b){return cV[a]-cV[b];});
+    for(var j=0;j<n;j++){
+      var i=idx[j];
+      if(tV[i]<vMin||tV[i]>vMax) continue;
+      var x=toX(tV[i]),y=toY(cV[i]);
+      var c=dotColor(cV[i]),rad=dotRadius(cV[i]);
+      if(cV[i]>=100){ctx.shadowColor='rgba(239,68,68,0.3)';ctx.shadowBlur=6;}
+      else{ctx.shadowColor='transparent';ctx.shadowBlur=0;}
+      ctx.fillStyle='rgba('+c.r+','+c.g+','+c.b+','+c.a+')';
+      ctx.beginPath();ctx.arc(x,y,rad,0,Math.PI*2);ctx.fill();
+    }
+    ctx.restore();
+    ctx.shadowColor='transparent';ctx.shadowBlur=0;
+    ctx.fillStyle='#334155';ctx.font='bold 12px -apple-system,system-ui,sans-serif';
+    ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillText('时间 Time',pad.l+pw/2,H-18);
+    ctx.save();ctx.translate(18,pad.t+ph/2);ctx.rotate(-Math.PI/2);
+    ctx.textBaseline='middle';ctx.textAlign='center';
+    ctx.fillText('SQL 耗时 Latency (log)',0,0);ctx.restore();
+    updateUI();
+  }
+
+  function findNearest(mx,my){
+    var best=-1,bestD=Infinity;
+    for(var i=0;i<n;i++){
+      if(tV[i]<vMin||tV[i]>vMax) continue;
+      var x=toX(tV[i]),y=toY(cV[i]);
+      var dx=x-mx,dy=y-my,d=dx*dx+dy*dy;
+      if(d<bestD&&d<400){bestD=d;best=i;}
+    }
+    return best;
+  }
+
+  // --- 拖拽框选放大 ---
+  var dragStart=null,isDragging=false;
+  function clearOverlay(){
+    if(!overlay) return;
+    var octx=overlay.getContext('2d');
+    octx.clearRect(0,0,overlay.width,overlay.height);
+  }
+  function drawSelection(x1,x2){
+    if(!overlay) return;
+    var octx=overlay.getContext('2d');
+    octx.setTransform(dpr,0,0,dpr,0,0);
+    octx.clearRect(0,0,W,H);
+    var left=Math.max(Math.min(x1,x2),pad.l),right=Math.min(Math.max(x1,x2),pad.l+pw);
+    if(right-left<2) return;
+    octx.fillStyle='rgba(0,0,0,0.15)';
+    octx.fillRect(pad.l,pad.t,left-pad.l,ph);
+    octx.fillRect(right,pad.t,pad.l+pw-right,ph);
+    octx.strokeStyle='#0d6efd';octx.lineWidth=1.5;
+    octx.setLineDash([4,3]);
+    octx.strokeRect(left,pad.t,right-left,ph);
+    octx.setLineDash([]);
+    octx.fillStyle='rgba(13,110,253,0.9)';octx.font='bold 11px -apple-system,system-ui,sans-serif';
+    octx.textBaseline='bottom';
+    var t1=fromX(left),t2=fromX(right);
+    octx.textAlign='left';octx.fillText(fmtDate(t1),left,pad.t-4);
+    octx.textAlign='right';octx.fillText(fmtDate(t2),right,pad.t-4);
+  }
+
+  cv.addEventListener('mousedown',function(e){
+    if(e.button!==0) return;
+    var rect=cv.getBoundingClientRect();
+    var mx=e.clientX-rect.left;
+    if(mx>=pad.l&&mx<=pad.l+pw){
+      dragStart=mx;isDragging=false;
+    }
+  });
+  cv.addEventListener('mousemove',function(e){
+    var rect=cv.getBoundingClientRect();
+    var mx=e.clientX-rect.left,my=e.clientY-rect.top;
+    if(dragStart!==null){
+      if(Math.abs(mx-dragStart)>5) isDragging=true;
+      if(isDragging){
+        tip.style.display='none';
+        cv.style.cursor='col-resize';
+        drawSelection(dragStart,mx);
+        return;
+      }
+    }
+    var i=findNearest(mx,my);
+    if(i>=0){
+      cv.style.cursor='pointer';
+      var c=dotColor(cV[i]);
+      tip.innerHTML='<div style="margin-bottom:3px;"><strong style="color:rgb('+c.r+','+c.g+','+c.b+');">'+fmtMs(cV[i])+'</strong>'+
+        '<span style="margin-left:8px;opacity:0.8;">'+ts[i]+'</span></div>'+
+        (db[i]?'<div style="opacity:0.7;font-size:0.9em;">DB: '+db[i].replace(/</g,'&lt;')+'</div>':'')+
+        (sql[i]?'<div style="opacity:0.7;font-size:0.85em;max-width:350px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+
+        sql[i].replace(/</g,'&lt;').substring(0,80)+(sql[i].length>80?'...':'')+'</div>':'')+
+        '<div style="margin-top:3px;opacity:0.5;font-size:0.78em;">点击查看完整 SQL / Click for details</div>';
+      var tx=toX(tV[i])+12,ty=toY(cV[i])-10;
+      if(tx+tip.offsetWidth>W-20) tx=toX(tV[i])-tip.offsetWidth-12;
+      if(ty<10) ty=toY(cV[i])+15;
+      tip.style.left=tx+'px';tip.style.top=ty+'px';
+      tip.style.display='block';
+    } else {
+      cv.style.cursor='crosshair';
+      tip.style.display='none';
+    }
+  });
+  cv.addEventListener('mouseup',function(e){
+    if(dragStart!==null&&isDragging){
+      var rect=cv.getBoundingClientRect();
+      var mx=e.clientX-rect.left;
+      var x1=Math.max(Math.min(dragStart,mx),pad.l),x2=Math.min(Math.max(dragStart,mx),pad.l+pw);
+      if(x2-x1>5){
+        var t1=fromX(x1),t2=fromX(x2);
+        zoomStack.push({min:vMin,max:vMax});
+        vMin=t1;vMax=t2;
+        clearOverlay();draw();
+      }
+    }
+    dragStart=null;isDragging=false;
+    cv.style.cursor='crosshair';
+    clearOverlay();
+  });
+  cv.addEventListener('mouseleave',function(){
+    tip.style.display='none';cv.style.cursor='crosshair';
+    if(isDragging) clearOverlay();
+    dragStart=null;isDragging=false;
+  });
+
+  // --- 点击查看 SQL ---
+  cv.addEventListener('click',function(e){
+    if(isDragging) return;
+    var rect=cv.getBoundingClientRect();
+    var mx=e.clientX-rect.left,my=e.clientY-rect.top;
+    var i=findNearest(mx,my);
+    if(i<0) return;
+    tip.style.display='none';
+    mTime.textContent=ts[i];
+    mCost.textContent=fmtMs(cV[i]);
+    mDb.textContent=db[i]||'-';
+    mSql.textContent=sql[i]||'(无 SQL 记录 / No SQL recorded)';
+    modal.style.display='block';
+  });
+
+  // --- 滚轮缩放 ---
+  cv.addEventListener('wheel',function(e){
+    e.preventDefault();
+    var rect=cv.getBoundingClientRect();
+    var mx=e.clientX-rect.left;
+    if(mx<pad.l||mx>pad.l+pw) return;
+    var ratio=(mx-pad.l)/pw;
+    var tCenter=vMin+ratio*(vMax-vMin);
+    var span=vMax-vMin;
+    var factor=e.deltaY>0?1.3:1/1.3;
+    var newSpan=Math.min(span*factor,tMaxAll-tMinAll);
+    if(newSpan<1000) newSpan=1000;
+    var newMin=tCenter-ratio*newSpan;
+    var newMax=tCenter+(1-ratio)*newSpan;
+    if(newMin<tMinAll){newMin=tMinAll;newMax=newMin+newSpan;}
+    if(newMax>tMaxAll){newMax=tMaxAll;newMin=newMax-newSpan;}
+    if(newMin<tMinAll) newMin=tMinAll;
+    zoomStack.push({min:vMin,max:vMax});
+    vMin=newMin;vMax=newMax;
+    draw();
+  },{passive:false});
+
+  // --- 双击重置 ---
+  cv.addEventListener('dblclick',function(e){
+    e.preventDefault();
+    zoomStack=[];
+    vMin=tMinAll;vMax=tMaxAll;
+    draw();
+  });
+
+  // --- 重置按钮 ---
+  document.addEventListener('flameReset_f0',function(){
+    zoomStack=[];
+    vMin=tMinAll;vMax=tMaxAll;
+    draw();
+  });
+
+  // --- 时间范围应用 ---
+  document.addEventListener('flameApplyRange_f0',function(){
+    if(!startInput||!endInput) return;
+    var sv=startInput.value,ev=endInput.value;
+    if(!sv||!ev) return;
+    var sT=new Date(sv).getTime(),eT=new Date(ev).getTime();
+    if(isNaN(sT)||isNaN(eT)||sT>=eT) return;
+    sT=Math.max(sT,tMinAll);eT=Math.min(eT,tMaxAll);
+    if(sT>=eT) return;
+    zoomStack.push({min:vMin,max:vMax});
+    vMin=sT;vMax=eT;
+    draw();
+  });
+
+  // --- 快捷时间范围 ---
+  document.addEventListener('flameQuick_f0',function(e){
+    var span=e.detail;
+    var mid=(vMin+vMax)/2;
+    var newMin=mid-span/2,newMax=mid+span/2;
+    if(newMin<tMinAll){newMin=tMinAll;newMax=newMin+span;}
+    if(newMax>tMaxAll){newMax=tMaxAll;newMin=newMax-span;}
+    if(newMin<tMinAll) newMin=tMinAll;
+    if(newMax<=newMin) return;
+    zoomStack.push({min:vMin,max:vMax});
+    vMin=newMin;vMax=newMax;
+    draw();
+  });
+
+  document.addEventListener('keydown',function(e){
+    if(e.key==='Escape'&&modal.style.display==='block') modal.style.display='none';
+  });
+
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',draw);
+  else setTimeout(draw,50);
+  window.addEventListener('resize',draw);
+})();
+</script>
+</div></div>
+<div class="section" id="sec-conclusions">
+<h2 class="section-header">十三、核心结论与建议</h2>
+<div class="section-content">
+<table><tr><th>#</th><th>发现</th><th>严重程度</th><th>建议</th></tr>
+<tr><td>1</td><td>存在超高耗时SQL: 1500ms (tdsql_uat_o_target_1622)</td><td><span class="badge badge-high">🔴 高</span></td><td>优化 SQL 或添加索引: select id from t_uat_order where customer_id=2</td></tr>
+</table>
+</div></div>
+<hr>
+<footer class="report-footer">
+  <p>Generated by <strong>TDSQL Gateway Log Analyzer</strong> v3.4</p>
+  <p>2026-08-28 23:56:43</p>
+</footer>
+</div>
+<script>
+(function(){
+  // 构建 TOC（多目录时按目录分组）
+  var sections = document.querySelectorAll('.section');
+  var tocHtml = '<nav class="toc" id="toc"><div class="toc-toggle" onclick="toggleToc()"><span class="toc-title">目录导航</span><span class="toc-icon">◀</span></div><div class="toc-body" id="toc-body">';
+  var lastGroup = null;
+  sections.forEach(function(sec){
+    var h2 = sec.querySelector('h2');
+    if(h2){
+      var id = sec.id;
+      var group = sec.getAttribute('data-group') || '';
+      if(group && group !== lastGroup){
+        tocHtml += '<div class="toc-group">' + group + '</div>';
+        lastGroup = group;
+      }
+      tocHtml += '<a href="#'+id+'" data-target="'+id+'">'+h2.textContent+'</a>';
+    }
+  });
+  tocHtml += '</div></nav>';
+  document.body.insertAdjacentHTML('beforeend', tocHtml);
+
+  // 折叠/展开 TOC
+  window.toggleToc = function(){
+    document.getElementById('toc').classList.toggle('collapsed');
+  };
+
+  // 点击章节标题折叠/展开内容
+  sections.forEach(function(sec){
+    var header = sec.querySelector('.section-header');
+    if(header){
+      header.addEventListener('click', function(e){
+        if(e.target.tagName === 'A') return;
+        sec.classList.toggle('collapsed');
+      });
+    }
+  });
+
+  // TOC 高亮当前章节
+  var tocLinks = document.querySelectorAll('.toc-body a');
+  var sectionEls = Array.from(sections);
+  function updateActive(){
+    var scrollY = window.scrollY || window.pageYOffset;
+    var current = '';
+    sectionEls.forEach(function(sec){
+      if(sec.offsetTop - 80 <= scrollY) current = sec.id;
+    });
+    tocLinks.forEach(function(a){
+      a.classList.toggle('active', a.getAttribute('data-target') === current);
+    });
+  }
+  window.addEventListener('scroll', updateActive);
+  updateActive();
+
+  // 平滑滚动
+  tocLinks.forEach(function(a){
+    a.addEventListener('click', function(e){
+      e.preventDefault();
+      var target = document.getElementById(this.getAttribute('data-target'));
+      if(target) target.scrollIntoView({behavior:'smooth', block:'start'});
+    });
+  });
+})();
+</script>
+</body>
+</html>

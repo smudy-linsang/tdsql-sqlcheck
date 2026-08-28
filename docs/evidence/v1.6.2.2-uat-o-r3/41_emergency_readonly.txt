@@ -1,0 +1,211 @@
+- banner:
+  - img "logo"
+  - generic: TDSQL数据库SQL审核工具
+  - button "U UAT-O 管理员 系统管理员":
+    - generic: U
+    - generic: UAT-O 管理员
+    - generic: 系统管理员
+- complementary:
+  - menubar:
+    - menuitem "治理概览":
+      - generic: 治理概览
+    - menuitem "SQL审核":
+      - generic: SQL审核
+    - menuitem "慢SQL治理":
+      - generic: 慢SQL治理
+    - menuitem "实例体检":
+      - generic: 实例体检
+    - menuitem "深度诊断":
+      - generic: 深度诊断
+    - menuitem "平台治理":
+      - generic: 平台治理
+    - menuitem "系统管理":
+      - generic: 系统管理
+- navigation "面包屑"
+- generic: 深度诊断
+- combobox
+- generic: UAT-O 本地集中式样本 (127.0.0.1:13306)
+- generic: 吸收 TDSQL 原厂工具能力：集群诊断 / 索引体检 / 结构比对 / 应急诊断 / SQL分析。深检绩效观 monitordb(15001)：只需操作。
+- tablist:
+  - tab "集群巡检"
+  - tab "日常巡检与对比报告"
+  - tab "索引体检"
+  - tab "结构比对"
+  - tab "应急诊断" [selected]
+  - tab "SQL分析"
+  - tab "网关日志分析"
+  - tab "PDF报告与大屏"
+  - tab "运维工具箱"
+- tabpanel "应急诊断":
+  - button "一键应急体检(只读)":
+    - generic: 一键应急体检(只读)
+  - generic: 包含 6 大维度全量只读诊断：实例健康 / 活跃会话 / 大事务 / 锁等待阻塞链 / 长SQL / InnoDB死锁
+  - button "status 实例健康与连接度 连接 9/151(6.0%) | 运行中线程 2 | 慢查询累计 5883" [expanded]:
+    - generic: status
+    - generic: 实例健康与连接度
+    - generic: 连接 9/151(6.0%) | 运行中线程 2 | 慢查询累计 5883
+  - region "status 实例健康与连接度 连接 9/151(6.0%) | 运行中线程 2 | 慢查询累计 5883":
+    - table:
+      - rowgroup:
+        - row "当前连接数 9 最大连接上限 151 连接使用率 6% 运行中线程 2":
+          - cell "当前连接数"
+          - cell "9"
+          - cell "最大连接上限"
+          - cell "151"
+          - cell "连接使用率"
+          - cell "6%":
+            - generic: 6%
+          - cell "运行中线程"
+          - cell "2"
+        - row "慢查询累计数 5883 连接中断数 146 累计 Questions 262916 Uptime(运行秒) 34284s":
+          - cell "慢查询累计数"
+          - cell "5883"
+          - cell "连接中断数"
+          - cell "146"
+          - cell "累计 Questions"
+          - cell "262916"
+          - cell "Uptime(运行秒)"
+          - cell "34284s"
+  - button "session 非Sleep活跃会话 活跃会话 2 条" [expanded]:
+    - generic: session
+    - generic: 非Sleep活跃会话
+    - generic: 活跃会话 2 条
+  - region "session 非Sleep活跃会话 活跃会话 2 条":
+    - table:
+      - rowgroup:
+        - row "ID 用户 主机 数据库 命令 耗时(s) 状态 正在执行SQL":
+          - columnheader "ID":
+            - generic: ID
+          - columnheader "用户":
+            - generic: 用户
+          - columnheader "主机":
+            - generic: 主机
+          - columnheader "数据库":
+            - generic: 数据库
+          - columnheader "命令":
+            - generic: 命令
+          - columnheader "耗时(s)":
+            - generic: 耗时(s)
+          - columnheader "状态":
+            - generic: 状态
+          - columnheader "正在执行SQL":
+            - generic: 正在执行SQL
+    - table:
+      - rowgroup:
+        - row "5 event_scheduler localhost Daemon 34282s Waiting on empty queue":
+          - cell "5":
+            - generic: "5"
+          - cell "event_scheduler":
+            - generic: event_scheduler
+          - cell "localhost":
+            - generic: localhost
+          - cell
+          - cell "Daemon":
+            - generic: Daemon
+          - cell "34282s":
+            - generic: 34282s
+          - cell "Waiting on empty queue":
+            - generic: Waiting on empty queue
+          - cell
+        - row "5657 root 172.20.0.1:40082 tdsql_uat_o_target_1622 Query 0s executing SELECT id,user,host,db,command,time,state,LEFT(info,200) info FROM information_schema.processlist WHERE command<>'Sleep' ORDER BY time DESC LIMIT 30":
+          - cell "5657":
+            - generic: "5657"
+          - cell "root":
+            - generic: root
+          - cell "172.20.0.1:40082":
+            - generic: 172.20.0.1:40082
+          - cell "tdsql_uat_o_target_1622":
+            - generic: tdsql_uat_o_target_1622
+          - cell "Query":
+            - generic: Query
+          - cell "0s":
+            - generic: 0s
+          - cell "executing":
+            - generic: executing
+          - cell "SELECT id,user,host,db,command,time,state,LEFT(info,200) info FROM information_schema.processlist WHERE command<>'Sleep' ORDER BY time DESC LIMIT 30":
+            - generic: SELECT id,user,host,db,command,time,state,LEFT(info,200) info FROM information_schema.processlist WHERE command<>'Sleep' ORDER BY time DESC LIMIT 30
+  - button "bigtrx 未提交长事务 活跃事务 3 条，其中运行≥10s 3 条" [expanded]:
+    - generic: bigtrx
+    - generic: 未提交长事务
+    - generic: 活跃事务 3 条，其中运行≥10s 3 条
+  - region "bigtrx 未提交长事务 活跃事务 3 条，其中运行≥10s 3 条":
+    - table:
+      - rowgroup:
+        - row "事务ID 线程ID 开始时间 时长(s) 修改行 锁行 事务SQL":
+          - columnheader "事务ID":
+            - generic: 事务ID
+          - columnheader "线程ID":
+            - generic: 线程ID
+          - columnheader "开始时间":
+            - generic: 开始时间
+          - columnheader "时长(s)":
+            - generic: 时长(s)
+          - columnheader "修改行":
+            - generic: 修改行
+          - columnheader "锁行":
+            - generic: 锁行
+          - columnheader "事务SQL":
+            - generic: 事务SQL
+    - table:
+      - rowgroup:
+        - row "411980361397032 5561 2026-08-29T00:05:18 585s 0 0":
+          - cell "411980361397032":
+            - generic: "411980361397032"
+          - cell "5561":
+            - generic: "5561"
+          - cell "2026-08-29T00:05:18":
+            - generic: 2026-08-29T00:05:18
+          - cell "585s":
+            - generic: 585s
+          - cell "0":
+            - generic: "0"
+          - cell "0":
+            - generic: "0"
+          - cell
+        - row "411980361397840 5619 2026-08-29T00:08:32 391s 0 0":
+          - cell "411980361397840":
+            - generic: "411980361397840"
+          - cell "5619":
+            - generic: "5619"
+          - cell "2026-08-29T00:08:32":
+            - generic: 2026-08-29T00:08:32
+          - cell "391s":
+            - generic: 391s
+          - cell "0":
+            - generic: "0"
+          - cell "0":
+            - generic: "0"
+          - cell
+        - row "411980361398648 5657 2026-08-29T00:14:42 21s 0 0 SELECT trx_id, trx_state, trx_started, TIMESTAMPDIFF(SECOND, trx_started, NOW()) AS duration_s, trx_rows_modified, trx_rows_locked, trx_mysql_thread_id, LEFT(trx_query,200) trx_query FROM information_":
+          - cell "411980361398648":
+            - generic: "411980361398648"
+          - cell "5657":
+            - generic: "5657"
+          - cell "2026-08-29T00:14:42":
+            - generic: 2026-08-29T00:14:42
+          - cell "21s":
+            - generic: 21s
+          - cell "0":
+            - generic: "0"
+          - cell "0":
+            - generic: "0"
+          - cell "SELECT trx_id, trx_state, trx_started, TIMESTAMPDIFF(SECOND, trx_started, NOW()) AS duration_s, trx_rows_modified, trx_rows_locked, trx_mysql_thread_id, LEFT(trx_query,200) trx_query FROM information_":
+            - generic: SELECT trx_id, trx_state, trx_started, TIMESTAMPDIFF(SECOND, trx_started, NOW()) AS duration_s, trx_rows_modified, trx_rows_locked, trx_mysql_thread_id, LEFT(trx_query,200) trx_query FROM information_
+  - button "lock 锁等待与阻塞链 锁等待阻塞链 0 条" [expanded]:
+    - generic: lock
+    - generic: 锁等待与阻塞链
+    - generic: 锁等待阻塞链 0 条
+  - region "lock 锁等待与阻塞链 锁等待阻塞链 0 条":
+    - paragraph: 当前无锁等待阻塞链
+  - button "slow 正在执行的长SQL 正在执行且耗时>2s 的SQL 0 条" [expanded]:
+    - generic: slow
+    - generic: 正在执行的长SQL
+    - generic: 正在执行且耗时>2s 的SQL 0 条
+  - region "slow 正在执行的长SQL 正在执行且耗时>2s 的SQL 0 条":
+    - paragraph: 当前无正在执行且耗时>2s的慢SQL
+  - button "innodb InnoDB死锁与引擎状态 无最近死锁" [expanded]:
+    - generic: innodb
+    - generic: InnoDB死锁与引擎状态
+    - generic: 无最近死锁
+  - region "innodb InnoDB死锁与引擎状态 无最近死锁":
+    - paragraph: 无最近死锁记录
