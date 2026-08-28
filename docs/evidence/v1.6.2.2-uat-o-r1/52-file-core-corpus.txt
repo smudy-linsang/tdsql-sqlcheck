@@ -1,0 +1,479 @@
+- banner:
+  - img "logo"
+  - generic: TDSQL数据库SQL审核工具
+  - button "系 系统管理员 系统管理员":
+    - generic: 系
+    - generic: 系统管理员
+    - generic: 系统管理员
+- complementary:
+  - menubar:
+    - menuitem "治理概览":
+      - generic: 治理概览
+    - menuitem "SQL审核" [expanded]:
+      - generic: SQL审核
+      - menu:
+        - menuitem "即时审核"
+        - menuitem "文件审核"
+        - menuitem "在线元数据审核"
+    - menuitem "慢SQL治理" [expanded]:
+      - generic: 慢SQL治理
+      - menu:
+        - menuitem "扫描任务"
+        - menuitem "慢SQL记录"
+        - menuitem "EXPLAIN分析"
+    - menuitem "实例体检" [expanded]:
+      - generic: 实例体检
+      - menu:
+        - menuitem "上线检查"
+        - menuitem "大表治理"
+    - menuitem "深度诊断":
+      - generic: 深度诊断
+    - menuitem "平台治理" [expanded]:
+      - generic: 平台治理
+      - menu:
+        - menuitem "实例管理"
+        - menuitem "审核规则库"
+        - menuitem "评估规则集"
+    - menuitem "系统管理" [expanded]:
+      - generic: 系统管理
+      - menu:
+        - menuitem "用户管理"
+        - menuitem "角色管理"
+        - menuitem "权限矩阵"
+        - menuitem "数据保留"
+        - menuitem "操作审计"
+        - menuitem "系统信息"
+- navigation "面包屑":
+  - link "SQL审核"
+  - text: /
+  - link "文件审核"
+- tablist:
+  - tab "文件上传" [selected]
+  - tab "审核报告"
+- tabpanel "文件上传":
+  - generic: 上传文件审核
+  - text: 规则适用架构：
+  - radiogroup "radio-group":
+    - radio "分布式规则" [checked]
+    - generic: 分布式规则
+    - radio "集中式规则"
+    - generic: 集中式规则
+  - text: 拖拽文件到此处或
+  - emphasis: 点击上传
+  - generic: 支持 .xml (MyBatis)、.sql 文件
+  - generic: 审核结果
+  - table:
+    - rowgroup:
+      - row "SQL总数 100 通过 2 未通过 98 通过率 2.0% 规则架构 分布式":
+        - cell "SQL总数"
+        - cell "100"
+        - cell "通过"
+        - cell "2"
+        - cell "未通过"
+        - cell "98"
+        - cell "通过率"
+        - cell "2.0%"
+        - cell "规则架构"
+        - cell "分布式":
+          - generic: 分布式
+  - button "#1 CREATE TABLE 2项违规":
+    - strong: "#1"
+    - text: CREATE TABLE
+    - generic: 2项违规
+  - button "#2 CREATE TABLE 2项违规":
+    - strong: "#2"
+    - text: CREATE TABLE
+    - generic: 2项违规
+  - button "#3 CREATE TABLE 8项违规":
+    - strong: "#3"
+    - text: CREATE TABLE
+    - generic: 8项违规
+  - button "#4 CREATE TABLE 2项违规":
+    - strong: "#4"
+    - text: CREATE TABLE
+    - generic: 2项违规
+  - button "#5 CREATE TABLE 2项违规":
+    - strong: "#5"
+    - text: CREATE TABLE
+    - generic: 2项违规
+  - button "#6 CREATE TABLE 2项违规":
+    - strong: "#6"
+    - text: CREATE TABLE
+    - generic: 2项违规
+  - button "#7 CREATE TABLE 3项违规":
+    - strong: "#7"
+    - text: CREATE TABLE
+    - generic: 3项违规
+  - button "#8 CREATE TABLE 2项违规":
+    - strong: "#8"
+    - text: CREATE TABLE
+    - generic: 2项违规
+  - button "#9 CREATE TABLE 2项违规":
+    - strong: "#9"
+    - text: CREATE TABLE
+    - generic: 2项违规
+  - button "#10 CREATE TABLE 2项违规":
+    - strong: "#10"
+    - text: CREATE TABLE
+    - generic: 2项违规
+  - button "#11 CREATE TABLE 2项违规":
+    - strong: "#11"
+    - text: CREATE TABLE
+    - generic: 2项违规
+  - button "#12 CREATE TABLE 5项违规":
+    - strong: "#12"
+    - text: CREATE TABLE
+    - generic: 5项违规
+  - button "#13 CREATE TABLE 5项违规":
+    - strong: "#13"
+    - text: CREATE TABLE
+    - generic: 5项违规
+  - button "#14 ALTER 2项违规":
+    - strong: "#14"
+    - text: ALTER
+    - generic: 2项违规
+  - button "#15 DROP 2项违规":
+    - strong: "#15"
+    - text: DROP
+    - generic: 2项违规
+  - button "#16 CREATE TABLE 2项违规":
+    - strong: "#16"
+    - text: CREATE TABLE
+    - generic: 2项违规
+  - button "#17 CREATE TABLE 2项违规":
+    - strong: "#17"
+    - text: CREATE TABLE
+    - generic: 2项违规
+  - button "#18 CREATE FUNCTION 2项违规":
+    - strong: "#18"
+    - text: CREATE FUNCTION
+    - generic: 2项违规
+  - button "#19 CREATE TRIGGER 1项违规":
+    - strong: "#19"
+    - text: CREATE TRIGGER
+    - generic: 1项违规
+  - button "#20 CREATE TABLE 2项违规":
+    - strong: "#20"
+    - text: CREATE TABLE
+    - generic: 2项违规
+  - button "#21 CREATE TABLE 2项违规":
+    - strong: "#21"
+    - text: CREATE TABLE
+    - generic: 2项违规
+  - button "#22 CREATE TABLE 2项违规":
+    - strong: "#22"
+    - text: CREATE TABLE
+    - generic: 2项违规
+  - button "#23 CREATE TABLE 4项违规":
+    - strong: "#23"
+    - text: CREATE TABLE
+    - generic: 4项违规
+  - button "#24 CREATE TABLE 1项违规":
+    - strong: "#24"
+    - text: CREATE TABLE
+    - generic: 1项违规
+  - button "#25 CREATE TABLE 1项违规":
+    - strong: "#25"
+    - text: CREATE TABLE
+    - generic: 1项违规
+  - button "#26 CREATE TABLE 3项违规":
+    - strong: "#26"
+    - text: CREATE TABLE
+    - generic: 3项违规
+  - button "#27 SELECT 1项违规":
+    - strong: "#27"
+    - text: SELECT
+    - generic: 1项违规
+  - button "#28 UPDATE 3项违规":
+    - strong: "#28"
+    - text: UPDATE
+    - generic: 3项违规
+  - button "#29 SELECT 2项违规":
+    - strong: "#29"
+    - text: SELECT
+    - generic: 2项违规
+  - button "#30 SELECT 1项违规":
+    - strong: "#30"
+    - text: SELECT
+    - generic: 1项违规
+  - button "#31 SELECT 1项违规":
+    - strong: "#31"
+    - text: SELECT
+    - generic: 1项违规
+  - button "#32 SELECT 3项违规":
+    - strong: "#32"
+    - text: SELECT
+    - generic: 3项违规
+  - button "#33 UPDATE 1项违规":
+    - strong: "#33"
+    - text: UPDATE
+    - generic: 1项违规
+  - button "#34 DELETE 1项违规":
+    - strong: "#34"
+    - text: DELETE
+    - generic: 1项违规
+  - button "#35 SELECT 3项违规":
+    - strong: "#35"
+    - text: SELECT
+    - generic: 3项违规
+  - button "#36 INSERT 2项违规":
+    - strong: "#36"
+    - text: INSERT
+    - generic: 2项违规
+  - button "#37 INSERT 1项违规":
+    - strong: "#37"
+    - text: INSERT
+    - generic: 1项违规
+  - button "#38 LOAD 1项违规":
+    - strong: "#38"
+    - text: LOAD
+    - generic: 1项违规
+  - button "#39 UPDATE 6项违规":
+    - strong: "#39"
+    - text: UPDATE
+    - generic: 6项违规
+  - button "#40 SELECT 1项违规":
+    - strong: "#40"
+    - text: SELECT
+    - generic: 1项违规
+  - button "#41 HANDLER 2项违规":
+    - strong: "#41"
+    - text: HANDLER
+    - generic: 2项违规
+  - button "#42 LOCK 1项违规":
+    - strong: "#42"
+    - text: LOCK
+    - generic: 1项违规
+  - button "#43 DELETE 4项违规":
+    - strong: "#43"
+    - text: DELETE
+    - generic: 4项违规
+  - button "#44 SELECT 1项违规":
+    - strong: "#44"
+    - text: SELECT
+    - generic: 1项违规
+  - button "#45 SELECT 1项违规":
+    - strong: "#45"
+    - text: SELECT
+    - generic: 1项违规
+  - button "#46 SELECT 1项违规":
+    - strong: "#46"
+    - text: SELECT
+    - generic: 1项违规
+  - button "#47 SELECT 3项违规":
+    - strong: "#47"
+    - text: SELECT
+    - generic: 3项违规
+  - button "#48 UPDATE 通过":
+    - strong: "#48"
+    - text: UPDATE
+    - generic: 通过
+  - button "#49 BEGIN 2项违规":
+    - strong: "#49"
+    - text: BEGIN
+    - generic: 2项违规
+  - button "#50 START 2项违规":
+    - strong: "#50"
+    - text: START
+    - generic: 2项违规
+  - button "#51 SELECT 1项违规":
+    - strong: "#51"
+    - text: SELECT
+    - generic: 1项违规
+  - button "#52 SELECT 2项违规":
+    - strong: "#52"
+    - text: SELECT
+    - generic: 2项违规
+  - button "#53 TRUNCATE 1项违规":
+    - strong: "#53"
+    - text: TRUNCATE
+    - generic: 1项违规
+  - button "#54 SELECT 1项违规":
+    - strong: "#54"
+    - text: SELECT
+    - generic: 1项违规
+  - button "#55 SELECT 1项违规":
+    - strong: "#55"
+    - text: SELECT
+    - generic: 1项违规
+  - button "#56 SELECT 2项违规":
+    - strong: "#56"
+    - text: SELECT
+    - generic: 2项违规
+  - button "#57 SELECT 3项违规":
+    - strong: "#57"
+    - text: SELECT
+    - generic: 3项违规
+  - button "#58 SELECT 4项违规":
+    - strong: "#58"
+    - text: SELECT
+    - generic: 4项违规
+  - button "#59 DELETE 1项违规":
+    - strong: "#59"
+    - text: DELETE
+    - generic: 1项违规
+  - button "#60 INSERT 2项违规":
+    - strong: "#60"
+    - text: INSERT
+    - generic: 2项违规
+  - button "#61 UPDATE 1项违规":
+    - strong: "#61"
+    - text: UPDATE
+    - generic: 1项违规
+  - button "#62 SELECT 1项违规":
+    - strong: "#62"
+    - text: SELECT
+    - generic: 1项违规
+  - button "#63 CREATE TABLE 2项违规":
+    - strong: "#63"
+    - text: CREATE TABLE
+    - generic: 2项违规
+  - button "#64 CREATE TABLE 2项违规":
+    - strong: "#64"
+    - text: CREATE TABLE
+    - generic: 2项违规
+  - button "#65 CREATE TABLE 2项违规":
+    - strong: "#65"
+    - text: CREATE TABLE
+    - generic: 2项违规
+  - button "#66 CREATE TABLE 2项违规":
+    - strong: "#66"
+    - text: CREATE TABLE
+    - generic: 2项违规
+  - button "#67 CREATE TABLE 2项违规":
+    - strong: "#67"
+    - text: CREATE TABLE
+    - generic: 2项违规
+  - button "#68 CREATE TABLE 3项违规":
+    - strong: "#68"
+    - text: CREATE TABLE
+    - generic: 3项违规
+  - button "#69 CREATE TABLE 3项违规":
+    - strong: "#69"
+    - text: CREATE TABLE
+    - generic: 3项违规
+  - button "#70 CREATE TABLE 2项违规":
+    - strong: "#70"
+    - text: CREATE TABLE
+    - generic: 2项违规
+  - button "#71 CREATE TABLE 1项违规":
+    - strong: "#71"
+    - text: CREATE TABLE
+    - generic: 1项违规
+  - button "#72 CREATE TABLE 2项违规":
+    - strong: "#72"
+    - text: CREATE TABLE
+    - generic: 2项违规
+  - button "#73 CREATE TABLE 通过":
+    - strong: "#73"
+    - text: CREATE TABLE
+    - generic: 通过
+  - button "#74 SELECT 1项违规":
+    - strong: "#74"
+    - text: SELECT
+    - generic: 1项违规
+  - button "#75 SELECT 1项违规":
+    - strong: "#75"
+    - text: SELECT
+    - generic: 1项违规
+  - button "#76 SELECT 1项违规":
+    - strong: "#76"
+    - text: SELECT
+    - generic: 1项违规
+  - button "#77 SELECT 1项违规":
+    - strong: "#77"
+    - text: SELECT
+    - generic: 1项违规
+  - button "#78 SELECT 2项违规":
+    - strong: "#78"
+    - text: SELECT
+    - generic: 2项违规
+  - button "#79 SELECT 2项违规":
+    - strong: "#79"
+    - text: SELECT
+    - generic: 2项违规
+  - button "#80 SELECT 1项违规":
+    - strong: "#80"
+    - text: SELECT
+    - generic: 1项违规
+  - button "#81 SELECT 1项违规":
+    - strong: "#81"
+    - text: SELECT
+    - generic: 1项违规
+  - button "#82 SELECT 1项违规":
+    - strong: "#82"
+    - text: SELECT
+    - generic: 1项违规
+  - button "#83 SELECT 1项违规":
+    - strong: "#83"
+    - text: SELECT
+    - generic: 1项违规
+  - button "#84 SELECT 1项违规":
+    - strong: "#84"
+    - text: SELECT
+    - generic: 1项违规
+  - button "#85 UPDATE 4项违规":
+    - strong: "#85"
+    - text: UPDATE
+    - generic: 4项违规
+  - button "#86 SELECT 2项违规":
+    - strong: "#86"
+    - text: SELECT
+    - generic: 2项违规
+  - button "#87 SELECT 1项违规":
+    - strong: "#87"
+    - text: SELECT
+    - generic: 1项违规
+  - button "#88 SELECT 1项违规":
+    - strong: "#88"
+    - text: SELECT
+    - generic: 1项违规
+  - button "#89 SELECT 1项违规":
+    - strong: "#89"
+    - text: SELECT
+    - generic: 1项违规
+  - button "#90 SELECT 3项违规":
+    - strong: "#90"
+    - text: SELECT
+    - generic: 3项违规
+  - button "#91 SELECT 3项违规":
+    - strong: "#91"
+    - text: SELECT
+    - generic: 3项违规
+  - button "#92 SELECT 1项违规":
+    - strong: "#92"
+    - text: SELECT
+    - generic: 1项违规
+  - button "#93 SELECT 4项违规":
+    - strong: "#93"
+    - text: SELECT
+    - generic: 4项违规
+  - button "#94 SELECT 2项违规":
+    - strong: "#94"
+    - text: SELECT
+    - generic: 2项违规
+  - button "#95 SELECT 1项违规":
+    - strong: "#95"
+    - text: SELECT
+    - generic: 1项违规
+  - button "#96 SELECT 1项违规":
+    - strong: "#96"
+    - text: SELECT
+    - generic: 1项违规
+  - button "#97 SELECT 1项违规":
+    - strong: "#97"
+    - text: SELECT
+    - generic: 1项违规
+  - button "#98 SELECT 3项违规":
+    - strong: "#98"
+    - text: SELECT
+    - generic: 3项违规
+  - button "#99 ALTER 2项违规":
+    - strong: "#99"
+    - text: ALTER
+    - generic: 2项违规
+  - button "#100 SELECT 2项违规":
+    - strong: "#100"
+    - text: SELECT
+    - generic: 2项违规
+- text: "* *"

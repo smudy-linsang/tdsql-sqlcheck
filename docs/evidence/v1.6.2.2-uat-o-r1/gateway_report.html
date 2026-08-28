@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TDSQL Gateway 日志分析报告</title>
+<style>
+:root {
+  --bg: #f8f9fa; --card: #fff; --border: #e0e0e0; --text: #212529;
+  --primary: #0d6efd; --success: #198754; --warning: #ffc107;
+  --danger: #dc3545; --info: #0dcaf0; --muted: #6c757d;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+       background: var(--bg); color: var(--text); line-height: 1.6; padding: 20px; }
+.container { max-width: 1200px; margin: 0 auto; }
+h1 { color: var(--primary); border-bottom: 3px solid var(--primary); padding-bottom: 10px; margin: 30px 0 10px; font-size: 1.8em; }
+h2 { color: #333; margin: 28px 0 14px; font-size: 1.35em; border-left: 4px solid var(--primary); padding-left: 12px; }
+h3 { color: #444; margin: 18px 0 10px; font-size: 1.1em; }
+p.meta { color: var(--muted); font-size: 0.9em; margin-bottom: 20px; }
+table { border-collapse: collapse; width: 100%; margin: 10px 0 18px; background: var(--card);
+        box-shadow: 0 1px 3px rgba(0,0,0,0.08); border-radius: 6px; overflow: hidden; }
+th { background: #f1f3f5; color: #333; font-weight: 600; text-align: left; padding: 10px 14px;
+     border-bottom: 2px solid var(--border); font-size: 0.9em; white-space: nowrap; }
+td { padding: 8px 14px; border-bottom: 1px solid #f0f0f0; font-size: 0.88em; vertical-align: top; }
+tr:hover td { background: #f8f9ff; }
+tr:last-child td { border-bottom: none; }
+code { background: #e9ecef; padding: 2px 6px; border-radius: 3px; font-size: 0.85em; word-break: break-all; }
+.bar-container { display: inline-block; min-width: 200px; }
+.bar { display: inline-block; height: 16px; background: linear-gradient(90deg, var(--primary), #4dabf7);
+       border-radius: 3px; vertical-align: middle; min-width: 2px; }
+.bar-danger { background: linear-gradient(90deg, var(--danger), #e8726c); }
+.bar-warning { background: linear-gradient(90deg, var(--warning), #ffda6a); }
+.bar-success { background: linear-gradient(90deg, var(--success), #40c057); }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 0.78em; font-weight: 600; color: #fff; }
+.badge-high { background: var(--danger); }
+.badge-mid { background: var(--warning); color: #333; }
+.badge-low { background: var(--info); color: #333; }
+.badge-ok { background: var(--success); }
+.alert { padding: 12px 16px; border-radius: 6px; margin: 10px 0; font-size: 0.9em; }
+.alert-warning { background: #fff3cd; border: 1px solid #ffc107; color: #664d03; }
+.alert-danger { background: #f8d7da; border: 1px solid #f5c2c7; color: #842029; }
+.summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin: 12px 0 18px; }
+.summary-card { background: var(--card); border-radius: 8px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+                text-align: center; }
+.summary-card .label { font-size: 0.82em; color: var(--muted); }
+.summary-card .value { font-size: 1.5em; font-weight: 700; color: var(--primary); }
+.num { text-align: right; font-variant-numeric: tabular-nums; }
+hr { border: none; border-top: 2px solid var(--border); margin: 40px 0; }
+.report-footer { text-align: center; padding: 30px 0 10px; color: var(--muted); font-size: 0.85em;
+                 border-top: 2px solid var(--border); margin-top: 40px; }
+.report-footer p { margin: 4px 0; }
+/* TOC 目录 */
+.toc { position: fixed; top: 20px; right: 20px; width: 260px; max-height: calc(100vh - 40px);
+       background: var(--card); border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.12);
+       z-index: 1000; overflow: hidden; transition: all 0.3s ease; }
+.toc.collapsed { width: 44px; max-height: 44px; border-radius: 22px; cursor: pointer; }
+.toc-toggle { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px;
+              background: var(--primary); color: #fff; cursor: pointer; font-size: 0.9em; font-weight: 600;
+              user-select: none; }
+.toc-toggle .toc-icon { font-size: 1.1em; transition: transform 0.3s; }
+.toc.collapsed .toc-toggle { justify-content: center; padding: 10px; }
+.toc.collapsed .toc-title, .toc.collapsed .toc-icon { display: none; }
+.toc.collapsed .toc-toggle::after { content: "\1F4D1"; font-size: 1.3em; }
+.toc-body { overflow-y: auto; max-height: calc(100vh - 84px); padding: 8px 0; }
+.toc.collapsed .toc-body { display: none; }
+.toc-body a { display: block; padding: 6px 16px; color: var(--text); text-decoration: none;
+              font-size: 0.82em; line-height: 1.4; border-left: 3px solid transparent; transition: all 0.15s; }
+.toc-body a:hover { background: #f1f3f5; border-left-color: var(--primary); color: var(--primary); }
+.toc-body a.active { background: #e7f1ff; border-left-color: var(--primary); color: var(--primary); font-weight: 600; }
+.toc-group { padding: 8px 16px 4px; font-size: 0.78em; font-weight: 700; color: var(--primary);
+             text-transform: uppercase; letter-spacing: 0.5px; border-top: 1px solid #e9ecef;
+             margin-top: 4px; background: #f8f9fa; }
+/* 章节折叠 */
+.section { margin-bottom: 4px; }
+.section-header { cursor: pointer; user-select: none; position: relative; }
+.section-header::after { content: "▾"; position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+                         font-size: 0.8em; color: var(--muted); transition: transform 0.2s; }
+.section.collapsed .section-header::after { transform: translateY(-50%) rotate(-90deg); }
+.section-content { overflow: hidden; transition: max-height 0.3s ease; }
+.section.collapsed .section-content { max-height: 0 !important; }
+@media (max-width: 768px) {
+  body { padding: 10px; }
+  table { font-size: 0.82em; }
+  .summary-grid { grid-template-columns: repeat(2, 1fr); }
+  .toc { position: static; width: 100%; max-height: none; margin-bottom: 20px; border-radius: 8px; }
+  .toc.collapsed { width: 100%; max-height: 44px; border-radius: 8px; }
+  .toc-body { max-height: 300px; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+<footer class="report-footer">
+  <p>Generated by <strong>TDSQL Gateway Log Analyzer</strong> v3.4</p>
+  <p>2026-08-28 10:30:22</p>
+</footer>
+</div>
+<script>
+(function(){
+  // 构建 TOC（多目录时按目录分组）
+  var sections = document.querySelectorAll('.section');
+  var tocHtml = '<nav class="toc" id="toc"><div class="toc-toggle" onclick="toggleToc()"><span class="toc-title">目录导航</span><span class="toc-icon">◀</span></div><div class="toc-body" id="toc-body">';
+  var lastGroup = null;
+  sections.forEach(function(sec){
+    var h2 = sec.querySelector('h2');
+    if(h2){
+      var id = sec.id;
+      var group = sec.getAttribute('data-group') || '';
+      if(group && group !== lastGroup){
+        tocHtml += '<div class="toc-group">' + group + '</div>';
+        lastGroup = group;
+      }
+      tocHtml += '<a href="#'+id+'" data-target="'+id+'">'+h2.textContent+'</a>';
+    }
+  });
+  tocHtml += '</div></nav>';
+  document.body.insertAdjacentHTML('beforeend', tocHtml);
+
+  // 折叠/展开 TOC
+  window.toggleToc = function(){
+    document.getElementById('toc').classList.toggle('collapsed');
+  };
+
+  // 点击章节标题折叠/展开内容
+  sections.forEach(function(sec){
+    var header = sec.querySelector('.section-header');
+    if(header){
+      header.addEventListener('click', function(e){
+        if(e.target.tagName === 'A') return;
+        sec.classList.toggle('collapsed');
+      });
+    }
+  });
+
+  // TOC 高亮当前章节
+  var tocLinks = document.querySelectorAll('.toc-body a');
+  var sectionEls = Array.from(sections);
+  function updateActive(){
+    var scrollY = window.scrollY || window.pageYOffset;
+    var current = '';
+    sectionEls.forEach(function(sec){
+      if(sec.offsetTop - 80 <= scrollY) current = sec.id;
+    });
+    tocLinks.forEach(function(a){
+      a.classList.toggle('active', a.getAttribute('data-target') === current);
+    });
+  }
+  window.addEventListener('scroll', updateActive);
+  updateActive();
+
+  // 平滑滚动
+  tocLinks.forEach(function(a){
+    a.addEventListener('click', function(e){
+      e.preventDefault();
+      var target = document.getElementById(this.getAttribute('data-target'));
+      if(target) target.scrollIntoView({behavior:'smooth', block:'start'});
+    });
+  });
+})();
+</script>
+</body>
+</html>

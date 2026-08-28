@@ -1,0 +1,23 @@
+[
+  {
+    "columns": 21,
+    "sql_chars": 723,
+    "median_ms": 3.337,
+    "max_ms": 4.435,
+    "iterations": 15
+  },
+  {
+    "columns": 101,
+    "sql_chars": 3043,
+    "median_ms": 14.669,
+    "max_ms": 16.857,
+    "iterations": 15
+  },
+  {
+    "columns": 501,
+    "sql_chars": 15043,
+    "median_ms": 67.096,
+    "max_ms": 88.372,
+    "iterations": 15
+  }
+]

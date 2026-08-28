@@ -1,0 +1,3 @@
+# Preserve recorded evidence bytes (including original report line endings).
+# Scoped to this immutable UAT evidence directory; product files keep root policy.
+* -text

@@ -1,0 +1,97 @@
+- banner:
+  - img "logo"
+  - generic: TDSQL数据库SQL审核工具
+  - button "系 系统管理员 系统管理员":
+    - generic: 系
+    - generic: 系统管理员
+    - generic: 系统管理员
+- complementary:
+  - menubar:
+    - menuitem "治理概览":
+      - generic: 治理概览
+    - menuitem "SQL审核" [expanded]:
+      - generic: SQL审核
+      - menu:
+        - menuitem "即时审核"
+        - menuitem "文件审核"
+        - menuitem "在线元数据审核"
+    - menuitem "慢SQL治理":
+      - generic: 慢SQL治理
+    - menuitem "实例体检":
+      - generic: 实例体检
+    - menuitem "深度诊断":
+      - generic: 深度诊断
+    - menuitem "平台治理":
+      - generic: 平台治理
+    - menuitem "系统管理":
+      - generic: 系统管理
+- navigation "面包屑":
+  - link "SQL审核"
+  - text: /
+  - link "在线元数据审核"
+- tablist:
+  - tab "即时元数据提取与审核"
+  - tab "历史元数据审核记录"
+  - tab "扫描对比"
+  - tab "对比留档报告" [selected]
+- tabpanel "对比留档报告":
+  - generic: 在线元数据对比留档报告
+  - button "刷新":
+    - generic: 刷新
+  - combobox
+  - generic: 数据库实例
+  - textbox "目标库名"
+  - textbox "搜索报告标题 / 留档人..."
+  - combobox:
+    - textbox "开始日期"
+  - combobox:
+    - textbox "结束日期"
+  - button "查询":
+    - generic: 查询
+  - button "重置":
+    - generic: 重置
+  - table:
+    - rowgroup:
+      - row "报告名称 实例/库名 基线 → 目标扫描时间 问题数(前→后) 解决/新增 整改率 留档人 留档时间 操作":
+        - columnheader "报告名称":
+          - generic: 报告名称
+        - columnheader "实例/库名":
+          - generic: 实例/库名
+        - columnheader "基线 → 目标扫描时间":
+          - generic: 基线 → 目标扫描时间
+        - columnheader "问题数(前→后)":
+          - generic: 问题数(前→后)
+        - columnheader "解决/新增":
+          - generic: 解决/新增
+        - columnheader "整改率":
+          - generic: 整改率
+        - columnheader "留档人":
+          - generic: 留档人
+        - columnheader "留档时间":
+          - generic: 留档时间
+        - columnheader "操作":
+          - generic: 操作
+  - table:
+    - rowgroup:
+      - row "UAT-O 本地集中式样本 2026-08-28 → 2026-08-28 对比 UAT-O 本地集中式样本 / tdsql_uat_o_target_1622 2026-08-28 10:23 → 2026-08-28 10:23 4 → 4 0 / 0 0.0% admin 2026-08-28 10:24 下载HTML 删除":
+        - cell "UAT-O 本地集中式样本 2026-08-28 → 2026-08-28 对比":
+          - generic: UAT-O 本地集中式样本 2026-08-28 → 2026-08-28 对比
+        - cell "UAT-O 本地集中式样本 / tdsql_uat_o_target_1622":
+          - generic: UAT-O 本地集中式样本 / tdsql_uat_o_target_1622
+        - cell "2026-08-28 10:23 → 2026-08-28 10:23":
+          - generic: 2026-08-28 10:23 → 2026-08-28 10:23
+        - cell "4 → 4":
+          - generic: 4 → 4
+        - cell "0 / 0":
+          - generic: 0 / 0
+        - cell "0.0%":
+          - generic: 0.0%
+        - cell "admin":
+          - generic: admin
+        - cell "2026-08-28 10:24":
+          - generic: 2026-08-28 10:24
+        - cell "下载HTML 删除":
+          - button "下载HTML":
+            - generic: 下载HTML
+          - button "删除":
+            - generic: 删除

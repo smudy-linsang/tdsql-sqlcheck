@@ -1,0 +1,83 @@
+- banner:
+  - img "logo"
+  - generic: TDSQL数据库SQL审核工具
+  - button "系 系统管理员 系统管理员":
+    - generic: 系
+    - generic: 系统管理员
+    - generic: 系统管理员
+- complementary:
+  - menubar:
+    - menuitem "治理概览":
+      - generic: 治理概览
+    - menuitem "SQL审核" [expanded]:
+      - generic: SQL审核
+      - menu:
+        - menuitem "即时审核"
+        - menuitem "文件审核"
+        - menuitem "在线元数据审核"
+    - menuitem "慢SQL治理" [expanded]:
+      - generic: 慢SQL治理
+      - menu:
+        - menuitem "扫描任务"
+        - menuitem "慢SQL记录"
+        - menuitem "EXPLAIN分析"
+    - menuitem "实例体检" [expanded]:
+      - generic: 实例体检
+      - menu:
+        - menuitem "上线检查"
+        - menuitem "大表治理"
+    - menuitem "深度诊断":
+      - generic: 深度诊断
+    - menuitem "平台治理" [expanded]:
+      - generic: 平台治理
+      - menu:
+        - menuitem "实例管理"
+        - menuitem "审核规则库"
+        - menuitem "评估规则集"
+    - menuitem "系统管理" [expanded]:
+      - generic: 系统管理
+      - menu:
+        - menuitem "用户管理"
+        - menuitem "角色管理"
+        - menuitem "权限矩阵"
+        - menuitem "数据保留"
+        - menuitem "操作审计"
+        - menuitem "系统信息"
+- navigation "面包屑":
+  - link "SQL审核"
+  - text: /
+  - link "文件审核"
+- tablist:
+  - tab "文件上传" [selected]
+  - tab "审核报告"
+- tabpanel "文件上传":
+  - generic: 上传文件审核
+  - text: 规则适用架构：
+  - radiogroup "radio-group":
+    - radio "分布式规则" [checked]
+    - generic: 分布式规则
+    - radio "集中式规则"
+    - generic: 集中式规则
+  - text: 拖拽文件到此处或
+  - emphasis: 点击上传
+  - generic: 支持 .xml (MyBatis)、.sql 文件
+  - generic: 审核结果
+  - table:
+    - rowgroup:
+      - row "SQL总数 1 通过 1 未通过 0 通过率 100.0% 规则架构 分布式":
+        - cell "SQL总数"
+        - cell "1"
+        - cell "通过"
+        - cell "1"
+        - cell "未通过"
+        - cell "0"
+        - cell "通过率"
+        - cell "100.0%"
+        - cell "规则架构"
+        - cell "分布式":
+          - generic: 分布式
+  - button "#1 CREATE TABLE 通过":
+    - strong: "#1"
+    - text: CREATE TABLE
+    - generic: 通过
+- text: "* *"

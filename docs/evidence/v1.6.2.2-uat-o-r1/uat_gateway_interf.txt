@@ -1,0 +1,2 @@
+[2026-08-28 09:00:01 12345] INFO topic=uat_o&timecost=12.5&sql=select id from t_uat_customer where id=1&db=tdsql_uat_o_target_1622&user=synthetic&host=127.0.0.1
+[2026-08-28 09:00:02 12346] INFO topic=uat_o&timecost=1500.2&sql=select id from t_uat_order where customer_id=2&db=tdsql_uat_o_target_1622&user=synthetic&host=127.0.0.1

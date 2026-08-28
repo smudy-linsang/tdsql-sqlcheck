@@ -1,0 +1,5243 @@
+[
+  {
+    "endpoint": "/health",
+    "status": 200,
+    "body": {
+      "status": "ok",
+      "version": "1.6.2.2"
+    }
+  },
+  {
+    "endpoint": "/api/v1/audit/rules",
+    "status": 200,
+    "body": {
+      "rules": [
+        {
+          "rule_id": "R001",
+          "category": "naming",
+          "severity": "ERROR",
+          "description": "库名/表名字符限制32以内，必须以小写字母开头，仅包含小写字母、数字和下划线",
+          "enabled": true
+        },
+        {
+          "rule_id": "R002",
+          "category": "naming",
+          "severity": "ERROR",
+          "description": "库名、表名和列名不能使用 TDSQL/MySQL 保留关键字",
+          "enabled": true
+        },
+        {
+          "rule_id": "R003",
+          "category": "ddl",
+          "severity": "ERROR",
+          "description": "CREATE TABLE 必须显式指定主键",
+          "enabled": true
+        },
+        {
+          "rule_id": "R004",
+          "category": "ddl",
+          "severity": "ERROR",
+          "description": "必须指定存储引擎为 InnoDB",
+          "enabled": true
+        },
+        {
+          "rule_id": "R005",
+          "category": "ddl",
+          "severity": "ERROR",
+          "description": "必须指定字符集为 utf8mb4",
+          "enabled": true
+        },
+        {
+          "rule_id": "R006",
+          "category": "ddl",
+          "severity": "ERROR",
+          "description": "禁止使用 ENUM/SET 数据类型",
+          "enabled": true
+        },
+        {
+          "rule_id": "R007",
+          "category": "ddl",
+          "severity": "ERROR",
+          "description": "禁止使用 TIMESTAMP 类型，建议使用 DATETIME",
+          "enabled": true
+        },
+        {
+          "rule_id": "R008",
+          "category": "ddl",
+          "severity": "ERROR",
+          "description": "禁止使用外键约束，应用层保证数据一致性",
+          "enabled": true
+        },
+        {
+          "rule_id": "R009",
+          "category": "ddl",
+          "severity": "ERROR",
+          "description": "涉及金额/价格的字段禁止使用 FLOAT/DOUBLE，应使用 DECIMAL",
+          "enabled": true
+        },
+        {
+          "rule_id": "R010",
+          "category": "ddl",
+          "severity": "WARNING",
+          "description": "VARCHAR 长度建议不超过 2000，超长字段请评估是否合理",
+          "enabled": true
+        },
+        {
+          "rule_id": "R011",
+          "category": "ddl",
+          "severity": "WARNING",
+          "description": "禁止在活跃表使用 TEXT/BLOB 类型，影响性能",
+          "enabled": true
+        },
+        {
+          "rule_id": "R012",
+          "category": "dml",
+          "severity": "ERROR",
+          "description": "禁止使用 SELECT *，应指定具体字段",
+          "enabled": true
+        },
+        {
+          "rule_id": "R013",
+          "category": "dml",
+          "severity": "ERROR",
+          "description": "UPDATE/DELETE/INSERT...SELECT 必须带 WHERE 条件",
+          "enabled": true
+        },
+        {
+          "rule_id": "R014",
+          "category": "dml",
+          "severity": "ERROR",
+          "description": "禁止不带 WHERE 的 UPDATE/DELETE，防止误操作全表",
+          "enabled": true
+        },
+        {
+          "rule_id": "R015",
+          "category": "dml",
+          "severity": "ERROR",
+          "description": "禁止嵌套超过3层子查询，影响可读性和性能",
+          "enabled": true
+        },
+        {
+          "rule_id": "R016",
+          "category": "dml",
+          "severity": "WARNING",
+          "description": "WHERE 条件中禁止函数计算、全模糊LIKE、OR条件，会导致索引失效",
+          "enabled": true
+        },
+        {
+          "rule_id": "R017",
+          "category": "dml",
+          "severity": "ERROR",
+          "description": "禁止 ORDER BY RAND()，会导致全表扫描和临时表",
+          "enabled": true
+        },
+        {
+          "rule_id": "R018",
+          "category": "index",
+          "severity": "WARNING",
+          "description": "单表索引数量不超过5个（含主键）",
+          "enabled": true
+        },
+        {
+          "rule_id": "R019",
+          "category": "index",
+          "severity": "WARNING",
+          "description": "禁止创建冗余索引，如果索引A的列是索引B列的前缀，则A冗余",
+          "enabled": true
+        },
+        {
+          "rule_id": "R020",
+          "category": "distributed",
+          "severity": "WARNING",
+          "description": "分布式表的SELECT/UPDATE/DELETE语句应在WHERE条件中包含分片键字段",
+          "enabled": true
+        },
+        {
+          "rule_id": "R021",
+          "category": "distributed",
+          "severity": "ERROR",
+          "description": "禁止对分片键(shardkey)字段进行UPDATE操作",
+          "enabled": true
+        },
+        {
+          "rule_id": "R022",
+          "category": "distributed",
+          "severity": "ERROR",
+          "description": "分布式表禁止不带分片键的全局DELETE/UPDATE，防止跨所有SET执行",
+          "enabled": true
+        },
+        {
+          "rule_id": "R023",
+          "category": "ddl",
+          "severity": "ERROR",
+          "description": "禁止使用CREATE TABLE ... SELECT语句，TDSQL分布式不支持",
+          "enabled": true
+        },
+        {
+          "rule_id": "R024",
+          "category": "ddl",
+          "severity": "ERROR",
+          "description": "禁止使用CREATE TEMPORARY TABLE，分布式实例不支持",
+          "enabled": true
+        },
+        {
+          "rule_id": "R025",
+          "category": "distributed",
+          "severity": "ERROR",
+          "description": "禁止通过ALTER TABLE修改分片键字段",
+          "enabled": true
+        },
+        {
+          "rule_id": "R026",
+          "category": "ddl",
+          "severity": "ERROR",
+          "description": "ALTER TABLE修改字段时禁止缩短字段长度，可能导致数据截断",
+          "enabled": true
+        },
+        {
+          "rule_id": "R027",
+          "category": "ddl",
+          "severity": "ERROR",
+          "description": "禁止使用DROP DATABASE/SCHEMA语句",
+          "enabled": true
+        },
+        {
+          "rule_id": "R028",
+          "category": "ddl",
+          "severity": "ERROR",
+          "description": "建表必须显式指定表级别COMMENT",
+          "enabled": true
+        },
+        {
+          "rule_id": "R029",
+          "category": "ddl",
+          "severity": "WARNING",
+          "description": "建表时每个字段应显式指定COMMENT",
+          "enabled": true
+        },
+        {
+          "rule_id": "R030",
+          "category": "ddl",
+          "severity": "ERROR",
+          "description": "禁止使用视图、存储过程、触发器、自定义函数",
+          "enabled": true
+        },
+        {
+          "rule_id": "R031",
+          "category": "ddl",
+          "severity": "ERROR",
+          "description": "禁止创建自定义函数",
+          "enabled": true
+        },
+        {
+          "rule_id": "R032",
+          "category": "ddl",
+          "severity": "ERROR",
+          "description": "禁止使用临时表进行复杂业务逻辑",
+          "enabled": true
+        },
+        {
+          "rule_id": "R033",
+          "category": "naming",
+          "severity": "WARNING",
+          "description": "表名建议使用单数形式",
+          "enabled": true
+        },
+        {
+          "rule_id": "R034",
+          "category": "naming",
+          "severity": "WARNING",
+          "description": "备份表命名必须以_bak_或_bk_为前缀，并附日期后缀",
+          "enabled": true
+        },
+        {
+          "rule_id": "R035",
+          "category": "ddl",
+          "severity": "ERROR",
+          "description": "多个数据表中相同业务含义字段的名称、类型、长度必须保持一致",
+          "enabled": true
+        },
+        {
+          "rule_id": "R036",
+          "category": "ddl",
+          "severity": "INFO",
+          "description": "建议每张表包含create_time和update_time字段",
+          "enabled": true
+        },
+        {
+          "rule_id": "R037",
+          "category": "ddl",
+          "severity": "INFO",
+          "description": "建议使用逻辑删除(is_deleted)替代物理删除(DELETE)",
+          "enabled": true
+        },
+        {
+          "rule_id": "R038",
+          "category": "ddl",
+          "severity": "WARNING",
+          "description": "预期数据量超千万的表不建议使用AUTO_INCREMENT主键：自增锁在高并发写入下形成瓶颈，且分库分表/数据迁移/多源合并时主键易冲突",
+          "enabled": true
+        },
+        {
+          "rule_id": "R039",
+          "category": "security",
+          "severity": "ERROR",
+          "description": "禁止使用SELECT ... INTO OUTFILE/DUMPFILE",
+          "enabled": true
+        },
+        {
+          "rule_id": "R040",
+          "category": "dml",
+          "severity": "WARNING",
+          "description": "禁止使用DELAYED/LOW_PRIORITY关键字",
+          "enabled": true
+        },
+        {
+          "rule_id": "R041",
+          "category": "dml",
+          "severity": "ERROR",
+          "description": "INSERT/REPLACE语句必须显式指定列名",
+          "enabled": true
+        },
+        {
+          "rule_id": "R042",
+          "category": "security",
+          "severity": "ERROR",
+          "description": "禁止使用LOAD DATA INFILE/LOAD XML",
+          "enabled": true
+        },
+        {
+          "rule_id": "R043",
+          "category": "dml",
+          "severity": "ERROR",
+          "description": "禁止使用多表联表UPDATE/DELETE",
+          "enabled": true
+        },
+        {
+          "rule_id": "R044",
+          "category": "performance",
+          "severity": "WARNING",
+          "description": "禁止使用USE INDEX/FORCE INDEX/IGNORE INDEX等索引提示",
+          "enabled": true
+        },
+        {
+          "rule_id": "R045",
+          "category": "security",
+          "severity": "ERROR",
+          "description": "禁止使用HANDLER语句",
+          "enabled": true
+        },
+        {
+          "rule_id": "R046",
+          "category": "security",
+          "severity": "ERROR",
+          "description": "禁止使用FLUSH和LOCK TABLES语句",
+          "enabled": true
+        },
+        {
+          "rule_id": "R047",
+          "category": "performance",
+          "severity": "WARNING",
+          "description": "全表删除数据时建议使用TRUNCATE替代DELETE",
+          "enabled": true
+        },
+        {
+          "rule_id": "R048",
+          "category": "distributed",
+          "severity": "ERROR",
+          "description": "分布式实例执行INSERT/REPLACE时，字段列表必须包含分片键",
+          "enabled": true
+        },
+        {
+          "rule_id": "R049",
+          "category": "naming",
+          "severity": "INFO",
+          "description": "多表关联时建议为每个表指定不同别名",
+          "enabled": true
+        },
+        {
+          "rule_id": "R050",
+          "category": "performance",
+          "severity": "WARNING",
+          "description": "IN列表元素数量建议不超过200，过多会导致解析变慢",
+          "enabled": true
+        },
+        {
+          "rule_id": "R051",
+          "category": "performance",
+          "severity": "WARNING",
+          "description": "SELECT语句建议包含WHERE条件，避免全表扫描",
+          "enabled": true
+        },
+        {
+          "rule_id": "R052",
+          "category": "performance",
+          "severity": "ERROR",
+          "description": "WHERE条件等号两侧字段类型必须一致，禁止隐式类型转换",
+          "enabled": true
+        },
+        {
+          "rule_id": "R053",
+          "category": "distributed",
+          "severity": "ERROR",
+          "description": "分布式表JOIN时必须在分片键上关联，避免跨SET广播JOIN",
+          "enabled": true
+        },
+        {
+          "rule_id": "R054",
+          "category": "distributed",
+          "severity": "WARNING",
+          "description": "分片键必须包含在主键及所有唯一索引中（唯一索引不含分片键将无法创建）",
+          "enabled": true
+        },
+        {
+          "rule_id": "R055",
+          "category": "distributed",
+          "severity": "WARNING",
+          "description": "分布式表不建议仅依赖全局索引，应优先使用本地索引+分片键路由",
+          "enabled": true
+        },
+        {
+          "rule_id": "R056",
+          "category": "distributed",
+          "severity": "INFO",
+          "description": "分布式表ORDER BY建议包含分片键，避免跨SET排序",
+          "enabled": true
+        },
+        {
+          "rule_id": "R057",
+          "category": "distributed",
+          "severity": "ERROR",
+          "description": "批量INSERT/REPLACE必须包含分片键字段，否则无法路由到正确SET",
+          "enabled": true
+        },
+        {
+          "rule_id": "R058",
+          "category": "distributed",
+          "severity": "WARNING",
+          "description": "分布式表批量UPDATE/DELETE建议加LIMIT限制单次影响行数(≤1000)",
+          "enabled": true
+        },
+        {
+          "rule_id": "R059",
+          "category": "distributed",
+          "severity": "WARNING",
+          "description": "避免跨SET分布式事务，单事务应只操作同一分片数据",
+          "enabled": true
+        },
+        {
+          "rule_id": "R060",
+          "category": "distributed",
+          "severity": "INFO",
+          "description": "建议对分布式表查询执行EXPLAIN查看是否命中单SET",
+          "enabled": true
+        },
+        {
+          "rule_id": "R077",
+          "category": "distributed",
+          "severity": "ERROR",
+          "description": "TDSQL分布式实例建表必须声明分片键或广播表标记，不允许创建单表；分片键必须是主键或唯一索引的字段。支持的分片键声明形态：SHARDKEY=列名、TDSQL_DISTRIBUTED BY HASH(列名)；广播表(全局表)形态：BROADCAST、shardkey=noshardkey_allset",
+          "enabled": true
+        },
+        {
+          "rule_id": "R061",
+          "category": "index",
+          "severity": "WARNING",
+          "description": "索引命名应遵循规范: 普通索引idx_、唯一索引uk_、主键pk_",
+          "enabled": true
+        },
+        {
+          "rule_id": "R062",
+          "category": "index",
+          "severity": "WARNING",
+          "description": "复合索引字段顺序应遵循最左前缀原则，区分度高的字段放前面",
+          "enabled": true
+        },
+        {
+          "rule_id": "R063",
+          "category": "index",
+          "severity": "WARNING",
+          "description": "区分度低的字段(如status/type/gender)不建议单独建索引",
+          "enabled": true
+        },
+        {
+          "rule_id": "R064",
+          "category": "index",
+          "severity": "INFO",
+          "description": "高频查询建议使用覆盖索引避免回表",
+          "enabled": true
+        },
+        {
+          "rule_id": "R065",
+          "category": "index",
+          "severity": "WARNING",
+          "description": "复合索引字段数量建议不超过5个",
+          "enabled": true
+        },
+        {
+          "rule_id": "R066",
+          "category": "index",
+          "severity": "ERROR",
+          "description": "TEXT/BLOB/JSON类型字段禁止建索引",
+          "enabled": true
+        },
+        {
+          "rule_id": "R067",
+          "category": "index",
+          "severity": "INFO",
+          "description": "VARCHAR长度超过100的字段建议使用前缀索引",
+          "enabled": true
+        },
+        {
+          "rule_id": "R068",
+          "category": "index",
+          "severity": "WARNING",
+          "description": "JOIN关联字段建议建索引",
+          "enabled": true
+        },
+        {
+          "rule_id": "R069",
+          "category": "transaction",
+          "severity": "WARNING",
+          "description": "避免长事务，事务持续时间建议不超过5秒",
+          "enabled": true
+        },
+        {
+          "rule_id": "R070",
+          "category": "transaction",
+          "severity": "WARNING",
+          "description": "单事务影响行数建议不超过10000行",
+          "enabled": true
+        },
+        {
+          "rule_id": "R071",
+          "category": "transaction",
+          "severity": "WARNING",
+          "description": "BEGIN后必须有显式COMMIT或ROLLBACK",
+          "enabled": true
+        },
+        {
+          "rule_id": "R072",
+          "category": "transaction",
+          "severity": "WARNING",
+          "description": "事务中避免使用SELECT...FOR UPDATE导致锁等待",
+          "enabled": true
+        },
+        {
+          "rule_id": "R073",
+          "category": "security",
+          "severity": "WARNING",
+          "description": "ALTER/DROP TABLE操作需确认已备份",
+          "enabled": true
+        },
+        {
+          "rule_id": "R074",
+          "category": "security",
+          "severity": "ERROR",
+          "description": "禁止在应用SQL中使用GRANT/REVOKE权限操作",
+          "enabled": true
+        },
+        {
+          "rule_id": "R075",
+          "category": "security",
+          "severity": "ERROR",
+          "description": "TRUNCATE TABLE需确认，该操作不可回滚",
+          "enabled": true
+        },
+        {
+          "rule_id": "R076",
+          "category": "security",
+          "severity": "ERROR",
+          "description": "检测到疑似SQL注入风险（${}拼接或动态表名）",
+          "enabled": true
+        },
+        {
+          "rule_id": "R078",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "建表/改表禁止使用Oracle专有数据类型（NUMBER/VARCHAR2/CLOB等），需转换为TDSQL对等类型",
+          "enabled": true
+        },
+        {
+          "rule_id": "R079",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "TDSQL不支持Oracle伪列ROWNUM，请改用LIMIT分页",
+          "enabled": true
+        },
+        {
+          "rule_id": "R080",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "TDSQL不支持NVL函数，请改用IFNULL(expr1,expr2)或COALESCE",
+          "enabled": true
+        },
+        {
+          "rule_id": "R081",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "TDSQL不支持DECODE函数，请改用CASE WHEN或IF()",
+          "enabled": true
+        },
+        {
+          "rule_id": "R082",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "TDSQL不支持TO_CHAR函数，日期格式化用DATE_FORMAT，数值转换用CONVERT/CAST/FORMAT",
+          "enabled": true
+        },
+        {
+          "rule_id": "R083",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "TDSQL不支持TO_NUMBER函数，请改用CAST；注意CAST对非法数字会截断而不报错",
+          "enabled": true
+        },
+        {
+          "rule_id": "R084",
+          "category": "oracle_compat",
+          "severity": "WARNING",
+          "description": "检测到||运算符：MySQL/TDSQL默认语义为逻辑OR而非字符串拼接，Oracle迁移SQL请改用CONCAT()",
+          "enabled": true
+        },
+        {
+          "rule_id": "R085",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "TDSQL不支持TO_DATE函数，请改用STR_TO_DATE(date,format)",
+          "enabled": true
+        },
+        {
+          "rule_id": "R086",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "TDSQL不支持TRUNC函数：数值截断用TRUNCATE(X,D)，日期截断用DATE_FORMAT",
+          "enabled": true
+        },
+        {
+          "rule_id": "R087",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "TDSQL的LTRIM/RTRIM仅支持单参数去空格，去除指定字符请用TRIM({BOTH|LEADING|TRAILING} remstr FROM str)",
+          "enabled": true
+        },
+        {
+          "rule_id": "R088",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "TDSQL不支持ADD_MONTHS函数，请改用ADDDATE(date, INTERVAL expr MONTH)",
+          "enabled": true
+        },
+        {
+          "rule_id": "R089",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "TDSQL的SUBSTR起始位置只能从1开始，start=0将返回空串（Oracle中0按1处理），结果错误",
+          "enabled": true
+        },
+        {
+          "rule_id": "R090",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "Oracle的SYSDATE/SYSTIMESTAMP关键字用法不支持，TDSQL需使用sysdate()/NOW()函数（带括号）",
+          "enabled": true
+        },
+        {
+          "rule_id": "R091",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "TDSQL不支持MERGE INTO：集中式且按主键/唯一键关联可用INSERT…ON DUPLICATE KEY UPDATE，分布式需拆分为程序逻辑",
+          "enabled": true
+        },
+        {
+          "rule_id": "R092",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "分布式实例不支持WITH AS(CTE)，请改写为子查询或JOIN；集中式8.0递归场景可评估WITH RECURSIVE",
+          "enabled": true
+        },
+        {
+          "rule_id": "R093",
+          "category": "oracle_compat",
+          "severity": "WARNING",
+          "description": "TDSQL的LENGTH()返回字节数（Oracle为字符数），中文场景结果不一致；需字符数请用CHAR_LENGTH()",
+          "enabled": true
+        },
+        {
+          "rule_id": "R094",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "TDSQL不支持LISTAGG() WITHIN GROUP()，请改用GROUP_CONCAT",
+          "enabled": true
+        },
+        {
+          "rule_id": "R095",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "TDSQL不支持MINUS集合运算，请改用LEFT JOIN…IS NULL或NOT EXISTS实现差集",
+          "enabled": true
+        },
+        {
+          "rule_id": "R096",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "底层MySQL不支持FULL JOIN，请改写为LEFT JOIN UNION RIGHT JOIN",
+          "enabled": true
+        },
+        {
+          "rule_id": "R097",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "分布式实例建表字段DEFAULT值不支持类型转换/函数表达式（Proxy报ERROR 1064），仅CURRENT_TIMESTAMP例外；集中式实例（MySQL 8.0.13+）原生支持表达式默认值，不受此限",
+          "enabled": true
+        },
+        {
+          "rule_id": "R098",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "HASH分区要求分区字段为整型；char/varchar等非整型字段请改用KEY分区或murmurHashCodeAndMod改造",
+          "enabled": true
+        },
+        {
+          "rule_id": "R099",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "FROM后的子查询（派生表）必须指定别名，否则TDSQL报错",
+          "enabled": true
+        },
+        {
+          "rule_id": "R100",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "分布式实例DELETE语句不支持对被删表设置别名，请使用真实表名",
+          "enabled": true
+        },
+        {
+          "rule_id": "R101",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "别名/标识符使用了TDSQL保留字（如CONDITION）或sequence特殊词（NEXTVAL/MINVALUE等），需加反引号或改用普通别名",
+          "enabled": true
+        },
+        {
+          "rule_id": "R102",
+          "category": "oracle_compat",
+          "severity": "WARNING",
+          "description": "LIKE…ESCAPE '\\'在TDSQL中行为与Oracle不一致，建议改用其他转义符（如'/'）",
+          "enabled": true
+        },
+        {
+          "rule_id": "R103",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "比较运算符中间不能有空格（如\"< =\"、\"> =\"、\"! =\"、\"< >\"），TDSQL会语法报错",
+          "enabled": true
+        },
+        {
+          "rule_id": "R104",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "常用函数名与括号之间不能有空格（如SUM (、COUNT （），且禁止使用全角括号",
+          "enabled": true
+        },
+        {
+          "rule_id": "R105",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "不支持Oracle的(+)外连接语法，请改写为LEFT/RIGHT OUTER JOIN",
+          "enabled": true
+        },
+        {
+          "rule_id": "R106",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "不支持Oracle层级查询START WITH…CONNECT BY：集中式可用WITH RECURSIVE改写，分布式需应用代码实现递归",
+          "enabled": true
+        },
+        {
+          "rule_id": "R107",
+          "category": "oracle_compat",
+          "severity": "WARNING",
+          "description": "INSERT INTO…SELECT在目标表含自增列或分区时不支持，请执行前确认目标表结构",
+          "enabled": true
+        },
+        {
+          "rule_id": "R108",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "TDSQL的sequence在多行SELECT/INSERT…SELECT中不支持批量递增获取（多行返回相同值或直接报错）",
+          "enabled": true
+        },
+        {
+          "rule_id": "R109",
+          "category": "oracle_compat",
+          "severity": "WARNING",
+          "description": "UPDATE中后续SET的CASE WHEN会读到前面SET字段的新值（与Oracle读旧值不同），判断条件字段的赋值应放到最后",
+          "enabled": true
+        },
+        {
+          "rule_id": "R110",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "TDSQL不支持USERENV()系统上下文函数，系统级参数请从应用侧获取",
+          "enabled": true
+        },
+        {
+          "rule_id": "R111",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "分布式实例不支持窗口函数（row_number()/rank()等 OVER()），需改写为分组+嵌套查询或应用侧处理",
+          "enabled": true
+        },
+        {
+          "rule_id": "R112",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "TDSQL分布式不支持游标（DECLARE…CURSOR/FETCH），请改用键集翻页或流式查询",
+          "enabled": true
+        },
+        {
+          "rule_id": "R113",
+          "category": "oracle_compat",
+          "severity": "INFO",
+          "description": "分布式实例高并发下DROP PARTITION与proxy路由元数据更新存在毫秒级间隙，小概率报分区不存在；请逐表执行drop+analyze并配置重试",
+          "enabled": true
+        },
+        {
+          "rule_id": "R114",
+          "category": "oracle_compat",
+          "severity": "WARNING",
+          "description": "LIMIT大偏移分页需扫描并丢弃前N行，代价随偏移量线性增长；分布式实例还需proxy跨分片聚合，代价更高。请用索引有序性/键集翻页/条件初筛优化",
+          "enabled": true
+        },
+        {
+          "rule_id": "R115",
+          "category": "oracle_compat",
+          "severity": "WARNING",
+          "description": "分布式实例update/delete…limit依赖proxy内嵌myisam临时表（索引限1000字节），utf8mb4下主键varchar长度须<250",
+          "enabled": true
+        },
+        {
+          "rule_id": "R116",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "分片键只支持一个字段，不支持多字段联合分片键",
+          "enabled": true
+        },
+        {
+          "rule_id": "R117",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "shardkey字段类型必须是int/bigint/smallint/char/varchar",
+          "enabled": true
+        },
+        {
+          "rule_id": "R118",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "shardkey字段的值不能为NULL，建表时必须显式NOT NULL约束",
+          "enabled": true
+        },
+        {
+          "rule_id": "R119",
+          "category": "oracle_compat",
+          "severity": "WARNING",
+          "description": "日期值直接±数字（如sysdate()-15）在TDSQL中语义与Oracle不同，请改用DATE_ADD/DATE_SUB(… INTERVAL n DAY)",
+          "enabled": true
+        }
+      ]
+    }
+  },
+  {
+    "endpoint": "/api/v1/rules",
+    "status": 200,
+    "body": {
+      "total": 119,
+      "rules": [
+        {
+          "rule_id": "R001",
+          "category": "naming",
+          "severity": "ERROR",
+          "description": "库名/表名字符限制32以内，必须以小写字母开头，仅包含小写字母、数字和下划线",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 命名规范",
+          "fix_suggestion": "表名以小写字母开头，仅包含小写字母、数字、下划线，长度≤32",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R002",
+          "category": "naming",
+          "severity": "ERROR",
+          "description": "库名、表名和列名不能使用 TDSQL/MySQL 保留关键字",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 命名规范",
+          "fix_suggestion": "请为表名/列名添加业务前缀或后缀，如: t_order, col_key",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R003",
+          "category": "ddl",
+          "severity": "ERROR",
+          "description": "CREATE TABLE 必须显式指定主键",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 表设计规范",
+          "fix_suggestion": "建议添加自增主键: id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R004",
+          "category": "ddl",
+          "severity": "ERROR",
+          "description": "必须指定存储引擎为 InnoDB",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 表设计规范",
+          "fix_suggestion": "请在 DDL 中添加: ENGINE=InnoDB",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R005",
+          "category": "ddl",
+          "severity": "ERROR",
+          "description": "必须指定字符集为 utf8mb4",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 表设计规范",
+          "fix_suggestion": "请在 DDL 中添加: DEFAULT CHARSET=utf8mb4",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R006",
+          "category": "ddl",
+          "severity": "ERROR",
+          "description": "禁止使用 ENUM/SET 数据类型",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 列设计规范",
+          "fix_suggestion": "建议改为 VARCHAR 或 TINYINT 类型",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R007",
+          "category": "ddl",
+          "severity": "ERROR",
+          "description": "禁止使用 TIMESTAMP 类型，建议使用 DATETIME",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 列设计规范",
+          "fix_suggestion": "建议改为 DATETIME 类型",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R008",
+          "category": "ddl",
+          "severity": "ERROR",
+          "description": "禁止使用外键约束，应用层保证数据一致性",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 表设计规范",
+          "fix_suggestion": "请移除外键约束，在应用层通过代码保证数据一致性",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R009",
+          "category": "ddl",
+          "severity": "ERROR",
+          "description": "涉及金额/价格的字段禁止使用 FLOAT/DOUBLE，应使用 DECIMAL",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 列设计规范",
+          "fix_suggestion": "建议改为 DECIMAL 类型，如 DECIMAL(18,2)",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R010",
+          "category": "ddl",
+          "severity": "WARNING",
+          "description": "VARCHAR 长度建议不超过 2000，超长字段请评估是否合理",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 列设计规范",
+          "fix_suggestion": "请评估是否需要如此长度，超长字段建议使用 TEXT 类型",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R011",
+          "category": "ddl",
+          "severity": "WARNING",
+          "description": "禁止在活跃表使用 TEXT/BLOB 类型，影响性能",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 列设计规范",
+          "fix_suggestion": "建议拆分到独立扩展表或使用 VARCHAR 限定长度",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R012",
+          "category": "dml",
+          "severity": "ERROR",
+          "description": "禁止使用 SELECT *，应指定具体字段",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - DML规范",
+          "fix_suggestion": "请明确列出需要的字段，如: SELECT col1, col2, col3 FROM ...",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R013",
+          "category": "dml",
+          "severity": "ERROR",
+          "description": "UPDATE/DELETE/INSERT...SELECT 必须带 WHERE 条件",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - DML规范",
+          "fix_suggestion": "请添加 WHERE 条件限定影响范围",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R014",
+          "category": "dml",
+          "severity": "ERROR",
+          "description": "禁止不带 WHERE 的 UPDATE/DELETE，防止误操作全表",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - DML规范",
+          "fix_suggestion": "请添加 WHERE 条件，或使用 LIMIT 限制影响行数",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R015",
+          "category": "dml",
+          "severity": "ERROR",
+          "description": "禁止嵌套超过3层子查询，影响可读性和性能",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - DML规范",
+          "fix_suggestion": "建议将子查询改写为 JOIN 或临时表，降低嵌套层级",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R016",
+          "category": "dml",
+          "severity": "WARNING",
+          "description": "WHERE 条件中禁止函数计算、全模糊LIKE、OR条件，会导致索引失效",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 性能规范",
+          "fix_suggestion": "1)函数:用范围查询替代 2)全模糊LIKE:改为前缀匹配 3)OR:改写为UNION ALL",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R017",
+          "category": "dml",
+          "severity": "ERROR",
+          "description": "禁止 ORDER BY RAND()，会导致全表扫描和临时表",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - DML规范",
+          "fix_suggestion": "替代方案: 使用应用层随机或预生成随机列",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R018",
+          "category": "index",
+          "severity": "WARNING",
+          "description": "单表索引数量不超过5个（含主键）",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 索引设计规范",
+          "fix_suggestion": "过多索引会降低写入性能，建议合并冗余索引或移除不常用索引",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R019",
+          "category": "index",
+          "severity": "WARNING",
+          "description": "禁止创建冗余索引，如果索引A的列是索引B列的前缀，则A冗余",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 索引设计规范",
+          "fix_suggestion": "建议移除冗余索引",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R020",
+          "category": "distributed",
+          "severity": "WARNING",
+          "description": "分布式表的SELECT/UPDATE/DELETE语句应在WHERE条件中包含分片键字段",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 分布式规范",
+          "fix_suggestion": "请在WHERE条件中添加分片键字段，如: WHERE shard_key = ? AND ...",
+          "instance_scope": "distributed"
+        },
+        {
+          "rule_id": "R021",
+          "category": "distributed",
+          "severity": "ERROR",
+          "description": "禁止对分片键(shardkey)字段进行UPDATE操作",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 分布式规范",
+          "fix_suggestion": "分片键决定数据路由，更新分片键会导致数据迁移，必须通过DBA审核",
+          "instance_scope": "distributed"
+        },
+        {
+          "rule_id": "R022",
+          "category": "distributed",
+          "severity": "ERROR",
+          "description": "分布式表禁止不带分片键的全局DELETE/UPDATE，防止跨所有SET执行",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 分布式规范",
+          "fix_suggestion": "请添加分片键的等值条件，并限制单次操作行数（建议≤1000行）",
+          "instance_scope": "distributed"
+        },
+        {
+          "rule_id": "R023",
+          "category": "ddl",
+          "severity": "ERROR",
+          "description": "禁止使用CREATE TABLE ... SELECT语句，TDSQL分布式不支持",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - DDL规范",
+          "fix_suggestion": "请拆分为CREATE TABLE + INSERT INTO ... SELECT两步执行",
+          "instance_scope": "distributed"
+        },
+        {
+          "rule_id": "R024",
+          "category": "ddl",
+          "severity": "ERROR",
+          "description": "禁止使用CREATE TEMPORARY TABLE，分布式实例不支持",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - DDL规范",
+          "fix_suggestion": "请使用普通表或应用内存缓存替代临时表",
+          "instance_scope": "distributed"
+        },
+        {
+          "rule_id": "R025",
+          "category": "distributed",
+          "severity": "ERROR",
+          "description": "禁止通过ALTER TABLE修改分片键字段",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 分布式规范",
+          "fix_suggestion": "分片键不可修改，如需变更请联系DBA通过数据迁移完成",
+          "instance_scope": "distributed"
+        },
+        {
+          "rule_id": "R026",
+          "category": "ddl",
+          "severity": "ERROR",
+          "description": "ALTER TABLE修改字段时禁止缩短字段长度，可能导致数据截断",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - DDL规范",
+          "fix_suggestion": "如需缩短字段长度，请先确认无超长数据，并通过DBA审核",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R027",
+          "category": "ddl",
+          "severity": "ERROR",
+          "description": "禁止使用DROP DATABASE/SCHEMA语句",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - DDL规范",
+          "fix_suggestion": "如需清理数据库请联系DBA处理",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R028",
+          "category": "ddl",
+          "severity": "ERROR",
+          "description": "建表必须显式指定表级别COMMENT",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 表设计规范",
+          "fix_suggestion": "请添加 COMMENT '表用途说明' 到CREATE TABLE语句中",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R029",
+          "category": "ddl",
+          "severity": "WARNING",
+          "description": "建表时每个字段应显式指定COMMENT",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 列设计规范",
+          "fix_suggestion": "请为每个字段添加COMMENT，如: col_name INT COMMENT '字段说明'",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R030",
+          "category": "ddl",
+          "severity": "ERROR",
+          "description": "禁止使用视图、存储过程、触发器、自定义函数",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - DDL规范",
+          "fix_suggestion": "请在应用层实现相应逻辑",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R031",
+          "category": "ddl",
+          "severity": "ERROR",
+          "description": "禁止创建自定义函数",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - DDL规范",
+          "fix_suggestion": "请在应用层实现函数逻辑",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R032",
+          "category": "ddl",
+          "severity": "ERROR",
+          "description": "禁止使用临时表进行复杂业务逻辑",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - DDL规范",
+          "fix_suggestion": "请使用应用层内存缓存或普通表替代",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R033",
+          "category": "naming",
+          "severity": "WARNING",
+          "description": "表名建议使用单数形式",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 命名规范",
+          "fix_suggestion": "建议将表名改为单数形式",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R034",
+          "category": "naming",
+          "severity": "WARNING",
+          "description": "备份表命名必须以_bak_或_bk_为前缀，并附日期后缀",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 命名规范",
+          "fix_suggestion": "备份表命名格式: 原表名_bak_YYYYMMDD",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R035",
+          "category": "ddl",
+          "severity": "ERROR",
+          "description": "多个数据表中相同业务含义字段的名称、类型、长度必须保持一致",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 列设计规范",
+          "fix_suggestion": "请统一同名字段的类型和长度",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R036",
+          "category": "ddl",
+          "severity": "INFO",
+          "description": "建议每张表包含create_time和update_time字段",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 列设计规范",
+          "fix_suggestion": "建议添加: create_time DATETIME DEFAULT CURRENT_TIMESTAMP, update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R037",
+          "category": "ddl",
+          "severity": "INFO",
+          "description": "建议使用逻辑删除(is_deleted)替代物理删除(DELETE)",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - DML规范",
+          "fix_suggestion": "建议添加: is_deleted TINYINT DEFAULT 0 COMMENT '逻辑删除标记'",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R038",
+          "category": "ddl",
+          "severity": "WARNING",
+          "description": "预期数据量超千万的表不建议使用AUTO_INCREMENT主键：自增锁在高并发写入下形成瓶颈，且分库分表/数据迁移/多源合并时主键易冲突",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 表设计规范",
+          "fix_suggestion": "大表建议使用业务主键或全局唯一ID生成器（雪花算法等）；分布式实例还需保证该主键包含分片键",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R039",
+          "category": "security",
+          "severity": "ERROR",
+          "description": "禁止使用SELECT ... INTO OUTFILE/DUMPFILE",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 安全规范",
+          "fix_suggestion": "请在应用层导出数据，禁止数据库直接写文件",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R040",
+          "category": "dml",
+          "severity": "WARNING",
+          "description": "禁止使用DELAYED/LOW_PRIORITY关键字",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - DML规范",
+          "fix_suggestion": "请移除DELAYED/LOW_PRIORITY关键字",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R041",
+          "category": "dml",
+          "severity": "ERROR",
+          "description": "INSERT/REPLACE语句必须显式指定列名",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - DML规范",
+          "fix_suggestion": "请改为 INSERT INTO table_name(col1, col2, ...) VALUES(...)",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R042",
+          "category": "security",
+          "severity": "ERROR",
+          "description": "禁止使用LOAD DATA INFILE/LOAD XML",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 安全规范",
+          "fix_suggestion": "请在应用层批量导入数据",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R043",
+          "category": "dml",
+          "severity": "ERROR",
+          "description": "禁止使用多表联表UPDATE/DELETE",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - DML规范【分布式】",
+          "fix_suggestion": "请拆分为单表操作，在应用层维护数据一致性",
+          "instance_scope": "distributed"
+        },
+        {
+          "rule_id": "R044",
+          "category": "performance",
+          "severity": "WARNING",
+          "description": "禁止使用USE INDEX/FORCE INDEX/IGNORE INDEX等索引提示",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 性能规范",
+          "fix_suggestion": "请优化SQL和索引设计，不要强制指定索引",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R045",
+          "category": "security",
+          "severity": "ERROR",
+          "description": "禁止使用HANDLER语句",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 安全规范",
+          "fix_suggestion": "请使用标准SELECT语句替代HANDLER",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R046",
+          "category": "security",
+          "severity": "ERROR",
+          "description": "禁止使用FLUSH和LOCK TABLES语句",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 安全规范",
+          "fix_suggestion": "DBA运维操作请通过管理工具完成",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R047",
+          "category": "performance",
+          "severity": "WARNING",
+          "description": "全表删除数据时建议使用TRUNCATE替代DELETE",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - DML规范",
+          "fix_suggestion": "全表删除请使用 TRUNCATE TABLE table_name",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R048",
+          "category": "distributed",
+          "severity": "ERROR",
+          "description": "分布式实例执行INSERT/REPLACE时，字段列表必须包含分片键",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - DML规范【分布式】",
+          "fix_suggestion": "请在字段列表中添加分片键字段",
+          "instance_scope": "distributed"
+        },
+        {
+          "rule_id": "R049",
+          "category": "naming",
+          "severity": "INFO",
+          "description": "多表关联时建议为每个表指定不同别名",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - DML规范",
+          "fix_suggestion": "请为每个表指定有意义的唯一别名",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R050",
+          "category": "performance",
+          "severity": "WARNING",
+          "description": "IN列表元素数量建议不超过200，过多会导致解析变慢",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 性能规范",
+          "fix_suggestion": "IN列表过多时建议使用临时表关联或分批查询",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R051",
+          "category": "performance",
+          "severity": "WARNING",
+          "description": "SELECT语句建议包含WHERE条件，避免全表扫描",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 性能规范",
+          "fix_suggestion": "请添加WHERE条件限制查询范围",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R052",
+          "category": "performance",
+          "severity": "ERROR",
+          "description": "WHERE条件等号两侧字段类型必须一致，禁止隐式类型转换",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 性能规范",
+          "fix_suggestion": "请确保WHERE条件等号两侧类型一致",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R053",
+          "category": "distributed",
+          "severity": "ERROR",
+          "description": "分布式表JOIN时必须在分片键上关联，避免跨SET广播JOIN",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 分布式规范",
+          "fix_suggestion": "请确保JOIN条件包含分片键等值关联，如: JOIN t2 ON t1.shard_key = t2.shard_key。关联条件均为分片键且有固定值→完全下推；无固定值→join下推并尽量过滤；小配置表设为广播表使join下推；均不可下推时按日期拆分请求/用单分片中间表落数据后再join；子查询表尽量把过滤条件写入子查询内",
+          "instance_scope": "distributed"
+        },
+        {
+          "rule_id": "R054",
+          "category": "distributed",
+          "severity": "WARNING",
+          "description": "分片键必须包含在主键及所有唯一索引中（唯一索引不含分片键将无法创建）",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 分布式规范",
+          "fix_suggestion": "请将分片键字段加入主键，如: PRIMARY KEY (shard_key, id)；同时确保所有UNIQUE索引也包含分片键",
+          "instance_scope": "distributed"
+        },
+        {
+          "rule_id": "R055",
+          "category": "distributed",
+          "severity": "WARNING",
+          "description": "分布式表不建议仅依赖全局索引，应优先使用本地索引+分片键路由",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 分布式规范",
+          "fix_suggestion": "请优化查询确保走分片键路由，减少对全局索引的依赖",
+          "instance_scope": "distributed"
+        },
+        {
+          "rule_id": "R056",
+          "category": "distributed",
+          "severity": "INFO",
+          "description": "分布式表ORDER BY建议包含分片键，避免跨SET排序",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 分布式规范",
+          "fix_suggestion": "在ORDER BY中添加分片键字段，减少跨SET归并排序",
+          "instance_scope": "distributed"
+        },
+        {
+          "rule_id": "R057",
+          "category": "distributed",
+          "severity": "ERROR",
+          "description": "批量INSERT/REPLACE必须包含分片键字段，否则无法路由到正确SET",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 分布式规范",
+          "fix_suggestion": "请在INSERT字段列表中显式包含分片键",
+          "instance_scope": "distributed"
+        },
+        {
+          "rule_id": "R058",
+          "category": "distributed",
+          "severity": "WARNING",
+          "description": "分布式表批量UPDATE/DELETE建议加LIMIT限制单次影响行数(≤1000)",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 分布式规范",
+          "fix_suggestion": "请添加 LIMIT 1000 限制单次操作行数。注意：update/delete…limit依赖proxy内嵌myisam临时表，主键varchar长度须<250(utf8mb4)/<333(utf8)，详见R115",
+          "instance_scope": "distributed"
+        },
+        {
+          "rule_id": "R059",
+          "category": "distributed",
+          "severity": "WARNING",
+          "description": "避免跨SET分布式事务，单事务应只操作同一分片数据",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 分布式规范",
+          "fix_suggestion": "请拆分事务确保单事务只操作同一分片数据",
+          "instance_scope": "distributed"
+        },
+        {
+          "rule_id": "R060",
+          "category": "distributed",
+          "severity": "INFO",
+          "description": "建议对分布式表查询执行EXPLAIN查看是否命中单SET",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 分布式规范",
+          "fix_suggestion": "执行 EXPLAIN SELECT ... 查看shard_key是否命中单SET",
+          "instance_scope": "distributed"
+        },
+        {
+          "rule_id": "R077",
+          "category": "distributed",
+          "severity": "ERROR",
+          "description": "TDSQL分布式实例建表必须声明分片键或广播表标记，不允许创建单表；分片键必须是主键或唯一索引的字段。支持的分片键声明形态：SHARDKEY=列名、TDSQL_DISTRIBUTED BY HASH(列名)；广播表(全局表)形态：BROADCAST、shardkey=noshardkey_allset",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 分布式建表规范",
+          "fix_suggestion": "请按目标实例支持的形态声明分片键或广播表。示例:\n  CREATE TABLE t1 (...) ENGINE=InnoDB SHARDKEY=user_id\n  CREATE TABLE t1 (...) ENGINE=InnoDB TDSQL_DISTRIBUTED BY HASH(`user_id`)\n  CREATE TABLE t1 (...) ENGINE=InnoDB BROADCAST\n  CREATE TABLE t1 (...) ENGINE=InnoDB shardkey=noshardkey_allset\n分片表的分片键必须是主键(或主键的一部分)，且必须包含在每一个唯一索引中。",
+          "instance_scope": "distributed"
+        },
+        {
+          "rule_id": "R061",
+          "category": "index",
+          "severity": "WARNING",
+          "description": "索引命名应遵循规范: 普通索引idx_、唯一索引uk_、主键pk_",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 索引设计规范",
+          "fix_suggestion": "普通索引以idx_开头，唯一索引以uk_开头，主键以pk_开头",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R062",
+          "category": "index",
+          "severity": "WARNING",
+          "description": "复合索引字段顺序应遵循最左前缀原则，区分度高的字段放前面",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 索引设计规范",
+          "fix_suggestion": "将区分度高的字段放在复合索引前面",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R063",
+          "category": "index",
+          "severity": "WARNING",
+          "description": "区分度低的字段(如status/type/gender)不建议单独建索引",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 索引设计规范",
+          "fix_suggestion": "低区分度字段建议放入复合索引而非单独建索引",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R064",
+          "category": "index",
+          "severity": "INFO",
+          "description": "高频查询建议使用覆盖索引避免回表",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 索引设计规范",
+          "fix_suggestion": "将SELECT的字段加入索引，实现覆盖索引避免回表",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R065",
+          "category": "index",
+          "severity": "WARNING",
+          "description": "复合索引字段数量建议不超过5个",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 索引设计规范",
+          "fix_suggestion": "复合索引字段过多会增加索引体积和维护成本，建议精简",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R066",
+          "category": "index",
+          "severity": "ERROR",
+          "description": "TEXT/BLOB/JSON类型字段禁止建索引",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 索引设计规范",
+          "fix_suggestion": "大字段不支持直接索引，如需全文检索请使用FULLTEXT索引",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R067",
+          "category": "index",
+          "severity": "INFO",
+          "description": "VARCHAR长度超过100的字段建议使用前缀索引",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 索引设计规范",
+          "fix_suggestion": "如: INDEX idx_name (col_name(20)) 使用前20字符建索引",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R068",
+          "category": "index",
+          "severity": "WARNING",
+          "description": "JOIN关联字段建议建索引",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 索引设计规范",
+          "fix_suggestion": "为JOIN ON条件中的字段创建索引",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R069",
+          "category": "transaction",
+          "severity": "WARNING",
+          "description": "避免长事务，事务持续时间建议不超过5秒",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 事务规范",
+          "fix_suggestion": "缩短事务范围，将非必要操作移出事务",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R070",
+          "category": "transaction",
+          "severity": "WARNING",
+          "description": "单事务影响行数建议不超过10000行",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 事务规范",
+          "fix_suggestion": "大批量操作请分批提交，每批≤10000行",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R071",
+          "category": "transaction",
+          "severity": "WARNING",
+          "description": "BEGIN后必须有显式COMMIT或ROLLBACK",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 事务规范",
+          "fix_suggestion": "确保每个BEGIN都有对应的COMMIT/ROLLBACK",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R072",
+          "category": "transaction",
+          "severity": "WARNING",
+          "description": "事务中避免使用SELECT...FOR UPDATE导致锁等待",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 事务规范",
+          "fix_suggestion": "如需加锁请缩短事务范围，或使用乐观锁替代",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R073",
+          "category": "security",
+          "severity": "WARNING",
+          "description": "ALTER/DROP TABLE操作需确认已备份",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 安全规范",
+          "fix_suggestion": "请在执行DDL前备份表结构和数据",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R074",
+          "category": "security",
+          "severity": "ERROR",
+          "description": "禁止在应用SQL中使用GRANT/REVOKE权限操作",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 安全规范",
+          "fix_suggestion": "权限管理由DBA通过管理工具操作",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R075",
+          "category": "security",
+          "severity": "ERROR",
+          "description": "TRUNCATE TABLE需确认，该操作不可回滚",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 安全规范",
+          "fix_suggestion": "TRUNCATE会清空全表数据且不可回滚，请确认后执行",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R076",
+          "category": "security",
+          "severity": "ERROR",
+          "description": "检测到疑似SQL注入风险（${}拼接或动态表名）",
+          "enabled": true,
+          "spec_source": "TDSQL数据库开发规范 - 安全规范",
+          "fix_suggestion": "使用参数化查询(#{}), 避免SQL字符串拼接(${}})",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R078",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "建表/改表禁止使用Oracle专有数据类型（NUMBER/VARCHAR2/CLOB等），需转换为TDSQL对等类型",
+          "enabled": true,
+          "spec_source": "ORACLE迁移TDSQL改造适配方案 V1.5.1 - 数据类型转换",
+          "fix_suggestion": "NUMBER→DECIMAL(p,s)或INT/BIGINT（注意：历史number放整型标志字段的，转换后勿带精度，避免Java取值类型错误）；VARCHAR2→VARCHAR；CLOB→TEXT/LONGTEXT；RAW→VARBINARY；DATE→DATETIME",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R079",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "TDSQL不支持Oracle伪列ROWNUM，请改用LIMIT分页",
+          "enabled": true,
+          "spec_source": "ORACLE迁移TDSQL改造适配方案 V1.5.1 - ROWNUM改写",
+          "fix_suggestion": "SELECT * FROM t WHERE 条件 LIMIT n（LIMIT n 等价 LIMIT 0,n）；需排序时LIMIT置于ORDER BY之后：… ORDER BY 字段 LIMIT m,n",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R080",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "TDSQL不支持NVL函数，请改用IFNULL(expr1,expr2)或COALESCE",
+          "enabled": true,
+          "spec_source": "ORACLE迁移TDSQL改造适配方案 V1.5.1 - NVL改写",
+          "fix_suggestion": "NVL(a,b)→IFNULL(a,b)；多条件嵌套或多参用COALESCE(e1,e2,...)；示例：select IFNULL(max(tempa),0) from t",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R081",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "TDSQL不支持DECODE函数，请改用CASE WHEN或IF()",
+          "enabled": true,
+          "spec_source": "ORACLE迁移TDSQL改造适配方案 V1.5.1 - DECODE改写",
+          "fix_suggestion": "decode(x,'A','1','B','2',缺省)→CASE x WHEN 'A' THEN '1' WHEN 'B' THEN '2' ELSE 缺省 END；两分支简单场景可用IF(cond,v1,v2)",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R082",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "TDSQL不支持TO_CHAR函数，日期格式化用DATE_FORMAT，数值转换用CONVERT/CAST/FORMAT",
+          "enabled": true,
+          "spec_source": "ORACLE迁移TDSQL改造适配方案 V1.5.1 - TO_CHAR改写",
+          "fix_suggestion": "日期→DATE_FORMAT(col,'%Y%m%d')；类型转换→CONVERT(value,type)（type: BINARY/CHAR()/DATE/TIME/DATETIME/DECIMAL/SIGNED/UNSIGNED）；含'FM9999.0999'类精度进位格式的，用LPAD/FORMAT改写，需逐格式核实进位方式（估值/额度/费用计算场景重点复核）",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R083",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "TDSQL不支持TO_NUMBER函数，请改用CAST；注意CAST对非法数字会截断而不报错",
+          "enabled": true,
+          "spec_source": "ORACLE迁移TDSQL改造适配方案 V1.5.1 - TO_NUMBER改写",
+          "fix_suggestion": "cast(x as unsigned int)/cast(x as decimal(10,2))；注意：cast('11a' as unsigned int)=11（截断），不像to_number直接报错，涉及数据校验的需应用侧兜底",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R084",
+          "category": "oracle_compat",
+          "severity": "WARNING",
+          "description": "检测到||运算符：MySQL/TDSQL默认语义为逻辑OR而非字符串拼接，Oracle迁移SQL请改用CONCAT()",
+          "enabled": true,
+          "spec_source": "ORACLE迁移TDSQL改造适配方案 V1.5.1 - 字符串拼接改写",
+          "fix_suggestion": "'%'||v||'%' → CONCAT('%',v,'%')",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R085",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "TDSQL不支持TO_DATE函数，请改用STR_TO_DATE(date,format)",
+          "enabled": true,
+          "spec_source": "ORACLE迁移TDSQL改造适配方案 V1.5.1 - TO_DATE改写",
+          "fix_suggestion": "to_date(v,'YYYYMMDD')→str_to_date(v,'%Y%m%d')；格式符对照：YYYY→%Y，MM→%m，DD→%d，HH24→%H，MI→%i，SS→%s",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R086",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "TDSQL不支持TRUNC函数：数值截断用TRUNCATE(X,D)，日期截断用DATE_FORMAT",
+          "enabled": true,
+          "spec_source": "ORACLE迁移TDSQL改造适配方案 V1.5.1 - TRUNC改写",
+          "fix_suggestion": "TRUNC(x,2)→TRUNCATE(x,2)；TRUNC(sysdate)→DATE_FORMAT(sysdate(),'%Y%m%d')；TRUNC(sysdate,'mm')→DATE_FORMAT(sysdate(),'%Y%m01')",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R087",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "TDSQL的LTRIM/RTRIM仅支持单参数去空格，去除指定字符请用TRIM({BOTH|LEADING|TRAILING} remstr FROM str)",
+          "enabled": true,
+          "spec_source": "ORACLE迁移TDSQL改造适配方案 V1.5.1 - TRIM差异",
+          "fix_suggestion": "ltrim(s,'0')→TRIM(LEADING '0' FROM s)；rtrim(s,'x')→TRIM(TRAILING 'x' FROM s)；注意TDSQL的remstr是整串匹配而非Oracle的字符集合匹配",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R088",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "TDSQL不支持ADD_MONTHS函数，请改用ADDDATE(date, INTERVAL expr MONTH)",
+          "enabled": true,
+          "spec_source": "ORACLE迁移TDSQL改造适配方案 V1.5.1 - ADD_MONTHS改写",
+          "fix_suggestion": "add_months(d,-1)→adddate(d, INTERVAL -1 MONTH)；unit支持SECOND/MINUTE/HOUR/DAY/MONTH/YEAR",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R089",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "TDSQL的SUBSTR起始位置只能从1开始，start=0将返回空串（Oracle中0按1处理），结果错误",
+          "enabled": true,
+          "spec_source": "ORACLE迁移TDSQL改造适配方案 V1.5.1 - SUBSTR差异",
+          "fix_suggestion": "substr(c,0,9)→substr(c,1,9)（Oracle中0与1等效，TDSQL必须从1开始）",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R090",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "Oracle的SYSDATE/SYSTIMESTAMP关键字用法不支持，TDSQL需使用sysdate()/NOW()函数（带括号）",
+          "enabled": true,
+          "spec_source": "ORACLE迁移TDSQL改造适配方案 V1.5.1 - SYSDATE改写",
+          "fix_suggestion": "SYSDATE→sysdate()；SYSTIMESTAMP→NOW(3)/sysdate(3)；截取日期用DATE_FORMAT(sysdate(),'%Y%m%d')",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R091",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "TDSQL不支持MERGE INTO：集中式且按主键/唯一键关联可用INSERT…ON DUPLICATE KEY UPDATE，分布式需拆分为程序逻辑",
+          "enabled": true,
+          "spec_source": "ORACLE迁移TDSQL改造适配方案 V1.5.1 - MERGE INTO改写",
+          "fix_suggestion": "关联字段为主键/唯一键（集中式）→INSERT INTO … ON DUPLICATE KEY UPDATE；仅更新不插入→UPDATE a JOIN b ON a.id=b.id SET a.xx=b.xx；其余场景拆SQL由程序实现",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R092",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "分布式实例不支持WITH AS(CTE)，请改写为子查询或JOIN；集中式8.0递归场景可评估WITH RECURSIVE",
+          "enabled": true,
+          "spec_source": "ORACLE迁移TDSQL改造适配方案 V1.5.1 - WITH AS改写",
+          "fix_suggestion": "WITH a AS(SELECT…) SELECT * FROM a JOIN b → SELECT * FROM (SELECT…) a JOIN b；复杂多关联+union all场景建议拆查询/引入中间表",
+          "instance_scope": "distributed"
+        },
+        {
+          "rule_id": "R093",
+          "category": "oracle_compat",
+          "severity": "WARNING",
+          "description": "TDSQL的LENGTH()返回字节数（Oracle为字符数），中文场景结果不一致；需字符数请用CHAR_LENGTH()",
+          "enabled": true,
+          "spec_source": "ORACLE迁移TDSQL改造适配方案 V1.5.1 - LENGTH差异",
+          "fix_suggestion": "select length(c)→select char_length(c)（需要字符数时）；确认确需字节数的可保留并在工单注明",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R094",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "TDSQL不支持LISTAGG() WITHIN GROUP()，请改用GROUP_CONCAT",
+          "enabled": true,
+          "spec_source": "ORACLE迁移TDSQL改造适配方案 V1.5.1 - LISTAGG改写",
+          "fix_suggestion": "LISTAGG(a||':'||b,'|') WITHIN GROUP(ORDER BY a,b)→GROUP_CONCAT(a,':',b ORDER BY a,b SEPARATOR '|')",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R095",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "TDSQL不支持MINUS集合运算，请改用LEFT JOIN…IS NULL或NOT EXISTS实现差集",
+          "enabled": true,
+          "spec_source": "ORACLE迁移TDSQL改造适配方案 V1.5.1 - MINUS改写",
+          "fix_suggestion": "A minus B→select a.* from A a left join B b on a.id=b.id where b.id is null（注意minus含去重语义，必要时补distinct）",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R096",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "底层MySQL不支持FULL JOIN，请改写为LEFT JOIN UNION RIGHT JOIN",
+          "enabled": true,
+          "spec_source": "ORACLE迁移TDSQL改造适配方案 V1.5.1 - FULL JOIN改写",
+          "fix_suggestion": "select * from A full join B on…→ select…left join…UNION select…right join…",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R097",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "分布式实例建表字段DEFAULT值不支持类型转换/函数表达式（Proxy报ERROR 1064），仅CURRENT_TIMESTAMP例外；集中式实例（MySQL 8.0.13+）原生支持表达式默认值，不受此限",
+          "enabled": true,
+          "spec_source": "ORACLE迁移TDSQL改造适配方案 V1.5.1 - DEFAULT值限制",
+          "fix_suggestion": "如 data_dt char(8) default date_format(…)→改为 data_dt char(8) not null，默认值由应用层赋值",
+          "instance_scope": "distributed"
+        },
+        {
+          "rule_id": "R098",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "HASH分区要求分区字段为整型；char/varchar等非整型字段请改用KEY分区或murmurHashCodeAndMod改造",
+          "enabled": true,
+          "spec_source": "ORACLE迁移TDSQL改造适配方案 V1.5.1 - HASH分区限制",
+          "fix_suggestion": "方案1：partition by hash(murmurHashCodeAndMod(col,N))；方案2：改用KEY分区（支持非整型）",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R099",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "FROM后的子查询（派生表）必须指定别名，否则TDSQL报错",
+          "enabled": true,
+          "spec_source": "ORACLE迁移TDSQL改造适配方案 V1.5.1 - 派生表别名",
+          "fix_suggestion": "select * from (select * from t)→select * from (select * from t) B",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R100",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "分布式实例DELETE语句不支持对被删表设置别名，请使用真实表名",
+          "enabled": true,
+          "spec_source": "ORACLE迁移TDSQL改造适配方案 V1.5.1 - DELETE别名限制",
+          "fix_suggestion": "DELETE FROM T1 a WHERE EXISTS(...)→DELETE FROM T1 WHERE EXISTS(引用T1.id)",
+          "instance_scope": "distributed"
+        },
+        {
+          "rule_id": "R101",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "别名/标识符使用了TDSQL保留字（如CONDITION）或sequence特殊词（NEXTVAL/MINVALUE等），需加反引号或改用普通别名",
+          "enabled": true,
+          "spec_source": "ORACLE迁移TDSQL改造适配方案 V1.5.1 - 保留字与sequence特殊词",
+          "fix_suggestion": "select `CONDITION` from t（加反引号）；别名nextVal/minValue等sequence特殊词改为普通词",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R102",
+          "category": "oracle_compat",
+          "severity": "WARNING",
+          "description": "LIKE…ESCAPE '\\'在TDSQL中行为与Oracle不一致，建议改用其他转义符（如'/'）",
+          "enabled": true,
+          "spec_source": "ORACLE迁移TDSQL改造适配方案 V1.5.1 - ESCAPE转义符",
+          "fix_suggestion": "LIKE '%\\_%' ESCAPE '\\' → LIKE '%/_%' ESCAPE '/'",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R103",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "比较运算符中间不能有空格（如\"< =\"、\"> =\"、\"! =\"、\"< >\"），TDSQL会语法报错",
+          "enabled": true,
+          "spec_source": "ORACLE迁移TDSQL改造适配方案 V1.5.1 - 运算符空格",
+          "fix_suggestion": "\"< =\" → \"<=\"；\"> =\" → \">=\"；\"! =\" → \"!=\"；\"< >\" → \"<>\"",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R104",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "常用函数名与括号之间不能有空格（如SUM (、COUNT （），且禁止使用全角括号",
+          "enabled": true,
+          "spec_source": "ORACLE迁移TDSQL改造适配方案 V1.5.1 - 函数空格与全角括号",
+          "fix_suggestion": "SUM (→SUM(；COUNT （→COUNT(；全角（）改半角()",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R105",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "不支持Oracle的(+)外连接语法，请改写为LEFT/RIGHT OUTER JOIN",
+          "enabled": true,
+          "spec_source": "ORACLE迁移TDSQL改造适配方案 V1.5.1 - (+)外连接改写",
+          "fix_suggestion": "WHERE a.k=b.k(+)→FROM a LEFT JOIN b ON a.k=b.k（(+)在等号右侧为LEFT JOIN，在左侧为RIGHT JOIN）",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R106",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "不支持Oracle层级查询START WITH…CONNECT BY：集中式可用WITH RECURSIVE改写，分布式需应用代码实现递归",
+          "enabled": true,
+          "spec_source": "ORACLE迁移TDSQL改造适配方案 V1.5.1 - CONNECT BY改写",
+          "fix_suggestion": "集中式8.0→WITH RECURSIVE（注意：返回为层次遍历序，Oracle为前序遍历）；分布式→应用先查必要信息再递归调用",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R107",
+          "category": "oracle_compat",
+          "severity": "WARNING",
+          "description": "INSERT INTO…SELECT在目标表含自增列或分区时不支持，请执行前确认目标表结构",
+          "enabled": true,
+          "spec_source": "ORACLE迁移TDSQL改造适配方案 V1.5.1 - INSERT SELECT限制",
+          "fix_suggestion": "确认目标表无自增列且未分区；受限场景改为程序分批SELECT后INSERT VALUES",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R108",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "TDSQL的sequence在多行SELECT/INSERT…SELECT中不支持批量递增获取（多行返回相同值或直接报错）",
+          "enabled": true,
+          "spec_source": "ORACLE迁移TDSQL改造适配方案 V1.5.1 - sequence批量获取",
+          "fix_suggestion": "方案1：改自增序列；方案2：先insert into select落中间表，代码批量取序列二次赋值；方案3：预生成批量序列表",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R109",
+          "category": "oracle_compat",
+          "severity": "WARNING",
+          "description": "UPDATE中后续SET的CASE WHEN会读到前面SET字段的新值（与Oracle读旧值不同），判断条件字段的赋值应放到最后",
+          "enabled": true,
+          "spec_source": "ORACLE迁移TDSQL改造适配方案 V1.5.1 - UPDATE CASE WHEN顺序",
+          "fix_suggestion": "将修改判断条件字段（如stcd）的CASE WHEN赋值移到SET列表最后，或拆分为多条UPDATE",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R110",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "TDSQL不支持USERENV()系统上下文函数，系统级参数请从应用侧获取",
+          "enabled": true,
+          "spec_source": "ORACLE迁移TDSQL改造适配方案 V1.5.1 - USERENV不支持",
+          "fix_suggestion": "USERENV('INSTANCE')/USERENV('SID')等逻辑迁移到应用侧实现",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R111",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "分布式实例不支持窗口函数（row_number()/rank()等 OVER()），需改写为分组+嵌套查询或应用侧处理",
+          "enabled": true,
+          "spec_source": "ORACLE迁移TDSQL改造适配方案 V1.5.1 - 窗口函数改写",
+          "fix_suggestion": "普通查询→分组/嵌套查询+排序改写；复杂嵌套→拆解落中间表；或JDK8 stream在应用侧sort/distinct",
+          "instance_scope": "distributed"
+        },
+        {
+          "rule_id": "R112",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "TDSQL分布式不支持游标（DECLARE…CURSOR/FETCH），请改用键集翻页或流式查询",
+          "enabled": true,
+          "spec_source": "ORACLE迁移TDSQL改造适配方案 V1.5.1 - 游标限制",
+          "fix_suggestion": "方案1：WHERE cond AND col>lastval ORDER BY col LIMIT N键集翻页；方案2：JDBC/ODBC流式查询；方案3：分片透传；方案4：TDSQL-PG版",
+          "instance_scope": "distributed"
+        },
+        {
+          "rule_id": "R113",
+          "category": "oracle_compat",
+          "severity": "INFO",
+          "description": "分布式实例高并发下DROP PARTITION与proxy路由元数据更新存在毫秒级间隙，小概率报分区不存在；请逐表执行drop+analyze并配置重试",
+          "enabled": true,
+          "spec_source": "ORACLE迁移TDSQL改造适配方案 V1.5.1 - 删除分区注意事项",
+          "fix_suggestion": "将多表批量drop partition后统一analyze，改为逐表\"drop partition→analyze table\"循环",
+          "instance_scope": "distributed"
+        },
+        {
+          "rule_id": "R114",
+          "category": "oracle_compat",
+          "severity": "WARNING",
+          "description": "LIMIT大偏移分页需扫描并丢弃前N行，代价随偏移量线性增长；分布式实例还需proxy跨分片聚合，代价更高。请用索引有序性/键集翻页/条件初筛优化",
+          "enabled": true,
+          "spec_source": "ORACLE迁移TDSQL改造适配方案 V1.5.1 - 分页问题",
+          "fix_suggestion": "强排序分页→利用索引有序性；不排序分页→随机选分片返回单页；叠加日期/分类条件缩减初筛量级；最优为键集翻页where col>lastval limit N",
+          "instance_scope": "all"
+        },
+        {
+          "rule_id": "R115",
+          "category": "oracle_compat",
+          "severity": "WARNING",
+          "description": "分布式实例update/delete…limit依赖proxy内嵌myisam临时表（索引限1000字节），utf8mb4下主键varchar长度须<250",
+          "enabled": true,
+          "spec_source": "ORACLE迁移TDSQL改造适配方案 V1.5.1 - 主键长度限制",
+          "fix_suggestion": "需要使用update/delete…limit语法的表，主键varchar长度限制在250以内(utf8mb4)/333以内(utf8)",
+          "instance_scope": "distributed"
+        },
+        {
+          "rule_id": "R116",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "分片键只支持一个字段，不支持多字段联合分片键",
+          "enabled": true,
+          "spec_source": "ORACLE迁移TDSQL改造适配方案 V1.5.1 - 分片键六条军规",
+          "fix_suggestion": "选择最常用于查询过滤/关联的单一字段作为shardkey",
+          "instance_scope": "distributed"
+        },
+        {
+          "rule_id": "R117",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "shardkey字段类型必须是int/bigint/smallint/char/varchar",
+          "enabled": true,
+          "spec_source": "ORACLE迁移TDSQL改造适配方案 V1.5.1 - 分片键六条军规",
+          "fix_suggestion": "shardkey改用int/bigint/smallint/char/varchar类型；另注意：shardkey值不应含中文",
+          "instance_scope": "distributed"
+        },
+        {
+          "rule_id": "R118",
+          "category": "oracle_compat",
+          "severity": "ERROR",
+          "description": "shardkey字段的值不能为NULL，建表时必须显式NOT NULL约束",
+          "enabled": true,
+          "spec_source": "ORACLE迁移TDSQL改造适配方案 V1.5.1 - 分片键六条军规",
+          "fix_suggestion": "shardkey字段加NOT NULL；同时提醒：分片键值不能更新（已有R021约束DML侧）",
+          "instance_scope": "distributed"
+        },
+        {
+          "rule_id": "R119",
+          "category": "oracle_compat",
+          "severity": "WARNING",
+          "description": "日期值直接±数字（如sysdate()-15）在TDSQL中语义与Oracle不同，请改用DATE_ADD/DATE_SUB(… INTERVAL n DAY)",
+          "enabled": true,
+          "spec_source": "ORACLE迁移TDSQL改造适配方案 V1.5.1 - 日期算术",
+          "fix_suggestion": "date_format(sysdate()-15,'%Y%m%d')→date_format(date_add(sysdate(), interval -15 day),'%Y%m%d')",
+          "instance_scope": "all"
+        }
+      ]
+    }
+  },
+  {
+    "endpoint": "/api/v1/tdsql/connections/options",
+    "status": 200,
+    "body": {
+      "connections": [
+        {
+          "id": "uat_o_local",
+          "name": "UAT-O 本地集中式样本",
+          "host": "127.0.0.1",
+          "port": 13306,
+          "database": "tdsql_uat_o_target_1622",
+          "effective_instance_type": "centralized",
+          "is_default": true,
+          "active": true
+        },
+        {
+          "id": "uat_o_offline",
+          "name": "UAT-O 离线失败样本",
+          "host": "127.0.0.1",
+          "port": 1,
+          "database": "uat_o_offline",
+          "effective_instance_type": "distributed",
+          "is_default": false,
+          "active": false
+        }
+      ],
+      "default": "uat_o_local"
+    }
+  },
+  {
+    "id": "corpus:01_naming_ddl.sql:R001_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R001",
+      "R077"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:01_naming_ddl.sql:R001_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R001"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:01_naming_ddl.sql:R002_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R002",
+      "R077"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:01_naming_ddl.sql:R002_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R002"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:01_naming_ddl.sql:DDL_MULTI_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R003",
+      "R004",
+      "R005",
+      "R028",
+      "R029",
+      "R036",
+      "R037",
+      "R077"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:01_naming_ddl.sql:DDL_MULTI_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R003",
+      "R004",
+      "R005",
+      "R028",
+      "R029",
+      "R036",
+      "R037"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:01_naming_ddl.sql:R004_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R004",
+      "R077"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:01_naming_ddl.sql:R004_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R004"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:01_naming_ddl.sql:R005_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R005",
+      "R077"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:01_naming_ddl.sql:R005_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R005"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:01_naming_ddl.sql:R006_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R006",
+      "R077"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:01_naming_ddl.sql:R006_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R006"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:01_naming_ddl.sql:R007_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R007",
+      "R033",
+      "R077"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:01_naming_ddl.sql:R007_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R007",
+      "R033"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:01_naming_ddl.sql:R008_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R008",
+      "R077"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:01_naming_ddl.sql:R008_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R008"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:01_naming_ddl.sql:R009_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R009",
+      "R077"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:01_naming_ddl.sql:R009_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R009"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:01_naming_ddl.sql:R010_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R010",
+      "R077"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:01_naming_ddl.sql:R010_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R010"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:01_naming_ddl.sql:R011_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R011",
+      "R077"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:01_naming_ddl.sql:R011_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R011"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:01_naming_ddl.sql:R023_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R003",
+      "R004",
+      "R005",
+      "R023",
+      "R028"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:01_naming_ddl.sql:R024_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R003",
+      "R024",
+      "R032",
+      "R036",
+      "R037"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:01_naming_ddl.sql:R026_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R026",
+      "R073"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:01_naming_ddl.sql:R027_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R027",
+      "R073"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:01_naming_ddl.sql:R027_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R027",
+      "R073"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:01_naming_ddl.sql:R033_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R033",
+      "R077"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:01_naming_ddl.sql:R033_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R033"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:01_naming_ddl.sql:R034_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R034",
+      "R077"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:01_naming_ddl.sql:R034_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R034"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:01_naming_ddl.sql:R030_R031_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": false,
+    "fired": [
+      "R001",
+      "R003",
+      "R004",
+      "R005",
+      "R028",
+      "R030",
+      "R031",
+      "R077"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:01_naming_ddl.sql:R030_R031_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": false,
+    "fired": [
+      "R001",
+      "R003",
+      "R004",
+      "R005",
+      "R028",
+      "R030",
+      "R031"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:01_naming_ddl.sql:R030_02:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R030"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:01_naming_ddl.sql:R030_02:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R030"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:01_naming_ddl.sql:R078_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R077",
+      "R078"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:01_naming_ddl.sql:R078_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R078"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:01_naming_ddl.sql:R097_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R077",
+      "R097"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:01_naming_ddl.sql:R098_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R077",
+      "R098"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:01_naming_ddl.sql:R115_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R036",
+      "R037",
+      "R077",
+      "R115"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:01_naming_ddl.sql:R115_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R036",
+      "R037"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:01_naming_ddl.sql:R116_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R116"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:01_naming_ddl.sql:R117_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R117"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:01_naming_ddl.sql:R118_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R054",
+      "R077",
+      "R118"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R012_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R012"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R012_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R012"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R013_R014_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R013",
+      "R014",
+      "R070"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R013_R014_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R013",
+      "R014",
+      "R070"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R015_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R015",
+      "R020"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R015_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R015"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R016_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R016"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R016_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R016"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R017_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R017"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R017_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R017"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R020_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R020",
+      "R053",
+      "R068"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R020_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R068"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R021_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R021"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R022_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R022"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R039_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "E999_SYNTAX_ERROR",
+      "R039",
+      "R051"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R040_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "E999_SYNTAX_ERROR",
+      "R040"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R040_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "E999_SYNTAX_ERROR",
+      "R040"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R041_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R041"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R041_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R041"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R042_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R042"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R042_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R042"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R043_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R013",
+      "R014",
+      "R043",
+      "R053",
+      "R068",
+      "R070"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R043_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R013",
+      "R014",
+      "R068",
+      "R070"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R044_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R044"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R044_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R044"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R045_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "E999_SYNTAX_ERROR",
+      "R045"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R045_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "E999_SYNTAX_ERROR",
+      "R045"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R046_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R046"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R046_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R046"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R047_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R013",
+      "R014",
+      "R047",
+      "R070"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R047_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R013",
+      "R014",
+      "R047",
+      "R070"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R050_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R050"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R050_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R050"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R051_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R051"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R051_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R051"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R052_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R052"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R052_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R052"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R053_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R020",
+      "R053",
+      "R068"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R053_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R068"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R058_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [],
+    "passed": true
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R058_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [],
+    "passed": true
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R059_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R069",
+      "R071"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R059_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R069",
+      "R071"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R069_R071_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R069",
+      "R071"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R069_R071_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R069",
+      "R071"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R072_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R072"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R072_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R072"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R074_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R051",
+      "R074"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R074_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R051",
+      "R074"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R075_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R075"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R075_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R075"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R076_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R076"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R076_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R076"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R084_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R084"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R084_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R084"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R092_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R051",
+      "R092"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R095_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "E999_SYNTAX_ERROR",
+      "R051",
+      "R095"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R096_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R051",
+      "R053",
+      "R068",
+      "R096"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R096_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R051",
+      "R068",
+      "R096"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R100_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R100"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R107_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R001",
+      "R107"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R109_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R109"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R109_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R109"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R114_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R114"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:02_dml_perf_sec_txn.sql:R114_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R114"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:03_index.sql:R018_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R018",
+      "R077"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:03_index.sql:R018_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R018"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:03_index.sql:R019_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R019",
+      "R077"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:03_index.sql:R019_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R019"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:03_index.sql:R061_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R061",
+      "R077"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:03_index.sql:R061_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R061"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:03_index.sql:R062_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R062",
+      "R077"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:03_index.sql:R062_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R062"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:03_index.sql:R063_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R063",
+      "R077"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:03_index.sql:R063_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R063"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:03_index.sql:R065_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R033",
+      "R065",
+      "R077"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:03_index.sql:R065_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R033",
+      "R065"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:03_index.sql:R066_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R011",
+      "R066",
+      "R077"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:03_index.sql:R066_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R011",
+      "R066"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:03_index.sql:R067_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R067",
+      "R077"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:03_index.sql:R067_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R067"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:04_distributed_ddl.sql:R077_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R077"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:04_distributed_ddl.sql:R054_R077_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R054",
+      "R077"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:04_distributed_ddl.sql:DIST_CLEAN_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [],
+    "passed": true
+  },
+  {
+    "id": "corpus:05_oracle_compat.sql:R079_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R079"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:05_oracle_compat.sql:R079_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R079"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:05_oracle_compat.sql:R080_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R080"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:05_oracle_compat.sql:R080_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R080"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:05_oracle_compat.sql:R081_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R081"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:05_oracle_compat.sql:R081_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R081"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:05_oracle_compat.sql:R082_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R082"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:05_oracle_compat.sql:R082_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R082"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:05_oracle_compat.sql:R083_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R016",
+      "R083"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:05_oracle_compat.sql:R083_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R016",
+      "R083"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:05_oracle_compat.sql:R085_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R016",
+      "R085"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:05_oracle_compat.sql:R085_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R016",
+      "R085"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:05_oracle_compat.sql:R086_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R086"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:05_oracle_compat.sql:R086_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R086"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:05_oracle_compat.sql:R087_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R087"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:05_oracle_compat.sql:R087_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R087"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:05_oracle_compat.sql:R088_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R088"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:05_oracle_compat.sql:R088_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R088"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:05_oracle_compat.sql:R089_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R089"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:05_oracle_compat.sql:R089_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R089"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:05_oracle_compat.sql:R090_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R090"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:05_oracle_compat.sql:R090_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R090"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:05_oracle_compat.sql:R091_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R013",
+      "R014",
+      "R070",
+      "R091"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:05_oracle_compat.sql:R091_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R013",
+      "R014",
+      "R070",
+      "R091"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:05_oracle_compat.sql:R093_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R016",
+      "R093"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:05_oracle_compat.sql:R093_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R016",
+      "R093"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:05_oracle_compat.sql:R094_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R094"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:05_oracle_compat.sql:R094_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R094"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:05_oracle_compat.sql:R099_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R099"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:05_oracle_compat.sql:R099_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R099"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:05_oracle_compat.sql:R101_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R101"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:05_oracle_compat.sql:R101_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R101"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:05_oracle_compat.sql:R102_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "E999_SYNTAX_ERROR",
+      "R051",
+      "R102"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:05_oracle_compat.sql:R102_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "E999_SYNTAX_ERROR",
+      "R051",
+      "R102"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:05_oracle_compat.sql:R103_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "E999_SYNTAX_ERROR",
+      "R051",
+      "R103"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:05_oracle_compat.sql:R103_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "E999_SYNTAX_ERROR",
+      "R051",
+      "R103"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:05_oracle_compat.sql:R104_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R104"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:05_oracle_compat.sql:R104_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R104"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:05_oracle_compat.sql:R105_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R016",
+      "R020",
+      "R053",
+      "R105"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:05_oracle_compat.sql:R105_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R016",
+      "R105"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:05_oracle_compat.sql:R106_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R051",
+      "R106"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:05_oracle_compat.sql:R106_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R051",
+      "R106"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:05_oracle_compat.sql:R108_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R108"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:05_oracle_compat.sql:R108_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R108"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:05_oracle_compat.sql:R110_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R110"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:05_oracle_compat.sql:R110_01:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R110"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:05_oracle_compat.sql:R111_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R111"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:05_oracle_compat.sql:R112_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "E999_SYNTAX_ERROR",
+      "R051",
+      "R112"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:05_oracle_compat.sql:R113_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "E999_SYNTAX_ERROR",
+      "R113"
+    ],
+    "passed": false
+  },
+  {
+    "id": "corpus:05_oracle_compat.sql:R119_01:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R016",
+      "R119"
+    ],
+    "passed": false
+  },
+  {
+    "id": "fixture:report_01_big_audit_trail.sql:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R011",
+      "R028",
+      "R029",
+      "R036",
+      "R037",
+      "R104"
+    ],
+    "passed": false
+  },
+  {
+    "id": "fixture:report_01_big_audit_trail.sql:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R011",
+      "R028",
+      "R029",
+      "R036",
+      "R037",
+      "R104"
+    ],
+    "passed": false
+  },
+  {
+    "id": "fixture:report_03_cus_bas_corp_contact.sql:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R028",
+      "R029",
+      "R036",
+      "R037",
+      "R061",
+      "R104"
+    ],
+    "passed": false
+  },
+  {
+    "id": "fixture:report_03_cus_bas_corp_contact.sql:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R028",
+      "R029",
+      "R036",
+      "R037",
+      "R061",
+      "R104"
+    ],
+    "passed": false
+  },
+  {
+    "id": "fixture:report_04_single_table.sql:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R001",
+      "R029",
+      "R077",
+      "R104"
+    ],
+    "passed": false
+  },
+  {
+    "id": "fixture:report_04_single_table.sql:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R001",
+      "R029",
+      "R104"
+    ],
+    "passed": false
+  },
+  {
+    "id": "fixture:report_05_cus_name_list_type.sql:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R029",
+      "R104"
+    ],
+    "passed": false
+  },
+  {
+    "id": "fixture:report_05_cus_name_list_type.sql:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R029",
+      "R104"
+    ],
+    "passed": false
+  },
+  {
+    "id": "fixture:report_08_t_branch.sql:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R029",
+      "R104"
+    ],
+    "passed": false
+  },
+  {
+    "id": "fixture:report_08_t_branch.sql:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R029",
+      "R104"
+    ],
+    "passed": false
+  },
+  {
+    "id": "fixture:report_11_t_dict.sql:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R029",
+      "R104"
+    ],
+    "passed": false
+  },
+  {
+    "id": "fixture:report_11_t_dict.sql:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R029",
+      "R104"
+    ],
+    "passed": false
+  },
+  {
+    "id": "fixture:report_13_t_product.sql:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R029",
+      "R104"
+    ],
+    "passed": false
+  },
+  {
+    "id": "fixture:report_13_t_product.sql:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R029",
+      "R104"
+    ],
+    "passed": false
+  },
+  {
+    "id": "fixture:report_6297_05_cus_name_list_type_full.sql:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R029",
+      "R036",
+      "R037",
+      "R061",
+      "R063",
+      "R067",
+      "R104"
+    ],
+    "passed": false
+  },
+  {
+    "id": "fixture:report_6297_05_cus_name_list_type_full.sql:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R029",
+      "R036",
+      "R037",
+      "R061",
+      "R063",
+      "R067",
+      "R104"
+    ],
+    "passed": false
+  },
+  {
+    "id": "fixture:report_6309_kcfb_list_info.sql:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R011",
+      "R018",
+      "R019",
+      "R036",
+      "R037",
+      "R061",
+      "R065",
+      "R067",
+      "R104"
+    ],
+    "passed": false
+  },
+  {
+    "id": "fixture:report_6309_kcfb_list_info.sql:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R011",
+      "R018",
+      "R019",
+      "R036",
+      "R037",
+      "R061",
+      "R065",
+      "R067",
+      "R104"
+    ],
+    "passed": false
+  },
+  {
+    "id": "fixture:report_6311_biz_tx_log.sql:distributed",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R036",
+      "R037",
+      "R077"
+    ],
+    "passed": false
+  },
+  {
+    "id": "fixture:report_6311_biz_tx_log.sql:centralized",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R036",
+      "R037"
+    ],
+    "passed": false
+  },
+  {
+    "id": "kfn_comment:0:block",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [],
+    "passed": true
+  },
+  {
+    "id": "kfn_comment:1:line",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [],
+    "passed": true
+  },
+  {
+    "id": "kfn_comment:2:quoted_block",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [],
+    "passed": true
+  },
+  {
+    "id": "kfn_comment:3:block",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [],
+    "passed": true
+  },
+  {
+    "id": "kfn_comment:4:line",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [],
+    "passed": true
+  },
+  {
+    "id": "kfn_comment:5:quoted_block",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [],
+    "passed": true
+  },
+  {
+    "id": "kfn_comment:6:block",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [],
+    "passed": true
+  },
+  {
+    "id": "kfn_comment:7:line",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [],
+    "passed": true
+  },
+  {
+    "id": "kfn_comment:8:quoted_block",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [],
+    "passed": true
+  },
+  {
+    "id": "kfn_comment:9:block",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [],
+    "passed": true
+  },
+  {
+    "id": "kfn_comment:10:line",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [],
+    "passed": true
+  },
+  {
+    "id": "kfn_comment:11:quoted_block",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [],
+    "passed": true
+  },
+  {
+    "id": "kfn_comment:12:block",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [],
+    "passed": true
+  },
+  {
+    "id": "kfn_comment:13:line",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [],
+    "passed": true
+  },
+  {
+    "id": "kfn_comment:14:quoted_block",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [],
+    "passed": true
+  },
+  {
+    "id": "kfn_comment:15:block",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [],
+    "passed": true
+  },
+  {
+    "id": "kfn_comment:16:line",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [],
+    "passed": true
+  },
+  {
+    "id": "kfn_comment:17:quoted_block",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [],
+    "passed": true
+  },
+  {
+    "id": "kfn_comment:18:block",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R029"
+    ],
+    "passed": false
+  },
+  {
+    "id": "kfn_comment:19:line",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R029"
+    ],
+    "passed": false
+  },
+  {
+    "id": "kfn_comment:20:quoted_block",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R029"
+    ],
+    "passed": false
+  },
+  {
+    "id": "kfn_comment:21:block",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R029"
+    ],
+    "passed": false
+  },
+  {
+    "id": "kfn_comment:22:line",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R029"
+    ],
+    "passed": false
+  },
+  {
+    "id": "kfn_comment:23:quoted_block",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R029"
+    ],
+    "passed": false
+  },
+  {
+    "id": "kfn_comment:24:block",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R029"
+    ],
+    "passed": false
+  },
+  {
+    "id": "kfn_comment:25:line",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R029"
+    ],
+    "passed": false
+  },
+  {
+    "id": "kfn_comment:26:quoted_block",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R029"
+    ],
+    "passed": false
+  },
+  {
+    "id": "kfn_comment:27:block",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R029"
+    ],
+    "passed": false
+  },
+  {
+    "id": "kfn_comment:28:line",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R029"
+    ],
+    "passed": false
+  },
+  {
+    "id": "kfn_comment:29:quoted_block",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R029"
+    ],
+    "passed": false
+  },
+  {
+    "id": "kfn_comment:30:block",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R029"
+    ],
+    "passed": false
+  },
+  {
+    "id": "kfn_comment:31:line",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R029"
+    ],
+    "passed": false
+  },
+  {
+    "id": "kfn_comment:32:quoted_block",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R029"
+    ],
+    "passed": false
+  },
+  {
+    "id": "kfn_comment:33:block",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R029"
+    ],
+    "passed": false
+  },
+  {
+    "id": "kfn_comment:34:line",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R029"
+    ],
+    "passed": false
+  },
+  {
+    "id": "kfn_comment:35:quoted_block",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R029"
+    ],
+    "passed": false
+  },
+  {
+    "id": "kfn_comment:36:block",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R003",
+      "R004",
+      "R005",
+      "R028"
+    ],
+    "passed": false
+  },
+  {
+    "id": "kfn_comment:37:line",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R003",
+      "R004",
+      "R005",
+      "R028"
+    ],
+    "passed": false
+  },
+  {
+    "id": "kfn_comment:38:quoted_block",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R003",
+      "R004",
+      "R005",
+      "R028"
+    ],
+    "passed": false
+  },
+  {
+    "id": "kfn_comment:39:block",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R003",
+      "R004",
+      "R005",
+      "R028"
+    ],
+    "passed": false
+  },
+  {
+    "id": "kfn_comment:40:line",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R003",
+      "R004",
+      "R005",
+      "R028"
+    ],
+    "passed": false
+  },
+  {
+    "id": "kfn_comment:41:quoted_block",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R003",
+      "R004",
+      "R005",
+      "R028"
+    ],
+    "passed": false
+  },
+  {
+    "id": "kfn_comment:42:block",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R003",
+      "R004",
+      "R005",
+      "R028"
+    ],
+    "passed": false
+  },
+  {
+    "id": "kfn_comment:43:line",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R003",
+      "R004",
+      "R005",
+      "R028"
+    ],
+    "passed": false
+  },
+  {
+    "id": "kfn_comment:44:quoted_block",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R003",
+      "R004",
+      "R005",
+      "R028"
+    ],
+    "passed": false
+  },
+  {
+    "id": "kfn_comment:45:block",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R003",
+      "R004",
+      "R005",
+      "R028"
+    ],
+    "passed": false
+  },
+  {
+    "id": "kfn_comment:46:line",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R003",
+      "R004",
+      "R005",
+      "R028"
+    ],
+    "passed": false
+  },
+  {
+    "id": "kfn_comment:47:quoted_block",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R003",
+      "R004",
+      "R005",
+      "R028"
+    ],
+    "passed": false
+  },
+  {
+    "id": "kfn_comment:48:block",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R003",
+      "R004",
+      "R005",
+      "R028"
+    ],
+    "passed": false
+  },
+  {
+    "id": "kfn_comment:49:line",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R003",
+      "R004",
+      "R005",
+      "R028"
+    ],
+    "passed": false
+  },
+  {
+    "id": "kfn_comment:50:quoted_block",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R003",
+      "R004",
+      "R005",
+      "R028"
+    ],
+    "passed": false
+  },
+  {
+    "id": "kfn_comment:51:block",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R003",
+      "R004",
+      "R005",
+      "R028"
+    ],
+    "passed": false
+  },
+  {
+    "id": "kfn_comment:52:line",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R003",
+      "R004",
+      "R005",
+      "R028"
+    ],
+    "passed": false
+  },
+  {
+    "id": "kfn_comment:53:quoted_block",
+    "endpoint": "/api/v1/audit/sql",
+    "status": 200,
+    "engine_equals_http": true,
+    "fired": [
+      "R003",
+      "R004",
+      "R005",
+      "R028"
+    ],
+    "passed": false
+  },
+  {
+    "id": "kfn-guard-file",
+    "status": 200,
+    "body": {
+      "results": [
+        {
+          "sql": "CREATE TABLE t_guard (id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'created',update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'updated',is_deleted TINYINT NOT NULL DEFAULT 0 COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='plain' shardkey=sk /* CREATE VIEW */",
+          "sql_type": "CREATE TABLE",
+          "passed": true,
+          "violations": [],
+          "file_path": "uat_guard.sql",
+          "line_number": 1
+        }
+      ],
+      "summary": {
+        "total_sql": 1,
+        "passed": 1,
+        "failed": 0,
+        "error_count": 0,
+        "warning_count": 0,
+        "pass_rate": 100.0
+      },
+      "gate_result": null,
+      "rule_set_id": "default",
+      "rule_set_name": "默认规则集",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "id": "kfn-guard-upload",
+    "status": 200,
+    "body": {
+      "results": [
+        {
+          "sql": "CREATE TABLE t_guard (id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'created',update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'updated',is_deleted TINYINT NOT NULL DEFAULT 0 COMMENT 'deleted',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='plain' shardkey=sk /* CREATE VIEW */",
+          "sql_type": "CREATE TABLE",
+          "passed": true,
+          "violations": [],
+          "file_path": "uat_guard.sql",
+          "line_number": 1
+        }
+      ],
+      "summary": {
+        "total_sql": 1,
+        "passed": 1,
+        "failed": 0,
+        "error_count": 0,
+        "warning_count": 0,
+        "pass_rate": 100.0
+      },
+      "gate_result": null,
+      "rule_set_id": "",
+      "rule_set_name": "",
+      "deprecated_params": null,
+      "instance_type": "distributed",
+      "instance_type_source": "request",
+      "instance_type_conflict": false,
+      "skipped_rules_count": 0,
+      "scope_notice": ""
+    }
+  },
+  {
+    "role_user": "uat_o_developer",
+    "method": "GET",
+    "endpoint": "/api/v1/auth/me",
+    "status": 200,
+    "body": {
+      "username": "uat_o_developer",
+      "display_name": "UAT-O developer",
+      "role": "developer",
+      "role_label": "开发人员",
+      "must_change_password": false,
+      "last_login_at": "2026-08-28 10:26:14"
+    }
+  },
+  {
+    "role_user": "uat_o_developer",
+    "method": "GET",
+    "endpoint": "/api/v1/tdsql/connections/options",
+    "status": 200,
+    "body": {
+      "connections": [
+        {
+          "id": "uat_o_local",
+          "name": "UAT-O 本地集中式样本",
+          "host": "127.0.0.1",
+          "port": 13306,
+          "database": "tdsql_uat_o_target_1622",
+          "effective_instance_type": "centralized",
+          "is_default": true,
+          "active": true
+        },
+        {
+          "id": "uat_o_offline",
+          "name": "UAT-O 离线失败样本",
+          "host": "127.0.0.1",
+          "port": 1,
+          "database": "uat_o_offline",
+          "effective_instance_type": "distributed",
+          "is_default": false,
+          "active": false
+        }
+      ],
+      "default": "uat_o_local"
+    }
+  },
+  {
+    "role_user": "uat_o_developer",
+    "method": "GET",
+    "endpoint": "/api/v1/tdsql/connections",
+    "status": 403,
+    "body": {
+      "code": 403,
+      "message": "当前角色(developer)无权执行该操作"
+    }
+  },
+  {
+    "role_user": "uat_o_developer",
+    "method": "POST",
+    "endpoint": "/api/v1/tdsql/connections",
+    "status": 403,
+    "body": {
+      "code": 403,
+      "message": "当前角色(developer)无权执行该操作"
+    }
+  },
+  {
+    "role_user": "uat_o_auditor",
+    "method": "GET",
+    "endpoint": "/api/v1/auth/me",
+    "status": 200,
+    "body": {
+      "username": "uat_o_auditor",
+      "display_name": "UAT-O auditor",
+      "role": "auditor",
+      "role_label": "审计员",
+      "must_change_password": false,
+      "last_login_at": "2026-08-28 10:26:15"
+    }
+  },
+  {
+    "role_user": "uat_o_auditor",
+    "method": "GET",
+    "endpoint": "/api/v1/tdsql/connections/options",
+    "status": 200,
+    "body": {
+      "connections": [
+        {
+          "id": "uat_o_local",
+          "name": "UAT-O 本地集中式样本",
+          "host": "127.0.0.1",
+          "port": 13306,
+          "database": "tdsql_uat_o_target_1622",
+          "effective_instance_type": "centralized",
+          "is_default": true,
+          "active": true
+        },
+        {
+          "id": "uat_o_offline",
+          "name": "UAT-O 离线失败样本",
+          "host": "127.0.0.1",
+          "port": 1,
+          "database": "uat_o_offline",
+          "effective_instance_type": "distributed",
+          "is_default": false,
+          "active": false
+        }
+      ],
+      "default": "uat_o_local"
+    }
+  },
+  {
+    "role_user": "uat_o_auditor",
+    "method": "GET",
+    "endpoint": "/api/v1/tdsql/connections",
+    "status": 200,
+    "body": {
+      "connections": [
+        {
+          "id": "uat_o_local",
+          "name": "UAT-O 本地集中式样本",
+          "host": "127.0.0.1",
+          "port": 13306,
+          "username": "root",
+          "database": "tdsql_uat_o_target_1622",
+          "charset": "utf8mb4",
+          "is_default": 1,
+          "is_distributed": 0,
+          "description": "Local MariaDB functional fixture; NOT a TDSQL compatibility certification",
+          "set_list": "",
+          "monitor_host": "",
+          "monitor_port": 15001,
+          "monitor_user": "",
+          "monitor_db": "tdsqlpcloud_monitor",
+          "zk_import_batch_id": null,
+          "status": "connected",
+          "last_connected_at": "2026-08-28 10:23:05",
+          "created_at": "2026-08-28T10:16:23",
+          "updated_at": "2026-08-28T10:23:05",
+          "detected_instance_type": null,
+          "instance_type_detected_at": null,
+          "instance_type_probe_error": "本次探测全部判据无结论，判定下沉至 ZK 管控面/人工声明",
+          "zk_instance_kind": null,
+          "zk_instance_id": "",
+          "zk_synced_at": null,
+          "instance_type_locked": false,
+          "instance_type_locked_value": "",
+          "password": "***",
+          "monitor_password": "",
+          "active": true,
+          "max_error_count": 0,
+          "max_warning_count": -1,
+          "gate_is_default": true,
+          "declared_instance_type": "centralized",
+          "zk_instance_type": null,
+          "effective_instance_type": "centralized",
+          "instance_type_source": "declared",
+          "instance_type_conflict": false,
+          "user": "root"
+        },
+        {
+          "id": "uat_o_offline",
+          "name": "UAT-O 离线失败样本",
+          "host": "127.0.0.1",
+          "port": 1,
+          "username": "synthetic",
+          "database": "uat_o_offline",
+          "charset": "utf8mb4",
+          "is_default": 0,
+          "is_distributed": 1,
+          "description": "Intentional unavailable endpoint for error-path UAT",
+          "set_list": "",
+          "monitor_host": "",
+          "monitor_port": 15001,
+          "monitor_user": "",
+          "monitor_db": "tdsqlpcloud_monitor",
+          "zk_import_batch_id": null,
+          "status": "disconnected",
+          "last_connected_at": null,
+          "created_at": "2026-08-28T10:16:23",
+          "updated_at": "2026-08-28T10:16:23",
+          "detected_instance_type": null,
+          "instance_type_detected_at": null,
+          "instance_type_probe_error": "",
+          "zk_instance_kind": null,
+          "zk_instance_id": "",
+          "zk_synced_at": null,
+          "instance_type_locked": false,
+          "instance_type_locked_value": "",
+          "password": "***",
+          "monitor_password": "",
+          "active": false,
+          "max_error_count": 0,
+          "max_warning_count": -1,
+          "gate_is_default": true,
+          "declared_instance_type": "distributed",
+          "zk_instance_type": null,
+          "effective_instance_type": "distributed",
+          "instance_type_source": "declared",
+          "instance_type_conflict": false,
+          "user": "synthetic"
+        }
+      ],
+      "default": "uat_o_local"
+    }
+  },
+  {
+    "role_user": "uat_o_auditor",
+    "method": "POST",
+    "endpoint": "/api/v1/tdsql/connections",
+    "status": 403,
+    "body": {
+      "code": 403,
+      "message": "当前角色(auditor)无权执行该操作"
+    }
+  },
+  {
+    "role_user": "uat_o_dba",
+    "method": "GET",
+    "endpoint": "/api/v1/auth/me",
+    "status": 200,
+    "body": {
+      "username": "uat_o_dba",
+      "display_name": "UAT-O dba",
+      "role": "dba",
+      "role_label": "数据库管理员",
+      "must_change_password": false,
+      "last_login_at": "2026-08-28 10:26:15"
+    }
+  },
+  {
+    "role_user": "uat_o_dba",
+    "method": "GET",
+    "endpoint": "/api/v1/tdsql/connections/options",
+    "status": 200,
+    "body": {
+      "connections": [
+        {
+          "id": "uat_o_local",
+          "name": "UAT-O 本地集中式样本",
+          "host": "127.0.0.1",
+          "port": 13306,
+          "database": "tdsql_uat_o_target_1622",
+          "effective_instance_type": "centralized",
+          "is_default": true,
+          "active": true
+        },
+        {
+          "id": "uat_o_offline",
+          "name": "UAT-O 离线失败样本",
+          "host": "127.0.0.1",
+          "port": 1,
+          "database": "uat_o_offline",
+          "effective_instance_type": "distributed",
+          "is_default": false,
+          "active": false
+        }
+      ],
+      "default": "uat_o_local"
+    }
+  },
+  {
+    "role_user": "uat_o_dba",
+    "method": "GET",
+    "endpoint": "/api/v1/tdsql/connections",
+    "status": 200,
+    "body": {
+      "connections": [
+        {
+          "id": "uat_o_local",
+          "name": "UAT-O 本地集中式样本",
+          "host": "127.0.0.1",
+          "port": 13306,
+          "username": "root",
+          "database": "tdsql_uat_o_target_1622",
+          "charset": "utf8mb4",
+          "is_default": 1,
+          "is_distributed": 0,
+          "description": "Local MariaDB functional fixture; NOT a TDSQL compatibility certification",
+          "set_list": "",
+          "monitor_host": "",
+          "monitor_port": 15001,
+          "monitor_user": "",
+          "monitor_db": "tdsqlpcloud_monitor",
+          "zk_import_batch_id": null,
+          "status": "connected",
+          "last_connected_at": "2026-08-28 10:23:05",
+          "created_at": "2026-08-28T10:16:23",
+          "updated_at": "2026-08-28T10:23:05",
+          "detected_instance_type": null,
+          "instance_type_detected_at": null,
+          "instance_type_probe_error": "本次探测全部判据无结论，判定下沉至 ZK 管控面/人工声明",
+          "zk_instance_kind": null,
+          "zk_instance_id": "",
+          "zk_synced_at": null,
+          "instance_type_locked": false,
+          "instance_type_locked_value": "",
+          "password": "***",
+          "monitor_password": "",
+          "active": true,
+          "max_error_count": 0,
+          "max_warning_count": -1,
+          "gate_is_default": true,
+          "declared_instance_type": "centralized",
+          "zk_instance_type": null,
+          "effective_instance_type": "centralized",
+          "instance_type_source": "declared",
+          "instance_type_conflict": false,
+          "user": "root"
+        },
+        {
+          "id": "uat_o_offline",
+          "name": "UAT-O 离线失败样本",
+          "host": "127.0.0.1",
+          "port": 1,
+          "username": "synthetic",
+          "database": "uat_o_offline",
+          "charset": "utf8mb4",
+          "is_default": 0,
+          "is_distributed": 1,
+          "description": "Intentional unavailable endpoint for error-path UAT",
+          "set_list": "",
+          "monitor_host": "",
+          "monitor_port": 15001,
+          "monitor_user": "",
+          "monitor_db": "tdsqlpcloud_monitor",
+          "zk_import_batch_id": null,
+          "status": "disconnected",
+          "last_connected_at": null,
+          "created_at": "2026-08-28T10:16:23",
+          "updated_at": "2026-08-28T10:16:23",
+          "detected_instance_type": null,
+          "instance_type_detected_at": null,
+          "instance_type_probe_error": "",
+          "zk_instance_kind": null,
+          "zk_instance_id": "",
+          "zk_synced_at": null,
+          "instance_type_locked": false,
+          "instance_type_locked_value": "",
+          "password": "***",
+          "monitor_password": "",
+          "active": false,
+          "max_error_count": 0,
+          "max_warning_count": -1,
+          "gate_is_default": true,
+          "declared_instance_type": "distributed",
+          "zk_instance_type": null,
+          "effective_instance_type": "distributed",
+          "instance_type_source": "declared",
+          "instance_type_conflict": false,
+          "user": "synthetic"
+        }
+      ],
+      "default": "uat_o_local"
+    }
+  }
+]

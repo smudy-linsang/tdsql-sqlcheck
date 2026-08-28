@@ -1,0 +1,161 @@
+- banner:
+  - img "logo"
+  - generic: TDSQL数据库SQL审核工具
+  - button "系 系统管理员 系统管理员":
+    - generic: 系
+    - generic: 系统管理员
+    - generic: 系统管理员
+- complementary:
+  - menubar:
+    - menuitem "治理概览":
+      - generic: 治理概览
+    - menuitem "SQL审核" [expanded]:
+      - generic: SQL审核
+      - menu:
+        - menuitem "即时审核"
+        - menuitem "文件审核"
+        - menuitem "在线元数据审核"
+    - menuitem "慢SQL治理":
+      - generic: 慢SQL治理
+    - menuitem "实例体检":
+      - generic: 实例体检
+    - menuitem "深度诊断":
+      - generic: 深度诊断
+    - menuitem "平台治理":
+      - generic: 平台治理
+    - menuitem "系统管理":
+      - generic: 系统管理
+- navigation "面包屑":
+  - link "SQL审核"
+  - text: /
+  - link "在线元数据审核"
+- tablist:
+  - tab "即时元数据提取与审核"
+  - tab "历史元数据审核记录"
+  - tab "扫描对比" [selected]
+  - tab "对比留档报告"
+- tabpanel "扫描对比":
+  - generic: 扫描历史（勾选两次进行对比）
+  - button "开始对比":
+    - generic: 开始对比
+  - button "刷新":
+    - generic: 刷新
+  - combobox
+  - generic: 数据库实例
+  - textbox "库名"
+  - combobox:
+    - textbox "开始日期"
+  - combobox:
+    - textbox "结束日期"
+  - button "查询":
+    - generic: 查询
+  - button "重置":
+    - generic: 重置
+  - table:
+    - rowgroup:
+      - row "扫描时间 实例 库名 对象数 问题数 执行人 来源 操作":
+        - columnheader:
+          - checkbox [checked]
+        - columnheader "扫描时间":
+          - generic: 扫描时间
+        - columnheader "实例":
+          - generic: 实例
+        - columnheader "库名":
+          - generic: 库名
+        - columnheader "对象数":
+          - generic: 对象数
+        - columnheader "问题数":
+          - generic: 问题数
+        - columnheader "执行人":
+          - generic: 执行人
+        - columnheader "来源":
+          - generic: 来源
+        - columnheader "操作":
+          - generic: 操作
+  - table:
+    - rowgroup:
+      - row "2026-08-28 10:23 UAT-O 本地集中式样本 tdsql_uat_o_target_1622 2 0 / 0 （共 4） admin 实时 查看结果 下载报告 删除":
+        - cell:
+          - checkbox [checked]
+        - cell "2026-08-28 10:23":
+          - generic: 2026-08-28 10:23
+        - cell "UAT-O 本地集中式样本":
+          - generic: UAT-O 本地集中式样本
+        - cell "tdsql_uat_o_target_1622":
+          - generic: tdsql_uat_o_target_1622
+        - cell "2":
+          - generic: "2"
+        - cell "0 / 0 （共 4）":
+          - generic: 0 / 0 （共 4）
+        - cell "admin":
+          - generic: admin
+        - cell "实时":
+          - generic: 实时
+        - cell "查看结果 下载报告 删除":
+          - button "查看结果":
+            - generic: 查看结果
+          - button "下载报告":
+            - generic: 下载报告
+          - button "删除":
+            - generic: 删除
+      - row "2026-08-28 10:23 UAT-O 本地集中式样本 tdsql_uat_o_target_1622 2 0 / 0 （共 4） admin 实时 查看结果 下载报告 删除":
+        - cell:
+          - checkbox [checked]
+        - cell "2026-08-28 10:23":
+          - generic: 2026-08-28 10:23
+        - cell "UAT-O 本地集中式样本":
+          - generic: UAT-O 本地集中式样本
+        - cell "tdsql_uat_o_target_1622":
+          - generic: tdsql_uat_o_target_1622
+        - cell "2":
+          - generic: "2"
+        - cell "0 / 0 （共 4）":
+          - generic: 0 / 0 （共 4）
+        - cell "admin":
+          - generic: admin
+        - cell "实时":
+          - generic: 实时
+        - cell "查看结果 下载报告 删除":
+          - button "查看结果":
+            - generic: 查看结果
+          - button "下载报告":
+            - generic: 下载报告
+          - button "删除":
+            - generic: 删除
+  - generic: 对比结果：2026-08-28 10:23 → 2026-08-28 10:23
+  - button "导出对比报告":
+    - generic: 导出对比报告
+  - button "保存留档":
+    - generic: 保存留档
+  - generic: "4"
+  - generic: 之前问题数
+  - generic: "4"
+  - generic: 现在问题数
+  - generic: "0"
+  - generic: 已修复
+  - generic: "0"
+  - generic: 新增问题
+  - generic: "4"
+  - generic: 遗留未整改
+  - generic: 0%
+  - generic: 整改率
+  - tablist:
+    - tab "已修复(0)" [selected]
+    - tab "新增问题(0)"
+    - tab "遗留未整改(4)"
+    - tab "变化(0)"
+  - tabpanel "已修复(0)":
+    - table:
+      - rowgroup:
+        - row "对象 问题类型 级别 描述":
+          - columnheader "对象":
+            - generic: 对象
+          - columnheader "问题类型":
+            - generic: 问题类型
+          - columnheader "级别":
+            - generic: 级别
+          - columnheader "描述":
+            - generic: 描述
+    - table:
+      - rowgroup
+    - generic: 无

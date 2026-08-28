@@ -1,0 +1,10 @@
+{
+  "afterViewingReport": {
+    "bodyPadding": "20px",
+    "reportStyles": 1
+  },
+  "freshPage": {
+    "bodyPadding": "0px",
+    "reportStyles": 0
+  }
+}

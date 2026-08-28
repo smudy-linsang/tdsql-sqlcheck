@@ -1,0 +1,62 @@
+[
+  {
+    "source_name": "TDSQL审核报告_gg77_2026-08-25.html",
+    "source_sha256": "882f86ece9bf84c57988c815a2b5ae2dd16277b666bb47d48790a8454a3039ca",
+    "scope": "distributed",
+    "sql_sha256": "de8cca27b4825cbca2a8de21f5b5e61e7c47846a5d040214824c7ed32b541df6",
+    "fixture": "report_6309_kcfb_list_info.sql",
+    "exact_equal_ignoring_line_endings": true,
+    "source_replacement_char_count": 0,
+    "fixture_replacement_char_count": 0,
+    "fired": [
+      "R011",
+      "R018",
+      "R019",
+      "R036",
+      "R037",
+      "R054",
+      "R061",
+      "R065",
+      "R067",
+      "R104"
+    ],
+    "fixture_fired": [
+      "R011",
+      "R018",
+      "R019",
+      "R036",
+      "R037",
+      "R054",
+      "R061",
+      "R065",
+      "R067",
+      "R104"
+    ],
+    "parse_error": null
+  },
+  {
+    "source_name": "TDSQL审核报告_gg78_2026-08-25 (1).html",
+    "source_sha256": "0865b3970807fafc3a0db83229ae38db3b9199b5e36745f31f55bb046249b9ed",
+    "scope": "centralized",
+    "sql_sha256": "130c7d4eb3c260abdb9d1d0de55b7142e64648822d3626f8b88f82ce9b3b762d",
+    "fixture": "report_6311_biz_tx_log.sql",
+    "exact_equal_ignoring_line_endings": true,
+    "source_replacement_char_count": 0,
+    "fixture_replacement_char_count": 0,
+    "fired": [
+      "E999_SYNTAX_ERROR",
+      "R003",
+      "R004",
+      "R005",
+      "R028"
+    ],
+    "fixture_fired": [
+      "E999_SYNTAX_ERROR",
+      "R003",
+      "R004",
+      "R005",
+      "R028"
+    ],
+    "parse_error": "Expecting ). Line 78, Col: 86.\n  e`,`tx_serial_no`),\r\n  UNIQUE KEY `uk_biztxlog` (`tran_day`,`tran_date`,`term_id`,`term_serial_no`) \u001b[4mCOMMENT\u001b[0m '唯一索引：交易日期+终端编号+终端流水号',\r\n  KEY `idx_term_bizlog` (`tran_day`,`term_id`,`term_date`,`term_serial_no`"
+  }
+]

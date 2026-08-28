@@ -1,0 +1,53 @@
+- banner:
+  - img "logo"
+  - generic: TDSQL数据库SQL审核工具
+  - button "系 系统管理员 系统管理员":
+    - generic: 系
+    - generic: 系统管理员
+    - generic: 系统管理员
+- complementary:
+  - menubar:
+    - menuitem "治理概览":
+      - generic: 治理概览
+    - menuitem "SQL审核" [expanded]:
+      - generic: SQL审核
+      - menu:
+        - menuitem "即时审核"
+        - menuitem "文件审核"
+        - menuitem "在线元数据审核"
+    - menuitem "慢SQL治理":
+      - generic: 慢SQL治理
+    - menuitem "实例体检":
+      - generic: 实例体检
+    - menuitem "深度诊断":
+      - generic: 深度诊断
+    - menuitem "平台治理":
+      - generic: 平台治理
+    - menuitem "系统管理":
+      - generic: 系统管理
+- navigation "面包屑":
+  - link "SQL审核"
+  - text: /
+  - link "即时审核"
+- generic: 即时SQL审核
+- text: 规则适用架构：
+- radiogroup "radio-group":
+  - radio "分布式规则" [checked]
+  - generic: 分布式规则
+  - radio "集中式规则"
+  - generic: 集中式规则
+- textbox "粘贴SQL语句，Ctrl+Enter 快速审核": "CREATE TABLE `cus_name_list_type` ( `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键', `type_name` varchar(128) NOT NULL COMMENT '名单类型名称', `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP, `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, `is_deleted` tinyint NOT NULL DEFAULT 0, PRIMARY KEY (`id`) ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='名单类型表' shardkey=noshardkey_allset"
+- button "开始审核":
+  - generic: 开始审核
+- button "示例":
+  - generic: 示例
+- alert:
+  - generic: 发现 1 项违规
+  - paragraph:
+    - text: "SQL类型: CREATE TABLE"
+    - text: "适用架构:"
+    - generic: 分布式
+- text: "[R029]"
+- generic: WARNING
+- text: 字段 'create_time', 'update_time', 'is_deleted' 缺少COMMENT注释
+- generic: "💡 请为每个字段添加COMMENT，如: col_name INT COMMENT '字段说明'"

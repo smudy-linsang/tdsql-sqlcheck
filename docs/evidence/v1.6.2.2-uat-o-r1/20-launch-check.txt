@@ -1,0 +1,111 @@
+- banner:
+  - img "logo"
+  - generic: TDSQL数据库SQL审核工具
+  - button "系 系统管理员 系统管理员":
+    - generic: 系
+    - generic: 系统管理员
+    - generic: 系统管理员
+- complementary:
+  - menubar:
+    - menuitem "治理概览":
+      - generic: 治理概览
+    - menuitem "SQL审核" [expanded]:
+      - generic: SQL审核
+      - menu:
+        - menuitem "即时审核"
+        - menuitem "文件审核"
+        - menuitem "在线元数据审核"
+    - menuitem "慢SQL治理" [expanded]:
+      - generic: 慢SQL治理
+      - menu:
+        - menuitem "扫描任务"
+        - menuitem "慢SQL记录"
+        - menuitem "EXPLAIN分析"
+    - menuitem "实例体检" [expanded]:
+      - generic: 实例体检
+      - menu:
+        - menuitem "上线检查"
+        - menuitem "大表治理"
+    - menuitem "深度诊断":
+      - generic: 深度诊断
+    - menuitem "平台治理":
+      - generic: 平台治理
+    - menuitem "系统管理":
+      - generic: 系统管理
+- navigation "面包屑":
+  - link "实例体检"
+  - text: /
+  - link "上线检查"
+- text: "*"
+- tablist:
+  - tab "上线检查" [selected]
+  - tab "扫描历史对比"
+  - tab "已留档对比报告"
+- tabpanel "上线检查":
+  - generic: 数据库上线检查
+  - combobox
+  - generic: UAT-O 本地集中式样本 (127.0.0.1:13306)
+  - button "执行上线检查":
+    - generic: 执行上线检查
+  - generic: 根据 12 项上线规范检查规则，针对已连接数据库进行建表合规性及设计隐患扫描。
+  - generic: "6612"
+  - generic: 问题总数
+  - generic: "4"
+  - generic: ERROR
+  - generic: "2553"
+  - generic: WARNING
+  - generic: "4055"
+  - generic: INFO
+  - generic: "2"
+  - generic: 通过项
+  - button "导出报告":
+    - text: 导出报告
+  - generic: HTML格式
+  - button "ERROR C01 字符编码非utf8mb4的表 1":
+    - generic: ERROR
+    - generic: C01 字符编码非utf8mb4的表
+    - generic: "1"
+  - button "ERROR C02 字符编码非utf8mb4的列 1":
+    - generic: ERROR
+    - generic: C02 字符编码非utf8mb4的列
+    - generic: "1"
+  - button "WARNING C03 大小写敏感未设置的表 313":
+    - generic: WARNING
+    - generic: C03 大小写敏感未设置的表
+    - generic: "313"
+  - button "WARNING C04 大小写敏感未设置的列 2095":
+    - generic: WARNING
+    - generic: C04 大小写敏感未设置的列
+    - generic: "2095"
+  - button "WARNING C05 表名超过32个字符 通过":
+    - generic: WARNING
+    - generic: C05 表名超过32个字符
+    - generic: 通过
+  - button "WARNING C06 索引数量>=5的表 47":
+    - generic: WARNING
+    - generic: C06 索引数量>=5的表
+    - generic: "47"
+  - button "ERROR C07 无主键的表 2":
+    - generic: ERROR
+    - generic: C07 无主键的表
+    - generic: "2"
+  - button "WARNING C08 varchar字段长度>500 96":
+    - generic: WARNING
+    - generic: C08 varchar字段长度>500
+    - generic: "96"
+  - button "INFO C09 无注释的列 3762":
+    - generic: INFO
+    - generic: C09 无注释的列
+    - generic: "3762"
+  - button "INFO C10 无注释的表 293":
+    - generic: INFO
+    - generic: C10 无注释的表
+    - generic: "293"
+  - button "WARNING C11 字段数>50的表 通过":
+    - generic: WARNING
+    - generic: C11 字段数>50的表
+    - generic: 通过
+  - button "WARNING C12 timestamp类型字段 2":
+    - generic: WARNING
+    - generic: C12 timestamp类型字段
+    - generic: "2"

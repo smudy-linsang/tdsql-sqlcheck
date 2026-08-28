@@ -1,0 +1,145 @@
+- banner:
+  - img "logo"
+  - generic: TDSQL数据库SQL审核工具
+  - button "系 系统管理员 系统管理员":
+    - generic: 系
+    - generic: 系统管理员
+    - generic: 系统管理员
+- complementary:
+  - menubar:
+    - menuitem "治理概览":
+      - generic: 治理概览
+    - menuitem "SQL审核" [expanded]:
+      - generic: SQL审核
+      - menu:
+        - menuitem "即时审核"
+        - menuitem "文件审核"
+        - menuitem "在线元数据审核"
+    - menuitem "慢SQL治理" [expanded]:
+      - generic: 慢SQL治理
+      - menu:
+        - menuitem "扫描任务"
+        - menuitem "慢SQL记录"
+        - menuitem "EXPLAIN分析"
+    - menuitem "实例体检" [expanded]:
+      - generic: 实例体检
+      - menu:
+        - menuitem "上线检查"
+        - menuitem "大表治理"
+    - menuitem "深度诊断":
+      - generic: 深度诊断
+    - menuitem "平台治理" [expanded]:
+      - generic: 平台治理
+      - menu:
+        - menuitem "实例管理"
+        - menuitem "审核规则库"
+        - menuitem "评估规则集"
+    - menuitem "系统管理" [expanded]:
+      - generic: 系统管理
+      - menu:
+        - menuitem "用户管理"
+        - menuitem "角色管理"
+        - menuitem "权限矩阵"
+        - menuitem "数据保留"
+        - menuitem "操作审计"
+        - menuitem "系统信息"
+- navigation "面包屑":
+  - link "慢SQL治理"
+  - text: /
+  - link "慢SQL记录"
+- text: "*"
+- textbox "库名": uat_o_synthetic_workflow
+- textbox "SET"
+- combobox
+- generic: 级别
+- combobox
+- generic: 状态
+- combobox
+- generic: 扫描任务
+- textbox "操作人"
+- textbox "关键词"
+- button "筛选":
+  - generic: 筛选
+- button "重置":
+  - generic: 重置
+- button "清理无任务关联记录":
+  - generic: 清理无任务关联记录
+- table:
+  - rowgroup:
+    - row "级别 SQL指纹 平均耗时(ms) 执行次数 库 SET 状态 操作":
+      - columnheader "级别":
+        - generic: 级别
+      - columnheader "SQL指纹":
+        - generic: SQL指纹
+      - columnheader "平均耗时(ms)":
+        - generic: 平均耗时(ms)
+      - columnheader "执行次数":
+        - generic: 执行次数
+      - columnheader "库":
+        - generic: 库
+      - columnheader "SET":
+        - generic: SET
+      - columnheader "状态":
+        - generic: 状态
+      - columnheader "操作":
+        - generic: 操作
+- table:
+  - rowgroup:
+    - row "ERROR SELECT id FROM t_uat_order WHERE customer_id = ? 1200 10 uat_o_synthetic_workflow 已优化 详情 标记 导出":
+      - cell "ERROR":
+        - generic: ERROR
+      - cell "SELECT id FROM t_uat_order WHERE customer_id = ?":
+        - generic: SELECT id FROM t_uat_order WHERE customer_id = ?
+      - cell "1200":
+        - generic: "1200"
+      - cell "10":
+        - generic: "10"
+      - cell "uat_o_synthetic_workflow":
+        - generic: uat_o_synthetic_workflow
+      - cell
+      - cell "已优化":
+        - generic: 已优化
+      - cell "详情 标记 导出":
+        - button "详情":
+          - generic: 详情
+        - button "标记":
+          - generic: 标记
+        - button "导出":
+          - generic: 导出
+- dialog "慢SQL详情":
+  - banner:
+    - heading "慢SQL详情" [level=2]
+    - button "el.drawer.close":
+  - table:
+    - rowgroup:
+      - row "SQL指纹 SELECT id FROM t_uat_order WHERE customer_id = ?":
+        - cell "SQL指纹"
+        - cell "SELECT id FROM t_uat_order WHERE customer_id = ?":
+          - generic: SELECT id FROM t_uat_order WHERE customer_id = ?
+      - row "级别 ERROR 平均耗时 1200 ms":
+        - cell "级别"
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "平均耗时"
+        - cell "1200 ms"
+      - row "执行次数 10 扫描行数 10000":
+        - cell "执行次数"
+        - cell "10"
+        - cell "扫描行数"
+        - cell "10000"
+      - row "返回行数 10 库 uat_o_synthetic_workflow":
+        - cell "返回行数"
+        - cell "10"
+        - cell "库"
+        - cell "uat_o_synthetic_workflow"
+      - row "SET":
+        - cell "SET"
+        - cell
+  - generic: 分析结果
+  - generic: 索引使用不充分
+  - generic: "扫描/返回比: 1000:1"
+  - generic: "根因: WHERE条件未能有效利用索引，导致大量无效扫描"
+  - generic: "建议: 检查WHERE条件字段是否有索引，考虑添加覆盖索引"
+  - button "去 EXPLAIN 分析":
+    - generic: 去 EXPLAIN 分析
+- text: "*"

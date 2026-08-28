@@ -1,0 +1,51 @@
+{
+  "kind": "offline_evidence_integrity_check_not_product_retest",
+  "validated_at": "2026-08-28T07:20:28.295340+00:00",
+  "tested_commit": "a698cfc1d5c8ffd0b11d7fb8f723fc5d16f02952",
+  "baseline_commit": "0079300",
+  "browser_checkpoint_pairs": 65,
+  "independent_inputs_each_version": 1000,
+  "rule_definitions_equal": true,
+  "registered_rules": 119,
+  "fired_rules": 114,
+  "non_injected_metadata_input_fired_rules": 107,
+  "synthetic_metadata_only_rules": [
+    "R048",
+    "R055",
+    "R056",
+    "R057",
+    "R058",
+    "R060",
+    "R064"
+  ],
+  "unfired_rules": [
+    "R025",
+    "R035",
+    "R038",
+    "R049",
+    "R059"
+  ],
+  "independent_oracle_failures": {
+    "corpus_exact": 3,
+    "must_have": 72
+  },
+  "kfn_comment_cases_fully_passed_incorrectly": 18,
+  "changed_rule_id_sets": 575,
+  "unchanged_rule_id_sets": 425,
+  "delta_categories": 13,
+  "http_records": 269,
+  "http_status_counts": {
+    "200": 266,
+    "403": 3
+  },
+  "http_engine_mismatches": [
+    "corpus:01_naming_ddl.sql:R030_R031_01:distributed",
+    "corpus:01_naming_ddl.sql:R030_R031_01:centralized"
+  ],
+  "pytest_passed": 1384,
+  "implementation_matrix_passed": true,
+  "links_valid": true,
+  "structured_artifacts_valid": true,
+  "credential_pattern_scan": "no_matches",
+  "uat_verdict": "NO_GO: mandatory fail-closed gap; see report for other defects and unverified scope"
+}

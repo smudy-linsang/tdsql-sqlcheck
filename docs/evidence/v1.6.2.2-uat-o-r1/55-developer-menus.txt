@@ -1,0 +1,215 @@
+- banner:
+  - img "logo"
+  - generic: TDSQL数据库SQL审核工具
+  - button "U UAT-O developer 开发":
+    - generic: U
+    - generic: UAT-O developer
+    - generic: 开发
+- complementary:
+  - menubar:
+    - menuitem "治理概览":
+      - generic: 治理概览
+    - menuitem "SQL审核":
+      - generic: SQL审核
+    - menuitem "慢SQL治理":
+      - generic: 慢SQL治理
+    - menuitem "实例体检":
+      - generic: 实例体检
+    - menuitem "深度诊断":
+      - generic: 深度诊断
+    - menuitem "平台治理":
+      - generic: 平台治理
+- navigation "面包屑":
+  - link "工作台"
+  - text: /
+  - link "治理概览"
+- generic: "279"
+- generic: 今日审核
+- generic: 通过 26 / 拦截 253
+- generic: 9.3%
+- generic: 今日通过率
+- generic: ERROR 485 / WARNING 240
+- generic: "50"
+- generic: 待处理慢SQL
+- generic: 严重 0
+- generic: "1"
+- generic: 已优化慢SQL
+- generic: 近7天审核趋势
+- generic: 高频违规规则 TOP5
+- table:
+  - rowgroup:
+    - row "规则ID 级别 描述 命中":
+      - columnheader "规则ID":
+        - generic: 规则ID
+      - columnheader "级别":
+        - generic: 级别
+      - columnheader "描述":
+        - generic: 描述
+      - columnheader "命中":
+        - generic: 命中
+- table:
+  - rowgroup:
+    - row "R077 ERROR TDSQL分布式实例建表必须声明分片键或广播表标记，不允许创建单表；分片键必须是主键或唯一索引的字段。支持的分片键声明形态：SHARDKEY=列名、TDSQL_DISTRIBUTED BY HASH(列名)；广播表(全局表)形态：BROADCAST、shardkey=noshardkey_allset 67":
+      - cell "R077":
+        - generic: R077
+      - cell "ERROR":
+        - generic: ERROR
+      - cell "TDSQL分布式实例建表必须声明分片键或广播表标记，不允许创建单表；分片键必须是主键或唯一索引的字段。支持的分片键声明形态：SHARDKEY=列名、TDSQL_DISTRIBUTED BY HASH(列名)；广播表(全局表)形态：BROADCAST、shardkey=noshardkey_allset":
+        - generic: TDSQL分布式实例建表必须声明分片键或广播表标记，不允许创建单表；分片键必须是主键或唯一索引的字段。支持的分片键声明形态：SHARDKEY=列名、TDSQL_DISTRIBUTED BY HASH(列名)；广播表(全局表)形态：BROADCAST、shardkey=noshardkey_allset
+      - cell "67":
+        - generic: "67"
+    - row "R029 WARNING 建表时每个字段应显式指定COMMENT 43":
+      - cell "R029":
+        - generic: R029
+      - cell "WARNING":
+        - generic: WARNING
+      - cell "建表时每个字段应显式指定COMMENT":
+        - generic: 建表时每个字段应显式指定COMMENT
+      - cell "43":
+        - generic: "43"
+    - row "R028 ERROR 建表必须显式指定表级别COMMENT 38":
+      - cell "R028":
+        - generic: R028
+      - cell "ERROR":
+        - generic: ERROR
+      - cell "建表必须显式指定表级别COMMENT":
+        - generic: 建表必须显式指定表级别COMMENT
+      - cell "38":
+        - generic: "38"
+    - row "R004 ERROR 必须指定存储引擎为 InnoDB 36":
+      - cell "R004":
+        - generic: R004
+      - cell "ERROR":
+        - generic: ERROR
+      - cell "必须指定存储引擎为 InnoDB":
+        - generic: 必须指定存储引擎为 InnoDB
+      - cell "36":
+        - generic: "36"
+    - row "R005 ERROR 必须指定字符集为 utf8mb4 36":
+      - cell "R005":
+        - generic: R005
+      - cell "ERROR":
+        - generic: ERROR
+      - cell "必须指定字符集为 utf8mb4":
+        - generic: 必须指定字符集为 utf8mb4
+      - cell "36":
+        - generic: "36"
+- generic: Top3 高耗时慢SQL
+- table:
+  - rowgroup:
+    - row "SQL指纹 平均耗时(ms) 执行次数":
+      - columnheader "SQL指纹":
+        - generic: SQL指纹
+      - columnheader "平均耗时(ms)":
+        - generic: 平均耗时(ms)
+      - columnheader "执行次数":
+        - generic: 执行次数
+- table:
+  - rowgroup:
+    - row "SELECT id FROM t_uat_order WHERE customer_id = ? 1200 10":
+      - cell "SELECT id FROM t_uat_order WHERE customer_id = ?":
+        - generic: SELECT id FROM t_uat_order WHERE customer_id = ?
+      - cell "1200":
+        - generic: "1200"
+      - cell "10":
+        - generic: "10"
+    - 'row "ALTER TABLE `audit_history` ADD COLUMN `instance_type_source` VARCHARACTER (?) NOT NULL DEFAULT ? COMMENT ? 321.6 1"':
+      - 'cell "ALTER TABLE `audit_history` ADD COLUMN `instance_type_source` VARCHARACTER (?) NOT NULL DEFAULT ? COMMENT ?"':
+        - generic: "ALTER TABLE `audit_history` ADD COLUMN `instance_type_source` VARCHARACTER (?) NOT NULL DEFAULT ? COMMENT ?"
+      - cell "321.6":
+        - generic: "321.6"
+      - cell "1":
+        - generic: "1"
+    - 'row "ALTER TABLE `audit_history` ADD COLUMN `instance_type_source` VARCHARACTER (?) NOT NULL DEFAULT ? COMMENT ? 316 1"':
+      - 'cell "ALTER TABLE `audit_history` ADD COLUMN `instance_type_source` VARCHARACTER (?) NOT NULL DEFAULT ? COMMENT ?"':
+        - generic: "ALTER TABLE `audit_history` ADD COLUMN `instance_type_source` VARCHARACTER (?) NOT NULL DEFAULT ? COMMENT ?"
+      - cell "316":
+        - generic: "316"
+      - cell "1":
+        - generic: "1"
+- generic: 今日审核记录
+- table:
+  - rowgroup:
+    - row "来源 SQL数 通过率 时间":
+      - columnheader "来源":
+        - generic: 来源
+      - columnheader "SQL数":
+        - generic: SQL数
+      - columnheader "通过率":
+        - generic: 通过率
+      - columnheader "时间":
+        - generic: 时间
+- table:
+  - rowgroup:
+    - row "uat_mybatis.xml 3 33.3% 2026-08-28 10:41":
+      - cell "uat_mybatis.xml":
+        - generic: uat_mybatis.xml
+      - cell "3":
+        - generic: "3"
+      - cell "33.3%":
+        - generic: 33.3%
+      - cell "2026-08-28 10:41":
+        - generic: 2026-08-28 10:41
+    - row "uat_core_rule_corpus.sql 100 2.0% 2026-08-28 10:41":
+      - cell "uat_core_rule_corpus.sql":
+        - generic: uat_core_rule_corpus.sql
+      - cell "100":
+        - generic: "100"
+      - cell "2.0%":
+        - generic: 2.0%
+      - cell "2026-08-28 10:41":
+        - generic: 2026-08-28 10:41
+    - row "uat_kfn_comment.sql 1 100.0% 2026-08-28 10:41":
+      - cell "uat_kfn_comment.sql":
+        - generic: uat_kfn_comment.sql
+      - cell "1":
+        - generic: "1"
+      - cell "100.0%":
+        - generic: 100.0%
+      - cell "2026-08-28 10:41":
+        - generic: 2026-08-28 10:41
+    - row "api 1 0.0% 2026-08-28 10:41":
+      - cell "api":
+        - generic: api
+      - cell "1":
+        - generic: "1"
+      - cell "0.0%":
+        - generic: 0.0%
+      - cell "2026-08-28 10:41":
+        - generic: 2026-08-28 10:41
+    - row "api 1 100.0% 2026-08-28 10:40":
+      - cell "api":
+        - generic: api
+      - cell "1":
+        - generic: "1"
+      - cell "100.0%":
+        - generic: 100.0%
+      - cell "2026-08-28 10:40":
+        - generic: 2026-08-28 10:40
+    - row "api 1 0.0% 2026-08-28 10:39":
+      - cell "api":
+        - generic: api
+      - cell "1":
+        - generic: "1"
+      - cell "0.0%":
+        - generic: 0.0%
+      - cell "2026-08-28 10:39":
+        - generic: 2026-08-28 10:39
+    - row "api 1 0.0% 2026-08-28 10:39":
+      - cell "api":
+        - generic: api
+      - cell "1":
+        - generic: "1"
+      - cell "0.0%":
+        - generic: 0.0%
+      - cell "2026-08-28 10:39":
+        - generic: 2026-08-28 10:39
+    - row "api 1 0.0% 2026-08-28 10:39":
+      - cell "api":
+        - generic: api
+      - cell "1":
+        - generic: "1"
+      - cell "0.0%":
+        - generic: 0.0%
+      - cell "2026-08-28 10:39":
+        - generic: 2026-08-28 10:39

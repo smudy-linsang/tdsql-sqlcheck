@@ -1,0 +1,51 @@
+- banner:
+  - img "logo"
+  - generic: TDSQL数据库SQL审核工具
+  - button "系 系统管理员 系统管理员":
+    - generic: 系
+    - generic: 系统管理员
+    - generic: 系统管理员
+- complementary:
+  - menubar:
+    - menuitem "治理概览":
+      - generic: 治理概览
+    - menuitem "SQL审核" [expanded]:
+      - generic: SQL审核
+      - menu:
+        - menuitem "即时审核"
+        - menuitem "文件审核"
+        - menuitem "在线元数据审核"
+    - menuitem "慢SQL治理" [expanded]:
+      - generic: 慢SQL治理
+      - menu:
+        - menuitem "扫描任务"
+        - menuitem "慢SQL记录"
+        - menuitem "EXPLAIN分析"
+    - menuitem "实例体检" [expanded]:
+      - generic: 实例体检
+      - menu:
+        - menuitem "上线检查"
+        - menuitem "大表治理"
+    - menuitem "深度诊断":
+      - generic: 深度诊断
+    - menuitem "平台治理":
+      - generic: 平台治理
+    - menuitem "系统管理":
+      - generic: 系统管理
+- navigation "面包屑":
+  - link "慢SQL治理"
+  - text: /
+  - link "EXPLAIN分析"
+- text: "*"
+- generic: EXPLAIN执行计划分析
+- radiogroup "radio-group":
+  - radio "SQL直连"
+  - generic: SQL直连
+  - radio "JSON粘贴" [checked]
+  - generic: JSON粘贴
+- textbox "粘贴EXPLAIN JSON数据": "[{\"id\":1,\"select_type\":\"SIMPLE\",\"table\":\"t_uat_order\",\"type\":\"ALL\",\"rows\":100000,\"filtered\":100,\"Extra\":\"Using filesort\"}]"
+- button "分析":
+  - generic: 分析
+- generic: 分析结果
+- generic: "建议: 建议为表 t_uat_order 的WHERE条件字段创建合适的索引"
+- generic: "建议: 建议为表 t_uat_order 的WHERE条件字段创建索引"

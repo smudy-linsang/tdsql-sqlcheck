@@ -1,0 +1,37 @@
+[
+  {
+    "scope": "distributed",
+    "direct": [
+      "R030",
+      "R031"
+    ],
+    "service": [
+      "R001",
+      "R003",
+      "R004",
+      "R005",
+      "R028",
+      "R030",
+      "R031",
+      "R077"
+    ],
+    "statement_count": 2
+  },
+  {
+    "scope": "centralized",
+    "direct": [
+      "R030",
+      "R031"
+    ],
+    "service": [
+      "R001",
+      "R003",
+      "R004",
+      "R005",
+      "R028",
+      "R030",
+      "R031"
+    ],
+    "statement_count": 2
+  }
+]

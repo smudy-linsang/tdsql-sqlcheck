@@ -1,0 +1,84 @@
+- banner:
+  - img "logo"
+  - generic: TDSQL数据库SQL审核工具
+  - button "系 系统管理员 系统管理员":
+    - generic: 系
+    - generic: 系统管理员
+    - generic: 系统管理员
+- complementary:
+  - menubar:
+    - menuitem "治理概览":
+      - generic: 治理概览
+    - menuitem "SQL审核" [expanded]:
+      - generic: SQL审核
+      - menu:
+        - menuitem "即时审核"
+        - menuitem "文件审核"
+        - menuitem "在线元数据审核"
+    - menuitem "慢SQL治理":
+      - generic: 慢SQL治理
+    - menuitem "实例体检":
+      - generic: 实例体检
+    - menuitem "深度诊断":
+      - generic: 深度诊断
+    - menuitem "平台治理":
+      - generic: 平台治理
+    - menuitem "系统管理":
+      - generic: 系统管理
+- navigation "面包屑":
+  - link "SQL审核"
+  - text: /
+  - link "在线元数据审核"
+- tablist:
+  - tab "即时元数据提取与审核" [selected]
+  - tab "历史元数据审核记录"
+  - tab "扫描对比"
+  - tab "对比留档报告"
+- tabpanel "即时元数据提取与审核":
+  - generic: 在线元数据提取与文件审核
+  - combobox
+  - generic: UAT-O 本地集中式样本 (127.0.0.1:13306)
+  - textbox "目标数据库(留空默认)"
+  - group "checkbox-group":
+    - checkbox "表结构" [checked]
+    - generic: 表结构
+    - checkbox "索引/主键" [checked]
+    - generic: 索引/主键
+    - checkbox "视图定义" [checked]
+    - generic: 视图定义
+    - checkbox "分片键" [checked]
+    - generic: 分片键
+  - button "🚀 拉取元数据并执行文件审核":
+    - generic: 🚀 拉取元数据并执行文件审核
+  - generic: 自动从选择的 SIT/UAT 测试库中提取当前最新表、索引、视图 DDL 元数据，拼接生成完整的 .sql 描述文件，并自动提交文件审核引擎进行规则评价。
+  - alert:
+    - generic: 本次按【集中式实例】口径评估，已跳过 27 条不适用于该实例类型的规则。
+    - paragraph:
+      - generic: 本次按【集中式实例】口径评估，已跳过 27 条不适用于该实例类型的规则。
+  - generic: 📄 生成的元数据 SQL 文件 (extracted_tdsql_uat_o_target_1622_20260828_102305.sql)
+  - button "下载 .sql 文件":
+    - text: 下载 .sql 文件
+  - generic: "-- ============================================================================ -- TDSQL 自动拉取的最新在线元数据描述文件 -- 目标实例: UAT-O 本地集中式样本 (127.0.0.1:13306) -- 目标数据库: tdsql_uat_o_target_1622 -- 提取日期: 2026-08-28 10:23:05 -- ============================================================================ -- SQL Object: CREATE TABLE -- Table: t_uat_customer CREATE TABLE `t_uat_customer` ( `id` bigint NOT NULL COMMENT 'id', `cust_no` varchar(32) NOT NULL COMMENT 'customer', `customer_name` varchar(64) NOT NULL DEFAULT '' COMMENT 'name', PRIMARY KEY (`id`), UNIQUE KEY `uk_customer` (`cust_no`) COMMENT 'UAT unique comment' ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='synthetic UAT fixture'; -- SQL Object: CREATE TABLE -- Table: t_uat_order CREATE TABLE `t_uat_order` ( `id` bigint NOT NULL COMMENT 'id', `customer_id` bigint NOT NULL COMMENT 'customer', `amount` decimal(12,2) NOT NULL DEFAULT '0.00' COMMENT 'amount', PRIMARY KEY (`id`), KEY `idx_customer` (`customer_id`) ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='synthetic UAT fixture';"
+  - generic: 📊 元数据文件规则审核报告
+  - button "导出 HTML 报告":
+    - text: 导出 HTML 报告
+  - table:
+    - rowgroup:
+      - row "对象的总数 2 通过数 0":
+        - cell "对象的总数"
+        - cell "2"
+        - cell "通过数"
+        - cell "0"
+      - row "未通过数 2 整体通过率 0.0%":
+        - cell "未通过数"
+        - cell "2"
+        - cell "整体通过率"
+        - cell "0.0%"
+  - button "#1 CREATE TABLE 2项违规":
+    - strong: "#1"
+    - text: CREATE TABLE
+    - generic: 2项违规
+  - button "#2 CREATE TABLE 2项违规":
+    - strong: "#2"
+    - text: CREATE TABLE
+    - generic: 2项违规

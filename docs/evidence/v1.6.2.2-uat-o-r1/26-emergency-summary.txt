@@ -1,0 +1,82 @@
+- banner:
+  - img "logo"
+  - generic: TDSQL数据库SQL审核工具
+  - button "系 系统管理员 系统管理员":
+    - generic: 系
+    - generic: 系统管理员
+    - generic: 系统管理员
+- complementary:
+  - menubar:
+    - menuitem "治理概览":
+      - generic: 治理概览
+    - menuitem "SQL审核" [expanded]:
+      - generic: SQL审核
+      - menu:
+        - menuitem "即时审核"
+        - menuitem "文件审核"
+        - menuitem "在线元数据审核"
+    - menuitem "慢SQL治理" [expanded]:
+      - generic: 慢SQL治理
+      - menu:
+        - menuitem "扫描任务"
+        - menuitem "慢SQL记录"
+        - menuitem "EXPLAIN分析"
+    - menuitem "实例体检" [expanded]:
+      - generic: 实例体检
+      - menu:
+        - menuitem "上线检查"
+        - menuitem "大表治理"
+    - menuitem "深度诊断":
+      - generic: 深度诊断
+    - menuitem "平台治理":
+      - generic: 平台治理
+    - menuitem "系统管理":
+      - generic: 系统管理
+- navigation "面包屑"
+- text: "*"
+- generic: 深度诊断
+- combobox
+- generic: UAT-O 本地集中式样本 (127.0.0.1:13306)
+- generic: 吸收 TDSQL 原厂工具能力：集群诊断 / 索引体检 / 结构比对 / 应急诊断 / SQL分析。深检绩效观 monitordb(15001)：只需操作。
+- tablist:
+  - tab "集群巡检"
+  - tab "日常巡检与对比报告"
+  - tab "索引体检"
+  - tab "结构比对"
+  - tab "应急诊断" [selected]
+  - tab "SQL分析"
+  - tab "网关日志分析"
+  - tab "PDF报告与大屏"
+  - tab "运维工具箱"
+- tabpanel "应急诊断":
+  - button "一键应急体检(只读)":
+    - generic: 一键应急体检(只读)
+  - generic: 包含 6 大维度全量只读诊断：实例健康 / 活跃会话 / 大事务 / 锁等待阻塞链 / 长SQL / InnoDB死锁
+  - button "status 实例健康与连接度 连接 16/151(10.6%) | 运行中线程 2 | 慢查询累计 28641":
+    - generic: status
+    - generic: 实例健康与连接度
+    - generic: 连接 16/151(10.6%) | 运行中线程 2 | 慢查询累计 28641
+  - button "session 非Sleep活跃会话 活跃会话 2 条":
+    - generic: session
+    - generic: 非Sleep活跃会话
+    - generic: 活跃会话 2 条
+  - button "bigtrx 未提交长事务 活跃事务 4 条，其中运行≥10s 4 条":
+    - generic: bigtrx
+    - generic: 未提交长事务
+    - generic: 活跃事务 4 条，其中运行≥10s 4 条
+  - button "lock 锁等待与阻塞链 锁等待阻塞链 0 条":
+    - generic: lock
+    - generic: 锁等待与阻塞链
+    - generic: 锁等待阻塞链 0 条
+  - button "slow 正在执行的长SQL 正在执行且耗时>2s 的SQL 0 条":
+    - generic: slow
+    - generic: 正在执行的长SQL
+    - generic: 正在执行且耗时>2s 的SQL 0 条
+  - button "innodb InnoDB死锁与引擎状态 检测到最近死锁记录" [active]:
+    - generic: innodb
+    - generic: InnoDB死锁与引擎状态
+    - generic: 检测到最近死锁记录
+  - region:
+    - alert:
+      - generic: 检测到最近一次 InnoDB 死锁记录
+    - generic: "LATEST DETECTED DEADLOCK ------------------------ 2026-08-25 23:48:08 129326431336000 *** (1) TRANSACTION: TRANSACTION 451139, ACTIVE 0 sec starting index read mysql tables in use 1, locked 1 LOCK WAIT 16 lock struct(s), heap size 1128, 154 row lock(s) MySQL thread id 76018, OS thread handle 129326366246464, query id 925000 172.20.0.1 root updating UPDATE role_permissions SET visible=0 WHERE menu_key='sys-auditlog' AND role_id IN ('dba', 'developer') *** (1) HOLDS THE LOCK(S): RECORD LOCKS space id 73 page no 15 n bits 328 index PRIMARY of table `tdsql_sqlcheck_test`.`role_permissions` trx id 451139 lock_mode X locks rec but not gap Record lock, heap no 55 PHYSICAL RECORD: n_fields 5; compact format; info bits 0 0: len 7; hex 61756469746f72; asc auditor;; 1: len 12; hex 736368656d612d636865636b; asc schema-check;; 2: len 6; hex 000000005b29; asc [);; 3: len 7; hex 81000000d00163; asc c;; 4: len 4; hex 80000000; asc ;; *** (1) WAITING FOR THIS LOCK TO BE GRANTED: RECORD LOCKS space id 73 page no 15 n bits 328 index PRIMARY of table `tdsql_sqlcheck_test`.`role_permissions` trx id 451139 lock_mode X locks rec but not gap waiting Record lock, heap no 124 PHYSICAL RECORD: n_fields 5; compact format; info bits 0 0: len 3; hex 646261; asc dba;; 1: len 12; hex 7379732d61756469746c6f67; asc sys-auditlog;; 2: len 6; hex 00000001584d; asc XM;; 3: len 7; hex 01000001c52869; asc (i;; 4: len 4; hex 80000000; asc ;; *** (2) TRANSACTION: TRANSACTION 451140, ACTIVE 0 sec inserting mysql tables in use 1, locked 1 LOCK WAIT 15 lock struct(s), heap size 1128, 131 row lock(s) MySQL thread id 76019, OS thread handle 129326502708800, query id 925044 172.20.0.1 root update INSERT IGNORE INTO role_permissions(role_id, menu_key, visible) VALUES ('auditor', 'schema-check', 0) *** (2) HOLDS THE LOCK(S): RECORD LOCKS space id 73 page no 15 n bits 328 index PRIMARY of table `tdsql_sqlcheck_test`.`role_permissions` trx id 451140 l"

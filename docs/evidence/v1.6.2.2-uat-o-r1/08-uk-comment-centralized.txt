@@ -1,0 +1,58 @@
+- banner:
+  - img "logo"
+  - generic: TDSQL数据库SQL审核工具
+  - button "系 系统管理员 系统管理员":
+    - generic: 系
+    - generic: 系统管理员
+    - generic: 系统管理员
+- complementary:
+  - menubar:
+    - menuitem "治理概览":
+      - generic: 治理概览
+    - menuitem "SQL审核" [expanded]:
+      - generic: SQL审核
+      - menu:
+        - menuitem "即时审核"
+        - menuitem "文件审核"
+        - menuitem "在线元数据审核"
+    - menuitem "慢SQL治理":
+      - generic: 慢SQL治理
+    - menuitem "实例体检":
+      - generic: 实例体检
+    - menuitem "深度诊断":
+      - generic: 深度诊断
+    - menuitem "平台治理":
+      - generic: 平台治理
+    - menuitem "系统管理":
+      - generic: 系统管理
+- navigation "面包屑":
+  - link "SQL审核"
+  - text: /
+  - link "即时审核"
+- generic: 即时SQL审核
+- text: 规则适用架构：
+- radiogroup "radio-group":
+  - radio "分布式规则"
+  - generic: 分布式规则
+  - radio "集中式规则" [checked]
+  - generic: 集中式规则
+- textbox "粘贴SQL语句，Ctrl+Enter 快速审核": "CREATE TABLE `biz_tx_log` ( `tx_serial_no` varchar(32) COLLATE utf8mb4_general_ci NOT NULL COMMENT '平台流水号', `term_id` varchar(64) COLLATE utf8mb4_general_ci NOT NULL COMMENT '终端编号', `teller_no` varchar(10) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '柜员号', `dev_catalog` varchar(10) COLLATE utf8mb4_general_ci NOT NULL COMMENT '设备类型标识', `area` varchar(10) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '银联标准地区代码', `channel_id` varchar(300) COLLATE utf8mb4_general_ci NOT NULL COMMENT '交易通讯前置微服务名称', `tran_code` varchar(64) COLLATE utf8mb4_general_ci NOT NULL COMMENT '交易代码', `tran_type` varchar(20) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '交易简码', `org_no` varchar(11) COLLATE utf8mb4_general_ci NOT NULL COMMENT '机构编号', `primary_account` varchar(64) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '交易账号', `ident_tp` varchar(10) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '证件类型', `ident_no` varchar(25) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '证件号码', `mobile_phone` varchar(15) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '客户手机号', `client_no` varchar(20) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '客户编号', `cur_code` varchar(10) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '交易币种标识', `amount` decimal(24,2) DEFAULT NULL COMMENT '交易金额', `settle_date` date DEFAULT NULL COMMENT '清算日期', `tran_day` tinyint NOT NULL COMMENT '交易日，分区列，0-31', `tran_date` date NOT NULL COMMENT '系统日期', `tran_time` time NOT NULL COMMENT '系统时间', `acct_trs_out` varchar(64) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '转出账号', `acct_trs_in` varchar(64) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '转入账号', `card_medium` tinyint DEFAULT NULL COMMENT '交易卡介质标识', `agent_type` tinyint DEFAULT NULL COMMENT '交易代理类型标识', `card_flag` varchar(10) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '卡标识:001-本行借记卡；002-本行贷记卡；003-单位结算卡；004-结算存折；005-储蓄存折；998-他行卡', `acct_trans_flag` varchar(10) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '动账交易标识', `agent_svr_lg` varchar(10) COLLATE utf8mb4_general_ci DEFAULT '0' COMMENT '代办业务标识', `entry_mode` varchar(10) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '服务点输入方式标识', `orig_tx_serial_no` varchar(32) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '原交易流水号', `comm_seq_no` varchar(2000) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '发送方通讯流水号集合', `trs_seq_no` varchar(2000) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '发送方交易流水号集合', `main_trs_seq` varchar(32) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '发送方交易流水号', `global_seq_no` varchar(32) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '全局流水号', `app_biz_seq_no` varchar(32) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '客户应用流水号', `app_biz_name` varchar(300) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '应用业务名称', `net_flag` varchar(64) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '转发渠道编号', `svr_sys_cd` varchar(2000) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '目标系统编号集合', `resp_code` varchar(64) COLLATE utf8mb4_general_ci NOT NULL COMMENT '响应码', `tx_status` varchar(10) COLLATE utf8mb4_general_ci NOT NULL COMMENT '交易状态标识', `term_serial_no` varchar(32) COLLATE utf8mb4_general_ci NOT NULL COMMENT '终端流水号', `term_reconciliation` tinyint DEFAULT NULL COMMENT '终端对账标识', `term_batch_no` varchar(64) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '终端批次号', `term_date` date NOT NULL COMMENT '终端上送日期', `term_time` time DEFAULT NULL COMMENT '终端上送时间', `host_serial_no` varchar(32) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '主机交易流水号', `host_resp_code` varchar(64) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '主机响应码', `host_resp_msg` varchar(2000) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '后台响应信息', `host_settle_date` date DEFAULT NULL COMMENT '主机账务日期', `host_reconciliation` tinyint DEFAULT '-1' COMMENT '主机对账标识', `host_date` date DEFAULT NULL COMMENT '主机交易日期', `host_time` time(3) DEFAULT NULL COMMENT '主机交易时间', `comp_trace_no` varchar(32) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '第三方交易流水号', `comp_resp_code` varchar(64) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '第三方响应码', `comp_settle_date` date DEFAULT NULL COMMENT '第三方账务日期', `comp_reconciliation` tinyint DEFAULT '-1' COMMENT '第三方对账标记:-1-不参与对账；0-未对帐；1-已对帐平；2-对账未平；3-账务存疑；4-账务分析无差错；5-对账分析存疑', `comp_date` date DEFAULT NULL COMMENT '第三方交易日期', `comp_time` time(3) DEFAULT NULL COMMENT '第三方交易时间', `cups_batch_no` varchar(64) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '银联批次号', `auth_teller` varchar(10) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '授权人柜员号', `req_svr_id` varchar(50) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '接入方标识，用于标注S端的主机编号', `platform_id` varchar(64) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '平台编号', `custom_trans_lg` varchar(10) COLLATE utf8mb4_general_ci DEFAULT '0' COMMENT '主交易标识', `main_tran_code` varchar(64) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '主交易简码', `voc_status` tinyint DEFAULT '-1' COMMENT '业务凭证状态标识', `trs_fee` decimal(24,2) DEFAULT NULL COMMENT '交易手续费', `reverse_flag` varchar(10) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '冲正标识', `afms_serialno` varchar(32) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '反欺诈查验跟踪流水号', `large_font_tag` char(1) COLLATE utf8mb4_general_ci DEFAULT '0' COMMENT '字号标识：0-常规版；1-大字版', `tx_bgn_time` datetime(3) NOT NULL COMMENT '交易开始时间', `tx_end_time` datetime(3) DEFAULT NULL COMMENT '交易结束时间', `note1` varchar(100) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '备用字段1', `note2` varchar(100) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '备用字段2', `note3` varchar(100) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '备用字段3', `note4` varchar(100) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '备用字段4', `note5` varchar(100) COLLATE utf8mb4_general_ci DEFAULT NULL COMMENT '备用字段5', PRIMARY KEY (`tran_day`,`tran_date`,`tx_serial_no`), UNIQUE KEY `uk_biztxlog` (`tran_day`,`tran_date`,`term_id`,`term_serial_no`) COMMENT '唯一索引：交易日期+终端编号+终端流水号', KEY `idx_term_bizlog` (`tran_day`,`term_id`,`term_date`,`term_serial_no`) COMMENT '终端查询索引：终端编号+终端日期+终端流水号' ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='联机交易流水表' /*!50100 PARTITION BY LIST (`tran_day`) (PARTITION p_01 VALUES IN (1) ENGINE = InnoDB, PARTITION p_02 VALUES IN (2) ENGINE = InnoDB, PARTITION p_03 VALUES IN (3) ENGINE = InnoDB, PARTITION p_04 VALUES IN (4) ENGINE = InnoDB, PARTITION p_05 VALUES IN (5) ENGINE = InnoDB, PARTITION p_06 VALUES IN (6) ENGINE = InnoDB, PARTITION p_07 VALUES IN (7) ENGINE = InnoDB, PARTITION p_08 VALUES IN (8) ENGINE = InnoDB, PARTITION p_09 VALUES IN (9) ENGINE = InnoDB, PARTITION p_10 VALUES IN (10) ENGINE = InnoDB, PARTITION p_11 VALUES IN (11) ENGINE = InnoDB, PARTITION p_12 VALUES IN (12) ENGINE = InnoDB, PARTITION p_13 VALUES IN (13) ENGINE = InnoDB, PARTITION p_14 VALUES IN (14) ENGINE = InnoDB, PARTITION p_15 VALUES IN (15) ENGINE = InnoDB, PARTITION p_16 VALUES IN (16) ENGINE = InnoDB, PARTITION p_17 VALUES IN (17) ENGINE = InnoDB, PARTITION p_18 VALUES IN (18) ENGINE = InnoDB, PARTITION p_19 VALUES IN (19) ENGINE = InnoDB, PARTITION p_20 VALUES IN (20) ENGINE = InnoDB, PARTITION p_21 VALUES IN (21) ENGINE = InnoDB, PARTITION p_22 VALUES IN (22) ENGINE = InnoDB, PARTITION p_23 VALUES IN (23) ENGINE = InnoDB, PARTITION p_24 VALUES IN (24) ENGINE = InnoDB, PARTITION p_25 VALUES IN (25) ENGINE = InnoDB, PARTITION p_26 VALUES IN (26) ENGINE = InnoDB, PARTITION p_27 VALUES IN (27) ENGINE = InnoDB, PARTITION p_28 VALUES IN (28) ENGINE = InnoDB, PARTITION p_29 VALUES IN (29) ENGINE = InnoDB, PARTITION p_30 VALUES IN (30) ENGINE = InnoDB, PARTITION p_31 VALUES IN (31) ENGINE = InnoDB) */"
+- button "开始审核":
+  - generic: 开始审核
+- button "示例":
+  - generic: 示例
+- alert:
+  - generic: 发现 2 项违规
+  - paragraph:
+    - text: "SQL类型: CREATE TABLE"
+    - text: "适用架构:"
+    - generic: 集中式
+    - text: （集中式审核：已排除 27 条分布式规则）
+- text: "[R036]"
+- generic: INFO
+- text: 建议表包含 create_time 和 update_time 字段用于数据追踪
+- generic: "💡 建议添加: create_time DATETIME DEFAULT CURRENT_TIMESTAMP, update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"
+- text: "[R037]"
+- generic: INFO
+- text: 建议添加逻辑删除字段(如 is_deleted)替代物理删除
+- generic: "💡 建议添加: is_deleted TINYINT DEFAULT 0 COMMENT '逻辑删除标记'"

@@ -1,0 +1,392 @@
+[
+  {
+    "id": "01-kfn-literal-ui",
+    "note": "CONSTRAINT UNIQUE + table COMMENT CREATE VIEW must fail closed",
+    "at": "2026-08-28T02:17:56.466Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "02-kfn-plain-ui",
+    "note": "Same SQL with plain table comment; E999 control",
+    "at": "2026-08-28T02:18:05.955Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "03-kfn-comment-failopen",
+    "note": "Only append ordinary block comment CREATE VIEW; expected E999 remains",
+    "at": "2026-08-28T02:18:13.478Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "04-kfn-comment-before-semicolon",
+    "note": "Ordinary comment inside same statement also causes passed UI",
+    "at": "2026-08-28T02:18:26.424Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "05-hash-production",
+    "note": "HASH cust_no + composite PK: no R077/R054",
+    "at": "2026-08-28T02:19:45.070Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "06-fake-unique-production",
+    "note": "Production kcfb_list_info: R054 removed; other violations retained",
+    "at": "2026-08-28T02:20:10.062Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "07-uk-comment-distributed",
+    "note": "UK COMMENT recovered without E999/R003/R004/R005/R028; R077 legitimate without shard declaration",
+    "at": "2026-08-28T02:20:18.945Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "08-uk-comment-centralized",
+    "note": "Centralized scope excludes 27 distributed rules",
+    "at": "2026-08-28T02:20:36.775Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "09-broadcast-production",
+    "note": "Broadcast sentinel: R054/R077 absent",
+    "at": "2026-08-28T02:20:47.760Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "10-file-uk-comment",
+    "note": "Uploaded .sql fixture through file chooser",
+    "at": "2026-08-28T02:21:22.270Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "11-file-detail",
+    "note": "Expanded file result displays corrected rule set",
+    "at": "2026-08-28T02:21:30.485Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "12-file-report-history",
+    "note": "HTML export clicked; no browser download event observed, delivery not yet certified",
+    "at": "2026-08-28T02:22:11.902Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "13-online-extract",
+    "note": "Two real local fixture tables extracted, UNIQUE COMMENT retained and parsed",
+    "at": "2026-08-28T02:23:14.077Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "14-online-history",
+    "note": "Online audit persisted in history",
+    "at": "2026-08-28T02:23:14.421Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "15-snapshot-compare",
+    "note": "Two real snapshots: 4 unchanged, 0 new, 0 resolved",
+    "at": "2026-08-28T02:24:06.343Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "16-compare-archive",
+    "note": "Saved compare report visible in archive",
+    "at": "2026-08-28T02:24:11.757Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "17-digest-scan",
+    "note": "Created real local digest snapshot task with 50 fetched rows; not TDSQL monitordb validation",
+    "at": "2026-08-28T02:26:26.415Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "18-explain-live",
+    "note": "Executed real EXPLAIN SELECT against local fixture",
+    "at": "2026-08-28T02:26:46.163Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "19-explain-json",
+    "note": "JSON plan emits full-scan index suggestion",
+    "at": "2026-08-28T02:26:58.408Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "20-launch-check",
+    "note": "Ran live launch inspection against local fixture",
+    "at": "2026-08-28T02:27:47.143Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "21-bigtable-empty",
+    "note": "Live collection completed with no large tables; no physical large-table fixture",
+    "at": "2026-08-28T02:28:21.303Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "22-cluster-no-monitor",
+    "note": "Attempted real cluster inspection without configured monitordb",
+    "at": "2026-08-28T02:28:38.878Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "23-daily-inspection",
+    "note": "Date range controls and disabled compare without historic data; real monitordb absent",
+    "at": "2026-08-28T02:28:51.142Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "24-index-live",
+    "note": "2 tables and 4 indexes; no false UNIQUE category",
+    "at": "2026-08-28T02:29:03.032Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "25-schema-diff",
+    "note": "Same live fixture schema: zero differences",
+    "at": "2026-08-28T02:29:21.218Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "26-emergency-summary",
+    "note": "Read-only six-dimension diagnostic completed; session/deadlock raw details intentionally not published",
+    "at": "2026-08-28T02:29:42.329Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "27-sqlstats-no-monitor",
+    "note": "SQL statistics request attempted; no TDSQL monitordb configured",
+    "at": "2026-08-28T02:30:02.784Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "28-gateway-upload",
+    "note": "Uploaded two synthetic log records; expect total 2 slow 1",
+    "at": "2026-08-28T02:30:34.309Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "29-gateway-report-blank",
+    "note": "查看报告后抽屉仅有页脚，无分析图表明细",
+    "at": "2026-08-28T02:33:57.354Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "30-pdf-dashboard",
+    "note": "PDF大屏加载健康100告警0巡检3；并非真实TDSQL巡检结论",
+    "at": "2026-08-28T02:34:28.081Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "31-pdf-export-click",
+    "note": "真实点击导出提示已开始；尚未证实浏览器保存文件",
+    "at": "2026-08-28T02:34:36.731Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "32-toolkit",
+    "note": "4项运维脚本下载入口可见；不执行磁盘压测和远程运维",
+    "at": "2026-08-28T02:34:44.099Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "33-admin-instances",
+    "note": "管理员可见新建编辑删除；隔离实例2条",
+    "at": "2026-08-28T02:35:04.158Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "34-instance-required",
+    "note": "新建空表单点击保存，应被必填约束阻止",
+    "at": "2026-08-28T02:35:13.081Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "35-rules-119",
+    "note": "页面共119条，9类：5/22/9/10/14/8/5/4/42",
+    "at": "2026-08-28T02:36:03.298Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "36-r054-rule-detail",
+    "note": "R054关键字搜索与规则展开",
+    "at": "2026-08-28T02:36:12.064Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "37-ruleset-default",
+    "note": "默认119条当前生效，内置删除禁用",
+    "at": "2026-08-28T02:36:32.095Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "38-ruleset-readonly",
+    "note": "内置119条规则只读，启停禁用",
+    "at": "2026-08-28T02:36:47.536Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "39-user-search",
+    "note": "按用户名搜索合成审计用户",
+    "at": "2026-08-28T02:37:49.306Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "40-roles",
+    "note": "4个内置角色可见、内置删除禁用",
+    "at": "2026-08-28T02:37:59.334Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "41-permissions",
+    "note": "权限矩阵加载4角色28菜单，不改写权限",
+    "at": "2026-08-28T02:38:07.521Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "42-retention",
+    "note": "12种保留策略加载，未执行删除清理",
+    "at": "2026-08-28T02:38:17.084Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "43-auditlog-filter",
+    "note": "admin筛选后可追溯本轮上传审核/诊断结果",
+    "at": "2026-08-28T02:38:27.944Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "44-system-version",
+    "note": "系统信息1.6.2.2，认证和脱敏开启",
+    "at": "2026-08-28T02:38:39.498Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "45-slow-filter",
+    "note": "仅合成记录51，入库参数已脱敏",
+    "at": "2026-08-28T02:39:14.864Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "46-slow-detail",
+    "note": "合成慢SQL诊断1000:1及可实施索引建议",
+    "at": "2026-08-28T02:39:24.445Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "47-slow-optimized",
+    "note": "合成慢SQL由待处理切到已优化",
+    "at": "2026-08-28T02:39:33.652Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "48-slow-mark-bubbles",
+    "note": "单击标记触发详情抽屉，与行点击冒泡同时发生",
+    "at": "2026-08-28T02:40:05.201Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "49-kfn-complete-failopen",
+    "note": "完整建表语句含CONSTRAINT UNIQUE与普通注释，页面错误显示审核通过",
+    "at": "2026-08-28T02:40:47.385Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "50-kfn-control-blocked",
+    "note": "完全相同SQL只去除普通注释，E999正常出现",
+    "at": "2026-08-28T02:41:16.420Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "51-file-kfn-failopen",
+    "note": "文件上传相同KFN样本：1条SQL通过率100%，错误放行",
+    "at": "2026-08-28T02:41:32.050Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "52-file-core-corpus",
+    "note": "核心语料整文件真实上传；逐条结果和总数以快照为准",
+    "at": "2026-08-28T02:41:40.030Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "53-mybatis-xml",
+    "note": "MyBatis3条解析，正常占位符通过，DELETE与SELECT星号被拦",
+    "at": "2026-08-28T02:41:56.092Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "54-login-version",
+    "note": "用户登录页仍显示V1.6.2.1，与运行服务1.6.2.2矛盾",
+    "at": "2026-08-28T02:42:03.705Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "55-developer-menus",
+    "note": "开发人员登录，实例管理菜单未授权",
+    "at": "2026-08-28T02:42:15.671Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "56-developer-instance-options",
+    "note": "开发人员无实例管理权限，在线审核下拉仍可列出2个实例",
+    "at": "2026-08-28T02:42:41.520Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "57-developer-extract",
+    "note": "开发人员成功拉取本地2张表，未因实例管理菜单隐藏而失效",
+    "at": "2026-08-28T02:43:14.259Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "58-developer-scan-options",
+    "note": "无实例管理权限的新扫描表单可选择2实例",
+    "at": "2026-08-28T02:43:43.397Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "59-developer-bigtable-options",
+    "note": "大表治理实例下拉非空，与管理菜单解耦",
+    "at": "2026-08-28T02:44:22.585Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "60-auditor-readonly-instances",
+    "note": "审计员有实例管理菜单但仅查看，无新建编辑删除",
+    "at": "2026-08-28T02:45:24.218Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "61-auditor-instance-filter",
+    "note": "审计员按离线名称筛到1条，只读",
+    "at": "2026-08-28T02:45:31.549Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "62-dba-instances",
+    "note": "DBA可见新建编辑删除及管理操作",
+    "at": "2026-08-28T02:46:10.035Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "63-dba-create-saved",
+    "note": "DBA新建测试连接成功，列表已出现第三条，门禁阈值只读",
+    "at": "2026-08-28T02:46:35.414Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "64-dba-offline-error",
+    "note": "离线127.0.0.1:1测试连接失败且给出错误，DBA门禁不可编辑",
+    "at": "2026-08-28T02:46:55.619Z",
+    "url": "http://127.0.0.1:8002/"
+  },
+  {
+    "id": "65-dba-edit-saved",
+    "note": "DBA页面新建后更新名称成功；未执行删除",
+    "at": "2026-08-28T02:47:07.002Z",
+    "url": "http://127.0.0.1:8002/"
+  }
+]

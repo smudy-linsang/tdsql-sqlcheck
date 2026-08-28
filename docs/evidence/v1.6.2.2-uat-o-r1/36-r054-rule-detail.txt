@@ -1,0 +1,217 @@
+- banner:
+  - img "logo"
+  - generic: TDSQL数据库SQL审核工具
+  - button "系 系统管理员 系统管理员":
+    - generic: 系
+    - generic: 系统管理员
+    - generic: 系统管理员
+- complementary:
+  - menubar:
+    - menuitem "治理概览":
+      - generic: 治理概览
+    - menuitem "SQL审核" [expanded]:
+      - generic: SQL审核
+      - menu:
+        - menuitem "即时审核"
+        - menuitem "文件审核"
+        - menuitem "在线元数据审核"
+    - menuitem "慢SQL治理" [expanded]:
+      - generic: 慢SQL治理
+      - menu:
+        - menuitem "扫描任务"
+        - menuitem "慢SQL记录"
+        - menuitem "EXPLAIN分析"
+    - menuitem "实例体检" [expanded]:
+      - generic: 实例体检
+      - menu:
+        - menuitem "上线检查"
+        - menuitem "大表治理"
+    - menuitem "深度诊断":
+      - generic: 深度诊断
+    - menuitem "平台治理" [expanded]:
+      - generic: 平台治理
+      - menu:
+        - menuitem "实例管理"
+        - menuitem "审核规则库"
+        - menuitem "评估规则集"
+    - menuitem "系统管理":
+      - generic: 系统管理
+- navigation "面包屑":
+  - link "平台治理"
+  - text: /
+  - link "审核规则库"
+- generic: 审核规则库（共 119 条）
+- textbox "搜索规则...": R054
+- button "分布式规范 (14)" [expanded] [active]:
+  - text: 分布式规范 (14)
+- region "分布式规范 (14)":
+  - table:
+    - rowgroup:
+      - row "规则ID 级别 描述 适用域 状态":
+        - columnheader "规则ID":
+          - generic: 规则ID
+        - columnheader "级别":
+          - generic: 级别
+        - columnheader "描述":
+          - generic: 描述
+        - columnheader "适用域":
+          - generic: 适用域
+        - columnheader "状态":
+          - generic: 状态
+  - table:
+    - rowgroup:
+      - row "R020 WARNING 分布式表的SELECT/UPDATE/DELETE语句应在WHERE条件中包含分片键字段 仅分布式 启用":
+        - cell "R020":
+          - generic: R020
+        - cell "WARNING":
+          - generic: WARNING
+        - cell "分布式表的SELECT/UPDATE/DELETE语句应在WHERE条件中包含分片键字段":
+          - generic: 分布式表的SELECT/UPDATE/DELETE语句应在WHERE条件中包含分片键字段
+        - cell "仅分布式":
+          - generic: 仅分布式
+        - cell "启用":
+          - generic: 启用
+      - row "R021 ERROR 禁止对分片键(shardkey)字段进行UPDATE操作 仅分布式 启用":
+        - cell "R021":
+          - generic: R021
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "禁止对分片键(shardkey)字段进行UPDATE操作":
+          - generic: 禁止对分片键(shardkey)字段进行UPDATE操作
+        - cell "仅分布式":
+          - generic: 仅分布式
+        - cell "启用":
+          - generic: 启用
+      - row "R022 ERROR 分布式表禁止不带分片键的全局DELETE/UPDATE，防止跨所有SET执行 仅分布式 启用":
+        - cell "R022":
+          - generic: R022
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "分布式表禁止不带分片键的全局DELETE/UPDATE，防止跨所有SET执行":
+          - generic: 分布式表禁止不带分片键的全局DELETE/UPDATE，防止跨所有SET执行
+        - cell "仅分布式":
+          - generic: 仅分布式
+        - cell "启用":
+          - generic: 启用
+      - row "R025 ERROR 禁止通过ALTER TABLE修改分片键字段 仅分布式 启用":
+        - cell "R025":
+          - generic: R025
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "禁止通过ALTER TABLE修改分片键字段":
+          - generic: 禁止通过ALTER TABLE修改分片键字段
+        - cell "仅分布式":
+          - generic: 仅分布式
+        - cell "启用":
+          - generic: 启用
+      - row "R048 ERROR 分布式实例执行INSERT/REPLACE时，字段列表必须包含分片键 仅分布式 启用":
+        - cell "R048":
+          - generic: R048
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "分布式实例执行INSERT/REPLACE时，字段列表必须包含分片键":
+          - generic: 分布式实例执行INSERT/REPLACE时，字段列表必须包含分片键
+        - cell "仅分布式":
+          - generic: 仅分布式
+        - cell "启用":
+          - generic: 启用
+      - row "R053 ERROR 分布式表JOIN时必须在分片键上关联，避免跨SET广播JOIN 仅分布式 启用":
+        - cell "R053":
+          - generic: R053
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "分布式表JOIN时必须在分片键上关联，避免跨SET广播JOIN":
+          - generic: 分布式表JOIN时必须在分片键上关联，避免跨SET广播JOIN
+        - cell "仅分布式":
+          - generic: 仅分布式
+        - cell "启用":
+          - generic: 启用
+      - row "R054 WARNING 分片键必须包含在主键及所有唯一索引中（唯一索引不含分片键将无法创建） 仅分布式 启用":
+        - cell "R054":
+          - generic: R054
+        - cell "WARNING":
+          - generic: WARNING
+        - cell "分片键必须包含在主键及所有唯一索引中（唯一索引不含分片键将无法创建）":
+          - generic: 分片键必须包含在主键及所有唯一索引中（唯一索引不含分片键将无法创建）
+        - cell "仅分布式":
+          - generic: 仅分布式
+        - cell "启用":
+          - generic: 启用
+      - row "R055 WARNING 分布式表不建议仅依赖全局索引，应优先使用本地索引+分片键路由 仅分布式 启用":
+        - cell "R055":
+          - generic: R055
+        - cell "WARNING":
+          - generic: WARNING
+        - cell "分布式表不建议仅依赖全局索引，应优先使用本地索引+分片键路由":
+          - generic: 分布式表不建议仅依赖全局索引，应优先使用本地索引+分片键路由
+        - cell "仅分布式":
+          - generic: 仅分布式
+        - cell "启用":
+          - generic: 启用
+      - row "R056 INFO 分布式表ORDER BY建议包含分片键，避免跨SET排序 仅分布式 启用":
+        - cell "R056":
+          - generic: R056
+        - cell "INFO":
+          - generic: INFO
+        - cell "分布式表ORDER BY建议包含分片键，避免跨SET排序":
+          - generic: 分布式表ORDER BY建议包含分片键，避免跨SET排序
+        - cell "仅分布式":
+          - generic: 仅分布式
+        - cell "启用":
+          - generic: 启用
+      - row "R057 ERROR 批量INSERT/REPLACE必须包含分片键字段，否则无法路由到正确SET 仅分布式 启用":
+        - cell "R057":
+          - generic: R057
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "批量INSERT/REPLACE必须包含分片键字段，否则无法路由到正确SET":
+          - generic: 批量INSERT/REPLACE必须包含分片键字段，否则无法路由到正确SET
+        - cell "仅分布式":
+          - generic: 仅分布式
+        - cell "启用":
+          - generic: 启用
+      - row "R058 WARNING 分布式表批量UPDATE/DELETE建议加LIMIT限制单次影响行数(≤1000) 仅分布式 启用":
+        - cell "R058":
+          - generic: R058
+        - cell "WARNING":
+          - generic: WARNING
+        - cell "分布式表批量UPDATE/DELETE建议加LIMIT限制单次影响行数(≤1000)":
+          - generic: 分布式表批量UPDATE/DELETE建议加LIMIT限制单次影响行数(≤1000)
+        - cell "仅分布式":
+          - generic: 仅分布式
+        - cell "启用":
+          - generic: 启用
+      - row "R059 WARNING 避免跨SET分布式事务，单事务应只操作同一分片数据 仅分布式 启用":
+        - cell "R059":
+          - generic: R059
+        - cell "WARNING":
+          - generic: WARNING
+        - cell "避免跨SET分布式事务，单事务应只操作同一分片数据":
+          - generic: 避免跨SET分布式事务，单事务应只操作同一分片数据
+        - cell "仅分布式":
+          - generic: 仅分布式
+        - cell "启用":
+          - generic: 启用
+      - row "R060 INFO 建议对分布式表查询执行EXPLAIN查看是否命中单SET 仅分布式 启用":
+        - cell "R060":
+          - generic: R060
+        - cell "INFO":
+          - generic: INFO
+        - cell "建议对分布式表查询执行EXPLAIN查看是否命中单SET":
+          - generic: 建议对分布式表查询执行EXPLAIN查看是否命中单SET
+        - cell "仅分布式":
+          - generic: 仅分布式
+        - cell "启用":
+          - generic: 启用
+      - row "R077 ERROR TDSQL分布式实例建表必须声明分片键或广播表标记，不允许创建单表；分片键必须是主键或唯一索引的字段。支持的分片键声明形态：SHARDKEY=列名、TDSQL_DISTRIBUTED BY HASH(列名)；广播表(全局表)形态：BROADCAST、shardkey=noshardkey_allset 仅分布式 启用":
+        - cell "R077":
+          - generic: R077
+        - cell "ERROR":
+          - generic: ERROR
+        - cell "TDSQL分布式实例建表必须声明分片键或广播表标记，不允许创建单表；分片键必须是主键或唯一索引的字段。支持的分片键声明形态：SHARDKEY=列名、TDSQL_DISTRIBUTED BY HASH(列名)；广播表(全局表)形态：BROADCAST、shardkey=noshardkey_allset":
+          - generic: TDSQL分布式实例建表必须声明分片键或广播表标记，不允许创建单表；分片键必须是主键或唯一索引的字段。支持的分片键声明形态：SHARDKEY=列名、TDSQL_DISTRIBUTED BY HASH(列名)；广播表(全局表)形态：BROADCAST、shardkey=noshardkey_allset
+        - cell "仅分布式":
+          - generic: 仅分布式
+        - cell "启用":
+          - generic: 启用
+- text: "* *"

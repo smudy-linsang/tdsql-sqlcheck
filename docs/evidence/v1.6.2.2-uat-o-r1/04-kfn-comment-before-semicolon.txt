@@ -1,0 +1,57 @@
+- banner:
+  - img "logo"
+  - generic: TDSQL数据库SQL审核工具
+  - button "系 系统管理员 系统管理员":
+    - generic: 系
+    - generic: 系统管理员
+    - generic: 系统管理员
+- complementary:
+  - menubar:
+    - menuitem "治理概览":
+      - generic: 治理概览
+    - menuitem "SQL审核" [expanded]:
+      - generic: SQL审核
+      - menu:
+        - menuitem "即时审核"
+        - menuitem "文件审核"
+        - menuitem "在线元数据审核"
+    - menuitem "慢SQL治理":
+      - generic: 慢SQL治理
+    - menuitem "实例体检":
+      - generic: 实例体检
+    - menuitem "深度诊断":
+      - generic: 深度诊断
+    - menuitem "平台治理":
+      - generic: 平台治理
+    - menuitem "系统管理":
+      - generic: 系统管理
+- navigation "面包屑":
+  - link "SQL审核"
+  - text: /
+  - link "即时审核"
+- generic: 即时SQL审核
+- text: 规则适用架构：
+- radiogroup "radio-group":
+  - radio "分布式规则" [checked]
+  - generic: 分布式规则
+  - radio "集中式规则"
+  - generic: 集中式规则
+- textbox "粘贴SQL语句，Ctrl+Enter 快速审核": CREATE TABLE t_guard (id BIGINT NOT NULL COMMENT 'id',sk BIGINT NOT NULL COMMENT 'sk',u INT NOT NULL COMMENT 'u',PRIMARY KEY(id,sk),CONSTRAINT uk_u UNIQUE(u)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='plain' shardkey=sk /* CREATE VIEW */;
+- button "开始审核":
+  - generic: 开始审核
+- button "示例":
+  - generic: 示例
+- alert:
+  - generic: 发现 2 项违规
+  - paragraph:
+    - text: "SQL类型: CREATE TABLE"
+    - text: "适用架构:"
+    - generic: 分布式
+- text: "[R036]"
+- generic: INFO
+- text: 建议表包含 create_time 和 update_time 字段用于数据追踪
+- generic: "💡 建议添加: create_time DATETIME DEFAULT CURRENT_TIMESTAMP, update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"
+- text: "[R037]"
+- generic: INFO
+- text: 建议添加逻辑删除字段(如 is_deleted)替代物理删除
+- generic: "💡 建议添加: is_deleted TINYINT DEFAULT 0 COMMENT '逻辑删除标记'"

@@ -1,0 +1,319 @@
+[
+  {
+    "database_version": {
+      "version": "8.0.45"
+    }
+  },
+  {
+    "local_inspection_rows": {
+      "n": 0
+    }
+  },
+  {
+    "endpoint": "/health",
+    "status": 200,
+    "body": {
+      "status": "ok",
+      "version": "1.6.2.2"
+    }
+  },
+  {
+    "endpoint": "/api/v1/ppt-report/dashboard?connection_id=uat_o_local",
+    "status": 200,
+    "body": {
+      "score": 100,
+      "total_alerts": 0,
+      "inspection": {
+        "source_file": "monitordb_kv",
+        "summary": {
+          "instance_count": 3,
+          "avg_cpu": 34.5,
+          "avg_memory": 68.2,
+          "total_slow_queries": 45,
+          "alert_count": 0,
+          "cpu_alerts": []
+        },
+        "top_slow_queries": [
+          {
+            "name": "set_1",
+            "count": 28
+          },
+          {
+            "name": "set_2",
+            "count": 17
+          }
+        ]
+      },
+      "index": {
+        "summary": {
+          "total_indexes": 122,
+          "unique_tables": 2,
+          "duplicate_count": 0,
+          "prefix_redundant_count": 0,
+          "unused_count": 0,
+          "fragmented_tables": 0,
+          "pk_count": 45,
+          "unique_count": 12,
+          "normal_count": 122
+        },
+        "duplicate_indexes": []
+      },
+      "sql": {
+        "summary": {
+          "total_sql_types": 20,
+          "total_count": 287,
+          "full_scan_count": 0,
+          "total_time": 41.7384
+        },
+        "type_distribution": {
+          "OTHER": 287
+        },
+        "top_slow_sql": [
+          {
+            "service": "uat_o_local",
+            "schema": "idxaudit_test",
+            "digest_text": "CREATE TABLE `t_manyidx` ( `id` INTEGER PRIMARY KEY , `c0` INTEGER , `c1` INTEGER , `c2` INTEGER , `c3` INTEGER , `c4` INTEGER , `c5` INTEGER , `c6` INTEGER , `c7` INTEGER , `c8` INTEGER , KEY `k0` ( `c0` ) , KEY `k1` ( `c1` ) , KEY `k2` ( `c2` ) , KEY `k3` ( `c3` ) , KEY `k4` ( `c4` ) , KEY `k5` ( `c5` ) , KEY `k6` ( `c6` ) , KEY `k7` ( `c7` ) , KEY `k8` ( `c8` ) )",
+            "avg_time": 0.2794,
+            "count": 38
+          },
+          {
+            "service": "uat_o_local",
+            "schema": "idxaudit_test",
+            "digest_text": "CREATE TABLE `t_dup` ( `id` INTEGER PRIMARY KEY , `a` INTEGER , KEY `k1` ( `a` ) , KEY `k2` ( `a` ) )",
+            "avg_time": 0.1325,
+            "count": 38
+          },
+          {
+            "service": "uat_o_local",
+            "schema": "idxaudit_test",
+            "digest_text": "CREATE TABLE `t_prefix` ( `id` INTEGER PRIMARY KEY , `a` INTEGER , `b` INTEGER , KEY `ka` ( `a` ) , KEY `kab` ( `a` , `b` ) )",
+            "avg_time": 0.132,
+            "count": 38
+          },
+          {
+            "service": "uat_o_local",
+            "schema": "bank_enrich",
+            "digest_text": "CREATE TABLE `t_txn` ( `id` INTEGER PRIMARY KEY , `acct` VARCHARACTER (?) , `amount` DECIMAL (...) , `remark` VARCHARACTER (?) , KEY `idx_acct` ( `acct` ) )",
+            "avg_time": 0.1197,
+            "count": 38
+          },
+          {
+            "service": "uat_o_local",
+            "schema": "idxaudit_test",
+            "digest_text": "CREATE TABLE `t_lowsel` ( `id` INTEGER PRIMARY KEY , STATUS INTEGER , KEY `ks` ( STATUS ) )",
+            "avg_time": 0.1155,
+            "count": 38
+          },
+          {
+            "service": "uat_o_local",
+            "schema": "sdiff_prod",
+            "digest_text": "CREATE TABLE `t` ( `id` INTEGER PRIMARY KEY , NAME VARCHARACTER (?) , KEY `idx_name` ( NAME ) )",
+            "avg_time": 0.1088,
+            "count": 38
+          },
+          {
+            "service": "uat_o_local",
+            "schema": "tdsqlpcloud_monitor_g3",
+            "digest_text": "CREATE TABLE `m_data_cur` ( `f_mid` VARCHARACTER (?) , `f_pmid` VARCHARACTER (?) , `f_key` VARCHARACTER (?) , `f_val` FLOAT8 , `f_type` INTEGER )",
+            "avg_time": 0.1003,
+            "count": 41
+          },
+          {
+            "service": "uat_o_local",
+            "schema": "tdsql_uat_o_reg_1622_20260828",
+            "digest_text": "CREATE TABLE IF NOT EXISTS `slow_queries` ( `id` INTEGER PRIMARY KEY AUTO_INCREMENT , `fingerprint` TEXT NOT NULL , `sql_text` TEXT NOT NULL , `normalized_sql` TEXT , `db_name` VARCHARACTER (?) DEFAULT ? , `set_id` VARCHARACTER (?) DEFAULT ? , `connection_id` VARCHARACTER (?) DEFAULT ? , `project_id` VARCHARACTER (?) DEFAULT ? , `client_user` TEXT , `client_host` TEXT , `exec_count` INTEGER DEFAULT ? , `total_time_ms` FLOAT8 DEFAULT ? , `avg_time_ms` FLOAT8 DEFAULT ? , `max_time_ms` FLOAT8 DEFAULT ? , `rows_examined` INTEGER DEFAULT ? , `rows_sent` INTEGER DEFAULT ? , `rows_affected` INT8 DEFAULT ? , `lock_time_ms` FLOAT8 DEFAULT ? , `first_seen` VARCHARACTER (?) , `last_seen` VARCHARACTER (?) , `problem_type` VARCHARACTER (?) DEFAULT ? , `severity` VARCHARACTER (?) DEFAULT ? , `root_cause` TEXT , `suggestion` TEXT , `optimized_sql` TEXT , `distributed_analysis` TEXT , `index_suggestions` TEXT , `rewrite_suggestions` TEXT , `explain_plan` TEXT , `explain_issues` VARCHARACTER (?) DEFAULT ? , `involved_tables` VARCHARACTER (?) DEFAULT ? , `table_stats` TEXT , `table_schema_ddl` TEXT , `index_details` TEXT , `redundant_indexes` VARCHARACTER (?) DEFAULT ? , `stats_update_info` TEXT , `stats_expired` VARCHARACTER (?) DEFAULT ? , `scan_efficiency` VARCHARACTER (?) DEFAULT ? , STATUS VARCHARACTER (?) DEFAULT ? , `assigned_to` VARCHARACTER (?) DEFAULT ? , `scan_task_id` INTEGER DEFAULT ? , `analysis_json` TEXT , `created_at` DATETIME DEFAULT NOW , `updated_at` DATETIME",
+            "avg_time": 0.1202,
+            "count": 3
+          },
+          {
+            "service": "uat_o_local",
+            "schema": "tdsql_uat_o_1622_20260828",
+            "digest_text": "CREATE TABLE IF NOT EXISTS `slow_queries` ( `id` INTEGER PRIMARY KEY AUTO_INCREMENT , `fingerprint` TEXT NOT NULL , `sql_text` TEXT NOT NULL , `normalized_sql` TEXT , `db_name` VARCHARACTER (?) DEFAULT ? , `set_id` VARCHARACTER (?) DEFAULT ? , `connection_id` VARCHARACTER (?) DEFAULT ? , `project_id` VARCHARACTER (?) DEFAULT ? , `client_user` TEXT , `client_host` TEXT , `exec_count` INTEGER DEFAULT ? , `total_time_ms` FLOAT8 DEFAULT ? , `avg_time_ms` FLOAT8 DEFAULT ? , `max_time_ms` FLOAT8 DEFAULT ? , `rows_examined` INTEGER DEFAULT ? , `rows_sent` INTEGER DEFAULT ? , `rows_affected` INT8 DEFAULT ? , `lock_time_ms` FLOAT8 DEFAULT ? , `first_seen` VARCHARACTER (?) , `last_seen` VARCHARACTER (?) , `problem_type` VARCHARACTER (?) DEFAULT ? , `severity` VARCHARACTER (?) DEFAULT ? , `root_cause` TEXT , `suggestion` TEXT , `optimized_sql` TEXT , `distributed_analysis` TEXT , `index_suggestions` TEXT , `rewrite_suggestions` TEXT , `explain_plan` TEXT , `explain_issues` VARCHARACTER (?) DEFAULT ? , `involved_tables` VARCHARACTER (?) DEFAULT ? , `table_stats` TEXT , `table_schema_ddl` TEXT , `index_details` TEXT , `redundant_indexes` VARCHARACTER (?) DEFAULT ? , `stats_update_info` TEXT , `stats_expired` VARCHARACTER (?) DEFAULT ? , `scan_efficiency` VARCHARACTER (?) DEFAULT ? , STATUS VARCHARACTER (?) DEFAULT ? , `assigned_to` VARCHARACTER (?) DEFAULT ? , `scan_task_id` INTEGER DEFAULT ? , `analysis_json` TEXT , `created_at` DATETIME DEFAULT NOW , `updated_at` DATETIME",
+            "avg_time": 0.1645,
+            "count": 2
+          },
+          {
+            "service": "uat_o_local",
+            "schema": "tdsql_uat_o_reg_1622_20260828",
+            "digest_text": "ALTER TABLE `audit_history` ADD COLUMN `instance_type_source` VARCHARACTER (?) NOT NULL DEFAULT ? COMMENT ?",
+            "avg_time": 0.3216,
+            "count": 1
+          }
+        ]
+      },
+      "gateway": {
+        "source_file": "uat_gateway_interf.txt",
+        "summary": {
+          "total_requests": 2,
+          "daily_count": 1,
+          "error_count": 1
+        },
+        "daily_stats": [
+          {
+            "date": "2026-08-28",
+            "count": 2
+          }
+        ],
+        "timecost_distribution": {
+          "0-100ms": 1,
+          "100-500ms": 0,
+          ">500ms": 1
+        },
+        "error_codes": {}
+      }
+    }
+  },
+  {
+    "endpoint": "/api/v1/gateway-log/reports?connection_id=uat_o_local",
+    "status": 200,
+    "body": [
+      {
+        "id": 1,
+        "connection_id": "uat_o_local",
+        "log_file_name": "uat_gateway_interf.txt",
+        "log_type": "interf",
+        "total_queries": 2,
+        "slow_queries": 1,
+        "max_time_ms": 1500.2,
+        "avg_time_ms": 756.35,
+        "created_at": "2026-08-28T10:30:22"
+      }
+    ]
+  },
+  {
+    "gateway_id": 1,
+    "html_has_heading": false,
+    "html_chars": 8349,
+    "has_footer": true
+  },
+  {
+    "endpoint": "/api/v1/audit/file-reports",
+    "status": 200,
+    "body": {
+      "items": [
+        {
+          "id": 267,
+          "source": "uat_guard.sql",
+          "total_sql": 1,
+          "passed": 1,
+          "failed": 0,
+          "error_count": 0,
+          "warning_count": 0,
+          "pass_rate": 100.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T10:26:15",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 268,
+          "source": "uat_guard.sql",
+          "total_sql": 1,
+          "passed": 1,
+          "failed": 0,
+          "error_count": 0,
+          "warning_count": 0,
+          "pass_rate": 100.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T10:26:15",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        },
+        {
+          "id": 11,
+          "source": "report_6311_biz_tx_log.sql",
+          "total_sql": 1,
+          "passed": 0,
+          "failed": 1,
+          "error_count": 1,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T10:20:57",
+          "gate_passed": null,
+          "instance_type": "distributed"
+        }
+      ],
+      "total": 3
+    }
+  },
+  {
+    "file_report_export": 267,
+    "status": 200,
+    "bytes": 5146,
+    "content_type": "text/html; charset=utf-8"
+  },
+  {
+    "file_report_export": 268,
+    "status": 200,
+    "bytes": 5146,
+    "content_type": "text/html; charset=utf-8"
+  },
+  {
+    "endpoint": "/api/v1/audit/extracted-reports",
+    "status": 200,
+    "body": {
+      "total": 2,
+      "reports": [
+        {
+          "id": 13,
+          "audit_type": "extracted_schema",
+          "source": "extracted_tdsql_uat_o_target_1622_20260828_102322.sql",
+          "total_sql": 2,
+          "passed": 0,
+          "failed": 2,
+          "error_count": 0,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T10:23:22",
+          "connection_id": "uat_o_local",
+          "db_name": "tdsql_uat_o_target_1622",
+          "connection_name": "UAT-O 本地集中式样本",
+          "instance_type": "centralized",
+          "instance_type_source": "declared",
+          "skipped_rules_count": 27
+        },
+        {
+          "id": 12,
+          "audit_type": "extracted_schema",
+          "source": "extracted_tdsql_uat_o_target_1622_20260828_102305.sql",
+          "total_sql": 2,
+          "passed": 0,
+          "failed": 2,
+          "error_count": 0,
+          "warning_count": 0,
+          "pass_rate": 0.0,
+          "created_by": "admin",
+          "created_at": "2026-08-28T10:23:06",
+          "connection_id": "uat_o_local",
+          "db_name": "tdsql_uat_o_target_1622",
+          "connection_name": "UAT-O 本地集中式样本",
+          "instance_type": "centralized",
+          "instance_type_source": "declared",
+          "skipped_rules_count": 27
+        }
+      ]
+    }
+  },
+  {
+    "endpoint": "/api/v1/cluster-inspect/run",
+    "status": 400,
+    "body": {
+      "detail": "monitordb(15001)不可用: (2003, \"Can't connect to MySQL server on '127.0.0.1' ([WinError 10061] 由于目标计算机积极拒绝，无法连接。)\")"
+    }
+  },
+  {
+    "endpoint": "/api/v1/sql-stats/analyze",
+    "status": 400,
+    "body": {
+      "detail": "monitordb不可用"
+    }
+  },
+  {
+    "pdf_export_status": 200,
+    "content_type": "application/pdf",
+    "bytes": 6406,
+    "is_pdf": true
+  }
+]

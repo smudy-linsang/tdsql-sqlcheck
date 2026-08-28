@@ -1,0 +1,94 @@
+- banner:
+  - img "logo"
+  - generic: TDSQL数据库SQL审核工具
+  - button "系 系统管理员 系统管理员":
+    - generic: 系
+    - generic: 系统管理员
+    - generic: 系统管理员
+- complementary:
+  - menubar:
+    - menuitem "治理概览":
+      - generic: 治理概览
+    - menuitem "SQL审核" [expanded]:
+      - generic: SQL审核
+      - menu:
+        - menuitem "即时审核"
+        - menuitem "文件审核"
+        - menuitem "在线元数据审核"
+    - menuitem "慢SQL治理" [expanded]:
+      - generic: 慢SQL治理
+      - menu:
+        - menuitem "扫描任务"
+        - menuitem "慢SQL记录"
+        - menuitem "EXPLAIN分析"
+    - menuitem "实例体检" [expanded]:
+      - generic: 实例体检
+      - menu:
+        - menuitem "上线检查"
+        - menuitem "大表治理"
+    - menuitem "深度诊断":
+      - generic: 深度诊断
+    - menuitem "平台治理":
+      - generic: 平台治理
+    - menuitem "系统管理":
+      - generic: 系统管理
+- navigation "面包屑"
+- text: "*"
+- generic: 深度诊断
+- combobox
+- generic: UAT-O 本地集中式样本 (127.0.0.1:13306)
+- generic: 吸收 TDSQL 原厂工具能力：集群诊断 / 索引体检 / 结构比对 / 应急诊断 / SQL分析。深检绩效观 monitordb(15001)：只需操作。
+- tablist:
+  - tab "集群巡检"
+  - tab "日常巡检与对比报告"
+  - tab "索引体检"
+  - tab "结构比对"
+  - tab "应急诊断"
+  - tab "SQL分析"
+  - tab "网关日志分析"
+  - tab "PDF报告与大屏"
+  - tab "运维工具箱" [selected]
+- tabpanel "运维工具箱":
+  - table:
+    - rowgroup:
+      - row "分类 工具包名称 详细描述 执行命令参考 操作":
+        - columnheader "分类":
+          - generic: 分类
+        - columnheader "工具包名称":
+          - generic: 工具包名称
+        - columnheader "详细描述":
+          - generic: 详细描述
+        - columnheader "执行命令参考":
+          - generic: 执行命令参考
+        - columnheader "操作":
+          - generic: 操作
+  - table:
+    - rowgroup:
+      - row "主机与磁盘诊断 TDSQL 磁盘性能测试脚本 (fio/dd) 用于物理或虚拟机节点上自动化进行磁盘 IO/吞吐量/延时的压测工具，支持一键配置免密并生成测试对比报告 HTML。 bash disk_perf_test.sh --hosts tdsql_hosts --type fio --duration 60 下载 disk_perf_test.sh 下载 generate_report.sh 下载 setup_ssh_keys.sh":
+        - cell "主机与磁盘诊断":
+          - generic: 主机与磁盘诊断
+        - cell "TDSQL 磁盘性能测试脚本 (fio/dd)":
+          - generic: TDSQL 磁盘性能测试脚本 (fio/dd)
+        - cell "用于物理或虚拟机节点上自动化进行磁盘 IO/吞吐量/延时的压测工具，支持一键配置免密并生成测试对比报告 HTML。":
+          - generic: 用于物理或虚拟机节点上自动化进行磁盘 IO/吞吐量/延时的压测工具，支持一键配置免密并生成测试对比报告 HTML。
+        - cell "bash disk_perf_test.sh --hosts tdsql_hosts --type fio --duration 60":
+          - code: bash disk_perf_test.sh --hosts tdsql_hosts --type fio --duration 60
+        - cell "下载 disk_perf_test.sh 下载 generate_report.sh 下载 setup_ssh_keys.sh":
+          - button "下载 disk_perf_test.sh":
+            - generic: 下载 disk_perf_test.sh
+          - button "下载 generate_report.sh":
+            - generic: 下载 generate_report.sh
+          - button "下载 setup_ssh_keys.sh":
+            - generic: 下载 setup_ssh_keys.sh
+      - row "批量命令执行 sshpass 批量执行运维包 基于 sshpass 的集群多节点批量并行执行 Shell 命令/传输文件的便利工具，防挂死，支持密码/Key 认证方式。 bash sshpass_pack_exec.sh -f tdsql_hosts -c 'df -h' 下载 sshpass_pack_exec.sh":
+        - cell "批量命令执行":
+          - generic: 批量命令执行
+        - cell "sshpass 批量执行运维包":
+          - generic: sshpass 批量执行运维包
+        - cell "基于 sshpass 的集群多节点批量并行执行 Shell 命令/传输文件的便利工具，防挂死，支持密码/Key 认证方式。":
+          - generic: 基于 sshpass 的集群多节点批量并行执行 Shell 命令/传输文件的便利工具，防挂死，支持密码/Key 认证方式。
+        - cell "bash sshpass_pack_exec.sh -f tdsql_hosts -c 'df -h'":
+          - code: bash sshpass_pack_exec.sh -f tdsql_hosts -c 'df -h'
+        - cell "下载 sshpass_pack_exec.sh":
+          - button "下载 sshpass_pack_exec.sh":
+            - generic: 下载 sshpass_pack_exec.sh

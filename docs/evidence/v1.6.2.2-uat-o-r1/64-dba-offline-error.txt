@@ -1,0 +1,191 @@
+- banner:
+  - img "logo"
+  - generic: TDSQL数据库SQL审核工具
+  - button "U UAT-O dba DBA":
+    - generic: U
+    - generic: UAT-O dba
+    - generic: DBA
+- complementary:
+  - menubar:
+    - menuitem "治理概览":
+      - generic: 治理概览
+    - menuitem "SQL审核":
+      - generic: SQL审核
+    - menuitem "慢SQL治理":
+      - generic: 慢SQL治理
+    - menuitem "实例体检":
+      - generic: 实例体检
+    - menuitem "深度诊断":
+      - generic: 深度诊断
+    - menuitem "平台治理" [expanded]:
+      - generic: 平台治理
+      - menu:
+        - menuitem "实例管理"
+        - menuitem "审核规则库"
+        - menuitem "评估规则集"
+    - menuitem "系统管理":
+      - generic: 系统管理
+- navigation "面包屑":
+  - link "平台治理"
+  - text: /
+  - link "实例管理"
+- generic: 实例管理
+- button "从 ZK 自动发现":
+  - generic: 从 ZK 自动发现
+- button "+ 新建连接":
+  - generic: + 新建连接
+- textbox "连接名（模糊）": 离线
+- textbox "地址"
+- combobox
+- generic: 类型
+- generic: 共 2 / 3 条
+- table:
+  - rowgroup:
+    - row "连接名 地址 用户名 类型 状态 默认 ERROR上限 WARNING上限 操作":
+      - columnheader "连接名":
+        - generic: 连接名
+      - columnheader "地址":
+        - generic: 地址
+      - columnheader "用户名":
+        - generic: 用户名
+      - columnheader "类型":
+        - generic: 类型
+      - columnheader "状态":
+        - generic: 状态
+      - columnheader "默认":
+        - generic: 默认
+      - columnheader "ERROR上限":
+        - generic: ERROR上限
+      - columnheader "WARNING上限":
+        - generic: WARNING上限
+      - columnheader "操作":
+        - generic: 操作
+- table:
+  - rowgroup:
+    - row "UAT-O 离线失败样本 127.0.0.1:1/uat_o_offline synthetic 分布式·声明 ? ● 未连接 0 默认 不限 连接 设为默认 编辑 探测类型 探测诊断 删除":
+      - cell "UAT-O 离线失败样本":
+        - generic: UAT-O 离线失败样本
+      - cell "127.0.0.1:1/uat_o_offline":
+        - generic: 127.0.0.1:1/uat_o_offline
+      - cell "synthetic":
+        - generic: synthetic
+      - cell "分布式·声明 ?":
+        - generic: 分布式·声明
+        - text: "?"
+      - cell "● 未连接":
+        - generic: ● 未连接
+      - cell
+      - cell "0 默认":
+        - text: "0"
+        - generic: 默认
+      - cell "不限":
+        - generic: 不限
+      - cell "连接 设为默认 编辑 探测类型 探测诊断 删除":
+        - button "连接":
+          - generic: 连接
+        - button "设为默认":
+          - generic: 设为默认
+        - button "编辑":
+          - generic: 编辑
+        - button "探测类型":
+          - generic: 探测类型
+        - button "探测诊断":
+          - generic: 探测诊断
+        - button "删除":
+          - generic: 删除
+    - row "UAT-O DBA页面新建离线连接 127.0.0.1:1/uat_browser_only synthetic 分布式·声明 ? ● 未连接 0 默认 不限 连接 设为默认 编辑 探测类型 探测诊断 删除":
+      - cell "UAT-O DBA页面新建离线连接":
+        - generic: UAT-O DBA页面新建离线连接
+      - cell "127.0.0.1:1/uat_browser_only":
+        - generic: 127.0.0.1:1/uat_browser_only
+      - cell "synthetic":
+        - generic: synthetic
+      - cell "分布式·声明 ?":
+        - generic: 分布式·声明
+        - text: "?"
+      - cell "● 未连接":
+        - generic: ● 未连接
+      - cell
+      - cell "0 默认":
+        - text: "0"
+        - generic: 默认
+      - cell "不限":
+        - generic: 不限
+      - cell "连接 设为默认 编辑 探测类型 探测诊断 删除":
+        - button "连接":
+          - generic: 连接
+        - button "设为默认":
+          - generic: 设为默认
+        - button "编辑":
+          - generic: 编辑
+        - button "探测类型":
+          - generic: 探测类型
+        - button "探测诊断":
+          - generic: 探测诊断
+        - button "删除":
+          - generic: 删除
+- generic: 共 2 条
+- button "上一页" [disabled]:
+- list:
+  - listitem "第 1 页": "1"
+- button "下一页" [disabled]:
+- combobox
+- generic: 20条/页
+- dialog "编辑连接":
+  - banner:
+    - heading "编辑连接" [level=2]
+    - button "el.drawer.close":
+  - generic: 连接名称
+  - textbox "连接名称": UAT-O DBA页面新建离线连接
+  - generic: 主机地址
+  - textbox "主机地址": 127.0.0.1
+  - generic: 端口
+  - button "el.inputNumber.decrease":
+  - button "el.inputNumber.increase":
+  - spinbutton "端口": "1"
+  - generic: 用户名
+  - textbox "用户名": synthetic
+  - generic: 密码
+  - textbox "密码"
+  - generic: 默认库
+  - textbox "默认库": uat_browser_only
+  - generic: 描述
+  - textbox "描述":
+    - /placeholder: 可选，描述信息
+    - text: Synthetic local UAT connection; intentionally offline; no credentials
+  - group "ZK 管控面信息":
+    - generic: ZK 管控面信息
+    - generic: 尚未同步。执行「从 ZK 自动发现」可获取权威实例形态。
+  - button "MonitorDB 监控库配置 (可选)":
+    - text: MonitorDB 监控库配置 (可选)
+  - generic: "*实例类型"
+  - radiogroup "*实例类型":
+    - radio "分布式实例" [checked]
+    - generic: 分布式实例
+    - radio "集中式实例"
+    - generic: 集中式实例
+  - generic: 分布式与集中式实例的审核规则不同，请根据实际情况选择
+  - generic: SET列表
+  - textbox "SET列表":
+    - /placeholder: 从 ZK/赤兔获取，逗号分隔；集中式为自身一个 SET
+  - generic: ZK 标准化导入会自动写入完整 SET 列表。分布式实例填写全部 SET 后，慢SQL扫描会逐 SET 查询并合并；集中式保留自身一个 SET 供来源追溯。
+  - separator:
+    - generic: 质量门禁
+  - generic: ERROR 上限
+  - button "el.inputNumber.decrease":
+  - button "el.inputNumber.increase":
+  - spinbutton "ERROR 上限" [disabled]: "0"
+  - generic: 0 = 一个都不允许；-1 = 不限
+  - generic: WARNING 上限
+  - button "el.inputNumber.decrease":
+  - button "el.inputNumber.increase":
+  - spinbutton "WARNING 上限" [disabled]: "-1"
+  - generic: 默认 -1（不限）
+  - alert:
+    - generic: 门禁阈值仅系统管理员可修改，此处为只读展示
+  - alert:
+    - generic: "业务库连接失败: 连接测试失败: (2003, \"Can't connect to MySQL server on '127.0.0.1' ([WinError 10061] 由于目标计算机积极拒绝，无法连接。)\")；监控库测试失败: (2003, \"Can't connect to MySQL server on '127.0.0.1' ([WinError 10061] 由于目标计算机积极拒绝，无法连接。)\")"
+  - button "测试连接":
+    - generic: 测试连接
+  - button "更新":
+    - generic: 更新

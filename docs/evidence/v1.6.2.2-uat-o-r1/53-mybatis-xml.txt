@@ -1,0 +1,115 @@
+- banner:
+  - img "logo"
+  - generic: TDSQL数据库SQL审核工具
+  - button "系 系统管理员 系统管理员":
+    - generic: 系
+    - generic: 系统管理员
+    - generic: 系统管理员
+- complementary:
+  - menubar:
+    - menuitem "治理概览":
+      - generic: 治理概览
+    - menuitem "SQL审核" [expanded]:
+      - generic: SQL审核
+      - menu:
+        - menuitem "即时审核"
+        - menuitem "文件审核"
+        - menuitem "在线元数据审核"
+    - menuitem "慢SQL治理" [expanded]:
+      - generic: 慢SQL治理
+      - menu:
+        - menuitem "扫描任务"
+        - menuitem "慢SQL记录"
+        - menuitem "EXPLAIN分析"
+    - menuitem "实例体检" [expanded]:
+      - generic: 实例体检
+      - menu:
+        - menuitem "上线检查"
+        - menuitem "大表治理"
+    - menuitem "深度诊断":
+      - generic: 深度诊断
+    - menuitem "平台治理" [expanded]:
+      - generic: 平台治理
+      - menu:
+        - menuitem "实例管理"
+        - menuitem "审核规则库"
+        - menuitem "评估规则集"
+    - menuitem "系统管理" [expanded]:
+      - generic: 系统管理
+      - menu:
+        - menuitem "用户管理"
+        - menuitem "角色管理"
+        - menuitem "权限矩阵"
+        - menuitem "数据保留"
+        - menuitem "操作审计"
+        - menuitem "系统信息"
+- navigation "面包屑":
+  - link "SQL审核"
+  - text: /
+  - link "文件审核"
+- tablist:
+  - tab "文件上传" [selected]
+  - tab "审核报告"
+- tabpanel "文件上传":
+  - generic: 上传文件审核
+  - text: 规则适用架构：
+  - radiogroup "radio-group":
+    - radio "分布式规则" [checked]
+    - generic: 分布式规则
+    - radio "集中式规则"
+    - generic: 集中式规则
+  - text: 拖拽文件到此处或
+  - emphasis: 点击上传
+  - generic: 支持 .xml (MyBatis)、.sql 文件
+  - generic: 审核结果
+  - table:
+    - rowgroup:
+      - row "SQL总数 3 通过 1 未通过 2 通过率 33.3% 规则架构 分布式":
+        - cell "SQL总数"
+        - cell "3"
+        - cell "通过"
+        - cell "1"
+        - cell "未通过"
+        - cell "2"
+        - cell "通过率"
+        - cell "33.3%"
+        - cell "规则架构"
+        - cell "分布式":
+          - generic: 分布式
+  - button "#1 SELECT 通过":
+    - strong: "#1"
+    - text: SELECT
+    - generic: 通过
+  - button "#2 DELETE 4项违规" [expanded]:
+    - strong: "#2"
+    - text: DELETE
+    - generic: 4项违规
+  - region "#2 DELETE 4项违规":
+    - generic: DELETE FROM t_uat_order
+    - text: "[R013]"
+    - generic: ERROR
+    - text: 禁止不带 WHERE 条件的 DELETE 操作，可能导致全表数据变更
+    - generic: 💡 请添加 WHERE 条件限定影响范围
+    - text: "[R014]"
+    - generic: ERROR
+    - text: "危险操作: 不带 WHERE 的 DELETE 将影响整张表"
+    - generic: 💡 请添加 WHERE 条件，或使用 LIMIT 限制影响行数
+    - text: "[R047]"
+    - generic: WARNING
+    - text: 全表DELETE建议改为TRUNCATE TABLE，效率更高且释放空间
+    - generic: 💡 请使用 TRUNCATE TABLE table_name 替代 DELETE FROM table_name
+    - text: "[R070]"
+    - generic: WARNING
+    - text: 无WHERE条件的UPDATE/DELETE在大事务中会锁定大量行，请分批操作
+    - generic: 💡 大批量操作请分批提交，每批≤10000行
+  - button "#3 SELECT 1项违规" [expanded] [active]:
+    - strong: "#3"
+    - text: SELECT
+    - generic: 1项违规
+  - region "#3 SELECT 1项违规":
+    - generic: SELECT * FROM t_uat_order WHERE id = ?
+    - text: "[R012]"
+    - generic: ERROR
+    - text: "禁止使用 SELECT *（涉及表: t_uat_order），应指定具体字段"
+    - generic: "💡 请明确列出需要的字段，如: SELECT col1, col2, col3 FROM ..."
+- text: "* *"

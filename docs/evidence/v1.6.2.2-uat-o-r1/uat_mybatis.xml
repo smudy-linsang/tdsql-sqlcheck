@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mapper namespace="UatOMapper">
+  <select id="good" resultType="map">SELECT id FROM t_uat_order WHERE id = #{id}</select>
+  <delete id="unsafe">DELETE FROM t_uat_order</delete>
+  <select id="dynamic" resultType="map">SELECT * FROM t_uat_order WHERE id = ${id}</select>
+</mapper>
