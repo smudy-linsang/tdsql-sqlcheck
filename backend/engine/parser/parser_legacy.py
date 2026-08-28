@@ -11,21 +11,2013 @@ from typing import Optional
 import sqlglot
 from sqlglot import exp
 from sqlglot.errors import SqlglotError
+from sqlglot.tokens import TokenType
 
 
-# TDSQL 方言尾子句：sqlglot 不认识，会导致整条建表语句降级为 exp.Command，
-# 进而使 columns/indexes/table_options 全空，所有结构类规则静默跳过。
-#   分片表:  ) ENGINE=InnoDB ... TDSQL_DISTRIBUTED BY HASH(`cust_no`)
-#            （HASH / RANGE / LIST 三种方法均会降级）
-#   广播表:  ) ENGINE=InnoDB ... BROADCAST
-# 注: `shardkey=col` 与单独的 `PARTITION BY ...` 不会降级，无需处理。
-# 本正则只在"已经降级"的重试路径上使用，故无需做注释/字符串感知——
-# 正常解析的语句根本不会走到那里（见 parse() 内注释）。
-_TDSQL_DIALECT_RE = re.compile(
-    r"\btdsql_distributed\s+by\s+\w+\s*\([^)]*\)"   # 分片表：BY HASH/RANGE/LIST(col)
-    r"|\bbroadcast\b",                               # 广播表关键字
-    re.IGNORECASE,
+# ── v1.6.2.2：解析恢复链的 token 级安全剥离器 ─────────────────────────────────
+#
+# 本文件原有的 _TDSQL_DIALECT_RE（v1.6.2.0 引入的全局正则）已删除。
+# 删除原因（实测，见设计说明书 §5.14）：它对整条 SQL 做 re.sub()，不感知
+# token 作用域，会把定义体里的真实内容一并抹掉——
+#   `broadcast` varchar(20)                 → 列被删除（列名变成空白）
+#   COMMENT 'broadcast table info'          → 注释被改成 '  table info'
+#   COMMENT 'TDSQL_DISTRIBUTED BY HASH(x)'  → 注释被清空
+# 且改写后的 SQL 仍能解析成同表名的 exp.Create，门禁发现不了，
+# 形成**静默错误 AST**。该缺陷自 v1.6.2.0 起已在生产版本中存在。
+#
+# ── 本模块的设计原则：白名单，不是黑名单 ──
+# 前几版反复出问题的根源是"扫描 + 排除已知的坏形态"：每补一种排除，
+# 就还剩下没想到的另一种。本版一律改成**只接受精确形态、其余全部拒绝**：
+#   * 建表头部：CREATE [TEMPORARY] TABLE [IF NOT EXISTS] 名[.名] (  —— 且表名
+#     只接受裸标识符 VAR 与反引号标识符 IDENTIFIER；STRING（单/双引号）一律拒绝；
+#   * 方言尾子句：TDSQL_DISTRIBUTED BY HASH|RANGE|LIST ( 单个标识符 )
+#     —— 括号内必须**恰好一个**标识符 token，空参数、字符串、逗号、多字段、
+#     运算符、函数、嵌套括号一律拒绝；
+#   * 广播标志：独立的裸 BROADCAST 关键字；
+#   * 其余一切形态 → 返回 None，**保持原有失败路径**（宁可继续报 E999，
+#     也绝不把非法 DDL 修成"解析成功"）。
+# 两个剥离器共用同一个严格头部定位器 _tdsql_table_def_bounds()，
+# 避免两套安全模型再次各自漂移。
+
+
+def _spans_only_diff(orig: str, new: str, spans) -> bool:
+    """校验 new 相对 orig 的全部差异都落在 spans 内，且长度恒等。"""
+    if new is None or len(new) != len(orig):
+        return False
+    for i in range(len(orig)):
+        if orig[i] != new[i] and not any(s <= i <= e for s, e in spans):
+            return False
+    return True
+
+
+# 不得当作关键字的 token 类型：字符串字面量与（反）引号标识符。
+# 用"排除法"而非"只认 VAR"是实测决定的：sqlglot 30.14 里
+#   TDSQL_DISTRIBUTED / BY / HASH / BROADCAST -> TokenType.VAR
+#   RANGE -> TokenType.RANGE ，LIST -> TokenType.LIST（各有专用 token 类型）
+# 只认 VAR 会让合法的 BY RANGE(...) / BY LIST(...) 无法恢复（已实测）。
+_NON_KEYWORD_TOKENS = (TokenType.STRING, TokenType.IDENTIFIER)
+
+# 合法标识符 token：裸名(VAR) 与反引号名(IDENTIFIER)。
+# **不含 STRING**——MySQL 下 't' / "t" 会被词法器标成 STRING，
+# 若把它当合法表名/分片键，就会把非法 DDL 恢复成功（第五轮 BLOCK-E2）。
+_IDENT_TOKENS = (TokenType.VAR, TokenType.IDENTIFIER)
+
+
+def _is_bare_kw(tok, word=None) -> bool:
+    """是否为裸关键字 token（排除字符串字面量与反引号标识符）。
+
+    `word=None` 表示"只要求是裸词、不限定具体文本"——供枚举型选项值使用。
+    """
+    if tok.token_type in _NON_KEYWORD_TOKENS:
+        return False
+    return True if word is None else (tok.text or "").upper() == word
+
+
+def _ident_text(tok):
+    """标识符 token 的归一文本：去反引号、去首尾空白、转小写。"""
+    return (tok.text or "").strip("` ").strip().lower()
+
+
+def _tdsql_table_def_bounds(toks):
+    """严格定位第一条建表语句的列定义列表，并产出顶层 CreateShape。
+
+    返回 (左括号下标, 右括号下标, 表名, head)；任一环节不满足返回 (-1, -1, "", None)。
+
+    `head = (qname, temporary, if_not_exists)`，其中 `qname = (schema, table)`
+    —— 第十二轮 BLOCK-12-04：Rev.M 只保留最后一级表名，于是候选把 `db1.t` 换成
+    `db2.t`、把 `CREATE TEMPORARY` 降成 `CREATE`、把 `IF NOT EXISTS` 删掉，
+    门禁一律返回 True。这三项都有规则消费者（临时表标志直接进 R032），
+    必须进入指纹。
+
+    只接受：CREATE [TEMPORARY] TABLE [IF NOT EXISTS] <名>[.<名>] ( ... )
+      * 表名只接受 VAR / IDENTIFIER，**STRING 一律拒绝**；
+      * 表名之后必须**紧接**列定义左括号 —— CTAS(`AS SELECT`)、`LIKE`
+        因此被拒，不会拿后续任意括号（如 CONCAT(...)）冒充定义列表。
+    """
+    n = len(toks)
+    if n < 4 or toks[0].token_type != TokenType.CREATE:
+        return -1, -1, "", None
+    p = 1
+    temporary = False
+    if toks[p].token_type == TokenType.TEMPORARY:
+        temporary = True
+        p += 1
+    if p >= n or toks[p].token_type != TokenType.TABLE:
+        return -1, -1, "", None
+    p += 1
+    if_not_exists = False
+    if (p + 2 < n and _is_bare_kw(toks[p], "IF")
+            and toks[p + 1].token_type == TokenType.NOT
+            and toks[p + 2].token_type == TokenType.EXISTS):
+        if_not_exists = True
+        p += 3
+    if p >= n or toks[p].token_type not in _IDENT_TOKENS:
+        return -1, -1, "", None
+    table_name = toks[p].text
+    schema = ""
+    p += 1
+    if (p + 1 < n and toks[p].token_type == TokenType.DOT
+            and toks[p + 1].token_type in _IDENT_TOKENS):
+        schema = _ident_text(toks[p - 1])
+        table_name = toks[p + 1].text
+        p += 2
+    if p >= n or toks[p].token_type != TokenType.L_PAREN:
+        return -1, -1, "", None
+    head = ((schema, (table_name or "").strip("` ").strip().lower()),
+            temporary, if_not_exists)
+    open_idx = p
+    d = 0
+    while p < n:
+        if toks[p].token_type == TokenType.L_PAREN:
+            d += 1
+        elif toks[p].token_type == TokenType.R_PAREN:
+            d -= 1
+            if d == 0:
+                return open_idx, p, table_name, head
+        p += 1
+    return -1, -1, "", None
+
+
+
+
+# ── TDSQL 官方语法消费器（Rev.M：结构化类型表 + typed atoms + 指纹守恒）──
+#
+# 判据优先级：① 目标实例事实 ② TDSQL 官方文档 ③ 用户冻结决策
+#             ④ 官方声明继承 MySQL 处用 MySQL 手册补边界 ⑤ sqlglot 只做词法与候选
+#
+# 引擎名 / 字符集 / 排序规则：裸名、反引号名、引号名都合法，但**不能是数字**
+_OPT_NAMEY = (TokenType.VAR, TokenType.IDENTIFIER, TokenType.STRING)
+
+
+# ── 结构化数据类型规范表（第十一轮 BLOCK-11-04）─────────────────────────────
+#
+# Rev.L 的 `_TYPE_SPEC = 名 -> 模式字符串` 是**双向失真**的：
+#   过窄——`INTEGER` / `NUMERIC(M,D)` / `REAL(M,D)` / `ENUM(...)` / `INT ZEROFILL`
+#          因指纹按字面比较而被拒（sqlglot 会把它们规范化）；`CHAR(0)` / `VARCHAR(0)`
+#          / `MULTIPOINT` / `DOUBLE PRECISION` 直接进不了规划器；
+#   过宽——`DECIMAL(1,2)`（scale > precision）、`DECIMAL(66,0)`、`BIT(65)`、
+#          `CHAR(256)`、`VARCHAR(65536)`、`YEAR(999)`、裸 `ENUM` 全被放行。
+#
+# Rev.M 改为结构化规则表，每个类型显式声明：
+#   canonical  规范名（**与 sqlglot 的归一结果一致**，两侧共用同一 canonicalizer）
+#   arity      NONE / M_OPT / M_REQ / M_D / FSP / ENUM_SET
+#   rng        各参数的闭区间（None 表示不限）
+#   family     类型族，决定可接的类型属性
+#
+# 参数边界依据：TDSQL 官方兼容性页声明继承 MySQL 类型语义，故按 MySQL 5.7 手册取值。
+_F_INT, _F_DEC, _F_STR, _F_BIN, _F_TIME, _F_OTHER = "int", "dec", "str", "bin", "time", "other"
+
+# ── 产生式记法（第十二轮 BLOCK-12-03）────────────────────────────────────────
+#
+# Rev.M 的 `名 → 单一 arity` 表达不了"同一个关键字有多条合法产生式"。
+# 最典型的是 FLOAT：官方同时存在 `FLOAT(p)`（p∈0..53，单参数、语义是精度位数）
+# 与 `FLOAT(M,D)`（M∈1..255、D∈0..30）。Rev.M 把两者塞进同一个 `M_D`，
+# 于是**同时**造成合法下界 `FLOAT(0)` 被误拒、非法上界 `FLOAT(54)` 被误收。
+#
+# 本版每个类型持有**一组**产生式，逐条尝试，命中任意一条即可：
+#   _P_NONE            无括号
+#   _P(*ranges)        恰好 len(ranges) 个整数参数，逐个落在对应闭区间
+#   _P_VALUES(n)       括号内 1..n 个字符串字面量（ENUM/SET）
+_P_NONE = ("NONE", ())
+
+
+def _P(*ranges):
+    return ("ARGS", ranges)
+
+
+def _P_VALUES(max_members):
+    return ("VALUES", max_members)
+
+
+_INT_P = (_P_NONE, _P((1, 255)))
+# MySQL/TDSQL 只有 BLOB[(M)] / TEXT[(M)] 的 M 是“选择最小可容纳类型”的长度提示，
+# 不是 TEXT 本体 65535 的硬语法上限。允许到 LONGTEXT/LONGBLOB 的最大长度；
+# 具体存储类型由数据库决定，审核器只保存源参数。TINY/MEDIUM/LONG 具名变体的
+# 官方产生式没有 `(M)`，必须保持 `_P_NONE`，不能复用本组而误收 TINYTEXT(256)。
+_LOB_P = (_P_NONE, _P((0, 4294967295)))
+_FSP_P = (_P_NONE, _P((0, 6)))
+_TYPE_RULES = {
+    # 源名                : (canonical,   产生式组,                                    族)
+    "TINYINT":             ("TINYINT",    _INT_P,                                     _F_INT),
+    "SMALLINT":            ("SMALLINT",   _INT_P,                                     _F_INT),
+    "MEDIUMINT":           ("MEDIUMINT",  _INT_P,                                     _F_INT),
+    "INT":                 ("INT",        _INT_P,                                     _F_INT),
+    "INTEGER":             ("INT",        _INT_P,                                     _F_INT),
+    "BIGINT":              ("BIGINT",     _INT_P,                                     _F_INT),
+    # SERIAL = BIGINT UNSIGNED NOT NULL AUTO_INCREMENT UNIQUE。Rev.N 只保留类型名，
+    # 会让 R054/R038 等消费者看不到隐含约束。Rev.O 仍让规划器具名识别它，
+    # 但通过 `_TYPE_KFN_CANONICAL` 标成 KFN-5，最终必须失败关闭。
+    "SERIAL":              ("SERIAL",     (_P_NONE,),                                 _F_OTHER),
+    "DECIMAL":             ("DECIMAL",    (_P_NONE, _P((1, 65)), _P((1, 65), (0, 30))), _F_DEC),
+    "NUMERIC":             ("DECIMAL",    (_P_NONE, _P((1, 65)), _P((1, 65), (0, 30))), _F_DEC),
+    "DEC":                 ("DECIMAL",    (_P_NONE, _P((1, 65)), _P((1, 65), (0, 30))), _F_DEC),
+    "FIXED":               ("DECIMAL",    (_P_NONE, _P((1, 65)), _P((1, 65), (0, 30))), _F_DEC),
+    # FLOAT 有两条产生式，先试 (p) 再试 (M,D)——见上方说明
+    "FLOAT":               ("FLOAT",      (_P_NONE, _P((0, 53)), _P((1, 255), (0, 30))), _F_DEC),
+    "REAL":                ("FLOAT",      (_P_NONE, _P((1, 255), (0, 30))),           _F_DEC),
+    "DOUBLE":              ("DOUBLE",     (_P_NONE, _P((1, 255), (0, 30))),           _F_DEC),
+    "DOUBLE PRECISION":    ("DOUBLE",     (_P_NONE, _P((1, 255), (0, 30))),           _F_DEC),
+    "CHAR":                ("CHAR",       (_P_NONE, _P((0, 255))),                    _F_STR),
+    "NCHAR":               ("CHAR",       (_P_NONE, _P((0, 255))),                    _F_STR),
+    "CHARACTER":           ("CHAR",       (_P_NONE, _P((0, 255))),                    _F_STR),
+    "VARCHAR":             ("VARCHAR",    (_P((0, 65535)),),                          _F_STR),
+    "NVARCHAR":            ("VARCHAR",    (_P((0, 65535)),),                          _F_STR),
+    "CHARACTER VARYING":   ("VARCHAR",    (_P((0, 65535)),),                          _F_STR),
+    "BINARY":              ("BINARY",     (_P_NONE, _P((0, 255))),                    _F_BIN),
+    "VARBINARY":           ("VARBINARY",  (_P((0, 65535)),),                          _F_BIN),
+    "TINYTEXT":            ("TINYTEXT",   (_P_NONE,),                                 _F_STR),
+    "TEXT":                ("TEXT",       _LOB_P,                                     _F_STR),
+    "MEDIUMTEXT":          ("MEDIUMTEXT", (_P_NONE,),                                 _F_STR),
+    "LONGTEXT":            ("LONGTEXT",   (_P_NONE,),                                 _F_STR),
+    "TINYBLOB":            ("TINYBLOB",   (_P_NONE,),                                 _F_BIN),
+    "BLOB":                ("BLOB",       _LOB_P,                                     _F_BIN),
+    "MEDIUMBLOB":          ("MEDIUMBLOB", (_P_NONE,),                                 _F_BIN),
+    "LONGBLOB":            ("LONGBLOB",   (_P_NONE,),                                 _F_BIN),
+    # ENUM 上限 65535 个成员、SET 上限 64 个成员（MySQL 5.7 字符串类型语法）
+    "ENUM":                ("ENUM",       (_P_VALUES(65535),),                        _F_STR),
+    "SET":                 ("SET",        (_P_VALUES(64),),                           _F_STR),
+    "DATE":                ("DATE",       (_P_NONE,),                                 _F_TIME),
+    "YEAR":                ("YEAR",       (_P_NONE, _P((4, 4))),                      _F_TIME),
+    "TIME":                ("TIME",       _FSP_P,                                     _F_TIME),
+    "DATETIME":            ("DATETIME",   _FSP_P,                                     _F_TIME),
+    "TIMESTAMP":           ("TIMESTAMP",  _FSP_P,                                     _F_TIME),
+    "BIT":                 ("BIT",        (_P_NONE, _P((1, 64))),                     _F_OTHER),
+    "BOOL":                ("BOOLEAN",    (_P_NONE,),                                 _F_OTHER),
+    "BOOLEAN":             ("BOOLEAN",    (_P_NONE,),                                 _F_OTHER),
+    "JSON":                ("JSON",       (_P_NONE,),                                 _F_OTHER),
+    "GEOMETRY":            ("GEOMETRY",   (_P_NONE,),                                 _F_OTHER),
+    "POINT":               ("POINT",      (_P_NONE,),                                 _F_OTHER),
+    "LINESTRING":          ("LINESTRING", (_P_NONE,),                                 _F_OTHER),
+    "POLYGON":             ("POLYGON",    (_P_NONE,),                                 _F_OTHER),
+    "MULTIPOINT":          ("MULTIPOINT", (_P_NONE,),                                 _F_OTHER),
+    "MULTILINESTRING":     ("MULTILINESTRING",   (_P_NONE,),                          _F_OTHER),
+    "MULTIPOLYGON":        ("MULTIPOLYGON",      (_P_NONE,),                          _F_OTHER),
+    "GEOMETRYCOLLECTION":  ("GEOMETRYCOLLECTION", (_P_NONE,),                         _F_OTHER),
+}
+# 多 token 类型名。⚠️ sqlglot 对 `DOUBLE PRECISION` 的词法表现随上下文而异，
+# 故两种表现都要能进：这里既登记二元组，`_TYPE_RULES` 也含单词 `DOUBLE`。
+_TYPE_MULTIWORD = {
+    # 最长匹配优先。sqlglot 可能把 `CHARACTER VARYING` / `CHAR VARYING`
+    # 合成一个 token，也可能拆成两个 token；两种词法形态必须映射到同一 canonical。
+    ("NATIONAL", "CHARACTER", "VARYING"): "VARCHAR",
+    ("NATIONAL", "CHAR", "VARYING"): "VARCHAR",
+    ("NATIONAL", "CHARACTER VARYING"): "VARCHAR",
+    ("NATIONAL", "CHAR VARYING"): "VARCHAR",
+    ("NATIONAL CHARACTER VARYING",): "VARCHAR",
+    ("NATIONAL CHAR VARYING",): "VARCHAR",
+    ("NCHAR", "VARCHAR"): "VARCHAR",
+    ("NCHAR VARCHAR",): "VARCHAR",
+    ("CHAR", "BYTE"): "BINARY",
+    ("CHAR BYTE",): "BINARY",
+    ("DOUBLE", "PRECISION"): "DOUBLE PRECISION",
+    # `NATIONAL CHAR` / `NATIONAL VARCHAR` 是官方别名，词法上是**两个** token；
+    # sqlglot 30.14.0 三版均 ParseError → 已登记 KFN-A（见 §5.21.5 KFN-4）。
+    # 这里登记是为了让它落在具名 KFN，而不是藏在普通 plan=False 里。
+    ("NATIONAL", "CHAR"): "CHAR",
+    ("NATIONAL", "CHARACTER"): "CHAR",
+    ("NATIONAL", "VARCHAR"): "VARCHAR",
+    ("NATIONAL CHAR",): "CHAR",
+    ("NATIONAL CHARACTER",): "CHAR",
+    ("NATIONAL VARCHAR",): "VARCHAR",
+}
+# 这些官方形态当前发布 pin 30.14.0 不能生成可保真的候选 AST；规划器必须具名
+# 接受并落入 KFN-5，不能继续藏在普通 plan=False 中。
+_TYPE_KFN_MULTIWORD = {
+    ("NATIONAL", "CHARACTER", "VARYING"): "KFN-5-NATIONAL-VARYING",
+    ("NATIONAL", "CHAR", "VARYING"): "KFN-5-NATIONAL-VARYING",
+    ("NATIONAL", "CHARACTER VARYING"): "KFN-5-NATIONAL-VARYING",
+    ("NATIONAL", "CHAR VARYING"): "KFN-5-NATIONAL-VARYING",
+    ("NATIONAL CHARACTER VARYING",): "KFN-5-NATIONAL-VARYING",
+    ("NATIONAL CHAR VARYING",): "KFN-5-NATIONAL-VARYING",
+    ("NCHAR", "VARCHAR"): "KFN-5-NCHAR-VARCHAR",
+    ("NCHAR VARCHAR",): "KFN-5-NCHAR-VARCHAR",
+    ("CHAR", "BYTE"): "KFN-5-CHAR-BYTE",
+    ("CHAR BYTE",): "KFN-5-CHAR-BYTE",
+    ("NATIONAL", "CHAR"): "KFN-4-NATIONAL",
+    ("NATIONAL", "CHARACTER"): "KFN-4-NATIONAL",
+    ("NATIONAL", "VARCHAR"): "KFN-4-NATIONAL",
+    ("NATIONAL CHAR",): "KFN-4-NATIONAL",
+    ("NATIONAL CHARACTER",): "KFN-4-NATIONAL",
+    ("NATIONAL VARCHAR",): "KFN-4-NATIONAL",
+}
+_TYPE_KFN_CANONICAL = {
+    "SERIAL": "KFN-5-SERIAL",
+    "POINT": "KFN-3-SPATIAL-TYPE",
+    "LINESTRING": "KFN-3-SPATIAL-TYPE",
+    "POLYGON": "KFN-3-SPATIAL-TYPE",
+    "MULTIPOINT": "KFN-3-SPATIAL-TYPE",
+    "MULTILINESTRING": "KFN-3-SPATIAL-TYPE",
+    "MULTIPOLYGON": "KFN-3-SPATIAL-TYPE",
+    "GEOMETRYCOLLECTION": "KFN-3-SPATIAL-TYPE",
+}
+# 类型属性按**族**开放：数值族才能 UNSIGNED/ZEROFILL，字符族才能
+# BINARY/ASCII/UNICODE。ASCII/UNICODE 是官方别名，但当前 pin 不能解析，故具名 KFN。
+_TYPE_ATTRS_BY_FAMILY = {
+    _F_INT:   ("UNSIGNED", "SIGNED", "ZEROFILL"),
+    _F_DEC:   ("UNSIGNED", "SIGNED", "ZEROFILL"),
+    _F_STR:   ("BINARY", "ASCII", "UNICODE"),
+    _F_BIN:   (),
+    _F_TIME:  (),
+    _F_OTHER: (),
+}
+_TYPE_KFN_ATTRS = {
+    "SIGNED": "KFN-4-SIGNED",
+    "BINARY": "KFN-4-CHAR-BINARY",
+    "ASCII": "KFN-5-ASCII",
+    "UNICODE": "KFN-5-UNICODE",
+}
+# sqlglot 回生成时**丢弃** ZEROFILL（实测），故它不参与候选比对；
+# 它是显示属性，规则层无消费者。记入源指纹但比对时归一掉。
+_TYPE_ATTRS_DROPPED_BY_AST = ("ZEROFILL", "SIGNED")
+
+
+def _int_val(tok, allow_zero=False):
+    """十进制整数字面量的值；不是则返回 None。"""
+    if tok.token_type != TokenType.NUMBER:
+        return None
+    txt = (tok.text or "").strip()
+    if not txt.isdigit():
+        return None
+    v = int(txt)
+    return v if (allow_zero or v > 0) else None
+
+
+def _in_range(v, rng):
+    lo, hi = rng
+    return (lo is None or v >= lo) and (hi is None or v <= hi)
+
+
+def _try_type_production(toks, j, stop, prod):
+    """按**单条产生式**消费类型参数；返回 (下一个下标, 参数元组) 或 (-1, None)。"""
+    kind, spec = prod
+    has_paren = j < stop and toks[j].token_type == TokenType.L_PAREN
+    if kind == "NONE":
+        return (j, ()) if not has_paren else (-1, None)
+    if not has_paren:
+        return -1, None                                # 该产生式要求括号
+    k = j + 1
+    if kind == "VALUES":
+        vals = []
+        while True:
+            if k >= stop or toks[k].token_type != TokenType.STRING:
+                return -1, None                        # 必须是字符串字面量
+            vals.append(_unquote_str(toks[k]))
+            k += 1
+            if k < stop and toks[k].token_type == TokenType.COMMA:
+                k += 1
+                continue
+            break
+        if not vals or len(vals) > spec:
+            return -1, None                            # 空值表 / 超出成员数上限
+        args = tuple(vals)                             # **保留逐值内容**，不只记数量
+    else:                                              # ARGS
+        nums = []
+        while True:
+            v = _int_val(toks[k], allow_zero=True) if k < stop else None
+            if v is None:
+                return -1, None
+            nums.append(v)
+            k += 1
+            if k < stop and toks[k].token_type == TokenType.COMMA:
+                k += 1
+                continue
+            break
+        if len(nums) != len(spec):
+            return -1, None                            # 参数个数不匹配本产生式
+        for idx, v in enumerate(nums):
+            if not _in_range(v, spec[idx]):
+                return -1, None                        # 越界（FLOAT(54)/BIT(65)/CHAR(256)…）
+        if len(nums) == 2 and nums[1] > nums[0]:
+            return -1, None                            # scale 不得大于 precision
+        args = tuple(nums)
+    if k >= stop or toks[k].token_type != TokenType.R_PAREN:
+        return -1, None
+    return k + 1, args
+
+
+def _consume_data_type(toks, i, stop):
+    """按结构化规则表消费列数据类型。
+
+    返回 `(下一个下标, (canonical, 参数元组, 属性元组, family, KFN元组))`
+    或 `(-1, None)`。family 必须继续传给列约束消费器，禁止非字符类型接收
+    CHARACTER SET/COLLATE；KFN 使规划器具名接受、候选门禁强制失败关闭。
+    源侧与候选侧**共用本函数**，从而消除 `INTEGER`/`NUMERIC`/`DEC`/`NCHAR` 等别名
+    以及 `ZEROFILL` 被 AST 丢弃导致的假不一致（第十一/十二轮 BLOCK-11-04 / 12-03）。
+    """
+    if i >= stop:
+        return -1, None
+    src = (toks[i].text or "").upper()
+    j = i + 1
+    rule = None
+    matched_words = None
+    # sqlglot 不同版本可能把同一产生式切成 1/2/3 个 token；按“token 数优先、
+    # token 内可含空格”的登记表最长匹配，不能让 NATIONAL CHAR 抢走后面的 VARYING。
+    for width in (3, 2, 1):
+        if i + width <= stop:
+            words = tuple((toks[q].text or "").upper() for q in range(i, i + width))
+            if words in _TYPE_MULTIWORD:
+                rule = _TYPE_RULES[_TYPE_MULTIWORD[words]]
+                matched_words = words
+                j = i + width
+                break
+    if rule is None:
+        if toks[i].token_type in _NON_KEYWORD_TOKENS:
+            return -1, None
+        rule = _TYPE_RULES.get(src)
+        if rule is None:
+            return -1, None
+    canonical, productions, family = rule
+    # 逐条尝试产生式，命中任意一条即可；全部不命中 → 失败关闭
+    nxt, args = -1, None
+    for prod in productions:
+        nxt, args = _try_type_production(toks, j, stop, prod)
+        if nxt >= 0:
+            break
+    if nxt < 0:
+        return -1, None
+    j = nxt
+    allowed = _TYPE_ATTRS_BY_FAMILY.get(family, ())
+    attrs = []
+    while j < stop and _is_bare_kw(toks[j]):
+        a = (toks[j].text or "").upper()
+        if a not in allowed:
+            break
+        if a in attrs:
+            return -1, None
+        attrs.append(a)
+        j += 1
+    # 属性与类型族错配（DATE UNSIGNED / JSON BINARY…）在**规划层**即拒绝
+    if j < stop and _is_bare_kw(toks[j]) and (toks[j].text or "").upper() in (
+            "UNSIGNED", "SIGNED", "ZEROFILL", "BINARY"):
+        return -1, None
+    keep = tuple(a for a in attrs if a not in _TYPE_ATTRS_DROPPED_BY_AST)
+    kfns = []
+    if matched_words in _TYPE_KFN_MULTIWORD:
+        kfns.append(_TYPE_KFN_MULTIWORD[matched_words])
+    if canonical in _TYPE_KFN_CANONICAL:
+        kfns.append(_TYPE_KFN_CANONICAL[canonical])
+    kfns.extend(_TYPE_KFN_ATTRS[a] for a in attrs if a in _TYPE_KFN_ATTRS)
+    return j, (canonical, args, keep, family, tuple(sorted(set(kfns))))
+
+
+def _canonical_type_from_sql(text, dialect="mysql"):
+    """把候选 AST 回生成的类型文本送进**同一个** `_consume_data_type()`。
+
+    这样别名归一、参数形态、属性丢弃三件事在两侧完全一致，
+    不再出现"源写 `NUMERIC(10,2)`、AST 写 `DECIMAL(10, 2)`"这类假不一致。
+    """
+    try:
+        toks = sqlglot.Dialect.get_or_raise(dialect).tokenizer_class().tokenize(text)
+    except Exception:
+        return None
+    j, shape = _consume_data_type(toks, 0, len(toks))
+    return shape if (j == len(toks) and shape is not None) else None
+
+
+# ── 列约束与 DEFAULT（结构化指纹）──────────────────────────────────────────
+_DEFAULT_LITERAL_TOKENS = (TokenType.STRING, TokenType.NUMBER, TokenType.NULL,
+                           TokenType.TRUE, TokenType.FALSE,
+                           TokenType.HEX_STRING, TokenType.BIT_STRING)
+_DEFAULT_TIME_FUNCS = ("CURRENT_TIMESTAMP", "NOW", "LOCALTIME", "LOCALTIMESTAMP")
+# 腾讯官方建表页列级 COLUMN_FORMAT 只有三值；Rev.L 误加了表级 ROW_FORMAT 的
+# `COMPRESSED`（第十一轮 BLOCK-11-06 §9.2）。
+_COLUMN_FORMAT_ENUM = ("FIXED", "DYNAMIC", "DEFAULT")
+_COL_CONSTRAINT_ONCE = ("NULLABILITY", "DEFAULT", "AUTO_INCREMENT", "COMMENT",
+                        "COLLATE", "CHARACTER_SET", "KEYNESS", "ON_UPDATE",
+                        "COLUMN_FORMAT", "ENGINE_ATTRIBUTE", "KFN")
+# sqlglot 回生成列定义时**不保留**这些约束（实测），故它们记入源指纹但不参与候选比对
+_COL_CONSTRAINT_NOT_IN_AST = ("COLUMN_FORMAT", "ENGINE_ATTRIBUTE")
+
+
+def _canonical_number(text):
+    """数值字面量的规范形。
+
+    第十二轮 BLOCK-12-03：腾讯官方把 `.2` 列为支持的数值字面量，
+    sqlglot 回生成时写作 `0.2`（实测）。源侧按字面记就永远等不上候选侧，
+    于是合法的 `DEFAULT .2` 被门禁误拒。这里统一补零。
+    十六进制 `0x1F`、位串 `b'101'`、科学计数法保持原样（两侧一致）。
+    """
+    t = (text or "").strip()
+    if t.startswith("."):
+        return "0" + t
+    if t.startswith("-.") or t.startswith("+."):
+        return t[0] + "0" + t[1:]
+    return t
+
+
+def _consume_default_value(toks, i, stop):
+    """消费 DEFAULT / ON UPDATE 的值；返回 (下一个下标, 值指纹) 或 (-1, None)。
+
+    第十一轮 BLOCK-11-04：时间函数精度必须落在 0~6，
+    `DEFAULT CURRENT_TIMESTAMP(7)` 不得放行。
+    """
+    if i >= stop:
+        return -1, None
+    tt = toks[i].token_type
+    # 腾讯官方把 `.2` 列为支持的数值字面量；词法器把它切成 `DOT` + `NUMBER`
+    # 两个 token（实测），Rev.M 只认单个 NUMBER，于是合法字面量被误拒
+    # （第十二轮 BLOCK-12-03）。这里显式识别"无整数部分的小数"。
+    if tt == TokenType.DOT:
+        if i + 1 < stop and toks[i + 1].token_type == TokenType.NUMBER:
+            return i + 2, ("num", _canonical_number("." + (toks[i + 1].text or "")))
+        return -1, None
+    if tt in (TokenType.DASH, TokenType.PLUS):
+        # 符号**只能**修饰数值字面量
+        sign = "-" if tt == TokenType.DASH else ""
+        if i + 2 < stop and toks[i + 1].token_type == TokenType.DOT \
+                and toks[i + 2].token_type == TokenType.NUMBER:
+            return i + 3, ("num", _canonical_number(
+                sign + "." + (toks[i + 2].text or "")))
+        if i + 1 < stop and toks[i + 1].token_type == TokenType.NUMBER:
+            # 正号归一：sqlglot 回生成时丢弃 `+`（实测 `DEFAULT +1` → `DEFAULT 1`），
+            # 两侧必须得到同一规范形，否则合法正例会被门禁误拒。
+            return i + 2, ("num", sign + _canonical_number(toks[i + 1].text))
+        return -1, None
+    if tt == TokenType.CURRENT_TIMESTAMP or (
+            _is_bare_kw(toks[i]) and (toks[i].text or "").upper() in _DEFAULT_TIME_FUNCS):
+        fname = (toks[i].text or "").upper()
+        j, fsp = i + 1, None
+        if j + 1 < stop and toks[j].token_type == TokenType.L_PAREN:
+            if toks[j + 1].token_type == TokenType.R_PAREN:
+                j += 2
+            else:
+                v = _int_val(toks[j + 1], allow_zero=True) if j + 1 < stop else None
+                if v is None or not (0 <= v <= 6) or not (
+                        j + 2 < stop and toks[j + 2].token_type == TokenType.R_PAREN):
+                    return -1, None                    # fsp 越界 → 失败关闭
+                fsp, j = v, j + 3
+        return j, ("time", fname, fsp)
+    if tt in _DEFAULT_LITERAL_TOKENS:
+        if tt == TokenType.NULL:
+            return i + 1, ("null",)
+        if tt == TokenType.NUMBER:
+            return i + 1, ("num", _canonical_number(toks[i].text))
+        if tt == TokenType.STRING:
+            return i + 1, ("lit", tt.name, _unquote_str(toks[i]))
+        return i + 1, ("lit", tt.name, (toks[i].text or ""))
+    return -1, None                                    # 裸标识符 / 任意表达式 → 失败关闭
+
+
+def _consume_column_constraints(toks, i, stop, family):
+    """消费列约束序列；返回 (下一个下标, 约束元组, 可掩码 span) 或 (-1, None, [])。
+
+    `family` 来自 `_consume_data_type()`，是列级 CHARACTER SET/COLLATE 的授权边界；
+    非字符族不能因为 sqlglot 恰好能生成 AST 就被放行（第十三轮 BLOCK-13-03）。
+
+    第十一轮 BLOCK-11-06：官方列属性 `COLUMN_FORMAT` / `ENGINE_ATTRIBUTE`
+    在 sqlglot 30.x 上**候选仍 ParseError**（Rev.L 只验了规划层就宣称"已恢复"，
+    结论与代码相反）。本版按复审方推荐方案把它们作为**辅助掩码 span**：
+    只在已有主目标时随之掩码，`raw_sql` 不变，且实测 119 条规则无消费者。
+    """
+    seen, fp, spans = [], [], []
+    j = i
+    while j < stop:
+        tt = toks[j].token_type
+        txt = (toks[j].text or "").upper()
+        if tt == TokenType.COMMA:
+            break
+        if tt == TokenType.NOT and j + 1 < stop and toks[j + 1].token_type == TokenType.NULL:
+            ident, val, j = "NULLABILITY", "NOTNULL", j + 2
+        elif tt == TokenType.NULL:
+            ident, val, j = "NULLABILITY", "NULL", j + 1
+        elif tt == TokenType.DEFAULT:
+            k, val = _consume_default_value(toks, j + 1, stop)
+            if k < 0:
+                return -1, None, []
+            ident, j = "DEFAULT", k
+        elif tt == TokenType.AUTO_INCREMENT:
+            ident, val, j = "AUTO_INCREMENT", None, j + 1
+        elif tt == TokenType.COMMENT:
+            if not (j + 1 < stop and toks[j + 1].token_type == TokenType.STRING):
+                return -1, None, []
+            ident, val, j = "COMMENT", None, j + 2
+        elif tt == TokenType.COLLATE:
+            if family != _F_STR:
+                return -1, None, []                   # INT/DATE/JSON COLLATE → 失败关闭
+            if not (j + 1 < stop and toks[j + 1].token_type in _OPT_NAMEY):
+                return -1, None, []
+            ident, val, j = "COLLATE", (toks[j + 1].text or "").lower(), j + 2
+        elif _charset_kw_end(toks, j, stop) >= 0:
+            if family != _F_STR:
+                return -1, None, []                   # INT/DATE/JSON CHARACTER SET → 失败关闭
+            k = _charset_kw_end(toks, j, stop)
+            if not (k < stop and toks[k].token_type in _OPT_NAMEY):
+                return -1, None, []
+            ident, val, j = "CHARACTER_SET", (toks[k].text or "").lower(), k + 1
+        elif tt == TokenType.PRIMARY_KEY:
+            ident, val, j = "KEYNESS", "PRIMARY", j + 1
+        elif tt == TokenType.UNIQUE:
+            j += 1
+            if j < stop and toks[j].token_type == TokenType.KEY:
+                j += 1
+            ident, val = "KEYNESS", "UNIQUE"
+        elif tt == TokenType.KEY:
+            ident, val, j = "KEYNESS", "KEY", j + 1
+        elif (_is_bare_kw(toks[j], "SERIAL") and j + 2 < stop
+              and toks[j + 1].token_type == TokenType.DEFAULT
+              and _is_bare_kw(toks[j + 2], "VALUE")):
+            # `SERIAL DEFAULT VALUE` = NOT NULL AUTO_INCREMENT UNIQUE 的约束别名。
+            # 本期不做不完整展开；规划器具名接受后由 KFN-5 强制失败关闭。
+            ident, val, j = "KFN", "KFN-5-SERIAL-DEFAULT-VALUE", j + 3
+        elif tt == TokenType.ON and j + 1 < stop and toks[j + 1].token_type == TokenType.UPDATE:
+            k, val = _consume_default_value(toks, j + 2, stop)
+            if k < 0 or not (isinstance(val, tuple) and val[0] == "time"):
+                return -1, None, []
+            ident, j = "ON_UPDATE", k
+        elif _is_bare_kw(toks[j]) and txt == "COLUMN_FORMAT":
+            if not (j + 1 < stop and _is_bare_kw(toks[j + 1])
+                    and (toks[j + 1].text or "").upper() in _COLUMN_FORMAT_ENUM):
+                return -1, None, []
+            ident, val = "COLUMN_FORMAT", (toks[j + 1].text or "").upper()
+            spans.append((toks[j].start, toks[j + 1].end))      # 辅助掩码
+            j += 2
+        elif _is_bare_kw(toks[j]) and txt == "ENGINE_ATTRIBUTE":
+            k = j + 1
+            if k < stop and toks[k].token_type == TokenType.EQ:
+                k += 1
+            if k >= stop or toks[k].token_type != TokenType.STRING:
+                return -1, None, []
+            ident, val = "ENGINE_ATTRIBUTE", "<str>"
+            spans.append((toks[j].start, toks[k].end))          # 辅助掩码
+            j = k + 1
+        else:
+            return -1, None, []                        # 未知列约束（含列级 STORAGE）→ 失败关闭
+        if ident in _COL_CONSTRAINT_ONCE and ident in [x[0] for x in fp]:
+            return -1, None, []                        # 重复/矛盾约束
+        fp.append((ident, val))
+    return j, tuple(fp), spans
+
+
+def _consume_column_definition(toks, i, stop):
+    """消费一个完整列定义；返回 (下一个下标, 列指纹, 可掩码 span) 或 (-1, None, [])。
+
+    列指纹为**结构化元组**（第十一轮 BLOCK-11-05：禁止 `|` 拼接后再 split——
+    合法反引号列名 `` `a|b` `` 会把字符串指纹拆坏）。
+    """
+    if i >= stop or toks[i].token_type not in _IDENT_TOKENS:
+        return -1, None, []
+    col = (toks[i].text or "").strip("` ").lower()
+    j, shape = _consume_data_type(toks, i + 1, stop)
+    if j < 0:
+        return -1, None, []
+    family = shape[3]
+    j, cons, spans = _consume_column_constraints(toks, j, stop, family)
+    if j < 0:
+        return -1, None, []
+    return j, ("col", col, shape, cons), spans
+
+
+# ── 索引：按 kind 分支 + 结构化指纹（第十一轮 BLOCK-11-05 / MAJOR-11-01）─────
+_TDSQL_INDEX_TYPES = ("BTREE",)
+_INDEX_LEAD_WORDS = ("FULLTEXT", "SPATIAL")
+
+
+def _index_lead(toks, i, stop):
+    """识别索引定义项的引导形态；不是索引返回 None。
+
+    第十一轮 MAJOR-11-01：Rev.L 的 `_is_index_item()` 要求 FULLTEXT/SPATIAL
+    后必须紧跟 KEY/INDEX，而消费器却支持裸形态——**入口与消费器判据不一致**，
+    合法的 `FULLTEXT (col)` 被错误送进列消费器。本函数是**唯一**引导判据，
+    入口与消费器共用它。
+    """
+    if i >= stop:
+        return None
+    tt = toks[i].token_type
+    if tt == TokenType.PRIMARY_KEY:
+        return "PRIMARY"
+    if tt == TokenType.UNIQUE:
+        return "UNIQUE"
+    if tt in (TokenType.KEY, TokenType.INDEX):
+        return "NORMAL"
+    if _is_bare_kw(toks[i]) and (toks[i].text or "").upper() in _INDEX_LEAD_WORDS:
+        # 裸 FULLTEXT/SPATIAL 也算，但必须后接 KEY/INDEX、索引名或左括号，
+        # 以免把名为 `fulltext` 的**列**误判成索引（反引号形态已由 _is_bare_kw 排除）
+        if i + 1 < stop and (toks[i + 1].token_type in (TokenType.KEY, TokenType.INDEX,
+                                                        TokenType.L_PAREN)
+                             or toks[i + 1].token_type in _IDENT_TOKENS):
+            return (toks[i].text or "").upper()
+    return None
+
+
+def _consume_index_definition(toks, i, stop):
+    """消费一个索引定义项。
+
+    返回 `(下一个下标, 主目标 COMMENT span, 辅助掩码 span, 索引指纹)`
+    或 `(-1, [], [], None)`。指纹为结构化元组。
+    """
+    kind = _index_lead(toks, i, stop)
+    if kind is None:
+        return -1, [], [], None
+    j = i + 1
+    if kind in ("UNIQUE",) + _INDEX_LEAD_WORDS:
+        if j < stop and toks[j].token_type in (TokenType.KEY, TokenType.INDEX):
+            j += 1
+    iname = ""
+    if kind != "PRIMARY":                              # PRIMARY 之后不得有索引名
+        if j < stop and toks[j].token_type in _IDENT_TOKENS:
+            iname = (toks[j].text or "").strip("` ").lower()
+            j += 1
+    seen_opt = []                                      # 前置与后置 index_type 共用
+    if j < stop and toks[j].token_type == TokenType.USING:
+        if not (j + 1 < stop and _is_bare_kw(toks[j + 1])
+                and (toks[j + 1].text or "").upper() in _TDSQL_INDEX_TYPES):
+            return -1, [], [], None
+        seen_opt.append("USING")
+        j += 2
+    j, asc_spans, kparts = _consume_index_key_parts(toks, j, stop)
+    if j < 0:
+        return -1, [], [], None
+    uq_spans = []
+    while j < stop and toks[j].token_type != TokenType.COMMA:
+        tt = toks[j].token_type
+        if tt == TokenType.USING:
+            if "USING" in seen_opt:
+                return -1, [], [], None
+            if not (j + 1 < stop and _is_bare_kw(toks[j + 1])
+                    and (toks[j + 1].text or "").upper() in _TDSQL_INDEX_TYPES):
+                return -1, [], [], None
+            seen_opt.append("USING")
+            j += 2
+            continue
+        if tt == TokenType.COMMENT:
+            if "COMMENT" in seen_opt:
+                return -1, [], [], None
+            if not (j + 1 < stop and toks[j + 1].token_type == TokenType.STRING):
+                return -1, [], [], None
+            seen_opt.append("COMMENT")
+            # UNIQUE / PRIMARY 的 COMMENT 是 sqlglot ParseError → 主目标，记 span；
+            # NORMAL / FULLTEXT / SPATIAL 可解析 → 原样保留（生产 gg78 即此形态）
+            if kind in ("UNIQUE", "PRIMARY"):
+                uq_spans.append((toks[j].start, toks[j + 1].end))
+            j += 2
+            continue
+        return -1, [], [], None
+    return j, uq_spans, asc_spans, ("idx", kind, iname, kparts, tuple(sorted(seen_opt)))
+
+
+def _consume_index_key_parts(toks, i, stop):
+    """消费索引键值列表。
+
+    返回 `(下一个下标, ASC/DESC 掩码 span, key_part 元组)` 或 `(-1, [], ())`。
+    key_part 元组形如 `((列名, 前缀长度|None, 'ASC'|'DESC'|None), ...)`。
+    """
+    if i >= stop or toks[i].token_type != TokenType.L_PAREN:
+        return -1, [], ()
+    spans, parts = [], []
+    j = i + 1
+    while True:
+        if j >= stop or toks[j].token_type not in _IDENT_TOKENS:
+            return -1, [], ()
+        name = (toks[j].text or "").strip("` ").lower()
+        j += 1
+        plen = None
+        if j < stop and toks[j].token_type == TokenType.L_PAREN:
+            # 索引前缀长度必须是**正整数**（与类型的 scale/fsp 不同，后者允许 0）
+            v = _int_val(toks[j + 1], allow_zero=False) if j + 1 < stop else None
+            if v is None or not (j + 2 < stop and toks[j + 2].token_type == TokenType.R_PAREN):
+                return -1, [], ()
+            plen, j = v, j + 3
+        order = None
+        if j < stop and toks[j].token_type in (TokenType.ASC, TokenType.DESC):
+            order = toks[j].token_type.name
+            spans.append((toks[j].start, toks[j].end))
+            j += 1
+        parts.append((name, plen, order))
+        if j < stop and toks[j].token_type == TokenType.COMMA:
+            j += 1
+            continue
+        if j < stop and toks[j].token_type == TokenType.R_PAREN:
+            return j + 1, spans, tuple(parts)
+        return -1, [], ()
+
+
+def _consume_ident(toks, i):
+    """消费一个标识符（裸名或反引号名），返回下一个下标；否则 -1。"""
+    n = len(toks)
+    if i < n and toks[i].token_type in _IDENT_TOKENS:
+        return i + 1
+    return -1
+
+
+def _consume_ident_list(toks, i):
+    """消费 `( ident [, ident]* )`，返回下一个下标；否则 -1。至少一个，逗号不得前导/尾随/连续。"""
+    n = len(toks)
+    if i >= n or toks[i].token_type != TokenType.L_PAREN:
+        return -1
+    j = i + 1
+    while True:
+        j = _consume_ident(toks, j)
+        if j < 0:
+            return -1
+        if j < n and toks[j].token_type == TokenType.COMMA:
+            j += 1
+            continue
+        if j < n and toks[j].token_type == TokenType.R_PAREN:
+            return j + 1
+        return -1
+
+
+# ── 分区值与分区定义（第十轮 BLOCK-J5）───────────────────────────────────────
+# 官方二级分区页只明示 year / month / day 三个日期函数；
+# Rev.J 另外放行的 DAYOFMONTH / TO_DAYS / TO_SECONDS / UNIX_TIMESTAMP
+# 无目标实例证据，本版收回并登记为 unsupported_unproven（KFN 表 B 类）。
+_PARTITION_FUNCS = ("YEAR", "MONTH", "DAY")
+_SECONDARY_PARTITION_METHODS = ("RANGE", "LIST")
+_TDSQL_SHARD_METHODS = ("HASH", "RANGE", "LIST")
+
+
+def _consume_partition_expr(toks, i, stop):
+    """消费分区表达式 `( col )` 或 `( FUNC(col) )`；返回 (下一个下标, 指纹) 或 (-1, "")。
+
+    ⚠️ 分支顺序：**先判"白名单函数 + 左括号"，再判普通列**。
+    只有 `YEAR` 有专属 TokenType，`MONTH`/`DAY` 被词法成 VAR；顺序反了它们
+    会先被当成普通列名，永远走不到函数分支（第九轮 BLOCK-X5 死分支）。
+    """
+    if i >= stop or toks[i].token_type != TokenType.L_PAREN:
+        return -1, ""
+    j = i + 1
+    if (j + 1 < stop and toks[j].token_type not in _NON_KEYWORD_TOKENS
+            and (toks[j].text or "").upper() in _PARTITION_FUNCS
+            and toks[j + 1].token_type == TokenType.L_PAREN):
+        fname = (toks[j].text or "").upper()
+        # 函数参数必须**恰好一个**列标识符
+        if not (j + 3 < stop and toks[j + 2].token_type in _IDENT_TOKENS
+                and toks[j + 3].token_type == TokenType.R_PAREN):
+            return -1, ""
+        shape, j = "%s(1)" % fname, j + 4
+    elif j < stop and toks[j].token_type in _IDENT_TOKENS:
+        shape, j = "col:%s" % (toks[j].text or "").strip("` ").lower(), j + 1
+    else:
+        return -1, ""
+    return (j + 1, shape) if (j < stop and toks[j].token_type == TokenType.R_PAREN) else (-1, "")
+
+
+def _unquote_str(tok):
+    """字符串字面量的归一内容：去外层引号并还原成对转义。
+
+    源侧可能写 `COMMENT="x"`，候选回生成一律是 `COMMENT='x'`；
+    不做归一会把同一个值判成不相等（第十二轮 BLOCK-12-04）。
+    """
+    txt = (tok.text or "")
+    if len(txt) >= 2 and txt[0] == txt[-1] and txt[0] in ("'", '"'):
+        q = txt[0]
+        return txt[1:-1].replace(q + q, q).replace("\\" + q, q)
+    return txt
+
+
+def _consume_value_list(toks, i, stop):
+    """消费 `( 字面量 [, 字面量]* )`；返回 (下一个下标, 值元组) 或 (-1, None)。
+
+    第十轮 BLOCK-J5：**符号只能修饰数值**。Rev.J 先可选吃掉 DASH 再统一接受
+    NUMBER 或 STRING，于是 `VALUES IN (-'x')` 被恢复为 Create。
+    第十二轮 BLOCK-12-04：Rev.M 只返回**个数**，于是候选把
+    `VALUES LESS THAN (10)` 改成 `(99)`、把 `VALUES IN (1,2)` 改成 `(8,9)`，
+    指纹完全相同、门禁放行。本版返回逐个归一后的值。
+    """
+    if i >= stop or toks[i].token_type != TokenType.L_PAREN:
+        return -1, None
+    j, vals = i + 1, []
+    while True:
+        if j < stop and toks[j].token_type in (TokenType.DASH, TokenType.PLUS):
+            if not (j + 1 < stop and toks[j + 1].token_type == TokenType.NUMBER):
+                return -1, None                        # 符号后必须是数字
+            sign = "-" if toks[j].token_type == TokenType.DASH else ""
+            vals.append(("num", sign + _canonical_number(toks[j + 1].text)))
+            j += 2
+        elif j < stop and toks[j].token_type == TokenType.NUMBER:
+            vals.append(("num", _canonical_number(toks[j].text)))
+            j += 1
+        elif j < stop and toks[j].token_type == TokenType.STRING:
+            vals.append(("str", _unquote_str(toks[j])))
+            j += 1
+        else:
+            return -1, None
+        if j < stop and toks[j].token_type == TokenType.COMMA:
+            j += 1
+            continue
+        if j < stop and toks[j].token_type == TokenType.R_PAREN:
+            return j + 1, tuple(vals)
+        return -1, None
+
+
+def _consume_partition_values(toks, i, stop, method):
+    """按**分区方法**消费 VALUES 子句；返回 (下一个下标, 指纹) 或 (-1, "")。
+
+    RANGE → 只接受 `VALUES LESS THAN (...)`（`MAXVALUE` 属 KFN-1，仍失败关闭）
+    LIST  → 只接受 `VALUES IN (...)`
+    """
+    if i >= stop or toks[i].token_type != TokenType.VALUES:
+        return -1, ""
+    j = i + 1
+    if method == "RANGE":
+        if not (j + 1 < stop and _is_bare_kw(toks[j], "LESS") and _is_bare_kw(toks[j + 1], "THAN")):
+            return -1, ""
+        j += 2
+        if j < stop and _is_bare_kw(toks[j], "MAXVALUE"):
+            return -1, ""                              # KFN-1：已登记的已知假阴性
+        k, vals = _consume_value_list(toks, j, stop)
+        return (k, ("LESS_THAN", vals)) if k >= 0 else (-1, "")
+    if method == "LIST":
+        if not (j < stop and toks[j].token_type == TokenType.IN):
+            return -1, ""
+        k, vals = _consume_value_list(toks, j + 1, stop)
+        return (k, ("IN", vals)) if k >= 0 else (-1, "")
+    return -1, ""                                      # HASH 不得挂 VALUES 定义表
+
+
+def _consume_partition_options(toks, i, stop):
+    """按官方顺序消费 partition_option：`[STORAGE] ENGINE [=] name` 然后 `COMMENT [=] str`。
+
+    第十轮 BLOCK-J5：Rev.J 拒绝官方的 `STORAGE ENGINE=`，却接受反序的
+    `COMMENT=… ENGINE=…`。本版按官方序列建小状态机，两者各至多一次且不得反序。
+    返回 (下一个下标, 可掩码 span, 指纹)。
+    """
+    spans, fp = [], []
+    j = i
+    if j < stop and _is_bare_kw(toks[j], "STORAGE"):
+        st = j
+        j += 1
+        if not (j < stop and _is_bare_kw(toks[j], "ENGINE")):
+            return -1, [], ""
+        k = j + 1
+        if k < stop and toks[k].token_type == TokenType.EQ:
+            k += 1
+        if k >= stop or toks[k].token_type not in _OPT_NAMEY:
+            return -1, [], ""
+        spans.append((toks[st].start, toks[k].end))
+        fp.append("STORAGE_ENGINE")
+        j = k + 1
+    elif j < stop and _is_bare_kw(toks[j], "ENGINE"):
+        k = j + 1
+        if k < stop and toks[k].token_type == TokenType.EQ:
+            k += 1
+        if k >= stop or toks[k].token_type not in _OPT_NAMEY:
+            return -1, [], ""
+        spans.append((toks[j].start, toks[k].end))
+        fp.append("ENGINE")
+        j = k + 1
+    if j < stop and toks[j].token_type == TokenType.COMMENT:
+        k = j + 1
+        if k < stop and toks[k].token_type == TokenType.EQ:
+            k += 1
+        if k >= stop or toks[k].token_type != TokenType.STRING:
+            return -1, [], ""
+        spans.append((toks[j].start, toks[k].end))
+        fp.append("COMMENT")
+        j = k + 1
+    return j, spans, "/".join(fp)
+
+
+def _consume_partition_defs(toks, i, stop, method, require_partition_kw):
+    """消费分区/分片定义表；返回 (下一个下标, 可掩码 span, 指纹) 或 (-1, [], "")。"""
+    if i >= stop or toks[i].token_type != TokenType.L_PAREN:
+        return -1, [], ""
+    spans, defs = [], []
+    j = i + 1
+    while True:
+        has_kw = j < stop and toks[j].token_type == TokenType.PARTITION
+        if has_kw != require_partition_kw:
+            return -1, [], ""
+        if has_kw:
+            j += 1
+        if j >= stop or toks[j].token_type not in _IDENT_TOKENS:
+            return -1, [], ""
+        pname = (toks[j].text or "").strip("` ").lower()
+        j += 1
+        j, vshape = _consume_partition_values(toks, j, stop, method)
+        if j < 0:
+            return -1, [], ""
+        j, osp, oshape = _consume_partition_options(toks, j, stop)
+        if j < 0:
+            return -1, [], ""
+        spans.extend(osp)
+        defs.append((pname, vshape, oshape))
+        if j < stop and toks[j].token_type == TokenType.COMMA:
+            j += 1
+            continue
+        if j < stop and toks[j].token_type == TokenType.R_PAREN:
+            return j + 1, spans, tuple(defs)
+        return -1, [], ""
+
+
+def _consume_secondary_partition(toks, i, stop):
+    """消费一整个二级分区子句；返回 (下一个下标, 可掩码 span, 指纹) 或 (-1, [], "")。"""
+    if i >= stop or toks[i].token_type != TokenType.PARTITION_BY:
+        return -1, [], ""
+    j = i + 1
+    if not (j < stop and _is_bare_kw(toks[j])
+            and (toks[j].text or "").upper() in _SECONDARY_PARTITION_METHODS):
+        return -1, [], ""
+    method = (toks[j].text or "").upper()
+    j, eshape = _consume_partition_expr(toks, j + 1, stop)
+    if j < 0:
+        return -1, [], ""
+    j, spans, dshape = _consume_partition_defs(toks, j, stop, method, require_partition_kw=True)
+    if j < 0:
+        return -1, [], ""
+    return j, spans, ("part", method, eshape, dshape)
+
+
+# ── 本地表选项（第十轮 BLOCK-J4）─────────────────────────────────────────────
+#
+# 官方建表页明示的 local_table_option：AUTO_INCREMENT、CHARACTER SET、COLLATE、
+# COMMENT、ENGINE、ROW_FORMAT、STATS_AUTO_RECALC、STATS_PERSISTENT、
+# STATS_SAMPLE_PAGES。Rev.J 把 ROW_FORMAT 与 STATS_PERSISTENT 判成
+# `unsupported_unproven` 是**取证错误**，本版按官方清单补回并给出严格值域。
+# CHECKSUM / AVG_ROW_LENGTH / KEY_BLOCK_SIZE / MAX_ROWS / MIN_ROWS /
+# PACK_KEYS / DELAY_KEY_WRITE 无 TDSQL 或目标实例证据，继续失败关闭。
+_ROW_FORMAT_ENUM = ("DEFAULT", "DYNAMIC", "FIXED", "COMPRESSED", "REDUNDANT", "COMPACT")
+_TBL_OPT_SPEC = {
+    # name                : (值谓词,            provenance)
+    "ENGINE":               ("NAMEY",           "OFFICIAL + CORPUS×78"),
+    "COMMENT":              ("STR",             "OFFICIAL + CORPUS×多"),
+    "AUTO_INCREMENT":       ("POSINT",          "OFFICIAL + CORPUS×8"),
+    "ROW_FORMAT":           ("ROW_FORMAT_ENUM", "OFFICIAL"),
+    "STATS_AUTO_RECALC":    ("ZERO_ONE_DEFAULT", "OFFICIAL"),
+    "STATS_PERSISTENT":     ("ZERO_ONE_DEFAULT", "OFFICIAL"),
+    "STATS_SAMPLE_PAGES":   ("POSINT",          "OFFICIAL"),
+    "SHARDKEY":             ("IDENT_LIST",      "OFFICIAL(hash/broadcast) + CORPUS×20"),
+}
+
+
+def _charset_kw_end(toks, i, stop):
+    """识别 `CHARSET` / `CHARACTER SET` 关键字，返回其**之后**的下标；不是则返回 -1。
+
+    ⚠️ 词法表现随 sqlglot 版本变化（三版实测）：
+      · `CHARSET`          三版都是单个 `CHARACTER_SET` token；
+      · `CHARACTER SET`    30.14.0 / 29.0.0 是单个 `CHARACTER_SET` token，
+                           **30.17.0 拆成 `CHAR` + `SET` 两个 token**。
+    只认 token 类型会让 `CHARACTER SET=utf8mb4` 在 30.17.0 上失败关闭
+    （候选回生成用的正是这个拼写，于是合法正例被判成不守恒）。
+    这里按**文本**兜住两种表现。
+    """
+    if i >= stop:
+        return -1
+    if toks[i].token_type == TokenType.CHARACTER_SET:
+        return i + 1
+    if (_is_bare_kw(toks[i], "CHARACTER") and i + 1 < stop
+            and _is_bare_kw(toks[i + 1], "SET")):
+        return i + 2
+    return -1
+
+
+def _consume_table_option(toks, i, stop):
+    """消费**一个**完整本地表选项；返回 (下一个下标, identity, 指纹) 或 (-1, "", "")。"""
+    if i >= stop:
+        return -1, "", ""
+    tt = toks[i].token_type
+    txt = (toks[i].text or "").upper()
+
+    def _eq(j):
+        return j + 1 if (j < stop and toks[j].token_type == TokenType.EQ) else j
+
+    def _take(j, pred):
+        j = _eq(j)
+        if j >= stop:
+            return -1, ""
+        t = toks[j]
+        if pred == "NAMEY" and t.token_type in _OPT_NAMEY:
+            return j + 1, (t.text or "").lower()
+        if pred == "STR" and t.token_type == TokenType.STRING:
+            return j + 1, _unquote_str(t)              # 记录实际文本，不是 <str>
+        if pred == "POSINT" and _int_val(t, allow_zero=False) is not None:
+            return j + 1, (t.text or "")
+        if pred == "ROW_FORMAT_ENUM" and _is_bare_kw(t) and (t.text or "").upper() in _ROW_FORMAT_ENUM:
+            return j + 1, (t.text or "").upper()
+        if pred == "ZERO_ONE_DEFAULT":
+            if t.token_type == TokenType.NUMBER and (t.text or "") in ("0", "1"):
+                return j + 1, (t.text or "")
+            if _is_bare_kw(t, "DEFAULT"):
+                return j + 1, "DEFAULT"
+        if pred == "IDENT_LIST":
+            if t.token_type == TokenType.L_PAREN:
+                k = _consume_ident_list(toks, j)
+                return (k, "<multi>") if k >= 0 else (-1, "")
+            if t.token_type in _IDENT_TOKENS:
+                return j + 1, (t.text or "").lower()
+        return -1, ""
+
+    if tt == TokenType.DEFAULT:
+        k = _charset_kw_end(toks, i + 1, stop)
+        if k >= 0:
+            j, v = _take(k, "NAMEY")
+            return (j, "CHARSET", ("CHARSET", v)) if j >= 0 else (-1, "", "")
+        if i + 1 < stop and toks[i + 1].token_type == TokenType.COLLATE:
+            j, v = _take(i + 2, "NAMEY")
+            return (j, "COLLATE", ("COLLATE", v)) if j >= 0 else (-1, "", "")
+        return -1, "", ""
+    k = _charset_kw_end(toks, i, stop)
+    if k >= 0:
+        j, v = _take(k, "NAMEY")
+        return (j, "CHARSET", ("CHARSET", v)) if j >= 0 else (-1, "", "")
+    if tt == TokenType.COLLATE:
+        j, v = _take(i + 1, "NAMEY")
+        return (j, "COLLATE", ("COLLATE", v)) if j >= 0 else (-1, "", "")
+    if tt == TokenType.COMMENT:
+        j, v = _take(i + 1, "STR")
+        return (j, "COMMENT", ("COMMENT", v)) if j >= 0 else (-1, "", "")
+    if tt == TokenType.AUTO_INCREMENT:
+        j, v = _take(i + 1, "POSINT")
+        return (j, "AUTO_INCREMENT", ("AUTO_INCREMENT", v)) if j >= 0 else (-1, "", "")
+    if tt == TokenType.VAR and txt in _TBL_OPT_SPEC:
+        pred, _prov = _TBL_OPT_SPEC[txt]
+        j, v = _take(i + 1, pred)
+        return (j, txt, (txt, v)) if j >= 0 else (-1, "", "")
+    return -1, "", ""
+
+
+
+
+# ── 表尾：先解析成带子类型的 atom，再按具名 profile 校验整个序列 ──────────────
+#
+# 第十一轮 BLOCK-11-02：Rev.L 的四状态 FSM 含 `S2→S3` 与 `S3→S2` 回环，
+# 于是 `DIST → PARTITION → DIST`、`shardkey → PARTITION → DIST` 这类
+# **双一级分布声明**被放行；状态只表达"当前阶段"，不保留历史计数。
+# 第十一轮 BLOCK-11-03：`shardkey=noshardkey_allset` 与普通 shardkey 被归一成
+# 同一个 atom，于是伪哨兵 `shardkey=(noshardkey_allset,id)`、广播再分区全部放行。
+#
+# Rev.M 改为两步：① 解析成 typed atoms；② 整个序列必须**完整匹配**一个具名 profile。
+# atom 子类型：
+#   LOCAL(<option名>)    本地表选项
+#   HASH_SHARDKEY        shardkey=<单列> 或 shardkey=(<多列>)
+#   BROADCAST_SENTINEL   shardkey=noshardkey_allset（**精确哨兵**，不接受括号/混合）
+#   BROADCAST_KEYWORD    裸 BROADCAST 关键字
+#   DIST(<方法>)         TDSQL_DISTRIBUTED BY hash|range|list(col) [分片定义表]
+#   PARTITION            二级分区子句
+_BROADCAST_SENTINEL = "NOSHARDKEY_ALLSET"
+
+# 具名 capability profile（第十一轮 MAJOR-11-02）：每条允许序列有唯一 provenance，
+# **每条 SQL 必须完整匹配其中一个**，禁止跨 profile 拼接。
+# 序列用正则式记法：L* 表示任意多个 LOCAL；? 表示可选。
+_TAIL_PROFILES = (
+    # (profile, 序列模板, provenance)
+    ("TARGET_CURRENT",  ("L*",),                              "无分布声明的普通表"),
+    ("TARGET_CURRENT",  ("L*", "HASH_SHARDKEY"),              "OFFICIAL hash 分片；CORPUS 生产 fixture 实测"),
+    ("TARGET_CURRENT",  ("L*", "BROADCAST_SENTINEL"),         "OFFICIAL 广播表哨兵"),
+    ("TARGET_CURRENT",  ("L*", "BROADCAST_KEYWORD"),          "TARGET_INSTANCE 广播表关键字形态"),
+    ("TARGET_CURRENT",  ("L*", "HASH_SHARDKEY", "BROADCAST_KEYWORD"),
+                                                              "ADJ-6 characterization：用户冻结的现状，**不代表 TDSQL 合法**"),
+    ("TARGET_CURRENT",  ("L*", "DIST"),                       "OFFICIAL 一级 range/list 声明；目标实例 HASH 形态"),
+    ("TARGET_CURRENT",  ("L*", "DIST", "PARTITION"),          "PROJECT_ACCEPTED：D5/T5 既有用例，O 第八轮明确接受"),
+    ("LEGACY_PARTITION", ("L*", "HASH_SHARDKEY", "PARTITION"), "OFFICIAL 二级分区原例 `shardkey=col PARTITION BY LIST(...)`"),
+    ("LEGACY_PARTITION", ("L*", "PARTITION", "DIST"),          "OFFICIAL 二级分区原例 `tb_sub_r_l`"),
+    ("LEGACY_PARTITION", ("L*", "PARTITION"),                  "OFFICIAL：仅二级分区、无一级声明"),
 )
+
+# 第三个代际 profile：**已具名声明，但成员集为空**（第十一轮 MAJOR-11-02）。
+# 新语法 `TDSQL_DISTRIBUTED BY HASH(col) TDSQL_PARTITION BY RANGE|LIST(col) (...)`
+# 未取得目标实例证据、也未出现在 197 条语料与生产 14 表中（0 次），
+# 按本方案自己的 provenance 原则归 `unsupported_unproven`：
+# **登记能力代际，但不放行**——`TDSQL_PARTITION` 不产生 atom，整条语句失败关闭。
+# 取得目标实例证据后，只需把下表条目搬进 `_TAIL_PROFILES` 即可，无需改判定逻辑。
+_TAIL_PROFILES_UNPROVEN = (
+    ("NEW_SECONDARY", ("L*", "DIST", "TDSQL_PARTITION"),
+     "腾讯新版二级分区语法；无目标实例证据、语料 0 例 → 暂不放行"),
+    ("NEW_SECONDARY", ("L*", "HASH_SHARDKEY", "TDSQL_PARTITION"),
+     "同上"),
+)
+
+
+def _match_tail_profile(kinds):
+    """整个 atom 序列是否完整匹配某个 profile；匹配返回 (profile, provenance)，否则 None。
+
+    只在 `_TAIL_PROFILES` 中查找。`_TAIL_PROFILES_UNPROVEN` 是**纯登记表**，
+    刻意不参与匹配——未取证的能力代际不得放行（MAJOR-11-02）。
+    """
+    for prof, tmpl, prov in _TAIL_PROFILES:
+        seq = list(kinds)
+        ok, ti = True, 0
+        for part in tmpl:
+            if part == "L*":
+                while seq and seq[0] == "LOCAL":
+                    seq.pop(0)
+            else:
+                if not seq or seq[0] != part:
+                    ok = False
+                    break
+                seq.pop(0)
+            ti += 1
+        if ok and not seq:
+            return prof, prov
+    return None
+
+
+def _consume_shardkey_value(toks, i, stop):
+    """消费 shardkey 的值并**分型**；返回 (下一个下标, 子类型, 指纹) 或 (-1, None, None)。
+
+    官方广播哨兵是**裸的、单个、精确**的 `noshardkey_allset`；
+    `shardkey=(noshardkey_allset)`、`shardkey=(noshardkey_allset, id)` 一律不是哨兵，
+    且不得被当成普通分片键放行（第十一轮 BLOCK-11-03）。
+    """
+    j = i + 1 if (i < stop and toks[i].token_type == TokenType.EQ) else i
+    if j >= stop:
+        return -1, None, None
+    if toks[j].token_type == TokenType.L_PAREN:
+        k, cols = j + 1, []
+        while True:
+            if k >= stop or toks[k].token_type not in _IDENT_TOKENS:
+                return -1, None, None
+            nm = (toks[k].text or "").strip("` ").lower()
+            if nm.upper() == _BROADCAST_SENTINEL:
+                return -1, None, None                  # 哨兵不得出现在列表里
+            cols.append(nm)
+            k += 1
+            if k < stop and toks[k].token_type == TokenType.COMMA:
+                k += 1
+                continue
+            if k < stop and toks[k].token_type == TokenType.R_PAREN:
+                return k + 1, "HASH_SHARDKEY", ("shardkey", tuple(cols))
+            return -1, None, None
+    if toks[j].token_type in _IDENT_TOKENS:
+        nm = (toks[j].text or "").strip("` ").lower()
+        if nm.upper() == _BROADCAST_SENTINEL:
+            return j + 1, "BROADCAST_SENTINEL", ("broadcast_sentinel",)
+        return j + 1, "HASH_SHARDKEY", ("shardkey", (nm,))
+    return -1, None, None
+
+
+def _scan_table_tail(toks, start, stop, exec_atoms=()):
+    """把表尾解析成 typed atoms，再整体匹配 profile。
+
+    `exec_atoms` 是 `_validate_executable_comments()` 产出的带原始字符 span、
+    `left_idx/right_idx` 与 partition_shape 的条目。只有条目的左右 token 恰好等于
+    两个**完整 atom**之间的边界，才允许合并进 atom 流（第十三轮 BLOCK-13-02）。
+    合并进来的分区在指纹里标成 `source_only=True`：候选 AST 里不会有它们
+    （sqlglot 根本看不见可执行注释），故不参与候选侧比较。
+
+    返回 (方言目标 span, 辅助掩码 span, 表尾指纹)；不合规返回 (None, None, None)。
+    """
+    tgt_spans, mask_spans, atoms, fp = [], [], [], []
+    seen_local = []
+    pending = sorted(exec_atoms or (), key=lambda e: e["comment_start"])
+    prev_atom_last = start - 1
+
+    def _flush_exec_at_boundary(left_idx, right_idx):
+        """只在完整 atom 边界插入；返回 False 表示注释落在 atom 内部。"""
+        if not pending or pending[0]["right_idx"] > right_idx:
+            return True
+        e = pending[0]
+        if e["left_idx"] != left_idx or e["right_idx"] != right_idx:
+            return False
+        pending.pop(0)
+        atoms.append("PARTITION")
+        fp.append(("exec_partition", e["partition_shape"]))
+        return True
+
+    i = start
+    while i < stop:
+        if not _flush_exec_at_boundary(prev_atom_last, i):
+            return None, None, None                    # COMMENT 位于复合 atom 内部
+        tt = toks[i].token_type
+        if tt == TokenType.PARTITION_BY:
+            j, msp, pshape = _consume_secondary_partition(toks, i, stop)
+            if j < 0:
+                return None, None, None
+            mask_spans.extend(msp)
+            atoms.append("PARTITION")
+            fp.append(pshape)
+            prev_atom_last = j - 1
+            i = j
+            continue
+        if _is_bare_kw(toks[i], "TDSQL_DISTRIBUTED"):
+            if not (i + 1 < stop and _is_bare_kw(toks[i + 1], "BY")):
+                return None, None, None
+            if not (i + 2 < stop and _is_bare_kw(toks[i + 2])
+                    and (toks[i + 2].text or "").upper() in _TDSQL_SHARD_METHODS):
+                return None, None, None
+            method = (toks[i + 2].text or "").upper()
+            j = i + 3
+            if not (j + 2 < stop and toks[j].token_type == TokenType.L_PAREN
+                    and toks[j + 1].token_type in _IDENT_TOKENS
+                    and toks[j + 2].token_type == TokenType.R_PAREN):
+                return None, None, None
+            key = (toks[j + 1].text or "").strip("` ").lower()
+            j += 3
+            end_tok, dshape = j - 1, ()
+            if j < stop and toks[j].token_type == TokenType.L_PAREN:
+                if method == "HASH":
+                    return None, None, None            # 官方仅 range/list 带分片定义表
+                j2, msp, dshape = _consume_partition_defs(
+                    toks, j, stop, method, require_partition_kw=False)
+                if j2 < 0:
+                    return None, None, None
+                mask_spans.extend(msp)
+                end_tok, j = j2 - 1, j2
+            tgt_spans.append((toks[i].start, toks[end_tok].end))
+            atoms.append("DIST")
+            fp.append(("dist", method, key, dshape))
+            prev_atom_last = j - 1
+            i = j
+            continue
+        if _is_bare_kw(toks[i], "BROADCAST"):
+            tgt_spans.append((toks[i].start, toks[i].end))
+            atoms.append("BROADCAST_KEYWORD")
+            fp.append(("broadcast_keyword",))
+            prev_atom_last = i
+            i += 1
+            continue
+        j, ident, oshape = _consume_table_option(toks, i, stop)
+        if j < 0:
+            return None, None, None
+        if ident == "SHARDKEY":
+            k, sub, sfp = _consume_shardkey_value(toks, i + 1, stop)
+            if k < 0:
+                return None, None, None
+            atoms.append(sub)
+            fp.append(sfp)
+            prev_atom_last = k - 1
+            i = k
+            continue
+        if ident in seen_local:
+            return None, None, None                    # 同名本地选项不可重复
+        seen_local.append(ident)
+        atoms.append("LOCAL")
+        fp.append(oshape)
+        prev_atom_last = j - 1
+        i = j
+    if not _flush_exec_at_boundary(prev_atom_last, stop) or pending:
+        return None, None, None                        # 尾部之外或 atom 内部仍有未归属注释
+    # ── 计数硬断言（即使 profile 表将来扩充也必须成立）──
+    if sum(1 for a in atoms if a in ("HASH_SHARDKEY", "BROADCAST_SENTINEL",
+                                     "BROADCAST_KEYWORD", "DIST")) > 1:
+        # 唯一例外是 ADJ-6 的 `HASH_SHARDKEY + BROADCAST_KEYWORD`，由 profile 表精确批准
+        if [a for a in atoms if a != "LOCAL"] != ["HASH_SHARDKEY", "BROADCAST_KEYWORD"]:
+            return None, None, None
+    if sum(1 for a in atoms if a == "PARTITION") > 1:
+        return None, None, None
+    m = _match_tail_profile(atoms)
+    if m is None:
+        return None, None, None                        # 未列明的序列一律失败关闭
+    return tgt_spans, mask_spans, ("tail", m[0], tuple(fp))
+
+
+# ── MySQL 可执行注释（第十一轮 BLOCK-11-01）─────────────────────────────────
+#
+# sqlglot 的词法器不会把 `/*!50100 ... */` 的内容变成主 token；不同位置、不同版本下
+# `token.comments` 的归属不能证明原文插入边界。Rev.O 因而只把 token 的原始字符 span
+# 当作词法保护边界，在相邻 token 之间的原文 gap 中定位可执行注释，不读取 owner。
+#
+# 本版在规划入口显式处理：普通注释继续忽略；`!<版本号>` 开头的可执行注释
+# **必须整段通过验证**，且本版只接受**一个完整的**二级分区 payload。
+_EXEC_COMMENT_IN_GAP_RE = re.compile(
+    r"/\*!\s*(?P<version>\d*)\s*(?P<payload>.*?)\*/", re.DOTALL)
+
+
+def _collect_executable_comments(sql, toks):
+    """在 sqlglot 已证明“无主 token”的 gap 内定位可执行注释原始 span。
+
+    不相信 `token.comments` 的 owner 推断，也不在整条 SQL 上做替换。字符串、反引号
+    标识符等都已被 sqlglot 划为 token，不会进入 gap；正则只负责从 token-free gap
+    中取得 `/*!...*/` 的字符区间和 payload。
+    """
+    gaps = []
+    if toks:
+        gaps.append((-1, 0, 0, toks[0].start))
+        for idx in range(len(toks) - 1):
+            gaps.append((idx, idx + 1, toks[idx].end + 1, toks[idx + 1].start))
+        gaps.append((len(toks) - 1, len(toks), toks[-1].end + 1, len(sql)))
+    else:
+        gaps.append((-1, 0, 0, len(sql)))
+    out = []
+    for left_idx, right_idx, gs, ge in gaps:
+        if ge <= gs:
+            continue
+        for m in _EXEC_COMMENT_IN_GAP_RE.finditer(sql[gs:ge]):
+            out.append({
+                "comment_start": gs + m.start(),
+                "comment_end": gs + m.end(),          # 半开区间
+                "left_idx": left_idx,
+                "right_idx": right_idx,
+                "payload": (m.group("payload") or "").strip(),
+            })
+    return sorted(out, key=lambda e: e["comment_start"])
+
+
+def _validate_executable_comments(sql, toks, close_idx, statement_end, dialect="mysql"):
+    """验证 payload 与顶层域；完整 atom 边界由 `_scan_table_tail()` 最终裁决。"""
+    entries = _collect_executable_comments(sql, toks)
+    if not entries:
+        return True, []
+    if len(entries) > 1:
+        return False, None                             # 多个可执行注释 → 失败关闭
+    entry = entries[0]
+    if (entry["comment_start"] <= toks[close_idx].end
+            or entry["comment_end"] > statement_end):
+        return False, None                             # 位置越界：建表头 / 定义列表内部
+    try:
+        ptoks = sqlglot.Dialect.get_or_raise(dialect).tokenizer_class().tokenize(
+            entry["payload"])
+    except Exception:
+        return False, None
+    if not ptoks or ptoks[0].token_type != TokenType.PARTITION_BY:
+        return False, None
+    j, _msp, pshape = _consume_secondary_partition(ptoks, 0, len(ptoks))
+    if j != len(ptoks):
+        return False, None                             # 未消费到结尾 → 失败关闭
+    entry["partition_shape"] = pshape
+    return True, [entry]
+
+
+def _scan_definition_list(toks, open_idx, close_idx):
+    """逐项消费顶层定义列表。
+
+    返回 (定义指纹元组, 主目标 span, 辅助掩码 span)；不合规返回 (None, [], [])。
+    """
+    defs, uq_spans, mask_spans = [], [], []
+    i = open_idx + 1
+    while i < close_idx:
+        if toks[i].token_type == TokenType.CONSTRAINT:
+            # 用户冻结：本期只支持具名 PRIMARY；CONSTRAINT UNIQUE 不扩能力。
+            # Rev.N“消费后顺带恢复”会让该唯一语义在 ParsedSQL 中消失并造成 R054 漏报，
+            # Rev.O 改为具名失败关闭，绝不恢复一个下游看不懂的合法约束。
+            k = i + 1
+            if k < close_idx and toks[k].token_type in _IDENT_TOKENS:
+                k += 1
+            symbol = _ident_text(toks[i + 1]) if k > i + 1 else ""
+            j, _usp, asp, shape = _consume_index_definition(toks, k, close_idx)
+            if j < 0 or shape is None:
+                return None, [], []
+            if shape[1] not in ("PRIMARY", "UNIQUE"):
+                return None, [], []                   # 其他 CONSTRAINT 形态仍不在支持域
+            # PRIMARY COMMENT 是可恢复主目标；CONSTRAINT UNIQUE 只完整消费并登记
+            # KFN-6，由全路径 source preflight 与候选门禁失败关闭，绝不恢复成无语义 AST。
+            if shape[1] == "PRIMARY":
+                uq_spans.extend(_usp)
+            mask_spans.extend(asp)
+            # 第十二轮 MAJOR-12-01：symbol 记入指纹（放末位，不改既有 off 偏移）
+            defs.append(("constraint",) + shape + (symbol,))
+        elif _index_lead(toks, i, close_idx) is not None:
+            j, usp, asp, shape = _consume_index_definition(toks, i, close_idx)
+            if j < 0 or shape is None:
+                return None, [], []
+            uq_spans.extend(usp)
+            mask_spans.extend(asp)
+            defs.append(shape)
+        else:
+            j, shape, csp = _consume_column_definition(toks, i, close_idx)
+            if j < 0:
+                return None, [], []
+            mask_spans.extend(csp)
+            defs.append(shape)
+        if j < close_idx and toks[j].token_type == TokenType.COMMA:
+            j += 1
+            if j >= close_idx:
+                return None, [], []
+        elif j < close_idx:
+            return None, [], []
+        i = j
+    return (tuple(defs), uq_spans, mask_spans) if defs else (None, [], [])
+
+
+def _definition_kfns(defs):
+    """从 SourceShape 收集具名已知假阴性；返回稳定去重后的编号元组。"""
+    out = []
+    for d in defs or ():
+        if not d:
+            continue
+        if d[0] == "constraint":
+            if len(d) >= 3 and d[2] == "UNIQUE":
+                out.append("KFN-6-CONSTRAINT-UNIQUE")
+                continue
+            # `CONSTRAINT PRIMARY KEY`（省略 symbol）是既有 KFN-4：规划器能完整
+            # 识别，但三版候选均 ParseError。constraint shape 的最后一项就是 symbol。
+            if len(d) >= 7 and d[2] == "PRIMARY" and not d[6]:
+                out.append("KFN-4-CONSTRAINT-PRIMARY-NO-SYMBOL")
+            continue
+        if d[0] != "col":
+            continue
+        type_shape, cons = d[2], d[3]
+        if len(type_shape) >= 5:
+            out.extend(type_shape[4] or ())
+        out.extend(v for k, v in cons if k == "KFN")
+    return tuple(sorted(set(out)))
+
+
+def _top_level_definition_ranges(toks, open_idx: int, close_idx: int):
+    """切分 CREATE TABLE 顶层定义项；不解释定义内容。"""
+    ranges = []
+    start = open_idx + 1
+    depth = 0
+    for i in range(start, close_idx):
+        token_type = toks[i].token_type
+        if token_type == TokenType.L_PAREN:
+            depth += 1
+        elif token_type == TokenType.R_PAREN:
+            if depth == 0:
+                return None
+            depth -= 1
+        elif token_type == TokenType.COMMA and depth == 0:
+            if start >= i:
+                return None
+            ranges.append((start, i))
+            start = i + 1
+    if depth != 0 or start >= close_idx:
+        return None
+    ranges.append((start, close_idx))
+    return tuple(ranges)
+
+
+def _definition_item_kfns(toks, start: int, stop: int):
+    """从一个顶层定义项提取可证明的 KFN，不要求完整消费邻接定义项。"""
+    if start >= stop:
+        return ()
+    found = []
+
+    # `[CONSTRAINT [symbol]] PRIMARY/UNIQUE ...`：这里只判定约束头；
+    # CONSTRAINT UNIQUE 整族已由 ADJ-11 冻结为 KFN，不需要先完整理解其尾部。
+    if toks[start].token_type == TokenType.CONSTRAINT:
+        i = start + 1
+        symbol = ""
+        if i < stop and toks[i].token_type in _IDENT_TOKENS:
+            symbol = _ident_text(toks[i])
+            i += 1
+        kind = _index_lead(toks, i, stop)
+        if kind == "UNIQUE":
+            found.append("KFN-6-CONSTRAINT-UNIQUE")
+        elif kind == "PRIMARY" and not symbol:
+            found.append("KFN-4-CONSTRAINT-PRIMARY-NO-SYMBOL")
+        return tuple(sorted(set(found)))
+
+    # 列定义：类型产生式本身即可证明 SERIAL / SIGNED / BINARY 等 KFN。
+    # `SERIAL DEFAULT VALUE` 只在列属性顶层识别；字符串是单 token，括号表达式
+    # 由 depth 隔离。全程 O(n)，不得用逐前缀重解析把 preflight 放大为 O(n²)。
+    if toks[start].token_type in _IDENT_TOKENS:
+        j, type_shape = _consume_data_type(toks, start + 1, stop)
+        if j >= 0 and type_shape is not None:
+            found.extend(type_shape[4] or ())
+            depth = 0
+            k = j
+            while k < stop:
+                token_type = toks[k].token_type
+                if token_type == TokenType.L_PAREN:
+                    depth += 1
+                elif token_type == TokenType.R_PAREN:
+                    if depth == 0:
+                        break
+                    depth -= 1
+                elif (depth == 0 and _is_bare_kw(toks[k], "SERIAL")
+                      and k + 2 < stop
+                      and toks[k + 1].token_type == TokenType.DEFAULT
+                      and _is_bare_kw(toks[k + 2], "VALUE")):
+                    found.append("KFN-5-SERIAL-DEFAULT-VALUE")
+                    k += 3
+                    continue
+                k += 1
+    return tuple(sorted(set(found)))
+
+
+def _preflight_create_definition_status(sql: str, dialect: str = "mysql"):
+    """一次词法化同时返回 `(逐项 KFN, 定义列表完整性)`。"""
+    try:
+        toks = sqlglot.Dialect.get_or_raise(dialect).tokenizer_class().tokenize(sql)
+    except Exception:
+        return (), False
+    toks = _strip_terminal_semicolon(toks)
+    if toks is None:
+        return (), False
+    open_idx, close_idx, _table_name, _head = _tdsql_table_def_bounds(toks)
+    if open_idx < 0:
+        return (), False
+    ranges = _top_level_definition_ranges(toks, open_idx, close_idx)
+    if ranges is None:
+        return (), False
+
+    # KFN 与 strict scanner 的全表成功/失败解耦：任何一个未知伴生项都不得
+    # 清空其他项已经证明的 KFN。
+    known = []
+    for start, stop in ranges:
+        known.extend(_definition_item_kfns(toks, start, stop))
+    defs, _primary, _auxiliary = _scan_definition_list(toks, open_idx, close_idx)
+    return tuple(sorted(set(known))), defs is not None
+
+
+def _preflight_known_fidelity_failures(sql: str, dialect: str = "mysql"):
+    """兼容测试/诊断入口；产品 parse() 使用同一 status 函数，避免重复词法化。"""
+    return _preflight_create_definition_status(sql, dialect)[0]
+
+
+def _strip_terminal_semicolon(toks):
+    """允许 0 或 1 个、且仅位于 EOF 前的终止分号；否则返回 None。"""
+    n = len(toks)
+    sem = [k for k, t in enumerate(toks) if t.token_type == TokenType.SEMICOLON]
+    if not sem:
+        return toks
+    if len(sem) > 1 or sem[0] != n - 1:
+        return None
+    return toks[:-1]
+
+
+def _plan_recovery(sql: str, dialect: str = "mysql"):
+    """统一恢复规划器：按 TDSQL 官方语法验证整条建表语句并生成结构化指纹。"""
+    try:
+        toks = sqlglot.Dialect.get_or_raise(dialect).tokenizer_class().tokenize(sql)
+    except Exception:
+        return None
+    boundary_kfns = ()
+    if (toks and toks[-1].token_type == TokenType.SEMICOLON
+            and sql[toks[-1].end + 1:].strip()):
+        # 普通注释不会成为主 token；若它位于终止分号之后，当前候选解析器会失败。
+        # 规划器仍须把这个既有官方形态具名登记，而不是碰巧在 candidate 阶段失败。
+        boundary_kfns = ("KFN-4-TRAILING-COMMENT-AFTER-SEMICOLON",)
+    statement_end = (toks[-1].start if toks and toks[-1].token_type == TokenType.SEMICOLON
+                     else len(sql))
+    toks = _strip_terminal_semicolon(toks)
+    if toks is None:
+        return None
+    open_idx, close_idx, table_name, head = _tdsql_table_def_bounds(toks)
+    if open_idx < 0:
+        return None
+    # 可执行注释必须在拿到定义列表边界之后验证——位置合法性依赖 close_idx
+    ok, exec_atoms = _validate_executable_comments(
+        sql, toks, close_idx, statement_end, dialect)
+    if not ok:
+        return None                                    # 可执行注释未通过验证 → 失败关闭
+    defs, uq_spans, mask_a = _scan_definition_list(toks, open_idx, close_idx)
+    if defs is None:
+        return None
+    tgt_spans, mask_b, tail_fp = _scan_table_tail(
+        toks, close_idx + 1, len(toks), exec_atoms)
+    if tgt_spans is None:
+        return None
+    primary = list(uq_spans) + list(tgt_spans)
+    if not primary:
+        return None                                    # 无主目标 → 不恢复
+    tok_part = any(t.token_type == TokenType.PARTITION_BY for t in toks)
+    kfns = tuple(sorted(set(_definition_kfns(defs) + boundary_kfns)))
+    return {
+        "table": table_name,
+        "primary_spans": primary,
+        "auxiliary_spans": list(mask_a) + list(mask_b),
+        # ── SourceFingerprint = CreateShape（第十二轮 BLOCK-12-04）──
+        #   head        顶层语义：(schema, table) 全限定名 + TEMPORARY + IF NOT EXISTS
+        #   definitions 定义列表形状（列 / 索引 / 具名约束）
+        #   tail        表尾形状：本地表选项 + 分布 atom + 二级分区细节
+        # 三者都必须进入候选比较；Rev.M 只比了 definitions，于是候选把
+        # `db1.t` 换成 `db2.t`、把 ENGINE 换成 MyISAM、把分区边界改掉，
+        # 门禁一律返回 True。
+        "fingerprint": {
+            "head": head,
+            "table": (table_name or "").strip("` ").lower(),
+            "definitions": defs,
+            "tail": tail_fp,
+        },
+        # 分区保真门禁只对**主 token 流里的**分区生效；
+        # 可执行注释里的分区 sqlglot 不产生节点，其完整性已由
+        # `_validate_executable_comments()` 独立证明，并已按源序并入
+        # 表尾 atom 流参与计数与 profile 匹配（第十二轮 BLOCK-12-01）。
+        "had_partition": tok_part,
+        "exec_comment_partition": bool(exec_atoms),
+        # 非空时表示“官方合法但本期不能保真”。parse() 仍能证明规划器具名接受，
+        # `_validate_recovery_candidate()` 则强制失败关闭，避免普通 plan=False 与 KFN 混淆。
+        "known_false_negatives": kfns,
+    }
+
+
+def _same_table_name(node, expected: str) -> bool:
+    """候选 AST 的表名是否与从原文提取的表名一致。
+
+    只去反引号 —— **不再剥单引号**：STRING 表名已在定位阶段被拒绝，
+    此处若继续归一化单引号，等于把被拒的形态又放回来（第五轮 BLOCK-E2）。
+    """
+    if not expected:
+        return False
+    schema = node.this
+    tbl = schema.this if isinstance(schema, exp.Schema) else schema
+    name = (getattr(tbl, "name", "") or "") if tbl is not None else ""
+    return bool(name) and name.strip("` ").lower() == expected.strip("` ").lower()
+
+
+def _blank_spans(sql: str, spans):
+    """把给定 span 等长置空（保留换行），返回新串；越界返回 None。"""
+    if not spans:
+        return sql
+    buf = list(sql)
+    for s, e in spans:
+        if not (0 <= s <= e < len(buf)):
+            return None
+        for q in range(s, e + 1):
+            if buf[q] != "\n":
+                buf[q] = " "
+    return "".join(buf)
+
+
+# 分区保真门禁用：候选 AST 中代表二级分区的 properties 节点名前缀
+
+
+# ── 候选 AST 结构守恒门禁（第十一轮 BLOCK-11-05）─────────────────────────────
+#
+# Rev.L 的门禁只比较列名与类型字符串，索引一律折叠成 `(IDX, None, None)`。
+# 白盒反向鉴别证明：丢掉 `NOT NULL DEFAULT 7`、把 `UNIQUE u(id)` 换成 `KEY v(x)`、
+# 换成 `PRIMARY KEY(x)`，门禁**全部返回 True**。本版逐字段比较。
+#
+# 被批准忽略的差异（各有具名理由，必须逐条列出）：
+_GATE_IGNORED_COL_CONSTRAINTS = (
+    "COLUMN_FORMAT",      # 官方列属性，已作辅助掩码剥离（sqlglot 不认）
+    "ENGINE_ATTRIBUTE",   # 同上
+)
+# 列 COMMENT **不在 ignored 集合**：指纹值仍为 None，表示只比较“有/无”，
+# 不重复比较文本。文本保真由 raw_sql、_extract_column_comment() 与 R029 端到端断言负责。
+_GATE_IGNORED_INDEX_OPTS = (
+    "COMMENT",            # UNIQUE/PRIMARY 的注释正是本次掩码目标
+)
+
+
+def _canonical_default_from_sql(text, dialect="mysql"):
+    """把候选 AST 回生成的 `DEFAULT <值>` / `ON UPDATE <值>` 送进**同一个**
+    `_consume_default_value()`，保证两侧规范形一致（第十一轮 BLOCK-11-05）。"""
+    body = (text or "").strip()
+    for lead in ("DEFAULT", "ON UPDATE"):
+        if body.upper().startswith(lead):
+            body = body[len(lead):].strip()
+            break
+    try:
+        toks = sqlglot.Dialect.get_or_raise(dialect).tokenizer_class().tokenize(body)
+    except Exception:
+        return None
+    j, val = _consume_default_value(toks, 0, len(toks))
+    return val if j == len(toks) else None
+
+
+def _ast_column_shape(col):
+    """从候选 AST 的列定义提取可比结构；无法提取返回 None。"""
+    kind = col.args.get("kind")
+    if kind is None:
+        return None
+    shape = _canonical_type_from_sql(kind.sql(dialect="mysql"))
+    if shape is None:
+        return None
+    cons = []
+    for c in (col.args.get("constraints") or []):
+        k = c.args.get("kind")
+        nm = type(k).__name__ if k is not None else ""
+        if nm == "NotNullColumnConstraint":
+            cons.append(("NULLABILITY", "NULL" if k.args.get("allow_null") else "NOTNULL"))
+        elif nm == "DefaultColumnConstraint":
+            cons.append(("DEFAULT", _canonical_default_from_sql(k.sql(dialect="mysql"))))
+        elif nm == "AutoIncrementColumnConstraint":
+            cons.append(("AUTO_INCREMENT", None))
+        elif nm == "CollateColumnConstraint":
+            cons.append(("COLLATE", (k.sql(dialect="mysql") or "").split()[-1].strip("`\"' ").lower()))
+        elif nm == "CharacterSetColumnConstraint":
+            cons.append(("CHARACTER_SET", (k.sql(dialect="mysql") or "").split()[-1].strip("`\"' ").lower()))
+        elif nm in ("PrimaryKeyColumnConstraint", "UniqueColumnConstraint"):
+            cons.append(("KEYNESS", "PRIMARY" if nm.startswith("Primary") else "UNIQUE"))
+        elif nm == "OnUpdateColumnConstraint":
+            cons.append(("ON_UPDATE", _canonical_default_from_sql(k.sql(dialect="mysql"))))
+        elif nm == "CommentColumnConstraint":
+            cons.append(("COMMENT", None))
+    return (col.name or "").strip("` ").lower(), shape, tuple(cons)
+
+
+def _ast_index_using(node):
+    """判定候选 AST 的索引节点是否携带 `USING`。
+
+    sqlglot 30.14.0 实测：同一个 `USING BTREE` 依索引种类与书写位置落在**三个
+    不同的 arg** 上，只读 `index_type` 会把 `PRIMARY KEY (id) USING BTREE`
+    误判为“无 USING”，从而把本应恢复的语句挡在门外（第十一轮 P 组实测）：
+
+      · `index_type=str`                              —— UNIQUE 的任意位置；
+                                                         KEY 的前置 USING
+      · `options=[IndexConstraintOption(using=...)]`  —— KEY 的后置 USING
+      · `include=IndexParameters(using=...)`          —— PRIMARY KEY 的后置 USING
+
+    三处任一命中即认定存在 USING。options 逐项按 arg 名判定而非按节点类名判定，
+    因为 `IndexConstraintOption` 同时承载 comment / key_block_size 等其他选项。
+    """
+    it = node.args.get("index_type")
+    if isinstance(it, str) and it:
+        return True
+    for o in (node.args.get("options") or []):
+        if getattr(o, "args", None) and o.args.get("using") is not None:
+            return True
+    inc = node.args.get("include")
+    if inc is not None and getattr(inc, "args", None) and inc.args.get("using") is not None:
+        return True
+    return False
+
+
+def _ast_index_shape(node):
+    """从候选 AST 的索引定义提取 (kind, 名称, key_parts, 选项)；无法提取返回 None。"""
+    nm = type(node).__name__
+    if nm == "PrimaryKey":
+        kind, iname = "PRIMARY", ""
+        exprs = node.args.get("expressions") or []
+    elif nm == "UniqueColumnConstraint":
+        kind = "UNIQUE"
+        sch = node.args.get("this")
+        iname = ""
+        exprs = []
+        if sch is not None:
+            t = sch.args.get("this") if hasattr(sch, "args") else None
+            iname = (getattr(t, "name", "") or "") if t is not None else ""
+            exprs = sch.args.get("expressions") or []
+    elif nm == "IndexColumnConstraint":
+        k = node.args.get("kind")
+        kind = (str(k).upper() if k else "NORMAL")
+        iname = (getattr(node.args.get("this"), "name", "") or "")
+        exprs = node.args.get("expressions") or []
+    else:
+        return None
+    parts = []
+    for e in exprs:
+        txt = (e.sql(dialect="mysql") or "").strip()
+        base = txt.strip("`")
+        plen = None
+        if "(" in txt and txt.endswith(")"):
+            head, num = txt[:txt.rindex("(")], txt[txt.rindex("(") + 1:-1].strip()
+            if num.isdigit():
+                base, plen = head.strip().strip("`"), int(num)
+        parts.append((base.strip("` ").lower(), plen))
+    opts = ("USING",) if _ast_index_using(node) else ()
+    return kind, (iname or "").strip("` ").lower(), tuple(parts), opts
+
+
+# ── 表尾里**故意**从候选 AST 移除的 atom（source-only approved transform）──
+#
+# 方言声明被掩码是本方案的既定动作，可执行注释里的分区 sqlglot 根本看不见；
+# 它们由 raw SQL 规则与 capability profile 负责，不能与普通 table tail 混为一谈
+# （第十二轮 BLOCK-12-04）。分区定义里的 `[STORAGE] ENGINE` / `COMMENT`
+# 选项也是既定掩码目标，同样不参与候选比较。
+_SOURCE_ONLY_TAIL_TAGS = ("dist", "broadcast_keyword", "broadcast_sentinel",
+                          "shardkey", "exec_partition")
+
+
+def _tail_comparable(tail_fp):
+    """把表尾指纹投影成"候选侧也应当具备"的部分。
+
+    返回 `(本地选项排序元组, 分区形状 | None)`；无法投影返回 None。
+    本地选项按排序比较——表选项之间无顺序语义，排序后比较更稳，
+    而 O 第十二轮列出的每一种变异（ENGINE/CHARSET/COLLATE/COMMENT/删除全部）
+    都会改变多重集合，一样会被抓到。
+    """
+    if not tail_fp or len(tail_fp) != 3:
+        return None
+    locals_, part = [], None
+    for e in tail_fp[2]:
+        tag = e[0] if isinstance(e, tuple) and e else e
+        if tag in _SOURCE_ONLY_TAIL_TAGS:
+            continue
+        if tag == "part":
+            if part is not None:
+                return None                            # 不可能：计数已保证至多一个
+            _t, method, eshape, defs = e
+            # 分区选项（ENGINE/COMMENT）是掩码目标 → 只比分区名与 VALUES 边界
+            part = (method, eshape, tuple((d[0], d[1]) for d in defs))
+            continue
+        locals_.append(e)
+    return tuple(sorted(locals_)), part
+
+
+def _ast_head_shape(node):
+    """候选 AST 的顶层语义：((schema, table), TEMPORARY, IF NOT EXISTS)。"""
+    schema = node.this
+    if not isinstance(schema, exp.Schema):
+        return None
+    t = schema.this
+    if t is None:
+        return None
+    props = node.args.get("properties")
+    names = [type(p).__name__ for p in (props.expressions if props else [])]
+    return (((getattr(t, "db", "") or "").strip("` ").lower(),
+             (getattr(t, "name", "") or "").strip("` ").lower()),
+            "TemporaryProperty" in names,
+            bool(node.args.get("exists")))
+
+
+# 候选属性里**不属于表尾**的项：它们在 head 面已单独比较，不能混进 tail 扫描。
+_AST_NON_TAIL_PROPERTIES = ("TemporaryProperty",)
+
+
+def _ast_tail_shape(node, dialect="mysql"):
+    """候选 AST 的表尾形状。
+
+    做法与类型规范化同一套路（第十一轮 BLOCK-11-04 的教训）：把候选属性**逐个
+    回生成**后拼成一段表尾，再送进**同一个** `_scan_table_tail()`，
+    而不是另写一套 property 类名映射。好处是 `CHARSET` / `CHARACTER SET`、
+    引号风格、`=` 有无这些差异被同一个消费器自动归一，两侧不可能各自漂移。
+
+    ⚠️ 不能直接用 `node.sql()` 的整句文本：sqlglot 一旦遇到它不认识的表选项
+    （`shardkey=`、`STATS_PERSISTENT=` 等），回生成时会把**整组**属性包进
+    `WITH ( … )`（实测），tail 扫描随即失败、把合法正例判成不守恒。
+    逐属性渲染就没有这个容器。
+    """
+    props = node.args.get("properties")
+    parts = []
+    for p in (props.expressions if props else []):
+        if type(p).__name__ in _AST_NON_TAIL_PROPERTIES:
+            continue
+        try:
+            txt = p.sql(dialect=dialect)
+        except Exception:
+            return None
+        if txt:
+            parts.append(txt)
+    stub = "CREATE TABLE `__t__` (`__c__` INT) " + " ".join(parts)
+    try:
+        toks = sqlglot.Dialect.get_or_raise(dialect).tokenizer_class().tokenize(stub)
+    except Exception:
+        return None
+    open_idx, close_idx, _nm, _head = _tdsql_table_def_bounds(toks)
+    if open_idx < 0:
+        return None
+    _tgt, _msk, fp = _scan_table_tail(toks, close_idx + 1, len(toks))
+    if fp is None:
+        return None
+    return _tail_comparable(fp)
+
+
+def _validate_recovery_candidate(node, plan):
+    """候选 AST 结构守恒门禁：逐字段比较，不再是布尔检查。
+
+    第十二轮 BLOCK-12-04：Rev.M 只比较了定义列表，顶层 CREATE 语义与整个表尾
+    都没有进入比较，于是 `CREATE TEMPORARY`→`CREATE`、删 `IF NOT EXISTS`、
+    `db1.t`→`db2.t`、`ENGINE=InnoDB`→`MyISAM`、`CHARSET` 改变、表 COMMENT 改写、
+    删光全部表选项、分区方法/键/名/边界改变——13 种单点变异**全部返回 True**。
+    本版比较 CreateShape 的三个面：head / definitions / tail。
+    """
+    if plan.get("known_false_negatives"):
+        return False                                  # 具名 KFN：计划可达，最终必须失败关闭
+    if not isinstance(node, exp.Create):
+        return False
+    if str(node.args.get("kind") or "").upper() != "TABLE":
+        return False
+    if not _same_table_name(node, plan["table"]):
+        return False
+    fpr = plan["fingerprint"]
+    # ① head：全限定名 + TEMPORARY + IF NOT EXISTS（都有规则消费者）
+    if _ast_head_shape(node) != fpr.get("head"):
+        return False
+    # ② tail：本地表选项与二级分区细节
+    if _ast_tail_shape(node) != _tail_comparable(fpr.get("tail")):
+        return False
+    schema = node.this
+    if not isinstance(schema, exp.Schema):
+        return False
+    items = list(schema.expressions or [])
+    src_defs = fpr["definitions"]
+    if len(items) != len(src_defs):
+        return False
+    for it, src in zip(items, src_defs):
+        tag = src[0]
+        if tag == "col":
+            if not isinstance(it, exp.ColumnDef):
+                return False
+            got = _ast_column_shape(it)
+            if got is None:
+                return False
+            _, s_name, s_type, s_cons = src
+            g_name, g_type, g_cons = got
+            if g_name != s_name or g_type != s_type:
+                return False
+            def _norm(cs):
+                return tuple(sorted((k, v) for k, v in cs
+                                    if k not in _GATE_IGNORED_COL_CONSTRAINTS))
+            if _norm(s_cons) != _norm(g_cons):
+                return False                           # 列约束守恒
+        else:
+            if isinstance(it, exp.ColumnDef):
+                return False
+            off = 1 if tag == "constraint" else 0
+            if tag == "constraint":
+                # 第十二轮 MAJOR-12-01：官方 `[CONSTRAINT [symbol]] PRIMARY KEY (...)`
+                # 在候选里是 `exp.Constraint(this=symbol, expressions=[PrimaryKey])`。
+                # Rev.M 把它直接丢给只认 PrimaryKey/Unique/Index 的形状提取器，
+                # 必然返回 None，于是这条**官方合法**语句被系统性误杀。
+                if not isinstance(it, exp.Constraint):
+                    return False
+                inner = list(it.args.get("expressions") or [])
+                primaries = [x for x in inner if isinstance(x, exp.PrimaryKey)]
+                comments = [x for x in inner if type(x).__name__ == "CommentColumnConstraint"]
+                if len(primaries) != 1 or len(inner) != len(primaries) + len(comments):
+                    return False
+                if (getattr(it.this, "name", "") or "").strip("` ").lower() != src[6]:
+                    return False                       # constraint symbol 守恒
+                # PRIMARY COMMENT 是批准掩码目标：候选通常没有 COMMENT；若 sqlglot
+                # 某版本仍把 COMMENT 放在 Constraint wrapper，只允许源侧确实存在时出现。
+                if comments and "COMMENT" not in src[5]:
+                    return False
+                it = primaries[0]
+            elif isinstance(it, exp.Constraint):
+                return False                           # 源侧不是具名约束，候选却是
+            got = _ast_index_shape(it)
+            if got is None:
+                return False
+            s_kind, s_name, s_parts, s_opts = src[1 + off], src[2 + off], src[3 + off], src[4 + off]
+            g_kind, g_name, g_parts, g_opts = got
+            if g_kind != s_kind:
+                return False                           # 索引 kind 守恒
+            if s_kind != "PRIMARY" and g_name != s_name:
+                return False                           # 索引名守恒
+            if tuple((p[0], p[1]) for p in s_parts) != g_parts:
+                return False                           # 键列与前缀长度守恒
+            if tuple(o for o in s_opts if o not in _GATE_IGNORED_INDEX_OPTS) != g_opts:
+                return False                           # USING 守恒
+    if plan["had_partition"]:
+        props = node.args.get("properties")
+        names = [type(p).__name__ for p in (props.expressions if props else [])]
+        if sum(1 for nm in names if nm.startswith("PartitionBy")) != 1:
+            return False
+    return True
 
 
 @dataclass
@@ -47,6 +2039,14 @@ class ParsedSQL:
     columns: list[dict] = field(default_factory=list)
     column_types: list[dict] = field(default_factory=list)
     indexes: list[dict] = field(default_factory=list)
+    # v1.6.2.2 / Rev.P：完整 UNIQUE 语义的隔离通道。不得无评审地改让
+    # R077/R061 等 legacy 消费者读取它；本期唯一消费者是 R054 助手。
+    unique_constraints: list[dict] = field(default_factory=list)
+    unique_constraints_complete: bool = False
+    # Rev.Q：source definition scanner 是否完整理解了每一个顶层定义项。
+    # 该字段只控制 UNIQUE 结构化通道能否宣称 complete；False 不是语法错误。
+    unique_source_definitions_complete: bool = False
+    known_fidelity_failures: tuple[str, ...] = field(default_factory=tuple)
     table_options: dict = field(default_factory=dict)
     has_table_comment: bool = False
     column_comments: dict[str, str] = field(default_factory=dict)
@@ -118,9 +2118,22 @@ class SQLParser:
         """解析SQL语句，返回结构化的 ParsedSQL 对象。"""
         parsed = ParsedSQL(raw_sql=sql.strip())
         sql_clean = sql.strip().rstrip(";")
+        # 第十二轮 BLOCK-12-02：恢复链必须拿到**未被 rstrip(";") 处理过**的同一原串。
+        # Rev.M 把 `sql_clean` 传给 `_plan_recovery()`，于是 `_strip_terminal_semicolon()`
+        # 声明的"至多一个终止分号"在真实调用链上不可达——`;;`、`;;;`、`; ;` 都会
+        # 先被 rstrip 抹平，再被规划器当成合法单语句接受并恢复成 Create。
+        # 全部 span 都相对 `sql_recover` 计算，与 `_blank_spans()`/`_spans_only_diff()`
+        # 共用同一个字符串，不存在"先改长度再套旧偏移"的问题。
+        sql_recover = sql.strip()
 
         # 先做正则级别的快速检测（补充sqlglot可能遗漏的信息）
         parsed = self._regex_pre_parse(sql_clean, parsed)
+
+        # Rev.Q：KFN 与全表定义完整性同源但不互相吞没；只词法化一次。
+        (parsed.known_fidelity_failures,
+         parsed.unique_source_definitions_complete) = (
+            _preflight_create_definition_status(sql_recover, self.dialect)
+        )
 
         # 尝试解析SQL
         try:
@@ -132,27 +2145,76 @@ class SQLParser:
             # 正常解析的语句不会进入本分支，故对既有行为的影响可证明为零；
             # 重试失败时保留原 Command 结果，不劣于改前。
             # 注意: parsed.raw_sql 始终保持原文——R077/R054 依赖它提取分片键。
-            if isinstance(ast, exp.Command) and _TDSQL_DIALECT_RE.search(sql_clean):
-                try:
-                    _retry_ast = sqlglot.parse_one(
-                        _TDSQL_DIALECT_RE.sub(" ", sql_clean), read=self.dialect)
-                    if not isinstance(_retry_ast, exp.Command):
-                        ast = _retry_ast
-                except Exception:
-                    pass
+            if isinstance(ast, exp.Command):
+                # v1.6.2.2 / BLOCK-C1+D1+D2: 原实现对整条 SQL 做
+                # _TDSQL_DIALECT_RE.sub()，不感知 token 作用域，会删掉名为
+                # broadcast 的列、篡改注释里的片段，且改坏后仍能解析成同表名
+                # Create，形成静默错误 AST。改用严格的 token 级尾子句剥离器，
+                # 并要求候选必须是同表名的 CREATE TABLE（不接纳 Block 等节点）。
+                # Rev.I：改用统一规划器——一次性按 TDSQL 官方语法验证**整条语句**
+                # （定义列表 + 表尾），再决定是否改写。
+                # Rev.J：规划器返回 None 即"无法证明整条语句合规"或"无主目标"，
+                # 一律不恢复（第九轮 BLOCK-X3）。
+                _plan2 = _plan_recovery(sql_recover, self.dialect)
+                if _plan2 is not None:
+                    _all2 = _plan2["primary_spans"] + _plan2["auxiliary_spans"]
+                    _t_sql = _blank_spans(sql_recover, _all2)
+                    if (_t_sql is not None
+                            and _spans_only_diff(sql_recover, _t_sql, _all2)):
+                        try:
+                            _retry_ast = sqlglot.parse_one(_t_sql, read=self.dialect)
+                        except Exception:
+                            _retry_ast = None
+                        if _validate_recovery_candidate(_retry_ast, _plan2):
+                            ast = _retry_ast
             parsed.ast = ast
         except (SqlglotError, Exception) as e:
-            parsed.parse_error = str(e)
-            parsed.sql_type = self._detect_sql_type_regex(sql_clean)
-            # 正则回退提取表名（防止含中划线等语法不合规表名在解析报错时漏检）
-            tbl_match = re.search(r'\b(?:create\s+table|alter\s+table|drop\s+table|truncate\s+table|from|into|update)\s+(?:if\s+(?:not\s+)?exists\s+)?([`\'"]?[a-zA-Z0-9_\-]+[`\'"]?)', sql_clean, re.IGNORECASE)
-            if tbl_match:
-                tb_name = tbl_match.group(1).strip("`\"' ")
-                if tb_name and tb_name.lower() not in ("table", "if", "exists"):
-                    parsed.tables.append(tb_name)
-                    if "create table" in sql_clean.lower():
-                        parsed.is_create_table = True
-            return parsed
+            # v1.6.2.2 / DEF-2: UNIQUE 索引带 COMMENT 会让 sqlglot 抛 ParseError，
+            # 整条语句结构信息全丢，R003/R004/R005/R028 集体误报。
+            # 恢复链共两阶段，**两阶段都是 token 级剥离并各自返回 span**：
+            #   阶段一：剥离 UNIQUE 索引 COMMENT
+            #   阶段二：若仍降级为 Command，再剥离 TDSQL 方言尾子句
+            # 最终以「原文 → 最终 SQL 的全部差异必须落在两阶段 span 并集内」
+            # 作联合门禁（BLOCK-C1 要求）；任一环节不满足即沿用原异常，
+            # 下方失败路径与改前逐字一致。
+            # Rev.I：单一规划器取代 Rev.H 的两阶段串联。
+            # 第八轮 BLOCK-H1：Rev.H 的 UNIQUE 单独恢复路径**根本不验证表尾**，
+            # 于是 ENGINE=123 / 孤立 DEFAULT / PARTITION BY RANGE(,) 这些与目标
+            # 无关的非法结构被 sqlglot 静默丢弃后仍返回 Create，原 E999 消失。
+            # 现在无论走哪条路径，都必须先让 _plan_recovery() 按 TDSQL 官方语法
+            # 验证整条语句，再由 _validate_recovery_candidate() 校验候选 AST
+            # 未丢结构。三类 span（UNIQUE COMMENT / 方言声明 / 官方语法掩码）
+            # 一次性置空，联合做逐字符 span 门禁。
+            _retry_ast = None
+            _plan = _plan_recovery(sql_recover, self.dialect)
+            if _plan is not None:
+                _all_spans = _plan["primary_spans"] + _plan["auxiliary_spans"]
+                _final_sql = _blank_spans(sql_recover, _all_spans)
+                if (_final_sql is not None
+                        and _spans_only_diff(sql_recover, _final_sql, _all_spans)):
+                    try:
+                        _cand = sqlglot.parse_one(_final_sql, read=self.dialect)
+                    except Exception:
+                        _cand = None
+                    if _validate_recovery_candidate(_cand, _plan):
+                        _retry_ast = _cand
+            if _retry_ast is not None:
+                # 必须同时重绑局部变量 ast——下方通用流程（_get_sql_type/_parse_create/
+                # _parse_common）直接引用 ast，只赋 parsed.ast 会 UnboundLocalError。
+                ast = _retry_ast
+                parsed.ast = ast
+            else:
+                parsed.parse_error = str(e)
+                parsed.sql_type = self._detect_sql_type_regex(sql_clean)
+                # 正则回退提取表名（防止含中划线等语法不合规表名在解析报错时漏检）
+                tbl_match = re.search(r'\b(?:create\s+table|alter\s+table|drop\s+table|truncate\s+table|from|into|update)\s+(?:if\s+(?:not\s+)?exists\s+)?([`\'"]?[a-zA-Z0-9_\-]+[`\'"]?)', sql_clean, re.IGNORECASE)
+                if tbl_match:
+                    tb_name = tbl_match.group(1).strip("`\"' ")
+                    if tb_name and tb_name.lower() not in ("table", "if", "exists"):
+                        parsed.tables.append(tb_name)
+                        if "create table" in sql_clean.lower():
+                            parsed.is_create_table = True
+                return parsed
 
         # 确定 SQL 类型
         parsed.sql_type = self._get_sql_type(ast)
@@ -189,6 +2251,9 @@ class SQLParser:
                         parsed.tables.append(tb_name)
             self._regex_fallback_create_table_props(sql_clean, parsed)
 
+        if parsed.known_fidelity_failures:
+            parsed.parse_error = "KNOWN_FIDELITY_GAP[%s]" % ",".join(
+                parsed.known_fidelity_failures)
         return parsed
 
     # ── 正则预解析（补充sqlglot遗漏的信息） ──────────────────
@@ -508,6 +2573,8 @@ class SQLParser:
             parsed.table_name_plural = self._check_plural(table_name)
 
         # 解析列定义和索引定义
+        _unique_semantics_failed = False
+        _unique_ast_incomplete = False
         if isinstance(schema, exp.Schema):
             for col_def in schema.expressions:
                 if isinstance(col_def, exp.ColumnDef):
@@ -522,6 +2589,14 @@ class SQLParser:
                     comment = self._extract_column_comment(col_def)
                     if comment:
                         parsed.column_comments[col_info["name"]] = comment
+                    # Rev.P：列级 UNIQUE 进入隔离语义通道，绝不写 legacy indexes。
+                    col_unique = self._parse_column_unique_constraint(col_def)
+                    if col_unique is None:
+                        pass                          # 本列无 UNIQUE
+                    elif col_unique:
+                        parsed.unique_constraints.append(col_unique)
+                    else:
+                        _unique_semantics_failed = True
                 elif isinstance(col_def, exp.PrimaryKey):
                     parsed.has_primary_key = True
                 elif isinstance(col_def, exp.IndexColumnConstraint):
@@ -530,14 +2605,32 @@ class SQLParser:
                         parsed.indexes.append(idx_info)
                         parsed.index_definitions.append(idx_info)
                 elif type(col_def).__name__ == "UniqueColumnConstraint":
-                    # sqlglot UniqueColumnConstraint: 表级 UNIQUE KEY/INDEX
+                    # Rev.P：表级 UNIQUE 进入隔离语义通道；提取失败即保持 incomplete。
                     idx_info = self._parse_unique_constraint(col_def)
                     if idx_info:
-                        parsed.indexes.append(idx_info)
-                        parsed.index_definitions.append(idx_info)
+                        parsed.unique_constraints.append(idx_info)
+                    else:
+                        _unique_semantics_failed = True
                 # 检查表级 COMMENT
                 elif type(col_def).__name__ in ("CommentColumnConstraint", "CommentColumnConstraint"):
                     parsed.has_table_comment = True
+                else:
+                    # Rev.Q：exp.Constraint、ForeignKey、Check 以及未来未知顶层节点
+                    # 都证明 AST UNIQUE 遍历不是闭世界；只关闭 complete 并保留 raw
+                    # R054 回退，不能把“扫描器尚未覆盖”偷换成 SQL 非法或 E999。
+                    _unique_ast_incomplete = True
+
+        if isinstance(schema, exp.Schema):
+            if _unique_semantics_failed:
+                parsed.parse_error = (
+                    parsed.parse_error or "UNIQUE_SEMANTICS_INCOMPLETE"
+                )
+            parsed.unique_constraints_complete = (
+                parsed.unique_source_definitions_complete
+                and not _unique_ast_incomplete
+                and not _unique_semantics_failed
+                and not parsed.known_fidelity_failures
+            )
 
         # 检查约束中的主键和外键
         if isinstance(schema, exp.Schema):
@@ -579,50 +2672,91 @@ class SQLParser:
                 if col_name:
                     idx_cols.append(col_name)
         # 判断索引类型
-        def_str = str(col_def).upper()
-        if "PRIMARY" in def_str:
-            idx_type = "PRIMARY"
-        elif "UNIQUE" in def_str:
-            idx_type = "UNIQUE"
-        elif "FULLTEXT" in def_str:
-            idx_type = "FULLTEXT"
+        # v1.6.2.2 / DEF-1: 原实现 `def_str = str(col_def).upper()` + 裸子串包含判断，
+        # 会把列名/索引名中含 unique/primary/fulltext 的普通索引误判（实测：列名
+        # list_unique_num → 该普通索引被标成 UNIQUE），进而 R054 对普通索引误报，
+        # 且真唯一索引被顶替而漏检。改读 sqlglot 的结构化 kind 参数。
+        # 实测 sqlglot 26.0/30.12/30.14：IndexColumnConstraint 只承载
+        # kind ∈ {None,'FULLTEXT','SPATIAL'}，UNIQUE 走 UniqueColumnConstraint、
+        # PRIMARY 走 exp.PrimaryKey，都不经过本函数。此处仍用白名单精确映射而非
+        # 二元判断：万一未来 sqlglot 把 PRIMARY/UNIQUE 放进本节点，也不会静默
+        # 降级成 NORMAL（配套 AST 契约测试在升级时显式失败）。
+        # SPATIAL 维持映射为 NORMAL：这是本次热修"输出域不变"的兼容性取舍，
+        # 不是"空间索引在语义上等同普通索引"的结论。
+        kind = (col_def.args.get("kind") or "").upper()
+        idx_type = kind if kind in {"PRIMARY", "UNIQUE", "FULLTEXT"} else "NORMAL"
         if idx_cols:
             return {"name": idx_name, "columns": idx_cols, "type": idx_type}
         return {}
 
-    def _parse_unique_constraint(self, col_def) -> dict:
-        """解析 UniqueColumnConstraint (表级 UNIQUE KEY/INDEX)"""
-        idx_name = ""
+    def _parse_unique_constraint(self, unique_def) -> dict:
+        """结构化提取表级 UNIQUE KEY/INDEX；未知 AST 形状失败关闭。"""
+        schema = unique_def.args.get("this")
+        if not isinstance(schema, exp.Schema):
+            return {}
+        name_node = schema.args.get("this")
+        idx_name = (getattr(name_node, "name", "") or "").strip('`" ')
         idx_cols = []
-        # UniqueColumnConstraint 的 this 可能是 IndexColumnConstraint 或直接的列列表
-        this_node = col_def.args.get("this")
-        if this_node:
-            if type(this_node).__name__ == "IndexColumnConstraint":
-                # UNIQUE KEY uk_name (col1, col2)
-                name_node = this_node.args.get("this")
-                if name_node:
-                    idx_name = name_node.sql(dialect=self.dialect) if hasattr(name_node, 'sql') else str(name_node)
-                for ordered_expr in this_node.expressions:
-                    col_node = ordered_expr.args.get("this") if hasattr(ordered_expr, 'args') else None
-                    if col_node:
-                        col_name = col_node.sql(dialect=self.dialect).strip('`"')
-                        if col_name:
-                            idx_cols.append(col_name)
+        for part in (schema.expressions or []):
+            if isinstance(part, exp.Ordered):
+                part = part.this
+            if isinstance(part, exp.Identifier):
+                col_name = part.name
+            elif isinstance(part, exp.Anonymous):
+                # TDSQL/MySQL 前缀索引 `col(n)` 在 sqlglot 中是 Anonymous；
+                # 直接解析成功路径也会调用本函数，故这里不能只信规划器：必须再次
+                # 证明恰好一个正整数字面量，避免把 `lower(col)` 函数索引当成列 lower。
+                base = part.args.get("this")
+                pargs = list(part.expressions or [])
+                if (len(pargs) != 1 or not isinstance(pargs[0], exp.Literal)
+                        or pargs[0].is_string or not str(pargs[0].this).isdigit()
+                        or int(pargs[0].this) <= 0):
+                    return {}
+                col_name = base if isinstance(base, str) else getattr(base, "name", "")
             else:
-                # 直接的列引用
-                name_str = this_node.sql(dialect=self.dialect) if hasattr(this_node, 'sql') else str(this_node)
-                idx_name = name_str
-        # 从 expressions 中提取列名
-        for expr in col_def.expressions:
-            if hasattr(expr, 'args'):
-                col_node = expr.args.get("this")
-                if col_node:
-                    col_name = col_node.sql(dialect=self.dialect).strip('`"')
-                    if col_name:
-                        idx_cols.append(col_name)
-        if idx_cols:
-            return {"name": idx_name or "UNIQUE", "columns": idx_cols, "type": "UNIQUE"}
-        return {}
+                return {}                             # 函数/表达式/未知形状不得猜测
+            col_name = (col_name or "").strip('`" ')
+            if not col_name:
+                return {}
+            idx_cols.append(col_name)
+        if not idx_cols:
+            return {}
+        return {
+            "name": idx_name or "UNIQUE",
+            "columns": idx_cols,
+            "type": "UNIQUE",
+            "origin": "TABLE_UNIQUE",
+        }
+
+    def _parse_column_unique_constraint(self, col_def: exp.ColumnDef):
+        """把 `col TYPE UNIQUE [KEY]` 转成下游统一的 UNIQUE 索引语义。
+
+        只遍历 ColumnDef 的**直接 constraints**，不使用 find_all()，避免把嵌套节点
+        或未来 AST 结构误算成第二个唯一索引。MySQL/TDSQL 未显式命名的单列 UNIQUE
+        以列名作为隐式索引名；R054 助手只读取 name/columns/type，origin 仅供诊断。
+        """
+        found = 0
+        malformed = False
+        for constraint in (col_def.args.get("constraints") or []):
+            kind = constraint.args.get("kind")
+            if isinstance(kind, exp.UniqueColumnConstraint):
+                found += 1
+                # sqlglot 29.0.0 会把第二个 UNIQUE 折叠到首个节点的 this，
+                # 30.x 则可能形成第二个约束；两种 AST 都必须失败关闭。
+                malformed = malformed or kind.args.get("this") is not None
+        if found == 0:
+            return None                               # 非唯一列，不影响完整性
+        if found != 1 or malformed:
+            return {}                                 # 看到了 UNIQUE 但不能形成唯一语义
+        name = (col_def.name or "").strip('`" ')
+        if not name:
+            return {}
+        return {
+            "name": name,
+            "columns": [name],
+            "type": "UNIQUE",
+            "origin": "COLUMN_UNIQUE",
+        }
 
     def _extract_column_comment(self, col_def: exp.ColumnDef) -> str:
         """提取列注释"""

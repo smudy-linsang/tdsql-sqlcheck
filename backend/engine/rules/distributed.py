@@ -167,24 +167,42 @@ _UNIQUE_IDX_RE = re.compile(
 
 
 def _iter_unique_indexes(parsed: ParsedSQL, raw_sql: str):
-    """逐个产出唯一索引 (名称, 列名集合)。
-
-    J-3 要求"每一个唯一索引都包含分片键"，因此**不得展平成列并集**——
-    并集只能回答"是否在任意唯一索引中"，表达不了 J-3。
-    """
-    seen = False
-    for idx in list(parsed.indexes) + list(parsed.index_definitions):
-        if (idx.get("type") or "").upper() == "UNIQUE":
-            seen = True
-            yield (idx.get("name") or "UNIQUE索引",
-                   {c.lower() for c in idx.get("columns", [])})
-    if seen:
+    """R054 专属：逐个产出完整唯一约束；不得被 R077 复用。"""
+    seen = set()
+    structured_column_sets = set()
+    # 每个结构化条目自身都已经通过严格 helper；全局 incomplete 只表示可能还有
+    # 条目未提取，不表示已提取条目不可信。先产出它们，覆盖列级/裸 UNIQUE。
+    for idx in parsed.unique_constraints:
+        name = idx.get("name") or "UNIQUE索引"
+        columns = {c.lower() for c in idx.get("columns", [])}
+        identity = (str(name).lower(), frozenset(columns))
+        if identity not in seen:
+            seen.add(identity)
+            structured_column_sets.add(frozenset(columns))
+            yield name, columns
+    if getattr(parsed, "unique_constraints_complete", False):
         return
-    # 回退：解析器未产出 UNIQUE 条目时走正则（索引名支持反引号——
-    # SHOW CREATE TABLE 输出的索引名恒带反引号）
+    # 不完整路径再用既有 raw 回退补充 AST 未表达的 UNIQUE KEY/INDEX；按
+    # (规范名, 列集合) 去重，避免同一条约束被重复消费。
+    def _raw_base_column(fragment: str) -> str:
+        value = fragment.strip()
+        value = re.sub(r"\s+(?:asc|desc)\s*$", "", value, flags=re.IGNORECASE)
+        # `_UNIQUE_IDX_RE` 在前缀长度的内层 `)` 处停止，故右括号可有可无。
+        value = re.sub(r"\(\s*\d+\s*\)?$", "", value).strip()
+        return value.strip('`"\' ').lower()
+
     for m in _UNIQUE_IDX_RE.finditer(_strip_sql_noise(raw_sql)):
-        yield (m.group('qname') or m.group('bname') or "UNIQUE索引",
-               {c.strip('`"\' ').lower() for c in m.group(3).split(",")})
+        name = m.group('qname') or m.group('bname') or "UNIQUE索引"
+        # 既有正则在 `col(n)` 的内层右括号处停止；去掉末尾正整数前缀长度，
+        # 与结构化 helper 的“只保留基列”语义对齐，避免同一索引被误判成第二条。
+        columns = {
+            _raw_base_column(c)
+            for c in m.group(3).split(",")
+        }
+        identity = (str(name).lower(), frozenset(columns))
+        if identity not in seen and frozenset(columns) not in structured_column_sets:
+            seen.add(identity)
+            yield name, columns
 
 
 class R020ShardKeyInWhere(BaseRule):
