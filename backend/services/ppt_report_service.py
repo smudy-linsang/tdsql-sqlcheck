@@ -204,7 +204,8 @@ class PPTReportService:
         story.append(Paragraph(f"针对实例进行多维度深度扫描后，综合评估得分如下所示：", body_style))
         
         summary_data = [
-            [Paragraph("<b>健康评分 (基准100分)</b>", body_style), Paragraph(f"<font color='#EF4444'><b>{dash['score']} 分</b></font>" if dash['score'] < 80 else f"<font color='#10B981'><b>{dash['score']} 分</b></font>", body_style)],
+            # v1.6.2.2-UAT-O-05：score=None 表示无采集数据（未评估），不得虚构健康分
+            [Paragraph("<b>健康评分 (基准100分)</b>", body_style), Paragraph("<b>未评估（无采集数据）</b>" if dash['score'] is None else (f"<font color='#EF4444'><b>{dash['score']} 分</b></font>" if dash['score'] < 80 else f"<font color='#10B981'><b>{dash['score']} 分</b></font>"), body_style)],
             [Paragraph("活动告警总数", body_style), Paragraph(str(dash['total_alerts']), body_style)],
             [Paragraph("索引问题总数", body_style), Paragraph(str(dash.get('index', {}).get('summary', {}).get('duplicate_count', 0) + dash.get('index', {}).get('summary', {}).get('prefix_redundant_count', 0)), body_style)],
             [Paragraph("全表扫描慢SQL数", body_style), Paragraph(str(dash.get('sql', {}).get('summary', {}).get('full_scan_count', 0)), body_style)],
@@ -442,27 +443,37 @@ class PPTReportService:
         data = self.generate_report_data(connection_id)
         
         # 汇总健康分数 (根据各项扣分，100为基准)
+        # v1.6.2.2-UAT-O-05：只对 data_status=ok 的模块计分；
+        # 全部模块无数据时 score=None（未评估），不得虚构一个健康分。
         score = 100
         alerts = 0
+        has_real_data = False
         
         insp = data["modules"]["daily_inspection"]
-        if insp:
+        if insp and insp.get("data_status") == "ok":
+            has_real_data = True
             alerts += insp["summary"]["alert_count"]
             score -= insp["summary"]["alert_count"] * 5
             
         idx = data["modules"]["index_analysis"]
-        if idx:
+        if idx and idx.get("data_status") == "ok":
+            has_real_data = True
             score -= idx["summary"]["duplicate_count"] * 2
             score -= idx["summary"]["prefix_redundant_count"] * 1
             
         sql = data["modules"]["sql_analysis"]
-        if sql:
+        if sql and sql.get("data_status") == "ok":
+            has_real_data = True
             score -= sql["summary"]["full_scan_count"] * 3
 
-        score = max(30, min(100, score))
+        if not has_real_data:
+            score = None                     # 无数据不代表健康
+        else:
+            score = max(30, min(100, score))
 
         return {
             "score": score,
+            "score_status": "ok" if has_real_data else "no_data",
             "total_alerts": alerts,
             "inspection": insp,
             "index": idx,
@@ -484,21 +495,20 @@ class PPTReportService:
         rows = list(cursor.fetchall())
 
         if not rows:
-            # UAT / 空数据时 Mock 兜底
+            # v1.6.2.2-UAT-O-05：空数据必须显式标记 no_data，禁止返回演示数据。
+            # 假数据会让用户在正式报告里看到不存在的实例/指标并据此决策。
             return {
-                "source_file": "monitordb_kv",
+                "data_status": "no_data",
+                "source_file": None,
                 "summary": {
-                    "instance_count": 3,
-                    "avg_cpu": 34.5,
-                    "avg_memory": 68.2,
-                    "total_slow_queries": 45,
+                    "instance_count": 0,
+                    "avg_cpu": None,
+                    "avg_memory": None,
+                    "total_slow_queries": 0,
                     "alert_count": 0,
                     "cpu_alerts": []
                 },
-                "top_slow_queries": [
-                    {"name": "set_1", "count": 28},
-                    {"name": "set_2", "count": 17}
-                ]
+                "top_slow_queries": []
             }
 
         cpu_alerts = []
@@ -522,6 +532,7 @@ class PPTReportService:
                 alert_count += 1
 
         return {
+            "data_status": "ok",
             "source_file": "monitordb_kv",
             "summary": {
                 "instance_count": len(rows),
@@ -556,21 +567,16 @@ class PPTReportService:
         snap_cnt = cursor.fetchone()["cnt"] or 0
 
         if not rows:
+            # v1.6.2.2-UAT-O-05：空数据必须显式标记 no_data，禁止返回演示数据
             return {
+                "data_status": "no_data",
                 "summary": {
-                    "total_tables": 182,
-                    "total_rows": 12588394,
-                    "snapshot_count": snap_cnt or 1,
-                    "distribution": {
-                        "大表(>10GB)": 2,
-                        "中表(1-10GB)": 15,
-                        "小表(<1GB)": 165
-                    }
+                    "total_tables": 0,
+                    "total_rows": 0,
+                    "snapshot_count": snap_cnt,
+                    "distribution": {}
                 },
-                "tables_top20": [
-                    {"service": "main", "database": "biz", "table": "t_transaction", "row_count": 8920194, "size_gb": 12.8},
-                    {"service": "main", "database": "biz", "table": "t_order_detail", "row_count": 3410294, "size_gb": 4.5}
-                ]
+                "tables_top20": []
             }
 
         total_rows = sum(r["table_rows"] for r in rows)
@@ -587,6 +593,7 @@ class PPTReportService:
                 dist["小表(<1GB)"] += 1
 
         return {
+            "data_status": "ok",
             "summary": {
                 "total_tables": len(rows),
                 "total_rows": total_rows,
@@ -617,21 +624,21 @@ class PPTReportService:
         rows = list(cursor.fetchall())
 
         if not rows:
+            # v1.6.2.2-UAT-O-05：空数据必须显式标记 no_data，禁止返回演示数据
             return {
+                "data_status": "no_data",
                 "summary": {
-                    "total_indexes": 348,
-                    "unique_tables": 45,
-                    "duplicate_count": 3,
-                    "prefix_redundant_count": 5,
-                    "unused_count": 12,
-                    "fragmented_tables": 2,
-                    "pk_count": 45,
-                    "unique_count": 12,
-                    "normal_count": 291
+                    "total_indexes": 0,
+                    "unique_tables": 0,
+                    "duplicate_count": 0,
+                    "prefix_redundant_count": 0,
+                    "unused_count": 0,
+                    "fragmented_tables": 0,
+                    "pk_count": 0,
+                    "unique_count": 0,
+                    "normal_count": 0
                 },
-                "duplicate_indexes": [
-                    {"schema": "biz", "table": "t_user", "index1": "idx_name", "index2": "idx_name_2", "columns": "name"}
-                ]
+                "duplicate_indexes": []
             }
 
         # 统计各项计数
@@ -657,17 +664,21 @@ class PPTReportService:
                     "columns": r["columns"]
                 })
 
+        # v1.6.2.2-UAT-O-05：真数据分支也不得掺入硬编码假基数（120+/45/12）。
+        # total_indexes/pk_count/unique_count 本表查不出来，诚实标注 None（未知），
+        # 由展示层显式呈现"未统计"而非虚构数字。
         return {
+            "data_status": "ok",
             "summary": {
-                "total_indexes": 120 + len(rows),
+                "total_indexes": None,   # 本查询无法获知全量索引数，不虚构
                 "unique_tables": len(set(r["table_name"] for r in rows)),
                 "duplicate_count": dup_count,
                 "prefix_redundant_count": prefix_count,
                 "unused_count": unused_count,
                 "fragmented_tables": frag_count,
-                "pk_count": 45,
-                "unique_count": 12,
-                "normal_count": 120 + len(rows)
+                "pk_count": None,
+                "unique_count": None,
+                "normal_count": None
             },
             "duplicate_indexes": dup_list
         }
@@ -684,17 +695,17 @@ class PPTReportService:
         rows = list(cursor.fetchall())
 
         if not rows:
+            # v1.6.2.2-UAT-O-05：空数据必须显式标记 no_data，禁止返回演示数据
             return {
+                "data_status": "no_data",
                 "summary": {
-                    "total_sql_types": 12,
-                    "total_count": 8920,
-                    "full_scan_count": 2,
-                    "total_time": 1258.4
+                    "total_sql_types": 0,
+                    "total_count": 0,
+                    "full_scan_count": 0,
+                    "total_time": 0.0
                 },
-                "type_distribution": {"SELECT": 80, "INSERT": 10, "UPDATE": 8, "DELETE": 2},
-                "top_slow_sql": [
-                    {"schema": "biz", "digest_text": "SELECT * FROM t_order WHERE status=?", "avg_time": 2.5, "count": 240}
-                ]
+                "type_distribution": {},
+                "top_slow_sql": []
             }
 
         full_scans = sum(1 for r in rows if "type=ALL" in (r["explain_issues"] or ""))
@@ -711,6 +722,7 @@ class PPTReportService:
                 types["OTHER"] += r["exec_count"]
 
         return {
+            "data_status": "ok",
             "summary": {
                 "total_sql_types": len(rows),
                 "total_count": total_count,
@@ -732,51 +744,64 @@ class PPTReportService:
 
     def _get_gateway_analysis_data(self, conn, connection_id: str) -> dict:
         cursor = conn.cursor()
+        # v1.6.2.2-UAT-O-06：模板消费 reports 列表契约，生产者必须提供——
+        # 旧实现只返回单条最新记录的 summary，PDF 网关章节因此永远走"暂无记录"分支。
         cursor.execute("""
-            SELECT log_file_name, total_queries, slow_queries, max_time_ms, avg_time_ms, created_at
+            SELECT id, log_file_name, total_queries, slow_queries, max_time_ms, avg_time_ms, created_at
             FROM gateway_log_reports
-            WHERE connection_id = %s ORDER BY id DESC LIMIT 1
+            WHERE connection_id = %s ORDER BY id DESC LIMIT 5
         """, (connection_id,))
-        row = cursor.fetchone()
+        report_rows = list(cursor.fetchall())
+        reports = [
+            {
+                "id": r["id"],
+                "log_file_name": r["log_file_name"],
+                "analysis_time": str(r["created_at"]) if r["created_at"] else "",
+                "total_queries": r["total_queries"],
+                "slow_queries": r["slow_queries"],
+                "max_time_ms": r["max_time_ms"],
+                "avg_time_ms": r["avg_time_ms"],
+            }
+            for r in report_rows
+        ]
+        row = report_rows[0] if report_rows else None
 
         if not row:
+            # v1.6.2.2-UAT-O-05：空数据必须显式标记 no_data，禁止返回演示数据
             return {
-                "source_file": "mock_gateway.log",
+                "data_status": "no_data",
+                "source_file": None,
                 "summary": {
-                    "total_requests": 142094,
-                    "daily_count": 1,
+                    "total_requests": 0,
+                    "daily_count": 0,
                     "error_count": 0
                 },
-                "daily_stats": [
-                    {"date": datetime.now().strftime("%Y-%m-%d"), "count": 142094}
-                ],
-                "timecost_distribution": {
-                    "0-10ms": 128911,
-                    "10-50ms": 12044,
-                    "50-100ms": 894,
-                    "100-500ms": 213,
-                    "500-1000ms": 28,
-                    ">1000ms": 4
-                },
-                "error_codes": {}
+                "daily_stats": [],
+                "timecost_distribution": {},
+                "error_codes": {},
+                "reports": []
             }
 
         return {
+            "data_status": "ok",
             "source_file": row["log_file_name"],
             "summary": {
                 "total_requests": row["total_queries"],
                 "daily_count": 1,
-                "error_count": row["slow_queries"]  # 用 slow_queries 做个近似，或填 0
+                # v1.6.2.2-UAT-O-05：网关记录不含错误数字段，不得拿慢查询数冒充错误数
+                "error_count": None
             },
             "daily_stats": [
                 {"date": row["created_at"][:10] if row["created_at"] else datetime.now().strftime("%Y-%m-%d"), "count": row["total_queries"]}
             ],
+            # v1.6.2.2-UAT-O-05：单条聚合记录推导不出耗时分布，95%/4% 是拍脑袋假数据；
+            # 只能确定：慢查询(>=阈值) slow_queries 条，其余为阈值以下。
             "timecost_distribution": {
-                "0-100ms": int(row["total_queries"] * 0.95),
-                "100-500ms": int(row["total_queries"] * 0.04),
-                ">500ms": row["slow_queries"]
+                "<阈值": row["total_queries"] - row["slow_queries"],
+                ">=阈值(慢)": row["slow_queries"]
             },
-            "error_codes": {}
+            "error_codes": {},
+            "reports": reports
         }
 
     def _get_schema_diff_data(self, conn, connection_id: str) -> dict:
@@ -792,24 +817,30 @@ class PPTReportService:
         rows = list(cursor.fetchall())
 
         if not rows:
+            # v1.6.2.2-UAT-O-05：空数据必须显式标记 no_data，禁止虚构"校验一致"
             return {
+                "data_status": "no_data",
                 "summary": {
-                    "prod_instances": 1,
-                    "test_instances": 1,
-                    "total_databases": 3,
-                    "total_tables": 45,
-                    "status": "校验一致"
+                    "prod_instances": 0,
+                    "test_instances": 0,
+                    "total_databases": 0,
+                    "total_tables": 0,
+                    "status": "未执行"
                 }
             }
 
         status = "存在差异"
         
+        # v1.6.2.2-UAT-O-05：schema_diff 真实分支的 prod/test/databases/tables
+        # 原实现是硬编码假值（1/1/3/45）。本查询仅含 severity 计数，
+        # 无法推导实例与库表数，诚实标注 None。
         return {
+            "data_status": "ok",
             "summary": {
-                "prod_instances": 1,
-                "test_instances": 1,
-                "total_databases": 3,
-                "total_tables": 45,
+                "prod_instances": None,
+                "test_instances": None,
+                "total_databases": None,
+                "total_tables": None,
                 "status": status
             }
         }

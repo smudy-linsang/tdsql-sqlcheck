@@ -296,8 +296,31 @@ class SlowQueryService:
             charset=saved["charset"] or "utf8mb4",
         )
 
-        # 注册连接（如果尚未活跃则自动建连）
-        pool = registry.register(connection_id, cfg, validate=True)
+        # v1.6.2.2-UAT-O-08：请求级库选择不得污染共享连接配置。
+        # db_name 与连接默认库不同时，用独立临时连接池（不注册进 registry），
+        # 用完即关；相同或留空时走共享连接，行为与改前一致。
+        _ephemeral_pool = None
+        if db_name and db_name != (saved["database"] or ""):
+            _ephemeral_pool = TDSQLConnectionPool(cfg)
+            # 立即验证连接与目标库可用性；库不存在等业务错误转成可理解的 ValueError（API 层映 4xx）
+            try:
+                with _ephemeral_pool.get_connection() as _conn:
+                    with _conn.cursor() as _cur:
+                        _cur.execute("SELECT 1")
+                        _cur.fetchone()
+            except Exception as _ex:
+                try:
+                    _ephemeral_pool.pool.close_all()
+                except Exception:
+                    pass
+                _err = str(_ex)
+                if "Unknown database" in _err or "1049" in _err:
+                    raise ValueError(f"数据库不存在: {db_name}（请检查 EXPLAIN 分析的数据库名输入）")
+                raise ValueError(f"连接实例失败: {_err}")
+            pool = _ephemeral_pool
+        else:
+            # 注册连接（如果尚未活跃则自动建连）
+            pool = registry.register(connection_id, cfg, validate=True)
 
         # 预处理SQL：清理注释、扩展摘要 VALUES(...)，并将 ? 占位符及函数名多余空格归一化为合法 SQL
         processed_sql = sql.strip().rstrip(';')
@@ -392,62 +415,71 @@ class SlowQueryService:
             processed_sql = processed_sql.rstrip(',')
             processed_sql = f"{processed_sql} FROM DUAL"
 
-        # 执行 EXPLAIN
+        # 执行 EXPLAIN（临时连接池必须在所有路径上关闭，防资源泄漏）
         explain_sql = f"EXPLAIN {processed_sql}"
-        with pool.get_connection() as conn:
-            with conn.cursor() as cursor:
-                if target_db:
+        try:
+            with pool.get_connection() as conn:
+                with conn.cursor() as cursor:
+                    if target_db:
+                        try:
+                            cursor.execute(f"USE `{target_db}`")
+                        except Exception as ex:
+                            # v1.6.2.2-UAT-O-08：目标库不可用是业务输入错误，
+                            # 明确抛错（API 层映 4xx），不再静默继续在默认库上 EXPLAIN
+                            raise ValueError(f"目标数据库不可用: {target_db}（{ex}）")
                     try:
-                        cursor.execute(f"USE `{target_db}`")
+                        cursor.execute(explain_sql)
+                        columns = [desc[0] for desc in cursor.description]
+                        rows = cursor.fetchall()
                     except Exception as ex:
-                        logger.warning(f"切换目标数据库 {target_db} 失败: {ex}")
-                try:
-                    cursor.execute(explain_sql)
-                    columns = [desc[0] for desc in cursor.description]
-                    rows = cursor.fetchall()
-                except Exception as ex:
-                    err_str = str(ex)
-                    if "INSERT" in explain_sql.upper() and ("Get auto num failed" in err_str or "Proxy ERROR" in err_str):
-                        match_tbl = re.search(r"INSERT\s+INTO\s+([^\(\s]+)", processed_sql, flags=re.IGNORECASE)
-                        if match_tbl:
-                            tbl_name = match_tbl.group(1).strip()
-                            fallback_sql = f"EXPLAIN SELECT 1 FROM {tbl_name} LIMIT 1"
-                            cursor.execute(fallback_sql)
-                            columns = [desc[0] for desc in cursor.description]
-                            rows = cursor.fetchall()
+                        err_str = str(ex)
+                        if "INSERT" in explain_sql.upper() and ("Get auto num failed" in err_str or "Proxy ERROR" in err_str):
+                            match_tbl = re.search(r"INSERT\s+INTO\s+([^\(\s]+)", processed_sql, flags=re.IGNORECASE)
+                            if match_tbl:
+                                tbl_name = match_tbl.group(1).strip()
+                                fallback_sql = f"EXPLAIN SELECT 1 FROM {tbl_name} LIMIT 1"
+                                cursor.execute(fallback_sql)
+                                columns = [desc[0] for desc in cursor.description]
+                                rows = cursor.fetchall()
+                            else:
+                                raise ex
                         else:
                             raise ex
-                    else:
-                        raise ex
 
-        # 转换为分析器所需的字典列表格式（DictCursor已返回字典）
-        explain_data = []
-        for row in rows:
-            if isinstance(row, dict):
-                raw = dict(row)
-            else:
-                raw = {col: row[i] for i, col in enumerate(columns)}
-            # 键归一化: 真实EXPLAIN返回 'Extra'(首字母大写)，分析器按小写键取值；
-            # 数值列(rows/filtered)可能为Decimal/None，统一转为分析器可比较的类型
-            normalized = {}
-            for k, v in raw.items():
-                key = k.lower()
-                if key in ("rows",):
-                    normalized[key] = int(v) if v is not None else 0
-                elif key in ("filtered",):
-                    normalized[key] = float(v) if v is not None else 100.0
-                elif v is None:
-                    normalized[key] = ""
+            # 转换为分析器所需的字典列表格式（DictCursor已返回字典）
+            explain_data = []
+            for row in rows:
+                if isinstance(row, dict):
+                    raw = dict(row)
                 else:
-                    normalized[key] = str(v) if not isinstance(v, (int, float)) else v
-            explain_data.append(normalized)
+                    raw = {col: row[i] for i, col in enumerate(columns)}
+                # 键归一化: 真实EXPLAIN返回 'Extra'(首字母大写)，分析器按小写键取值；
+                # 数值列(rows/filtered)可能为Decimal/None，统一转为分析器可比较的类型
+                normalized = {}
+                for k, v in raw.items():
+                    key = k.lower()
+                    if key in ("rows",):
+                        normalized[key] = int(v) if v is not None else 0
+                    elif key in ("filtered",):
+                        normalized[key] = float(v) if v is not None else 100.0
+                    elif v is None:
+                        normalized[key] = ""
+                    else:
+                        normalized[key] = str(v) if not isinstance(v, (int, float)) else v
+                explain_data.append(normalized)
 
-        # 调用已有的分析方法
-        result = self.analyze_explain(explain_data)
-        result["explain_rows"] = explain_data
-        result["explain_columns"] = [c.lower() for c in columns]
-        result["executed_sql"] = processed_sql
-        return result
+            # 调用已有的分析方法
+            result = self.analyze_explain(explain_data)
+            result["explain_rows"] = explain_data
+            result["explain_columns"] = [c.lower() for c in columns]
+            result["executed_sql"] = processed_sql
+            return result
+        finally:
+            if _ephemeral_pool is not None:
+                try:
+                    _ephemeral_pool.pool.close_all()
+                except Exception:
+                    pass
 
     def get_statistics(self) -> dict:
         """获取慢SQL统计信息"""

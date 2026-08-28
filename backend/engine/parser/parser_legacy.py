@@ -40,6 +40,79 @@ from sqlglot.tokens import TokenType
 # 避免两套安全模型再次各自漂移。
 
 
+def _strip_comments_and_literals(sql: str) -> str:
+    """剥离 SQL 注释、字符串字面量与反引号标识符，内容替换为空格（保长度）。
+
+    用途：为"顶层语句头/关键字"类判定提供可信文本——注释、`'...'`/`"..."`
+    字符串、`` `...` `` 反引号标识符里的文字一律不参与匹配，防止
+    `COMMENT='LOAD DATA'`、`SELECT 'CREATE VIEW'`、`/* CREATE VIEW */`
+    之类的诱饵被误判为真实语句类型（v1.6.2.2-UAT-O-01-R2）。
+
+    单遍扫描 O(n)；命中区域替换为空格而非删除，保持原串索引不变。
+    字符串转义按 MySQL 默认（反斜杠转义 + 双写引号转义）处理；
+    反引号标识符内只认双写 `` `` `` 转义（反斜杠在标识符中无转义语义）。
+    """
+    out = list(sql)
+    i, n = 0, len(sql)
+    state = None                       # None | "'" | '"' | '`' | '--' | '/*'
+    while i < n:
+        ch = sql[i]
+        nxt = sql[i + 1] if i + 1 < n else ''
+        if state is None:
+            if ch == '-' and nxt == '-':
+                out[i] = out[i + 1] = ' '
+                i += 2
+                state = '--'
+                continue
+            if ch == '/' and nxt == '*':
+                out[i] = out[i + 1] = ' '
+                i += 2
+                state = '/*'
+                continue
+            if ch in ("'", '"', '`'):
+                out[i] = ' '
+                i += 1
+                state = ch
+                continue
+            i += 1
+            continue
+        if state == '--':
+            if ch == '\n':
+                state = None
+            else:
+                out[i] = ' '
+            i += 1
+            continue
+        if state == '/*':
+            if ch == '*' and nxt == '/':
+                out[i] = out[i + 1] = ' '
+                i += 2
+                state = None
+                continue
+            out[i] = ' '
+            i += 1
+            continue
+        # 字符串 / 反引号标识符内部
+        if ch == '\\' and state in ("'", '"'):
+            out[i] = ' '
+            if i + 1 < n:
+                out[i + 1] = ' '
+            i += 2
+            continue
+        if ch == state:
+            if nxt == state:                # 双写转义 '' / "" / ``
+                out[i] = out[i + 1] = ' '
+                i += 2
+                continue
+            out[i] = ' '
+            i += 1
+            state = None
+            continue
+        out[i] = ' '
+        i += 1
+    return ''.join(out)
+
+
 def _spans_only_diff(orig: str, new: str, spans) -> bool:
     """校验 new 相对 orig 的全部差异都落在 spans 内，且长度恒等。"""
     if new is None or len(new) != len(orig):
@@ -2204,7 +2277,17 @@ class SQLParser:
                 ast = _retry_ast
                 parsed.ast = ast
             else:
-                parsed.parse_error = str(e)
+                # v1.6.2.2-UAT-O-01-R2：异常路径同样完成 KFN 消息归一化——
+                # preflight 已把 known_fidelity_failures 写入 parsed（决策真值源），
+                # 但旧实现在此提前 return，parse_error 只有普通异常文本，
+                # 缺少 KNOWN_FIDELITY_GAP marker，导致下游仅凭消息判定时漏判。
+                # 归一化时保留原始异常文本，不降低可诊断性（结构化类别负责决策，
+                # 消息负责展示——与 2254 行正常出口的归一化同制）。
+                if parsed.known_fidelity_failures:
+                    parsed.parse_error = "KNOWN_FIDELITY_GAP[%s]: %s" % (
+                        ",".join(parsed.known_fidelity_failures), e)
+                else:
+                    parsed.parse_error = str(e)
                 parsed.sql_type = self._detect_sql_type_regex(sql_clean)
                 # 正则回退提取表名（防止含中划线等语法不合规表名在解析报错时漏检）
                 tbl_match = re.search(r'\b(?:create\s+table|alter\s+table|drop\s+table|truncate\s+table|from|into|update)\s+(?:if\s+(?:not\s+)?exists\s+)?([`\'"]?[a-zA-Z0-9_\-]+[`\'"]?)', sql_clean, re.IGNORECASE)
@@ -2271,8 +2354,11 @@ class SQLParser:
             parsed.has_into_outfile = True
 
         # 检测 LOAD DATA / LOAD XML
-        clean_no_comment = re.sub(r'--[^\n]*', '', sql_lower)
-        clean_no_comment = re.sub(r'/\*.*?\*/', '', clean_no_comment, flags=re.DOTALL).strip()
+        # v1.6.2.2-UAT-O-01-R2：先剥离注释与字符串字面量再匹配——否则
+        # COMMENT='LOAD DATA' 之类的字符串诱饵会把普通 CREATE TABLE 误判为
+        # LOAD 语句（has_load_data=True 进而触发 checker 的特殊语句豁免，
+        # 压掉本应强制产出的 E999）。
+        clean_no_comment = _strip_comments_and_literals(sql_lower).strip()
         if clean_no_comment.startswith(("load data", "load xml")) or bool(re.search(r'\bload\s+(?:data|xml)\b', clean_no_comment)):
             parsed.has_load_data = True
             if parsed.sql_type == "UNKNOWN":

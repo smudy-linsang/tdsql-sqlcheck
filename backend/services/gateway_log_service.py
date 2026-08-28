@@ -6,8 +6,10 @@
 import logging
 import os
 import re
+import shutil
 import subprocess
 import tempfile
+from datetime import datetime
 from pathlib import Path
 from backend.services.database import _get_connection, _execute_sql
 
@@ -92,12 +94,25 @@ class GatewayLogService:
             total_queries = len(lines)
 
         # 2) 写入临时文件，供 analyze_gateway_log.py 读取
-        temp_dir = Path(tempfile.gettempdir()) / "tdsql_log_analysis"
-        temp_dir.mkdir(parents=True, exist_ok=True)
-        
-        # 保持原有后缀
-        suffix = Path(file_name).suffix or ".log"
-        temp_log_file = temp_dir / f"uploaded_{os.getpid()}{suffix}"
+        # v1.6.2.2-UAT-O-03：分析器 _organize_specific_files() 按
+        # <type>_instance_<port>.<date>.<seq> 命名规范识别文件类型与实例；
+        # 旧实现写成 uploaded_<pid>.log，命名不匹配导致文件被静默跳过，
+        # 生成的报告只有页脚没有正文。此处按调用方已知的 log_type 与连接端口
+        # 构造受控文件名；并使用逐请求独立临时目录，避免并发上传互相覆盖。
+        temp_dir = Path(tempfile.mkdtemp(prefix="tdsql_log_analysis_"))
+
+        # 端口尽力从实例配置取；取不到用 0 占位（仅参与报告标题，不影响解析）
+        port = 0
+        try:
+            from backend.services.connection_registry import registry
+            saved = registry.get_saved(connection_id) or {}
+            port = int(saved.get("port") or 0)
+        except Exception:
+            pass
+
+        safe_type = re.sub(r"[^a-z_]", "", (log_type or "interf").lower()) or "interf"
+        date_str = datetime.now().strftime("%Y-%m-%d")
+        temp_log_file = temp_dir / f"{safe_type}_instance_{port}.{date_str}.0"
         temp_html_file = temp_dir / f"report_{os.getpid()}.html"
 
         try:
@@ -117,7 +132,14 @@ class GatewayLogService:
             ]
 
             logger.info(f"执行日志分析命令: {' '.join(cmd)}")
-            res = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+            # 子进程的 sys.path[0] 是脚本所在目录（backend/services/gateway_log_analysis/），
+            # 仓库根目录不在其中；分析器 normalize_sql() 会延迟导入 backend.services.sql_masking，
+            # 必须把仓库根目录注入 PYTHONPATH，否则解析到含 db 字段的日志行即
+            # ModuleNotFoundError: No module named 'backend'。
+            _env = dict(os.environ)
+            _repo_root = str(Path(__file__).resolve().parents[2])
+            _env["PYTHONPATH"] = _repo_root + os.pathsep + _env.get("PYTHONPATH", "")
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=120, env=_env)
             
             # 注意: 即使脚本可能有一些警告，只要生成了 HTML 就视为成功
             if not temp_html_file.exists():
@@ -152,17 +174,11 @@ class GatewayLogService:
             }
 
         finally:
-            # 清理临时文件
-            if temp_log_file.exists():
-                try:
-                    temp_log_file.unlink()
-                except Exception:
-                    pass
-            if temp_html_file.exists():
-                try:
-                    temp_html_file.unlink()
-                except Exception:
-                    pass
+            # 清理逐请求独立临时目录（含日志与报告）
+            try:
+                shutil.rmtree(temp_dir, ignore_errors=True)
+            except Exception:
+                pass
 
     def _save_report(
         self,

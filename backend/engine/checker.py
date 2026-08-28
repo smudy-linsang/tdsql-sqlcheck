@@ -7,6 +7,7 @@ import re
 from typing import Optional
 
 from backend.engine.parser import ParsedSQL, SQLParser
+from backend.engine.parser.parser_legacy import _strip_comments_and_literals
 from backend.engine.rules import ALL_RULE_CLASSES
 from backend.engine.rules.base import BaseRule
 from backend.models import (
@@ -137,26 +138,25 @@ class RuleChecker:
 
         # 语法解析报错或结构不全时直接报 ERROR（排除存储过程/触发器/视图及 LOAD DATA 特殊语法）
         #
-        # v1.6.2.2-UAT-O-01: 豁免判定改为两段制——
-        # 1) KFN/UNIQUE_SEMANTICS_INCOMPLETE 是解析器已证明的保真失败，**不可被豁免**，
-        #    必须无条件产出 E999（否则 KFN 会被注释里的文字绕过，用户拿到错误的"通过"）
-        # 2) 其余 parse_error 才走特殊语句豁免：优先用 parsed.sql_type（AST 判定，不受
-        #    注释/字符串字面量干扰）；sql_type 为 UNKNOWN（解析失败）时才回退到正则，
-        #    且先剥离注释再匹配，避免把 `/* CREATE VIEW */` 误判为真实 CREATE VIEW
+        # v1.6.2.2-UAT-O-01（R1）：豁免判定改为两段制，KFN 不可被豁免。
+        # v1.6.2.2-UAT-O-01-R2：KFN 判定改为读结构化信号——
+        #   known_fidelity_failures 由 parser preflight 在词法化阶段写入，
+        #   覆盖包括 ParseError 提前 return 在内的全部返回路径，是唯一真值源；
+        #   消息字符串 marker（KNOWN_FIDELITY_GAP/UNIQUE_SEMANTICS_INCOMPLETE）
+        #   仅作向后兼容的展示通道。只凭消息判定时，异常路径会缺 marker 而漏判。
+        # 普通解析错误的特殊语句豁免不再信任 sql_type/has_load_data——
+        #   UNKNOWN/Command 路径下它们来自全文正则回退，会被
+        #   COMMENT='LOAD DATA' 或 'CREATE VIEW' 字符串诱饵污染；
+        #   改用「剥离注释与字符串字面量后的顶层语句头」判定。
         _KFN_MARKERS = ("KNOWN_FIDELITY_GAP", "UNIQUE_SEMANTICS_INCOMPLETE")
-        is_kfn = parsed.parse_error and any(m in parsed.parse_error for m in _KFN_MARKERS)
-        if not is_kfn:
-            # 特殊语句豁免：优先用 AST 判定的 sql_type
-            is_proc_or_trigger = parsed.sql_type in ("CREATE VIEW", "CREATE PROCEDURE", "CREATE FUNCTION", "CREATE TRIGGER")
-            is_load_stmt = parsed.has_load_data
-            # sql_type 为 UNKNOWN（解析失败）时回退到正则，但先剥离注释防止误判
-            if not is_proc_or_trigger and not is_load_stmt and parsed.sql_type == "UNKNOWN":
-                clean_sql = re.sub(r'--[^\n]*', '', sql)
-                clean_sql = re.sub(r'/\*.*?\*/', '', clean_sql, flags=re.DOTALL)
-                is_proc_or_trigger = bool(re.search(
-                    r"\bcreate\s+(?:or\s+replace\s+)?(?:definer\s*=\s*\S+\s+)?(view|procedure|function|trigger)\b",
-                    clean_sql, re.IGNORECASE))
-                is_load_stmt = bool(re.search(r"\bload\s+(?:data|xml)\b", clean_sql, re.IGNORECASE))
+        is_kfn = bool(getattr(parsed, "known_fidelity_failures", None)) or bool(
+            parsed.parse_error and any(m in parsed.parse_error for m in _KFN_MARKERS))
+        if parsed.parse_error and not is_kfn:
+            _head = _strip_comments_and_literals(sql)
+            is_proc_or_trigger = bool(re.match(
+                r"\s*create\s+(?:or\s+replace\s+)?(?:definer\s*=\s*\S+\s+)?"
+                r"(?:view|procedure|function|trigger)\b", _head, re.IGNORECASE))
+            is_load_stmt = bool(re.match(r"\s*load\s+(?:data|xml)\b", _head, re.IGNORECASE))
         else:
             is_proc_or_trigger = False
             is_load_stmt = False
