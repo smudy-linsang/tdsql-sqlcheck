@@ -1,0 +1,7 @@
+C:\Codex\tdsql-sqlcheck\backend\models\__init__.py:261: UserWarning: Field name "schema" in "BigTableInfo" shadows an attribute in parent "BaseModel"
+  class BigTableInfo(BaseModel):
+C:\Codex\tdsql-sqlcheck\backend\models\__init__.py:289: UserWarning: Field name "schema" in "TableClassification" shadows an attribute in parent "BaseModel"
+  class TableClassification(BaseModel):
+C:\Codex\tdsql-sqlcheck\backend\models\__init__.py:383: UserWarning: Field name "schema" in "CharsetDiagnosticReport" shadows an attribute in parent "BaseModel"
+  class CharsetDiagnosticReport(BaseModel):
+{"sqlglot": "29.0.0", "count": 324, "kfn_without_e999": [], "groups": {"kfn": 252, "real-object": 30, "ordinary-error": 35, "marker-literal": 3, "control": 4}}

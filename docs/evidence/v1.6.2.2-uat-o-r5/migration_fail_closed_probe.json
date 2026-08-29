@@ -1,0 +1,31 @@
+{
+  "first_alter_failed": true,
+  "second_alter_attempted": true,
+  "migration_record_inserted_after_failure": true,
+  "commits": 2,
+  "executed_statements": [
+    {
+      "sql": "CREATE TABLE IF NOT EXISTS schema_migrations ( version_key VARCHAR(128) PRIMARY KEY, checksum VARCHAR(64) NOT NULL, applied_at DATETIME DEFAULT CURRENT_TIMESTAMP ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+      "params": null
+    },
+    {
+      "sql": "SELECT version_key, checksum FROM schema_migrations",
+      "params": null
+    },
+    {
+      "sql": "ALTER TABLE index_audit_finding ADD COLUMN related_index_name VARCHAR(128) DEFAULT ''",
+      "params": null
+    },
+    {
+      "sql": "ALTER TABLE index_audit_finding ADD COLUMN index_columns VARCHAR(512) DEFAULT ''",
+      "params": null
+    },
+    {
+      "sql": "INSERT INTO schema_migrations (version_key, checksum) VALUES (%s, %s)",
+      "params": [
+        "v11_110_index_finding_structured",
+        "6db162f7e70dd4ad432065a07e15fba0540ddf9b41e0f4e484ebc69afd133b68"
+      ]
+    }
+  ]
+}

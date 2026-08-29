@@ -1,0 +1,970 @@
+{
+  "version": "29.0.0",
+  "rows": [
+    {
+      "id": "head:0:0",
+      "sql": "CREATE PROCEDURE p() BEGIN DECLARE x INT DEFAULT 0; WHILE x<3 DO SET x=x+1; END WHILE; SELECT x; END",
+      "sql_type": "CREATE PROCEDURE",
+      "parse_error": null,
+      "has_load_data": false,
+      "fired": [
+        "R001",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R077"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:0:1",
+      "sql": "# ordinary\nCREATE PROCEDURE p() BEGIN DECLARE x INT DEFAULT 0; WHILE x<3 DO SET x=x+1; END WHILE; SELECT x; END",
+      "sql_type": "CREATE PROCEDURE",
+      "parse_error": null,
+      "has_load_data": false,
+      "fired": [
+        "R001",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R077"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:0:2",
+      "sql": "# unmatched single quote '\nCREATE PROCEDURE p() BEGIN DECLARE x INT DEFAULT 0; WHILE x<3 DO SET x=x+1; END WHILE; SELECT x; END",
+      "sql_type": "CREATE PROCEDURE",
+      "parse_error": null,
+      "has_load_data": false,
+      "fired": [
+        "R001",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R077"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:0:3",
+      "sql": "# decoy CREATE VIEW\nCREATE PROCEDURE p() BEGIN DECLARE x INT DEFAULT 0; WHILE x<3 DO SET x=x+1; END WHILE; SELECT x; END",
+      "sql_type": "CREATE PROCEDURE",
+      "parse_error": null,
+      "has_load_data": false,
+      "fired": [
+        "R001",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R077"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:0:4",
+      "sql": "-- ordinary\nCREATE PROCEDURE p() BEGIN DECLARE x INT DEFAULT 0; WHILE x<3 DO SET x=x+1; END WHILE; SELECT x; END",
+      "sql_type": "CREATE PROCEDURE",
+      "parse_error": null,
+      "has_load_data": false,
+      "fired": [
+        "R001",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R077"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:0:5",
+      "sql": "-- ordinary\rCREATE PROCEDURE p() BEGIN DECLARE x INT DEFAULT 0; WHILE x<3 DO SET x=x+1; END WHILE; SELECT x; END",
+      "sql_type": "CREATE PROCEDURE",
+      "parse_error": null,
+      "has_load_data": false,
+      "fired": [
+        "R001",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R077"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:0:6",
+      "sql": "/* ordinary */\nCREATE PROCEDURE p() BEGIN DECLARE x INT DEFAULT 0; WHILE x<3 DO SET x=x+1; END WHILE; SELECT x; END",
+      "sql_type": "CREATE PROCEDURE",
+      "parse_error": null,
+      "has_load_data": false,
+      "fired": [
+        "R001",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R077"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:0:7",
+      "sql": "; CREATE PROCEDURE p() BEGIN DECLARE x INT DEFAULT 0; WHILE x<3 DO SET x=x+1; END WHILE; SELECT x; END",
+      "sql_type": "CREATE PROCEDURE",
+      "parse_error": "No expression was parsed from '; CREATE PROCEDURE p() BEGIN DECLARE x INT DEFAULT 0; WHILE x<3 DO SET x=x+1; END WHILE; SELECT x; END'",
+      "has_load_data": false,
+      "fired": [
+        "E999_SYNTAX_ERROR",
+        "R030"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:0:8",
+      "sql": "'decoy' CREATE PROCEDURE p() BEGIN DECLARE x INT DEFAULT 0; WHILE x<3 DO SET x=x+1; END WHILE; SELECT x; END",
+      "sql_type": "CREATE PROCEDURE",
+      "parse_error": "Invalid expression / Unexpected token. Line 1, Col: 14.\n  'decoy' \u001b[4mCREATE\u001b[0m PROCEDURE p() BEGIN DECLARE x INT DEFAULT 0; WHILE x<3 DO SET x=x+1; END WHILE; SELECT x; END",
+      "has_load_data": false,
+      "fired": [
+        "E999_SYNTAX_ERROR",
+        "R030"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:0:9",
+      "sql": "`decoy` CREATE PROCEDURE p() BEGIN DECLARE x INT DEFAULT 0; WHILE x<3 DO SET x=x+1; END WHILE; SELECT x; END",
+      "sql_type": "CREATE PROCEDURE",
+      "parse_error": "Invalid expression / Unexpected token. Line 1, Col: 14.\n  `decoy` \u001b[4mCREATE\u001b[0m PROCEDURE p() BEGIN DECLARE x INT DEFAULT 0; WHILE x<3 DO SET x=x+1; END WHILE; SELECT x; END",
+      "has_load_data": false,
+      "fired": [
+        "E999_SYNTAX_ERROR",
+        "R030"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:1:0",
+      "sql": "CREATE FUNCTION f() RETURNS INT DETERMINISTIC BEGIN DECLARE x INT DEFAULT 1; RETURN x; END",
+      "sql_type": "CREATE FUNCTION",
+      "parse_error": null,
+      "has_load_data": false,
+      "fired": [
+        "R030",
+        "R031"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:1:1",
+      "sql": "# ordinary\nCREATE FUNCTION f() RETURNS INT DETERMINISTIC BEGIN DECLARE x INT DEFAULT 1; RETURN x; END",
+      "sql_type": "CREATE FUNCTION",
+      "parse_error": null,
+      "has_load_data": false,
+      "fired": [
+        "R030",
+        "R031"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:1:2",
+      "sql": "# unmatched single quote '\nCREATE FUNCTION f() RETURNS INT DETERMINISTIC BEGIN DECLARE x INT DEFAULT 1; RETURN x; END",
+      "sql_type": "CREATE FUNCTION",
+      "parse_error": null,
+      "has_load_data": false,
+      "fired": [
+        "R030",
+        "R031"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:1:3",
+      "sql": "# decoy CREATE VIEW\nCREATE FUNCTION f() RETURNS INT DETERMINISTIC BEGIN DECLARE x INT DEFAULT 1; RETURN x; END",
+      "sql_type": "CREATE VIEW",
+      "parse_error": null,
+      "has_load_data": false,
+      "fired": [
+        "R030",
+        "R031"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:1:4",
+      "sql": "-- ordinary\nCREATE FUNCTION f() RETURNS INT DETERMINISTIC BEGIN DECLARE x INT DEFAULT 1; RETURN x; END",
+      "sql_type": "CREATE FUNCTION",
+      "parse_error": null,
+      "has_load_data": false,
+      "fired": [
+        "R030",
+        "R031"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:1:5",
+      "sql": "-- ordinary\rCREATE FUNCTION f() RETURNS INT DETERMINISTIC BEGIN DECLARE x INT DEFAULT 1; RETURN x; END",
+      "sql_type": "UNKNOWN",
+      "parse_error": null,
+      "has_load_data": false,
+      "fired": [
+        "R030",
+        "R031"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:1:6",
+      "sql": "/* ordinary */\nCREATE FUNCTION f() RETURNS INT DETERMINISTIC BEGIN DECLARE x INT DEFAULT 1; RETURN x; END",
+      "sql_type": "CREATE FUNCTION",
+      "parse_error": null,
+      "has_load_data": false,
+      "fired": [
+        "R030",
+        "R031"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:1:7",
+      "sql": "; CREATE FUNCTION f() RETURNS INT DETERMINISTIC BEGIN DECLARE x INT DEFAULT 1; RETURN x; END",
+      "sql_type": "CREATE FUNCTION",
+      "parse_error": "No expression was parsed from '; CREATE FUNCTION f() RETURNS INT DETERMINISTIC BEGIN DECLARE x INT DEFAULT 1; RETURN x; END'",
+      "has_load_data": false,
+      "fired": [
+        "E999_SYNTAX_ERROR",
+        "R030",
+        "R031"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:1:8",
+      "sql": "'decoy' CREATE FUNCTION f() RETURNS INT DETERMINISTIC BEGIN DECLARE x INT DEFAULT 1; RETURN x; END",
+      "sql_type": "CREATE FUNCTION",
+      "parse_error": "Invalid expression / Unexpected token. Line 1, Col: 14.\n  'decoy' \u001b[4mCREATE\u001b[0m FUNCTION f() RETURNS INT DETERMINISTIC BEGIN DECLARE x INT DEFAULT 1; RETURN x; END",
+      "has_load_data": false,
+      "fired": [
+        "E999_SYNTAX_ERROR",
+        "R030",
+        "R031"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:1:9",
+      "sql": "`decoy` CREATE FUNCTION f() RETURNS INT DETERMINISTIC BEGIN DECLARE x INT DEFAULT 1; RETURN x; END",
+      "sql_type": "CREATE FUNCTION",
+      "parse_error": "Invalid expression / Unexpected token. Line 1, Col: 14.\n  `decoy` \u001b[4mCREATE\u001b[0m FUNCTION f() RETURNS INT DETERMINISTIC BEGIN DECLARE x INT DEFAULT 1; RETURN x; END",
+      "has_load_data": false,
+      "fired": [
+        "E999_SYNTAX_ERROR",
+        "R030",
+        "R031"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:2:0",
+      "sql": "CREATE TRIGGER tr BEFORE INSERT ON t FOR EACH ROW BEGIN DECLARE x INT DEFAULT 1; SET NEW.id=x; END",
+      "sql_type": "CREATE TRIGGER",
+      "parse_error": null,
+      "has_load_data": false,
+      "fired": [
+        "R030"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:2:1",
+      "sql": "# ordinary\nCREATE TRIGGER tr BEFORE INSERT ON t FOR EACH ROW BEGIN DECLARE x INT DEFAULT 1; SET NEW.id=x; END",
+      "sql_type": "CREATE TRIGGER",
+      "parse_error": null,
+      "has_load_data": false,
+      "fired": [
+        "R030"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:2:2",
+      "sql": "# unmatched single quote '\nCREATE TRIGGER tr BEFORE INSERT ON t FOR EACH ROW BEGIN DECLARE x INT DEFAULT 1; SET NEW.id=x; END",
+      "sql_type": "CREATE TRIGGER",
+      "parse_error": null,
+      "has_load_data": false,
+      "fired": [
+        "R030"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:2:3",
+      "sql": "# decoy CREATE VIEW\nCREATE TRIGGER tr BEFORE INSERT ON t FOR EACH ROW BEGIN DECLARE x INT DEFAULT 1; SET NEW.id=x; END",
+      "sql_type": "CREATE TRIGGER",
+      "parse_error": null,
+      "has_load_data": false,
+      "fired": [
+        "R030"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:2:4",
+      "sql": "-- ordinary\nCREATE TRIGGER tr BEFORE INSERT ON t FOR EACH ROW BEGIN DECLARE x INT DEFAULT 1; SET NEW.id=x; END",
+      "sql_type": "CREATE TRIGGER",
+      "parse_error": null,
+      "has_load_data": false,
+      "fired": [
+        "R030"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:2:5",
+      "sql": "-- ordinary\rCREATE TRIGGER tr BEFORE INSERT ON t FOR EACH ROW BEGIN DECLARE x INT DEFAULT 1; SET NEW.id=x; END",
+      "sql_type": "UNKNOWN",
+      "parse_error": null,
+      "has_load_data": false,
+      "fired": [
+        "R030"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:2:6",
+      "sql": "/* ordinary */\nCREATE TRIGGER tr BEFORE INSERT ON t FOR EACH ROW BEGIN DECLARE x INT DEFAULT 1; SET NEW.id=x; END",
+      "sql_type": "CREATE TRIGGER",
+      "parse_error": null,
+      "has_load_data": false,
+      "fired": [
+        "R030"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:2:7",
+      "sql": "; CREATE TRIGGER tr BEFORE INSERT ON t FOR EACH ROW BEGIN DECLARE x INT DEFAULT 1; SET NEW.id=x; END",
+      "sql_type": "CREATE TRIGGER",
+      "parse_error": "No expression was parsed from '; CREATE TRIGGER tr BEFORE INSERT ON t FOR EACH ROW BEGIN DECLARE x INT DEFAULT 1; SET NEW.id=x; END'",
+      "has_load_data": false,
+      "fired": [
+        "E999_SYNTAX_ERROR",
+        "R030"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:2:8",
+      "sql": "'decoy' CREATE TRIGGER tr BEFORE INSERT ON t FOR EACH ROW BEGIN DECLARE x INT DEFAULT 1; SET NEW.id=x; END",
+      "sql_type": "CREATE TRIGGER",
+      "parse_error": "Invalid expression / Unexpected token. Line 1, Col: 14.\n  'decoy' \u001b[4mCREATE\u001b[0m TRIGGER tr BEFORE INSERT ON t FOR EACH ROW BEGIN DECLARE x INT DEFAULT 1; SET NEW.id=x; END",
+      "has_load_data": false,
+      "fired": [
+        "E999_SYNTAX_ERROR",
+        "R030"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:2:9",
+      "sql": "`decoy` CREATE TRIGGER tr BEFORE INSERT ON t FOR EACH ROW BEGIN DECLARE x INT DEFAULT 1; SET NEW.id=x; END",
+      "sql_type": "CREATE TRIGGER",
+      "parse_error": "Invalid expression / Unexpected token. Line 1, Col: 14.\n  `decoy` \u001b[4mCREATE\u001b[0m TRIGGER tr BEFORE INSERT ON t FOR EACH ROW BEGIN DECLARE x INT DEFAULT 1; SET NEW.id=x; END",
+      "has_load_data": false,
+      "fired": [
+        "E999_SYNTAX_ERROR",
+        "R030"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:3:0",
+      "sql": "CREATE VIEW v AS SELECT 1 +",
+      "sql_type": "CREATE VIEW",
+      "parse_error": "Required keyword: 'expression' missing for <class 'sqlglot.expressions.Add'>. Line 1, Col: 27.\n  CREATE VIEW v AS SELECT 1 \u001b[4m+\u001b[0m",
+      "has_load_data": false,
+      "fired": [
+        "R030"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:3:1",
+      "sql": "# ordinary\nCREATE VIEW v AS SELECT 1 +",
+      "sql_type": "CREATE VIEW",
+      "parse_error": "Required keyword: 'expression' missing for <class 'sqlglot.expressions.Add'>. Line 2, Col: 27.\n  # ordinary\nCREATE VIEW v AS SELECT 1 \u001b[4m+\u001b[0m",
+      "has_load_data": false,
+      "fired": [
+        "R030"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:3:2",
+      "sql": "# unmatched single quote '\nCREATE VIEW v AS SELECT 1 +",
+      "sql_type": "CREATE VIEW",
+      "parse_error": "Required keyword: 'expression' missing for <class 'sqlglot.expressions.Add'>. Line 2, Col: 27.\n  # unmatched single quote '\nCREATE VIEW v AS SELECT 1 \u001b[4m+\u001b[0m",
+      "has_load_data": false,
+      "fired": [
+        "R030"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:3:3",
+      "sql": "# decoy CREATE VIEW\nCREATE VIEW v AS SELECT 1 +",
+      "sql_type": "CREATE VIEW",
+      "parse_error": "Required keyword: 'expression' missing for <class 'sqlglot.expressions.Add'>. Line 2, Col: 27.\n  # decoy CREATE VIEW\nCREATE VIEW v AS SELECT 1 \u001b[4m+\u001b[0m",
+      "has_load_data": false,
+      "fired": [
+        "R030"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:3:4",
+      "sql": "-- ordinary\nCREATE VIEW v AS SELECT 1 +",
+      "sql_type": "CREATE VIEW",
+      "parse_error": "Required keyword: 'expression' missing for <class 'sqlglot.expressions.Add'>. Line 2, Col: 27.\n  -- ordinary\nCREATE VIEW v AS SELECT 1 \u001b[4m+\u001b[0m",
+      "has_load_data": false,
+      "fired": [
+        "R030"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:3:5",
+      "sql": "-- ordinary\rCREATE VIEW v AS SELECT 1 +",
+      "sql_type": "UNKNOWN",
+      "parse_error": "Required keyword: 'expression' missing for <class 'sqlglot.expressions.Add'>. Line 2, Col: 27.\n  -- ordinary\rCREATE VIEW v AS SELECT 1 \u001b[4m+\u001b[0m",
+      "has_load_data": false,
+      "fired": [
+        "R030"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:3:6",
+      "sql": "/* ordinary */\nCREATE VIEW v AS SELECT 1 +",
+      "sql_type": "CREATE VIEW",
+      "parse_error": "Required keyword: 'expression' missing for <class 'sqlglot.expressions.Add'>. Line 2, Col: 27.\n  /* ordinary */\nCREATE VIEW v AS SELECT 1 \u001b[4m+\u001b[0m",
+      "has_load_data": false,
+      "fired": [
+        "R030"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:3:7",
+      "sql": "; CREATE VIEW v AS SELECT 1 +",
+      "sql_type": "CREATE VIEW",
+      "parse_error": "Required keyword: 'expression' missing for <class 'sqlglot.expressions.Add'>. Line 1, Col: 29.\n  ; CREATE VIEW v AS SELECT 1 \u001b[4m+\u001b[0m",
+      "has_load_data": false,
+      "fired": [
+        "E999_SYNTAX_ERROR",
+        "R030"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:3:8",
+      "sql": "'decoy' CREATE VIEW v AS SELECT 1 +",
+      "sql_type": "CREATE VIEW",
+      "parse_error": "Invalid expression / Unexpected token. Line 1, Col: 14.\n  'decoy' \u001b[4mCREATE\u001b[0m VIEW v AS SELECT 1 +",
+      "has_load_data": false,
+      "fired": [
+        "E999_SYNTAX_ERROR",
+        "R030"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:3:9",
+      "sql": "`decoy` CREATE VIEW v AS SELECT 1 +",
+      "sql_type": "CREATE VIEW",
+      "parse_error": "Invalid expression / Unexpected token. Line 1, Col: 14.\n  `decoy` \u001b[4mCREATE\u001b[0m VIEW v AS SELECT 1 +",
+      "has_load_data": false,
+      "fired": [
+        "E999_SYNTAX_ERROR",
+        "R030"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:4:0",
+      "sql": "LOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+      "sql_type": "LOAD",
+      "parse_error": "Required keyword: 'inpath' missing for <class 'sqlglot.expressions.LoadData'>. Line 1, Col: 37.\n  LOAD DATA INFILE \u001b[4m'/tmp/synthetic.csv'\u001b[0m INTO TABLE t FIELDS TERMINATED BY ','",
+      "has_load_data": true,
+      "fired": [
+        "R042"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:4:1",
+      "sql": "# ordinary\nLOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+      "sql_type": "LOAD",
+      "parse_error": "Required keyword: 'inpath' missing for <class 'sqlglot.expressions.LoadData'>. Line 2, Col: 37.\n  # ordinary\nLOAD DATA INFILE \u001b[4m'/tmp/synthetic.csv'\u001b[0m INTO TABLE t FIELDS TERMINATED BY ','",
+      "has_load_data": true,
+      "fired": [
+        "R042"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:4:2",
+      "sql": "# unmatched single quote '\nLOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+      "sql_type": "LOAD",
+      "parse_error": "Required keyword: 'inpath' missing for <class 'sqlglot.expressions.LoadData'>. Line 2, Col: 37.\n  # unmatched single quote '\nLOAD DATA INFILE \u001b[4m'/tmp/synthetic.csv'\u001b[0m INTO TABLE t FIELDS TERMINATED BY ','",
+      "has_load_data": true,
+      "fired": [
+        "R042"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:4:3",
+      "sql": "# decoy CREATE VIEW\nLOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+      "sql_type": "CREATE VIEW",
+      "parse_error": "Required keyword: 'inpath' missing for <class 'sqlglot.expressions.LoadData'>. Line 2, Col: 37.\n  # decoy CREATE VIEW\nLOAD DATA INFILE \u001b[4m'/tmp/synthetic.csv'\u001b[0m INTO TABLE t FIELDS TERMINATED BY ','",
+      "has_load_data": true,
+      "fired": [
+        "R030",
+        "R042"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:4:4",
+      "sql": "-- ordinary\nLOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+      "sql_type": "LOAD",
+      "parse_error": "Required keyword: 'inpath' missing for <class 'sqlglot.expressions.LoadData'>. Line 2, Col: 37.\n  -- ordinary\nLOAD DATA INFILE \u001b[4m'/tmp/synthetic.csv'\u001b[0m INTO TABLE t FIELDS TERMINATED BY ','",
+      "has_load_data": true,
+      "fired": [
+        "R042"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:4:5",
+      "sql": "-- ordinary\rLOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+      "sql_type": "UNKNOWN",
+      "parse_error": "Required keyword: 'inpath' missing for <class 'sqlglot.expressions.LoadData'>. Line 2, Col: 37.\n  -- ordinary\rLOAD DATA INFILE \u001b[4m'/tmp/synthetic.csv'\u001b[0m INTO TABLE t FIELDS TERMINATED BY ','",
+      "has_load_data": true,
+      "fired": [
+        "R042"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:4:6",
+      "sql": "/* ordinary */\nLOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+      "sql_type": "LOAD",
+      "parse_error": "Required keyword: 'inpath' missing for <class 'sqlglot.expressions.LoadData'>. Line 2, Col: 37.\n  /* ordinary */\nLOAD DATA INFILE \u001b[4m'/tmp/synthetic.csv'\u001b[0m INTO TABLE t FIELDS TERMINATED BY ','",
+      "has_load_data": true,
+      "fired": [
+        "R042"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:4:7",
+      "sql": "; LOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+      "sql_type": "LOAD",
+      "parse_error": "Required keyword: 'inpath' missing for <class 'sqlglot.expressions.LoadData'>. Line 1, Col: 39.\n  ; LOAD DATA INFILE \u001b[4m'/tmp/synthetic.csv'\u001b[0m INTO TABLE t FIELDS TERMINATED BY ','",
+      "has_load_data": false,
+      "fired": [
+        "E999_SYNTAX_ERROR"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:4:8",
+      "sql": "'decoy' LOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+      "sql_type": "LOAD",
+      "parse_error": "Invalid expression / Unexpected token. Line 1, Col: 17.\n  'decoy' LOAD \u001b[4mDATA\u001b[0m INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+      "has_load_data": false,
+      "fired": [
+        "E999_SYNTAX_ERROR"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:4:9",
+      "sql": "`decoy` LOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+      "sql_type": "LOAD",
+      "parse_error": "Invalid expression / Unexpected token. Line 1, Col: 17.\n  `decoy` LOAD \u001b[4mDATA\u001b[0m INFILE '/tmp/synthetic.csv' INTO TABLE t FIELDS TERMINATED BY ','",
+      "has_load_data": false,
+      "fired": [
+        "E999_SYNTAX_ERROR"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:5:0",
+      "sql": "LOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+      "sql_type": "LOAD",
+      "parse_error": null,
+      "has_load_data": true,
+      "fired": [
+        "R042"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:5:1",
+      "sql": "# ordinary\nLOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+      "sql_type": "LOAD",
+      "parse_error": null,
+      "has_load_data": true,
+      "fired": [
+        "R042"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:5:2",
+      "sql": "# unmatched single quote '\nLOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+      "sql_type": "LOAD",
+      "parse_error": null,
+      "has_load_data": true,
+      "fired": [
+        "R042"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:5:3",
+      "sql": "# decoy CREATE VIEW\nLOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+      "sql_type": "CREATE VIEW",
+      "parse_error": null,
+      "has_load_data": true,
+      "fired": [
+        "R030",
+        "R042"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:5:4",
+      "sql": "-- ordinary\nLOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+      "sql_type": "LOAD",
+      "parse_error": null,
+      "has_load_data": true,
+      "fired": [
+        "R042"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:5:5",
+      "sql": "-- ordinary\rLOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+      "sql_type": "UNKNOWN",
+      "parse_error": null,
+      "has_load_data": true,
+      "fired": [
+        "R042"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:5:6",
+      "sql": "/* ordinary */\nLOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+      "sql_type": "LOAD",
+      "parse_error": null,
+      "has_load_data": true,
+      "fired": [
+        "R042"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:5:7",
+      "sql": "; LOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+      "sql_type": "LOAD",
+      "parse_error": "No expression was parsed from '; LOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t'",
+      "has_load_data": false,
+      "fired": [
+        "E999_SYNTAX_ERROR"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:5:8",
+      "sql": "'decoy' LOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+      "sql_type": "LOAD",
+      "parse_error": "Invalid expression / Unexpected token. Line 1, Col: 16.\n  'decoy' LOAD \u001b[4mXML\u001b[0m INFILE '/tmp/synthetic.xml' INTO TABLE t",
+      "has_load_data": false,
+      "fired": [
+        "E999_SYNTAX_ERROR"
+      ],
+      "passed": false
+    },
+    {
+      "id": "head:5:9",
+      "sql": "`decoy` LOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+      "sql_type": "LOAD",
+      "parse_error": "Invalid expression / Unexpected token. Line 1, Col: 16.\n  `decoy` LOAD \u001b[4mXML\u001b[0m INFILE '/tmp/synthetic.xml' INTO TABLE t",
+      "has_load_data": false,
+      "fired": [
+        "E999_SYNTAX_ERROR"
+      ],
+      "passed": false
+    },
+    {
+      "id": "definer:0:0",
+      "sql": "CREATE DEFINER='u'@'h' PROCEDURE p() BEGIN DECLARE x INT DEFAULT 0; WHILE x<3 DO SET x=x+1; END WHILE; SELECT x; END",
+      "sql_type": "CREATE PROCEDURE",
+      "parse_error": null,
+      "has_load_data": false,
+      "fired": [
+        "R001",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R077"
+      ],
+      "passed": false
+    },
+    {
+      "id": "definer:0:1",
+      "sql": "CREATE DEFINER = 'u'@'h' PROCEDURE p() BEGIN DECLARE x INT DEFAULT 0; WHILE x<3 DO SET x=x+1; END WHILE; SELECT x; END",
+      "sql_type": "CREATE PROCEDURE",
+      "parse_error": null,
+      "has_load_data": false,
+      "fired": [
+        "R001",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R077"
+      ],
+      "passed": false
+    },
+    {
+      "id": "definer:0:2",
+      "sql": "CREATE DEFINER\n=\n'u'@'h' PROCEDURE p() BEGIN DECLARE x INT DEFAULT 0; WHILE x<3 DO SET x=x+1; END WHILE; SELECT x; END",
+      "sql_type": "CREATE PROCEDURE",
+      "parse_error": null,
+      "has_load_data": false,
+      "fired": [
+        "R001",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R077"
+      ],
+      "passed": false
+    },
+    {
+      "id": "definer:1:0",
+      "sql": "CREATE DEFINER=`u`@`h` PROCEDURE p() BEGIN DECLARE x INT DEFAULT 0; WHILE x<3 DO SET x=x+1; END WHILE; SELECT x; END",
+      "sql_type": "CREATE PROCEDURE",
+      "parse_error": null,
+      "has_load_data": false,
+      "fired": [
+        "R001",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R077"
+      ],
+      "passed": false
+    },
+    {
+      "id": "definer:1:1",
+      "sql": "CREATE DEFINER = `u`@`h` PROCEDURE p() BEGIN DECLARE x INT DEFAULT 0; WHILE x<3 DO SET x=x+1; END WHILE; SELECT x; END",
+      "sql_type": "CREATE PROCEDURE",
+      "parse_error": null,
+      "has_load_data": false,
+      "fired": [
+        "R001",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R077"
+      ],
+      "passed": false
+    },
+    {
+      "id": "definer:1:2",
+      "sql": "CREATE DEFINER\n=\n`u`@`h` PROCEDURE p() BEGIN DECLARE x INT DEFAULT 0; WHILE x<3 DO SET x=x+1; END WHILE; SELECT x; END",
+      "sql_type": "CREATE PROCEDURE",
+      "parse_error": null,
+      "has_load_data": false,
+      "fired": [
+        "R001",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R077"
+      ],
+      "passed": false
+    },
+    {
+      "id": "definer:2:0",
+      "sql": "CREATE DEFINER=CURRENT_USER PROCEDURE p() BEGIN DECLARE x INT DEFAULT 0; WHILE x<3 DO SET x=x+1; END WHILE; SELECT x; END",
+      "sql_type": "SELECT",
+      "parse_error": null,
+      "has_load_data": false,
+      "fired": [
+        "R030",
+        "R051"
+      ],
+      "passed": false
+    },
+    {
+      "id": "definer:2:1",
+      "sql": "CREATE DEFINER = CURRENT_USER PROCEDURE p() BEGIN DECLARE x INT DEFAULT 0; WHILE x<3 DO SET x=x+1; END WHILE; SELECT x; END",
+      "sql_type": "SELECT",
+      "parse_error": null,
+      "has_load_data": false,
+      "fired": [
+        "R030",
+        "R051"
+      ],
+      "passed": false
+    },
+    {
+      "id": "definer:2:2",
+      "sql": "CREATE DEFINER\n=\nCURRENT_USER PROCEDURE p() BEGIN DECLARE x INT DEFAULT 0; WHILE x<3 DO SET x=x+1; END WHILE; SELECT x; END",
+      "sql_type": "SELECT",
+      "parse_error": null,
+      "has_load_data": false,
+      "fired": [
+        "R030",
+        "R051"
+      ],
+      "passed": false
+    },
+    {
+      "id": "definer:3:0",
+      "sql": "CREATE DEFINER=CURRENT_USER() PROCEDURE p() BEGIN DECLARE x INT DEFAULT 0; WHILE x<3 DO SET x=x+1; END WHILE; SELECT x; END",
+      "sql_type": "SELECT",
+      "parse_error": null,
+      "has_load_data": false,
+      "fired": [
+        "R030",
+        "R051"
+      ],
+      "passed": false
+    },
+    {
+      "id": "definer:3:1",
+      "sql": "CREATE DEFINER = CURRENT_USER() PROCEDURE p() BEGIN DECLARE x INT DEFAULT 0; WHILE x<3 DO SET x=x+1; END WHILE; SELECT x; END",
+      "sql_type": "SELECT",
+      "parse_error": null,
+      "has_load_data": false,
+      "fired": [
+        "R030",
+        "R051"
+      ],
+      "passed": false
+    },
+    {
+      "id": "definer:3:2",
+      "sql": "CREATE DEFINER\n=\nCURRENT_USER() PROCEDURE p() BEGIN DECLARE x INT DEFAULT 0; WHILE x<3 DO SET x=x+1; END WHILE; SELECT x; END",
+      "sql_type": "SELECT",
+      "parse_error": null,
+      "has_load_data": false,
+      "fired": [
+        "R030",
+        "R051"
+      ],
+      "passed": false
+    },
+    {
+      "id": "other:0",
+      "sql": "CREATE ALGORITHM=MERGE VIEW v AS SELECT 1 +",
+      "sql_type": "SELECT",
+      "parse_error": "Required keyword: 'expression' missing for <class 'sqlglot.expressions.Add'>. Line 1, Col: 43.\n  CREATE ALGORITHM=MERGE VIEW v AS SELECT 1 \u001b[4m+\u001b[0m",
+      "has_load_data": false,
+      "fired": [
+        "E999_SYNTAX_ERROR",
+        "R051"
+      ],
+      "passed": false
+    },
+    {
+      "id": "other:1",
+      "sql": "CREATE SQL SECURITY INVOKER VIEW v AS SELECT 1 +",
+      "sql_type": "SELECT",
+      "parse_error": "Required keyword: 'expression' missing for <class 'sqlglot.expressions.Add'>. Line 1, Col: 48.\n  CREATE SQL SECURITY INVOKER VIEW v AS SELECT 1 \u001b[4m+\u001b[0m",
+      "has_load_data": false,
+      "fired": [
+        "E999_SYNTAX_ERROR",
+        "R051"
+      ],
+      "passed": false
+    },
+    {
+      "id": "other:2",
+      "sql": "CREATE ALGORITHM=UNDEFINED DEFINER=CURRENT_USER SQL SECURITY DEFINER VIEW v AS SELECT 1 +",
+      "sql_type": "SELECT",
+      "parse_error": "Required keyword: 'expression' missing for <class 'sqlglot.expressions.Add'>. Line 1, Col: 89.\n  CREATE ALGORITHM=UNDEFINED DEFINER=CURRENT_USER SQL SECURITY DEFINER VIEW v AS SELECT 1 \u001b[4m+\u001b[0m",
+      "has_load_data": false,
+      "fired": [
+        "E999_SYNTAX_ERROR",
+        "R051"
+      ],
+      "passed": false
+    },
+    {
+      "id": "other:3",
+      "sql": "SELECT 1--1 AS x, LOAD DATA",
+      "sql_type": "SELECT",
+      "parse_error": null,
+      "has_load_data": false,
+      "fired": [
+        "R051"
+      ],
+      "passed": false
+    },
+    {
+      "id": "other:4",
+      "sql": "CREATE TABLE t(id INT, name INT COMMENT 'x') ENGINE=123 COMMENT='CREATE VIEW'",
+      "sql_type": "CREATE TABLE",
+      "parse_error": null,
+      "has_load_data": false,
+      "fired": [
+        "R003",
+        "R004",
+        "R005",
+        "R029",
+        "R030",
+        "R036",
+        "R037",
+        "R077"
+      ],
+      "passed": false
+    }
+  ]
+}

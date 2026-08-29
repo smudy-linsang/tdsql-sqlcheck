@@ -1,0 +1,30 @@
+{
+  "round": 5,
+  "executor": "智能体O",
+  "tested_commit": "50a1c049b49407c8055ec888735dcd578fe230b2",
+  "conclusion": "FAIL",
+  "release_allowed": false,
+  "defects": {
+    "block": 1,
+    "major": 2,
+    "minor": 0
+  },
+  "full_pytest": {
+    "passed": 1506,
+    "skipped": 28,
+    "failed": 0
+  },
+  "formal_gate": "PASS",
+  "sqlglot_versions": ["29.0.0", "30.14.0", "30.17.0"],
+  "registered_rules": 119,
+  "primary_cases": 1000,
+  "primary_observed_rules": 114,
+  "observed_after_supplement": 116,
+  "unproven_rules": ["R025", "R038", "R049"],
+  "browser_steps": 10,
+  "ticket_two_worker": {
+    "attempts": 30,
+    "http_200": 18,
+    "http_401": 12
+  }
+}

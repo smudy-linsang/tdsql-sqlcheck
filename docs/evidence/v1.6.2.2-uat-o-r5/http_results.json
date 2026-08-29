@@ -1,0 +1,1116 @@
+[
+  {
+    "label": "cr_malformed_view",
+    "status": 200,
+    "passed": false,
+    "fired": [
+      "R030"
+    ]
+  },
+  {
+    "label": "r042_hash_comment",
+    "status": 200,
+    "passed": false,
+    "fired": [
+      "R042"
+    ]
+  },
+  {
+    "label": "tdsql_hash_table",
+    "status": 200,
+    "passed": false,
+    "fired": [
+      "R005",
+      "R028",
+      "R029",
+      "R036",
+      "R037"
+    ]
+  },
+  {
+    "label": "tdsql_broadcast",
+    "status": 200,
+    "passed": false,
+    "fired": [
+      "R005",
+      "R028",
+      "R029",
+      "R036",
+      "R037"
+    ]
+  },
+  {
+    "label": "gateway_empty",
+    "status": 422,
+    "body": {
+      "detail": "未从日志中解析到任何有效查询记录（文件共 0 行，非空 0 行；格式不匹配 0、缺 timecost 0、数值错误 0）。请确认上传的是 interf 类型的 TDSQL 网关日志，且内容未损坏。"
+    },
+    "input_lines": 0
+  },
+  {
+    "label": "gateway_invalid",
+    "status": 422,
+    "body": {
+      "detail": "未从日志中解析到任何有效查询记录（文件共 2 行，非空 2 行；格式不匹配 2、缺 timecost 0、数值错误 0）。请确认上传的是 interf 类型的 TDSQL 网关日志，且内容未损坏。"
+    },
+    "input_lines": 2
+  },
+  {
+    "label": "gateway_over_threshold",
+    "status": 422,
+    "body": {
+      "detail": "有效行占比过低：非空 3 行中仅解析出 1 行（覆盖率 33.3%，跳过 2 行；格式不匹配 2、缺 timecost 0、数值错误 0），低于阈值 50%。请确认日志类型与文件完整性后重试。"
+    },
+    "input_lines": 3
+  },
+  {
+    "label": "gateway_partial",
+    "status": 200,
+    "body": {
+      "status": "partial",
+      "report_id": 3,
+      "total_queries": 4,
+      "slow_queries": 0,
+      "max_time_ms": 5.5,
+      "avg_time_ms": 4.0,
+      "parse_quality": {
+        "total_lines": 7,
+        "empty_lines": 0,
+        "nonempty_lines": 7,
+        "parsed_lines": 4,
+        "skipped_lines": 3,
+        "invalid_format_lines": 3,
+        "no_timecost_lines": 0,
+        "numeric_error_lines": 0,
+        "coverage_ratio": 0.5714,
+        "skip_samples": [
+          {
+            "reason": "行首格式不匹配（非网关日志行）",
+            "line": "invalid one"
+          },
+          {
+            "reason": "行首格式不匹配（非网关日志行）",
+            "line": "invalid two"
+          },
+          {
+            "reason": "行首格式不匹配（非网关日志行）",
+            "line": "invalid three"
+          }
+        ]
+      }
+    },
+    "input_lines": 7,
+    "report_id": 3
+  },
+  {
+    "label": "gateway_xss",
+    "status": 200,
+    "body": {
+      "status": "success",
+      "report_id": 4,
+      "total_queries": 1,
+      "slow_queries": 0,
+      "max_time_ms": 6.5,
+      "avg_time_ms": 6.5,
+      "parse_quality": {
+        "total_lines": 1,
+        "empty_lines": 0,
+        "nonempty_lines": 1,
+        "parsed_lines": 1,
+        "skipped_lines": 0,
+        "invalid_format_lines": 0,
+        "no_timecost_lines": 0,
+        "numeric_error_lines": 0,
+        "coverage_ratio": 1.0,
+        "skip_samples": []
+      }
+    },
+    "input_lines": 1,
+    "report_id": 4
+  },
+  {
+    "label": "gateway_html_authorization_header",
+    "status": 200,
+    "body": {
+      "content_type": "text/html; charset=utf-8",
+      "bytes": 35591,
+      "text_prefix": "<!DOCTYPE html>\n<html lang=\"zh-CN\">\n<head>\n<meta charset=\"UTF-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n<title>TDSQL Gateway 日志"
+    },
+    "csp": "default-src 'self'; script-src 'nonce-VrWFi6jvfm9qVO9kV_buwg'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'self'; base-uri 'none'; form-action 'none'; object-src 'none'",
+    "xfo": null,
+    "raw_script_breakout": false,
+    "unicode_escaped": true
+  },
+  {
+    "label": "gateway_ticket_two_worker",
+    "status": 200,
+    "attempts": [
+      {
+        "n": 1,
+        "issue": 200,
+        "consume": 200
+      },
+      {
+        "n": 2,
+        "issue": 200,
+        "consume": 200
+      },
+      {
+        "n": 3,
+        "issue": 200,
+        "consume": 401
+      },
+      {
+        "n": 4,
+        "issue": 200,
+        "consume": 200
+      },
+      {
+        "n": 5,
+        "issue": 200,
+        "consume": 200
+      },
+      {
+        "n": 6,
+        "issue": 200,
+        "consume": 200
+      },
+      {
+        "n": 7,
+        "issue": 200,
+        "consume": 200
+      },
+      {
+        "n": 8,
+        "issue": 200,
+        "consume": 200
+      },
+      {
+        "n": 9,
+        "issue": 200,
+        "consume": 200
+      },
+      {
+        "n": 10,
+        "issue": 200,
+        "consume": 200
+      },
+      {
+        "n": 11,
+        "issue": 200,
+        "consume": 401
+      },
+      {
+        "n": 12,
+        "issue": 200,
+        "consume": 401
+      },
+      {
+        "n": 13,
+        "issue": 200,
+        "consume": 200
+      },
+      {
+        "n": 14,
+        "issue": 200,
+        "consume": 401
+      },
+      {
+        "n": 15,
+        "issue": 200,
+        "consume": 401
+      },
+      {
+        "n": 16,
+        "issue": 200,
+        "consume": 200
+      },
+      {
+        "n": 17,
+        "issue": 200,
+        "consume": 401
+      },
+      {
+        "n": 18,
+        "issue": 200,
+        "consume": 200
+      },
+      {
+        "n": 19,
+        "issue": 200,
+        "consume": 200
+      },
+      {
+        "n": 20,
+        "issue": 200,
+        "consume": 401
+      },
+      {
+        "n": 21,
+        "issue": 200,
+        "consume": 401
+      },
+      {
+        "n": 22,
+        "issue": 200,
+        "consume": 200
+      },
+      {
+        "n": 23,
+        "issue": 200,
+        "consume": 401
+      },
+      {
+        "n": 24,
+        "issue": 200,
+        "consume": 200
+      },
+      {
+        "n": 25,
+        "issue": 200,
+        "consume": 401
+      },
+      {
+        "n": 26,
+        "issue": 200,
+        "consume": 401
+      },
+      {
+        "n": 27,
+        "issue": 200,
+        "consume": 200
+      },
+      {
+        "n": 28,
+        "issue": 200,
+        "consume": 200
+      },
+      {
+        "n": 29,
+        "issue": 200,
+        "consume": 200
+      },
+      {
+        "n": 30,
+        "issue": 200,
+        "consume": 401
+      }
+    ],
+    "consume_200": 18,
+    "consume_401": 12
+  },
+  {
+    "label": "index_audit",
+    "status": 200,
+    "body": {
+      "audit_id": 2,
+      "total_tables": 2,
+      "total_indexes": 6,
+      "total_findings": 7,
+      "error_count": 0,
+      "warning_count": 3,
+      "info_count": 4,
+      "findings": [
+        {
+          "db_name": "tdsql_uat_o_r5_index_target",
+          "table_name": "t_uat_index",
+          "index_name": "idx_code",
+          "finding_type": "重复索引",
+          "severity": "WARNING",
+          "detail": "索引 idx_code 与 idx_code_copy 列完全相同(code)",
+          "suggestion": "删除其一（保留唯一性更强者）",
+          "metric": "",
+          "related_index_name": "idx_code_copy",
+          "index_columns": "code"
+        },
+        {
+          "db_name": "tdsql_uat_o_r5_index_target",
+          "table_name": "t_uat_index",
+          "index_name": "idx_code",
+          "finding_type": "前缀冗余索引",
+          "severity": "WARNING",
+          "detail": "索引 idx_code(code) 是 idx_code_id(code,id) 的前缀",
+          "suggestion": "可由 idx_code_id 覆盖，评估删除 idx_code",
+          "metric": "",
+          "related_index_name": "idx_code_id",
+          "index_columns": "code"
+        },
+        {
+          "db_name": "tdsql_uat_o_r5_index_target",
+          "table_name": "t_uat_index",
+          "index_name": "idx_code_copy",
+          "finding_type": "前缀冗余索引",
+          "severity": "WARNING",
+          "detail": "索引 idx_code_copy(code) 是 idx_code_id(code,id) 的前缀",
+          "suggestion": "可由 idx_code_id 覆盖，评估删除 idx_code_copy",
+          "metric": "",
+          "related_index_name": "idx_code_id",
+          "index_columns": "code"
+        },
+        {
+          "db_name": "tdsql_uat_o_r5_index_target",
+          "table_name": "t_uat_index",
+          "index_name": "idx_code",
+          "finding_type": "未使用索引",
+          "severity": "INFO",
+          "detail": "索引 idx_code 自监控以来读取次数为0",
+          "suggestion": "确认后评估删除(注意运行时长)",
+          "metric": "0",
+          "related_index_name": "",
+          "index_columns": ""
+        },
+        {
+          "db_name": "tdsql_uat_o_r5_index_target",
+          "table_name": "t_uat_index",
+          "index_name": "idx_code_copy",
+          "finding_type": "未使用索引",
+          "severity": "INFO",
+          "detail": "索引 idx_code_copy 自监控以来读取次数为0",
+          "suggestion": "确认后评估删除(注意运行时长)",
+          "metric": "0",
+          "related_index_name": "",
+          "index_columns": ""
+        },
+        {
+          "db_name": "tdsql_uat_o_r5_index_target",
+          "table_name": "t_uat_index",
+          "index_name": "idx_code_id",
+          "finding_type": "未使用索引",
+          "severity": "INFO",
+          "detail": "索引 idx_code_id 自监控以来读取次数为0",
+          "suggestion": "确认后评估删除(注意运行时长)",
+          "metric": "0",
+          "related_index_name": "",
+          "index_columns": ""
+        },
+        {
+          "db_name": "tdsql_uat_o_r5_index_target",
+          "table_name": "t_uat_order",
+          "index_name": "idx_customer",
+          "finding_type": "未使用索引",
+          "severity": "INFO",
+          "detail": "索引 idx_customer 自监控以来读取次数为0",
+          "suggestion": "确认后评估删除(注意运行时长)",
+          "metric": "0",
+          "related_index_name": "",
+          "index_columns": ""
+        }
+      ]
+    }
+  },
+  {
+    "label": "index_dashboard",
+    "status": 200,
+    "body": {
+      "score": 96,
+      "score_status": "ok",
+      "total_alerts": 0,
+      "inspection": {
+        "data_status": "ok",
+        "source_file": "monitordb_kv",
+        "summary": {
+          "instance_count": 1,
+          "avg_cpu": 37.0,
+          "avg_memory": 30.0,
+          "total_slow_queries": 1,
+          "alert_count": 0,
+          "cpu_alerts": []
+        },
+        "top_slow_queries": [
+          {
+            "name": "uat-node-r5",
+            "count": 1
+          }
+        ]
+      },
+      "index": {
+        "data_status": "ok",
+        "run_status": "completed_with_findings",
+        "run_at": "2026-08-29T15:10:56",
+        "summary": {
+          "total_indexes": 6,
+          "unique_tables": 2,
+          "duplicate_count": 1,
+          "prefix_redundant_count": 2,
+          "unused_count": 4,
+          "fragmented_tables": 0,
+          "pk_count": null,
+          "unique_count": null,
+          "normal_count": null
+        },
+        "duplicate_indexes": [
+          {
+            "schema": "tdsql_uat_o_r5_index_target",
+            "table": "t_uat_index",
+            "index1": "idx_code",
+            "index2": "idx_code_copy",
+            "columns": "code"
+          }
+        ]
+      },
+      "sql": {
+        "data_status": "no_data",
+        "summary": {
+          "total_sql_types": 0,
+          "total_count": 0,
+          "full_scan_count": 0,
+          "total_time": 0.0
+        },
+        "type_distribution": {},
+        "top_slow_sql": []
+      },
+      "gateway": {
+        "data_status": "no_data",
+        "source_file": null,
+        "summary": {
+          "total_requests": 0,
+          "daily_count": 0,
+          "error_count": 0
+        },
+        "daily_stats": [],
+        "timecost_distribution": {},
+        "error_codes": {},
+        "reports": []
+      }
+    }
+  },
+  {
+    "label": "index_pdf",
+    "status": 200,
+    "body": {
+      "content_type": "application/pdf",
+      "bytes": 4189,
+      "text_prefix": "%PDF-1.4\n%���� ReportLab Generated PDF document (opensource)\n1 0 obj\n<<\n/F1 2 0 R /F2 3 0 R\n>>\nendobj\n2 0 obj\n<<\n/BaseFont /Helvetica /Encoding /WinAnsiEncoding"
+    }
+  },
+  {
+    "label": "explain_default",
+    "status": 200,
+    "body": {
+      "summary": "未发现明显问题",
+      "analyses": [],
+      "explain_rows": [
+        {
+          "id": 1,
+          "select_type": "SIMPLE",
+          "table": "t_uat_order",
+          "partitions": "",
+          "type": "ref",
+          "possible_keys": "idx_customer",
+          "key": "idx_customer",
+          "key_len": "4",
+          "ref": "const",
+          "rows": 1,
+          "filtered": 100.0,
+          "extra": "Using index"
+        }
+      ],
+      "explain_columns": [
+        "id",
+        "select_type",
+        "table",
+        "partitions",
+        "type",
+        "possible_keys",
+        "key",
+        "key_len",
+        "ref",
+        "rows",
+        "filtered",
+        "extra"
+      ],
+      "executed_sql": "SELECT id FROM t_uat_order WHERE customer_id=1"
+    }
+  },
+  {
+    "label": "explain_tdsql_uat_o_r5_index_target",
+    "status": 200,
+    "body": {
+      "summary": "未发现明显问题",
+      "analyses": [],
+      "explain_rows": [
+        {
+          "id": 1,
+          "select_type": "SIMPLE",
+          "table": "t_uat_order",
+          "partitions": "",
+          "type": "ref",
+          "possible_keys": "idx_customer",
+          "key": "idx_customer",
+          "key_len": "4",
+          "ref": "const",
+          "rows": 1,
+          "filtered": 100.0,
+          "extra": "Using index"
+        }
+      ],
+      "explain_columns": [
+        "id",
+        "select_type",
+        "table",
+        "partitions",
+        "type",
+        "possible_keys",
+        "key",
+        "key_len",
+        "ref",
+        "rows",
+        "filtered",
+        "extra"
+      ],
+      "executed_sql": "SELECT id FROM t_uat_order WHERE customer_id=1"
+    }
+  },
+  {
+    "label": "explain_tdsql_uat_o_missing_r5",
+    "status": 400,
+    "body": {
+      "detail": "数据库不存在: tdsql_uat_o_missing_r5（请检查 EXPLAIN 分析的数据库名输入）"
+    }
+  },
+  {
+    "label": "uat_o_developer_r5_options",
+    "status": 200,
+    "body": {
+      "connections": [
+        {
+          "id": "uat_o_local_r5",
+          "name": "UAT-O-R5 本地在线样本",
+          "host": "127.0.0.1",
+          "port": 13306,
+          "database": "tdsql_uat_o_r5_explain_target",
+          "effective_instance_type": "centralized",
+          "is_default": false,
+          "active": false
+        },
+        {
+          "id": "uat_o_offline_r5",
+          "name": "UAT-O-R5 离线样本",
+          "host": "127.0.0.1",
+          "port": 65530,
+          "database": "tdsql_uat_o_r5_index_target",
+          "effective_instance_type": "centralized",
+          "is_default": false,
+          "active": false
+        },
+        {
+          "id": "uat_o_index_r5",
+          "name": "UAT-O-R5 索引重复样本",
+          "host": "127.0.0.1",
+          "port": 13306,
+          "database": "tdsql_uat_o_r5_index_target",
+          "effective_instance_type": "centralized",
+          "is_default": false,
+          "active": true
+        }
+      ],
+      "default": null
+    }
+  },
+  {
+    "label": "uat_o_developer_r5_connections",
+    "status": 200,
+    "body": {
+      "connections": [
+        {
+          "id": "uat_o_index_r5",
+          "name": "UAT-O-R5 索引重复样本",
+          "host": "127.0.0.1",
+          "port": 13306,
+          "username": "root",
+          "database": "tdsql_uat_o_r5_index_target",
+          "charset": "utf8mb4",
+          "is_default": 0,
+          "is_distributed": 0,
+          "description": "Synthetic local UAT validation only",
+          "set_list": "",
+          "monitor_host": "",
+          "monitor_port": 15001,
+          "monitor_user": "",
+          "monitor_db": "tdsqlpcloud_monitor",
+          "zk_import_batch_id": null,
+          "status": "connected",
+          "last_connected_at": "2026-08-29 15:10:56",
+          "created_at": "2026-08-29T15:07:00",
+          "updated_at": "2026-08-29T15:10:56",
+          "detected_instance_type": null,
+          "instance_type_detected_at": null,
+          "instance_type_probe_error": "",
+          "zk_instance_kind": null,
+          "zk_instance_id": "",
+          "zk_synced_at": null,
+          "instance_type_locked": false,
+          "instance_type_locked_value": "",
+          "password": "***",
+          "monitor_password": "",
+          "active": true,
+          "max_error_count": 0,
+          "max_warning_count": -1,
+          "gate_is_default": true,
+          "declared_instance_type": "centralized",
+          "zk_instance_type": null,
+          "effective_instance_type": "centralized",
+          "instance_type_source": "declared",
+          "instance_type_conflict": false,
+          "user": "root"
+        },
+        {
+          "id": "uat_o_offline_r5",
+          "name": "UAT-O-R5 离线样本",
+          "host": "127.0.0.1",
+          "port": 65530,
+          "username": "root",
+          "database": "tdsql_uat_o_r5_index_target",
+          "charset": "utf8mb4",
+          "is_default": 0,
+          "is_distributed": 0,
+          "description": "Synthetic local UAT validation only",
+          "set_list": "",
+          "monitor_host": "",
+          "monitor_port": 15001,
+          "monitor_user": "",
+          "monitor_db": "tdsqlpcloud_monitor",
+          "zk_import_batch_id": null,
+          "status": "disconnected",
+          "last_connected_at": null,
+          "created_at": "2026-08-29T15:07:00",
+          "updated_at": "2026-08-29T15:10:46",
+          "detected_instance_type": null,
+          "instance_type_detected_at": null,
+          "instance_type_probe_error": "",
+          "zk_instance_kind": null,
+          "zk_instance_id": "",
+          "zk_synced_at": null,
+          "instance_type_locked": false,
+          "instance_type_locked_value": "",
+          "password": "***",
+          "monitor_password": "",
+          "active": false,
+          "max_error_count": 0,
+          "max_warning_count": -1,
+          "gate_is_default": true,
+          "declared_instance_type": "centralized",
+          "zk_instance_type": null,
+          "effective_instance_type": "centralized",
+          "instance_type_source": "declared",
+          "instance_type_conflict": false,
+          "user": "root"
+        },
+        {
+          "id": "uat_o_local_r5",
+          "name": "UAT-O-R5 本地在线样本",
+          "host": "127.0.0.1",
+          "port": 13306,
+          "username": "root",
+          "database": "tdsql_uat_o_r5_explain_target",
+          "charset": "utf8mb4",
+          "is_default": 0,
+          "is_distributed": 0,
+          "description": "Synthetic local UAT validation only",
+          "set_list": "",
+          "monitor_host": "",
+          "monitor_port": 15001,
+          "monitor_user": "",
+          "monitor_db": "tdsqlpcloud_monitor",
+          "zk_import_batch_id": null,
+          "status": "disconnected",
+          "last_connected_at": null,
+          "created_at": "2026-08-29T15:10:46",
+          "updated_at": "2026-08-29T15:10:46",
+          "detected_instance_type": null,
+          "instance_type_detected_at": null,
+          "instance_type_probe_error": "",
+          "zk_instance_kind": null,
+          "zk_instance_id": "",
+          "zk_synced_at": null,
+          "instance_type_locked": false,
+          "instance_type_locked_value": "",
+          "password": "***",
+          "monitor_password": "",
+          "active": false,
+          "max_error_count": 0,
+          "max_warning_count": -1,
+          "gate_is_default": true,
+          "declared_instance_type": "centralized",
+          "zk_instance_type": null,
+          "effective_instance_type": "centralized",
+          "instance_type_source": "declared",
+          "instance_type_conflict": false,
+          "user": "root"
+        }
+      ],
+      "default": null
+    }
+  },
+  {
+    "label": "uat_o_developer_r5_forbidden_create",
+    "status": 403,
+    "body": {
+      "code": 403,
+      "message": "当前角色(developer)无权执行该操作"
+    }
+  },
+  {
+    "label": "uat_o_auditor_r5_options",
+    "status": 200,
+    "body": {
+      "connections": [
+        {
+          "id": "uat_o_local_r5",
+          "name": "UAT-O-R5 本地在线样本",
+          "host": "127.0.0.1",
+          "port": 13306,
+          "database": "tdsql_uat_o_r5_explain_target",
+          "effective_instance_type": "centralized",
+          "is_default": false,
+          "active": true
+        },
+        {
+          "id": "uat_o_offline_r5",
+          "name": "UAT-O-R5 离线样本",
+          "host": "127.0.0.1",
+          "port": 65530,
+          "database": "tdsql_uat_o_r5_index_target",
+          "effective_instance_type": "centralized",
+          "is_default": false,
+          "active": false
+        },
+        {
+          "id": "uat_o_index_r5",
+          "name": "UAT-O-R5 索引重复样本",
+          "host": "127.0.0.1",
+          "port": 13306,
+          "database": "tdsql_uat_o_r5_index_target",
+          "effective_instance_type": "centralized",
+          "is_default": false,
+          "active": true
+        }
+      ],
+      "default": null
+    }
+  },
+  {
+    "label": "uat_o_auditor_r5_connections",
+    "status": 200,
+    "body": {
+      "connections": [
+        {
+          "id": "uat_o_index_r5",
+          "name": "UAT-O-R5 索引重复样本",
+          "host": "127.0.0.1",
+          "port": 13306,
+          "username": "root",
+          "database": "tdsql_uat_o_r5_index_target",
+          "charset": "utf8mb4",
+          "is_default": 0,
+          "is_distributed": 0,
+          "description": "Synthetic local UAT validation only",
+          "set_list": "",
+          "monitor_host": "",
+          "monitor_port": 15001,
+          "monitor_user": "",
+          "monitor_db": "tdsqlpcloud_monitor",
+          "zk_import_batch_id": null,
+          "status": "connected",
+          "last_connected_at": "2026-08-29 15:10:56",
+          "created_at": "2026-08-29T15:07:00",
+          "updated_at": "2026-08-29T15:10:56",
+          "detected_instance_type": null,
+          "instance_type_detected_at": null,
+          "instance_type_probe_error": "",
+          "zk_instance_kind": null,
+          "zk_instance_id": "",
+          "zk_synced_at": null,
+          "instance_type_locked": false,
+          "instance_type_locked_value": "",
+          "password": "***",
+          "monitor_password": "",
+          "active": true,
+          "max_error_count": 0,
+          "max_warning_count": -1,
+          "gate_is_default": true,
+          "declared_instance_type": "centralized",
+          "zk_instance_type": null,
+          "effective_instance_type": "centralized",
+          "instance_type_source": "declared",
+          "instance_type_conflict": false,
+          "user": "root"
+        },
+        {
+          "id": "uat_o_offline_r5",
+          "name": "UAT-O-R5 离线样本",
+          "host": "127.0.0.1",
+          "port": 65530,
+          "username": "root",
+          "database": "tdsql_uat_o_r5_index_target",
+          "charset": "utf8mb4",
+          "is_default": 0,
+          "is_distributed": 0,
+          "description": "Synthetic local UAT validation only",
+          "set_list": "",
+          "monitor_host": "",
+          "monitor_port": 15001,
+          "monitor_user": "",
+          "monitor_db": "tdsqlpcloud_monitor",
+          "zk_import_batch_id": null,
+          "status": "disconnected",
+          "last_connected_at": null,
+          "created_at": "2026-08-29T15:07:00",
+          "updated_at": "2026-08-29T15:10:46",
+          "detected_instance_type": null,
+          "instance_type_detected_at": null,
+          "instance_type_probe_error": "",
+          "zk_instance_kind": null,
+          "zk_instance_id": "",
+          "zk_synced_at": null,
+          "instance_type_locked": false,
+          "instance_type_locked_value": "",
+          "password": "***",
+          "monitor_password": "",
+          "active": false,
+          "max_error_count": 0,
+          "max_warning_count": -1,
+          "gate_is_default": true,
+          "declared_instance_type": "centralized",
+          "zk_instance_type": null,
+          "effective_instance_type": "centralized",
+          "instance_type_source": "declared",
+          "instance_type_conflict": false,
+          "user": "root"
+        },
+        {
+          "id": "uat_o_local_r5",
+          "name": "UAT-O-R5 本地在线样本",
+          "host": "127.0.0.1",
+          "port": 13306,
+          "username": "root",
+          "database": "tdsql_uat_o_r5_explain_target",
+          "charset": "utf8mb4",
+          "is_default": 0,
+          "is_distributed": 0,
+          "description": "Synthetic local UAT validation only",
+          "set_list": "",
+          "monitor_host": "",
+          "monitor_port": 15001,
+          "monitor_user": "",
+          "monitor_db": "tdsqlpcloud_monitor",
+          "zk_import_batch_id": null,
+          "status": "disconnected",
+          "last_connected_at": null,
+          "created_at": "2026-08-29T15:10:46",
+          "updated_at": "2026-08-29T15:10:46",
+          "detected_instance_type": null,
+          "instance_type_detected_at": null,
+          "instance_type_probe_error": "",
+          "zk_instance_kind": null,
+          "zk_instance_id": "",
+          "zk_synced_at": null,
+          "instance_type_locked": false,
+          "instance_type_locked_value": "",
+          "password": "***",
+          "monitor_password": "",
+          "active": true,
+          "max_error_count": 0,
+          "max_warning_count": -1,
+          "gate_is_default": true,
+          "declared_instance_type": "centralized",
+          "zk_instance_type": null,
+          "effective_instance_type": "centralized",
+          "instance_type_source": "declared",
+          "instance_type_conflict": false,
+          "user": "root"
+        }
+      ],
+      "default": null
+    }
+  },
+  {
+    "label": "uat_o_auditor_r5_forbidden_create",
+    "status": 403,
+    "body": {
+      "code": 403,
+      "message": "当前角色(auditor)无权执行该操作"
+    }
+  },
+  {
+    "label": "uat_o_dba_r5_options",
+    "status": 200,
+    "body": {
+      "connections": [
+        {
+          "id": "uat_o_local_r5",
+          "name": "UAT-O-R5 本地在线样本",
+          "host": "127.0.0.1",
+          "port": 13306,
+          "database": "tdsql_uat_o_r5_explain_target",
+          "effective_instance_type": "centralized",
+          "is_default": false,
+          "active": true
+        },
+        {
+          "id": "uat_o_offline_r5",
+          "name": "UAT-O-R5 离线样本",
+          "host": "127.0.0.1",
+          "port": 65530,
+          "database": "tdsql_uat_o_r5_index_target",
+          "effective_instance_type": "centralized",
+          "is_default": false,
+          "active": false
+        },
+        {
+          "id": "uat_o_index_r5",
+          "name": "UAT-O-R5 索引重复样本",
+          "host": "127.0.0.1",
+          "port": 13306,
+          "database": "tdsql_uat_o_r5_index_target",
+          "effective_instance_type": "centralized",
+          "is_default": false,
+          "active": true
+        }
+      ],
+      "default": null
+    }
+  },
+  {
+    "label": "uat_o_dba_r5_connections",
+    "status": 200,
+    "body": {
+      "connections": [
+        {
+          "id": "uat_o_index_r5",
+          "name": "UAT-O-R5 索引重复样本",
+          "host": "127.0.0.1",
+          "port": 13306,
+          "username": "root",
+          "database": "tdsql_uat_o_r5_index_target",
+          "charset": "utf8mb4",
+          "is_default": 0,
+          "is_distributed": 0,
+          "description": "Synthetic local UAT validation only",
+          "set_list": "",
+          "monitor_host": "",
+          "monitor_port": 15001,
+          "monitor_user": "",
+          "monitor_db": "tdsqlpcloud_monitor",
+          "zk_import_batch_id": null,
+          "status": "connected",
+          "last_connected_at": "2026-08-29 15:10:56",
+          "created_at": "2026-08-29T15:07:00",
+          "updated_at": "2026-08-29T15:10:56",
+          "detected_instance_type": null,
+          "instance_type_detected_at": null,
+          "instance_type_probe_error": "",
+          "zk_instance_kind": null,
+          "zk_instance_id": "",
+          "zk_synced_at": null,
+          "instance_type_locked": false,
+          "instance_type_locked_value": "",
+          "password": "***",
+          "monitor_password": "",
+          "active": true,
+          "max_error_count": 0,
+          "max_warning_count": -1,
+          "gate_is_default": true,
+          "declared_instance_type": "centralized",
+          "zk_instance_type": null,
+          "effective_instance_type": "centralized",
+          "instance_type_source": "declared",
+          "instance_type_conflict": false,
+          "user": "root"
+        },
+        {
+          "id": "uat_o_offline_r5",
+          "name": "UAT-O-R5 离线样本",
+          "host": "127.0.0.1",
+          "port": 65530,
+          "username": "root",
+          "database": "tdsql_uat_o_r5_index_target",
+          "charset": "utf8mb4",
+          "is_default": 0,
+          "is_distributed": 0,
+          "description": "Synthetic local UAT validation only",
+          "set_list": "",
+          "monitor_host": "",
+          "monitor_port": 15001,
+          "monitor_user": "",
+          "monitor_db": "tdsqlpcloud_monitor",
+          "zk_import_batch_id": null,
+          "status": "disconnected",
+          "last_connected_at": null,
+          "created_at": "2026-08-29T15:07:00",
+          "updated_at": "2026-08-29T15:10:46",
+          "detected_instance_type": null,
+          "instance_type_detected_at": null,
+          "instance_type_probe_error": "",
+          "zk_instance_kind": null,
+          "zk_instance_id": "",
+          "zk_synced_at": null,
+          "instance_type_locked": false,
+          "instance_type_locked_value": "",
+          "password": "***",
+          "monitor_password": "",
+          "active": false,
+          "max_error_count": 0,
+          "max_warning_count": -1,
+          "gate_is_default": true,
+          "declared_instance_type": "centralized",
+          "zk_instance_type": null,
+          "effective_instance_type": "centralized",
+          "instance_type_source": "declared",
+          "instance_type_conflict": false,
+          "user": "root"
+        },
+        {
+          "id": "uat_o_local_r5",
+          "name": "UAT-O-R5 本地在线样本",
+          "host": "127.0.0.1",
+          "port": 13306,
+          "username": "root",
+          "database": "tdsql_uat_o_r5_explain_target",
+          "charset": "utf8mb4",
+          "is_default": 0,
+          "is_distributed": 0,
+          "description": "Synthetic local UAT validation only",
+          "set_list": "",
+          "monitor_host": "",
+          "monitor_port": 15001,
+          "monitor_user": "",
+          "monitor_db": "tdsqlpcloud_monitor",
+          "zk_import_batch_id": null,
+          "status": "disconnected",
+          "last_connected_at": null,
+          "created_at": "2026-08-29T15:10:46",
+          "updated_at": "2026-08-29T15:10:46",
+          "detected_instance_type": null,
+          "instance_type_detected_at": null,
+          "instance_type_probe_error": "",
+          "zk_instance_kind": null,
+          "zk_instance_id": "",
+          "zk_synced_at": null,
+          "instance_type_locked": false,
+          "instance_type_locked_value": "",
+          "password": "***",
+          "monitor_password": "",
+          "active": true,
+          "max_error_count": 0,
+          "max_warning_count": -1,
+          "gate_is_default": true,
+          "declared_instance_type": "centralized",
+          "zk_instance_type": null,
+          "effective_instance_type": "centralized",
+          "instance_type_source": "declared",
+          "instance_type_conflict": false,
+          "user": "root"
+        }
+      ],
+      "default": null
+    }
+  },
+  {
+    "label": "daily_offline",
+    "status": 422,
+    "body": {
+      "detail": "目标实例拒绝连接或网络不可达：(2003, \"Can't connect to MySQL server on '127.0.0.1' ([WinError 10061] 由于目标计算机积极拒绝，无法连接。)\")"
+    }
+  }
+]

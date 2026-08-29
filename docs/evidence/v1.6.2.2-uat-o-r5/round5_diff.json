@@ -1,0 +1,26 @@
+{
+  "baseline_commit": "e481432d3da63a43d3166dd51d7bdd78a749aab8",
+  "tested_commit": "50a1c049b49407c8055ec888735dcd578fe230b2",
+  "comparisons": {
+    "rule_probe_current.json": {
+      "equal": true,
+      "old_summary": null,
+      "new_summary": null
+    },
+    "edge_current.json": {
+      "equal": true,
+      "old_summary": null,
+      "new_summary": null
+    },
+    "load_current.json": {
+      "equal": true,
+      "old_summary": null,
+      "new_summary": null
+    },
+    "head_current.json": {
+      "equal": false,
+      "old_summary": null,
+      "new_summary": null
+    }
+  }
+}

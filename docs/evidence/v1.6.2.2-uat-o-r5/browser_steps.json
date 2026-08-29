@@ -1,0 +1,89 @@
+{
+  "tested_commit": "50a1c049b49407c8055ec888735dcd578fe230b2",
+  "browser": "Codex in-app Chromium",
+  "application": "http://127.0.0.1:8006",
+  "auth_enabled": true,
+  "uvicorn_workers": 2,
+  "steps": [
+    {
+      "id": "B01",
+      "role": "admin",
+      "action": "即时审核中输入带 # 注释的 LOAD XML 并点击审核",
+      "result": "PASS",
+      "observation": "页面显示 1 条 R042 ERROR，未绿色通过",
+      "screenshot": "01-r042-real-click.png"
+    },
+    {
+      "id": "B02",
+      "role": "admin",
+      "action": "上传网关日志并点击查看报告，操作报告内交互控件",
+      "result": "PARTIAL",
+      "observation": "同一浏览器连接下报告正文和交互可用；iframe URL 仅含一次性票据，未携带长期令牌；8 次直接点击均成功。但独立新连接双 worker 探针 30 次中 12 次返回 401，见 http_results.json",
+      "screenshot": "02-gateway-report-real-click.png"
+    },
+    {
+      "id": "B03",
+      "role": "admin",
+      "action": "查看包含恶意 </script> 与 onerror 载荷的网关报告",
+      "result": "PASS",
+      "observation": "CSP 使用 nonce 且 script-src 不含 unsafe-inline；载荷被 Unicode 转义；子页面无法访问父页面，合成全局标记未执行",
+      "screenshot": "02-gateway-report-real-click.png"
+    },
+    {
+      "id": "B04",
+      "role": "admin",
+      "action": "上传 4 条有效、3 条无效的网关日志并查看报告",
+      "result": "PASS",
+      "observation": "页面显示 PARTIAL 和 57.1% 覆盖率，并列出跳过原因样例",
+      "screenshot": "03-gateway-partial-warning.png"
+    },
+    {
+      "id": "B05",
+      "role": "admin",
+      "action": "先查看成功日常巡检结果，再切换日期使两日采集均失败",
+      "result": "PASS",
+      "observation": "旧 13 行结果被清空，页面仅显示本轮 monitordb 失败原因",
+      "screenshot": "04-daily-stale-cleared.png"
+    },
+    {
+      "id": "B06",
+      "role": "admin",
+      "action": "打开索引健康大屏并导出 PDF",
+      "result": "PASS",
+      "observation": "得分 96，重复索引 1 组；PDF 中索引 B 为 idx_code_copy、包含列为 code，无 N/A，布局无截断或重叠",
+      "screenshot": "05-index-dashboard.png"
+    },
+    {
+      "id": "B07",
+      "role": "admin",
+      "action": "在 EXPLAIN 中指定不同于实例默认库的目标库并执行",
+      "result": "PASS",
+      "observation": "返回真实执行计划，key=idx_customer；缺失库返回可读 400",
+      "screenshot": "06-explain-cross-db.png"
+    },
+    {
+      "id": "B08",
+      "role": "developer",
+      "action": "确认无实例管理菜单并打开在线元数据实例选择",
+      "result": "PASS",
+      "observation": "实例管理菜单数量为 0，业务模块实例下拉仍显示 3 个实例",
+      "screenshot": "07-developer-options-no-instance-menu.png"
+    },
+    {
+      "id": "B09",
+      "role": "auditor",
+      "action": "打开实例管理页面并检查操作按钮",
+      "result": "PASS",
+      "observation": "3 行实例可见，新建、编辑、删除按钮均为 0；API 新建返回 403",
+      "screenshot": "08-auditor-instances-readonly.png"
+    },
+    {
+      "id": "B10",
+      "role": "dba",
+      "action": "打开实例管理页面并检查管理能力",
+      "result": "PASS",
+      "observation": "新建按钮 1 个，3 行均有编辑和删除按钮",
+      "screenshot": "09-dba-instance-controls.png"
+    }
+  ]
+}

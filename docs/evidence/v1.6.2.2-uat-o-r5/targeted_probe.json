@@ -1,0 +1,77 @@
+{
+  "audit_cases": [
+    {
+      "label": "cr_malformed_view",
+      "passed": false,
+      "fired": [
+        "R030"
+      ],
+      "parse_error": "Required keyword: 'expression' missing for <class 'sqlglot.expressions.core.Add'>. Line 2, Col: 27.\n  -- ordinary\rCREATE VIEW v AS SELECT 1 \u001b[4m+\u001b[0m"
+    },
+    {
+      "label": "valid_view",
+      "passed": false,
+      "fired": [
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R077"
+      ],
+      "parse_error": null
+    },
+    {
+      "label": "valid_procedure",
+      "passed": false,
+      "fired": [
+        "R001",
+        "R003",
+        "R004",
+        "R005",
+        "R028",
+        "R030",
+        "R077"
+      ],
+      "parse_error": null
+    },
+    {
+      "label": "tdsql_hash_table",
+      "passed": false,
+      "fired": [
+        "R005",
+        "R028",
+        "R029",
+        "R036",
+        "R037"
+      ],
+      "parse_error": null
+    },
+    {
+      "label": "tdsql_broadcast",
+      "passed": false,
+      "fired": [
+        "R005",
+        "R028",
+        "R029",
+        "R036",
+        "R037"
+      ],
+      "parse_error": null
+    }
+  ],
+  "ephemeral_preprocess_exception": "RuntimeError: synthetic preprocess failure",
+  "ephemeral_pool_count": 1,
+  "ephemeral_close_calls": 1,
+  "unknown_registry_exception": {
+    "status": 422,
+    "detail": "实例连接失败：synthetic programming defect"
+  },
+  "unknown_translation_type": "InstanceConnectionError",
+  "ticket_semantics": {
+    "wrong_report": null,
+    "replay_after_wrong": null,
+    "first_valid": "synthetic-user",
+    "replay_after_valid": null
+  }
+}
