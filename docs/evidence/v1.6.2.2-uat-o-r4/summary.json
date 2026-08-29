@@ -1,0 +1,14 @@
+{
+  "tested_commit": "820f0dd1ec0f16bc0b94c65443206b014994f74d",
+  "executor": "智能体O",
+  "date": "2026-08-29",
+  "decision": "FAIL_DO_NOT_RELEASE",
+  "defects": {"block": 2, "major": 4, "minor": 2},
+  "full_pytest": {"passed": 1450, "failed": 0},
+  "sqlglot_versions": ["29.0.0", "30.14.0", "30.17.0"],
+  "rule_inventory": 119,
+  "primary_cases": 1000,
+  "proven_firing_rules_with_supplement": 116,
+  "unproven_rules": ["R025", "R038", "R049"],
+  "formal_gate": "FAIL: codestat generated section mismatch"
+}

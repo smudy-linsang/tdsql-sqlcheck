@@ -1,0 +1,19 @@
+{
+  "tested_commit": "820f0dd1ec0f16bc0b94c65443206b014994f74d",
+  "base_url": "http://127.0.0.1:8004",
+  "browser": "Codex in-app Chromium",
+  "roles": ["admin", "developer", "auditor", "dba"],
+  "steps": [
+    {"id": "B01", "role": "admin", "action": "login and inspect dashboard/version", "result": "PASS"},
+    {"id": "B02", "role": "admin", "action": "click Deep Diagnostics > Gateway Log > gateway_xss_canary.log > View Report", "result": "FAIL", "observed": "iframe shows 127.0.0.1 refused to connect", "evidence": "01-gateway-iframe-refused.png"},
+    {"id": "B03", "role": "admin", "action": "click Instant Audit and submit # comment plus LOAD XML", "result": "PASS", "observed": "R042 ERROR and audit blocked", "evidence": "02-r042-real-click.png"},
+    {"id": "B04", "role": "admin", "action": "select real duplicate-index fixture in PDF dashboard", "result": "PASS_WITH_DEFECT", "observed": "score 96 and duplicate group 1 are correct; exported PDF renders duplicate peer as N/A", "evidence": "03-index-dashboard.png,index_actual_page1.png"},
+    {"id": "B05", "role": "admin", "action": "click manual daily collection for an instance without monitordb", "result": "PASS", "observed": "two failed dates are explicitly listed; no false success", "evidence": "04-daily-failure-accurate.png"},
+    {"id": "B06", "role": "admin", "action": "open System Information", "result": "PASS", "observed": "masking scope says only slow-SQL storage and excludes gateway exports"},
+    {"id": "B07", "role": "developer", "action": "open Online Metadata Audit and Scan Task instance selectors", "result": "PASS", "observed": "instance-management menu absent, while 15 read-only options remain available", "evidence": "05-developer-scan-options.png"},
+    {"id": "B08", "role": "auditor", "action": "open Instance Management", "result": "PASS", "observed": "15 rows visible; create/edit/delete button counts all zero", "evidence": "06-auditor-instances-readonly.png"},
+    {"id": "B09", "role": "dba", "action": "open Instance Management", "result": "PASS", "observed": "new connection, 15 edit and 15 delete controls visible", "evidence": "07-dba-instance-controls.png"},
+    {"id": "B10", "role": "dba", "action": "run cross-database EXPLAIN against an existing alternate database", "result": "PASS", "observed": "real plan returned and success shown", "evidence": "08-explain-cross-db.png"},
+    {"id": "B11", "role": "dba", "action": "create a successful comparison for 2026-08-26/27, switch to 2026-08-28/29, then run an all-failed collection", "result": "FAIL", "observed": "failure message is accurate but 13 old comparison rows remain visible under the new failed date range", "evidence": "09-daily-stale-result.png"}
+  ]
+}

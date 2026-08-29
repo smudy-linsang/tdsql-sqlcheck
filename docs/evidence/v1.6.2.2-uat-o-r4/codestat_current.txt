@@ -1,0 +1,87 @@
+<!-- 本节由 docs/evidence/v1.6.2.2/codestat.py 生成，请勿手改 -->
+
+**`backend/engine/parser/parser_legacy.py` 规模（自动生成）**
+
+| 项 | 基线 | 目标 | 变化 |
+|---|---:|---:|---:|
+| 文件行数 | 849 | 3037 | +2188 |
+| 模块级函数/类 | 2 | 57 | +55 |
+| 模块级常量 | 1 | 34 | +33 |
+| diff 行 | —— | —— | +2265 / -77 |
+
+**新增函数（55 个）**
+
+| 函数 | 起始行 | 行数 |
+|---|---:|---:|
+| `_lex_head_words` | 44 | 14 |
+| `_is_load_statement_head` | 60 | 3 |
+| `_is_create_routine_head` | 65 | 17 |
+| `_spans_only_diff` | 84 | 8 |
+| `_is_bare_kw` | 107 | 8 |
+| `_ident_text` | 117 | 3 |
+| `_tdsql_table_def_bounds` | 122 | 58 |
+| `_P` | 225 | 2 |
+| `_P_VALUES` | 229 | 2 |
+| `_int_val` | 375 | 9 |
+| `_in_range` | 386 | 3 |
+| `_try_type_production` | 391 | 46 |
+| `_consume_data_type` | 439 | 63 |
+| `_canonical_type_from_sql` | 504 | 12 |
+| `_canonical_number` | 533 | 14 |
+| `_consume_default_value` | 549 | 51 |
+| `_consume_column_constraints` | 602 | 88 |
+| `_consume_column_definition` | 692 | 17 |
+| `_index_lead` | 716 | 25 |
+| `_consume_index_definition` | 743 | 54 |
+| `_consume_index_key_parts` | 799 | 34 |
+| `_consume_ident` | 835 | 6 |
+| `_consume_ident_list` | 843 | 16 |
+| `_consume_partition_expr` | 870 | 24 |
+| `_unquote_str` | 896 | 11 |
+| `_consume_value_list` | 909 | 33 |
+| `_consume_partition_values` | 944 | 23 |
+| `_consume_partition_options` | 969 | 41 |
+| `_consume_partition_defs` | 1012 | 30 |
+| `_consume_secondary_partition` | 1044 | 16 |
+| `_charset_kw_end` | 1084 | 19 |
+| `_consume_table_option` | 1105 | 63 |
+| `_match_tail_profile` | 1222 | 22 |
+| `_consume_shardkey_value` | 1246 | 32 |
+| `_scan_table_tail` | 1280 | 113 |
+| `_collect_executable_comments` | 1407 | 28 |
+| `_validate_executable_comments` | 1437 | 23 |
+| `_scan_definition_list` | 1462 | 49 |
+| `_definition_kfns` | 1513 | 22 |
+| `_top_level_definition_ranges` | 1537 | 22 |
+| `_definition_item_kfns` | 1561 | 47 |
+| `_preflight_create_definition_status` | 1610 | 23 |
+| `_preflight_known_fidelity_failures` | 1635 | 3 |
+| `_strip_terminal_semicolon` | 1640 | 9 |
+| `_plan_recovery` | 1651 | 64 |
+| `_same_table_name` | 1717 | 12 |
+| `_blank_spans` | 1731 | 12 |
+| `_canonical_default_from_sql` | 1766 | 14 |
+| `_ast_column_shape` | 1782 | 29 |
+| `_ast_index_using` | 1813 | 25 |
+| `_ast_index_shape` | 1840 | 34 |
+| `_tail_comparable` | 1886 | 24 |
+| `_ast_head_shape` | 1912 | 14 |
+| `_ast_tail_shape` | 1932 | 36 |
+| `_validate_recovery_candidate` | 1970 | 92 |
+
+**删除函数（0 个）**：无
+
+**行数发生变化的既有函数（2 个）**
+
+| 函数 | 基线行数 | 目标行数 |
+|---|---:|---:|
+| `class ParsedSQL` | 72 | 80 |
+| `class SQLParser` | 744 | 891 |
+
+**唯一性检查**
+
+| 检查 | 结果 |
+|---|---|
+| 模块级函数重复定义 | ✅ 无 |
+| 模块级常量重复定义 | ✅ 无 |
+| 语法可解析 | ✅ |

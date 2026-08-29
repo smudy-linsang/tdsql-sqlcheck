@@ -1,0 +1,50 @@
+[
+  {
+    "id": "R025",
+    "sql": "ALTER TABLE t_customer MODIFY cust_id BIGINT",
+    "fired": [
+      "R026",
+      "R073"
+    ],
+    "target_fired": false
+  },
+  {
+    "id": "R035",
+    "sql": "CREATE TABLE t_customer(id BIGINT NOT NULL COMMENT 'id', PRIMARY KEY(id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='customer' shardkey=id",
+    "fired": [
+      "R035",
+      "R036",
+      "R037"
+    ],
+    "target_fired": true
+  },
+  {
+    "id": "R038",
+    "sql": "CREATE TABLE t_order_log(id BIGINT NOT NULL AUTO_INCREMENT COMMENT 'id', PRIMARY KEY(id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='log' shardkey=id",
+    "fired": [
+      "R036",
+      "R037"
+    ],
+    "target_fired": false
+  },
+  {
+    "id": "R049",
+    "sql": "SELECT a.id FROM t_a a JOIN t_b a ON a.id=a.id",
+    "fired": [
+      "R051",
+      "R053",
+      "R068"
+    ],
+    "target_fired": false
+  },
+  {
+    "id": "R059",
+    "sql": "BEGIN",
+    "fired": [
+      "R059",
+      "R069",
+      "R071"
+    ],
+    "target_fired": true
+  }
+]

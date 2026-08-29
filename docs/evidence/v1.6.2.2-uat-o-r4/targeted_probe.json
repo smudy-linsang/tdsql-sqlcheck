@@ -1,0 +1,41 @@
+{
+  "head_cases": [
+    {
+      "sql": "# operator's note\nLOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+      "fired": [
+        "R042"
+      ],
+      "passed": false,
+      "parse_error": null,
+      "has_load_data": true
+    },
+    {
+      "sql": "-- ordinary\rCREATE VIEW v AS SELECT 1 +",
+      "fired": [],
+      "passed": true,
+      "parse_error": "Required keyword: 'expression' missing for <class 'sqlglot.expressions.core.Add'>. Line 2, Col: 27.\n  -- ordinary\rCREATE VIEW v AS SELECT 1 \u001b[4m+\u001b[0m",
+      "has_load_data": false
+    },
+    {
+      "sql": "; LOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+      "fired": [
+        "E999_SYNTAX_ERROR"
+      ],
+      "passed": false,
+      "parse_error": "No expression was parsed from '; LOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t'",
+      "has_load_data": false
+    },
+    {
+      "sql": "'decoy' LOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+      "fired": [
+        "E999_SYNTAX_ERROR"
+      ],
+      "passed": false,
+      "parse_error": "Invalid expression / Unexpected token. Line 1, Col: 16.\n  'decoy' LOAD \u001b[4mXML\u001b[0m INFILE '/tmp/synthetic.xml' INTO TABLE t",
+      "has_load_data": false
+    }
+  ],
+  "ephemeral_preprocess_exception": "RuntimeError: synthetic preprocess failure",
+  "ephemeral_pool_count": 1,
+  "ephemeral_close_calls": 0
+}

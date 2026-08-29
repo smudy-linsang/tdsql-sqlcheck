@@ -1,0 +1,76 @@
+{
+  "baseline_commit": "2bb59eb",
+  "tested_commit": "820f0dd1ec0f16bc0b94c65443206b014994f74d",
+  "comparisons": {
+    "rule_probe": {
+      "equal": true,
+      "old_keys": [
+        "case_count",
+        "coverage",
+        "covered",
+        "failures",
+        "repo",
+        "rows",
+        "rule_count",
+        "rules",
+        "sqlglot"
+      ],
+      "new_keys": [
+        "case_count",
+        "coverage",
+        "covered",
+        "failures",
+        "repo",
+        "rows",
+        "rule_count",
+        "rules",
+        "sqlglot"
+      ]
+    },
+    "edge": {
+      "equal": true,
+      "old_keys": [
+        "count",
+        "groups",
+        "kfn_without_e999",
+        "rows",
+        "sqlglot"
+      ],
+      "new_keys": [
+        "count",
+        "groups",
+        "kfn_without_e999",
+        "rows",
+        "sqlglot"
+      ]
+    },
+    "load": {
+      "equal": false,
+      "old_keys": [
+        "count",
+        "false_pass",
+        "missing_r042",
+        "rows",
+        "version"
+      ],
+      "new_keys": [
+        "count",
+        "false_pass",
+        "missing_r042",
+        "rows",
+        "version"
+      ]
+    },
+    "head": {
+      "equal": false,
+      "old_keys": [
+        "rows",
+        "version"
+      ],
+      "new_keys": [
+        "rows",
+        "version"
+      ]
+    }
+  }
+}
