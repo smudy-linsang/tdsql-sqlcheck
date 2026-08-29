@@ -2,13 +2,13 @@
 
 | 项 | 内容 |
 |---|---|
-| 文档编号 | DESIGN-v1.6.3.0 **Rev.B** |
+| 文档编号 | DESIGN-v1.6.3.0 **Rev.C** |
 | 模块编号 | **G14 · 表类型统计**（深度诊断第 10 个子模块） |
 | 目标版本 | v1.6.3.0（当前基线 v1.6.2.2，`VERSION` / `backend/config.py:APP_VERSION`） |
-| 文档等级 | **照图施工级**——附录 A 给出全部新增/修改文件的逐行成品代码（已本地验证：35 项单测全通过），实施者不得二次设计 |
+| 文档等级 | **照图施工级**——附录 A 给出全部新增/修改文件的逐行成品代码（已本地验证：37 项单测全通过），实施者不得二次设计 |
 | 编写 | 智能体 A |
-| 编写日期 | 2026-08-29（Rev.A 首版 / Rev.B 依第一轮内网实测修订） |
-| 状态 | 设计与代码**已完成并按第一轮实测修订**；**待 T13/T14/T15 三项补测**（§10.2），其中 T15 是唯一可能推翻设计的项（§10.5 GATE-2） |
+| 编写日期 | 2026-08-29（Rev.A 首版 / Rev.B 第一轮实测 / Rev.C 第二轮实测） |
+| 状态 | 设计与代码**已完成，两轮实测均未推翻**。**GATE-2 无阻断项**，可进入开发。剩余 T13 / T14 两项为确认性测试，不阻断（§10.2） |
 | 前置约束 | 本文档编写阶段**未修改任何代码**（用户要求）。仓库工作区在本文档提交时保持干净。 |
 
 ---
@@ -18,7 +18,7 @@
 本文档同时承担三件事，读者请按角色取用：
 
 * **实施者（智能体 Q 或人工）**：读 §5～§9 + 附录 A。附录 A 是**可直接落盘的成品代码**——四个新增文件 + 既有文件的 9 行改动 + 1 个前端块，逐字给出。
-* **内网测试配合者**：只读 **§10**。第一轮 8 个用例已完成（裁决见 §10.1），本轮只剩 **T13 / T14 / T15** 三项（§10.2）——全部是只读 SQL，不需要改任何代码。**T15 必须用 `mysql` 命令行客户端做**，因为要绕开赤兔前端。
+* **内网测试配合者**：只读 **§10**。两轮共 9 个用例已完成（裁决见 §10.1），只剩 **T13 / T14** 两项（§10.2），**都不阻断开发**——全部是只读 SQL，不需要改任何代码。T13 多数情况下一句 `SHOW DATABASES` 就能结案。
 * **评审者（智能体 O / Codex）**：读 §3（原厂口径的语义风险）、§7（决策与取舍）、§8（异常矩阵）、§9（爆炸半径）、§13（风险登记册）。
 
 **三条硬约束**（贯穿全文，任何实现偏离即为不合格）：
@@ -61,8 +61,8 @@
 
 ## 2. 现状勘查（代码事实，全部带行号，实施者可逐条复核）
 
-> 本节所有结论均来自对当前 `main` 分支（`50a1c04`）的实读，不是推测。
-> **行号锚定于 `50a1c04`。** 实施前请先 `git log --oneline -1` 核对；若 main 已前进，
+> 本节所有结论均来自对当前 `main` 分支（`8fee172`）的实读，不是推测。
+> **行号锚定于 `8fee172`。** 实施前请先 `git log --oneline -1` 核对；若 main 已前进，
 > 用本节给出的**代码片段文本**（而非行号）重新定位——片段是稳定锚，行号是易腐锚。
 
 ### 2.1 深度诊断页的既有形态
@@ -87,10 +87,10 @@
 | P1 | `backend/services/auth_service.py:371-379` | API 前缀 → 菜单键映射 `_PATH_TO_MENU` | 写端点"未映射默认放行"（fail-open），且 `tests/test_rbac_path_coverage.py` **直接失败** |
 | P2 | `backend/services/auth_service.py:491-494` | `ALL_MENU_KEYS` | 权限矩阵页看不到该菜单，无法配置 |
 | P3 | `backend/services/auth_service.py:504-509` | `MENU_LABELS` | 权限矩阵页显示裸键名 |
-| P4 | `backend/services/database.py:1691` | `_init_default_data` 的 `all_menus` | **致命**：`database.py:1749` 有 `DELETE FROM role_permissions WHERE menu_key NOT IN (...)`，未登记的键会在每次启动时被删掉，菜单永久不可见 |
+| P4 | `backend/services/database.py:1717` | `_init_default_data` 的 `all_menus` | **致命**：`database.py:1775` 有 `DELETE FROM role_permissions WHERE menu_key NOT IN (...)`，未登记的键会在每次启动时被删掉，菜单永久不可见 |
 
 补充事实（决定了本模块**不需要**写任何存量库订正 SQL）：
-`database.py:1707-1710` 对 `all_menus × 内置角色`执行 `INSERT IGNORE INTO role_permissions(...) VALUES(...)`，`init_db()` 每次启动都会跑（`database.py:394`）。因此新键在**存量库**上会于下次启动自动补齐，`developer` / `auditor` 的默认不可见排除清单（`database.py:1702-1705`）不含本键 → 四个内置角色默认全部可见，符合 REQ-7。
+`database.py:1733-1736` 对 `all_menus × 内置角色`执行 `INSERT IGNORE INTO role_permissions(...) VALUES(...)`，`init_db()` 每次启动都会跑（`database.py:420`）。因此新键在**存量库**上会于下次启动自动补齐，`developer` / `auditor` 的默认不可见排除清单（`database.py:1728-1731`）不含本键 → 四个内置角色默认全部可见，符合 REQ-7。
 
 ### 2.3 `/*proxy*/` 前缀能否活着到达 Proxy —— **已由既有生产代码证实，非推测**
 
@@ -152,7 +152,7 @@
 * `backend/schema/loader.py` 扫描 `backend/schema/vN/NNN_*.sql`，按 `(version, sequence)` 升序执行。
 * `backend/schema/migrator.py:41-66`：按 `sha256(文件内容)` 幂等；**逐行剔除以 `--` 开头的行**，再按 `;` 切分逐条执行；已应用的 key 跳过（checksum 变动只 WARNING 不重跑）。
 * 现有最高版本目录：`v10/100_zk_scan_enrich.sql`。→ 本模块用 `v11/110_table_type_stats.sql`。
-* **不动 `database.py::_create_all_tables`**：`init_db()` 在 `_create_all_tables` 之后就会调 `migrator.run_migrations()`（`database.py:383`），全新安装与存量升级都覆盖到。这样 `database.py` 只需改 P4 那 1 行。
+* **不动 `database.py::_create_all_tables`**：`init_db()` 在 `_create_all_tables` 之后就会调 `migrator.run_migrations()`（`database.py:411`），全新安装与存量升级都覆盖到。这样 `database.py` 只需改 P4 那 1 行。
 
 ### 2.8 元数据库访问
 
@@ -194,8 +194,10 @@
 
 ### 3.3 语义风险清单（含 2026-08-29 内网实测裁决）
 
-> 本节四条风险在 Rev.A 编写时全部未知。Rev.B 依据内网实测（附录 B）逐条裁决，
-> 并新增两条实测暴露出来的风险 RISK-E / RISK-F。
+> 本节四条风险在 Rev.A 编写时全部未知。Rev.B 依据第一轮内网实测逐条裁决，
+> 并新增两条实测暴露出来的风险 RISK-E / RISK-F。Rev.C 依据第二轮实测裁决 RISK-F。
+> **当前仍未裁决：RISK-B（T14）与 RISK-E（T13）**——两者都不阻断开发，
+> 设计已在各自的两种可能下都保证正确。
 
 #### RISK-A：`without shardkey` 可能是 `noshardkey_allset` 的超集 —— **实测证伪，对策保留**
 
@@ -284,27 +286,46 @@ Rev.A 的担忧：字面看"广播表"就是"没有 shardkey、但在所有 SET 
 这样既不会把 `db.tbl` 漏拆，也不会把 `odd.name` 这种表名误拆后当成"未知库"丢掉——
 **误拆的后果是少算，而少算是不可见的错误**。
 
-#### RISK-F：空结果集下命令可能挂起 —— **实测发现，未裁决**
+#### RISK-F：空结果集下命令可能挂起 —— **已裁决：不挂起，赤兔前端问题**
 
-使用者实测反馈：在赤兔"在线SQL"页面对 `lzbj_ecif`（该库没有单表）执行
-`/*proxy*/show table without shardkey`，**页面一直转圈出不来结果**。
+使用者第一轮反馈：赤兔"在线SQL"对 `lzbj_ecif`（该库没有单表）执行
+`/*proxy*/show table without shardkey`，**页面一直转圈**。
 
-有两种可能，后果差别很大：
-* **可能一（大概率）**：赤兔前端渲染零行结果集时的 UI 缺陷。那么走 PyMySQL 的本模块
-  拿到的是 `[]`，完全正常。截图 1 里 mysql 客户端对 `sqltuning` 执行同一条命令
-  0.01 秒返回 7 行，说明命令本身没毛病。
-* **可能二**：Proxy 在无匹配表时确实不返回。那么本模块逐库遍历时，**每一个没有单表的
-  库都会卡住**，直到超时。
+**第二轮实测（T15，`mysql` 客户端直连 Proxy 10.243.20.13:15005）判决**：
 
-**Rev.B 对策（两种可能下都不会拖垮请求）**：
-1. 临时池显式设 `read_timeout = COMMAND_READ_TIMEOUT = 30s`，单条命令挂起最多卡 30 秒，
-   然后抛超时 → 该库标 `FAILED`，`detail` 写"读超时（30s）"，循环继续；
-2. 整体设 `TOTAL_BUDGET_SECONDS = 180s` 总预算，超出后剩余库标 `SKIPPED`
-   （**不是 FAILED，也不计入总数**）并输出 `TIME_BUDGET_EXCEEDED`，提示用户分批统计。
+```
+MySQL [lzbj_ecif]> /*proxy*/show table without shardkey;
+Query OK, 0 rows affected (0.001 sec)
+```
 
-**必须由 T15 判决走哪种可能**：如果是可能二，本模块的可用性会严重受损
-（多数库都没有单表），届时需要改设计——例如只在 `information_schema` 显示该库
-非空时才发第三条命令，或整体改成异步任务。**这是当前唯一可能推翻设计的未决项。**
+**不挂起，0.001 秒返回。** 但返回的不是"空结果集"，而是一个 **OK 包**
+（`Query OK, 0 rows affected`）——**没有列元数据、没有结果集结构**。
+赤兔转圈的原因由此确定：它的前端在等一个结果集（列头 + 行），
+拿到的却是 OK 包，于是永远等不到渲染条件。**是赤兔的前端缺陷，与命令无关。**
+
+**对本模块的影响：无需改设计。** 已核对 PyMySQL 的实际行为：
+
+| 形态 | `cursor.execute()` | `cursor.fetchall()` | `cursor.description` |
+|---|---|---|---|
+| 结果集（`SELECT 1 AS a`） | `1` | `[{'a': 1}]` | 有 |
+| **OK 包**（`DO 1` / `SET @x=1`，与 TDSQL 此处同一种协议响应） | `0` | **`[]`** | **`None`** |
+
+`fetchall()` 对 OK 包返回 `[]` 而不是 `None` —— 已在**本机 PyMySQL 2.2.8**
+与**项目下限版本 1.1.0 的 wheel 源码**上双向核对（`if self._rows is None: return []`），
+项目 `requirements.txt` 钉的是 `pymysql>=1.1.0`，区间内行为一致。
+且 OK 包之后**同一连接可继续正常查询**（实测 `SELECT 2` 正常返回）。
+
+因此本模块拿到的就是"该类 0 张"，走正常路径、不告警、不降级。
+`_extract_pairs` 里的 `rows = rows or []` 作为额外防御保留。
+
+**由此新增一条必须记住的语义**：**OK 包与"命令未被支持"在协议上无法区分。**
+若将来某个 TDSQL 版本不再支持三条命令之一、且返回 OK 包而不是报错，
+本模块会**静默地把该类计为 0**。这正是 §6.6 的 `information_schema` 交叉校验
+必须存在的理由——并集会比基线少一大截，`RECON_MISMATCH` 会把它顶出来。
+**这条校验不是锦上添花，它是这个静默失效模式的唯一探测器。**
+
+`COMMAND_READ_TIMEOUT=30` 与 `TOTAL_BUDGET_SECONDS=180` 保留为纯保险，
+在已实测的形态下永不触发。
 
 
 ## 4. 总体设计
@@ -379,10 +400,10 @@ Rev.A 的担忧：字面看"广播表"就是"没有 shardkey、但在所有 SET 
 
 | 类型 | 文件 | 规模 |
 |---|---|---|
-| 新增 | `backend/services/table_type_stats_service.py` | 574 行（附录 A.1，成品） |
+| 新增 | `backend/services/table_type_stats_service.py` | 581 行（附录 A.1，成品） |
 | 新增 | `backend/api/table_type_stats.py` | 44 行（附录 A.2，成品） |
 | 新增 | `backend/schema/v11/110_table_type_stats.sql` | 37 行（附录 A.3，成品） |
-| 新增 | `tests/test_table_type_stats.py` | 594 行（附录 A.4，成品） |
+| 新增 | `tests/test_table_type_stats.py` | 623 行（附录 A.4，成品） |
 | 修改 | `backend/main.py` | **2 行**（import + include_router） |
 | 修改 | `backend/services/auth_service.py` | **3 行**（P1/P2/P3） |
 | 修改 | `backend/services/database.py` | **1 行**（P4） |
@@ -654,7 +675,7 @@ total_tables == shard_tables + broadcast_tables + single_tables   （逐库 & �
 
 | code | severity | 触发 | 用户该怎么办 |
 |---|---|---|---|
-| W1 `PROXY_CMD_FAILED` | ERROR | 某库三条命令中任一失败（含读超时） | 看 `detail` 的 errno；1064→连接可能不是 Proxy 端口；1045/1142→授权不足；读超时→见 RISK-F |
+| W1 `PROXY_CMD_FAILED` | ERROR | 某库三条命令中任一失败（含读超时） | 看 `detail` 的 errno；1064→连接可能不是 Proxy 端口；1045/1142→授权不足；读超时→保险触发，见 RISK-F |
 | W2 `KIND_OVERLAP` | WARNING | 三类集合有交集（RISK-A 命中） | 说明"三类互斥"在本版本不成立，已按优先级去重，总数仍正确 |
 | W3 `RECON_MISMATCH` | WARNING | 并集 ≠ 基线（RISK-B 命中） | 两个数与双向差集表名都在 detail 里，人工判定 |
 | W4 `SHAPE_UNKNOWN` | WARNING | 结果列形态未识别（RISK-C 兜底） | 把 `shape` 字段贴给开发，扩充 `_EXACT_NAME_COLS` |
@@ -707,7 +728,7 @@ finally:
 | ADR-10 | 命令常量不加分号、不做任何字符串处理 | 拼 `;` / `.strip()` | 原厂逐字口径；且 `pre_parser.py` 的既有实现证明本项目对 `/*proxy*/` 采取"原样保护"策略 |
 | ADR-11 | 结果按**行内的库限定名**归属，不按当前会话库 | 全部算在当前遍历到的库上（Rev.A 做法） | 实测返回值是 `sqltuning.t_max`；若命令是实例级作用域，Rev.A 做法会让总数放大 N 倍且逐库明细全错（RISK-E）。按限定名归属在两种作用域下都正确，且不依赖 T13 的结论 |
 | ADR-12 | **覆盖性跳过**：某库累计表集与 `information_schema` 基线逐表相等即跳过 | ① 检测到跨库行就 break ② 无条件跑满 N 库 | ①无法证明"一次已覆盖全部"，有漏库风险；②实例级作用域下要跑 3N 条重复命令，大实例不可接受。逐表相等是**完备性证明**而非启发式，既快又不会漏 |
-| ADR-13 | 单条命令 `read_timeout=30s` + 整体 `180s` 预算 | 依赖连接默认 `read_timeout=10s` | RISK-F 未裁决前必须假设命令可能挂起。10s 对慢查询太紧、对挂起又缺总量控制；30s+180s 双层兜底使最坏情况可预期 |
+| ADR-13 | 单条命令 `read_timeout=30s` + 整体 `180s` 预算 | 依赖连接默认 `read_timeout=10s` | 保留。RISK-F 已裁决为不挂起，但连接默认 10s 对大库仍偏紧（`lzbj_ecif` 215 张表虽只用 0.002s，更大的库未取样）；30s+180s 双层兜底让最坏情况可预期，代价为零 |
 | ADR-14 | 超预算的库标 `SKIPPED` 而非 `FAILED` | 统一标 FAILED | "没来得及测"和"测了但错了"处置动作不同：前者重跑/分批即可，后者要查权限或端口。混成一个数会误导排障方向 |
 
 ---
@@ -793,8 +814,10 @@ git diff --stat
 
 ## 10. 内网实测计划（**不动任何代码**）
 
-> **第一轮实测已于 2026-08-29 完成**，结论见 §10.1 裁决表，原始形态入附录 B。
-> 本轮剩下 **3 个用例（T13 / T14 / T15）** 需要补测，其中 **T15 是唯一可能推翻设计的项**。
+> **两轮实测已完成**（2026-08-29），结论见 §10.1 裁决表，原始形态入附录 B。
+> **T15 已判决且未推翻设计。** 现在只剩 **T13 / T14** 两项，**两项都不阻断开发**——
+> 设计在各自的两种可能下都已保证正确，实测只用于确认走哪条路径、以及把
+> `RECON_MISMATCH` 是否会长期显示这件事说清楚。
 >
 > 执行位置：**赤兔控制台 › 实例管理 › 在线SQL**，或用 `mysql` 客户端连**实例的 Proxy 端口**
 > （与平台"实例管理"里登记的 host:port 完全一致）。
@@ -815,17 +838,24 @@ git diff --stat
 | T04 三类互斥 | **互斥**。`without shardkey` 的 7 张与 `noshardkey_allset` 的 4 张无交集 | **RISK-A 证伪**；归一化去重作为保险保留，`KIND_OVERLAP` 在本版本不会触发 |
 | T07 集中式行为 | 未测（截图为分布式实例） | 不阻断：集中式分支根本不发这三条命令（ADR-4） |
 | T08 集中式口径 | 截图 2 证实 `information_schema.TABLES` 经 Proxy 可查、且**返回系统库**（`TABLE_SCHEMA: mysql`） | 确认按业务库白名单取用这一步是必需的 |
-| — 新发现 | 赤兔对 `lzbj_ecif` 执行 `without shardkey`（该库无单表）**一直转圈** | **RISK-F**，由 T15 判决 |
+| — 新发现 | 赤兔对 `lzbj_ecif` 执行 `without shardkey`（该库无单表）**一直转圈** | **RISK-F**，由第二轮 T15 判决 |
+| **T15 空结果行为**（第二轮） | **不挂起**。`mysql` 直连 Proxy 返回 `Query OK, 0 rows affected (0.001 sec)`——是 **OK 包**不是空结果集；赤兔转圈是其前端等列元数据所致 | **设计不改**。PyMySQL≥1.1.0 对 OK 包 `fetchall()` 返回 `[]`、`description` 为 `None`，本模块按"该类 0 张"正常处理。超时保险保留但永不触发。**新增语义**：OK 包与"命令不被支持"协议上不可区分，交叉校验是唯一探测器 |
+| **T10 性能**（第二轮顺带取得） | `lzbj_ecif` 共 215 张表（98 分片 + 117 广播 + 0 单表），三条命令分别 0.001 / 0.002 / 0.001 秒 | 单库开销可忽略；总耗时瓶颈只可能来自库数（取决于 T13 的作用域结论） |
 
-### 10.2 本轮待测（3 项）
+### 10.2 仍待测（2 项，T15 已完成）
 
 ---
 
-### T13 · 命令的作用域是实例级还是当前库？（**最高优先级，判决 RISK-E**）
+### T13 · 命令的作用域是实例级还是当前库？（判决 RISK-E，**不阻断开发**）
 
-**前提**：需要一个**至少有 2 个业务库**的分布式实例。若内网没有这种实例，请注明"无"，
-并跳到 T14——设计在两种作用域下都正确，这条只是让我们知道实际走哪条路径、以及
-性能量级差多少。
+**前提**：需要一个**至少有 2 个业务库**的分布式实例。若内网没有这种实例，请注明"无"——
+设计在两种作用域下都正确，这条只是让我们知道实际走哪条路径、以及性能量级差多少。
+
+> 最省事的做法：就用 T15 那个会话（`10.243.20.13:15005` / `checksql`），
+> 先敲一句 `SHOW DATABASES;` 看这个实例除了 `lzbj_ecif` 还有没有别的业务库。
+> 如果有，站在 `lzbj_ecif` 上执行的 `with shardkey` 结果里（附录 B 已有 98 行完整输出）
+> **全部都是 `lzbj_ecif.*` 前缀，一条别的库都没有** —— 那就直接判定为**当前库作用域**，
+> 这条测试当场就结了，不用再敲第二条命令。
 
 **执行**：
 ```sql
@@ -854,7 +884,7 @@ USE <库A>;
 
 ---
 
-### T14 · 三类并集 vs `information_schema` 基线（判决 RISK-B）
+### T14 · 三类并集 vs `information_schema` 基线（判决 RISK-B，**不阻断开发**）
 
 **执行**（在 `sqltuning` 这类有数据的业务库上）：
 ```sql
@@ -869,9 +899,15 @@ WHERE TABLE_SCHEMA = '<业务库名>' AND TABLE_TYPE = 'VIEW';
 
 **回填**：两个数字。
 
-**我要看什么**：`base_tables` 是否等于三条命令的行数之和。
-以截图 1 的 `sqltuning` 为例：18（分片）+ 4（广播）+ 7（单表）= **29**。
-所以我要确认的就是：**`sqltuning` 的 `base_tables` 是不是 29？**
+**我要看什么**：`base_tables` 是否等于三条命令的行数之和。现在有两组已知的期望值，
+测哪个都行，两个都测最好：
+
+| 实例 / 库 | 分片 | 广播 | 单表 | **期望 `base_tables`** |
+|---|---|---|---|---|
+| `sqltuning` | 18 | 4 | 7 | **29** |
+| `lzbj_ecif` | 98 | 117 | 0 | **215** |
+
+`lzbj_ecif` 更值得测——它已经有完整的三条命令输出（附录 B），对得上就是硬证据。
 
 * 是 29 → RISK-B 不成立，`RECON_MISMATCH` 不会触发；
 * 不是 29 → 请再跑一条拿差集明细：
@@ -888,40 +924,27 @@ WHERE TABLE_SCHEMA = '<业务库名>' AND TABLE_TYPE = 'VIEW';
 
 ---
 
-### T15 · 空结果集到底是 UI 问题还是命令挂起？（**唯一可能推翻设计的项**）
+### T15 · 空结果集：UI 问题还是命令挂起？—— ✅ **已完成（2026-08-29）**
 
-**背景**：你反馈赤兔对没有单表的库执行 `without shardkey` 会一直转圈。需要确认这是
-赤兔前端渲染零行的缺陷，还是 Proxy 真的不返回。
+**执行**（`mysql --comments -h 10.243.20.13 -P 15005 -u checksql -p`，
+服务端 `8.0.33-v24-txsql-22.6.9-20250509`）：
 
-**执行**：**必须用 `mysql` 命令行客户端**（不能用赤兔页面，因为要绕开它的前端）：
 ```
-mysql --comments -h <proxy_host> -P <proxy_port> -u <user> -p
-```
-```sql
-USE lzbj_ecif;        -- 或任何一个"没有单表"的库
-/*proxy*/show table without shardkey;
+MySQL [lzbj_ecif]> /*proxy*/show table without shardkey;
+Query OK, 0 rows affected (0.001 sec)
 ```
 
-**回填**（三选一，照实说）：
-* **A**：立刻返回 `Empty set (0.00 sec)` → **UI 问题**，本模块无影响；
-* **B**：卡住不返回（等 30 秒以上），最终超时或需要 Ctrl+C → **命令挂起**；
-* **C**：报错 → 把完整错误贴回来。
+**结论 = A（UI 问题），且比 A 更有信息量**：返回的不是"空结果集"而是
+**OK 包**（无列元数据）。0.001 秒返回，同一 session 随后的
+`with noshardkey_allset`（117 行）与 `with shardkey`（98 行）均正常，
+说明连接完全没受影响。赤兔转圈是它的前端在等结果集结构，与命令无关。
 
-**顺便**：同一个 session 里再敲一次
-```sql
-/*proxy*/show table with noshardkey_allset;
-```
-确认卡住之后连接是否还能正常用。
-
-**结论怎么用**：
-* **A** → 设计不变。30s 读超时与 180s 预算作为纯保险留着，永不触发。
-* **B** → **设计要改**。因为多数库都没有单表，逐库遍历会频繁挂 30 秒，
-  N 个库最坏 30N 秒。改法有两条，届时我出 Rev.C：
-  ① 只在 `information_schema` 显示该库确有表时才发第三条命令（治标）；
-  ② 整个模块改成异步任务 + 进度条（治本，但要动 scheduler，爆炸半径变大）。
-* **C** → 按错误内容定。
+**设计动作**：不改。详见 §3.3 RISK-F 的完整裁决与 PyMySQL 行为核对表。
+新增两条护栏用例：`test_extract_pairs_tolerates_none_rows` 与
+`test_ok_packet_yields_zero_without_warning`。
 
 ---
+
 
 ### 10.3 补充（有条件就测，没有就跳过）
 
@@ -935,17 +958,17 @@ USE lzbj_ecif;        -- 或任何一个"没有单表"的库
 
 ```
 【T13】SHOW DATABASES 输出：
-【T13】库前缀种类（只有库A / 含库B…）：
-【T13】总行数：
-【T14】base_tables= ，views= ，是否等于三条命令行数之和：
+【T13】除 lzbj_ecif 外是否还有业务库（有/无）：
+【T13】（有的话）with shardkey 结果里出现过几种库前缀：
+【T14】lzbj_ecif 的 base_tables= ，views= ，是否 = 215：
+【T14】（或）sqltuning 的 base_tables= ，是否 = 29：
 【T14】（不等时）双向差集表名 / 表名是否带分片数字后缀：
-【T15】选 A / B / C：
-【T15】原始输出或错误：
-【T15】卡住后连接是否还可用：
 【T09】登记账号能否执行（是/否，errno）：
-【T10】最大库表数 / 三条命令耗时：
 【T12】单分片实例：有/无，若有则输出：
 ```
+
+> T09 其实已经被 T15 顺带证明了一半：那次用的 `checksql` 账号能正常执行三条命令。
+> 只要平台"实例管理"里登记的就是 `checksql`，T09 即视为通过。
 
 ### 10.5 GATE-2 放行判据（本轮实测结论 → 设计动作）
 
@@ -956,11 +979,10 @@ USE lzbj_ecif;        -- 或任何一个"没有单表"的库
 | T13 无多库实例可测 | 两条路径都已实现且都有单测覆盖，按现状开发 | 否 |
 | T14 并集 == 基线 | `RECON_MISMATCH` 不触发 | 否 |
 | T14 不等 | `RECON_MISMATCH` 生效并列差集——**符合设计预期** | 否 |
-| T14 基线看到的是**物理分片子表** | 基线口径失效，需要换交叉校验数据源（或去掉该校验） | **是**（设计升 Rev.C） |
-| **T15 = A（UI 问题）** | 设计不变，超时保险留作兜底 | 否 |
-| **T15 = B（命令挂起）** | 必须改：加"基线非空才发命令"的短路，或改异步任务 | **是**（设计升 Rev.C） |
+| T14 基线看到的是**物理分片子表** | 基线口径失效，需要换交叉校验数据源（或去掉该校验） | **是**（设计升版） |
+| ~~T15~~ | ✅ **已完成 = A**。设计不变，超时保险留作兜底 | — |
 | T09 登记账号无权限 | 出授权说明，由 DBA 补授权 | **是**（非代码问题） |
-| T10 单库 > 1s 且 T13 = 当前库作用域 且库数 > 20 | 需追加"异步任务 + 进度"设计 | **是**（设计升 Rev.C） |
+| T10 单库 > 1s 且 T13 = 当前库作用域 且库数 > 20 | 需追加"异步任务 + 进度"设计 | **是**（设计升版）。已知 `lzbj_ecif`（215 张表）单库仅 0.004s，风险很低 |
 | T12 存在单分片分布式实例 | UI 强化 W5 文案 | 否（前端 1 行文案） |
 
 **只要没有命中"是"，开发即可按附录 A 照图施工。**
@@ -970,7 +992,7 @@ USE lzbj_ecif;        -- 或任何一个"没有单表"的库
 
 ## 11. 测试设计（开发期，可在本地 MariaDB 13306 上跑）
 
-`tests/test_table_type_stats.py`（附录 A.4），**35 项，除落库 2 项外全部离线，
+`tests/test_table_type_stats.py`（附录 A.4），**37 项，除落库 2 项外全部离线，
 不依赖真实 TDSQL**。数据夹具直接照搬 2026-08-29 内网实测形态（列名 `db_table`、
 库限定名 `sqltuning.t_max`、`with*` 双列 / `without` 单列）。
 
@@ -1001,6 +1023,8 @@ USE lzbj_ecif;        -- 或任何一个"没有单表"的库
 | `test_select_db_failure_is_isolated` | 切库失败只影响该库，临时池仍被关闭 | E-3 |
 | `test_shared_pool_is_never_switched` | **共享池连接上不得发生任何 `select_db`** | **ADR-3 核心护栏** |
 | `test_empty_result_set_is_not_an_error` | 空结果集 = 合法的 0，不告警（对应 `lzbj_ecif` 无单表） | E-10 |
+| `test_extract_pairs_tolerates_none_rows` | 驱动即使回 `None` 也不抛异常（OK 包路径防御） | RISK-F |
+| `test_ok_packet_yields_zero_without_warning` | **OK 包**（`Query OK, 0 rows affected`）→ 该类计 0、不告警、不降级、不进 `shape` | **RISK-F 核心护栏** |
 | `test_counts_are_consistent` | 随机 200 组，逐库与汇总恒等式恒成立 | §6.5 |
 | `test_no_business_db_warns` / `test_unreliable_instance_type_warns` | W6 / W5 | — |
 | `test_reject_system_database` | `database='mysql'` → `ValueError` → API 400 | E-2 |
@@ -1015,7 +1039,7 @@ SQL）与 `selected`（所有切库动作）——后者正是 ADR-3 护栏的�
 
 **本地验证结果（2026-08-29）**：用 importlib 把附录 A.1 挂载为
 `backend.services.table_type_stats_service`（**仓库代码零改动**），
-`python -m pytest` **35 项全部通过**，含对本地 MariaDB(13306) 的真实落库用例。
+`python -m pytest` **37 项全部通过**，含对本地 MariaDB(13306) 的真实落库用例。
 
 
 ## 12. 验收清单
@@ -1072,7 +1096,7 @@ SQL）与 `selected`（所有切库动作）——后者正是 ADR-3 护栏的�
 
 > **本附录四个文件已在本地环境完整验证**：用 importlib 把 A.1 挂载为
 > `backend.services.table_type_stats_service`（**仓库代码零改动**），
-> `python -m pytest` **35 项全部通过**，其中含对本地 MariaDB(13306) 的真实落库用例；
+> `python -m pytest` **37 项全部通过**，其中含对本地 MariaDB(13306) 的真实落库用例；
 > A.2 的路由在 FastAPI 下正确注册出 3 条路径。实施者可直接落盘，不需要二次设计。
 >
 > **Rev.B 相对 Rev.A 的实质变化**（均源自 2026-08-29 内网实测）：
@@ -1089,7 +1113,7 @@ SQL）与 `selected`（所有切库动作）——后者正是 ADR-3 护栏的�
 >
 > 唯一可能再变的是 T14 / T15 的结论（§10.5 GATE-2 的两个"是"）。
 
-### A.1 `backend/services/table_type_stats_service.py`（新增，574 行）
+### A.1 `backend/services/table_type_stats_service.py`（新增，581 行）
 
 ```python
 # -*- coding: utf-8 -*-
@@ -1109,6 +1133,10 @@ SQL）与 `selected`（所有切库动作）——后者正是 ADR-3 护栏的�
     with shardkey / with noshardkey_allset 另有第二列 info（shardkey:xxx），
     without shardkey 只有一列。
   · 三类结果集互斥（without shardkey 不含广播表）。
+  · 某类为空时 Proxy 返回的是【OK 包】而非空结果集
+    （`Query OK, 0 rows affected`，0.001 秒返回，不是挂起）。
+    PyMySQL >= 1.1.0 对 OK 包 fetchall() 返回 []，cursor.description 为 None，
+    故本模块天然按"该类 0 张"处理；赤兔页面转圈是其前端等列元数据所致，与本模块无关。
 
 设计要点（详见 DESIGN-v1.6.3.0）：
   · 结果按【库限定名】归属到库，而不是无条件算在当前会话库上——
@@ -1422,6 +1450,9 @@ def _collect_distributed(pool, dbs: list, baseline: dict, known_dbs: set):
                             if _errno_of(e) == _SYNTAX_ERRNO:
                                 syntax_errors += 1
                             break
+                        # rows 可能是 OK 包（某类为空时 TDSQL 返回
+                        # `Query OK, 0 rows affected`）——此时 fetchall() 为 []
+                        # 且无列元数据，_extract_pairs 按 0 张处理，不是错误。
                         pairs, columns, guessed, cross = _extract_pairs(
                             rows, db, known_dbs)
                         if columns and kind not in shape:
@@ -1763,7 +1794,7 @@ CREATE TABLE IF NOT EXISTS table_type_stat_item (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ```
 
-### A.4 `tests/test_table_type_stats.py`（新增，594 行）
+### A.4 `tests/test_table_type_stats.py`（新增，623 行）
 
 ```python
 # -*- coding: utf-8 -*-
@@ -2284,6 +2315,35 @@ def test_empty_result_set_is_not_an_error(monkeypatch):
     assert res["shard_tables"] == 1 and res["warnings"] == []
 
 
+def test_extract_pairs_tolerates_none_rows():
+    """OK 包路径的防御：即使驱动回 None 也不得抛异常（PyMySQL>=1.1.0 回 []）"""
+    pairs, columns, guessed, cross = svc._extract_pairs(None, "db_a", {"db_a"})
+    assert pairs == set() and columns == [] and guessed is False and cross is False
+
+
+def test_ok_packet_yields_zero_without_warning(monkeypatch):
+    """实测 lzbj_ecif：without shardkey 返回 OK 包（0 行）。
+
+    该类必须计 0、不得告警、不得进 shape，也不得让该库降级为 FAILED。
+    """
+    _patch_ctx(monkeypatch, "distributed")
+    per_db = {("db_a", svc.SQL_SHARD): _rows(["db_a.s1"], info="shardkey:id"),
+              ("db_a", svc.SQL_BROADCAST): _rows(["db_a.b1"],
+                                                 info="shardkey:noshardkey_allset"),
+              ("db_a", svc.SQL_SINGLE): None}          # OK 包 → fetchall() -> []
+    pool = FakePool(databases=["db_a"],
+                    info_schema={"db_a": {"base": ["s1", "b1"]}},
+                    per_db=per_db)
+    _patch_tmp_pool(monkeypatch, pool)
+    res = svc.analyze(pool, connection_id="c1")
+    assert res["single_tables"] == 0
+    assert (res["shard_tables"], res["broadcast_tables"],
+            res["total_tables"]) == (1, 1, 2)
+    assert res["failed_databases"] == 0
+    assert res["warnings"] == []
+    assert "single" not in res["shape"]          # OK 包无列元数据
+
+
 def test_counts_are_consistent():
     """恒等式 total == shard + broadcast + single，随机 200 组"""
     rnd = random.Random(20260829)
@@ -2401,13 +2461,13 @@ app.include_router(table_type_stats_router)  # G14 表类型统计
 
 #### A.5.3 `backend/services/database.py` —— 1 行
 
-在 `_init_default_data` 的 `all_menus` 中 `'deep-diag-toolkit',`（第 1691 行）之后追加：
+在 `_init_default_data` 的 `all_menus` 中 `'deep-diag-toolkit',`（第 1717 行）之后追加：
 
 ```python
         'deep-diag-tabletype',
 ```
 
-> **这一行不是可选的。** `database.py:1749` 的
+> **这一行不是可选的。** `database.py:1775` 的
 > `DELETE FROM role_permissions WHERE menu_key NOT IN (...)` 会在每次启动时
 > 删掉不在该清单里的菜单键，导致新页签在权限矩阵里出现一次、下次重启后永久消失。
 
@@ -2549,7 +2609,53 @@ MySQL [sqltuning]> /*proxy*/show table with noshardkey_allset;
 `with noshardkey_allset` 的 `info` 出现 `shardkey:noshardkey_allset;auto_increment:ID`
 这种带自增标注的变体。**两种变体都不影响本期计数**（只取 `db_table` 列）。
 
-### B.3 由本次实测直接得出的结论
+### B.3 第二轮实测（2026-08-29，`mysql` 客户端直连 Proxy）
+
+**环境**：`mysql --comments -h 10.243.20.13 -P 15005 -u checksql -p`；
+服务端 `8.0.33-v24-txsql-22.6.9-20250509`，库 `lzbj_ecif`
+
+**B.3.1 空结果集的真实形态（关键）**
+
+```
+MySQL [lzbj_ecif]> /*proxy*/show table without shardkey;
+Query OK, 0 rows affected (0.001 sec)
+```
+
+不是 `Empty set`，是 **`Query OK`** —— OK 包，无列元数据。**这解释了赤兔转圈**，
+也确定了本模块无需改设计（详见 §3.3 RISK-F）。
+
+**B.3.2 `lzbj_ecif` 三类计数**
+
+| 命令 | 行数 | 耗时 |
+|---|---|---|
+| `/*proxy*/show table with shardkey` | **98** | 0.001 sec |
+| `/*proxy*/show table with noshardkey_allset` | **117** | 0.002 sec |
+| `/*proxy*/show table without shardkey` | **0**（OK 包） | 0.001 sec |
+| **合计** | **215** | — |
+
+→ 本模块对该库应输出：**总表 215 / 单表 0 / 广播表 117 / 分片表 98**。
+这是开发完成后 UAT 的**第一个对数基准**。
+
+**B.3.3 `info` 列的取值谱系（本期不使用，为将来预留）**
+
+| 形态 | 样例 |
+|---|---|
+| 广播表 | `shardkey:noshardkey_allset` |
+| 广播表 + 自增 | `shardkey:noshardkey_allset;auto_increment:ID` / `;auto_increment:NID` |
+| 一级 hash 分片 | `shardkey:cust_no` / `shardkey:emp_no` / `shardkey:log_id` |
+| 二级分区（hash 子键） | `shardkey:SHARDKEY_HASH_USE_SUB;sub_shardkey:CUST_NO;sub_func:CUST_NO` |
+| 二级分区（按月） | `shardkey:id;sub_shardkey:CREATE_DATE;sub_func:month` |
+| 分片 + 自增 | `shardkey:SHARDKEY_HASH_USE_SUB;auto_increment:ID;sub_shardkey:CUST_NO;sub_func:CUST_NO` |
+
+注意 `sub_shardkey` 的列名**大小写不统一**（`CUST_NO` 与 `cust_no` 并存），
+将来若要解析 `info` 需按不区分大小写处理。**本期只取 `db_table` 列，不受影响。**
+
+**B.3.4 连接可用性**
+
+OK 包之后同一 session 继续执行 `with noshardkey_allset`（117 行）与
+`with shardkey`（98 行）均正常 —— **OK 包不会污染连接状态**。
+
+### B.4 由两轮实测直接得出的结论
 
 | 编号 | 结论 | 落到代码 |
 |---|---|---|
@@ -2560,14 +2666,17 @@ MySQL [sqltuning]> /*proxy*/show table with noshardkey_allset;
 | B-5 | `information_schema` 经 Proxy 可查且含系统库 | 业务库白名单过滤必需 |
 | B-6 | 赤兔对无单表的库执行 `without shardkey` 会转圈 | RISK-F；30s/180s 双层兜底；T15 判决 |
 | B-7 | 三条命令 0.01 秒级返回（`sqltuning` 规模） | 性能基准，T10 在更大库上复核 |
+| B-8 | 某类为空时返回 **OK 包**而非空结果集 | RISK-F 裁决；PyMySQL 按 `[]` 处理；交叉校验是该静默失效模式的唯一探测器 |
+| B-9 | `lzbj_ecif` = 98 分片 + 117 广播 + 0 单表 = 215 | UAT 对数基准（B.3.2） |
+| B-10 | 215 张表的库，三条命令合计 0.004 秒 | 单库开销可忽略；总耗时只取决于库数（见 T13） |
 
-**待回填（T13/T14/T15 完成后补入本附录）**：
+**待回填（T13 / T14 完成后补入本附录）**：
 
-| 项 | 内容 | 来源 |
-|---|---|---|
-| 命令作用域 | 当前库 / 实例级 | T13 |
-| `sqltuning` 的 `base_tables` 是否 = 29 | | T14 |
-| 空结果集行为 | A / B / C | T15 |
+| 项 | 内容 | 来源 | 阻断 |
+|---|---|---|---|
+| 命令作用域 | 当前库 / 实例级 | T13 | 否 |
+| `lzbj_ecif` 的 `base_tables` 是否 = 215 | | T14 | 否（除非看到物理分片子表） |
+| ~~空结果集行为~~ | 已完成：OK 包，0.001s，不挂起 | T15 | — |
 
 ---
 
@@ -2576,5 +2685,6 @@ MySQL [sqltuning]> /*proxy*/show table with noshardkey_allset;
 
 | 版本 | 日期 | 作者 | 内容 |
 |---|---|---|---|
+| Rev.C | 2026-08-29 | 智能体 A | 依第二轮内网实测（T15）**裁决 RISK-F**：命令不挂起，`mysql` 直连 Proxy 返回 `Query OK, 0 rows affected (0.001 sec)`—— 是 **OK 包**不是空结果集，赤兔转圈系其前端等列元数据所致。核对 PyMySQL 行为（本机 2.2.8 + 项目下限 1.1.0 wheel 源码）：OK 包 `fetchall()` 返回 `[]`、`description` 为 `None`，本模块天然按该类 0 张处理，**设计不改**。新增语义记录：OK 包与命令不被支持在协议上不可区分，§6.6 交叉校验是该静默失效模式的唯一探测器。新增护栏用例 2 项（共 37 项，全部通过）。附录 B 增补第二轮原始数据：`lzbj_ecif` = 98 分片 + 117 广播 + 0 单表 = **215**（UAT 对数基准）、`info` 列取值谱系、三条命令合计 0.004 秒。§10 归档 T15，剩余 T13 / T14 均标注**不阻断开发**；**GATE-2 无阻断项，可进入开发**。 |
 | Rev.B | 2026-08-29 | 智能体 A | 依第一轮内网实测（附录 B）修订。**证伪 RISK-A**（三类互斥，归一化改作保险保留）；**锚定 RISK-C**（列名 `db_table`、`without shardkey` 单列、值为库限定名）；**新增 RISK-E**（命令作用域可能为实例级——Rev.A 会让总数放大 N 倍，改为按行内库限定名归属 + 全局 `(库,表)` 去重 + 覆盖性跳过，两种作用域下均正确）；**新增 RISK-F**（无单表的库上命令可能挂起——加 30s 读超时 + 180s 总预算 + `SKIPPED` 状态）。新增 ADR-11~14、E-18~23、W9~W11、`skipped_databases` 字段。§10 重写为"第一轮裁决表 + T13/T14/T15 三项补测 + GATE-2"。附录 A 代码同步更新（服务层 574 行 / 单测 594 行），**本地 35 项单测全部通过，仓库代码零改动**。 |
 | Rev.A | 2026-08-29 | 智能体 A | 首版。需求拆解、现状勘查（含 `/*proxy*/` 存活性证据链）、三大语义风险（RISK-A/B/C/D）识别与对策、总体与详细设计、10 条 ADR、17 项异常矩阵、爆炸半径分析、12 个内网实测用例与 GATE-1 放行判据、附录 A 全套成品代码（服务层 489 行 / API 44 行 / 迁移 34 行 / 单测 455 行 / 既有文件 9 行改动 + 1 个前端块）。**附录 A 代码已在本地以 importlib 挂载方式跑通 32 项单测（含真实 MariaDB 落库），仓库代码零改动。** |
