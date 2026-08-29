@@ -73,7 +73,8 @@ def test_gateway_report_ticket_api():
     report_id = resp.json()["report_id"]
 
     # 签发票据（头部令牌鉴权路径，测试环境认证关闭时以匿名管理员放行）
-    resp_tk = client.get(f"/api/v1/gateway-log/reports/{report_id}/ticket")
+    # v1.6.2.2-UAT-O-22：签发是产生状态的操作，必须为 POST
+    resp_tk = client.post(f"/api/v1/gateway-log/reports/{report_id}/ticket")
     assert resp_tk.status_code == 200
     ticket = resp_tk.json()["ticket"]
     assert ticket and len(ticket) >= 20
@@ -83,7 +84,7 @@ def test_gateway_report_ticket_api():
     assert gateway_log_service.consume_report_ticket(ticket, report_id) is None
 
     # 报告不存在时不得签发票据
-    resp_404 = client.get("/api/v1/gateway-log/reports/999999/ticket")
+    resp_404 = client.post("/api/v1/gateway-log/reports/999999/ticket")
     assert resp_404.status_code == 404
 
 

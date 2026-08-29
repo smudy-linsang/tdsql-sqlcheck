@@ -10,12 +10,10 @@ import secrets
 import shutil
 import subprocess
 import tempfile
-import threading
-import time
 from datetime import datetime
 from html import escape as html_escape
 from pathlib import Path
-from backend.services.database import _get_connection, _execute_sql
+from backend.services.database import _get_connection, _execute_sql, ensure_db
 
 logger = logging.getLogger("tdsql.gateway_log")
 
@@ -25,11 +23,15 @@ _MAX_SKIP_RATIO = min(max(float(os.getenv("GATEWAY_MAX_SKIP_RATIO", "0.5")), 0.0
 # 部分有效时的最大丢弃样例条数（写进响应与报告横幅，供用户定位原因）
 _SKIP_SAMPLE_LIMIT = 5
 
-# v1.6.2.2-UAT-O-15：报告 iframe 不再把长期令牌放进可见 URL，改用短时一次性报告票据：
-# 登录后经 POST 签发（90s 有效、用后即焚、绑定报告 ID），iframe 只携带该票据。
-_REPORT_TICKETS: dict = {}
-_REPORT_TICKET_LOCK = threading.Lock()
+# v1.6.2.2-UAT-O-15/O-22：报告 iframe 不把长期令牌放进可见 URL，改用短时一次性报告票据。
+# O-22：票据存所有 worker 共享的元数据库（进程内字典在 --workers 2 下随机 401）；
+# 只存 SHA-256 哈希，消费以单条原子 UPDATE（未消费+未过期+报告匹配，受影响行数=1）判据一次性。
 _REPORT_TICKET_TTL_SECONDS = 90
+
+
+def _hash_ticket(ticket: str) -> str:
+    import hashlib
+    return hashlib.sha256(ticket.encode("utf-8")).hexdigest()
 
 
 class GatewayLogService:
@@ -365,38 +367,59 @@ class GatewayLogService:
         finally:
             conn.close()
 
-    # ── 一次性报告票据（v1.6.2.2-UAT-O-15）─────────────────────
-
-    def _purge_expired_tickets(self):
-        """清理过期票据（调用方持锁）"""
-        now = time.time()
-        for tk in [k for k, v in _REPORT_TICKETS.items() if v[2] < now]:
-            _REPORT_TICKETS.pop(tk, None)
+    # ── 一次性报告票据（v1.6.2.2-UAT-O-15/O-22，共享存储 + 原子消费）────────
 
     def create_report_ticket(self, report_id: int, username: str) -> str:
-        """为指定报告签发短时一次性票据（仅登录后由签发接口调用）"""
+        """为指定报告签发短时一次性票据（仅登录后由签发接口调用）。
+
+        v1.6.2.2-UAT-O-22：写入所有 worker 共享的元数据库，跨进程可消费；
+        只存 SHA-256 哈希，不明文持久化；签发时顺带批量清理过期/已消费票据。
+        """
+        ensure_db()
         ticket = secrets.token_urlsafe(24)
-        with _REPORT_TICKET_LOCK:
-            self._purge_expired_tickets()
-            _REPORT_TICKETS[ticket] = (int(report_id), username,
-                                       time.time() + _REPORT_TICKET_TTL_SECONDS)
+        conn = _get_connection()
+        try:
+            # 批量清理：过期票据与已消费超过 1 小时的票据
+            conn.execute(
+                "DELETE FROM gateway_report_tickets WHERE expires_at < NOW() "
+                "OR (consumed_at IS NOT NULL AND consumed_at < NOW() - INTERVAL 1 HOUR)")
+            conn.execute(
+                "INSERT INTO gateway_report_tickets "
+                "(ticket_hash, report_id, username, expires_at) "
+                "VALUES (?, ?, ?, DATE_ADD(NOW(), INTERVAL %s SECOND))"
+                % _REPORT_TICKET_TTL_SECONDS,
+                (_hash_ticket(ticket), int(report_id), username))
+            conn.commit()
+        finally:
+            conn.close()
         return ticket
 
     def consume_report_ticket(self, ticket: str, report_id: int):
-        """一次性消费票据：有效且报告 ID 匹配返回签发者用户名，否则 None。
+        """一次性消费票据：原子 UPDATE 成功返回签发者用户名，否则 None。
 
-        无论成败均即焚——失败重试/重放不能再次命中；过期票据同样作废。
+        单条 UPDATE 以“未消费且未过期且报告匹配”为条件，受影响行数=1 才是成功；
+        先查再改无法保证一次性。错误报告、过期、重放、跨报告均统一失败（调用方 401），
+        不泄露票据存在性。
         """
         if not ticket:
             return None
-        with _REPORT_TICKET_LOCK:
-            item = _REPORT_TICKETS.pop(ticket, None)
-        if not item:
-            return None
-        bound_report_id, username, expire_at = item
-        if time.time() > expire_at or int(bound_report_id) != int(report_id):
-            return None
-        return username
+        conn = _get_connection()
+        try:
+            cur = conn.execute(
+                "UPDATE gateway_report_tickets SET consumed_at = NOW() "
+                "WHERE ticket_hash = ? AND report_id = ? "
+                "AND consumed_at IS NULL AND expires_at > NOW()",
+                (_hash_ticket(ticket), int(report_id)))
+            conn.commit()
+            if getattr(cur, "rowcount", 0) != 1:
+                return None
+            # 原子消费已成立（本进程唯一中标），读取签发者仅作身份回填
+            row = conn.execute(
+                "SELECT username FROM gateway_report_tickets WHERE ticket_hash = ?",
+                (_hash_ticket(ticket),)).fetchone()
+            return dict(row)["username"] if row else None
+        finally:
+            conn.close()
 
 
 gateway_log_service = GatewayLogService()

@@ -1046,7 +1046,7 @@ const app=createApp({
       // 报告响应自带 nonce 制 CSP（无 unsafe-inline）与 frame-ancestors 'self'，
       // 样式/脚本仍被不透明源 sandbox 隔离。
       try{
-        const resp=await apiFetch(`${API_BASE}/api/v1/gateway-log/reports/${row.id}/ticket`);
+        const resp=await apiFetch(`${API_BASE}/api/v1/gateway-log/reports/${row.id}/ticket`,{method:'POST'});
         if(!resp.ok){
           ElementPlus.ElMessage.error('报告访问票据签发失败，请重试');
           return;

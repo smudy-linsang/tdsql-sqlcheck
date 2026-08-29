@@ -360,6 +360,33 @@ def ensure_db():
 
 
 def init_db():
+    """初始化数据库 — 创建所有27张表 + 迁移 + 初始化默认数据
+
+    v1.6.2.2-UAT-O-23-5：多 worker 并发启动时，各进程的 init_db 会并发执行
+    DDL/初始化 DML，曾在 _init_default_data 的 UPDATE 上产生死锁。
+    以 MySQL 命名锁（同一元数据库服务级互斥）串行化启动初始化；
+    锁超时即失败关闭（启动不得带着不完整结构继续）。
+    """
+    lock_conn = _get_connection()
+    try:
+        row = lock_conn.execute(
+            "SELECT GET_LOCK('tdsql_sqlcheck_init', 60) AS got").fetchone()
+        got = dict(row).get("got") if row else 0
+        if got != 1:
+            raise RuntimeError("初始化命名锁获取超时（另一进程仍在初始化中）")
+    except Exception:
+        lock_conn.close()
+        raise
+    try:
+        _init_db_inner()
+    finally:
+        try:
+            lock_conn.execute("SELECT RELEASE_LOCK('tdsql_sqlcheck_init')")
+        finally:
+            lock_conn.close()
+
+
+def _init_db_inner():
     """初始化数据库 — 创建所有27张表 + 迁移 + 初始化默认数据"""
     conn = _get_connection()
     try:
@@ -378,11 +405,10 @@ def init_db():
         # v1.2 增量 Schema 迁移文件加载。
         # 必须先于 _migrate_old_tables：scan_snapshots 等表只由 v2+ 脚本创建，
         # 若补列先跑，这些表的增量列（如 rule_set_id）在首次启动会被守卫跳过。
-        try:
-            from backend.schema.migrator import migrator
-            migrator.run_migrations()
-        except Exception as me:
-            logger.warning(f"Schema 增量迁移执行提示: {me}")
+        # v1.6.2.2-UAT-O-23：迁移失败必须失败关闭——绝不降级为告警后继续启动，
+        # 否则锁超时/权限等异常会留下“已应用但实际缺列”的假成功状态。
+        from backend.schema.migrator import migrator
+        migrator.run_migrations()
 
         # 旧版表增量补列：必须在建表与脚本迁移之后。
         # v1.5.2.4 P1-02：原先放在建表之前，全新安装时 table_names 快照为空，

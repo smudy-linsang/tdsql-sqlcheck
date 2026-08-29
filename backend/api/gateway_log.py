@@ -136,13 +136,15 @@ def get_report_detail(report_id: int):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/reports/{report_id}/ticket")
+@router.post("/reports/{report_id}/ticket")
 def create_report_ticket(report_id: int, http_request: Request):
-    """签发短时一次性报告票据（v1.6.2.2-UAT-O-15）。
+    """签发短时一次性报告票据（v1.6.2.2-UAT-O-15/O-22）。
 
     iframe 无法携带 Authorization 头，此前把长期登录令牌放进可见 URL 属凭证泄露面；
     改为登录后经本接口（头部令牌鉴权 + RBAC）签发 90s 一次性票据，
     iframe 仅携带该票据访问 /html。
+    v1.6.2.2-UAT-O-22：签发是产生状态的操作，必须用 POST；票据存共享元数据库，
+    多 worker 下签发与消费可落在不同进程。
     """
     res = gateway_log_service.get_report_detail(report_id)
     if not res:

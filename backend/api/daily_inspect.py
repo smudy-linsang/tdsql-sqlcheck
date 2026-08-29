@@ -1,5 +1,6 @@
 """M3 · G4 每日巡检 + 趋势与对比分析 API"""
 import asyncio
+import logging
 import secrets
 from fastapi import APIRouter, HTTPException, Response, Query
 from pydantic import BaseModel, Field
@@ -11,6 +12,8 @@ from backend.services.connection_errors import (
     AuthenticationFailedError, ConnectionRefusedError_, DatabaseNotFoundError,
     InstanceConnectionError, MonitorDbUnavailableError, translate_db_error,
 )
+
+logger = logging.getLogger("tdsql.daily_inspect")
 
 router = APIRouter(prefix="/api/v1/daily-inspect", tags=["每日巡检与趋势"])
 
@@ -49,8 +52,12 @@ async def run(body: DailyRequest):
         except ConnectionNotFoundError:
             raise HTTPException(status_code=400, detail="未连接TDSQL实例或连接不存在")
         except Exception as conn_exc:
-            # 领域化：连接拒绝/认证失败/库不存在等映射为可读 422，不落裸 500。
-            raise translate_db_error(conn_exc)
+            # v1.6.2.2-UAT-O-24：严格白名单映射；未知程序异常原样抛出走 500，
+            # 绝不伪装成“实例连接失败”掩盖代码缺陷。
+            mapped = translate_db_error(conn_exc)
+            if mapped is None:
+                raise
+            raise mapped
         probe = pool.monitor_probe()
         if not probe["ok"]:
             # 如果是 Mock 实例，我们不阻断巡检，直接跑 Mock 流程
@@ -74,8 +81,10 @@ async def run(body: DailyRequest):
     except InstanceConnectionError as e:
         raise HTTPException(status_code=422, detail=f"实例连接失败：{e}")
     except Exception as e:
-        # 未知程序错误仍是 500（携带 X-Request-ID 由中间件下发），避免掩盖真正缺陷。
-        raise HTTPException(status_code=500, detail=str(e))
+        # v1.6.2.2-UAT-O-24：未知程序错误仍是 500 并记录完整堆栈，响应不泄漏内部细节，
+        # 以 X-Request-ID 关联日志（中间件下发）。
+        logger.exception("日常巡检发生未预期异常")
+        raise HTTPException(status_code=500, detail="巡检服务内部错误，请携带 X-Request-ID 联系管理员排查")
 
 
 @router.get("/trend", summary="多日趋势")

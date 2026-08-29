@@ -9,11 +9,12 @@
 """
 import pytest
 from fastapi.testclient import TestClient
+from unittest.mock import patch
 
 from backend.main import app
 from backend.services.connection_errors import (
     AuthenticationFailedError, ConnectionRefusedError_, DatabaseNotFoundError,
-    InstanceConnectionError, translate_db_error,
+    translate_db_error,
 )
 from backend.services.database import _get_connection, ensure_db
 
@@ -35,11 +36,20 @@ class TestTranslateDbError:
         exc = Exception("(1049, \"Unknown database 'no_such_db'\")")
         assert isinstance(translate_db_error(exc), DatabaseNotFoundError)
 
-    def test_unknown_falls_back_to_base_domain(self):
-        exc = Exception("some weird network problem")
-        out = translate_db_error(exc)
-        assert isinstance(out, InstanceConnectionError)
-        assert out.cause is exc
+    def test_unknown_exception_maps_to_none(self):
+        """v1.6.2.2-UAT-O-24：未知程序异常不得被翻译成连接失败，必须返回 None"""
+        assert translate_db_error(RuntimeError("synthetic programming defect")) is None
+        assert translate_db_error(AttributeError("no attribute x")) is None
+        assert translate_db_error(TypeError("bad type")) is None
+
+    def test_errno_driven_mapping(self):
+        """errno 优先：携带稳定错误码的异常按码映射"""
+        exc = Exception(2003, "Can't connect to MySQL server")
+        assert isinstance(translate_db_error(exc), ConnectionRefusedError_)
+        assert isinstance(translate_db_error(Exception(1045, "Access denied")),
+                          AuthenticationFailedError)
+        assert isinstance(translate_db_error(Exception(1049, "Unknown database")),
+                          DatabaseNotFoundError)
 
 
 class TestOfflineInstanceDailyRun:
@@ -85,3 +95,23 @@ class TestOfflineInstanceDailyRun:
                                  "inspect_date": "2026-08-28"})
         assert resp.status_code == 400
         assert "未连接" in resp.json()["detail"]
+
+
+class TestUnknownErrorStays500:
+    """v1.6.2.2-UAT-O-24：未知程序异常不得伪装成 422 连接失败"""
+
+    @pytest.mark.parametrize("exc", [
+        RuntimeError("synthetic programming defect"),
+        AttributeError("synthetic attribute error"),
+        TypeError("synthetic type error"),
+    ])
+    def test_program_defect_returns_500_with_request_id(self, exc):
+        with patch("backend.services.connection_registry.registry.get_saved",
+                   side_effect=exc):
+            resp = client.post("/api/v1/daily-inspect/run",
+                               json={"connection_id": OFFLINE_CONN_ID,
+                                     "inspect_date": "2026-08-28"})
+        assert resp.status_code == 500, \
+            f"{type(exc).__name__} 不得被包装成 422，实际 {resp.status_code}"
+        assert "X-Request-ID" in resp.headers, "500 响应必须携带请求ID便于定位"
+        assert "实例连接失败" not in resp.text, "未知异常不得伪装成连接失败"

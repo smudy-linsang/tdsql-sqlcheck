@@ -135,7 +135,15 @@ class TestServeTimeHardening:
 
 
 class TestOneTimeReportTicket:
-    """一次性报告票据：用后即焚、绑定报告、拒绝伪造"""
+    """一次性报告票据（v1.6.2.2-UAT-O-22：共享存储、原子消费、不明文持久化）
+
+    依赖元数据库（tdsql_sqlcheck_test）：票据表由迁移 v12 创建。
+    """
+
+    @pytest.fixture(autouse=True)
+    def _tickets_table(self):
+        from backend.services.database import ensure_db
+        ensure_db()
 
     def test_issue_consume_once(self):
         tk = gateway_log_service.create_report_ticket(9001, "uat_admin")
@@ -153,3 +161,50 @@ class TestOneTimeReportTicket:
 
     def test_empty_ticket_rejected(self):
         assert gateway_log_service.consume_report_ticket("", 1) is None
+
+    def test_plaintext_ticket_never_persisted(self):
+        """库中只存 SHA-256 哈希，明文票据不得落库"""
+        from backend.services.database import _get_connection
+        tk = gateway_log_service.create_report_ticket(9003, "uat_admin")
+        conn = _get_connection()
+        try:
+            rows = conn.execute(
+                "SELECT ticket_hash FROM gateway_report_tickets").fetchall()
+            hashes = [dict(r)["ticket_hash"] for r in rows]
+        finally:
+            conn.close()
+        assert tk not in hashes, "明文票据不得持久化"
+        import hashlib
+        assert hashlib.sha256(tk.encode("utf-8")).hexdigest() in hashes
+
+    def test_expired_ticket_rejected(self):
+        """过期票据消费失败（统一不泄露存在性）"""
+        from backend.services.database import _get_connection
+        tk = gateway_log_service.create_report_ticket(9004, "uat_admin")
+        conn = _get_connection()
+        try:
+            conn.execute(
+                "UPDATE gateway_report_tickets SET expires_at = NOW() - INTERVAL 1 SECOND "
+                "WHERE ticket_hash = ?",
+                (__import__("hashlib").sha256(tk.encode()).hexdigest(),))
+            conn.commit()
+        finally:
+            conn.close()
+        assert gateway_log_service.consume_report_ticket(tk, 9004) is None
+
+    def test_concurrent_consume_exactly_one_wins(self):
+        """原子性：同一张票据被两个线程同时消费，恰好只有一个成功"""
+        import threading
+        tk = gateway_log_service.create_report_ticket(9005, "uat_admin")
+        results = []
+
+        def consume():
+            results.append(gateway_log_service.consume_report_ticket(tk, 9005))
+
+        threads = [threading.Thread(target=consume) for _ in range(2)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=30)
+        wins = [r for r in results if r == "uat_admin"]
+        assert len(wins) == 1, f"原子消费必须恰好一次成功，实际 {results}"
