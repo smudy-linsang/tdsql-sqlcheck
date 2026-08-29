@@ -13,12 +13,12 @@ v1.6.2.2-UAT-O-23：迁移必须失败关闭——
 v1.6.2.2-UAT-O-26：已登记迁移的启动路径同样失败关闭——
 - 缺列（missing）→ 幂等补齐；结构与文件声明不符（mismatch）→ 启动失败关闭；
 - 版本键与 checksum 一致时也必须逐列校验类型/可空/默认值，不得只验“列存在”；
-- checksum 漂移（文件内容与版本记录漂移）默认失败关闭；仅当显式列入
-  SCHEMA_CHECKSUM_RECONCILE 白名单且结构验收通过时，才重设基线并审计留痕。
+- checksum 漂移（文件内容与版本记录漂移）默认失败关闭；仅对代码内精确三元组
+  账本（version_key + 历史 checksum + 当前 checksum）中的已知历史变更自动一次性调和
+  并审计留痕（v1.6.2.2-UAT-O-30，长期环境变量开关已移除）。
 """
 import hashlib
 import logging
-import os
 import re
 
 from backend.services.database import _get_connection
@@ -26,9 +26,16 @@ from backend.schema.loader import discover_schema_files
 
 logger = logging.getLogger("tdsql.schema.migrator")
 
-# checksum 漂移显式调和白名单（逗号分隔的版本键）：仅当 operator 人工确认后设置。
-# 调和前仍先做结构验收；通过后重设基线记录并以 ERROR 级日志留痕。
-_RECONCILE_ENV = "SCHEMA_CHECKSUM_RECONCILE"
+# v1.6.2.2-UAT-O-30：代码内精确调和账本（一次性闭环）。
+# 键必须精确匹配 {version_key, 历史 checksum, 当前 checksum} 三元组；
+# 未知组合、其他版本、任意未来漂移一律失败关闭——不存在可调用的长期开关。
+_KNOWN_RECONCILIATIONS = {
+    "v9_090_connection_unique": {
+        "historical_checksum": "54ee2e97c804f5d8ec216d9f51600c19cc8463f2cede1de07fa67635abe6de28",
+        "current_checksum": "c6cf33bb385456fef12af3d4888ea6b22dcfc2a64052d734adc4c37457915209",
+        "reason": "v1.6.0.4 将 090 迁移改为 no-op（提交 08ce65c）：端点唯一约束改由 Python 层执行",
+    },
+}
 
 
 class MigrationError(RuntimeError):
@@ -70,18 +77,44 @@ class SchemaMigrator:
 
     @staticmethod
     def _expected_column_spec(definition: str) -> dict:
-        """从 ADD COLUMN 定义解析期望的 类型/可空性/默认值"""
+        """从 ADD COLUMN 定义解析期望的 类型/可空性/默认值（v1.6.2.2-UAT-O-29 三态化）。
+
+        必须区分“DDL 未声明 DEFAULT”（has_default=False）与“显式 DEFAULT NULL”
+        （has_default=True 且 default=None），不能用单个 None 承担两种语义——
+        否则未声明 DEFAULT 的迁移完全不校验现存列默认值（O-29 复现的漏检）。
+        """
         d = " ".join(str(definition).split())
         up = d.upper()
         m = re.match(r"(\w+(?:\(\d+(?:,\s*\d+)?\))?(?:\s+UNSIGNED)?)", d, re.IGNORECASE)
         expected_type = m.group(1).replace(" ", "").lower() if m else ""
         not_null = " NOT NULL" in f" {up}"
         dm = re.search(r"\bDEFAULT\s+('[^']*'|\"[^\"]*\"|[^\s,]+)", d, re.IGNORECASE)
+        has_default = dm is not None
         expected_default = None
-        if dm:
+        if has_default:
             dv = dm.group(1)
             expected_default = dv.strip("'\"") if dv[:1] in ("'", '"') else dv.upper()
-        return {"type": expected_type, "not_null": not_null, "default": expected_default}
+        return {"type": expected_type, "not_null": not_null,
+                "has_default": has_default, "default": expected_default}
+
+    @staticmethod
+    def _normalize_default(value):
+        """把 information_schema.COLUMNS.COLUMN_DEFAULT 归一化为可比较文本。
+        MySQL/TDSQL 对关键字默认值（CURRENT_TIMESTAMP/TRUE/FALSE/NULL）大小写不定，
+        布尔在整型列上可能物化为 1/0——关键词归一比较、引号字符串精确比较。"""
+        if value is None:
+            return None
+        v = str(value).strip()
+        vu = v.upper().rstrip("()")
+        if vu in ("CURRENT_TIMESTAMP", "CURRENT_TIMESTAMP()", "NOW"):
+            return "CURRENT_TIMESTAMP"
+        if vu in ("TRUE", "1"):
+            return "TRUE"
+        if vu in ("FALSE", "0"):
+            return "FALSE"
+        if vu == "NULL":
+            return None
+        return v
 
     def _verify_column(self, cursor, key: str, table: str, column: str, definition: str):
         """严格校验既有列的类型/可空性/默认值；不符即失败关闭。"""
@@ -96,12 +129,20 @@ class SchemaMigrator:
         actual_not_null = str(info.get("is_nullable") or "").upper() == "NO"
         if actual_not_null != exp["not_null"]:
             problems.append(f"可空性不符: 期望 {'NOT NULL' if exp['not_null'] else 'NULL'}")
-        if exp["default"] is not None:
-            actual_default = info.get("column_default")
-            ad = "NULL" if actual_default is None else str(actual_default)
-            ed = exp["default"]
-            if ad.upper() != str(ed).upper():
-                problems.append(f"默认值不符: 期望 {ed} 实际 {ad}")
+        # v1.6.2.2-UAT-O-29：默认值永远参与校验——未声明 DEFAULT 时按目标库规范化
+        # 结果（I_S 中为 NULL）验收；显式 DEFAULT NULL 同样期望 NULL；
+        # 有值时按关键字归一/字符串精确比较。
+        actual_default = self._normalize_default(info.get("column_default"))
+        if not exp["has_default"] or exp["default"] is None:
+            if actual_default is not None:
+                problems.append(
+                    f"默认值不符: 期望 {'NULL' if exp['has_default'] else '无声明(规范化为 NULL)'} "
+                    f"实际 {info.get('column_default')!r}")
+        else:
+            expected_default = self._normalize_default(exp["default"])
+            if actual_default != expected_default:
+                problems.append(
+                    f"默认值不符: 期望 {expected_default!r} 实际 {info.get('column_default')!r}")
         if problems:
             raise MigrationError(
                 f"迁移结构验收失败 [{key}]: 列 {table}.{column} " + "；".join(problems))
@@ -188,30 +229,83 @@ class SchemaMigrator:
         保留为向后兼容包装；结构不符会抛 MigrationError（失败关闭）。"""
         return self._structure_state(cursor, "(reapply-check)", statements) == "missing"
 
-    def _reconcile_checksum(self, cursor, conn, key: str, recorded: str, current: str,
-                            statements: list):
-        """checksum 漂移调和：默认失败关闭；仅在显式白名单内且结构验收通过时重设基线。"""
-        allowed = {k.strip() for k in os.environ.get(_RECONCILE_ENV, "").split(",")
-                   if k.strip()}
-        if key not in allowed:
+    def _verify_090_invariants(self, cursor) -> list:
+        """v9_090 调和前的业务结构不变量（O-30）：返回违反项清单（空=通过）。
+
+        - 端点唯一约束 uq_conn_endpoint 已存在；
+        - 名称唯一约束 uq_conn_name 已由后续迁移移除；
+        - tdsql_connections 无重复端点（host,port,database）。
+        """
+        problems = []
+
+        def _index_count(name: str) -> int:
+            cursor.execute(
+                "SELECT COUNT(*) AS c FROM information_schema.STATISTICS "
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tdsql_connections' "
+                "AND INDEX_NAME = %s", (name,))
+            row = cursor.fetchone()
+            row = dict(row) if not isinstance(row, dict) else row
+            return int(row.get("c", row.get("C", 0)) or 0)
+
+        if _index_count("uq_conn_endpoint") == 0:
+            problems.append("端点唯一约束 uq_conn_endpoint 不存在")
+        if _index_count("uq_conn_name") > 0:
+            problems.append("名称唯一约束 uq_conn_name 未被移除")
+        cursor.execute(
+            "SELECT COUNT(*) AS c FROM (SELECT host, port, `database` FROM "
+            "tdsql_connections GROUP BY host, port, `database` HAVING COUNT(*) > 1) t")
+        row = cursor.fetchone()
+        row = dict(row) if not isinstance(row, dict) else row
+        if int(row.get("c", row.get("C", 0)) or 0) > 0:
+            problems.append("tdsql_connections 存在重复端点")
+        return problems
+
+    def _auto_reconcile(self, cursor, conn, key: str, recorded: str, current: str):
+        """checksum 漂移的一次性自动调和（O-30）。
+
+        只接受代码内账本的精确三元组；调和前验证业务结构不变量；
+        以条件 UPDATE（version_key + 旧 checksum）原子写入——双 worker 并发
+        只有一个进程能中标，另一进程重读确认记录已是新值后视为幂等通过；
+        调和写操作审计并以 ERROR 级日志留痕。未知组合一律失败关闭。
+        """
+        entry = _KNOWN_RECONCILIATIONS.get(key)
+        if not entry or entry["historical_checksum"] != recorded \
+                or entry["current_checksum"] != current:
             raise MigrationError(
                 f"迁移版本记录与文件内容漂移 [{key}]：已登记 checksum={recorded}，"
-                f"当前文件 checksum={current}。启动不得宣称 schema ready。"
-                f"请人工确认漂移合法后，设置环境变量 {_RECONCILE_ENV}={key} 重启调和，"
-                f"或回滚文件变更。")
-        # 显式调和：先做结构验收（声明列必须全部存在且结构相符），再重设基线
-        state = self._structure_state(cursor, key, statements)
-        if state != "valid":
+                f"当前文件 checksum={current}，且不在已知调和账本中，启动失败关闭。"
+                f"该漂移不属于已知历史变更，请人工核实文件是否被篡改。")
+        problems = self._verify_090_invariants(cursor)
+        if problems:
             raise MigrationError(
-                f"迁移调和被拒绝 [{key}]：结构验收未通过（状态={state}），"
-                f"漂移文件与库结构不一致，禁止重设基线。")
-        cursor.execute(
-            "UPDATE schema_migrations SET checksum = %s WHERE version_key = %s",
-            (current, key))
+                f"迁移调和前的业务结构不变量不满足 [{key}]: " + "；".join(problems))
+        # 原子调和：只有“记录仍为旧值”时本进程才写入，天然并发安全
+        cur = cursor.execute(
+            "UPDATE schema_migrations SET checksum = %s "
+            "WHERE version_key = %s AND checksum = %s",
+            (current, key, recorded))
         conn.commit()
+        if getattr(cur, "rowcount", 0) != 1:
+            cursor.execute(
+                "SELECT checksum FROM schema_migrations WHERE version_key = %s",
+                (key,))
+            row = cursor.fetchone()
+            row = dict(row) if row else {}
+            if row.get("checksum") == current:
+                logger.info("迁移调和并发幂等：另一进程已完成 %s 的基线重设", key)
+                return
+            raise MigrationError(f"迁移调和原子更新失败 [{key}]")
         logger.error(
-            "迁移校验和漂移已显式调和重设基线 [%s]（结构验收通过；%s=%s 已审计）。",
-            key, _RECONCILE_ENV, key)
+            "迁移 checksum 一次性自动调和完成 [%s]：%s…→%s…（%s）",
+            key, recorded[:12], current[:12], entry["reason"])
+        try:
+            from backend.services.database import log_operation
+            log_operation(
+                operator="system", operation_type="schema_checksum_reconcile",
+                target_type="schema_migrations", target_id=key,
+                detail=f"{recorded}→{current}; reason={entry['reason']}")
+        except Exception:
+            logger.warning("调和审计日志写入失败（不影响调和结果）", exc_info=True)
 
     def run_migrations(self):
         conn = _get_connection()
@@ -234,9 +328,9 @@ class SchemaMigrator:
                 statements = self._split_statements(sf.sql)
                 if key in applied:
                     if applied[key] != checksum:
-                        # v1.6.2.2-UAT-O-26：checksum 漂移不再只告警，默认失败关闭
-                        self._reconcile_checksum(cursor, conn, key, applied[key],
-                                                 checksum, statements)
+                        # v1.6.2.2-UAT-O-30：checksum 漂移走代码内精确账本的一次性调和，
+                        # 未知漂移一律失败关闭；不存在可调用的长期环境开关。
+                        self._auto_reconcile(cursor, conn, key, applied[key], checksum)
                         continue
                     # 已登记且 checksum 一致：仍需完整结构验收（不只验列存在）
                     state = self._structure_state(cursor, key, statements)

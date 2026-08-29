@@ -137,13 +137,56 @@ class TestUnknownErrorStays500:
         assert resp.status_code == 500, \
             f"{type(exc).__name__} 不得被包装成 422，实际 {resp.status_code}"
         assert "X-Request-ID" in resp.headers, "500 响应必须携带请求ID便于定位"
-        assert "实例连接失败" not in resp.text, "未知异常不得伪装成连接失败"
+class TestOSErrorFamilyNotTrusted:
+    """v1.6.2.2-UAT-O-28：OSError 全家族不得凭消息伪装成数据库连接错误
+
+    文件系统/证书/密钥/缓存/序列化错误即使消息含 access denied/unknown database
+    也必须返回 None（API 层 500）。类型 × 短语 × errno × 直调矩阵。
+    """
 
     @pytest.mark.parametrize("exc", [
-        OSError("Can't connect to MySQL server on '127.0.0.1' ([Errno 10061])"),
+        PermissionError("access denied reading encryption key"),
+        PermissionError("access denied writing audit log"),
+        FileNotFoundError("unknown database catalog file"),
+        FileNotFoundError("can't connect to keystore file"),
+        IsADirectoryError("unknown database directory"),
+        NotADirectoryError("connection refused by path component"),
+        OSError("access denied on shared memory segment"),
+        OSError("unknown database file handle"),
+        OSError(13, "Permission denied reading key file"),          # EACCES
+        OSError(2, "No such file or directory: 'unknown database'"), # ENOENT
+        BlockingIOError("can't connect while buffer full"),
+    ])
+    def test_oserror_family_never_maps(self, exc):
+        assert translate_db_error(exc) is None, \
+            f"{type(exc).__name__} 携带连接短语也不得被映射: {exc}"
+
+    @pytest.mark.parametrize("exc", [
+        PermissionError("access denied reading encryption key"),
+        FileNotFoundError("unknown database catalog file"),
+    ])
+    def test_oserror_family_api_returns_500(self, exc):
+        """API 层：文件系统/权限类异常必须 500，不得伪装 422"""
+        with patch("backend.services.connection_registry.registry.get_saved",
+                   side_effect=exc):
+            resp = client.post("/api/v1/daily-inspect/run",
+                               json={"connection_id": OFFLINE_CONN_ID,
+                                     "inspect_date": "2026-08-28"})
+        assert resp.status_code == 500, \
+            f"{type(exc).__name__} 必须 500，实际 {resp.status_code}"
+        assert "X-Request-ID" in resp.headers
+        assert "实例连接失败" not in resp.text
+        assert "认证失败" not in resp.text
+        assert "数据库不存在" not in resp.text
+
+    @pytest.mark.parametrize("exc", [
         ConnectionRefusedError("connection refused"),
+        ConnectionResetError("connection reset by peer"),
+        ConnectionAbortedError("connection aborted"),
         TimeoutError("timed out"),
+        OSError(10061, "No connection could be made because the target machine actively refused it"),
+        OSError(10060, "connection timed out"),
     ])
     def test_real_network_errors_still_map(self, exc):
-        """连接异常族（OSError/TimeoutError 等）的消息兜底仍应正确映射 422"""
+        """连接异常族（精确类型或明确网络 errno）仍应正确映射连接拒绝 422"""
         assert isinstance(translate_db_error(exc), ConnectionRefusedError_)

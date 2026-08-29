@@ -299,58 +299,240 @@ class TestStructureStateMachine:
             conn.close()
 
 
-class TestChecksumDriftHandling:
-    """v1.6.2.2-UAT-O-26：checksum 漂移默认失败关闭，显式调和须结构验收通过"""
+class TestDefaultValueNormalization:
+    """v1.6.2.2-UAT-O-29：默认值规范化矩阵——未声明/显式 NULL/有值必须逐一校验"""
 
-    def test_drift_fails_closed_without_whitelist(self, probe_env, monkeypatch):
-        monkeypatch.delenv("SCHEMA_CHECKSUM_RECONCILE", raising=False)
+    def _verify(self, column_ddl: str, migration_stmt: str, expect_valid: bool):
+        """预建列（column_ddl），用迁移声明（migration_stmt）验收结构状态"""
+        conn = _get_connection()
+        try:
+            conn.execute(f"DROP TABLE IF EXISTS `{_PROBE_TABLE}`")
+            conn.execute(f"CREATE TABLE `{_PROBE_TABLE}` (id INT PRIMARY KEY)")
+            conn.execute(f"ALTER TABLE `{_PROBE_TABLE}` ADD COLUMN {column_ddl}")
+            conn.commit()
+            m = SchemaMigrator()
+            if expect_valid:
+                assert m._structure_state(conn.cursor(), _KEY, [migration_stmt]) == "valid"
+            else:
+                with pytest.raises(MigrationError):
+                    m._structure_state(conn.cursor(), _KEY, [migration_stmt])
+        finally:
+            conn.execute(f"DROP TABLE IF EXISTS `{_PROBE_TABLE}`")
+            conn.commit()
+            conn.close()
+
+    def test_no_default_declared_wrong_existing_default_fails(self, probe_env):
+        """O-29 核心反例：迁移未声明 DEFAULT，预存任意错误默认值必须失败关闭"""
+        self._verify("note VARCHAR(32) DEFAULT 'unexpected'",
+                     f"ALTER TABLE {_PROBE_TABLE} ADD COLUMN note VARCHAR(32)",
+                     expect_valid=False)
+
+    def test_no_default_declared_null_default_valid(self, probe_env):
+        """未声明 DEFAULT + 现存无默认值（NULL）→ valid"""
+        self._verify("note VARCHAR(32)",
+                     f"ALTER TABLE {_PROBE_TABLE} ADD COLUMN note VARCHAR(32)",
+                     expect_valid=True)
+
+    def test_explicit_default_null_valid(self, probe_env):
+        """显式 DEFAULT NULL + 现存 NULL → valid"""
+        self._verify("note VARCHAR(32) DEFAULT NULL",
+                     f"ALTER TABLE {_PROBE_TABLE} ADD COLUMN note VARCHAR(32) DEFAULT NULL",
+                     expect_valid=True)
+
+    def test_explicit_default_null_vs_value_fails(self, probe_env):
+        """显式 DEFAULT NULL 与现存有值不符 → 失败关闭"""
+        self._verify("note VARCHAR(32) DEFAULT 'x'",
+                     f"ALTER TABLE {_PROBE_TABLE} ADD COLUMN note VARCHAR(32) DEFAULT NULL",
+                     expect_valid=False)
+
+    def test_empty_string_default_valid(self, probe_env):
+        self._verify("note VARCHAR(32) DEFAULT ''",
+                     f"ALTER TABLE {_PROBE_TABLE} ADD COLUMN note VARCHAR(32) DEFAULT ''",
+                     expect_valid=True)
+
+    def test_numeric_default_valid(self, probe_env):
+        self._verify("cnt INT DEFAULT 0",
+                     f"ALTER TABLE {_PROBE_TABLE} ADD COLUMN cnt INT DEFAULT 0",
+                     expect_valid=True)
+
+    def test_numeric_default_mismatch_fails(self, probe_env):
+        self._verify("cnt INT DEFAULT 1",
+                     f"ALTER TABLE {_PROBE_TABLE} ADD COLUMN cnt INT DEFAULT 0",
+                     expect_valid=False)
+
+    def test_boolean_default_normalized(self, probe_env):
+        """布尔默认值在整型列上的物化（TRUE/1）必须被规范化接受"""
+        self._verify("flag TINYINT(1) DEFAULT TRUE",
+                     f"ALTER TABLE {_PROBE_TABLE} ADD COLUMN flag TINYINT(1) DEFAULT TRUE",
+                     expect_valid=True)
+
+    def test_string_default_with_space_valid(self, probe_env):
+        self._verify("note VARCHAR(32) DEFAULT 'a b'",
+                     f"ALTER TABLE {_PROBE_TABLE} ADD COLUMN note VARCHAR(32) DEFAULT 'a b'",
+                     expect_valid=True)
+
+    def test_quoted_double_vs_single_normalized(self, probe_env):
+        """双引号与单引号声明同一字符串默认值应视为一致（引号规范化）"""
+        self._verify('note VARCHAR(32) DEFAULT "ok"',
+                     f"ALTER TABLE {_PROBE_TABLE} ADD COLUMN note VARCHAR(32) DEFAULT 'ok'",
+                     expect_valid=True)
+
+    def test_case_insensitive_keyword_default(self, probe_env):
+        """关键字默认值大小写归一"""
+        self._verify("flag TINYINT(1) DEFAULT TRUE",
+                     f"ALTER TABLE {_PROBE_TABLE} ADD COLUMN flag TINYINT(1) DEFAULT true",
+                     expect_valid=True)
+
+
+def _ledger_row(key):
+    conn = _get_connection()
+    try:
+        row = conn.execute(
+            "SELECT checksum FROM schema_migrations WHERE version_key = %s",
+            (key,)).fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+class TestChecksumDriftHandling:
+    """v1.6.2.2-UAT-O-30：checksum 漂移走代码内精确账本的一次性调和闭环
+
+    - 只有 {version_key, 历史 checksum, 当前 checksum} 精确三元组被接受；
+    - 调和前验证业务结构不变量（uq_conn_endpoint 存在、uq_conn_name 已移除、无重复端点）；
+    - 原子条件 UPDATE，双 worker 并发只有一个中标；
+    - 未知组合与未来篡改一律失败关闭（不存在长期开关）。
+    """
+
+    _LKEY = "v9_090_connection_unique"
+    _OLD = "54ee2e97c804f5d8ec216d9f51600c19cc8463f2cede1de07fa67635abe6de28"
+    _NEW = "c6cf33bb385456fef12af3d4888ea6b22dcfc2a64052d734adc4c37457915209"
+
+    @pytest.fixture()
+    def drift_row(self):
+        """在真实账本键 v9_090 上模拟漂移（保存现状、置为历史 checksum、用后恢复）"""
+        ensure_db()
+        saved = None
+        conn = _get_connection()
+        try:
+            row = conn.execute(
+                "SELECT checksum FROM schema_migrations WHERE version_key = %s",
+                (self._LKEY,)).fetchone()
+            saved = dict(row)["checksum"] if row else None
+            conn.execute(
+                "UPDATE schema_migrations SET checksum = %s WHERE version_key = %s",
+                (self._OLD, self._LKEY))
+            conn.commit()
+        finally:
+            conn.close()
+        yield
+        conn = _get_connection()
+        try:
+            if saved is not None:
+                conn.execute(
+                    "UPDATE schema_migrations SET checksum = %s WHERE version_key = %s",
+                    (saved, self._LKEY))
+            conn.commit()
+        finally:
+            conn.close()
+
+    def test_unknown_triple_fails_closed(self, drift_row):
+        """未知 old/new 组合一律失败关闭（探针键不在账本内）"""
         m = SchemaMigrator()
         conn = _get_connection()
         try:
             with pytest.raises(MigrationError) as ei:
-                m._reconcile_checksum(conn.cursor(), conn, _KEY, "old-sha", "new-sha",
-                                      _stmts())
+                m._auto_reconcile(conn.cursor(), conn, _KEY, "unknown-old", "unknown-new")
         finally:
             conn.close()
-        assert "漂移" in str(ei.value)
-        assert "SCHEMA_CHECKSUM_RECONCILE" in str(ei.value)
+        assert "不在已知调和账本" in str(ei.value)
 
-    def test_reconcile_requires_valid_structure(self, probe_env, monkeypatch):
-        """白名单内但结构缺失（列不存在）→ 拒绝调和"""
-        monkeypatch.setenv("SCHEMA_CHECKSUM_RECONCILE", _KEY)
+    def test_wrong_current_checksum_fails_closed(self, drift_row):
+        """账本内的 key + 正确历史值，但当前文件被篡改（新值不符）→ 失败关闭
+        注：账本键记录已置为历史 checksum，调用后记录必须保持不变"""
         m = SchemaMigrator()
         conn = _get_connection()
         try:
             with pytest.raises(MigrationError):
-                m._reconcile_checksum(conn.cursor(), conn, _KEY, "old-sha", "new-sha",
-                                      _stmts())
+                m._auto_reconcile(conn.cursor(), conn, self._LKEY, self._OLD, "tampered-new")
+        finally:
+            conn.close()
+        conn = _get_connection()
+        try:
+            row = conn.execute(
+                "SELECT checksum FROM schema_migrations WHERE version_key = %s",
+                (self._LKEY,)).fetchone()
+            assert dict(row)["checksum"] == self._OLD, "失败关闭后记录不得被改写"
         finally:
             conn.close()
 
-    def test_reconcile_rebaselines_when_structure_valid(self, probe_env, monkeypatch):
-        """白名单内且结构验收通过 → 重设基线"""
-        conn = _get_connection()
-        try:
-            conn.execute(
-                f"ALTER TABLE {_PROBE_TABLE} ADD COLUMN related_index_name VARCHAR(128) DEFAULT ''")
-            conn.execute(
-                f"ALTER TABLE {_PROBE_TABLE} ADD COLUMN index_columns VARCHAR(512) DEFAULT ''")
-            conn.execute(
-                "INSERT INTO schema_migrations (version_key, checksum) VALUES (%s, %s)",
-                (_KEY, "old-sha"))
-            conn.commit()
-        finally:
-            conn.close()
-        monkeypatch.setenv("SCHEMA_CHECKSUM_RECONCILE", _KEY)
+    def test_exact_triple_reconciles_once(self, drift_row):
+        """精确三元组 + 结构不变量满足 → 原子调和一次成功"""
         m = SchemaMigrator()
         conn = _get_connection()
         try:
-            m._reconcile_checksum(conn.cursor(), conn, _KEY, "old-sha", "new-sha",
-                                  _stmts())
+            m._auto_reconcile(conn.cursor(), conn, self._LKEY, self._OLD, self._NEW)
         finally:
             conn.close()
-        row = _version_row()
-        assert row and row["checksum"] == "new-sha"
+        row = _ledger_row(self._LKEY)
+        assert row and row["checksum"] == self._NEW
+        # 调和完成后再被调用：属并发幂等场景（另一进程已完成），安全返回不重写
+        conn = _get_connection()
+        try:
+            m._auto_reconcile(conn.cursor(), conn, self._LKEY, self._OLD, self._NEW)
+        finally:
+            conn.close()
+        # 调和后的篡改场景：记录已是新值、文件再被改 → 不在账本，必须失败关闭
+        conn = _get_connection()
+        try:
+            with pytest.raises(MigrationError):
+                m._auto_reconcile(conn.cursor(), conn, self._LKEY, self._NEW,
+                                  "tampered-after-reconcile")
+        finally:
+            conn.close()
+
+    def test_invariants_violation_fails_closed(self, drift_row, monkeypatch):
+        """结构不变量不满足（模拟 uq_conn_name 仍存在）→ 失败关闭"""
+        m = SchemaMigrator()
+        monkeypatch.setattr(SchemaMigrator, "_verify_090_invariants",
+                            lambda self, cursor: ["名称唯一约束 uq_conn_name 未被移除"])
+        conn = _get_connection()
+        try:
+            with pytest.raises(MigrationError) as ei:
+                m._auto_reconcile(conn.cursor(), conn, self._LKEY, self._OLD, self._NEW)
+        finally:
+            conn.close()
+        assert "不变量" in str(ei.value)
+        # 未调和，记录仍为旧值
+        row = _ledger_row(self._LKEY)
+        assert row and row["checksum"] == self._OLD
+
+    def test_concurrent_reconcile_single_write(self, drift_row):
+        """双 worker 并发调和：恰好一次原子写入，两进程结果一致"""
+        results = []
+        errors = []
+
+        def worker():
+            try:
+                m = SchemaMigrator()
+                conn = _get_connection()
+                try:
+                    m._auto_reconcile(conn.cursor(), conn, self._LKEY, self._OLD, self._NEW)
+                    results.append("ok")
+                finally:
+                    conn.close()
+            except Exception as e:  # noqa: BLE001
+                errors.append(e)
+
+        threads = [threading.Thread(target=worker) for _ in range(2)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=30)
+        assert not errors, f"并发调和不得抛错: {errors}"
+        assert results == ["ok", "ok"], "并发调和两进程都必须成功返回"
+        row = _ledger_row(self._LKEY)
+        assert row and row["checksum"] == self._NEW
 
 
 class TestSelfHealAndConcurrency:

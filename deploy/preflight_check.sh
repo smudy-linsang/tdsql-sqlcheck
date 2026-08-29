@@ -101,6 +101,33 @@ else
   warn "无可用 python3，跳过后端导入检查"
 fi
 
+# 8. v1.6.2.2-UAT-O-30 升级预检：历史 checksum 漂移与遗留开关
+# - 历史遗留的长期开关 SCHEMA_CHECKSUM_RECONCILE 已被移除（长期变量可放行未来任意漂移），
+#   若既有 .env 中残留该变量必须删除后重检；
+# - v9_090_connection_unique 的历史 checksum 漂移由应用启动时按代码内精确三元组账本
+#   自动一次性调和（无需运维手工改库），此处仅做状态提示与预警。
+if [[ -f "$ENVF" ]] && grep -q "^SCHEMA_CHECKSUM_RECONCILE=" "$ENVF" 2>/dev/null; then
+  bad ".env 残留已废弃的长期开关 SCHEMA_CHECKSUM_RECONCILE，请删除该行后重检（v1.6.2.2 起由代码内精确三元组账本一次性自动调和，任何手工开关均可绕过未来漂移检测）"
+else
+  ok "无遗留调和开关（SCHEMA_CHECKSUM_RECONCILE 已废弃并移除）"
+fi
+if command -v mysql >/dev/null 2>&1 && [[ -n "${H:-}" ]] && [[ -n "${SQLCHECK_DB_USER:-}" ]]; then
+  DBNAME="${SQLCHECK_DB_NAME:-tdsql_sqlcheck}"
+  DRIFT_STATE=$(mysql -h"$H" -P"$P" -u"${SQLCHECK_DB_USER}" -p"${SQLCHECK_DB_PASSWORD}" -N -e \
+    "SELECT CASE \
+       WHEN NOT EXISTS (SELECT 1 FROM \\`$DBNAME\\`.schema_migrations WHERE version_key='v9_090_connection_unique') THEN 'fresh' \
+       WHEN EXISTS (SELECT 1 FROM \\`$DBNAME\\`.schema_migrations WHERE version_key='v9_090_connection_unique' AND checksum='c6cf33bb385456fef12af3d4888ea6b22dcfc2a64052d734adc4c37457915209') THEN 'current' \
+       WHEN EXISTS (SELECT 1 FROM \\`$DBNAME\\`.schema_migrations WHERE version_key='v9_090_connection_unique' AND checksum='54ee2e97c804f5d8ec216d9f51600c19cc8463f2cede1de07fa67635abe6de28') THEN 'historical' \
+       ELSE 'unknown' END" 2>/dev/null || echo "unreachable")
+  case "$DRIFT_STATE" in
+    fresh)      ok "迁移 v9_090：全新库，首次启动按当前 checksum 登记";;
+    current)    ok "迁移 v9_090：checksum 已为当前值（无需调和）";;
+    historical) warn "迁移 v9_090：检测到历史 checksum（老库升级场景），首次启动将由代码内精确账本自动一次性调和，无需人工改库；请确认已备份元数据库并关注启动日志中的调和审计记录";;
+    unknown)    bad "迁移 v9_090：checksum 与已知新旧值均不符（疑似手工篡改），应用将失败关闭，请人工核实";;
+    *)          warn "迁移 v9_090 状态未能读取（${DRIFT_STATE}），启动时按实际状态处理";;
+  esac
+fi
+
 echo "════ 预检结果: PASS=${PASS} WARN=${WARN} FAIL=${FAILC} ════"
 [[ "$FAILC" -eq 0 ]] || exit 1
 exit 0

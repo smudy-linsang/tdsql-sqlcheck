@@ -11,10 +11,16 @@
   由统一 500 处理器记录完整堆栈并返回 X-Request-ID，绝不伪装成连接失败
   （否则 RuntimeError 等代码缺陷会被误报为 422，破坏监控与故障定位）。
 - v1.6.2.2-UAT-O-25：双白名单——errno 只从可信驱动异常链提取；消息兜底
-  只在异常类型属于连接异常族（驱动异常 / OSError / TimeoutError / ConnectionError）
-  时才启用。RuntimeError/AttributeError/TypeError 等程序异常即使消息碰巧含
-  "can't connect" 等短语也一律返回 None。
+  只在异常类型属于连接异常族时才启用。RuntimeError/AttributeError/TypeError 等
+  程序异常即使消息碰巧含 "can't connect" 等短语也一律返回 None。
+- v1.6.2.2-UAT-O-28：OSError 全家族不再视为可信连接异常——
+  PermissionError/FileNotFoundError 继承 OSError，消息含 access denied/
+  unknown database 时会被伪装成数据库认证/库不存在。收窄为：文本兜底仅用于
+  可信驱动异常；内建网络异常只认精确类型（ConnectionRefused/Reset/Aborted/
+  TimeoutError）或 OSError.errno 属于明确网络错误码集合（ECONNREFUSED/
+  ETIMEDOUT/EHOSTUNREACH/ECONNRESET/ENETUNREACH 及 Windows 对应码）。
 """
+import errno as _errno_mod
 from typing import Optional
 
 # MySQL/TDSQL 稳定错误码白名单（errno-first，不做消息模糊包含）
@@ -32,9 +38,17 @@ try:
 except Exception:                                     # 驱动缺失时消息兜底仍可工作
     _DRIVER_ERROR_TYPES = ()
 
-# 消息兜底的允许异常族：可信驱动异常 + 底层网络/超时异常。
-# 注意不包含 RuntimeError/AttributeError/TypeError——程序缺陷不得被消息措辞伪装成 422。
-_MESSAGE_FALLBACK_TYPES = _DRIVER_ERROR_TYPES + (OSError, TimeoutError, ConnectionError)
+# 内建网络异常的明确类型（类型本身即语义，无需文本匹配）
+_NET_EXACT_TYPES = (
+    ConnectionRefusedError, ConnectionResetError, ConnectionAbortedError, TimeoutError,
+)
+
+# 明确网络错误码集合（POSIX + Windows WSA）：仅这些 errno 的 OSError 视为连接问题
+_NETWORK_ERRNOS = {
+    _errno_mod.ECONNREFUSED, _errno_mod.ETIMEDOUT, _errno_mod.EHOSTUNREACH,
+    _errno_mod.ECONNRESET, _errno_mod.ENETUNREACH,
+    10054, 10060, 10061, 10065,  # WSAECONNRESET / WSAETIMEDOUT / WSAECONNREFUSED / WSAEHOSTUNREACH
+}
 
 
 class InstanceConnectionError(Exception):
@@ -88,11 +102,14 @@ def _errno_of(exc: BaseException) -> Optional[int]:
 def translate_db_error(exc: BaseException) -> Optional[InstanceConnectionError]:
     """严格双白名单翻译：已知连接类错误 → 领域异常；未知异常 → None（不得伪装）。
 
-    判定顺序：
+    判定顺序（v1.6.2.2-UAT-O-28）：
     1. errno 优先（仅从可信驱动异常链提取，见 _errno_of）；
-    2. 精确短语兜底——仅当异常类型属于连接异常族
-       （驱动异常 / OSError / TimeoutError / ConnectionError）才启用；
-    3. RuntimeError/AttributeError/TypeError 等程序异常一律返回 None。
+    2. 文本兜底仅用于可信驱动异常——access denied / unknown database 等短语
+       不得用于泛化 OSError（PermissionError/FileNotFoundError 会继承 OSError，
+       文件/密钥/权限类程序错误携带这些短语时不得伪装成数据库错误）；
+    3. 内建网络异常只认精确类型（ConnectionRefused/Reset/Aborted/TimeoutError）
+       或 OSError.errno 属于明确网络错误码集合；
+    4. RuntimeError/AttributeError/TypeError 等程序异常一律返回 None。
     """
     errno = _errno_of(exc)
     if errno in _ERRNO_CONNECTION:
@@ -102,13 +119,26 @@ def translate_db_error(exc: BaseException) -> Optional[InstanceConnectionError]:
     if errno in _ERRNO_DB_NOT_FOUND:
         return DatabaseNotFoundError(str(exc), cause=exc)
 
-    if not isinstance(exc, _MESSAGE_FALLBACK_TYPES):
+    # 文本兜底：仅可信驱动异常（驱动层错误码缺失环境的兜底）
+    if _DRIVER_ERROR_TYPES and isinstance(exc, _DRIVER_ERROR_TYPES):
+        text = str(exc).lower()
+        if "access denied" in text:
+            return AuthenticationFailedError(str(exc), cause=exc)
+        if "unknown database" in text:
+            return DatabaseNotFoundError(str(exc), cause=exc)
+        if "can't connect" in text or "connection refused" in text or "timed out" in text:
+            return ConnectionRefusedError_(str(exc), cause=exc)
         return None
-    text = str(exc).lower()
-    if "can't connect" in text or "connection refused" in text or "timed out" in text:
+
+    # 内建网络异常：精确类型本身就是语义，无需文本匹配
+    if isinstance(exc, _NET_EXACT_TYPES):
         return ConnectionRefusedError_(str(exc), cause=exc)
-    if "access denied" in text:
-        return AuthenticationFailedError(str(exc), cause=exc)
-    if "unknown database" in text:
-        return DatabaseNotFoundError(str(exc), cause=exc)
+
+    # 其余 OSError：仅当 errno 属于明确网络错误码集合；
+    # PermissionError / FileNotFoundError 及其他泛化 OSError 一律 None。
+    if isinstance(exc, OSError):
+        if exc.errno in _NETWORK_ERRNOS:
+            return ConnectionRefusedError_(str(exc), cause=exc)
+        return None
+
     return None

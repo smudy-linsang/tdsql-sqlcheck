@@ -1,0 +1,17 @@
+[1] 已模拟 v1.6.2.1 老库（历史 checksum）
+[2] 无人工开关：启动时自动一次性调和完成（54ee2e97…→c6cf33bb…）
+[3] 二次启动幂等：无需调和
+[4] 篡改后启动失败关闭（符合预期）: MigrationError
+O-30 端到端验收全部通过（已恢复当前基线）
+
+--- stderr ---
+Schema 迁移失败关闭：启动不得继续
+Traceback (most recent call last):
+  File "C:\TDSQL_SQLCHECK\TDSQL-SQLCheck\backend\schema\migrator.py", line 333, in run_migrations
+    self._auto_reconcile(cursor, conn, key, applied[key], checksum)
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\TDSQL_SQLCHECK\TDSQL-SQLCheck\backend\schema\migrator.py", line 274, in _auto_reconcile
+    raise MigrationError(
+    ...<2 lines>...
+        f"该漂移不属于已知历史变更，请人工核实文件是否被篡改。")
+backend.schema.migrator.MigrationError: 迁移版本记录与文件内容漂移 [v9_090_connection_unique]：已登记 checksum=tampered-value，当前文件 checksum=c6cf33bb385456fef12af3d4888ea6b22dcfc2a64052d734adc4c37457915209，且不在已知调和账本中，启动失败关闭。该漂移不属于已知历史变更，请人工核实文件是否被篡改。
