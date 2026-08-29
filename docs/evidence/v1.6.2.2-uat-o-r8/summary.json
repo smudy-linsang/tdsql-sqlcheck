@@ -1,0 +1,14 @@
+{
+  "tested_commit": "d40cf739420be984a2805253ba671c890fe17c66",
+  "scope": ["O-28", "O-29", "O-30"],
+  "new_issue_discovery": false,
+  "result": "FAIL",
+  "closure": {
+    "O-28": "CLOSED",
+    "O-29": "CLOSED",
+    "O-30": "OPEN"
+  },
+  "targeted_pytest": "64 passed, 5 warnings",
+  "preflight_syntax": "PASS",
+  "o30_open_reason": "checksum reconciliation succeeds but no schema_checksum_reconcile operation_logs row is written because cursor.execute returns int while migrator reads getattr(return_value, rowcount, 0)"
+}

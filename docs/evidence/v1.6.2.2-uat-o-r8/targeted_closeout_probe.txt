@@ -1,0 +1,121 @@
+C:\Users\linsa\AppData\Roaming\Python\Python314\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+  from starlette.testclient import TestClient as TestClient  # noqa
+C:\Codex\tdsql-sqlcheck\backend\models\__init__.py:261: UserWarning: Field name "schema" in "BigTableInfo" shadows an attribute in parent "BaseModel"
+  class BigTableInfo(BaseModel):
+C:\Codex\tdsql-sqlcheck\backend\models\__init__.py:289: UserWarning: Field name "schema" in "TableClassification" shadows an attribute in parent "BaseModel"
+  class TableClassification(BaseModel):
+C:\Codex\tdsql-sqlcheck\backend\models\__init__.py:383: UserWarning: Field name "schema" in "CharsetDiagnosticReport" shadows an attribute in parent "BaseModel"
+  class CharsetDiagnosticReport(BaseModel):
+2026-08-30 07:49:19,283 [tdsql.daily_inspect] ERROR: 日常巡检发生未预期异常
+Traceback (most recent call last):
+  File "C:\Codex\tdsql-sqlcheck\backend\api\daily_inspect.py", line 51, in run
+    pool = registry.get(body.connection_id)
+  File "C:\Codex\tdsql-sqlcheck\backend\services\connection_registry.py", line 127, in get
+    saved = self.get_saved(conn_id) if conn_id else self.get_default_saved()
+            ~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Python314\Lib\unittest\mock.py", line 1176, in __call__
+    return self._mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\unittest\mock.py", line 1180, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\unittest\mock.py", line 1241, in _execute_mock_call
+    raise effect
+PermissionError: access denied reading encryption key
+2026-08-30 07:49:19,287 [tdsql.access] INFO: [5679d061b8a14e23] anonymous POST /api/v1/daily-inspect/run 500 59ms
+2026-08-30 07:49:19,289 [httpx] INFO: HTTP Request: POST http://testserver/api/v1/daily-inspect/run "HTTP/1.1 500 Internal Server Error"
+2026-08-30 07:49:19,295 [tdsql.daily_inspect] ERROR: 日常巡检发生未预期异常
+Traceback (most recent call last):
+  File "C:\Codex\tdsql-sqlcheck\backend\api\daily_inspect.py", line 51, in run
+    pool = registry.get(body.connection_id)
+  File "C:\Codex\tdsql-sqlcheck\backend\services\connection_registry.py", line 127, in get
+    saved = self.get_saved(conn_id) if conn_id else self.get_default_saved()
+            ~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Python314\Lib\unittest\mock.py", line 1176, in __call__
+    return self._mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\unittest\mock.py", line 1180, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\unittest\mock.py", line 1241, in _execute_mock_call
+    raise effect
+FileNotFoundError: unknown database catalog file
+2026-08-30 07:49:19,298 [tdsql.access] INFO: [c1e8468cfc4f46d1] anonymous POST /api/v1/daily-inspect/run 500 5ms
+2026-08-30 07:49:19,300 [httpx] INFO: HTTP Request: POST http://testserver/api/v1/daily-inspect/run "HTTP/1.1 500 Internal Server Error"
+2026-08-30 07:49:19,879 [tdsql.schema.migrator] INFO: 迁移调和并发幂等：另一进程已完成 v9_090_connection_unique 的基线重设
+{
+  "tested_commit": "d40cf739420be984a2805253ba671c890fe17c66",
+  "o28": {
+    "original_counterexamples": [
+      {
+        "exception": "PermissionError",
+        "mapped": null,
+        "status": 500,
+        "request_id": true
+      },
+      {
+        "exception": "FileNotFoundError",
+        "mapped": null,
+        "status": 500,
+        "request_id": true
+      }
+    ],
+    "supported_mappings": [
+      {
+        "exception": "OperationalError",
+        "mapped": "ConnectionRefusedError_",
+        "expected": "ConnectionRefusedError_",
+        "pass": true
+      },
+      {
+        "exception": "OperationalError",
+        "mapped": "AuthenticationFailedError",
+        "expected": "AuthenticationFailedError",
+        "pass": true
+      },
+      {
+        "exception": "OperationalError",
+        "mapped": "DatabaseNotFoundError",
+        "expected": "DatabaseNotFoundError",
+        "pass": true
+      },
+      {
+        "exception": "ConnectionRefusedError",
+        "mapped": "ConnectionRefusedError_",
+        "expected": "ConnectionRefusedError_",
+        "pass": true
+      },
+      {
+        "exception": "TimeoutError",
+        "mapped": "ConnectionRefusedError_",
+        "expected": "ConnectionRefusedError_",
+        "pass": true
+      }
+    ]
+  },
+  "o29": {
+    "wrong_default_failed_closed": true,
+    "error": "迁移结构验收失败 [uat_o_r8_o29]: 列 uat_o_r8_default_probe.note 默认值不符: 期望 无声明(规范化为 NULL) 实际 'unexpected'",
+    "matching_no_default_state": "valid"
+  },
+  "o30": {
+    "cursor_execute_contract": {
+      "execute_return_type": "int",
+      "execute_return_value": 1,
+      "cursor_rowcount": 1
+    },
+    "legacy_env_absent_during_upgrade": true,
+    "first_checksum": "c6cf33bb385456fef12af3d4888ea6b22dcfc2a64052d734adc4c37457915209",
+    "second_checksum": "c6cf33bb385456fef12af3d4888ea6b22dcfc2a64052d734adc4c37457915209",
+    "audit_count_before_upgrade": 0,
+    "audit_count_before_second": 0,
+    "audit_count_after_second": 0,
+    "exactly_one_new_audit": false,
+    "idempotent_no_extra_audit": true,
+    "unknown_future_checksum_failed_closed": true,
+    "unknown_error": "迁移版本记录与文件内容漂移 [v9_090_connection_unique]：已登记 checksum=c6cf33bb385456fef12af3d4888ea6b22dcfc2a64052d734adc4c37457915209，当前文件 checksum=tampered-after-reconcile，且不在已知调和账本中，启动失败关闭。该漂移不属于已知历史变更，请人工核实文件是否被篡改。",
+    "legacy_env_could_not_override": true,
+    "final_checksum": "c6cf33bb385456fef12af3d4888ea6b22dcfc2a64052d734adc4c37457915209"
+  },
+  "result": "FAIL"
+}
