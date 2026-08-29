@@ -1,0 +1,18 @@
+{
+  "baseline_commit": "50a1c049b49407c8055ec888735dcd578fe230b2",
+  "tested_commit": "8fee172a67daacc42809e173ecd20c5e3b8aac1b",
+  "comparisons": {
+    "rule_probe_current.json": {
+      "equal": true
+    },
+    "edge_current.json": {
+      "equal": true
+    },
+    "load_current.json": {
+      "equal": true
+    },
+    "head_current.json": {
+      "equal": true
+    }
+  }
+}

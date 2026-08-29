@@ -1,0 +1,52 @@
+{
+  "tested_commit": "8fee172a67daacc42809e173ecd20c5e3b8aac1b",
+  "baseline_commit": "50a1c049b49407c8055ec888735dcd578fe230b2",
+  "conclusion": "FAIL",
+  "defects": {
+    "block": 0,
+    "major": 2,
+    "minor": 1
+  },
+  "full_pytest": {
+    "passed": 1521,
+    "skipped": 28,
+    "failed": 0
+  },
+  "formal_gate": "PASS",
+  "rules": {
+    "registered": 119,
+    "main_corpus_cases": 1000,
+    "main_observed": 114,
+    "supplemental_observed_total": 116,
+    "unproven": ["R025", "R038", "R049"],
+    "baseline_equal": true
+  },
+  "browser_steps": {
+    "passed": 10,
+    "total": 10
+  },
+  "gateway_ticket": {
+    "workers": 2,
+    "issue_200": 100,
+    "first_consume_200": 100,
+    "replay_401": 100,
+    "stored_hash_length": 64
+  },
+  "findings": [
+    {
+      "id": "O-25",
+      "severity": "MAJOR",
+      "title": "程序异常只要消息含连接短语仍会被伪装为 422"
+    },
+    {
+      "id": "O-26",
+      "severity": "MAJOR",
+      "title": "已登记迁移只验缺列，不验列结构，错误类型可静默通过启动"
+    },
+    {
+      "id": "O-27",
+      "severity": "MINOR",
+      "title": "正式全量测试依赖外部 8000 端口服务但门禁自身不负责装配"
+    }
+  ]
+}

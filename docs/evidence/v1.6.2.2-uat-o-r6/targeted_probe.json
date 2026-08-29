@@ -1,0 +1,72 @@
+{
+  "audit_cases": [
+    {
+      "label": "cr_malformed_view",
+      "passed": false,
+      "fired": [
+        "R030"
+      ]
+    },
+    {
+      "label": "tdsql_hash_table",
+      "passed": false,
+      "fired": [
+        "R005",
+        "R028",
+        "R029",
+        "R036",
+        "R037"
+      ]
+    },
+    {
+      "label": "tdsql_broadcast",
+      "passed": false,
+      "fired": [
+        "R005",
+        "R028",
+        "R029",
+        "R036",
+        "R037"
+      ]
+    }
+  ],
+  "unknown_neutral": {
+    "status": 500,
+    "detail": "巡检服务内部错误，请携带 X-Request-ID 联系管理员排查"
+  },
+  "unknown_connection_wording": {
+    "status": 422,
+    "detail": "目标实例拒绝连接或网络不可达：can't connect to internal cache"
+  },
+  "translation_cases": [
+    {
+      "exception": "RuntimeError",
+      "message": "synthetic programming defect",
+      "mapped": null
+    },
+    {
+      "exception": "RuntimeError",
+      "message": "can't connect to internal cache",
+      "mapped": "ConnectionRefusedError_"
+    },
+    {
+      "exception": "AttributeError",
+      "message": "connection refused while reading object",
+      "mapped": "ConnectionRefusedError_"
+    },
+    {
+      "exception": "Exception",
+      "message": "(2003, \"Can't connect to MySQL server\")",
+      "mapped": "ConnectionRefusedError_"
+    }
+  ],
+  "applied_wrong_structure": {
+    "migration_error": null,
+    "actual_type_after_startup": "int",
+    "strict_validation_happened": false
+  },
+  "ticket_semantics": {
+    "first": "synthetic-user",
+    "replay": null
+  }
+}

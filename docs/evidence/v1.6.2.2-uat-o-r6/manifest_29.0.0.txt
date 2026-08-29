@@ -1,0 +1,26 @@
+........................................................................ [  9%]
+........................................................................ [ 18%]
+........................................................................ [ 27%]
+........................................................................ [ 36%]
+........................................................................ [ 45%]
+........................................................................ [ 54%]
+........................................................................ [ 63%]
+........................................................................ [ 73%]
+........................................................................ [ 82%]
+........................................................................ [ 91%]
+....................................................................     [100%]
+============================== warnings summary ===============================
+backend\models\__init__.py:261
+  C:\Codex\tdsql-sqlcheck\backend\models\__init__.py:261: UserWarning: Field name "schema" in "BigTableInfo" shadows an attribute in parent "BaseModel"
+    class BigTableInfo(BaseModel):
+
+backend\models\__init__.py:289
+  C:\Codex\tdsql-sqlcheck\backend\models\__init__.py:289: UserWarning: Field name "schema" in "TableClassification" shadows an attribute in parent "BaseModel"
+    class TableClassification(BaseModel):
+
+backend\models\__init__.py:383
+  C:\Codex\tdsql-sqlcheck\backend\models\__init__.py:383: UserWarning: Field name "schema" in "CharsetDiagnosticReport" shadows an attribute in parent "BaseModel"
+    class CharsetDiagnosticReport(BaseModel):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+788 passed, 3 warnings in 4.46s
