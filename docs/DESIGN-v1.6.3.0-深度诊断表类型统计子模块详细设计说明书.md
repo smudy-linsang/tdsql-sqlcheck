@@ -2,13 +2,13 @@
 
 | 项 | 内容 |
 |---|---|
-| 文档编号 | DESIGN-v1.6.3.0 **Rev.D** |
+| 文档编号 | DESIGN-v1.6.3.0 **Rev.E** |
 | 模块编号 | **G14 · 表类型统计**（深度诊断第 10 个子模块） |
 | 目标版本 | v1.6.3.0（当前基线 v1.6.2.2，`VERSION` / `backend/config.py:APP_VERSION`） |
-| 文档等级 | **照图施工级**——附录 A 给出全部新增/修改文件的逐行成品代码（已本地验证：39 项单测全通过），实施者不得二次设计 |
+| 文档等级 | **照图施工级**——附录 A 给出全部新增/修改文件的逐行成品代码（已本地验证：42 项单测全通过），实施者不得二次设计 |
 | 编写 | 智能体 A |
-| 编写日期 | 2026-08-29（Rev.A 首版 / Rev.B～Rev.D 依三轮内网实测迭代修订） |
-| 状态 | 设计与代码**已完成，三轮实测均未推翻**。**GATE-2 无阻断项，可进入开发**。剩余 T13 一项 + D1～D3 诊断，均不阻断（§10.2） |
+| 编写日期 | 2026-08-29（Rev.A 首版 / Rev.B～Rev.E 依四轮内网实测迭代修订） |
+| 状态 | 设计与代码**已完成，四轮实测均未推翻**。**GATE-2 无阻断项，可进入开发**。剩余 T13 一项，不阻断（§10.2） |
 | 前置约束 | 本文档编写阶段**未修改任何代码**（用户要求）。仓库工作区在本文档提交时保持干净。 |
 
 ---
@@ -18,7 +18,7 @@
 本文档同时承担三件事，读者请按角色取用：
 
 * **实施者（智能体 Q 或人工）**：读 §5～§9 + 附录 A。附录 A 是**可直接落盘的成品代码**——四个新增文件 + 既有文件的 9 行改动 + 1 个前端块，逐字给出。
-* **内网测试配合者**：只读 **§10**。三轮共 10 个用例已完成（裁决见 §10.1），只剩 **T13** 与诊断查询 **D1～D3**（§10.2），**都不阻断开发**——全部是只读 SQL，不需要改任何代码。T13 多数情况下一句 `SHOW DATABASES` 就能结案；D1～D3 先跑 D3 那一条即可。
+* **内网测试配合者**：只读 **§10**。四轮共 11 个用例已完成（裁决见 §10.1），**只剩 T13** 一项（§10.2），**不阻断开发**——一句 `SHOW DATABASES` 多数情况下就能结案。
 * **评审者（智能体 O / Codex）**：读 §3（原厂口径的语义风险）、§7（决策与取舍）、§8（异常矩阵）、§9（爆炸半径）、§13（风险登记册）。
 
 **三条硬约束**（贯穿全文，任何实现偏离即为不合格）：
@@ -195,7 +195,8 @@
 ### 3.3 语义风险清单（含 2026-08-29 内网实测裁决）
 
 > 本节四条风险在 Rev.A 编写时全部未知。Rev.B 依据第一轮内网实测逐条裁决，
-> 并新增两条实测暴露出来的风险 RISK-E / RISK-F。Rev.C 裁决 RISK-F，Rev.D 裁决 RISK-B。
+> 并新增两条实测暴露出来的风险 RISK-E / RISK-F。Rev.C 裁决 RISK-F；
+> Rev.D 量化 RISK-B、Rev.E 查明其成因（二级分区物理子表）并**将其消除**。
 > **当前仅剩 RISK-E（T13，命令作用域）未裁决**——不阻断开发，
 > 设计已在两种作用域下都保证正确。
 
@@ -216,49 +217,64 @@ Rev.A 的担忧：字面看"广播表"就是"没有 shardkey、但在所有 SET 
 恒等变换、零代价；一旦换实例/换版本出现重叠，它是唯一能挡住静默高估的东西，
 并会打出 `KIND_OVERLAP` 告警。**证伪一次不等于永远成立**——这条对策是保险，不是补丁。
 
-#### RISK-B：三类之外还有别的表 —— **实测确认成立，差异达 27%**
+#### RISK-B：三类之外还有别的表 —— **成因已查明并消除，两个口径精确对齐**
 
 Rev.A 的担忧：`分片 ∪ 广播 ∪ 单表` 未必等于该库全部 `BASE TABLE`。
 
-**第三轮实测（T14，`lzbj_ecif`）判决：确认成立，而且差得很大。**
+**T14 实测（`lzbj_ecif`）**：Proxy 口径 215（98+117+0），`information_schema` 基线 293，
+**差 78 张（27%）**。
 
-| 口径 | 数量 |
+**D3 实测查明成因：78 张全部是 TDSQL 二级分区的物理子表。**
+
+命名形态（实测）：
+
+```
+cus_pub_translog                      ← 逻辑表，Proxy 的 show table 返回它
+cus_pub_translog_tdsql_subp190001     ← 兜底/溢出分区
+cus_pub_translog_tdsql_subp202601     ← 2026-01
+…
+cus_pub_translog_tdsql_subp202612     ← 2026-12
+```
+
+**账目精确闭合**：
+
+| 项 | 数 |
 |---|---|
-| `/*proxy*/show table with shardkey` | 98 |
-| `/*proxy*/show table with noshardkey_allset` | 117 |
-| `/*proxy*/show table without shardkey` | 0 |
-| **Proxy 口径合计** | **215** |
-| `information_schema` `BASE TABLE` | **293** |
-| **差** | **78** |
+| `info` 含 `sub_func:month` 的按月二级分区表 | 6 张 |
+| 每张的物理子表数（`190001` 兜底 + `202601`…`202612`） | 13 |
+| 子表合计 | **6 × 13 = 78** |
+| `information_schema` 基线 | 293 |
+| **293 − 78** | **215 = Proxy 口径** |
 
-78 张不是零头，占基线的 **27%**。这条差异**必须让用户看见**，不能选一个数悄悄显示。
+（D3 本身回了 71 行：5 张有子表的逻辑表 × 13 = 65，加 6 个逻辑表名
+——第 6 个 `cus_pub_translog_his` 是被 `LIKE 'cus_pub_translog%'` 顺带捞到的、
+没有二级分区的表；`cus_pub_sync_consumer_log` 的 13 个子表没被本次 LIKE 匹配到。
+65 + 6 = 71 ✓）
 
-**这 78 张是什么，尚未确证。** 目前最有力的假说：
+**设计对策（Rev.E，ADR-17）：把二级分区物理子表从基线中剔除并单列计数。**
 
-> **二级分区的物理子表。** 附录 B 的 `with shardkey` 输出里，`info` 含 `sub_func:month`
-> 的表**恰好 6 张**（`cus_bas_merge_log` / `cus_pub_sync_consumer_log` /
-> `cus_pub_sync_log` / `cus_pub_translog` / `cus_pub_updatelog` /
-> `cus_pub_updatelog_detail`）。而 **78 = 6 × 13**。若每张按月分区表在
-> `information_schema` 里各自展开成 13 个月份子表（形如 `cus_pub_translog_202601`），
-> 数字正好吻合。
+```python
+_SUBPARTITION_RE = re.compile(r"_tdsql_subp\d+$", re.IGNORECASE)
+```
 
-**但这只是数字吻合，不是证据。** 6×13 也可能是巧合——78 还能拆成 2×39 / 3×26 / 13×6。
-由 §10.2 的 D1～D3 三条诊断查询判定，**不影响开发启动**。
+剔除后：**逻辑基线 215 == Proxy 口径 215，两个口径精确相等。**
 
-**设计对策（无论 78 张是什么都成立）**：
+**为什么这件事必须做，而不是像 Rev.D 那样"两个数并排摆着让用户自己判断"**：
 
-1. **产品的四个数字一律采用 Proxy 口径**（原厂统计逻辑），因为需求问的是
-   "单表/广播表/分片表各多少张"——这三个概念只有 Proxy 才知道，
-   `information_schema` 根本没有这个维度。
-2. **基线数同时呈现**：逐库一列「元数据基线」，实例级一个 `baseline_tables` 汇总。
-   两个数并排摆着，差异一目了然。
-3. **双向集合差写进该库的「说明」列**，告诉用户差的是哪些表。
-4. **`RECON_MISMATCH` 汇总成一条告警**（ADR-15）——实测表明这个差异会出现在
-   **每一个库**上，逐库一条告警在 50 库实例上就是 50 条横幅，那不叫提示叫刷屏。
+Rev.D 的做法会让 `RECON_MISMATCH` 在**每一个有二级分区的库上永久亮着**。
+一个永远亮的告警不是告警，是背景噪声——用户学会无视它之后，
+真正的不一致（比如某张表没进 Proxy 路由表）就再也没人看得见了。
+**把已知且无害的差异解释掉，剩下的告警才有信号价值。**
+这也正是我在 Rev.C 里写下的那句话的直接应用：交叉校验是静默失效模式的唯一探测器
+——探测器不能一直响。
 
-**这条实测同时打死了 Rev.B 的一个判据** —— 见 ADR-12：原先用"某库累计结果 ==
-information_schema 基线"作为作用域探测的完备性证明，现在已知两者**基本不可能相等**，
-该判据永远不成立、优化永远不生效。Rev.D 改用不依赖基线的指纹比对。
+**数据没有被藏起来**：子表数单列为 `subpartition_tables`（实例级汇总 + 逐库一列），
+并配一条 `SUBPARTITION_EXCLUDED`（INFO）说明剔除了多少张、为什么剔除。
+
+**误判方向是安全的**：正则限定后缀为**纯数字**并锚定末尾，
+`my_tdsql_subp202601_backup` 这类用户自建表不会被误剔。
+万一某版本用了非数字后缀，本模块会把它当逻辑表——后果是 `RECON_MISMATCH`
+**把它显式报出来（可见）**，而不是静默少算（不可见）。
 
 #### RISK-C：返回结果的列形态未知 —— **实测已锚定**
 
@@ -448,10 +464,10 @@ Query OK, 0 rows affected (0.001 sec)
 
 | 类型 | 文件 | 规模 |
 |---|---|---|
-| 新增 | `backend/services/table_type_stats_service.py` | 621 行（附录 A.1，成品） |
+| 新增 | `backend/services/table_type_stats_service.py` | 656 行（附录 A.1，成品） |
 | 新增 | `backend/api/table_type_stats.py` | 44 行（附录 A.2，成品） |
-| 新增 | `backend/schema/v11/110_table_type_stats.sql` | 39 行（附录 A.3，成品） |
-| 新增 | `tests/test_table_type_stats.py` | 674 行（附录 A.4，成品） |
+| 新增 | `backend/schema/v11/110_table_type_stats.sql` | 41 行（附录 A.3，成品） |
+| 新增 | `tests/test_table_type_stats.py` | 749 行（附录 A.4，成品） |
 | 修改 | `backend/main.py` | **2 行**（import + include_router） |
 | 修改 | `backend/services/auth_service.py` | **3 行**（P1/P2/P3） |
 | 修改 | `backend/services/database.py` | **1 行**（P4） |
@@ -488,6 +504,7 @@ Query OK, 0 rows affected (0.001 sec)
   "broadcast_tables": 8,
   "single_tables": 30,
   "baseline_tables": 176,
+  "subpartition_tables": 26,
   "failed_databases": 0,
   "skipped_databases": 0,
   "overlap_count": 0,
@@ -515,9 +532,11 @@ Query OK, 0 rows affected (0.001 sec)
 `skipped_databases` 与 `failed_databases` 分开计数：前者是"没来得及测"，
 后者是"测了但错了"，处置动作不同，不能混成一个数。
 
-`baseline_tables` 是 `information_schema` 的 `BASE TABLE` 合计，与 `total_tables`
-（Proxy 口径）**并排呈现、互不覆盖**。实测两者通常不等（ADR-16），差异明细见
-`items[].detail` 与 `RECON_MISMATCH` 告警。
+`baseline_tables` 是 `information_schema` 的**逻辑** `BASE TABLE` 合计
+（已剔除 `_tdsql_subp<数字>` 结尾的二级分区物理子表，ADR-17），与 `total_tables`
+（Proxy 口径）**并排呈现、互相印证**——实测两者应当精确相等，不等即 `RECON_MISMATCH`。
+
+`subpartition_tables` 是被剔除的二级分区物理子表数，单列呈现，数据不藏。
 
 `shape` 回传三条命令**实际的列名**，用于在换版本/换实例时快速判断解析是否踩空。
 
@@ -631,7 +650,11 @@ s = str(值).strip()
 SELECT TABLE_SCHEMA, TABLE_NAME, TABLE_TYPE FROM information_schema.TABLES
 WHERE TABLE_SCHEMA IN (%s, %s, ...)
 ```
-返回 `{db: {"base": set(表名), "view": set(视图名)}}`。
+返回 `{db: {"base": 逻辑表, "view": 视图, "subp": 二级分区物理子表}}`。
+
+**三分类而不是两分类**：`BASE TABLE` 里混着 `_tdsql_subp<数字>` 结尾的
+二级分区物理子表（实测 `lzbj_ecif` 293 张里有 78 张是），它们不是用户认知中的
+"表"，Proxy 也只返回逻辑表名。剔除后逻辑基线与 Proxy 口径精确相等（ADR-17）。
 
 **取名字而不是取 COUNT** 的四个理由：
 1. 集中式分支要的 `single = len(base)` 直接可得；
@@ -738,7 +761,7 @@ total_tables == shard_tables + broadcast_tables + single_tables   （逐库 & �
 |---|---|---|---|
 | W1 `PROXY_CMD_FAILED` | ERROR | 某库三条命令中任一失败（含读超时） | 看 `detail` 的 errno；1064→连接可能不是 Proxy 端口；1045/1142→授权不足；读超时→保险触发，见 RISK-F |
 | W2 `KIND_OVERLAP` | WARNING | 三类集合有交集（RISK-A 命中） | 说明"三类互斥"在本版本不成立，已按优先级去重，总数仍正确 |
-| W3 `RECON_MISMATCH` | WARNING | 任一库的 Proxy 口径 ≠ 基线（RISK-B，实测必现） | **全实例汇总为一条**；合计数与库名在告警里，逐库差集表名在表格「说明」列 |
+| W3 `RECON_MISMATCH` | WARNING | 任一库的 Proxy 口径 ≠ **逻辑**基线（已剔除二级分区子表） | **全实例汇总为一条**。Rev.E 后这条不再常态触发——一旦亮起就意味着真有表没进 Proxy 路由表，值得查。逐库差集表名在表格「说明」列 |
 | W4 `SHAPE_UNKNOWN` | WARNING | 结果列形态未识别（RISK-C 兜底） | 把 `shape` 字段贴给开发，扩充 `_EXACT_NAME_COLS` |
 | W5 `INSTANCE_TYPE_UNRELIABLE` | WARNING | `ctx.source == DEFAULT` 或 `ctx.conflict` | 实例类型是猜的/有冲突，口径可能整体走错分支；去实例管理页锁定后重跑 |
 | W6 `NO_BUSINESS_DB` | INFO | 过滤后无业务库 | 账号权限过窄或实例确实空 |
@@ -747,6 +770,7 @@ total_tables == shard_tables + broadcast_tables + single_tables   （逐库 & �
 | W9 `INSTANCE_WIDE_SCOPE` | INFO | 结果含跨库行，或前两个非空库指纹相同（RISK-E 命中） | 命令是实例级作用域，已按库归属并去重；顺带告知 N 个库里实际执行了几个 |
 | W10 `TIME_BUDGET_EXCEEDED` | WARNING | 超出 180s 总预算 | 剩余库标 SKIPPED 未统计，请分批 |
 | W11 `DB_ENUM_FAILED` | WARNING | `SHOW DATABASES` 失败但指定了 `database` | 降级为只统计该库；库限定名判据退化，可能影响跨库行归属 |
+| W12 `SUBPARTITION_EXCLUDED` | INFO | 基线中存在 `_tdsql_subp<数字>` 结尾的二级分区物理子表 | 告知剔除了多少张、为什么剔除；逐库数量见「二级分区子表」列。这是正常现象，不是问题 |
 
 W5 的必要性：`resolve()` 在异常时**静默回落全局默认**
 （`instance_type_service.py:112-114`）。如果一个真分布式实例被回落成"集中式"，
@@ -791,8 +815,9 @@ finally:
 | ADR-12（Rev.D 修订） | **作用域指纹比对**：连续两个非空库的原始 `(库,表)` 结果集若逐条相同，即判定实例级作用域，其余库跳过 | ① Rev.B 的"累计表集 == information_schema 基线" ② 检测到跨库行就 break ③ 无条件跑满 N 库 | **① 已被 T14 实测打死**：`lzbj_ecif` Proxy 口径 215 vs 基线 293，两者基本不可能相等，该判据永远不成立、优化永远不生效；②"看到跨库行"只证明不限于当前库，不证明**已覆盖全部**；③实例级作用域下要跑 3N 条重复命令。指纹比对是**充分必要**的：当前库作用域下两库的库限定名前缀必然不同，非空集合不可能相等——相等即证明与当前库无关。代价固定为 6 条命令 |
 | ADR-13 | 单条命令 `read_timeout=30s` + 整体 `180s` 预算 | 依赖连接默认 `read_timeout=10s` | 保留。RISK-F 已裁决为不挂起，但连接默认 10s 对大库仍偏紧（`lzbj_ecif` 215 张表虽只用 0.002s，更大的库未取样）；30s+180s 双层兜底让最坏情况可预期，代价为零 |
 | ADR-14 | 超预算的库标 `SKIPPED` 而非 `FAILED` | 统一标 FAILED | "没来得及测"和"测了但错了"处置动作不同：前者重跑/分批即可，后者要查权限或端口。混成一个数会误导排障方向 |
-| ADR-15（Rev.D 新增） | `RECON_MISMATCH` **汇总成一条**告警，逐库明细放 `item.detail` | 逐库一条告警 | T14 实测表明该差异会出现在**每一个库**上（`lzbj_ecif` 差 78/293）。逐库一条在 50 库实例上就是 50 条横幅——那不叫提示叫刷屏。汇总告警给合计与库名，明细留在表格行里，信息一点不少 |
-| ADR-16（Rev.D 新增） | 四个数字采用 **Proxy 口径**，基线数并排呈现而不覆盖 | ① 用 `information_schema` 当准 ② 只显示 Proxy 口径 | 需求问的是"单表/广播表/分片表各多少张"，这三个概念**只有 Proxy 知道**，`information_schema` 没有这个维度；但基线差 27% 又不能瞒着——两个数并排摆着，让用户自己判断 |
+| ADR-15（Rev.D 新增） | `RECON_MISMATCH` **汇总成一条**告警，逐库明细放 `item.detail` | 逐库一条告警 | 保留。Rev.E 剔除子分区后该告警不再常态触发，但**真出问题时仍可能多库同时命中**（例如一批表漏进 Proxy 路由表），50 库实例上逐库一条就是 50 条横幅。汇总告警给合计与库名，明细留在表格行里，信息一点不少 |
+| ADR-16（Rev.D 新增，Rev.E 修订） | 四个数字采用 **Proxy 口径**，逻辑基线数并排呈现 | ① 用 `information_schema` 当准 ② 只显示 Proxy 口径 | 需求问的是"单表/广播表/分片表各多少张"，这三个概念**只有 Proxy 知道**，`information_schema` 没有这个维度。Rev.E 剔除二级分区子表后两个口径精确相等（215 == 215），并排呈现从"让用户自己判断"变成"互相印证" |
+| ADR-17（Rev.E 新增） | 把 `_tdsql_subp<数字>` 结尾的二级分区物理子表**从基线中剔除并单列计数** | ① 计入基线（Rev.D 做法） ② 计入总表数 | ①会让 `RECON_MISMATCH` 在每个有二级分区的库上**永久亮着**——一个永远亮的告警是背景噪声，用户学会无视后真正的不一致就再没人看得见；②用户认知里 `cus_pub_translog` 是一张表不是十三张，Proxy 也只返回逻辑表名。剔除后 215 == 215，告警重获信号价值。子表数单列 + `SUBPARTITION_EXCLUDED` 告警，数据不藏 |
 
 ---
 
@@ -877,9 +902,9 @@ git diff --stat
 
 ## 10. 内网实测计划（**不动任何代码**）
 
-> **三轮实测已完成**（2026-08-29），结论见 §10.1 裁决表，原始数据入附录 B。
-> **T14 / T15 均已判决**，T14 触发了一次实质性的设计修订（ADR-12/15/16）但**未推翻设计**。
-> 现在只剩 **T13**（命令作用域）一项 + **D1～D3** 三条诊断查询，**全部不阻断开发**。
+> **四轮实测已完成**（2026-08-29），结论见 §10.1 裁决表，原始数据入附录 B。
+> **T14 / T15 / D3 均已判决**，其中 T14 与 D3 触发了实质性设计修订（ADR-12/15/16/17）
+> 但**均未推翻设计**。现在只剩 **T13**（命令作用域）一项，**不阻断开发**。
 >
 > 执行位置：**赤兔控制台 › 实例管理 › 在线SQL**，或用 `mysql` 客户端连**实例的 Proxy 端口**
 > （与平台"实例管理"里登记的 host:port 完全一致）。
@@ -904,8 +929,9 @@ git diff --stat
 | **T15 空结果行为**（第二轮） | **不挂起**。`mysql` 直连 Proxy 返回 `Query OK, 0 rows affected (0.001 sec)`——是 **OK 包**不是空结果集；赤兔转圈是其前端等列元数据所致 | **设计不改**。PyMySQL≥1.1.0 对 OK 包 `fetchall()` 返回 `[]`、`description` 为 `None`，本模块按"该类 0 张"正常处理。超时保险保留但永不触发。**新增语义**：OK 包与"命令不被支持"协议上不可区分，交叉校验是唯一探测器 |
 | **T10 性能**（第二轮顺带取得） | `lzbj_ecif` 共 215 张表（98 分片 + 117 广播 + 0 单表），三条命令分别 0.001 / 0.002 / 0.001 秒 | 单库开销可忽略；总耗时瓶颈只可能来自库数（取决于 T13 的作用域结论） |
 | **T14 交叉校验**（第三轮） | **不一致，且差得很大**：`lzbj_ecif` Proxy 口径 **215**（98+117+0）vs `information_schema` 基线 **293**，**差 78 张（27%）** | **RISK-B 确认成立**，触发三处修订：**ADR-16** 四个数字用 Proxy 口径、基线并排呈现不覆盖；**ADR-15** `RECON_MISMATCH` 汇总成一条（差异每库都有，逐库告警会刷屏）；**ADR-12 改写** —— Rev.B 用"累计表集 == 基线"做作用域探测的完备性证明，实测证明两者基本不可能相等，该判据永远不成立，改用不依赖基线的**指纹比对** |
+| **D3 差异成因**（第四轮） | **78 张全部是二级分区物理子表**，命名 `<逻辑表>_tdsql_subp190001` / `_tdsql_subp202601`…`202612`；6 张 `sub_func:month` 的表 × 13 = 78，账目精确闭合 | **ADR-17**：`_tdsql_subp<数字>` 结尾的表从基线剔除、单列 `subpartition_tables`。剔除后**逻辑基线 215 == Proxy 口径 215**，`RECON_MISMATCH` 不再常态触发，重获信号价值 |
 
-### 10.2 仍待测（T13 一项 + D1～D3 诊断，均不阻断）
+### 10.2 仍待测（T13 一项，不阻断）
 
 ---
 
@@ -969,48 +995,27 @@ MySQL [lzbj_ecif]> SELECT COUNT(*) FROM information_schema.TABLES
 
 ---
 
-### D1～D3 · 那 78 张到底是什么？（**诊断性，不阻断开发**）
+### D1～D3 · 那 78 张是什么？—— ✅ **已完成（2026-08-29）：二级分区物理子表**
 
-**为什么还想知道**：它决定产品要不要在文案上解释这个差异。
-如果是二级分区的物理子表，那是**正常现象**，文案写清楚即可；
-如果是游离在 Proxy 路由表之外的表，那本身就是一条值得报出来的**治理发现**。
+D3 一条查询即定案，回了 71 行，形态如下（节选）：
 
-**最有力的假说**：`with shardkey` 输出里 `info` 含 `sub_func:month` 的表**恰好 6 张**，
-而 **78 = 6 × 13**。若每张按月分区表在 `information_schema` 里展开成 13 个月份子表，
-数字正好对上。**但这只是数字吻合**（78 也能拆成 2×39 / 3×26），需要验证。
-
-**D3 是决定性的一条，先跑它**（只回 20 行以内）：
-
-```sql
--- D3：直接看那几张按月二级分区表在元数据里长什么样
-SELECT TABLE_NAME FROM information_schema.TABLES
-WHERE TABLE_SCHEMA='lzbj_ecif' AND TABLE_TYPE='BASE TABLE'
-  AND (TABLE_NAME LIKE 'cus_pub_translog%'
-    OR TABLE_NAME LIKE 'cus_pub_updatelog%'
-    OR TABLE_NAME LIKE 'cus_pub_sync_log%'
-    OR TABLE_NAME LIKE 'cus_bas_merge_log%')
-ORDER BY TABLE_NAME;
+```
+cus_bas_merge_log                          ← 逻辑表
+cus_bas_merge_log_tdsql_subp190001         ← 兜底/溢出分区
+cus_bas_merge_log_tdsql_subp202601
+…
+cus_bas_merge_log_tdsql_subp202612         ← 每张 13 个子分区
+cus_pub_translog_his                       ← 无二级分区，被 LIKE 顺带捞到
 ```
 
-看到 `cus_pub_translog_202601` 这类带年月后缀的名字 → **假说坐实，收工**。
+**账目闭合**：6 张 `sub_func:month` 的表 × 13 个子分区 = **78**，
+正是 293 − 215 的差值。剔除后 **逻辑基线 215 == Proxy 口径 215**。
 
-若 D3 只回了 4 个裸表名（没有后缀），再跑 D1 + D2：
+**设计动作（ADR-17，已落地）**：`_tdsql_subp<数字>` 结尾的表从基线中剔除、
+单列为 `subpartition_tables`，并出一条 `SUBPARTITION_EXCLUDED`（INFO）。
+`RECON_MISMATCH` 从此不再常态触发——**一旦亮起就意味着真有表没进 Proxy 路由表**。
 
-```sql
--- D1：带数字后缀的表有多少张
-SELECT COUNT(*) FROM information_schema.TABLES
-WHERE TABLE_SCHEMA='lzbj_ecif' AND TABLE_TYPE='BASE TABLE'
-  AND TABLE_NAME REGEXP '_[0-9]+$';
-
--- D2：看 20 个样本长什么样
-SELECT TABLE_NAME FROM information_schema.TABLES
-WHERE TABLE_SCHEMA='lzbj_ecif' AND TABLE_TYPE='BASE TABLE'
-  AND TABLE_NAME REGEXP '_[0-9]+$'
-ORDER BY TABLE_NAME LIMIT 20;
-```
-
-D1 若回 78 → 假说成立。若回 0 或对不上 → 那 78 张是别的东西，
-把 D2 的样本贴回来，我据此判断是否要在产品里把它作为治理发现单独报出。
+D1 / D2 已无必要执行。
 
 ---
 
@@ -1067,9 +1072,7 @@ Query OK, 0 rows affected (0.001 sec)
 | T13 = 当前库作用域 | 第二个库指纹不同 → 逐库执行；`INSTANCE_WIDE_SCOPE` 不触发。代码无需改 | 否 |
 | T13 = 实例级作用域 | 指纹比对在第二个库上判定成立，**6 条命令**搞定；`INSTANCE_WIDE_SCOPE` 会显示——**符合设计预期** | 否 |
 | T13 无多库实例可测 | 两条路径都已实现且都有单测覆盖，按现状开发 | 否 |
-| T14 并集 == 基线 | `RECON_MISMATCH` 不触发 | 否 |
-| T14 不等 | `RECON_MISMATCH` 生效并列差集——**符合设计预期** | 否 |
-| T14 基线看到的是**物理分片子表** | 基线口径失效，需要换交叉校验数据源（或去掉该校验） | **是**（设计升版） |
+| ~~T14 / D3~~ | ✅ **已完成**。差异 78 张查明为二级分区物理子表，已按 ADR-17 剔除，两口径精确对齐 | — |
 | ~~T15~~ | ✅ **已完成 = A**。设计不变，超时保险留作兜底 | — |
 | T09 登记账号无权限 | 出授权说明，由 DBA 补授权 | **是**（非代码问题） |
 | T10 单库 > 1s 且 T13 = 当前库作用域 且库数 > 20 | 需追加"异步任务 + 进度"设计 | **是**（设计升版）。已知 `lzbj_ecif`（215 张表）单库仅 0.004s，风险很低 |
@@ -1082,7 +1085,7 @@ Query OK, 0 rows affected (0.001 sec)
 
 ## 11. 测试设计（开发期，可在本地 MariaDB 13306 上跑）
 
-`tests/test_table_type_stats.py`（附录 A.4），**39 项，除落库 2 项外全部离线，
+`tests/test_table_type_stats.py`（附录 A.4），**42 项，除落库 2 项外全部离线，
 不依赖真实 TDSQL**。数据夹具直接照搬 2026-08-29 内网实测形态（列名 `db_table`、
 库限定名 `sqltuning.t_max`、`with*` 双列 / `without` 单列）。
 
@@ -1108,6 +1111,9 @@ Query OK, 0 rows affected (0.001 sec)
 | `test_distributed_recon_mismatch` | 双向差集写进 `item.detail`，告警只出一条 | RISK-B |
 | `test_recon_mismatch_is_aggregated_not_per_db` | 三个库都不一致时**只出一条**告警，含库数与合计 | **ADR-15 护栏** |
 | `test_scope_probe_ignores_baseline_mismatch` | 基线与 Proxy 口径差得再远，作用域判定照样成立 | **ADR-12 修订护栏** |
+| `test_baseline_excludes_tdsql_subpartitions` | 13 个 `_tdsql_subp` 子表不计入逻辑基线、单列计数、不报 `RECON_MISMATCH` | **ADR-17 核心护栏** |
+| `test_subpartition_regex_is_anchored` | 只剔除 `_tdsql_subp<纯数字>` 结尾；`my_tdsql_subp202601_backup` 不误伤 | ADR-17 边界 |
+| `test_lzbj_ecif_uat_baseline` | **端到端对数基准**：98/117/0/215/215/78，告警仅 `SUBPARTITION_EXCLUDED` | **UAT 基准编码为单测** |
 | `test_distributed_partial_failure` | 单库失败只降级该库，其余库照常，`failed_databases=1` | ADR-5 |
 | `test_command_timeout_is_reported_not_hung` | 读超时渲染为"读超时（30s）"而非裸异常 | RISK-F / E-21 |
 | `test_time_budget_skips_remaining` | 超预算的库标 `SKIPPED`、不计入总数、W10 | ADR-14 / E-22 |
@@ -1131,7 +1137,7 @@ SQL）与 `selected`（所有切库动作）——后者正是 ADR-3 护栏的�
 
 **本地验证结果（2026-08-29）**：用 importlib 把附录 A.1 挂载为
 `backend.services.table_type_stats_service`（**仓库代码零改动**），
-`python -m pytest` **39 项全部通过**，含对本地 MariaDB(13306) 的真实落库用例。
+`python -m pytest` **42 项全部通过**，含对本地 MariaDB(13306) 的真实落库用例。
 
 
 ## 12. 验收清单
@@ -1148,8 +1154,9 @@ SQL）与 `selected`（所有切库动作）——后者正是 ADR-3 护栏的�
 - [ ] 分布式实例上核对：逐库 `total == shard + broadcast + single`，汇总同样成立
 - [ ] 若结果出现 `INSTANCE_WIDE_SCOPE`（W9），核对总表数**没有**被库数放大
 - [ ] 失败库与未采集库分别计入 `failed_databases` / `skipped_databases`，且都不进总数
-- [ ] **对数基准**：`lzbj_ecif` 应输出 总表 **215** / 单表 **0** / 广播表 **117** / 分片表 **98** / 元数据基线 **293**，并出现一条 `RECON_MISMATCH`。五个数字全对才算通过
+- [ ] **对数基准**：`lzbj_ecif` 应输出 总表 **215** / 单表 **0** / 广播表 **117** / 分片表 **98** / 逻辑基线 **215** / 二级分区子表 **78**，**且不出现 `RECON_MISMATCH`**，只有一条 `SUBPARTITION_EXCLUDED`（INFO）。六个数字全对才算通过
 - [ ] `RECON_MISMATCH` 无论涉及几个库都**只出一条**告警；逐库差异在表格「说明」列
+- [ ] 二级分区子表不计入总表数，但逐库「二级分区子表」列如实显示
 - [ ] 历史列表与明细接口可回看
 
 ### 12.2 权限
@@ -1181,7 +1188,7 @@ SQL）与 `selected`（所有切库动作）——后者正是 ADR-3 护栏的�
 | KL-7 | 结果为快照，不反映采集期间的 DDL 变更 | 无事务一致性保证 | 结果带 `created_at`，UI 标注"采集时刻快照" |
 | KL-8 | 命令作用域（当前库 / 实例级）未裁决 | 返回库限定名 + 原厂"库名+表名去重"的措辞都指向实例级，但缺少多业务库实例的实测 | 设计在两种作用域下都正确（ADR-11/12）；T13 只影响性能量级与 W9 是否显示。**作用域判据已改为不依赖 information_schema 的指纹比对**，固定代价 6 条命令 |
 | KL-9 | 空结果集是否导致命令挂起未裁决 | 赤兔页面对无单表的库一直转圈，原因未定 | 30s 读超时 + 180s 总预算兜底；T15 判决，若为 B 则升 Rev.C |
-| KL-10 | Proxy 口径与 `information_schema` 基线相差 78/293（27%），78 张的成因未确证 | T14 已量化差异，成因待 D1～D3 | 双口径并排呈现（ADR-16），产品不替用户裁决；成因只影响文案，不影响计数正确性 |
+| KL-10 | 二级分区子表识别依赖命名约定 `_tdsql_subp<数字>` | D3 实测确认该命名（`_tdsql_subp190001` / `_tdsql_subp202601`…），但无官方文档背书 | 正则锚定末尾+纯数字后缀，误判方向安全：漏识别 → `RECON_MISMATCH` 显式报出（可见），不会静默少算 |
 | KL-11 | `info` 列内容（shardkey / sub_shardkey / auto_increment）本期未使用 | 形态已入附录 B | 为将来"分片键分布"类需求预留，不在本期范围 |
 
 ---
@@ -1190,7 +1197,7 @@ SQL）与 `selected`（所有切库动作）——后者正是 ADR-3 护栏的�
 
 > **本附录四个文件已在本地环境完整验证**：用 importlib 把 A.1 挂载为
 > `backend.services.table_type_stats_service`（**仓库代码零改动**），
-> `python -m pytest` **39 项全部通过**，其中含对本地 MariaDB(13306) 的真实落库用例；
+> `python -m pytest` **42 项全部通过**，其中含对本地 MariaDB(13306) 的真实落库用例；
 > A.2 的路由在 FastAPI 下正确注册出 3 条路径。实施者可直接落盘，不需要二次设计。
 >
 > **Rev.B～Rev.D 相对 Rev.A 的实质变化**（全部源自三轮内网实测）：
@@ -1205,11 +1212,14 @@ SQL）与 `selected`（所有切库动作）——后者正是 ADR-3 护栏的�
 > 5. `COMMAND_READ_TIMEOUT=30` / `TOTAL_BUDGET_SECONDS=180` 双层时长兜底
 >    与 `SKIPPED` 状态（ADR-13/14）；OK 包（`Query OK, 0 rows affected`）按 0 张处理；
 > 6. 新增 `skipped_databases` 与 `baseline_tables` 字段（ADR-16 双口径并排呈现）；
-> 7. `RECON_MISMATCH` 汇总成一条告警（ADR-15）。
+> 7. `RECON_MISMATCH` 汇总成一条告警（ADR-15）；
+> 8. **剔除 `_tdsql_subp<数字>` 二级分区物理子表**并单列 `subpartition_tables`
+>    （ADR-17，Rev.E）——剔除后逻辑基线与 Proxy 口径精确相等，
+>    交叉校验从"永久亮着的噪声"变回"亮起就有事"的信号。
 >
 > **GATE-2 已无阻断项**；剩余的 T13 与 D1～D3 都不会改动这四个文件。
 
-### A.1 `backend/services/table_type_stats_service.py`（新增，621 行）
+### A.1 `backend/services/table_type_stats_service.py`（新增，656 行）
 
 ```python
 # -*- coding: utf-8 -*-
@@ -1233,15 +1243,19 @@ SQL）与 `selected`（所有切库动作）——后者正是 ADR-3 护栏的�
     （`Query OK, 0 rows affected`，0.001 秒返回，不是挂起）。
     PyMySQL >= 1.1.0 对 OK 包 fetchall() 返回 []，cursor.description 为 None，
     故本模块天然按"该类 0 张"处理；赤兔页面转圈是其前端等列元数据所致，与本模块无关。
-  · 三类并集与 information_schema 基线【不相等】：lzbj_ecif 三类并集 215 张，
-    基线 293 张，差 78 张。故不得用"并集 == 基线"作为任何判据（见 _collect_distributed
-    的作用域判定），也不得把基线当成"正确答案"覆盖 Proxy 口径。
+  · information_schema 会把【二级分区的物理子表】也列为 BASE TABLE，命名形如
+    <逻辑表>_tdsql_subp190001 / _tdsql_subp202601。lzbj_ecif 实测：
+    基线 293 = 逻辑表 215 + 子分区 78（6 张 sub_func:month 的表 × 13 个子分区）。
+    本模块把子分区表从基线中剔除并单列计数，剔除后逻辑基线 215 与 Proxy 口径【精确相等】。
+    故不得用未剔除的基线与 Proxy 口径比对（会产生 27% 的常态误报）。
 
 设计要点（详见 DESIGN-v1.6.3.0）：
   · 结果按【库限定名】归属到库，而不是无条件算在当前会话库上——
     命令的作用域是否为实例级尚未确证，按库归属 + (库,表) 去重使两种
     作用域都得到正确结果（§3.3 RISK-E）。这也正是原厂"使用数据库名+表名
     去重"这句话的由来。
+  · 基线口径：剔除二级分区物理子表后与 Proxy 口径精确对齐，使交叉校验重新成为
+    有效信号（否则每个库都会常态告警 27%，等于把告警训练成噪声）。
   · 作用域自判：连续两个非空库的原始结果集若逐条相同，即证明命令是实例级作用域，
     其余库无需再执行——把 3×N 条命令压到 6 条。判据不依赖 information_schema
     （实测证明并集与基线不等，用基线做判据会永不成立）。
@@ -1255,6 +1269,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import logging
+import re
 import time
 from typing import Optional
 
@@ -1296,6 +1311,16 @@ TOTAL_BUDGET_SECONDS = 180    # 采集总时长预算。超出即停并把剩余
 _EXACT_NAME_COLS = ("db_table", "table", "table_name", "tables", "name")
 _PREFIX_NAME_COLS = ("tables_in_",)
 _EXCLUDE_TOKENS = ("type", "rows", "schema", "comment", "engine", "key", "info")
+
+# TDSQL 二级分区的物理子表命名（2026-08-29 内网实测，设计附录 B.5）：
+#   cus_pub_translog_tdsql_subp190001 / _tdsql_subp202601 … _tdsql_subp202612
+# 它们在 information_schema 里是独立的 BASE TABLE，但【不是】用户认知中的"表"，
+# Proxy 的 show table 也只返回逻辑表名。故从基线中剔除并单列计数。
+# 后缀限定为【纯数字】并锚定到末尾：既覆盖实测的 190001 / 202601-202612，
+# 又不会误伤 my_tdsql_subp202601_backup 这类用户自建表。
+# 万一某版本用了非数字后缀，本模块会把它当逻辑表 —— 后果是 RECON_MISMATCH
+# 把它显式报出来（可见），而不是静默少算（不可见）。方向是安全的。
+_SUBPARTITION_RE = re.compile(r"_tdsql_subp\d+$", re.IGNORECASE)
 
 _PERM_ERRNO = (1044, 1045, 1142, 1143, 1227)
 _SYNTAX_ERRNO = 1064
@@ -1435,14 +1460,16 @@ def list_business_databases(pool):
 
 
 def _collect_baseline(pool, dbs: list) -> dict:
-    """取 information_schema 全量名单。返回 {db: {"base": set, "view": set}}。
+    """取 information_schema 全量名单。
+
+    返回 {db: {"base": 逻辑表, "view": 视图, "subp": 二级分区物理子表}}。
 
     要名字不要计数：集中式分支取 len(base)；分布式分支需要名字做视图扣除，
     以及逐库双向集合差（差的是哪几张表要写进「说明」列）。
     注意：作用域判定【不】使用基线——实测 Proxy 口径与基线相差可达 27%
     （lzbj_ecif 215 vs 293），用基线做判据会永不成立（ADR-12）。
     """
-    out = {d: {"base": set(), "view": set()} for d in dbs}
+    out = {d: {"base": set(), "view": set(), "subp": set()} for d in dbs}
     if not dbs:
         return out
     placeholders = ",".join(["%s"] * len(dbs))
@@ -1463,16 +1490,22 @@ def _collect_baseline(pool, dbs: list) -> dict:
             continue
         ttype = str(r.get("TABLE_TYPE") or r.get("table_type") or "").strip().upper()
         if ttype == "BASE TABLE":
-            out[key]["base"].add(name)
+            # 二级分区物理子表单独归类，不计入逻辑基线
+            if _SUBPARTITION_RE.search(name):
+                out[key]["subp"].add(name)
+            else:
+                out[key]["base"].add(name)
         elif ttype == "VIEW":
             out[key]["view"].add(name)
     return out
 
 
 def _blank_item(db: str, baseline: dict) -> dict:
+    b = baseline.get(db, {})
     return {"db_name": db, "total_tables": 0, "shard_tables": 0,
             "broadcast_tables": 0, "single_tables": 0,
-            "baseline_tables": len(baseline.get(db, {}).get("base", ())),
+            "baseline_tables": len(b.get("base", ())),
+            "subpartition_tables": len(b.get("subp", ())),
             "status": "OK", "detail": ""}
 
 
@@ -1480,7 +1513,7 @@ def _collect_centralized(dbs: list, baseline: dict):
     """集中式：纯内存换算，不发任何查询，不发任何 /*proxy*/ 命令（ADR-4）。"""
     items = []
     totals = {"shard": 0, "broadcast": 0, "single": 0, "total": 0,
-              "baseline": 0, "overlap": 0, "failed": 0, "skipped": 0}
+              "baseline": 0, "subp": 0, "overlap": 0, "failed": 0, "skipped": 0}
     for db in dbs:
         n = len(baseline.get(db, {}).get("base", ()))
         item = _blank_item(db, baseline)
@@ -1490,6 +1523,7 @@ def _collect_centralized(dbs: list, baseline: dict):
         totals["single"] += n
         totals["total"] += n
         totals["baseline"] += n
+        totals["subp"] += item["subpartition_tables"]
     return items, [], {}, totals
 
 
@@ -1507,7 +1541,7 @@ def _collect_distributed(pool, dbs: list, baseline: dict, known_dbs: set):
     """
     items, warnings, shape = [], [], {}
     totals = {"shard": 0, "broadcast": 0, "single": 0, "total": 0,
-              "baseline": 0, "overlap": 0, "failed": 0, "skipped": 0}
+              "baseline": 0, "subp": 0, "overlap": 0, "failed": 0, "skipped": 0}
     if not dbs:
         return items, warnings, shape, totals
 
@@ -1614,6 +1648,7 @@ def _collect_distributed(pool, dbs: list, baseline: dict, known_dbs: set):
     for db in dbs:
         item = _blank_item(db, baseline)
         totals["baseline"] += item["baseline_tables"]
+        totals["subp"] += item["subpartition_tables"]
         if db in failed:
             item["status"] = "FAILED"
             item["detail"] = failed[db]
@@ -1669,10 +1704,16 @@ def _collect_distributed(pool, dbs: list, baseline: dict, known_dbs: set):
             names += f" …等 {len(recon)} 个库"
         warnings.append(_warn(
             "RECON_MISMATCH", "WARNING", "",
-            f"{len(recon)} 个库的 Proxy 口径与 information_schema 基线不一致："
+            f"{len(recon)} 个库的 Proxy 口径与 information_schema 逻辑基线不一致："
             f"仅基线可见合计 {sum_base} 张、仅 Proxy 可见合计 {sum_proxy} 张（{names}）。"
-            f"本页四个数字采用【Proxy 口径】（原厂统计逻辑）；"
-            f"基线数见「元数据基线」列，差异明细见各行「说明」"))
+            f"二级分区物理子表已剔除，故此差异【不是】分区造成的，"
+            f"可能存在未纳入 Proxy 路由的表；差异明细见各行「说明」"))
+    if totals["subp"]:
+        warnings.append(_warn(
+            "SUBPARTITION_EXCLUDED", "INFO", "",
+            f"information_schema 中另有 {totals['subp']} 张二级分区物理子表"
+            f"（形如 xxx_tdsql_subp202601），按逻辑表口径未计入总数；"
+            f"逐库数量见「二级分区子表」列"))
     if instance_wide:
         warnings.append(_warn(
             "INSTANCE_WIDE_SCOPE", "INFO", "",
@@ -1751,6 +1792,7 @@ def analyze(pool, connection_id: str = "", database: str = "") -> dict:
         "broadcast_tables": totals["broadcast"],
         "single_tables": totals["single"],
         "baseline_tables": totals["baseline"],
+        "subpartition_tables": totals["subp"],
         "failed_databases": totals["failed"],
         "skipped_databases": totals["skipped"],
         "overlap_count": totals["overlap"],
@@ -1774,23 +1816,26 @@ def run_stats(pool, connection_id: str = "", database: str = "",
             "INSERT INTO table_type_stat (connection_id, database_filter, "
             "instance_type, type_source, database_count, total_tables, "
             "shard_tables, broadcast_tables, single_tables, baseline_tables, "
-            "failed_databases, skipped_databases, overlap_count, warnings_json, "
-            "created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "subpartition_tables, failed_databases, skipped_databases, "
+            "overlap_count, warnings_json, created_by) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (connection_id, database, res["instance_type"], res["type_source"],
              res["database_count"], res["total_tables"], res["shard_tables"],
              res["broadcast_tables"], res["single_tables"],
-             res["baseline_tables"], res["failed_databases"],
-             res["skipped_databases"], res["overlap_count"],
+             res["baseline_tables"], res["subpartition_tables"],
+             res["failed_databases"], res["skipped_databases"],
+             res["overlap_count"],
              json.dumps(res["warnings"], ensure_ascii=False), operator))
         stat_id = cur.lastrowid
         for it in res["items"]:
             conn.execute(
                 "INSERT INTO table_type_stat_item (stat_id, db_name, total_tables, "
                 "shard_tables, broadcast_tables, single_tables, baseline_tables, "
-                "status, detail) VALUES (?,?,?,?,?,?,?,?,?)",
+                "subpartition_tables, status, detail) VALUES (?,?,?,?,?,?,?,?,?,?)",
                 (stat_id, it["db_name"], it["total_tables"], it["shard_tables"],
                  it["broadcast_tables"], it["single_tables"],
-                 it["baseline_tables"], it["status"], it["detail"]))
+                 it["baseline_tables"], it["subpartition_tables"],
+                 it["status"], it["detail"]))
         conn.commit()
     finally:
         conn.close()
@@ -1884,7 +1929,7 @@ def detail(stat_id: int):
     return svc.get_detail(stat_id)
 ```
 
-### A.3 `backend/schema/v11/110_table_type_stats.sql`（新增，39 行）
+### A.3 `backend/schema/v11/110_table_type_stats.sql`（新增，41 行）
 
 > 迁移器会**逐行剔除以 `--` 开头的行**再按 `;` 切分（`backend/schema/migrator.py:52-56`），
 > 因此注释必须整行独占，语句之间必须有 `;`，文件末尾的 `;` 不可省。
@@ -1904,6 +1949,7 @@ CREATE TABLE IF NOT EXISTS table_type_stat (
     broadcast_tables    INT DEFAULT 0,
     single_tables       INT DEFAULT 0,
     baseline_tables     INT DEFAULT 0,
+    subpartition_tables INT DEFAULT 0,
     failed_databases    INT DEFAULT 0,
     skipped_databases   INT DEFAULT 0,
     overlap_count       INT DEFAULT 0,
@@ -1924,6 +1970,7 @@ CREATE TABLE IF NOT EXISTS table_type_stat_item (
     broadcast_tables    INT DEFAULT 0,
     single_tables       INT DEFAULT 0,
     baseline_tables     INT DEFAULT 0,
+    subpartition_tables INT DEFAULT 0,
     status              VARCHAR(16) DEFAULT 'OK',
     detail              VARCHAR(512) DEFAULT '',
     created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -1931,7 +1978,7 @@ CREATE TABLE IF NOT EXISTS table_type_stat_item (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ```
 
-### A.4 `tests/test_table_type_stats.py`（新增，674 行）
+### A.4 `tests/test_table_type_stats.py`（新增，749 行）
 
 ```python
 # -*- coding: utf-8 -*-
@@ -2397,6 +2444,81 @@ def test_recon_mismatch_is_aggregated_not_per_db(monkeypatch):
     assert res["total_tables"] == 3 and res["baseline_tables"] == 9
 
 
+def test_baseline_excludes_tdsql_subpartitions(monkeypatch):
+    """information_schema 里的二级分区物理子表不得计入逻辑基线（实测命名形态）"""
+    _patch_ctx(monkeypatch, "distributed")
+    subp = ["cus_pub_translog_tdsql_subp190001"] + [
+        f"cus_pub_translog_tdsql_subp2026{m:02d}" for m in range(1, 13)]
+    per_db = {("db_a", svc.SQL_SHARD): _rows(["db_a.cus_pub_translog"]),
+              ("db_a", svc.SQL_BROADCAST): [],
+              ("db_a", svc.SQL_SINGLE): []}
+    pool = FakePool(databases=["db_a"],
+                    info_schema={"db_a": {"base": ["cus_pub_translog"] + subp}},
+                    per_db=per_db)
+    _patch_tmp_pool(monkeypatch, pool)
+    res = svc.analyze(pool, connection_id="c1")
+    assert res["baseline_tables"] == 1          # 逻辑基线只算 1 张
+    assert res["subpartition_tables"] == 13     # 13 个子分区单列
+    assert res["total_tables"] == 1
+    # 剔除后两个口径对齐 ⇒ 不得再报 RECON_MISMATCH
+    assert not any(w["code"] == "RECON_MISMATCH" for w in res["warnings"])
+    assert any(w["code"] == "SUBPARTITION_EXCLUDED" for w in res["warnings"])
+
+
+def test_subpartition_regex_is_anchored():
+    """只剔除以 _tdsql_subp<纯数字> 结尾的表，不误伤用户自建表"""
+    # 实测形态
+    assert svc._SUBPARTITION_RE.search("cus_pub_translog_tdsql_subp190001")
+    assert svc._SUBPARTITION_RE.search("cus_pub_updatelog_detail_tdsql_subp202612")
+    # 逻辑表本身不能被剔除
+    assert not svc._SUBPARTITION_RE.search("cus_pub_translog")
+    assert not svc._SUBPARTITION_RE.search("cus_pub_translog_his")
+    # 用户自建的、后面还有后缀的表不能被误伤
+    assert not svc._SUBPARTITION_RE.search("my_tdsql_subp202601_backup")
+    assert not svc._SUBPARTITION_RE.search("tdsql_subp")
+    assert not svc._SUBPARTITION_RE.search("t_tdsql_subp_manual")
+
+
+def test_lzbj_ecif_uat_baseline(monkeypatch):
+    """端到端对数基准：内网 lzbj_ecif 实测（设计附录 B.5）。
+
+    Proxy: 98 分片 + 117 广播 + 0 单表 = 215
+    information_schema: 293 = 逻辑 215 + 二级分区子表 78（6 张按月分区表 × 13）
+    期望：总表 215 / 单表 0 / 广播 117 / 分片 98 / 逻辑基线 215 / 子分区 78，
+          且【不报】RECON_MISMATCH。
+    """
+    _patch_ctx(monkeypatch, "distributed")
+    shard = [f"t_shard_{i}" for i in range(98)]
+    bcast = [f"t_bcast_{i}" for i in range(117)]
+    month_tables = shard[:6]                     # 其中 6 张是按月二级分区
+    subp = [f"{t}_tdsql_subp190001" for t in month_tables]
+    for t in month_tables:
+        subp += [f"{t}_tdsql_subp2026{m:02d}" for m in range(1, 13)]
+    assert len(subp) == 78
+    per_db = {
+        ("lzbj_ecif", svc.SQL_SHARD): _rows([f"lzbj_ecif.{t}" for t in shard],
+                                            info="shardkey:id"),
+        ("lzbj_ecif", svc.SQL_BROADCAST): _rows([f"lzbj_ecif.{t}" for t in bcast],
+                                                info="shardkey:noshardkey_allset"),
+        ("lzbj_ecif", svc.SQL_SINGLE): None,      # OK 包：该库无单表
+    }
+    pool = FakePool(databases=["lzbj_ecif"],
+                    info_schema={"lzbj_ecif": {"base": shard + bcast + subp}},
+                    per_db=per_db)
+    _patch_tmp_pool(monkeypatch, pool)
+    res = svc.analyze(pool, connection_id="c1")
+    assert res["shard_tables"] == 98
+    assert res["broadcast_tables"] == 117
+    assert res["single_tables"] == 0
+    assert res["total_tables"] == 215
+    assert res["baseline_tables"] == 215          # 293 - 78
+    assert res["subpartition_tables"] == 78
+    assert not any(w["code"] == "RECON_MISMATCH" for w in res["warnings"]), \
+        "剔除子分区后两个口径应精确对齐，不得常态告警"
+    codes = {w["code"] for w in res["warnings"]}
+    assert codes == {"SUBPARTITION_EXCLUDED"}
+
+
 def test_distributed_partial_failure(monkeypatch):
     """单库失败只降级该库：不计入总数、单列计数、其余库照常（ADR-5）"""
     _patch_ctx(monkeypatch, "distributed")
@@ -2675,7 +2797,8 @@ app.include_router(table_type_stats_router)  # G14 表类型统计
                   · 单表 <b>{{ deepResult.tabletype.single_tables }}</b>
                   · 广播表 <b style="color:var(--warning-500)">{{ deepResult.tabletype.broadcast_tables }}</b>
                   · 分片表 <b style="color:var(--success-500)">{{ deepResult.tabletype.shard_tables }}</b>
-                  <span style="color:#909399"> · 元数据基线 {{ deepResult.tabletype.baseline_tables }}</span>
+                  <span style="color:#909399"> · 逻辑基线 {{ deepResult.tabletype.baseline_tables }}</span>
+                  <span v-if="deepResult.tabletype.subpartition_tables" style="color:#909399"> · 二级分区子表 {{ deepResult.tabletype.subpartition_tables }}（未计入）</span>
                   <span v-if="deepResult.tabletype.failed_databases"> · <b style="color:var(--danger-500)">失败库 {{ deepResult.tabletype.failed_databases }}</b></span>
                   <span v-if="deepResult.tabletype.skipped_databases"> · <b style="color:var(--warning-500)">未采集 {{ deepResult.tabletype.skipped_databases }}</b></span>
                 </span>
@@ -2689,7 +2812,8 @@ app.include_router(table_type_stats_router)  # G14 表类型统计
                   <el-table-column prop="single_tables" label="单表" width="90"></el-table-column>
                   <el-table-column prop="broadcast_tables" label="广播表" width="90"></el-table-column>
                   <el-table-column prop="shard_tables" label="分片表" width="90"></el-table-column>
-                  <el-table-column prop="baseline_tables" label="基线(元数据)" width="120"></el-table-column>
+                  <el-table-column prop="baseline_tables" label="逻辑基线" width="100"></el-table-column>
+                  <el-table-column prop="subpartition_tables" label="二级分区子表" width="120"></el-table-column>
                   <el-table-column prop="status" label="状态" width="90">
                     <template #default="s"><el-tag :type="s.row.status==='OK'?'success':(s.row.status==='SKIPPED'?'warning':'danger')" size="small">{{ s.row.status }}</el-tag></template>
                   </el-table-column>
@@ -2697,7 +2821,8 @@ app.include_router(table_type_stats_router)  # G14 表类型统计
                 </el-table>
                 <div style="color:#909399;font-size:12px;margin-top:8px">
                   口径：分布式实例逐业务库执行 /*proxy*/show table with shardkey · with noshardkey_allset · without shardkey，按"库名+表名"去重；
-                  集中式实例统计 information_schema.TABLES 中 TABLE_TYPE='BASE TABLE'，分片表与广播表恒为 0，不统计视图。结果为采集时刻快照。
+                  集中式实例统计 information_schema.TABLES 中 TABLE_TYPE='BASE TABLE'，分片表与广播表恒为 0，不统计视图。
+                  逻辑基线已剔除 xxx_tdsql_subp202601 这类二级分区物理子表（单列显示，不计入总数）。结果为采集时刻快照。
                 </div>
               </el-tab-pane>
 ```
@@ -2869,11 +2994,57 @@ MySQL [lzbj_ecif]> SELECT COUNT(*) FROM information_schema.TABLES
 **待查**：78 张是什么。最有力假说是二级分区的物理子表——
 `info` 含 `sub_func:month` 的表恰好 6 张，且 78 = 6 × 13。由 D1～D3 判定（§10.2）。
 
-**UAT 对数基准修订**：本模块对 `lzbj_ecif` 应输出
-**总表 215 / 单表 0 / 广播表 117 / 分片表 98 / 元数据基线 293**，
-并出现一条 `RECON_MISMATCH` 告警。**五个数字全对才算通过。**
+> **注**：本节写于第三轮，当时 78 张的成因未明，曾把 UAT 基准定为
+> "五个数字 + 一条 `RECON_MISMATCH`"。第四轮（B.5）查明成因并按 ADR-17 剔除后，
+> **该基准已作废**——最终基准见 B.5 末尾（六个数字，且**不得**出现 `RECON_MISMATCH`）。
 
-### B.5 由三轮实测直接得出的结论
+### B.5 第四轮实测（2026-08-29，D3 差异成因）
+
+```
+MySQL [lzbj_ecif]> SELECT TABLE_NAME FROM information_schema.TABLES
+                   WHERE TABLE_SCHEMA='lzbj_ecif' AND TABLE_TYPE='BASE TABLE'
+                     AND (TABLE_NAME LIKE 'cus_pub_translog%'
+                       OR TABLE_NAME LIKE 'cus_pub_updatelog%'
+                       OR TABLE_NAME LIKE 'cus_pub_sync_log%'
+                       OR TABLE_NAME LIKE 'cus_bas_merge_log%')
+                   ORDER BY TABLE_NAME;
++-------------------------------------------+
+| cus_bas_merge_log                         |   ← 逻辑表
+| cus_bas_merge_log_tdsql_subp190001        |   ← 兜底/溢出分区
+| cus_bas_merge_log_tdsql_subp202601        |
+| …                                         |
+| cus_bas_merge_log_tdsql_subp202612        |   ← 每张 13 个
+| cus_pub_translog_his                      |   ← 无二级分区（被 LIKE 顺带捞到）
++-------------------------------------------+
+71 rows in set (0.004 sec)
+```
+
+**二级分区物理子表命名约定（实测锚点）**：`<逻辑表名>_tdsql_subp<数字>`
+* 兜底/溢出分区：`_tdsql_subp190001`
+* 按月分区：`_tdsql_subp202601` … `_tdsql_subp202612`
+
+**账目闭合验算**：
+
+| 项 | 数 |
+|---|---|
+| D3 结果中有子表的逻辑表 | 5 |
+| 每张的子表数（190001 + 12 个月） | 13 |
+| 小计 | 5 × 13 = 65 |
+| D3 结果中的逻辑表名（含无子表的 `cus_pub_translog_his`） | 6 |
+| **D3 合计** | **65 + 6 = 71** ✓ 与 `71 rows` 吻合 |
+| 全库 `sub_func:month` 的表（附录 B.3.3） | **6** 张（第 6 张 `cus_pub_sync_consumer_log` 未被本次 LIKE 匹配） |
+| **全库子表合计** | **6 × 13 = 78** ✓ 正是 293 − 215 |
+| **剔除后逻辑基线** | **293 − 78 = 215 == Proxy 口径** ✓ |
+
+**注**：`SHARDKEY_HASH_USE_SUB`（hash 二级分区）的表**不产生**物理子表——
+若产生，差值会远大于 78。只有 `sub_func:month`（按时间二级分区）会展开成物理子表。
+
+**UAT 对数基准（最终版，六个数字）**：本模块对 `lzbj_ecif` 应输出
+**总表 215 / 单表 0 / 广播表 117 / 分片表 98 / 逻辑基线 215 / 二级分区子表 78**，
+告警**只有一条** `SUBPARTITION_EXCLUDED`（INFO），**不得出现** `RECON_MISMATCH`。
+该基准已编码为单测 `test_lzbj_ecif_uat_baseline`。
+
+### B.6 由四轮实测直接得出的结论
 
 | 编号 | 结论 | 落到代码 |
 |---|---|---|
@@ -2888,15 +3059,16 @@ MySQL [lzbj_ecif]> SELECT COUNT(*) FROM information_schema.TABLES
 | B-9 | `lzbj_ecif` = 98 分片 + 117 广播 + 0 单表 = 215 | UAT 对数基准（B.3.2） |
 | B-10 | 215 张表的库，三条命令合计 0.004 秒 | 单库开销可忽略；总耗时只取决于库数（见 T13） |
 | B-11 | `lzbj_ecif` Proxy 口径 215 vs 基线 293，差 78（27%） | **RISK-B 成立**；ADR-16 双口径并排；ADR-15 告警汇总；**ADR-12 作用域判据改指纹比对** |
-| B-12 | 78 = 6 × 13，且 `sub_func:month` 的表恰好 6 张 | 二级分区物理子表假说，待 D1～D3 验证（数字吻合 ≠ 证据） |
+| B-12 | 78 张全部是二级分区物理子表，命名 `<逻辑表>_tdsql_subp<数字>` | **ADR-17**：从基线剔除并单列计数；剔除后 215 == 215，`RECON_MISMATCH` 重获信号价值 |
+| B-13 | 仅 `sub_func:month` 产生物理子表，`SHARDKEY_HASH_USE_SUB` 不产生 | 正则只需覆盖 `_tdsql_subp<数字>` 一种形态 |
 
 **待回填（T13 / T14 完成后补入本附录）**：
 
 | 项 | 内容 | 来源 | 阻断 |
 |---|---|---|---|
 | 命令作用域 | 当前库 / 实例级 | T13 | 否 |
-| 那 78 张表是什么 | 二级分区子表 / 游离表 / 其他 | D1～D3 | 否（只影响产品文案） |
-| ~~基线交叉校验~~ | 已完成：293 vs 215，差 78 | T14 | — |
+| ~~那 78 张表是什么~~ | 已完成：二级分区物理子表，`_tdsql_subp<数字>` | D3 | — |
+| ~~基线交叉校验~~ | 已完成：293 vs 215，差 78（已解释并消除） | T14 | — |
 | ~~空结果集行为~~ | 已完成：OK 包，0.001s，不挂起 | T15 | — |
 
 ---
@@ -2906,6 +3078,7 @@ MySQL [lzbj_ecif]> SELECT COUNT(*) FROM information_schema.TABLES
 
 | 版本 | 日期 | 作者 | 内容 |
 |---|---|---|---|
+| Rev.E | 2026-08-29 | 智能体 A | 依第四轮内网实测（D3）**查明并消除 RISK-B 的差异**：那 78 张全部是 TDSQL 二级分区的物理子表，命名 `<逻辑表>_tdsql_subp190001` / `_tdsql_subp202601`…`202612`；6 张 `sub_func:month` 的表 × 13 个子分区 = 78，与 293 − 215 精确闭合。**ADR-17（新增）**：`_tdsql_subp<数字>` 结尾的表从基线剔除、单列 `subpartition_tables`（响应 + 两张表的 DDL 列 + 前端一列），并出一条 `SUBPARTITION_EXCLUDED`（INFO）说明剔除量。剔除后**逻辑基线 215 == Proxy 口径 215**，`RECON_MISMATCH` 从"在每个有二级分区的库上永久亮着的噪声"变回"亮起就意味着真有表没进 Proxy 路由表"的信号——推翻 Rev.D"两个数并排让用户自己判断"的做法（ADR-16 随之修订）。新增护栏用例 3 项，其中 `test_lzbj_ecif_uat_baseline` 把内网对数基准（98/117/0/215/215/78 且不报 RECON）直接编码为单测（共 42 项，全部通过）。§10 归档 D3，仅剩 T13；附录 B 增补第四轮原始数据与账目闭合验算。**GATE-2 仍无阻断项。** |
 | Rev.D | 2026-08-29 | 智能体 A | 依第三轮内网实测（T14）**裁决 RISK-B：确认成立且差异达 27%**——`lzbj_ecif` Proxy 口径 215（98 分片 + 117 广播 + 0 单表）vs `information_schema` 基线 293，差 **78 张**。三处修订：**ADR-16**（四个数字采用 Proxy 口径，基线数并排呈现而不覆盖，新增 `baseline_tables` 字段与 DDL 列）；**ADR-15**（`RECON_MISMATCH` 汇总成一条——差异每库都有，逐库告警在 50 库实例上就是 50 条横幅）；**ADR-12 改写**——Rev.B 用"某库累计表集 == information_schema 基线"作为作用域探测的完备性证明，本次实测证明两者基本不可能相等、该判据永远不成立，改为**不依赖基线的指纹比对**（连续两个非空库的原始结果集逐条相同即证明实例级作用域，固定代价 6 条命令）。新增护栏用例 2 项（共 39 项，全部通过）。§10 归档 T14 并新增 D1～D3 诊断查询（78 = 6 × 13 且 `sub_func:month` 的表恰好 6 张，二级分区物理子表为最有力假说，待验证）。附录 B 增补第三轮数据与修订后的 UAT 对数基准（五个数字）。**GATE-2 仍无阻断项。** |
 | Rev.C | 2026-08-29 | 智能体 A | 依第二轮内网实测（T15）**裁决 RISK-F**：命令不挂起，`mysql` 直连 Proxy 返回 `Query OK, 0 rows affected (0.001 sec)`—— 是 **OK 包**不是空结果集，赤兔转圈系其前端等列元数据所致。核对 PyMySQL 行为（本机 2.2.8 + 项目下限 1.1.0 wheel 源码）：OK 包 `fetchall()` 返回 `[]`、`description` 为 `None`，本模块天然按该类 0 张处理，**设计不改**。新增语义记录：OK 包与命令不被支持在协议上不可区分，§6.6 交叉校验是该静默失效模式的唯一探测器。新增护栏用例 2 项（共 37 项，全部通过）。附录 B 增补第二轮原始数据：`lzbj_ecif` = 98 分片 + 117 广播 + 0 单表 = **215**（UAT 对数基准）、`info` 列取值谱系、三条命令合计 0.004 秒。§10 归档 T15，剩余 T13 / T14 均标注**不阻断开发**；**GATE-2 无阻断项，可进入开发**。 |
 | Rev.B | 2026-08-29 | 智能体 A | 依第一轮内网实测（附录 B）修订。**证伪 RISK-A**（三类互斥，归一化改作保险保留）；**锚定 RISK-C**（列名 `db_table`、`without shardkey` 单列、值为库限定名）；**新增 RISK-E**（命令作用域可能为实例级——Rev.A 会让总数放大 N 倍，改为按行内库限定名归属 + 全局 `(库,表)` 去重 + 覆盖性跳过，两种作用域下均正确）；**新增 RISK-F**（无单表的库上命令可能挂起——加 30s 读超时 + 180s 总预算 + `SKIPPED` 状态）。新增 ADR-11~14、E-18~23、W9~W11、`skipped_databases` 字段。§10 重写为"第一轮裁决表 + T13/T14/T15 三项补测 + GATE-2"。附录 A 代码同步更新（服务层 574 行 / 单测 594 行），**本地 35 项单测全部通过，仓库代码零改动**。 |
