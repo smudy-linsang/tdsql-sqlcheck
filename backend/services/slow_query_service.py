@@ -276,7 +276,7 @@ class SlowQueryService:
             分析报告（含原始EXPLAIN结果）
         """
         from backend.services.connection_registry import registry
-        from backend.services.tdsql_connector import TDSQLConnectionConfig
+        from backend.services.tdsql_connector import TDSQLConnectionConfig, TDSQLConnectionPool
         from backend.services.security_service import decrypt_password
 
         # 获取已保存的连接配置
@@ -310,7 +310,7 @@ class SlowQueryService:
                         _cur.fetchone()
             except Exception as _ex:
                 try:
-                    _ephemeral_pool.pool.close_all()
+                    _ephemeral_pool.close_all()
                 except Exception:
                     pass
                 _err = str(_ex)
@@ -477,7 +477,7 @@ class SlowQueryService:
         finally:
             if _ephemeral_pool is not None:
                 try:
-                    _ephemeral_pool.pool.close_all()
+                    _ephemeral_pool.close_all()
                 except Exception:
                     pass
 

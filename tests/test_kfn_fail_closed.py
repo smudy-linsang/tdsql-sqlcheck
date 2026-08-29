@@ -180,3 +180,55 @@ class TestRound1ScenariosPreserved:
     def test_real_view_no_e999(self, checker):
         fired, _ = _fired(checker, "CREATE VIEW v_test AS SELECT id FROM t1")
         assert "E999_SYNTAX_ERROR" not in fired
+
+
+# ── 5. UAT-O-09：注释/字符串中的引号不得吞掉真实 LOAD（词法器语句头）──────
+
+class TestLoadHeadWithComments:
+    """O-09：自研剥离器缺 # 注释状态曾吞掉真实 LOAD 致 R042 漏报。
+    改用 sqlglot 词法器后：真实 LOAD 在任何注释形态下都必须触发 R042；
+    注释/字符串里的假 LOAD 不得触发。"""
+
+    LOAD_BODIES = [
+        "LOAD XML INFILE '/tmp/synthetic.xml' INTO TABLE t",
+        "LOAD DATA INFILE '/tmp/synthetic.csv' INTO TABLE t",
+        "LOAD DATA LOCAL INFILE '/tmp/synthetic.csv' INTO TABLE t",
+    ]
+    COMMENTS = [
+        "",                                   # 无注释对照
+        "# operator's note\n",                # O-09 核心：# 注释含单引号
+        '# double " note\n',                  # # 注释含双引号
+        "# tick ` note\n",                    # # 注释含反引号
+        "# two ' quotes '\n",                 # # 注释含成对引号
+        "-- operator's note\n",               # -- 注释含引号
+        "/* operator's note */\n",            # 块注释含引号
+        "# ordinary\r\n",                     # CRLF
+        "# operator's note\r\n",               # CRLF + 引号
+    ]
+
+    @pytest.mark.parametrize("body", LOAD_BODIES)
+    @pytest.mark.parametrize("comment", COMMENTS)
+    def test_real_load_with_any_comment_fires_r042(self, checker, comment, body):
+        sql = comment + body
+        fired, _ = _fired(checker, sql)
+        assert "R042" in fired, f"真实 LOAD 必须触发 R042: {sql[:60]!r}"
+        # 审核结果不得为绿色通过
+        _, passed = _fired(checker, sql)
+        assert passed is False, f"LOAD 语句不得审核通过: {sql[:60]!r}"
+
+    @pytest.mark.parametrize("sql", [
+        "CREATE TABLE t (id INT) COMMENT='LOAD DATA'",        # 字符串诱饵
+        "CREATE TABLE t (id INT) COMMENT='LOAD XML'",
+        "SELECT 'LOAD DATA' FROM t",                           # 正常查询含诱饵字符串
+        "UPDATE t SET note='LOAD DATA' WHERE id=1",            # 正常更新含诱饵
+        "CREATE TABLE t (id INT, note VARCHAR(64) COMMENT 'LOAD DATA INFILE')",
+    ])
+    def test_fake_load_in_literal_never_fires_r042(self, checker, sql):
+        fired, _ = _fired(checker, sql)
+        assert "R042" not in fired, f"字符串诱饵不得触发 R042: {sql[:60]!r}"
+
+    def test_lex_failure_fails_closed(self, checker):
+        """词法化失败（未闭合字符串）→ 不豁免，E999 兑底"""
+        fired, passed = _fired(checker, "SELECT 'unterminated")
+        assert "E999_SYNTAX_ERROR" in fired
+        assert passed is False

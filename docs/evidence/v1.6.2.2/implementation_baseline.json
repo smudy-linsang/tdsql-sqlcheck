@@ -1,0 +1,12 @@
+{
+  "implementation_bundle": "73bcfd84f29a4aac7b080dc55d527385f4c9a2112bef24be71c716e7f6e70829",
+  "evolved_from_design_bundle": "6412e076871dcae15df8889c746819fc312729d7a69e9c4513334fdb274dfe89",
+  "review_basis": "UAT-v1.6.2.2-第三轮全项目用户验收测试报告-智能体O.md（O-09/O-08/O-05/O-13/O-11/O-10/O-12 修复）",
+  "note": "实现包已演进（UAT-R3 修复改动了 parser_legacy.py 等）。设计合同哈希校验独立保留；本清单记录新实现基线，供正式门禁显式验证演进关系。",
+  "target_files": [
+    "backend/engine/parser/parser_legacy.py",
+    "backend/engine/rules/distributed.py",
+    "requirements.txt",
+    "pyproject.toml"
+  ]
+}

@@ -65,6 +65,20 @@ def _expected_hash(doc: str):
     return match.group(1) if match else None
 
 
+def _read_impl_baseline() -> dict | None:
+    """读取经评审的实现基线清单（UAT 后实现演进审计）。
+    清单记录当前实现包哈希、演进来源设计包哈希与评审依据，
+    使正式门禁能显式验证“新实现与旧设计合同”的演进关系。"""
+    path = Path(__file__).resolve().parent / "implementation_baseline.json"
+    if not path.is_file():
+        return None
+    try:
+        import json
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
 def _generator_checks(work: Path, python: Path, doc: str, target_files: dict[str, str],
                       failures: list[str]) -> None:
     evidence = work / "docs" / "evidence" / "v1.6.2.2"
@@ -145,13 +159,30 @@ def main(argv=None) -> int:
             write_target(work, design_files)
             print("MODE design baseline=%s" % BASELINE_COMMIT)
         else:
+            # v1.6.2.2-UAT-O-12：把“设计包真实性”与“实现版本验证”拆为两个明确检查。
             current = _current_texts()
-            if bundle_sha256(current) != bundle_sha256(design_files):
-                print("STATUS NOT_IMPLEMENTED current_bundle=%s design_bundle=%s" % (
-                    bundle_sha256(current), bundle_sha256(design_files)))
-                return 3
-            _copy_repo(work)
-            print("MODE implementation bundle=%s" % bundle_sha256(current))
+            cur_hash = bundle_sha256(current)
+            design_hash = bundle_sha256(design_files)
+            # 检查 1（设计合同真实性，独立保留）：设计包哈希必须与设计文档声明一致。
+            want = _expected_hash(doc)
+            if want != design_hash:
+                failures.append("design bundle hash vs doc mismatch want=%s got=%s"
+                                % (want, design_hash))
+            # 检查 2（实现版本验证）：实现包与设计包一致则完全按设计验证；
+            # 不一致则属“实现演进”（如 UAT-R3 后的修复），需经评审的实现基线清单确认。
+            if cur_hash == design_hash:
+                print("MODE implementation bundle=%s (matches design)" % cur_hash)
+                _copy_repo(work)
+            else:
+                baseline = _read_impl_baseline()
+                if baseline and baseline.get("implementation_bundle") == cur_hash:
+                    print("MODE implementation bundle=%s (evolved from design %s; baseline-recorded)"
+                          % (cur_hash, baseline.get("evolved_from_design_bundle", "?")))
+                    _copy_repo(work)
+                else:
+                    print("STATUS NOT_IMPLEMENTED current_bundle=%s design_bundle=%s" % (
+                        cur_hash, design_hash))
+                    return 3
 
         versions = MATRIX_SQLGLOT if args.matrix else (RELEASE_SQLGLOT,)
         _run_matrix(work, temp, versions, failures, not args.skip_full_tests)

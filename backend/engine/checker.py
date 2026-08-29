@@ -7,7 +7,9 @@ import re
 from typing import Optional
 
 from backend.engine.parser import ParsedSQL, SQLParser
-from backend.engine.parser.parser_legacy import _strip_comments_and_literals
+from backend.engine.parser.parser_legacy import (
+    _lex_head_words, _is_load_statement_head, _is_create_routine_head,
+)
 from backend.engine.rules import ALL_RULE_CLASSES
 from backend.engine.rules.base import BaseRule
 from backend.models import (
@@ -147,16 +149,16 @@ class RuleChecker:
         # 普通解析错误的特殊语句豁免不再信任 sql_type/has_load_data——
         #   UNKNOWN/Command 路径下它们来自全文正则回退，会被
         #   COMMENT='LOAD DATA' 或 'CREATE VIEW' 字符串诱饵污染；
-        #   改用「剥离注释与字符串字面量后的顶层语句头」判定。
+        # v1.6.2.2-UAT-O-09：改用 sqlglot 词法器取「首个有效语句的真实头部」判定，
+        #   词法器完整处理 # 注释（上轮自研剥离器的盲区，曾吞掉真实 LOAD）；
+        #   词法化失败返回 None → 不豁免（失败关闭，E999 兑底）。
         _KFN_MARKERS = ("KNOWN_FIDELITY_GAP", "UNIQUE_SEMANTICS_INCOMPLETE")
         is_kfn = bool(getattr(parsed, "known_fidelity_failures", None)) or bool(
             parsed.parse_error and any(m in parsed.parse_error for m in _KFN_MARKERS))
         if parsed.parse_error and not is_kfn:
-            _head = _strip_comments_and_literals(sql)
-            is_proc_or_trigger = bool(re.match(
-                r"\s*create\s+(?:or\s+replace\s+)?(?:definer\s*=\s*\S+\s+)?"
-                r"(?:view|procedure|function|trigger)\b", _head, re.IGNORECASE))
-            is_load_stmt = bool(re.match(r"\s*load\s+(?:data|xml)\b", _head, re.IGNORECASE))
+            _head_words = _lex_head_words(sql)
+            is_proc_or_trigger = _is_create_routine_head(_head_words)
+            is_load_stmt = _is_load_statement_head(_head_words)
         else:
             is_proc_or_trigger = False
             is_load_stmt = False

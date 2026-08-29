@@ -40,77 +40,45 @@ from sqlglot.tokens import TokenType
 # 避免两套安全模型再次各自漂移。
 
 
-def _strip_comments_and_literals(sql: str) -> str:
-    """剥离 SQL 注释、字符串字面量与反引号标识符，内容替换为空格（保长度）。
 
-    用途：为"顶层语句头/关键字"类判定提供可信文本——注释、`'...'`/`"..."`
-    字符串、`` `...` `` 反引号标识符里的文字一律不参与匹配，防止
-    `COMMENT='LOAD DATA'`、`SELECT 'CREATE VIEW'`、`/* CREATE VIEW */`
-    之类的诱饵被误判为真实语句类型（v1.6.2.2-UAT-O-01-R2）。
+def _lex_head_words(sql: str, dialect: str = "mysql", limit: int = 8) -> Optional[list]:
+    """用 sqlglot 词法器取语句头词序列（大写文本）。词法化失败返回 None。
 
-    单遍扫描 O(n)；命中区域替换为空格而非删除，保持原串索引不变。
-    字符串转义按 MySQL 默认（反斜杠转义 + 双写引号转义）处理；
-    反引号标识符内只认双写 `` `` `` 转义（反斜杠在标识符中无转义语义）。
+    用途：为"顶层语句头"判定提供可信输入（v1.6.2.2-UAT-O-09）。
+    sqlglot 的 MySQL 词法器完整处理 `#`/`--`/`/* */` 三种注释与引号/反引号
+    字符串，注释与字面量内容不会进入词序列——从根本上避免手工状态机的
+    覆盖盲区（上一轮自研剥离器没有 `#` 注释状态，`# operator's note` 中的
+    单引号被误当字符串起点，吞掉后面的真实 LOAD 关键字导致 R042 漏报）。
     """
-    out = list(sql)
-    i, n = 0, len(sql)
-    state = None                       # None | "'" | '"' | '`' | '--' | '/*'
-    while i < n:
-        ch = sql[i]
-        nxt = sql[i + 1] if i + 1 < n else ''
-        if state is None:
-            if ch == '-' and nxt == '-':
-                out[i] = out[i + 1] = ' '
-                i += 2
-                state = '--'
-                continue
-            if ch == '/' and nxt == '*':
-                out[i] = out[i + 1] = ' '
-                i += 2
-                state = '/*'
-                continue
-            if ch in ("'", '"', '`'):
-                out[i] = ' '
-                i += 1
-                state = ch
-                continue
-            i += 1
-            continue
-        if state == '--':
-            if ch == '\n':
-                state = None
-            else:
-                out[i] = ' '
-            i += 1
-            continue
-        if state == '/*':
-            if ch == '*' and nxt == '/':
-                out[i] = out[i + 1] = ' '
-                i += 2
-                state = None
-                continue
-            out[i] = ' '
-            i += 1
-            continue
-        # 字符串 / 反引号标识符内部
-        if ch == '\\' and state in ("'", '"'):
-            out[i] = ' '
-            if i + 1 < n:
-                out[i + 1] = ' '
-            i += 2
-            continue
-        if ch == state:
-            if nxt == state:                # 双写转义 '' / "" / ``
-                out[i] = out[i + 1] = ' '
-                i += 2
-                continue
-            out[i] = ' '
-            i += 1
-            state = None
-            continue
-        out[i] = ' '
+    try:
+        toks = sqlglot.Dialect.get_or_raise(dialect).tokenizer_class().tokenize(sql)
+    except Exception:
+        return None
+    return [t.text.upper() for t in toks][:limit]
+
+
+def _is_load_statement_head(words) -> bool:
+    """词序列是否为 LOAD DATA / LOAD XML 顶层语句头"""
+    return bool(words) and len(words) >= 2 and words[0] == "LOAD" and words[1] in ("DATA", "XML")
+
+
+def _is_create_routine_head(words) -> bool:
+    """词序列是否为 CREATE [OR REPLACE] [DEFINER=...] VIEW/PROCEDURE/FUNCTION/TRIGGER 语句头"""
+    if not words or words[0] != "CREATE":
+        return False
+    i = 1
+    if i + 1 < len(words) and words[i] == "OR" and words[i + 1] == "REPLACE":
+        i += 2
+    if i < len(words) and words[i] == "DEFINER":
+        # 跳过 DEFINER = user [@ host]（user 可为一个词或字符串字面量）
         i += 1
-    return ''.join(out)
+        if i < len(words) and words[i] == "=":
+            i += 1
+        if i < len(words):
+            i += 1
+            if i + 1 < len(words) and words[i] == "@":
+                i += 2
+    return i < len(words) and words[i] in ("VIEW", "PROCEDURE", "FUNCTION", "TRIGGER")
 
 
 def _spans_only_diff(orig: str, new: str, spans) -> bool:
@@ -2354,12 +2322,12 @@ class SQLParser:
             parsed.has_into_outfile = True
 
         # 检测 LOAD DATA / LOAD XML
-        # v1.6.2.2-UAT-O-01-R2：先剥离注释与字符串字面量再匹配——否则
-        # COMMENT='LOAD DATA' 之类的字符串诱饵会把普通 CREATE TABLE 误判为
-        # LOAD 语句（has_load_data=True 进而触发 checker 的特殊语句豁免，
-        # 压掉本应强制产出的 E999）。
-        clean_no_comment = _strip_comments_and_literals(sql_lower).strip()
-        if clean_no_comment.startswith(("load data", "load xml")) or bool(re.search(r'\bload\s+(?:data|xml)\b', clean_no_comment)):
+        # v1.6.2.2-UAT-O-09：改用 sqlglot 词法器取语句头判定——词法器完整处理
+        # `#`/`--`/`/* */` 注释与引号/反引号字符串，注释与字面量内容不会进入词序列。
+        # 词法化失败（如未闭合字符串）时 has_load_data=False（失败关闭）：
+        # 此时语句必有 parse_error，E999 兑底，不会被 LOAD 豁免漏放。
+        _head = _lex_head_words(sql_lower, self.dialect)
+        if _is_load_statement_head(_head):
             parsed.has_load_data = True
             if parsed.sql_type == "UNKNOWN":
                 parsed.sql_type = "LOAD"

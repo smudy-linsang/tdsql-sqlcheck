@@ -6,6 +6,7 @@
 import json
 import logging
 import os
+import re
 import subprocess
 import tempfile
 from datetime import datetime
@@ -201,7 +202,11 @@ class PPTReportService:
         # ── 2. 指标概览大屏 (Summary Card Table) ──
         dash = self.get_dashboard_data(connection_id)
         story.append(Paragraph("一、 实例运维健康总览", h1_style))
-        story.append(Paragraph(f"针对实例进行多维度深度扫描后，综合评估得分如下所示：", body_style))
+        # v1.6.2.2-UAT-O-05-R3：未采集数据时不得声称"深度扫描后"
+        if dash.get("score_status") == "no_data":
+            story.append(Paragraph("本实例尚未完成运维数据采集，本报告仅列示当前可用信息，不做健康评分。", body_style))
+        else:
+            story.append(Paragraph(f"针对实例进行多维度深度扫描后，综合评估得分如下所示：", body_style))
         
         summary_data = [
             # v1.6.2.2-UAT-O-05：score=None 表示无采集数据（未评估），不得虚构健康分
@@ -310,7 +315,16 @@ class PPTReportService:
             ]))
             story.append(t_dup)
         else:
-            story.append(Paragraph("未发现冗余或完全重复的索引，索引健康度极佳。", body_style))
+            # v1.6.2.2-UAT-O-05-R3：健康结论必须以采集状态为前提——
+            # 只有真实完成采集且零问题（completed_empty）才允许“未发现/健康”结论；
+            # 未执行（no_data）必须明说未采集，不得用空数组冒充健康。
+            _rs = (idx_data or {}).get("run_status", "")
+            if (idx_data or {}).get("data_status") != "ok":
+                story.append(Paragraph("索引体检尚未执行采集，本项未评估。", body_style))
+            elif _rs == "completed_empty":
+                story.append(Paragraph("本次索引体检已覆盖全部在采范围，未发现冗余或完全重复的索引。", body_style))
+            else:
+                story.append(Paragraph("本次索引体检未发现完全重复索引（其他类型发现见明细）。", body_style))
         story.append(Spacer(1, 12))
 
         # ── 6. 慢 SQL 分析 (Slow Queries) ──
@@ -614,19 +628,18 @@ class PPTReportService:
 
     def _get_index_analysis_data(self, conn, connection_id: str) -> dict:
         cursor = conn.cursor()
+        # v1.6.2.2-UAT-O-05-R3：先读父运行记录区分采集状态——
+        # “未执行”与“执行成功零问题”是两种语义，后者是真实的健康证据。
         cursor.execute("""
-            SELECT finding_type, db_name, table_name, index_name, metric AS columns, detail, severity
-            FROM index_audit_finding
-            WHERE audit_id = (
-                SELECT id FROM index_audit WHERE connection_id = %s ORDER BY id DESC LIMIT 1
-            )
+            SELECT id, total_tables, total_indexes, total_findings, created_at
+            FROM index_audit WHERE connection_id = %s ORDER BY id DESC LIMIT 1
         """, (connection_id,))
-        rows = list(cursor.fetchall())
+        audit_row = cursor.fetchone()
 
-        if not rows:
-            # v1.6.2.2-UAT-O-05：空数据必须显式标记 no_data，禁止返回演示数据
+        if not audit_row:
             return {
                 "data_status": "no_data",
+                "run_status": "not_run",
                 "summary": {
                     "total_indexes": 0,
                     "unique_tables": 0,
@@ -641,16 +654,33 @@ class PPTReportService:
                 "duplicate_indexes": []
             }
 
+        cursor.execute("""
+            SELECT finding_type, db_name, table_name, index_name, metric AS columns, detail, severity
+            FROM index_audit_finding
+            WHERE audit_id = %s
+        """, (audit_row["id"],))
+        rows = list(cursor.fetchall())
+
+        # v1.6.2.2-UAT-O-05-R3：finding_type 生产端写中文（重复索引/前缀冗余索引/...），
+        # 消费端原来按英文比较导致真实问题全部漏计为 0。统一映射到机器枚举，兼容存量中文记录。
+        _FT = {
+            "duplicate": "duplicate", "重复索引": "duplicate",
+            "prefix_redundant": "prefix_redundant", "前缀冗余索引": "prefix_redundant",
+            "unused": "unused", "未使用索引": "unused",
+            "fragmentation": "fragmentation", "表碎片": "fragmentation",
+        }
+        normalized_types = [_FT.get(r["finding_type"], r["finding_type"]) for r in rows]
+
         # 统计各项计数
-        dup_count = sum(1 for r in rows if r["finding_type"] == "duplicate")
-        prefix_count = sum(1 for r in rows if r["finding_type"] == "prefix_redundant")
-        unused_count = sum(1 for r in rows if r["finding_type"] == "unused")
-        frag_count = sum(1 for r in rows if r["finding_type"] == "fragmentation")
+        dup_count = sum(1 for t in normalized_types if t == "duplicate")
+        prefix_count = sum(1 for t in normalized_types if t == "prefix_redundant")
+        unused_count = sum(1 for t in normalized_types if t == "unused")
+        frag_count = sum(1 for t in normalized_types if t == "fragmentation")
 
         # 重复索引列表
         dup_list = []
-        for r in rows:
-            if r["finding_type"] == "duplicate":
+        for r, nt in zip(rows, normalized_types):
+            if nt == "duplicate":
                 # detail 格式通常为: "与 [index2] 完全重复"
                 idx2 = "N/A"
                 m = re.search(r"与\s+`?(\w+)`?\s+完全重复", r["detail"])
@@ -664,14 +694,17 @@ class PPTReportService:
                     "columns": r["columns"]
                 })
 
-        # v1.6.2.2-UAT-O-05：真数据分支也不得掺入硬编码假基数（120+/45/12）。
-        # total_indexes/pk_count/unique_count 本表查不出来，诚实标注 None（未知），
-        # 由展示层显式呈现"未统计"而非虚构数字。
+        # 索引总数/表数从父运行记录取（真实采集范围），不从 finding 数猜测。
+        # 本查询查不出的分类计数（pk/unique/normal）诚实标 None。
+        run_status = ("completed_with_findings" if (audit_row["total_findings"] or 0) > 0
+                      else "completed_empty")
         return {
             "data_status": "ok",
+            "run_status": run_status,
+            "run_at": str(audit_row["created_at"]) if audit_row["created_at"] else "",
             "summary": {
-                "total_indexes": None,   # 本查询无法获知全量索引数，不虚构
-                "unique_tables": len(set(r["table_name"] for r in rows)),
+                "total_indexes": audit_row["total_indexes"],
+                "unique_tables": audit_row["total_tables"],
                 "duplicate_count": dup_count,
                 "prefix_redundant_count": prefix_count,
                 "unused_count": unused_count,

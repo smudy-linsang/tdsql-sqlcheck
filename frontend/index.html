@@ -2365,7 +2365,14 @@
                 <el-descriptions v-else :column="2" border>
                   <el-descriptions-item label="版本">{{ sysInfo.version }}</el-descriptions-item>
                   <el-descriptions-item label="认证开关"><el-switch :model-value="sysInfo.auth_enabled" @change="v=>toggleSysConfig('auth_enabled',v)" :disabled="!canManagePlatform"></el-switch></el-descriptions-item>
-                  <el-descriptions-item label="脱敏开关"><el-switch :model-value="sysInfo.data_masking_enabled" @change="v=>toggleSysConfig('data_masking_enabled',v)" :disabled="!canManagePlatform"></el-switch></el-descriptions-item>
+                  <el-descriptions-item label="脱敏开关">
+                    <!-- v1.6.2.2-A-01：明确脱敏开关的作用范围，避免用户误以为报告也受保护。
+                         该开关仅作用于“慢SQL入库脱敏”，不覆盖网关日志分析报告等已落库的报告产物。 -->
+                    <el-tooltip placement="top" :content="'作用范围：仅对慢SQL入库记录做字面值脱敏。不覆盖网关日志分析报告、已落库的历史报告等导出产物——导出此类报告前请自行评估原文敏感性。'">
+                      <el-switch :model-value="sysInfo.data_masking_enabled" @change="v=>toggleSysConfig('data_masking_enabled',v)" :disabled="!canManagePlatform"></el-switch>
+                    </el-tooltip>
+                    <span class="hint" style="margin-left:8px">仅脱敏慢SQL入库，不覆盖网关报告等导出物</span>
+                  </el-descriptions-item>
                   <el-descriptions-item label="指标开关"><el-switch :model-value="sysInfo.metrics_enabled" @change="v=>toggleSysConfig('metrics_enabled',v)" :disabled="!canManagePlatform"></el-switch></el-descriptions-item>
                 </el-descriptions>
                 <div v-if="canManagePlatform" class="card-head mt-16">
@@ -2706,13 +2713,11 @@
   </el-dialog>
 
   <!-- G11 网关日志报告详情抽屉 -->
-  <!-- v1.6.2.2-UAT-O-04：报告是含全局选择器（body/*/:root）与脚本的完整 HTML 文档，
-       原 v-html 注入会把它的样式/脚本泄进应用主文档（body padding 被改、后续抽屉样式串色）。
-       改用 iframe + srcdoc 做文档级隔离：样式/脚本被限制在 iframe 内；
-       sandbox=allow-scripts 允许报告自带交互脚本运行，但禁同源访问、表单与弹窗，
-       抽屉关闭时 iframe 随 v-if 销毁，资源即释放。 -->
+  <!-- v1.6.2.2-UAT-O-10：报告以独立文档响应（iframe src）加载，响应自带文档级 CSP
+       （允许内联脚本 + frame-ancestors 'self'），交互脚本可运行；iframe 文档边界仍隔离
+       样式/脚本不污染主应用；sandbox=allow-scripts 禁同源访问/表单/弹窗；关闭即销毁。 -->
   <el-drawer v-model="gatewayDetailVisible" title="网关日志分析报告" size="80%" destroy-on-close>
-    <iframe v-if="gatewayDetailVisible && gatewayHtml" :srcdoc="gatewayHtml" sandbox="allow-scripts"
+    <iframe v-if="gatewayDetailVisible && gatewayReportUrl" :src="gatewayReportUrl" sandbox="allow-scripts"
             style="width:100%;height:100%;border:none;background:#fff" title="网关日志分析报告"></iframe>
   </el-drawer>
 

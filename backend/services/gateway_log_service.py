@@ -89,9 +89,14 @@ class GatewayLogService:
 
         avg_time_ms = (sum_time_ms / total_queries) if total_queries > 0 else 0.0
 
-        # 如果没有提取到任何 query，但文件有内容，total_queries 可默认为行数
-        if total_queries == 0 and len(lines) > 0:
-            total_queries = len(lines)
+        # v1.6.2.2-UAT-O-11：零有效记录必须显式失败，不得用行数冒充查询数、
+        # 不得把空报告持久化为"成功/健康"——空文件/垃圾文件会让用户在正式报告里
+        # 看到虚构的 total_queries 与“指标正常”结论。
+        if total_queries == 0:
+            raise ValueError(
+                f"未从日志中解析到任何有效查询记录（文件共 {len(lines)} 行）。"
+                f"请确认上传的是 {log_type} 类型的 TDSQL 网关日志，且内容未损坏。"
+            )
 
         # 2) 写入临时文件，供 analyze_gateway_log.py 读取
         # v1.6.2.2-UAT-O-03：分析器 _organize_specific_files() 按
