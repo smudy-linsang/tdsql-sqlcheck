@@ -9,15 +9,26 @@ v1.6.2.2-UAT-O-23：迁移必须失败关闭——
 - 两阶段：语句执行 + 最终结构验收，全部通过才写 schema_migrations；
   MySQL/TDSQL DDL 隐式提交，采用“逐项可恢复 + 最终结构验收”。
 - 双 worker 并发启动：版本键唯一约束冲突视为幂等，但前提是记录确实存在。
+
+v1.6.2.2-UAT-O-26：已登记迁移的启动路径同样失败关闭——
+- 缺列（missing）→ 幂等补齐；结构与文件声明不符（mismatch）→ 启动失败关闭；
+- 版本键与 checksum 一致时也必须逐列校验类型/可空/默认值，不得只验“列存在”；
+- checksum 漂移（文件内容与版本记录漂移）默认失败关闭；仅当显式列入
+  SCHEMA_CHECKSUM_RECONCILE 白名单且结构验收通过时，才重设基线并审计留痕。
 """
 import hashlib
 import logging
+import os
 import re
 
 from backend.services.database import _get_connection
 from backend.schema.loader import discover_schema_files
 
 logger = logging.getLogger("tdsql.schema.migrator")
+
+# checksum 漂移显式调和白名单（逗号分隔的版本键）：仅当 operator 人工确认后设置。
+# 调和前仍先做结构验收；通过后重设基线记录并以 ERROR 级日志留痕。
+_RECONCILE_ENV = "SCHEMA_CHECKSUM_RECONCILE"
 
 
 class MigrationError(RuntimeError):
@@ -151,19 +162,56 @@ class SchemaMigrator:
                 return
             raise MigrationError(f"迁移版本键写入失败 [{key}]: {e}") from e
 
-    def _needs_reapply(self, cursor, statements: list) -> bool:
-        """已登记文件的结构验收：声明列缺失即视为假 applied，需要补齐（自愈）。"""
+    def _structure_state(self, cursor, key: str, statements: list) -> str:
+        """结构状态机（v1.6.2.2-UAT-O-26）：
+
+        - 任一声明列缺失 → 'missing'（可进入幂等补齐）；
+        - 声明列存在但类型/可空/默认值不符 → 抛 MigrationError（mismatch，失败关闭）；
+        - 全部声明列存在且结构相符 → 'valid'（允许跳过）。
+        """
+        missing = False
         for stmt in statements:
             m = _ADD_COLUMN_RE.match(stmt)
             if not m:
                 continue
-            table, column = m.group(1), m.group(2)
-            try:
-                if self._column_info(cursor, table, column) is None:
-                    return True
-            except Exception:
-                return True
-        return False
+            table, column, definition = m.group(1), m.group(2), m.group(3)
+            info = self._column_info(cursor, table, column)
+            if info is None:
+                missing = True
+                continue
+            # 已登记路径同样严格验收：不只验“列存在”
+            self._verify_column(cursor, key, table, column, definition)
+        return "missing" if missing else "valid"
+
+    def _needs_reapply(self, cursor, statements: list) -> bool:
+        """已登记文件的结构验收：声明列缺失即视为假 applied，需要补齐（自愈）。
+        保留为向后兼容包装；结构不符会抛 MigrationError（失败关闭）。"""
+        return self._structure_state(cursor, "(reapply-check)", statements) == "missing"
+
+    def _reconcile_checksum(self, cursor, conn, key: str, recorded: str, current: str,
+                            statements: list):
+        """checksum 漂移调和：默认失败关闭；仅在显式白名单内且结构验收通过时重设基线。"""
+        allowed = {k.strip() for k in os.environ.get(_RECONCILE_ENV, "").split(",")
+                   if k.strip()}
+        if key not in allowed:
+            raise MigrationError(
+                f"迁移版本记录与文件内容漂移 [{key}]：已登记 checksum={recorded}，"
+                f"当前文件 checksum={current}。启动不得宣称 schema ready。"
+                f"请人工确认漂移合法后，设置环境变量 {_RECONCILE_ENV}={key} 重启调和，"
+                f"或回滚文件变更。")
+        # 显式调和：先做结构验收（声明列必须全部存在且结构相符），再重设基线
+        state = self._structure_state(cursor, key, statements)
+        if state != "valid":
+            raise MigrationError(
+                f"迁移调和被拒绝 [{key}]：结构验收未通过（状态={state}），"
+                f"漂移文件与库结构不一致，禁止重设基线。")
+        cursor.execute(
+            "UPDATE schema_migrations SET checksum = %s WHERE version_key = %s",
+            (current, key))
+        conn.commit()
+        logger.error(
+            "迁移校验和漂移已显式调和重设基线 [%s]（结构验收通过；%s=%s 已审计）。",
+            key, _RECONCILE_ENV, key)
 
     def run_migrations(self):
         conn = _get_connection()
@@ -186,14 +234,17 @@ class SchemaMigrator:
                 statements = self._split_statements(sf.sql)
                 if key in applied:
                     if applied[key] != checksum:
-                        logger.warning(f"Schema 文件 {key} 的 Checksum 发生变动（可能手工修改过）")
+                        # v1.6.2.2-UAT-O-26：checksum 漂移不再只告警，默认失败关闭
+                        self._reconcile_checksum(cursor, conn, key, applied[key],
+                                                 checksum, statements)
                         continue
-                    # v1.6.2.2-UAT-O-23：历史曾被“假 applied”的文件（结构缺失）自愈重放
-                    if self._needs_reapply(cursor, statements):
-                        logger.warning(
-                            "迁移 %s 已登记但结构不完整（可能被历史假成功污染），按幂等流程补齐", key)
-                    else:
+                    # 已登记且 checksum 一致：仍需完整结构验收（不只验列存在）
+                    state = self._structure_state(cursor, key, statements)
+                    if state == "valid":
                         continue
+                    # missing：历史假 applied 自愈补齐（幂等流程）
+                    logger.warning(
+                        "迁移 %s 已登记但结构不完整（可能被历史假成功污染），按幂等流程补齐", key)
                 logger.info(f"应用增量数据库 Schema 迁移: {key}")
                 self._apply_file(cursor, conn, key, checksum, statements)
         except MigrationError:

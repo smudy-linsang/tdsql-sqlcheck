@@ -23,6 +23,20 @@ APP_JS_URL = f"{TEST_BASE_URL}/static/js/app.js"
 TEST_ADMIN_USER = os.getenv("TDSQL_TEST_ADMIN_USER", "admin")
 TEST_ADMIN_PASSWORD = os.getenv("TDSQL_TEST_ADMIN_PASSWORD", "Abcd1234")
 
+# v1.6.2.2-UAT-O-27：静态资源（首页/app.js）检查改为进程内 TestClient，
+# 不再依赖外部 127.0.0.1:8000 服务——干净环境（门禁/CI）可自洽复现。
+_WEB = None
+
+
+def _web_client():
+    """进程内静态资源客户端（惰性创建）"""
+    global _WEB
+    if _WEB is None:
+        from fastapi.testclient import TestClient
+        from backend.main import app
+        _WEB = TestClient(app)
+    return _WEB
+
 
 def _get_auth_headers():
     """登录admin获取token；失败返回 None（与"拿到空头部"区分开）"""
@@ -62,8 +76,8 @@ class TestRulesUATUserView:
 
     def test_user_can_access_rules_documentation(self):
         """场景：开发人员想了解系统的SQL审核规范"""
-        # 用户访问首页
-        resp = requests.get(FRONTEND_BASE)
+        # 用户访问首页（进程内 TestClient，O-27）
+        resp = _web_client().get("/")
         assert resp.status_code == 200, "首页应该可访问"
         
         # 用户应该能看到审核规则的入口（侧边栏菜单）
@@ -135,7 +149,7 @@ class TestRulesUATVisualization:
         
     def test_frontend_has_proper_styling(self):
         """场景：用户期望规则页面有良好的视觉呈现"""
-        resp = requests.get(FRONTEND_BASE)
+        resp = _web_client().get("/")
         content = resp.text
         
         # V3.0后CSS在app.css中，HTML只需验证Vue挂载点
@@ -144,7 +158,7 @@ class TestRulesUATVisualization:
     def test_category_section_headers(self):
         """场景：用户希望按分类清晰浏览规则"""
         # V3.0后JS在app.js中
-        resp = requests.get(APP_JS_URL)
+        resp = _web_client().get("/static/js/app.js")
         content = resp.text
         
         assert "rulesByCategory" in content, "前端应使用动态分类循环展示规则"
@@ -166,14 +180,14 @@ class TestRulesUATWorkflow:
     def test_user_can_navigate_to_rules_page(self):
         """场景：用户从首页导航到规则页面"""
         # V3.0后JS在app.js中
-        resp = requests.get(APP_JS_URL)
+        resp = _web_client().get("/static/js/app.js")
         content = resp.text
         
         assert "loadRules" in content, "应有加载规则数据的函数"
         
     def test_rules_load_automatically(self):
         """场景：用户打开规则页面时数据自动加载"""
-        resp = requests.get(APP_JS_URL)
+        resp = _web_client().get("/static/js/app.js")
         content = resp.text
         
         assert "loadRules" in content, \

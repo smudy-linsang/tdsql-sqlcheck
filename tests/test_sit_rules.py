@@ -161,17 +161,27 @@ class TestRulesAPI:
 
 
 class TestFrontendIntegration:
-    """前端集成测试"""
+    """前端集成测试
+
+    v1.6.2.2-UAT-O-27：静态资源与首页可用性检查改为进程内 TestClient，
+    不再依赖外部 127.0.0.1:8000 服务——干净环境（门禁/CI）可自洽复现。
+    """
+
+    @classmethod
+    def setup_class(cls):
+        from fastapi.testclient import TestClient
+        from backend.main import app
+        cls._web = TestClient(app)
 
     def test_frontend_page_accessible(self):
         """测试前端页面可访问"""
-        resp = requests.get(f"{TEST_BASE_URL}/")
+        resp = self._web.get("/")
         assert resp.status_code == 200, f"Frontend not accessible: {resp.status_code}"
         assert "text/html" in resp.headers.get("Content-Type", ""), "Not returning HTML"
 
     def test_frontend_contains_rules_code(self):
         """测试前端包含规则页面代码（V3.0后JS在app.js中）"""
-        resp = requests.get(f"{TEST_BASE_URL}/static/js/app.js")
+        resp = self._web.get("/static/js/app.js")
         assert resp.status_code == 200, "app.js not accessible"
         content = resp.text
         assert "rulesList" in content, "rulesList not found in app.js"
@@ -180,7 +190,7 @@ class TestFrontendIntegration:
 
     def test_frontend_has_rules_css(self):
         """测试前端CSS可访问"""
-        resp = requests.get(f"{TEST_BASE_URL}/static/css/app.css")
+        resp = self._web.get("/static/css/app.css")
         assert resp.status_code == 200, "app.css not accessible"
 
 

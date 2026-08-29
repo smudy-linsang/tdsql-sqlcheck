@@ -189,6 +189,170 @@ class TestFailureInjectionFailClosed:
         assert _version_row() is None
 
 
+class TestStructureStateMachine:
+    """v1.6.2.2-UAT-O-26：已登记迁移的启动路径结构验收矩阵"""
+
+    @pytest.fixture()
+    def both_columns(self, probe_env):
+        """预建两个列（结构与设计完全一致）"""
+        conn = _get_connection()
+        try:
+            conn.execute(
+                f"ALTER TABLE {_PROBE_TABLE} ADD COLUMN related_index_name VARCHAR(128) DEFAULT ''")
+            conn.execute(
+                f"ALTER TABLE {_PROBE_TABLE} ADD COLUMN index_columns VARCHAR(512) DEFAULT ''")
+            conn.commit()
+        finally:
+            conn.close()
+        yield
+
+    def test_valid_structure_returns_valid(self, both_columns):
+        m = SchemaMigrator()
+        conn = _get_connection()
+        try:
+            assert m._structure_state(conn.cursor(), _KEY, _stmts()) == "valid"
+        finally:
+            conn.close()
+
+    def test_missing_column_returns_missing(self, probe_env):
+        """缺列 → missing（可幂等补齐，不是失败关闭场景）"""
+        m = SchemaMigrator()
+        conn = _get_connection()
+        try:
+            assert m._structure_state(conn.cursor(), _KEY, _stmts()) == "missing"
+        finally:
+            conn.close()
+
+    def test_wrong_type_fails_closed(self, probe_env):
+        """错误类型：失败关闭（O-26 核心反例：INT 而非 VARCHAR）"""
+        conn = _get_connection()
+        try:
+            conn.execute(f"ALTER TABLE {_PROBE_TABLE} ADD COLUMN related_index_name INT")
+            conn.execute(
+                f"ALTER TABLE {_PROBE_TABLE} ADD COLUMN index_columns VARCHAR(512) DEFAULT ''")
+            conn.commit()
+        finally:
+            conn.close()
+        m = SchemaMigrator()
+        conn = _get_connection()
+        try:
+            with pytest.raises(MigrationError):
+                m._structure_state(conn.cursor(), _KEY, _stmts())
+        finally:
+            conn.close()
+
+    def test_wrong_length_fails_closed(self, probe_env):
+        """错误长度（VARCHAR(64) vs 设计 128）：失败关闭"""
+        conn = _get_connection()
+        try:
+            conn.execute(
+                f"ALTER TABLE {_PROBE_TABLE} ADD COLUMN related_index_name VARCHAR(64) DEFAULT ''")
+            conn.execute(
+                f"ALTER TABLE {_PROBE_TABLE} ADD COLUMN index_columns VARCHAR(512) DEFAULT ''")
+            conn.commit()
+        finally:
+            conn.close()
+        m = SchemaMigrator()
+        conn = _get_connection()
+        try:
+            with pytest.raises(MigrationError):
+                m._structure_state(conn.cursor(), _KEY, _stmts())
+        finally:
+            conn.close()
+
+    def test_wrong_default_fails_closed(self, probe_env):
+        """错误默认值（DEFAULT 'x' vs 设计 ''）：失败关闭"""
+        conn = _get_connection()
+        try:
+            conn.execute(
+                f"ALTER TABLE {_PROBE_TABLE} ADD COLUMN related_index_name VARCHAR(128) DEFAULT 'x'")
+            conn.execute(
+                f"ALTER TABLE {_PROBE_TABLE} ADD COLUMN index_columns VARCHAR(512) DEFAULT ''")
+            conn.commit()
+        finally:
+            conn.close()
+        m = SchemaMigrator()
+        conn = _get_connection()
+        try:
+            with pytest.raises(MigrationError):
+                m._structure_state(conn.cursor(), _KEY, _stmts())
+        finally:
+            conn.close()
+
+    def test_wrong_nullable_fails_closed(self, probe_env):
+        """错误可空性（NOT NULL vs 设计默认 NULL）：失败关闭"""
+        conn = _get_connection()
+        try:
+            conn.execute(
+                f"ALTER TABLE {_PROBE_TABLE} ADD COLUMN related_index_name VARCHAR(128) NOT NULL DEFAULT ''")
+            conn.execute(
+                f"ALTER TABLE {_PROBE_TABLE} ADD COLUMN index_columns VARCHAR(512) DEFAULT ''")
+            conn.commit()
+        finally:
+            conn.close()
+        m = SchemaMigrator()
+        conn = _get_connection()
+        try:
+            with pytest.raises(MigrationError):
+                m._structure_state(conn.cursor(), _KEY, _stmts())
+        finally:
+            conn.close()
+
+
+class TestChecksumDriftHandling:
+    """v1.6.2.2-UAT-O-26：checksum 漂移默认失败关闭，显式调和须结构验收通过"""
+
+    def test_drift_fails_closed_without_whitelist(self, probe_env, monkeypatch):
+        monkeypatch.delenv("SCHEMA_CHECKSUM_RECONCILE", raising=False)
+        m = SchemaMigrator()
+        conn = _get_connection()
+        try:
+            with pytest.raises(MigrationError) as ei:
+                m._reconcile_checksum(conn.cursor(), conn, _KEY, "old-sha", "new-sha",
+                                      _stmts())
+        finally:
+            conn.close()
+        assert "漂移" in str(ei.value)
+        assert "SCHEMA_CHECKSUM_RECONCILE" in str(ei.value)
+
+    def test_reconcile_requires_valid_structure(self, probe_env, monkeypatch):
+        """白名单内但结构缺失（列不存在）→ 拒绝调和"""
+        monkeypatch.setenv("SCHEMA_CHECKSUM_RECONCILE", _KEY)
+        m = SchemaMigrator()
+        conn = _get_connection()
+        try:
+            with pytest.raises(MigrationError):
+                m._reconcile_checksum(conn.cursor(), conn, _KEY, "old-sha", "new-sha",
+                                      _stmts())
+        finally:
+            conn.close()
+
+    def test_reconcile_rebaselines_when_structure_valid(self, probe_env, monkeypatch):
+        """白名单内且结构验收通过 → 重设基线"""
+        conn = _get_connection()
+        try:
+            conn.execute(
+                f"ALTER TABLE {_PROBE_TABLE} ADD COLUMN related_index_name VARCHAR(128) DEFAULT ''")
+            conn.execute(
+                f"ALTER TABLE {_PROBE_TABLE} ADD COLUMN index_columns VARCHAR(512) DEFAULT ''")
+            conn.execute(
+                "INSERT INTO schema_migrations (version_key, checksum) VALUES (%s, %s)",
+                (_KEY, "old-sha"))
+            conn.commit()
+        finally:
+            conn.close()
+        monkeypatch.setenv("SCHEMA_CHECKSUM_RECONCILE", _KEY)
+        m = SchemaMigrator()
+        conn = _get_connection()
+        try:
+            m._reconcile_checksum(conn.cursor(), conn, _KEY, "old-sha", "new-sha",
+                                  _stmts())
+        finally:
+            conn.close()
+        row = _version_row()
+        assert row and row["checksum"] == "new-sha"
+
+
 class TestSelfHealAndConcurrency:
     def test_legacy_false_applied_self_heals(self, probe_env):
         """历史假成功（有版本键、无列）→ _needs_reapply 判定需补齐"""
