@@ -1,0 +1,21 @@
+MODE implementation bundle=fea7a873806236d097c61f68d650b61e602a484abb7becb840ec3e65795534a9 (evolved from design 6412e076871dcae15df8889c746819fc312729d7a69e9c4513334fdb274dfe89; baseline-recorded)
+STEP venv-29.0.0 rc=0 tail=no-output
+STEP pip-sqlglot-29.0.0 rc=0 tail=no-output
+STEP runtime-version-29.0.0 rc=0 tail=29.0.0
+STEP manifest-29.0.0 rc=0 tail=    class CharsetDiagnosticReport(BaseModel): | -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html | 680 passed, 3 warnings in 3.27s
+STEP venv-30.14.0 rc=0 tail=no-output
+STEP pip-sqlglot-30.14.0 rc=0 tail=no-output
+STEP runtime-version-30.14.0 rc=0 tail=30.14.0
+STEP manifest-30.14.0 rc=0 tail=    class CharsetDiagnosticReport(BaseModel): | -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html | 680 passed, 3 warnings in 2.95s
+STEP frozen-71-release rc=0 tail=    class CharsetDiagnosticReport(BaseModel): | -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html | 71 passed, 3 warnings in 1.53s
+STEP full-tests-release rc=0 tail=    headers, stream = encode_request( | -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html | 1538 passed, 28 skipped, 11 warnings in 183.81s (0:03:03)
+STEP venv-30.17.0 rc=0 tail=no-output
+STEP pip-sqlglot-30.17.0 rc=0 tail=no-output
+STEP runtime-version-30.17.0 rc=0 tail=30.17.0
+STEP manifest-30.17.0 rc=0 tail=    class CharsetDiagnosticReport(BaseModel): | -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html | 680 passed, 3 warnings in 2.80s
+STEP manifest-doc rc=0 tail=| KFN-A\uff08\u5b98\u65b9\u5408\u6cd5\u3001\u6682\u4e0d\u652f\u6301\uff09 | R14-KFN-SE-01 | `SERIAL / native Create` | \u539f\u751f\u6210\u529f\u8def\u5f84\u4e5f\u5fc5\u987b\u88ab source preflight \u963b\u65ad | | | KFN-A\uff08\u5b98\u65b9\u5408\u6cd5\u3001\u6682\u4e0d\u652f\u6301\uff09 | R14-KFN-SE-02 | `SERIAL / dialect Command` | Command \u8def\u5f84\u4e0d\u5f97\u505c\u5728\u65e0 E999 \u7684\u7a7a\u7ed3\u6784 | | | KFN-A\uff08\u5b98\u65b9\u5408\u6cd5\u3001\u6682\u4e0d\u652f\u6301\uff09 | R14-KFN-SE-03 | `SERIAL / UNIQUE COMMENT ParseError` | except \u6062\u590d\u8def\u5f84\u5fc5\u987b\u88ab\u540c\u4e00 KFN \u963b\u65ad |
+CHECK manifest-section=OK (implementation baseline)
+STEP codestat rc=0 tail=| \u6a21\u5757\u7ea7\u51fd\u6570\u91cd\u590d\u5b9a\u4e49 | \u2705 \u65e0 | | | \u6a21\u5757\u7ea7\u5e38\u91cf\u91cd\u590d\u5b9a\u4e49 | \u2705 \u65e0 | | | \u8bed\u6cd5\u53ef\u89e3\u6790 | \u2705 |
+CHECK codestat-section=OK (implementation baseline)
+CHECK design-bundle-hash=OK value=6412e076871dcae15df8889c746819fc312729d7a69e9c4513334fdb274dfe89
+RESULT PASS mode=implementation versions=29.0.0,30.14.0,30.17.0

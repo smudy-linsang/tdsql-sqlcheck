@@ -1,0 +1,31 @@
+{
+  "tested_commit": "e38c3d1f9d4e012a3a49cb15eb10d5862b90c630",
+  "surface": "Codex in-app Chromium, real user clicks",
+  "base_url": "http://127.0.0.1:8008",
+  "auth_enabled": true,
+  "workers": 2,
+  "steps": [
+    {"id": "B01", "role": "admin", "action": "即时审核 LOAD XML # 注释样例", "result": "PASS", "observed": "R042 ERROR"},
+    {"id": "B02", "role": "admin", "action": "上传并查看部分可解析网关日志", "result": "PASS", "observed": "4/7 有效，覆盖率 57.1%，跳过 3 条并展示样例"},
+    {"id": "B03", "role": "admin", "action": "打开含脚本闭合及 onerror 载荷的网关报告", "result": "PASS", "observed": "iframe 仅含一次性 report_ticket，sandbox 生效，脚本未执行且父页面不可达"},
+    {"id": "B04", "role": "admin", "action": "2026-08-26/27 巡检对比后切到 2026-08-28/29 手动采集", "result": "PASS", "observed": "首次 13 行；后次连接失败后旧结果清为 0 行"},
+    {"id": "B05", "role": "admin", "action": "查看索引大屏并导出 PDF", "result": "PASS", "observed": "健康分 96，重复索引组 1；A4 单页 PDF 内容完整"},
+    {"id": "B06", "role": "admin", "action": "指定其他数据库执行 EXPLAIN", "result": "PASS", "observed": "key=idx_customer，Extra=Using index"},
+    {"id": "B07", "role": "developer", "action": "查看实例列表与在线元数据实例选择", "result": "PASS", "observed": "实例 3 条、管理按钮 0；在线元数据实例选项 3 个"},
+    {"id": "B08", "role": "auditor", "action": "查看实例管理", "result": "PASS", "observed": "实例 3 条，新建/编辑/删除均为 0"},
+    {"id": "B09", "role": "dba", "action": "查看实例管理", "result": "PASS", "observed": "新建 1，编辑 3，删除 3"},
+    {"id": "B10", "role": "uat_o_r7_metadata_only", "action": "仅分配在线元数据审核、不分配实例管理后查看菜单与实例选择", "result": "PASS", "observed": "实例管理菜单 0，在线元数据实例选项 3 个"}
+  ],
+  "screenshots": [
+    "01-r042-real-click.png",
+    "02-gateway-partial-report.png",
+    "03-gateway-xss-report.png",
+    "04-daily-stale-cleared.png",
+    "05-index-dashboard.png",
+    "06-explain-cross-db.png",
+    "07-developer-options-readonly.png",
+    "08-auditor-instances-readonly.png",
+    "09-dba-instance-controls.png",
+    "10-unassigned-role-options.png"
+  ]
+}

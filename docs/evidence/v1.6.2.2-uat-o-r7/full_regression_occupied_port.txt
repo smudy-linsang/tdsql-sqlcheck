@@ -1,0 +1,58 @@
+........................................................................ [  4%]
+........................................................................ [  9%]
+........................................................................ [ 13%]
+........................................................................ [ 18%]
+........................................................................ [ 22%]
+........................................................................ [ 27%]
+........................................................................ [ 32%]
+........................................................................ [ 36%]
+........................................................................ [ 41%]
+........................................................................ [ 45%]
+........................................................................ [ 50%]
+............................ssssssssss...s.............................. [ 55%]
+........................................................................ [ 59%]
+........................................................................ [ 64%]
+........................................................................ [ 68%]
+........................................................................ [ 73%]
+........................................................................ [ 78%]
+........................................................................ [ 82%]
+..ssss..s..ssssssssssss................................................. [ 87%]
+........................................................................ [ 91%]
+........................................................................ [ 96%]
+......................................................                   [100%]
+============================== warnings summary ===============================
+backend\models\__init__.py:261
+  C:\Codex\tdsql-sqlcheck\backend\models\__init__.py:261: UserWarning: Field name "schema" in "BigTableInfo" shadows an attribute in parent "BaseModel"
+    class BigTableInfo(BaseModel):
+
+backend\models\__init__.py:289
+  C:\Codex\tdsql-sqlcheck\backend\models\__init__.py:289: UserWarning: Field name "schema" in "TableClassification" shadows an attribute in parent "BaseModel"
+    class TableClassification(BaseModel):
+
+backend\models\__init__.py:383
+  C:\Codex\tdsql-sqlcheck\backend\models\__init__.py:383: UserWarning: Field name "schema" in "CharsetDiagnosticReport" shadows an attribute in parent "BaseModel"
+    class CharsetDiagnosticReport(BaseModel):
+
+..\..\Users\linsa\AppData\Roaming\Python\Python314\site-packages\fastapi\testclient.py:1
+  C:\Users\linsa\AppData\Roaming\Python\Python314\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+tests/test_o19_offline_instance_inspect.py::TestOfflineInstanceDailyRun::test_offline_instance_returns_readable_422
+tests/test_uat_multi_set.py::TestUATFrontendStructure::test_no_scan_all_sets_toggle
+tests/test_v2_uat.py::TestUATDBAScenario::test_b1_register_multiple_environments
+tests/test_v2_uat.py::TestUATDeveloperScenario::test_c1_developer_audits_sql
+tests/test_v2_uat.py::TestUATAuditorScenario::test_d1_auditor_reads_everything
+  C:\Users\linsa\AppData\Roaming\Python\Python314\site-packages\_pytest\fixtures.py:1313: PytestRemovedIn10Warning: Class-scoped fixture defined as instance method is deprecated.
+  Instance attributes set in this fixture will NOT be visible to test methods,
+  as each test gets a new instance while the fixture runs only once per class.
+  Use @classmethod decorator and set attributes on cls instead.
+  See https://docs.pytest.org/en/stable/deprecations.html#class-scoped-fixture-as-instance-method
+    fixturefunc = resolve_fixture_function(fixturedef, request)
+
+tests/test_uat_frontend.py::TestUAT34_FrontendErrorHandling::test_uat34_02_invalid_json_handling
+tests/test_uat_round4.py::TestUAT27_ErrorHandlingDeep::test_uat27_01_malformed_json
+  C:\Users\linsa\AppData\Roaming\Python\Python314\site-packages\httpx\_models.py:408: DeprecationWarning: Use 'content=<...>' to upload raw bytes/text content.
+    headers, stream = encode_request(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+1538 passed, 28 skipped, 11 warnings in 180.49s (0:03:00)

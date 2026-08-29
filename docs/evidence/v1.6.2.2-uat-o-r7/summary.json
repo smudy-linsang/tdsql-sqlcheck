@@ -1,0 +1,26 @@
+{
+  "tested_commit": "e38c3d1f9d4e012a3a49cb15eb10d5862b90c630",
+  "baseline_commit": "8fee172a67daacc42809e173ecd20c5e3b8aac1b",
+  "result": "FAIL",
+  "release_decision": "BLOCKED",
+  "defects": {"BLOCK": 1, "MAJOR": 2, "MINOR": 0},
+  "automation": {
+    "full_clean_port": "1538 passed, 28 skipped, 11 warnings",
+    "full_occupied_8000": "1538 passed, 28 skipped, 11 warnings",
+    "formal_gate": "PASS",
+    "sqlglot_versions": ["29.0.0", "30.14.0", "30.17.0"],
+    "matrix_per_version": {"manifest": 788, "edge": 324, "load": 27, "head": 77}
+  },
+  "rules": {
+    "registered": 119,
+    "main_corpus": 1000,
+    "observed_in_main": 114,
+    "observed_with_supplemental": 116,
+    "baseline_diff_equal": true,
+    "known_exact_expectation_failures": 3,
+    "known_unproven_positive_rules": ["R025", "R038", "R049"]
+  },
+  "http": {"requests": 29, "server_errors": 0, "ticket_first_use": "100/100", "ticket_replay_rejected": "100/100"},
+  "browser": {"steps": 10, "passed": 10, "screenshots": 10},
+  "defect_ids": ["O-28", "O-29", "O-30"]
+}

@@ -1,0 +1,126 @@
+{
+  "tested_commit": "e38c3d1f9d4e012a3a49cb15eb10d5862b90c630",
+  "o25_program_cases": [
+    {
+      "exception": "RuntimeError",
+      "message": "can't connect to internal cache",
+      "mapped": null,
+      "api": {
+        "status": 500,
+        "request_id": true,
+        "detail": "巡检服务内部错误，请携带 X-Request-ID 联系管理员排查"
+      }
+    },
+    {
+      "exception": "AttributeError",
+      "message": "connection refused while reading object",
+      "mapped": null,
+      "api": {
+        "status": 500,
+        "request_id": true,
+        "detail": "巡检服务内部错误，请携带 X-Request-ID 联系管理员排查"
+      }
+    },
+    {
+      "exception": "TypeError",
+      "message": "timed out during pickle decode",
+      "mapped": null,
+      "api": {
+        "status": 500,
+        "request_id": true,
+        "detail": "巡检服务内部错误，请携带 X-Request-ID 联系管理员排查"
+      }
+    },
+    {
+      "exception": "RuntimeError",
+      "message": "access denied to in-memory registry",
+      "mapped": null,
+      "api": {
+        "status": 500,
+        "request_id": true,
+        "detail": "巡检服务内部错误，请携带 X-Request-ID 联系管理员排查"
+      }
+    },
+    {
+      "exception": "RuntimeError",
+      "message": "unknown database handle in context",
+      "mapped": null,
+      "api": {
+        "status": 500,
+        "request_id": true,
+        "detail": "巡检服务内部错误，请携带 X-Request-ID 联系管理员排查"
+      }
+    }
+  ],
+  "o25_driver_cases": [
+    {
+      "exception": "OperationalError",
+      "message": "(2003, \"Can't connect\")",
+      "mapped": "ConnectionRefusedError_"
+    },
+    {
+      "exception": "OperationalError",
+      "message": "(1045, 'Access denied')",
+      "mapped": "AuthenticationFailedError"
+    },
+    {
+      "exception": "OperationalError",
+      "message": "(1049, 'Unknown database')",
+      "mapped": "DatabaseNotFoundError"
+    },
+    {
+      "exception": "ConnectionRefusedError",
+      "message": "connection refused",
+      "mapped": "ConnectionRefusedError_"
+    },
+    {
+      "exception": "TimeoutError",
+      "message": "timed out",
+      "mapped": "ConnectionRefusedError_"
+    }
+  ],
+  "o25_generic_os_boundary": [
+    {
+      "exception": "PermissionError",
+      "message": "access denied reading encryption key",
+      "mapped": "AuthenticationFailedError",
+      "api": {
+        "status": 422,
+        "request_id": true,
+        "detail": "实例认证失败（请核对用户名/口令）：access denied reading encryption key"
+      }
+    },
+    {
+      "exception": "FileNotFoundError",
+      "message": "unknown database catalog file",
+      "mapped": "DatabaseNotFoundError",
+      "api": {
+        "status": 422,
+        "request_id": true,
+        "detail": "目标数据库不存在：unknown database catalog file"
+      }
+    }
+  ],
+  "o26_wrong_type": {
+    "migration_error": "MigrationError: 迁移结构验收失败 [v99_971_o26_r7_wrong_type]: 列 o26_r7_wrong_type.related_index_name 类型不符: 期望 varchar(128) 实际 int；默认值不符: 期望  实际 NULL",
+    "failed_closed": true
+  },
+  "o26_implicit_default_boundary": {
+    "migration_error": null,
+    "actual_default": "unexpected",
+    "failed_closed": false
+  },
+  "o26_historical_v9_upgrade": {
+    "historical_checksum": "54ee2e97c804f5d8ec216d9f51600c19cc8463f2cede1de07fa67635abe6de28",
+    "current_checksum": "c6cf33bb385456fef12af3d4888ea6b22dcfc2a64052d734adc4c37457915209",
+    "without_reconcile_env": "MigrationError: 迁移版本记录与文件内容漂移 [v9_090_connection_unique]：已登记 checksum=54ee2e97c804f5d8ec216d9f51600c19cc8463f2cede1de07fa67635abe6de28，当前文件 checksum=c6cf33bb385456fef12af3d4888ea6b22dcfc2a64052d734adc4c37457915209。启动不得宣称 schema ready。请人工确认漂移合法后，设置环境变量 SCHEMA_CHECKSUM_RECONCILE=v9_090_connection_unique 重启调和，或回滚文件变更。",
+    "with_reconcile_env": null,
+    "checksum_after_reconcile": "c6cf33bb385456fef12af3d4888ea6b22dcfc2a64052d734adc4c37457915209"
+  },
+  "o26_persistent_reconcile_boundary": {
+    "migration_error": null,
+    "tampered_checksum": "1f3aaa76315853bac87ac1a166c5bccab6aa10c6ad5ab6c840d97cd1aacf2fcf",
+    "checksum_after_run": "1f3aaa76315853bac87ac1a166c5bccab6aa10c6ad5ab6c840d97cd1aacf2fcf",
+    "tamper_rebaselined": true
+  }
+}
