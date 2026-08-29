@@ -6,14 +6,30 @@
 import logging
 import os
 import re
+import secrets
 import shutil
 import subprocess
 import tempfile
+import threading
+import time
 from datetime import datetime
+from html import escape as html_escape
 from pathlib import Path
 from backend.services.database import _get_connection, _execute_sql
 
 logger = logging.getLogger("tdsql.gateway_log")
+
+# v1.6.2.2-UAT-O-17：混合输入跳过比例阈值（可配置）。超过阈值时拒绝生成报告，
+# 避免只覆盖三分之一输入却按完整报告展示、健康结论无覆盖率背书。
+_MAX_SKIP_RATIO = min(max(float(os.getenv("GATEWAY_MAX_SKIP_RATIO", "0.5")), 0.0), 1.0)
+# 部分有效时的最大丢弃样例条数（写进响应与报告横幅，供用户定位原因）
+_SKIP_SAMPLE_LIMIT = 5
+
+# v1.6.2.2-UAT-O-15：报告 iframe 不再把长期令牌放进可见 URL，改用短时一次性报告票据：
+# 登录后经 POST 签发（90s 有效、用后即焚、绑定报告 ID），iframe 只携带该票据。
+_REPORT_TICKETS: dict = {}
+_REPORT_TICKET_LOCK = threading.Lock()
+_REPORT_TICKET_TTL_SECONDS = 90
 
 
 class GatewayLogService:
@@ -38,65 +54,121 @@ class GatewayLogService:
         max_time_ms = 0.0
         sum_time_ms = 0.0
 
+        # v1.6.2.2-UAT-O-17：结构化解析质量统计——混合输入不得静默丢行，
+        # 报告必须携带覆盖率，健康结论不得在大量跳过时冒充全量。
+        total_lines = 0
+        empty_lines = 0
+        nonempty_lines = 0
+        invalid_format_lines = 0   # 行首格式不匹配（非网关日志行）
+        no_timecost_lines = 0      # 格式合法但缺 timecost 字段/匹配
+        numeric_error_lines = 0    # timecost 数值非法
+        skip_samples: list = []    # [(原因, 行摘要)]
+        _header_re = re.compile(r"\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \d+\]\s+\w+\s+(.*)")
+
+        def _record_skip(reason: str, line_text: str):
+            if len(skip_samples) < _SKIP_SAMPLE_LIMIT:
+                skip_samples.append({"reason": reason, "line": line_text[:160]})
+
         # 分行处理（支持 \n 或 \r\n）
         lines = file_content.decode("utf-8", errors="ignore").splitlines()
+        total_lines = len(lines)
 
         for line in lines:
             line = line.strip()
             if not line:
+                empty_lines += 1
                 continue
+            nonempty_lines += 1
             
             # interf 日志解析
             if log_type == "interf":
                 # [2026-02-26 00:00:00 002408] INFO topic=...
-                m = re.match(r"\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \d+\]\s+\w+\s+(.*)", line)
-                if m:
-                    body = m.group(2)
-                    fields = {}
-                    for part in body.split("&"):
-                        if "=" in part:
-                            k, _, v = part.partition("=")
-                            fields[k] = v
-                    
-                    if "timecost" in fields:
-                        try:
-                            tc = float(fields["timecost"])
-                            total_queries += 1
-                            sum_time_ms += tc
-                            if tc > max_time_ms:
-                                max_time_ms = tc
-                            if tc >= slow_threshold_ms:
-                                slow_queries += 1
-                        except ValueError:
-                            pass
+                m = _header_re.match(line)
+                if not m:
+                    invalid_format_lines += 1
+                    _record_skip("行首格式不匹配（非网关日志行）", line)
+                    continue
+                body = m.group(2)
+                fields = {}
+                for part in body.split("&"):
+                    if "=" in part:
+                        k, _, v = part.partition("=")
+                        fields[k] = v
+                
+                if "timecost" not in fields:
+                    no_timecost_lines += 1
+                    _record_skip("无 timecost 字段", line)
+                    continue
+                try:
+                    tc = float(fields["timecost"])
+                except ValueError:
+                    numeric_error_lines += 1
+                    _record_skip("timecost 数值非法", line)
+                    continue
+                total_queries += 1
+                sum_time_ms += tc
+                if tc > max_time_ms:
+                    max_time_ms = tc
+                if tc >= slow_threshold_ms:
+                    slow_queries += 1
             elif log_type == "sql":
                 # sql_instance 日志解析
-                m = re.match(r"\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \d+\]\s+\w+\s+(.*)", line)
-                if m:
-                    body = m.group(2)
-                    tc_m = re.search(r"timecost:([\d.]+)\(ms\)", body)
-                    if tc_m:
-                        try:
-                            tc = float(tc_m.group(1))
-                            total_queries += 1
-                            sum_time_ms += tc
-                            if tc > max_time_ms:
-                                max_time_ms = tc
-                            if tc >= slow_threshold_ms:
-                                slow_queries += 1
-                        except ValueError:
-                            pass
+                m = _header_re.match(line)
+                if not m:
+                    invalid_format_lines += 1
+                    _record_skip("行首格式不匹配（非网关日志行）", line)
+                    continue
+                body = m.group(2)
+                tc_m = re.search(r"timecost:([\d.]+)\(ms\)", body)
+                if not tc_m:
+                    no_timecost_lines += 1
+                    _record_skip("无 timecost 字段", line)
+                    continue
+                try:
+                    tc = float(tc_m.group(1))
+                except ValueError:
+                    numeric_error_lines += 1
+                    _record_skip("timecost 数值非法", line)
+                    continue
+                total_queries += 1
+                sum_time_ms += tc
+                if tc > max_time_ms:
+                    max_time_ms = tc
+                if tc >= slow_threshold_ms:
+                    slow_queries += 1
+            else:
+                invalid_format_lines += 1
+                _record_skip(f"不支持的日志类型: {log_type}", line)
 
         avg_time_ms = (sum_time_ms / total_queries) if total_queries > 0 else 0.0
+        skipped_lines = nonempty_lines - total_queries
+        skip_ratio = (skipped_lines / nonempty_lines) if nonempty_lines else 0.0
+        coverage_ratio = (total_queries / nonempty_lines) if nonempty_lines else 0.0
 
         # v1.6.2.2-UAT-O-11：零有效记录必须显式失败，不得用行数冒充查询数、
         # 不得把空报告持久化为"成功/健康"——空文件/垃圾文件会让用户在正式报告里
         # 看到虚构的 total_queries 与“指标正常”结论。
         if total_queries == 0:
             raise ValueError(
-                f"未从日志中解析到任何有效查询记录（文件共 {len(lines)} 行）。"
+                f"未从日志中解析到任何有效查询记录（文件共 {total_lines} 行，"
+                f"非空 {nonempty_lines} 行；格式不匹配 {invalid_format_lines}、"
+                f"缺 timecost {no_timecost_lines}、数值错误 {numeric_error_lines}）。"
                 f"请确认上传的是 {log_type} 类型的 TDSQL 网关日志，且内容未损坏。"
             )
+
+        # v1.6.2.2-UAT-O-17：跳过比例超阈值拒绝生成报告（可配置），
+        # 避免大量丢行仍按完整报告展示。
+        if skip_ratio > _MAX_SKIP_RATIO:
+            raise ValueError(
+                f"有效行占比过低：非空 {nonempty_lines} 行中仅解析出 {total_queries} 行"
+                f"（覆盖率 {coverage_ratio:.1%}，跳过 {skipped_lines} 行；格式不匹配 "
+                f"{invalid_format_lines}、缺 timecost {no_timecost_lines}、数值错误 "
+                f"{numeric_error_lines}），低于阈值 {1 - _MAX_SKIP_RATIO:.0%}。"
+                f"请确认日志类型与文件完整性后重试。"
+            )
+
+        # 混合输入：部分有效仍可生成报告，但必须以 partial 状态与醒目告警携带覆盖率。
+        parse_status = "partial" if skipped_lines > 0 else "success"
 
         # 2) 写入临时文件，供 analyze_gateway_log.py 读取
         # v1.6.2.2-UAT-O-03：分析器 _organize_specific_files() 按
@@ -154,6 +226,33 @@ class GatewayLogService:
             # 4) 读取生成的 HTML
             report_html = temp_html_file.read_text(encoding="utf-8", errors="replace")
 
+            # v1.6.2.2-UAT-O-17：混合输入的报告必须在顶部携带醒目数据完整性告警，
+            # 健康结论不得在大量跳过时冒充全量。
+            if parse_status == "partial":
+                _sample_items = "".join(
+                    f"<li>[{html_escape(s['reason'])}] "
+                    f"<code>{html_escape(s['line'])}</code></li>"
+                    for s in skip_samples)
+                _banner = (
+                    '<div class="alert alert-danger" style="border:2px solid #dc3545;'
+                    'background:#f8d7da;color:#842029;padding:14px 18px;border-radius:8px;'
+                    'margin:16px 0;font-size:0.95em;">'
+                    f'<strong>⚠️ 数据完整性告警（部分有效输入 / partial）：</strong>'
+                    f'本次输入共 {nonempty_lines} 行非空日志，仅解析出有效查询 '
+                    f'{total_queries} 行（覆盖率 {coverage_ratio:.1%}），'
+                    f'跳过 {skipped_lines} 行（格式不匹配 {invalid_format_lines}、'
+                    f'缺 timecost {no_timecost_lines}、数值错误 {numeric_error_lines}）。'
+                    '<b>本报告结论仅覆盖已解析部分，不代表全量输入。</b>'
+                    + (f'<div style="margin-top:8px;">跳过样例（前 {len(skip_samples)} 条）：'
+                       f'<ul style="margin:4px 0 0 18px;">{_sample_items}</ul></div>'
+                       if _sample_items else '')
+                    + '</div>')
+                _anchor = '<div class="container">'
+                if _anchor in report_html:
+                    report_html = report_html.replace(_anchor, _anchor + _banner, 1)
+                else:
+                    report_html = _banner + report_html
+
             # 5) 结果落库到 gateway_log_reports
             report_id = self._save_report(
                 connection_id=connection_id,
@@ -175,7 +274,21 @@ class GatewayLogService:
                 "slow_queries": slow_queries,
                 "max_time_ms": max_time_ms,
                 "avg_time_ms": avg_time_ms,
-                "report_html": report_html
+                "report_html": report_html,
+                # v1.6.2.2-UAT-O-17：解析质量与覆盖率随响应返回，不得静默丢行。
+                "status": parse_status,
+                "parse_quality": {
+                    "total_lines": total_lines,
+                    "empty_lines": empty_lines,
+                    "nonempty_lines": nonempty_lines,
+                    "parsed_lines": total_queries,
+                    "skipped_lines": skipped_lines,
+                    "invalid_format_lines": invalid_format_lines,
+                    "no_timecost_lines": no_timecost_lines,
+                    "numeric_error_lines": numeric_error_lines,
+                    "coverage_ratio": round(coverage_ratio, 4),
+                    "skip_samples": skip_samples,
+                },
             }
 
         finally:
@@ -251,6 +364,39 @@ class GatewayLogService:
             return cursor.fetchone()
         finally:
             conn.close()
+
+    # ── 一次性报告票据（v1.6.2.2-UAT-O-15）─────────────────────
+
+    def _purge_expired_tickets(self):
+        """清理过期票据（调用方持锁）"""
+        now = time.time()
+        for tk in [k for k, v in _REPORT_TICKETS.items() if v[2] < now]:
+            _REPORT_TICKETS.pop(tk, None)
+
+    def create_report_ticket(self, report_id: int, username: str) -> str:
+        """为指定报告签发短时一次性票据（仅登录后由签发接口调用）"""
+        ticket = secrets.token_urlsafe(24)
+        with _REPORT_TICKET_LOCK:
+            self._purge_expired_tickets()
+            _REPORT_TICKETS[ticket] = (int(report_id), username,
+                                       time.time() + _REPORT_TICKET_TTL_SECONDS)
+        return ticket
+
+    def consume_report_ticket(self, ticket: str, report_id: int):
+        """一次性消费票据：有效且报告 ID 匹配返回签发者用户名，否则 None。
+
+        无论成败均即焚——失败重试/重放不能再次命中；过期票据同样作废。
+        """
+        if not ticket:
+            return None
+        with _REPORT_TICKET_LOCK:
+            item = _REPORT_TICKETS.pop(ticket, None)
+        if not item:
+            return None
+        bound_report_id, username, expire_at = item
+        if time.time() > expire_at or int(bound_report_id) != int(report_id):
+            return None
+        return username
 
 
 gateway_log_service = GatewayLogService()

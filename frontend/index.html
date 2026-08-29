@@ -1692,8 +1692,8 @@
                   <el-button type="success" size="small" :disabled="!deepConnId || !dailyInspectDates || dailyInspectDates.length < 2" @click="exportDailyHtmlReport">导出 HTML 对比大屏</el-button>
                 </div>
 
-                <!-- 趋势折线图容器 -->
-                <div v-show="dailyInspectChartData" style="background:#1e293b; border-radius:8px; padding:16px; margin-bottom:12px">
+                <!-- 趋势折线图容器（v1.6.2.2-UAT-O-16：仅在当前范围的成功比对下展示） -->
+                <div v-show="dailyInspectChartData && dailyResultVisible" style="background:#1e293b; border-radius:8px; padding:16px; margin-bottom:12px">
                   <div style="font-size:14px; font-weight:bold; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center">
                     <span>指标多日历史趋势</span>
                     <div>
@@ -1713,8 +1713,8 @@
                   <div ref="dailyTrendChartRef" style="height:280px; width:100%"></div>
                 </div>
 
-                <!-- 比对差异表格 -->
-                <div v-if="dailyCompareResult" style="margin-top:12px">
+                <!-- 比对差异表格（v1.6.2.2-UAT-O-16：结果绑定实例/日期/状态，范围不匹配不展示） -->
+                <div v-if="dailyResultVisible" style="margin-top:12px">
                   <el-tabs type="card" size="small">
                     <el-tab-pane label="实例级指标比对">
                       <div class="search-box" style="margin-bottom:8px; display:flex; flex-wrap:wrap; gap:8px; justify-content:space-between; align-items:center">
@@ -2713,9 +2713,10 @@
   </el-dialog>
 
   <!-- G11 网关日志报告详情抽屉 -->
-  <!-- v1.6.2.2-UAT-O-10：报告以独立文档响应（iframe src）加载，响应自带文档级 CSP
-       （允许内联脚本 + frame-ancestors 'self'），交互脚本可运行；iframe 文档边界仍隔离
-       样式/脚本不污染主应用；sandbox=allow-scripts 禁同源访问/表单/弹窗；关闭即销毁。 -->
+  <!-- v1.6.2.2-UAT-O-15：报告以独立文档响应（iframe src）加载，鉴权用 90s 一次性
+       报告票据（不把长期令牌放进 URL）；响应携带 nonce 制 CSP（无 unsafe-inline）与
+       frame-ancestors 'self'，不再发送与不透明源 sandbox 冲突的 X-Frame-Options；
+       sandbox=allow-scripts 保持不透明源隔离（不可达父页面 DOM/认证），关闭即销毁。 -->
   <el-drawer v-model="gatewayDetailVisible" title="网关日志分析报告" size="80%" destroy-on-close>
     <iframe v-if="gatewayDetailVisible && gatewayReportUrl" :src="gatewayReportUrl" sandbox="allow-scripts"
             style="width:100%;height:100%;border:none;background:#fff" title="网关日志分析报告"></iframe>

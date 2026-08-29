@@ -10,6 +10,7 @@ TDSQL SQL审核工具 - 中间件 (V2.0)
 - AUTH_ENABLED=false 时跳过认证（仅限开发/测试环境，生产必须开启）
 """
 import logging
+import re
 import time
 import uuid
 
@@ -95,6 +96,12 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         response.headers["X-Request-ID"] = request_id
         for k, v in _SECURITY_HEADERS.items():
             response.headers.setdefault(k, v)
+        # v1.6.2.2-UAT-O-15：网关报告文档被不透明源 sandbox 的 iframe 嵌入，
+        # 全局基线的 X-Frame-Options: DENY 与之冲突（Chromium 拒绝加载）；
+        # 报告端点以 frame-ancestors 'self' 承担嵌入控制，显式移除 XFO。
+        if getattr(request.state, "frame_embeddable", False):
+            if "X-Frame-Options" in response.headers:
+                del response.headers["X-Frame-Options"]
         if config.metrics_enabled():
             metrics_service.observe_request(
                 request.method, request.url.path, response.status_code, duration)
@@ -134,6 +141,10 @@ def _allows_query_token(path: str) -> bool:
             and path.endswith(_QUERY_TOKEN_SUFFIXES))
 
 
+# v1.6.2.2-UAT-O-15：网关报告 iframe 用短时一次性报告票据鉴权，不再把长期令牌放进 URL。
+_GATEWAY_REPORT_HTML_RE = re.compile(r"^/api/v1/gateway-log/reports/(\d+)/html$")
+
+
 class AuthMiddleware(BaseHTTPMiddleware):
     """认证 + RBAC + 操作审计"""
 
@@ -149,6 +160,30 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
         if is_public_path(path):
             return await call_next(request)
+
+        # v1.6.2.2-UAT-O-15：网关报告 iframe 一次性票据鉴权。
+        # 票据由登录后的签发接口（头部令牌 + RBAC）发放，90s 有效、用后即焚、
+        # 绑定报告 ID；授权在签发时已把关，消费时只需验票据与账户状态。
+        _gw_m = _GATEWAY_REPORT_HTML_RE.match(path)
+        if _gw_m and method == "GET":
+            _ticket = request.query_params.get("report_ticket", "")
+            if _ticket:
+                from backend.services.gateway_log_service import gateway_log_service
+                _username = gateway_log_service.consume_report_ticket(
+                    _ticket, int(_gw_m.group(1)))
+                _user = auth_service.get_user(_username) if _username else None
+                if _username and _user and _user.get("status") == "active":
+                    request.state.username = _username
+                    request.state.role = _user.get("role", "developer")
+                    request.state.user = _user
+                    return await call_next(request)
+                # 失效提示需在抽屉 iframe 内可见：标记为可嵌入文档，免全局 XFO DENY 拦截
+                request.state.frame_embeddable = True
+                return Response(
+                    content="<div style='font-family:sans-serif;padding:40px;text-align:center;'><h2>⚠️ 报告访问票据无效或已过期</h2><p style='color:#666'>请返回主系统界面重新点击“查看报告”。</p></div>",
+                    media_type="text/html; charset=utf-8",
+                    status_code=401,
+                )
 
         # 提取令牌
         auth_header = request.headers.get("Authorization", "")

@@ -6,7 +6,7 @@ TDSQL SQL审核工具 - 规则检查器
 import re
 from typing import Optional
 
-from backend.engine.parser import ParsedSQL, SQLParser
+from backend.engine.parser import ParsedSQL, SQLParser, normalize_newlines
 from backend.engine.parser.parser_legacy import (
     _lex_head_words, _is_load_statement_head, _is_create_routine_head,
 )
@@ -135,6 +135,8 @@ class RuleChecker:
         Returns:
             AuditResult 审核结果
         """
+        # v1.6.2.2-UAT-O-14：三入口统一换行规范化——拆句/解析/语句头判定必须消费同一份文本。
+        sql = normalize_newlines(sql)
         parsed = self.parser.parse(sql)
         violations: list[Violation] = []
 
@@ -200,6 +202,19 @@ class RuleChecker:
         # 去重（R013/R014 可能产生重复）
         violations = self._deduplicate_violations(violations)
 
+        # v1.6.2.2-UAT-O-14：硬性失败关闭不变量——非 KFN 的 parse_error 绝不绿色通过。
+        # 语句头豁免（VIEW/PROCEDURE/LOAD）只能阻止 E999 的直接上报，不能让真实解析错误
+        # 无声消失；确需兼容而解析器暂不支持的语法应进 KFN/unsupported 合同（is_kfn 分支）。
+        if parsed.parse_error and not is_kfn \
+                and not any(v.severity == "ERROR" for v in violations):
+            violations.append(Violation(
+                rule_id="E999_SYNTAX_ERROR",
+                category=RuleCategory.DDL if ("CREATE" in sql.upper() or "ALTER" in sql.upper()) else RuleCategory.DML,
+                severity="ERROR",
+                message=f"SQL 语句存在解析错误，语句头豁免不得吞掉解析失败（可能是拉取截断/语法错误）: {parsed.parse_error}",
+                line_number=line_number,
+            ))
+
         return AuditResult(
             sql=sql.strip(),
             sql_type=parsed.sql_type,
@@ -224,6 +239,8 @@ class RuleChecker:
             审核结果列表
         """
         results: list[AuditResult] = []
+        # v1.6.2.2-UAT-O-14：文件入口同样先做换行规范化，保证拆句与后续审核同源。
+        content = normalize_newlines(content)
 
         if file_path.lower().endswith(".xml"):
             # MyBatis XML 文件

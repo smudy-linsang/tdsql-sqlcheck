@@ -118,6 +118,10 @@ class _MySQLCompatCursor:
 
 def split_sql_statements(sql_script: str) -> list[str]:
     """将 SQL 脚本按分号拆分为多条 SQL 语句，能够正确处理字符串字面量、行注释和块注释中的分号"""
+    # v1.6.2.2-UAT-O-14：行注释仅以 \n 为终止符，单独 \r 会把注释后的真实语句全部吞掉；
+    # 与 checker.audit_sql / audit_file 保持同一份换行规范化文本。
+    from backend.engine.parser import normalize_newlines
+    sql_script = normalize_newlines(sql_script)
     statements = []
     current_statement = []
     
@@ -1456,6 +1460,8 @@ def _create_all_tables(conn):
             detail              TEXT,
             suggestion          TEXT,
             metric              VARCHAR(64) DEFAULT '',
+            related_index_name  VARCHAR(128) DEFAULT '',
+            index_columns       VARCHAR(512) DEFAULT '',
             created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
             INDEX idx_iaf (audit_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""",

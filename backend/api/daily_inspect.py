@@ -7,6 +7,10 @@ from typing import Optional, List as TypedList
 
 from backend.services import daily_inspect_service as svc
 from backend.services.connection_registry import registry, ConnectionNotFoundError
+from backend.services.connection_errors import (
+    AuthenticationFailedError, ConnectionRefusedError_, DatabaseNotFoundError,
+    InstanceConnectionError, MonitorDbUnavailableError, translate_db_error,
+)
 
 router = APIRouter(prefix="/api/v1/daily-inspect", tags=["每日巡检与趋势"])
 
@@ -36,22 +40,41 @@ class DailyRequest(BaseModel):
 
 @router.post("/run", summary="采集当日巡检指标")
 async def run(body: DailyRequest):
+    # v1.6.2.2-UAT-O-19：“获取连接池 + monitor_probe + run_daily”纳入同一完整异常边界：
+    # 保存但未连接的实例在 registry.get 自动建连时会抛底层连接异常，
+    # 此前只捕获 ConnectionNotFoundError，真实连接失败穿透为裸 500。
     try:
-        pool = registry.get(body.connection_id)
-    except ConnectionNotFoundError:
-        raise HTTPException(status_code=400, detail="未连接TDSQL实例或连接不存在")
-    probe = pool.monitor_probe()
-    if not probe["ok"]:
-        # 如果是 Mock 实例，我们不阻断巡检，直接跑 Mock 流程
-        if "mock" not in body.connection_id.lower() and "test" not in body.connection_id.lower():
-            raise HTTPException(status_code=400, detail=f"monitordb不可用: {probe['error']}")
-    try:
+        try:
+            pool = registry.get(body.connection_id)
+        except ConnectionNotFoundError:
+            raise HTTPException(status_code=400, detail="未连接TDSQL实例或连接不存在")
+        except Exception as conn_exc:
+            # 领域化：连接拒绝/认证失败/库不存在等映射为可读 422，不落裸 500。
+            raise translate_db_error(conn_exc)
+        probe = pool.monitor_probe()
+        if not probe["ok"]:
+            # 如果是 Mock 实例，我们不阻断巡检，直接跑 Mock 流程
+            if "mock" not in body.connection_id.lower() and "test" not in body.connection_id.lower():
+                raise MonitorDbUnavailableError(f"monitordb不可用: {probe['error']}")
         # 使用 asyncio.to_thread 调度至 Worker 线程池，释放 Event Loop
         return await asyncio.to_thread(
             svc.run_daily, pool, connection_id=body.connection_id,
             inspect_date=body.inspect_date, nodes=body.nodes
         )
+    except HTTPException:
+        raise
+    except MonitorDbUnavailableError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except ConnectionRefusedError_ as e:
+        raise HTTPException(status_code=422, detail=f"目标实例拒绝连接或网络不可达：{e}")
+    except AuthenticationFailedError as e:
+        raise HTTPException(status_code=422, detail=f"实例认证失败（请核对用户名/口令）：{e}")
+    except DatabaseNotFoundError as e:
+        raise HTTPException(status_code=422, detail=f"目标数据库不存在：{e}")
+    except InstanceConnectionError as e:
+        raise HTTPException(status_code=422, detail=f"实例连接失败：{e}")
     except Exception as e:
+        # 未知程序错误仍是 500（携带 X-Request-ID 由中间件下发），避免掩盖真正缺陷。
         raise HTTPException(status_code=500, detail=str(e))
 
 

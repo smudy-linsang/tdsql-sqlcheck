@@ -73,10 +73,15 @@ def analyze(pool, database: str = "") -> dict:
     rows_map = {(t["TABLE_SCHEMA"], t["TABLE_NAME"]): t for t in tables}
     findings = []
 
-    def add(db, table, index, ftype, severity, detail, suggestion, metric=""):
+    def add(db, table, index, ftype, severity, detail, suggestion, metric="",
+            related_index_name="", index_columns=""):
+        # v1.6.2.2-UAT-O-18：冗余关系必须携带结构化字段（对方索引名/列清单），
+        # 报告层不得解析面向人的 detail 文案（曾致重复索引对方显示 N/A）。
         findings.append({"db_name": db, "table_name": table, "index_name": index,
                          "finding_type": ftype, "severity": severity, "detail": detail,
-                         "suggestion": suggestion, "metric": str(metric)})
+                         "suggestion": suggestion, "metric": str(metric),
+                         "related_index_name": related_index_name,
+                         "index_columns": index_columns})
 
     total_indexes = 0
     for (db, table), idxs in idx_map.items():
@@ -112,11 +117,13 @@ def analyze(pool, database: str = "") -> dict:
                 if a == b and i < j:
                     add(db, table, names[i], "重复索引", "WARNING",
                         f"索引 {names[i]} 与 {names[j]} 列完全相同({','.join(a)})",
-                        f"删除其一（保留唯一性更强者）", "")
+                        f"删除其一（保留唯一性更强者）", "",
+                        related_index_name=names[j], index_columns=",".join(a))
                 elif len(a) < len(b) and b[:len(a)] == a:
                     add(db, table, names[i], "前缀冗余索引", "WARNING",
                         f"索引 {names[i]}({','.join(a)}) 是 {names[j]}({','.join(b)}) 的前缀",
-                        f"可由 {names[j]} 覆盖，评估删除 {names[i]}", "")
+                        f"可由 {names[j]} 覆盖，评估删除 {names[i]}", "",
+                        related_index_name=names[j], index_columns=",".join(a))
 
         # 表碎片
         try:
@@ -193,9 +200,11 @@ def run_audit(pool, connection_id: str = "", database: str = "", operator: str =
         for f in findings:
             conn.execute(
                 "INSERT INTO index_audit_finding (audit_id, db_name, table_name, index_name, "
-                "finding_type, severity, detail, suggestion, metric) VALUES (?,?,?,?,?,?,?,?,?)",
+                "finding_type, severity, detail, suggestion, metric, "
+                "related_index_name, index_columns) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
                 (audit_id, f["db_name"], f["table_name"], f["index_name"], f["finding_type"],
-                 f["severity"], f["detail"], f["suggestion"], f["metric"]))
+                 f["severity"], f["detail"], f["suggestion"], f["metric"],
+                 f.get("related_index_name", ""), f.get("index_columns", "")))
         conn.commit()
     finally:
         conn.close()

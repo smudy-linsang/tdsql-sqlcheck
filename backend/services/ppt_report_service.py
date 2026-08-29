@@ -19,6 +19,35 @@ from backend.services.database import _get_connection, _execute_sql
 logger = logging.getLogger("tdsql.ppt_report")
 
 
+def _duplicate_pair_fields(row: dict) -> tuple:
+    """重复索引对方名称与列清单提取（v1.6.2.2-UAT-O-18）。
+
+    优先消费结构化字段（related_index_name / index_columns）；存量记录无结构化字段时，
+    兼容两种历史文案格式：
+      - 生产端现行：“索引 idx_code 与 idx_code_copy 列完全相同(code)”
+      - 旧格式：“与 idx_code_copy 完全重复”
+    仅在此兼容分支才解析自然语言，新记录一律走结构化字段。
+    返回 (对方索引名, 列清单)，均无法得出时对方名称为 'N/A'。
+    """
+    idx2 = str(row.get("related_index_name") or "").strip()
+    cols = str(row.get("index_columns") or "").strip()
+    detail = str(row.get("detail") or "")
+    if not idx2:
+        m = re.search(r"索引\s+\S+\s+与\s+([^\s(]+?)\s+列完全相同", detail)
+        if m:
+            idx2 = m.group(1).strip("` ")
+        else:
+            m = re.search(r"与\s+`?(\w+)`?\s+完全重复", detail)
+            if m:
+                idx2 = m.group(1)
+        idx2 = idx2 or "N/A"
+    if not cols:
+        m = re.search(r"列完全相同\(([^)]*)\)", detail)
+        if m:
+            cols = m.group(1).strip()
+    return idx2, cols
+
+
 class PPTReportService:
     """PPT 汇报与大屏服务"""
 
@@ -655,7 +684,8 @@ class PPTReportService:
             }
 
         cursor.execute("""
-            SELECT finding_type, db_name, table_name, index_name, metric AS columns, detail, severity
+            SELECT finding_type, db_name, table_name, index_name, metric AS columns, detail, severity,
+                   related_index_name, index_columns
             FROM index_audit_finding
             WHERE audit_id = %s
         """, (audit_row["id"],))
@@ -677,21 +707,17 @@ class PPTReportService:
         unused_count = sum(1 for t in normalized_types if t == "unused")
         frag_count = sum(1 for t in normalized_types if t == "fragmentation")
 
-        # 重复索引列表
+        # 重复索引列表（v1.6.2.2-UAT-O-18：结构化字段优先，兼容存量两种文案格式）
         dup_list = []
         for r, nt in zip(rows, normalized_types):
             if nt == "duplicate":
-                # detail 格式通常为: "与 [index2] 完全重复"
-                idx2 = "N/A"
-                m = re.search(r"与\s+`?(\w+)`?\s+完全重复", r["detail"])
-                if m:
-                    idx2 = m.group(1)
+                idx2, cols = _duplicate_pair_fields(r)
                 dup_list.append({
                     "schema": r["db_name"],
                     "table": r["table_name"],
                     "index1": r["index_name"],
                     "index2": idx2,
-                    "columns": r["columns"]
+                    "columns": cols or (r["columns"] or "")
                 })
 
         # 索引总数/表数从父运行记录取（真实采集范围），不从 finding 数猜测。

@@ -79,3 +79,35 @@ class TestIndexAudit:
         assert len(fs) == res["total_findings"]
         errs = svc.get_findings(res["audit_id"], severity="ERROR")
         assert all(f["severity"] == "ERROR" for f in errs)
+
+    def test_findings_carry_structured_relation_fields(self):
+        """v1.6.2.2-UAT-O-18：重复/前缀冗余必须携带对方索引名与列清单"""
+        from backend.services import index_audit_service as svc
+        res = svc.analyze(self.pool, database=DB)
+        dup = [f for f in res["findings"]
+               if f["table_name"] == "t_dup" and f["finding_type"] == "重复索引"]
+        assert dup, "必须发现 t_dup 的重复索引"
+        assert dup[0]["related_index_name"] in ("k1", "k2"), "对方索引名必须结构化"
+        assert dup[0]["index_columns"] == "a", "列清单必须结构化"
+        pre = [f for f in res["findings"]
+               if f["table_name"] == "t_prefix" and f["finding_type"] == "前缀冗余索引"]
+        assert pre and pre[0]["related_index_name"] == "kab"
+
+    def test_report_consumer_shows_pair_and_columns(self):
+        """v1.6.2.2-UAT-O-18：报告消费端不得再出现 N/A 对方与空列清单"""
+        os.environ.setdefault("SQLCHECK_DB_NAME", "tdsql_sqlcheck_test")
+        from backend.services.database import ensure_db, _get_connection
+        from backend.services import index_audit_service as svc
+        from backend.services.ppt_report_service import PPTReportService
+        ensure_db()
+        svc.run_audit(self.pool, connection_id="qa_o18", database=DB)
+        conn = _get_connection()
+        try:
+            data = PPTReportService()._get_index_analysis_data(conn, "qa_o18")
+        finally:
+            conn.close()
+        dups = data["duplicate_indexes"]
+        assert dups, "重复索引列表不得为空"
+        d = dups[0]
+        assert d["index2"] in ("k1", "k2"), f"对方索引名不得为 {d['index2']}"
+        assert d["columns"] == "a", f"包含列不得为空: {d['columns']}"

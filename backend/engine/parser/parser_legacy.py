@@ -41,6 +41,19 @@ from sqlglot.tokens import TokenType
 
 
 
+def normalize_newlines(text: str) -> str:
+    """通用换行规范化：CRLF 与单独 CR 统一为 LF（v1.6.2.2-UAT-O-14）。
+
+    拆句、解析、语句头词法判定三个组件必须消费同一份规范化文本：
+    仅 CR 的换行会让 `--` 行注释的正则终止符（`\n`）失效，把注释后的真实
+    语句整体吞掉（文件入口拆出 0 条）；而 sqlglot 词法器把 CR 当换行，
+    两侧不一致正是"残缺 VIEW 绿色通过"的成因。
+    """
+    if not text:
+        return text
+    return text.replace("\r\n", "\n").replace("\r", "\n")
+
+
 def _lex_head_words(sql: str, dialect: str = "mysql", limit: int = 8) -> Optional[list]:
     """用 sqlglot 词法器取语句头词序列（大写文本）。词法化失败返回 None。
 

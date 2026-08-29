@@ -265,6 +265,22 @@ def _h(text):
     """HTML 转义"""
     return html_mod.escape(str(text))
 
+
+def _js_json(obj):
+    """脚本上下文安全的 JSON 序列化（v1.6.2.2-UAT-O-15）。
+
+    日志 SQL 会被原样写进报告内联 <script>：普通 json.dumps 不转义 `<`，
+    恶意日志里的 `</script>` 能提前结束脚本元素形成存储型脚本注入。
+    这里把 `<`、`>`、`&` 与 U+2028/U+2029 统一转为 Unicode 转义，
+    序列化结果仍是合法 JSON（浏览器 JSON.parse/JS 字面量语义不变）。
+    """
+    return (json.dumps(obj, ensure_ascii=False)
+            .replace("<", "\\u003c")
+            .replace(">", "\\u003e")
+            .replace("&", "\\u0026")
+            .replace("\u2028", "\\u2028")
+            .replace("\u2029", "\\u2029"))
+
 HTML_TEMPLATE_HEAD = """<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -364,8 +380,10 @@ HTML_TEMPLATE_TAIL = """</div>
 <script>
 (function(){
   // 构建 TOC（多目录时按目录分组）
+  // v1.6.2.2-UAT-O-15：内联事件处理器（onclick=）在 nonce 制 CSP 下会被拦截，
+  // 改为生成纯标记后用 addEventListener 绑定。
   var sections = document.querySelectorAll('.section');
-  var tocHtml = '<nav class="toc" id="toc"><div class="toc-toggle" onclick="toggleToc()"><span class="toc-title">目录导航</span><span class="toc-icon">◀</span></div><div class="toc-body" id="toc-body">';
+  var tocHtml = '<nav class="toc" id="toc"><div class="toc-toggle"><span class="toc-title">目录导航</span><span class="toc-icon">◀</span></div><div class="toc-body" id="toc-body">';
   var lastGroup = null;
   sections.forEach(function(sec){
     var h2 = sec.querySelector('h2');
@@ -382,10 +400,12 @@ HTML_TEMPLATE_TAIL = """</div>
   tocHtml += '</div></nav>';
   document.body.insertAdjacentHTML('beforeend', tocHtml);
 
-  // 折叠/展开 TOC
+  // 折叠/展开 TOC（含点击目录主体时展开的兼容处理）
   window.toggleToc = function(){
     document.getElementById('toc').classList.toggle('collapsed');
   };
+  var tocToggle = document.querySelector('#toc .toc-toggle');
+  if(tocToggle) tocToggle.addEventListener('click', window.toggleToc);
 
   // 点击章节标题折叠/展开内容
   sections.forEach(function(sec){
@@ -2199,18 +2219,14 @@ class GatewayLogAnalyzer:
                       'style="padding:4px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:0.9em;'
                       'color:#334155;background:#fff;">\n')
             buf.write(f'<button id="{pfx}flameApplyRange" style="background:#0d6efd;color:#fff;border:none;'
-                      'padding:5px 14px;border-radius:6px;font-size:0.85em;cursor:pointer;font-weight:600;"'
-                      f' onclick="document.dispatchEvent(new CustomEvent(\'flameApplyRange_{uid}\'))">'
+                      'padding:5px 14px;border-radius:6px;font-size:0.85em;cursor:pointer;font-weight:600;">'
                       '应用</button>\n')
             buf.write(f'<button id="{pfx}flameQuick1h" style="background:#e2e8f0;color:#334155;border:none;'
-                      'padding:5px 10px;border-radius:6px;font-size:0.82em;cursor:pointer;"'
-                      f' onclick="document.dispatchEvent(new CustomEvent(\'flameQuick_{uid}\',{{detail:3600000}}))">1h</button>\n')
+                      'padding:5px 10px;border-radius:6px;font-size:0.82em;cursor:pointer;">1h</button>\n')
             buf.write(f'<button id="{pfx}flameQuick6h" style="background:#e2e8f0;color:#334155;border:none;'
-                      'padding:5px 10px;border-radius:6px;font-size:0.82em;cursor:pointer;"'
-                      f' onclick="document.dispatchEvent(new CustomEvent(\'flameQuick_{uid}\',{{detail:21600000}}))">6h</button>\n')
+                      'padding:5px 10px;border-radius:6px;font-size:0.82em;cursor:pointer;">6h</button>\n')
             buf.write(f'<button id="{pfx}flameQuick1d" style="background:#e2e8f0;color:#334155;border:none;'
-                      'padding:5px 10px;border-radius:6px;font-size:0.82em;cursor:pointer;"'
-                      f' onclick="document.dispatchEvent(new CustomEvent(\'flameQuick_{uid}\',{{detail:86400000}}))">1d</button>\n')
+                      'padding:5px 10px;border-radius:6px;font-size:0.82em;cursor:pointer;">1d</button>\n')
             buf.write('</div>\n')
 
             # 图表容器（外层可横向滚动）
@@ -2226,8 +2242,7 @@ class GatewayLogAnalyzer:
             # 缩放工具栏
             buf.write(f'<div id="{pfx}flameToolbar" style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">'
                       f'<button id="{pfx}flameReset" style="display:none;background:#0d6efd;color:#fff;border:none;'
-                      'padding:4px 12px;border-radius:6px;font-size:0.78em;cursor:pointer;"'
-                      f' onclick="document.dispatchEvent(new CustomEvent(\'flameReset_{uid}\'))">'
+                      'padding:4px 12px;border-radius:6px;font-size:0.78em;cursor:pointer;">'
                       '↩ 重置缩放 Reset Zoom</button>'
                       f'<span id="{pfx}flameZoomInfo" style="display:none;font-size:0.78em;color:#64748b;"></span>'
                       '</div>\n')
@@ -2249,9 +2264,8 @@ class GatewayLogAnalyzer:
             # 只在第一个火焰图输出 modal
             if not getattr(self, '_flame_modal_written', False):
                 self._flame_modal_written = True
-                buf.write('''<div id="sqlModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;
-background:rgba(0,0,0,0.5);z-index:9999;backdrop-filter:blur(2px);"
-onclick="if(event.target===this)this.style.display='none'">
+                buf.write('''<div id="sqlModal" data-backdrop-close style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;
+background:rgba(0,0,0,0.5);z-index:9999;backdrop-filter:blur(2px);">
 <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
 background:#fff;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,0.3);
 width:min(90vw,720px);max-height:80vh;overflow:hidden;">
@@ -2259,7 +2273,7 @@ width:min(90vw,720px);max-height:80vh;overflow:hidden;">
 border-bottom:1px solid #eee;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;border-radius:16px 16px 0 0;">
 <div><strong style="font-size:1.1em;">SQL 详情</strong>
 <span id="sqlModalTime" style="margin-left:12px;opacity:0.85;font-size:0.9em;"></span></div>
-<button onclick="document.getElementById('sqlModal').style.display='none'"
+<button id="sqlModalClose"
 style="background:rgba(255,255,255,0.2);border:none;color:#fff;width:32px;height:32px;
 border-radius:50%;cursor:pointer;font-size:16px;display:flex;align-items:center;
 justify-content:center;">✕</button></div>
@@ -2274,8 +2288,7 @@ justify-content:center;">✕</button></div>
 <div style="background:#1e293b;border-radius:10px;padding:16px;position:relative;">
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
 <span style="color:#94a3b8;font-size:0.8em;">SQL Statement</span>
-<button onclick="var t=document.getElementById('sqlModalText').textContent;navigator.clipboard.writeText(t)
-.then(function(){this.textContent='\\u2713 Copied'}.bind(this))"
+<button id="sqlModalCopy"
 style="background:#334155;border:1px solid #475569;color:#e2e8f0;padding:4px 12px;border-radius:6px;
 cursor:pointer;font-size:0.78em;">复制 Copy</button></div>
 <pre id="sqlModalText" style="margin:0;color:#e2e8f0;font-family:'SF Mono',Consolas,'Courier New',monospace;
@@ -2283,16 +2296,18 @@ font-size:0.88em;line-height:1.6;white-space:pre-wrap;word-break:break-all;max-h
 </div></div></div></div>\n''')
 
             # 嵌入数据 (4 个数组，使用唯一变量名)
+            # v1.6.2.2-UAT-O-15：脚本上下文数据必须用 _js_json 转义 `<`/`>`/`&`/U+2028/U+2029，
+            # 否则日志 SQL 中的 `</script>` 可提前结束脚本元素（存储型注入断点）。
             ts_list, tc_list, sql_list, db_list = [], [], [], []
             for row in flame_data:
                 ts_list.append(row[0])
                 tc_list.append(round(row[1], 2))
                 sql_list.append(row[2] if len(row) > 2 else "")
                 db_list.append(row[3] if len(row) > 3 else "")
-            buf.write(f'<script>var _fTs_{uid}={json.dumps(ts_list, ensure_ascii=False)},'
-                      f'_fTc_{uid}={json.dumps(tc_list)},'
-                      f'_fSql_{uid}={json.dumps(sql_list, ensure_ascii=False)},'
-                      f'_fDb_{uid}={json.dumps(db_list, ensure_ascii=False)};</script>\n')
+            buf.write(f'<script>var _fTs_{uid}={_js_json(ts_list)},'
+                      f'_fTc_{uid}={_js_json(tc_list)},'
+                      f'_fSql_{uid}={_js_json(sql_list)},'
+                      f'_fDb_{uid}={_js_json(db_list)};</script>\n')
 
             # 火焰图 JS (使用唯一 ID) — 支持拖拽框选/滚轮缩放/双击重置/横向滚动/时间范围选择
             buf.write(f'''<script>
@@ -2653,6 +2668,28 @@ font-size:0.88em;line-height:1.6;white-space:pre-wrap;word-break:break-all;max-h
   document.addEventListener('keydown',function(e){{
     if(e.key==='Escape'&&modal.style.display==='block') modal.style.display='none';
   }});
+
+  // v1.6.2.2-UAT-O-15：按钮/弹窗交互改为 addEventListener 绑定（nonce 制 CSP 下
+  // 内联 onclick 会被拦截）。
+  function _bindClick(id,fn){{var el=document.getElementById(id);if(el)el.addEventListener('click',fn);}}
+  _bindClick('{pfx}flameApplyRange',function(){{document.dispatchEvent(new CustomEvent('flameApplyRange_{uid}'))}});
+  _bindClick('{pfx}flameQuick1h',function(){{document.dispatchEvent(new CustomEvent('flameQuick_{uid}',{{detail:3600000}}))}});
+  _bindClick('{pfx}flameQuick6h',function(){{document.dispatchEvent(new CustomEvent('flameQuick_{uid}',{{detail:21600000}}))}});
+  _bindClick('{pfx}flameQuick1d',function(){{document.dispatchEvent(new CustomEvent('flameQuick_{uid}',{{detail:86400000}}))}});
+  _bindClick('{pfx}flameReset',function(){{document.dispatchEvent(new CustomEvent('flameReset_{uid}'))}});
+  if(!window.__sqlModalWired){{
+    window.__sqlModalWired=true;
+    modal.addEventListener('click',function(e){{if(e.target===modal)modal.style.display='none';}});
+    _bindClick('sqlModalClose',function(){{modal.style.display='none';}});
+    _bindClick('sqlModalCopy',function(){{
+      var t=document.getElementById('sqlModalText').textContent;
+      if(navigator.clipboard&&navigator.clipboard.writeText){{
+        navigator.clipboard.writeText(t).then(function(){{
+          var b=document.getElementById('sqlModalCopy');if(b)b.textContent='\\u2713 Copied';
+        }});
+      }}
+    }});
+  }}
 
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',draw);
   else setTimeout(draw,50);

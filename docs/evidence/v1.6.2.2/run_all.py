@@ -80,11 +80,24 @@ def _read_impl_baseline() -> dict | None:
 
 
 def _generator_checks(work: Path, python: Path, doc: str, target_files: dict[str, str],
-                      failures: list[str]) -> None:
+                      failures: list[str], impl_baseline: dict | None = None) -> None:
+    # v1.6.2.2-UAT-O-21：实现演进模式下，生成物（manifest 章节/codestat 章节）与经评审的
+    # 实现基线清单中的审计哈希同源比对；不再拿“当前实现生成的章节”去硬套旧设计文档，
+    # 也不得简单跳过——基线缺失或哈希不符均判失败。设计一致模式仍逐字比对设计文档。
+    audit = (impl_baseline or {}).get("implementation_audit") or {}
     evidence = work / "docs" / "evidence" / "v1.6.2.2"
     manifest = _run([str(python), str(evidence / "manifest_doc.py")], work,
                     "manifest-doc", failures, check=False)
-    if manifest.returncode != 0 or not manifest.stdout.strip() or manifest.stdout.rstrip("\n") not in doc:
+    want_manifest = audit.get("manifest_section_sha256")
+    if want_manifest:
+        got_manifest = normalized_sha256(manifest.stdout.rstrip("\n")) \
+            if manifest.returncode == 0 and manifest.stdout.strip() else ""
+        if manifest.returncode != 0 or got_manifest != want_manifest:
+            failures.append("manifest generated section vs implementation baseline mismatch "
+                            "want=%s got=%s" % (want_manifest, got_manifest))
+        else:
+            print("CHECK manifest-section=OK (implementation baseline)")
+    elif manifest.returncode != 0 or not manifest.stdout.strip() or manifest.stdout.rstrip("\n") not in doc:
         failures.append("manifest generated section mismatch")
     else:
         print("CHECK manifest-section=OK")
@@ -99,7 +112,16 @@ def _generator_checks(work: Path, python: Path, doc: str, target_files: dict[str
         [str(python), str(evidence / "codestat.py"), str(baseline), str(work / PARSER)],
         work, "codestat", failures, check=False,
     )
-    if codestat.returncode != 0 or not codestat.stdout.strip() or codestat.stdout.rstrip("\n") not in doc:
+    want_codestat = audit.get("codestat_section_sha256")
+    if want_codestat:
+        got_codestat = normalized_sha256(codestat.stdout.rstrip("\n")) \
+            if codestat.returncode == 0 and codestat.stdout.strip() else ""
+        if codestat.returncode != 0 or got_codestat != want_codestat:
+            failures.append("codestat generated section vs implementation baseline mismatch "
+                            "want=%s got=%s" % (want_codestat, got_codestat))
+        else:
+            print("CHECK codestat-section=OK (implementation baseline)")
+    elif codestat.returncode != 0 or not codestat.stdout.strip() or codestat.stdout.rstrip("\n") not in doc:
         failures.append("codestat generated section mismatch")
     else:
         print("CHECK codestat-section=OK")
@@ -151,6 +173,7 @@ def main(argv=None) -> int:
     failures: list[str] = []
     temp = Path(tempfile.mkdtemp(prefix="v1622-revq-evidence-"))
     work = temp / "tree"
+    impl_baseline: dict | None = None
     try:
         doc = io.open(DESIGN, encoding="utf-8").read()
         design_files = rebuild_texts(REPO, DESIGN, BASELINE_COMMIT)
@@ -174,10 +197,10 @@ def main(argv=None) -> int:
                 print("MODE implementation bundle=%s (matches design)" % cur_hash)
                 _copy_repo(work)
             else:
-                baseline = _read_impl_baseline()
-                if baseline and baseline.get("implementation_bundle") == cur_hash:
+                impl_baseline = _read_impl_baseline()
+                if impl_baseline and impl_baseline.get("implementation_bundle") == cur_hash:
                     print("MODE implementation bundle=%s (evolved from design %s; baseline-recorded)"
-                          % (cur_hash, baseline.get("evolved_from_design_bundle", "?")))
+                          % (cur_hash, impl_baseline.get("evolved_from_design_bundle", "?")))
                     _copy_repo(work)
                 else:
                     print("STATUS NOT_IMPLEMENTED current_bundle=%s design_bundle=%s" % (
@@ -190,7 +213,8 @@ def main(argv=None) -> int:
         release_py = temp / "venv_30_14_0" / (
             "Scripts/python.exe" if os.name == "nt" else "bin/python")
         if release_py.is_file():
-            _generator_checks(work, release_py, doc, design_files, failures)
+            _generator_checks(work, release_py, doc, design_files, failures,
+                              impl_baseline=impl_baseline)
         else:
             failures.append("release venv unavailable; generator checks not run")
 

@@ -1,12 +1,22 @@
 {
-  "implementation_bundle": "73bcfd84f29a4aac7b080dc55d527385f4c9a2112bef24be71c716e7f6e70829",
+  "implementation_bundle": "fea7a873806236d097c61f68d650b61e602a484abb7becb840ec3e65795534a9",
   "evolved_from_design_bundle": "6412e076871dcae15df8889c746819fc312729d7a69e9c4513334fdb274dfe89",
-  "review_basis": "UAT-v1.6.2.2-第三轮全项目用户验收测试报告-智能体O.md（O-09/O-08/O-05/O-13/O-11/O-10/O-12 修复）",
-  "note": "实现包已演进（UAT-R3 修复改动了 parser_legacy.py 等）。设计合同哈希校验独立保留；本清单记录新实现基线，供正式门禁显式验证演进关系。",
+  "previous_implementation_bundle": "73bcfd84f29a4aac7b080dc55d527385f4c9a2112bef24be71c716e7f6e70829",
+  "review_basis": "UAT-v1.6.2.2-第四轮全项目用户验收测试报告-智能体O.md（O-14/O-15/O-16/O-17/O-18/O-19/O-20/O-21 整改）；前序基线依据第三轮报告（O-09/O-08/O-05/O-13/O-11/O-10/O-12）",
+  "note": "实现包已演进（UAT-R4 修复改动了 parser_legacy.py 等）。设计合同哈希校验独立保留；本清单记录新实现基线与其生成物审计哈希，正式门禁据此同源验证演进关系，不再拿当前实现生成章节硬套旧设计文档。",
   "target_files": [
     "backend/engine/parser/parser_legacy.py",
     "backend/engine/rules/distributed.py",
     "requirements.txt",
     "pyproject.toml"
-  ]
+  ],
+  "implementation_audit": {
+    "manifest_section_sha256": "ffe13608457d48d5e87a50aaf11f5b942fd0341845d7be564a1eae523a19bf77",
+    "codestat_section_sha256": "7bc166a5c3778f2634a38419c3b3cfc3784440ca557f8d69fe3e37a4840cc0e8",
+    "generator_scripts": [
+      "docs/evidence/v1.6.2.2/manifest_doc.py",
+      "docs/evidence/v1.6.2.2/codestat.py"
+    ],
+    "note": "两个哈希为对应生成器针对当前实现包输出的规范化 SHA256（normalized_sha256，CRLF/CR 归一 LF）。门禁重新生成并与本基线比对；哈希不符即判失败，不得跳过。"
+  }
 }
