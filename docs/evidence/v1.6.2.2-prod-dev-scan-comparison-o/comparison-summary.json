@@ -1,0 +1,110 @@
+{
+  "assessment": "v1.6.2.2-production-scan-replay",
+  "assessor": "智能体O",
+  "date": "2026-08-30",
+  "scope": {
+    "pair_count": 3,
+    "statement_count": 802,
+    "normalized_sql_mismatch_count": 0,
+    "old_release_commit": "f99de2a",
+    "new_release_line": "main/v1.6.2.2",
+    "same_entrypoint": "RuleChecker.audit_file",
+    "instance_type": "distributed"
+  },
+  "direct_html_comparison": {
+    "old_outcome": {"passed": 549, "failed": 253},
+    "new_outcome": {"passed": 2, "failed": 800},
+    "old_violation_hits": 313,
+    "new_violation_hits": 1858,
+    "observed_delta": {
+      "R033": 26,
+      "R036": 767,
+      "R037": 752
+    },
+    "other_rule_delta_count": 0,
+    "causal_limit": "报告来自在线元数据审核与文件审核两个入口，且生效规则集不同，不能把直接差分归因给版本"
+  },
+  "same_entrypoint_version_replay": {
+    "v1.6.2.1_statement_count": 802,
+    "v1.6.2.2_statement_count": 802,
+    "v1.6.2.1_violation_hits": 1858,
+    "v1.6.2.2_violation_hits": 1858,
+    "changed_statement_count": 0,
+    "added_violation_count": 0,
+    "removed_violation_count": 0,
+    "severity_change_count": 0,
+    "message_change_count": 0,
+    "rule_counts_both_versions": {
+      "R001": 1,
+      "R002": 8,
+      "R010": 46,
+      "R011": 49,
+      "R018": 2,
+      "R019": 1,
+      "R028": 3,
+      "R029": 20,
+      "R033": 26,
+      "R036": 767,
+      "R037": 752,
+      "R043": 6,
+      "R061": 123,
+      "R065": 8,
+      "R067": 16,
+      "R071": 3,
+      "R077": 2,
+      "R104": 25
+    }
+  },
+  "pairs": [
+    {
+      "label": "zngm",
+      "old_report_id": 875,
+      "statement_count": 223,
+      "old_report_sha256": "59718581bc5efebc19e1e42b6f024856c0938a4fd5956935890ee53a4e671221",
+      "new_report_sha256": "0882455857effac7dd89591d5dd99f08fc4cd4c1d4915c0272c2ca94a4a95e1a",
+      "same_entrypoint_changed_statement_count": 0
+    },
+    {
+      "label": "cups",
+      "old_report_id": 877,
+      "statement_count": 194,
+      "old_report_sha256": "c74fd39af1bd2ceeb054cdb808966666287d0306738f65234a7878196cf3a9d1",
+      "new_report_sha256": "e1beb57569b5b53b08cc12cb6ce2aa5f2d92e91942bf4b6ace040a76a1d37e8f",
+      "same_entrypoint_changed_statement_count": 0
+    },
+    {
+      "label": "zjywyw",
+      "old_report_id": 882,
+      "statement_count": 385,
+      "old_report_sha256": "693bda40756e1bd9bbc2e8685865ec0db078e4275a533d800e2183b620745087",
+      "new_report_sha256": "95da5838e1267c95f6414a0419c268970cf04678eda61570f3ae9d903ad6e527",
+      "same_entrypoint_changed_statement_count": 0
+    }
+  ],
+  "target_rule_observations": {
+    "R054": {"old_html": 0, "new_html": 0, "same_entrypoint_version_delta": 0},
+    "R077": {"old_html": 2, "new_html": 2, "same_statements": true, "same_entrypoint_version_delta": 0},
+    "E999": {"old_html": 0, "new_html": 0},
+    "unique_definition_statement_count": 10,
+    "ordinary_index_comment_statement_count": 3,
+    "unique_index_comment_statement_count": 0,
+    "primary_key_comment_statement_count": 0,
+    "exact_target_fixture_covered": false
+  },
+  "configuration_and_entrypoint_findings": {
+    "R036_R037": "用户确认生产关闭；开发报告启用",
+    "R033": "旧在线元数据报告为0，开发文件报告为26；同一文件入口下两个版本均为26，因此不是版本新增。需确认生产是否也关闭R033，或在线元数据入口是否使用不同规则集",
+    "R033_known_false_positive_suffixes": {
+      "_his": 18,
+      "_status": 1,
+      "_trans": 1,
+      "_sys": 1
+    }
+  },
+  "verdict": {
+    "target_fix_contradicted_by_samples": false,
+    "exact_target_fixture_covered_by_attachments": false,
+    "secondary_damage_found_in_same_entrypoint_version_replay": false,
+    "production_promotion_recommendation": "PASS WITH CONFIGURATION CHECK: preserve production R036/R037 switches and confirm R033 effective state"
+  }
+}
