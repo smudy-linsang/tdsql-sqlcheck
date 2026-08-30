@@ -107,6 +107,61 @@ class TestDescIndexParsing:
         out = _strip_index_order_modifiers(ddl)
         assert "-- keep DESC here" in out
 
+    # ── DEF-A-6.2-b（A 复测）：反斜杠转义引号不得使剥离失效 ─────────────
+
+    def test_odd_escaped_single_quotes_still_stripped(self, checker):
+        """奇数个 \\' 转义引号（A §4.1 核心反例）：剥离不得失效，不得回退 E999/误报"""
+        ddl = ("CREATE TABLE `t1` (\n"
+               "  `id` int NOT NULL COMMENT '主键',\n"
+               "  `c0` varchar(20) DEFAULT NULL COMMENT 'it\\'s note0',\n"
+               "  PRIMARY KEY (`id` DESC)\n"
+               ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='表注释' shardkey=id")
+        fired, r = _fired(checker, ddl)
+        assert "E999_SYNTAX_ERROR" not in fired
+        assert "R003" not in fired and "R004" not in fired and "R005" not in fired
+        assert "R054" not in fired and "R077" not in fired
+
+    def test_even_escaped_single_quotes_still_stripped(self, checker):
+        """偶数个 \\' 转义引号对照：剥离正常"""
+        ddl = ("CREATE TABLE `t2` (\n"
+               "  `id` int NOT NULL,\n"
+               "  `c0` varchar(20) DEFAULT 'it\\'s a\\'',\n"
+               "  PRIMARY KEY (`id` DESC)\n"
+               ") ENGINE=InnoDB COMMENT='x' shardkey=id")
+        fired, _ = _fired(checker, ddl)
+        assert "E999_SYNTAX_ERROR" not in fired
+        assert "R054" not in fired and "R077" not in fired
+
+    def test_escaped_quote_inside_string_desc_not_modified(self, checker):
+        """转义引号字符串内的 DESC 不被误改"""
+        from backend.engine.parser.parser_legacy import _strip_index_order_modifiers
+        ddl = ("CREATE TABLE t_e (a INT DEFAULT 'it\\'s DESC, note', "
+               "PRIMARY KEY (a)) ENGINE=InnoDB")
+        out = _strip_index_order_modifiers(ddl)
+        assert "it\\'s DESC, note" in out
+
+    def test_doubled_quote_string_desc_not_modified(self, checker):
+        """双写引号字符串内的 DESC 不被误改（SHOW CREATE TABLE 输出形态）"""
+        from backend.engine.parser.parser_legacy import _strip_index_order_modifiers
+        ddl = ("CREATE TABLE t_d (a VARCHAR(32) DEFAULT 'it''s DESC,', "
+               "PRIMARY KEY (a)) ENGINE=InnoDB")
+        out = _strip_index_order_modifiers(ddl)
+        assert "it''s DESC," in out
+
+    # ── OBS-1（A 复测观察项）：CTAS 另两种形态不剥离 ──────────────────
+
+    def test_ctas_without_as_keyword_not_stripped(self, checker):
+        """无 AS 的 CTAS（MySQL 合法写法）：不剥离"""
+        from backend.engine.parser.parser_legacy import _strip_index_order_modifiers
+        ctas = "CREATE TABLE t2 SELECT a, b FROM t_src ORDER BY a DESC, b"
+        assert _strip_index_order_modifiers(ctas) == ctas
+
+    def test_ctas_parenthesized_subquery_not_stripped(self, checker):
+        """AS (SELECT ...) 带括号子查询：不剥离"""
+        from backend.engine.parser.parser_legacy import _strip_index_order_modifiers
+        ctas = "CREATE TABLE t2 AS (SELECT a, b FROM t_src ORDER BY a DESC, b)"
+        assert _strip_index_order_modifiers(ctas) == ctas
+
 
 # ── A-6.1：降级路径注释残片表名 ────────────────────────────────
 

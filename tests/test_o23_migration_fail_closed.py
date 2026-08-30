@@ -610,6 +610,39 @@ class TestChecksumDriftHandling:
         assert row and row["checksum"] == self._OLD, "审计失败必须回滚 checksum 更新"
 
 
+class TestNormalizeDefaultMariaDB:
+    """v1.6.2.2-A-RETEST-ENV-1：MariaDB 字符串默认值加引号返回的归一化兼容
+
+    MariaDB 对字符串默认值返回带引号形式（'' → "''"），MySQL 8 返回原值；
+    _normalize_default 剥一层成对外层引号后两系归一。本类为纯单元测试，
+    不依赖 MariaDB 环境（直接调用归一化函数）。
+    """
+
+    def test_empty_string_default_equal_across_engines(self):
+        """MariaDB “''” 与 MySQL “” 归一后一致（均为空串）"""
+        assert SchemaMigrator._normalize_default("''") == \
+            SchemaMigrator._normalize_default("")
+
+    def test_quoted_string_default_equal_across_engines(self):
+        """MariaDB "'x'" 与 MySQL "x" 归一后一致"""
+        assert SchemaMigrator._normalize_default("'x'") == "x"
+        assert SchemaMigrator._normalize_default("x") == "x"
+
+    def test_keyword_defaults_still_normalized(self):
+        """CURRENT_TIMESTAMP/TRUE/FALSE/NULL 关键字归一不受引号剥离影响"""
+        assert SchemaMigrator._normalize_default("CURRENT_TIMESTAMP()") == "CURRENT_TIMESTAMP"
+        assert SchemaMigrator._normalize_default("'CURRENT_TIMESTAMP'") == "CURRENT_TIMESTAMP"
+        assert SchemaMigrator._normalize_default("TRUE") == "TRUE"
+        assert SchemaMigrator._normalize_default("1") == "TRUE"
+        assert SchemaMigrator._normalize_default("NULL") is None
+
+    def test_numeric_default_untouched(self):
+        """数字默认值不加引号；布尔物化归一（0→FALSE 两侧一致）"""
+        assert SchemaMigrator._normalize_default("0") == \
+            SchemaMigrator._normalize_default("FALSE")
+        assert SchemaMigrator._normalize_default("42") == "42"
+
+
 class TestSelfHealAndConcurrency:
     def test_legacy_false_applied_self_heals(self, probe_env):
         """历史假成功（有版本键、无列）→ _needs_reapply 判定需补齐"""

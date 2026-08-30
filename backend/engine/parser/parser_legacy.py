@@ -62,8 +62,14 @@ _INDEX_ORDER_STRIP_RE = re.compile(r"\s+(ASC|DESC)(?=\s*[,)])", re.IGNORECASE)
 _DDL_ORDER_GATE_RE = re.compile(
     r"^(create\s+(or\s+replace\s+)?(table|(unique\s+)?index)|alter\s+table)\b",
     re.IGNORECASE)
+# v1.6.2.2-A-RETEST DEF-A-6.2-b：单/双引号分支必须认识反斜杠转义与双写转义，
+# 反引号支持双写——否则含奇数个 \' 的语句在字符串边界判定上整体错位，
+# 真正的索引 DESC 被误判为“在字符串内”而不剥离，修复完全失效。
 _LITERAL_OR_COMMENT_RE = re.compile(
-    r"('[^']*'|\"[^\"]*\"|`[^`]*`|--[^\n]*|#[^\n]*|/\*.*?\*/)", re.DOTALL)
+    r"('(?:\\.|''|[^'\\])*'"
+    r"|\"(?:\\.|\"\"|[^\"\\])*\""
+    r"|`(?:``|[^`])*`"
+    r"|--[^\n]*|#[^\n]*|/\*.*?\*/)", re.DOTALL)
 
 
 def _strip_leading_comments(s: str) -> str:
@@ -94,7 +100,10 @@ def _strip_index_order_modifiers(sql: str) -> str:
     body = _strip_leading_comments(sql)
     if not _DDL_ORDER_GATE_RE.match(body):
         return sql
-    if re.search(r"\bas\s+select\b", body, re.IGNORECASE):
+    # v1.6.2.2-A-RETEST OBS-1：CTAS 三种形态统一保守放行——语句体出现 select
+    # 即视为 CTAS（含无 AS 写法与 AS (SELECT…) 带括号子查询），不剥离方向语义。
+    # 注释内含 select 的语句被误判为 CTAS 只是回到修复前形态（保守、安全）。
+    if re.search(r"\bselect\b", body, re.IGNORECASE):
         return sql
     parts = _LITERAL_OR_COMMENT_RE.split(sql)
     for i in range(0, len(parts), 2):

@@ -100,11 +100,18 @@ class SchemaMigrator:
     @staticmethod
     def _normalize_default(value):
         """把 information_schema.COLUMNS.COLUMN_DEFAULT 归一化为可比较文本。
+
         MySQL/TDSQL 对关键字默认值（CURRENT_TIMESTAMP/TRUE/FALSE/NULL）大小写不定，
-        布尔在整型列上可能物化为 1/0——关键词归一比较、引号字符串精确比较。"""
+        布尔在整型列上可能物化为 1/0——关键词归一比较、引号字符串精确比较。
+        v1.6.2.2-A-RETEST-ENV-1：MariaDB 把字符串默认值加引号返回（'' → "''"），
+        MySQL 8 返回原值；剥一层成对外层引号使两系归一（MySQL 侧为无操作）。
+        """
         if value is None:
             return None
         v = str(value).strip()
+        # MariaDB 兼容：剥一层成对外层引号（''→空串、'x'→x）
+        if len(v) >= 2 and v[0] == v[-1] and v[0] in ("'", '"'):
+            v = v[1:-1]
         vu = v.upper().rstrip("()")
         if vu in ("CURRENT_TIMESTAMP", "CURRENT_TIMESTAMP()", "NOW"):
             return "CURRENT_TIMESTAMP"

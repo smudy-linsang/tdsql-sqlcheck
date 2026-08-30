@@ -1,9 +1,9 @@
 {
-  "implementation_bundle": "21c73fb4ccce5a6131fff43f7a920140ce88453de78267b895525cf648283e3e",
+  "implementation_bundle": "8225a396ebfdc373b005f962fe3081b49cfa080d876052db583a5682ab0a51f1",
   "evolved_from_design_bundle": "6412e076871dcae15df8889c746819fc312729d7a69e9c4513334fdb274dfe89",
-  "previous_implementation_bundle": "fea7a873806236d097c61f68d650b61e602a484abb7becb840ec3e65795534a9",
-  "review_basis": "VERIFY-v1.6.2.2-R1.1 内网 v1.6.2.1 与开发环境 v1.6.2.2 扫描结果比对验证报告（A-6.1/A-6.2 既有缺陷修复）；前序基线依据 UAT 第四轮整改（O-14~O-21）",
-  "note": "实现包已演进（A-VERIFY 修复改动了 parser_legacy.py 与 distributed.py：索引列 ASC/DESC 修饰剥离与降级路径注释剥离）。设计合同哈希校验独立保留；本清单记录新实现基线与其生成物审计哈希，正式门禁据此同源验证演进关系，不再拿当前实现生成章节硬套旧设计文档。",
+  "previous_implementation_bundle": "21c73fb4ccce5a6131fff43f7a920140ce88453de78267b895525cf648283e3e",
+  "review_basis": "RETEST-v1.6.2.2-A核查两项既有缺陷修复复测报告-ClaudeA.md（DEF-A-6.2-b 转义引号边界 + OBS-1 CTAS 门控收紧 + ENV-1 MariaDB 默认值引号兼容）；前序基线依据 VERIFY-v1.6.2.2-R1.1（A-6.1/A-6.2）",
+  "note": "实现包已演进（A-RETEST 修复改动了 parser_legacy.py：字面量/注释分段正则支持反斜杠与双写转义、CTAS 门控收紧为含 select 即不剥离）。设计合同哈希校验独立保留；本清单记录新实现基线与其生成物审计哈希，正式门禁据此同源验证演进关系，不再拿当前实现生成章节硬套旧设计文档。",
   "target_files": [
     "backend/engine/parser/parser_legacy.py",
     "backend/engine/rules/distributed.py",
@@ -12,7 +12,7 @@
   ],
   "implementation_audit": {
     "manifest_section_sha256": "ffe13608457d48d5e87a50aaf11f5b942fd0341845d7be564a1eae523a19bf77",
-    "codestat_section_sha256": "96d2ec57b4b7564d3fce5e7b20ce2ff89c4368ce18247386d7bdff13181d67bd",
+    "codestat_section_sha256": "46afa2576f15bec8378bb619622ea1a6d64f3c87b2b551978e98d507c5540c1e",
     "generator_scripts": [
       "docs/evidence/v1.6.2.2/manifest_doc.py",
       "docs/evidence/v1.6.2.2/codestat.py"
