@@ -395,6 +395,18 @@ def _ledger_row(key):
         conn.close()
 
 
+def _audit_count():
+    """v1.6.2.2-UAT-O-30-R2：调和审计条数（用增量断言，避免历史累计干扰）"""
+    conn = _get_connection()
+    try:
+        row = conn.execute(
+            "SELECT COUNT(*) AS c FROM operation_logs "
+            "WHERE operation_type = 'schema_checksum_reconcile'").fetchone()
+        return int(dict(row)["c"])
+    finally:
+        conn.close()
+
+
 class TestChecksumDriftHandling:
     """v1.6.2.2-UAT-O-30：checksum 漂移走代码内精确账本的一次性调和闭环
 
@@ -466,17 +478,36 @@ class TestChecksumDriftHandling:
         finally:
             conn.close()
 
-    def test_exact_triple_reconciles_once(self, drift_row):
-        """精确三元组 + 结构不变量满足 → 原子调和一次成功"""
+    def test_exact_triple_reconciles_once(self, drift_row, caplog):
+        """精确三元组 + 结构不变量满足 → 原子调和一次成功，审计新增恰好 1 条"""
+        import logging
+        before = _audit_count()
         m = SchemaMigrator()
         conn = _get_connection()
         try:
-            m._auto_reconcile(conn.cursor(), conn, self._LKEY, self._OLD, self._NEW)
+            with caplog.at_level(logging.INFO, logger="tdsql.schema.migrator"):
+                m._auto_reconcile(conn.cursor(), conn, self._LKEY, self._OLD, self._NEW)
         finally:
             conn.close()
         row = _ledger_row(self._LKEY)
         assert row and row["checksum"] == self._NEW
-        # 调和完成后再被调用：属并发幂等场景（另一进程已完成），安全返回不重写
+        assert _audit_count() == before + 1, "单进程精确调和后审计必须新增恰好 1 条"
+        err_msgs = [r for r in caplog.records if r.levelno == logging.ERROR]
+        assert any("一次性自动调和完成" in r.getMessage() and "审计已落库" in r.getMessage()
+                   for r in err_msgs), "中标进程必须输出一次 ERROR 调和日志（含审计落库）"
+        # 二次启动（无漂移）不得新增审计、不得重复调和日志路径之外的行为：
+        # 直接再调和一次（并发幂等分支）不应新增审计，也不得产生 ERROR 调和日志。
+        conn = _get_connection()
+        try:
+            with caplog.at_level(logging.INFO, logger="tdsql.schema.migrator"):
+                m._auto_reconcile(conn.cursor(), conn, self._LKEY, self._OLD, self._NEW)
+        finally:
+            conn.close()
+        assert _audit_count() == before + 1, "二次运行不得新增审计"
+        info_msgs = [r for r in caplog.records if r.levelno == logging.INFO]
+        assert any("并发幂等" in r.getMessage() for r in info_msgs), \
+            "未中标进程才输出并发幂等 INFO"
+        # 调和后的篡改场景：记录已是新值、文件再被改 → 不在账本，必须失败关闭
         conn = _get_connection()
         try:
             m._auto_reconcile(conn.cursor(), conn, self._LKEY, self._OLD, self._NEW)
@@ -508,7 +539,8 @@ class TestChecksumDriftHandling:
         assert row and row["checksum"] == self._OLD
 
     def test_concurrent_reconcile_single_write(self, drift_row):
-        """双 worker 并发调和：恰好一次原子写入，两进程结果一致"""
+        """双 worker 并发调和：恰好一次原子写入，审计总共新增恰好 1 条，两进程结果一致"""
+        before = _audit_count()
         results = []
         errors = []
 
@@ -533,6 +565,49 @@ class TestChecksumDriftHandling:
         assert results == ["ok", "ok"], "并发调和两进程都必须成功返回"
         row = _ledger_row(self._LKEY)
         assert row and row["checksum"] == self._NEW
+        assert _audit_count() == before + 1, "并发调和后审计必须总共新增恰好 1 条"
+
+    def test_second_startup_no_new_audit(self, drift_row):
+        """调和完成后再次启动迁移（无漂移）不得新增审计"""
+        from backend.schema.migrator import migrator
+        conn = _get_connection()
+        try:
+            migrator._auto_reconcile(conn.cursor(), conn, self._LKEY, self._OLD, self._NEW)
+        finally:
+            conn.close()
+        before = _audit_count()
+        conn = _get_connection()
+        try:
+            # 模拟二次启动：记录已是当前值 → 无漂移分支，不会进入调和，更不新增审计。
+            row = conn.execute(
+                "SELECT checksum FROM schema_migrations WHERE version_key = %s",
+                (self._LKEY,)).fetchone()
+            assert dict(row)["checksum"] == self._NEW
+        finally:
+            conn.close()
+        assert _audit_count() == before, "二次启动不得新增审计"
+        # 用端到端迁移入口再验证一遍（无漂移 → 跳过）
+        before2 = _audit_count()
+        migrator.run_migrations()
+        assert _audit_count() == before2
+
+    def test_audit_write_failure_rolls_back(self, drift_row, monkeypatch):
+        """审计写入故障时：事务回滚（checksum 不改变）且启动失败关闭"""
+        def _boom(self, cursor, key, recorded, current, reason):
+            raise RuntimeError("synthetic audit write failure")
+
+        monkeypatch.setattr(SchemaMigrator, "_insert_reconcile_audit", _boom)
+        m = SchemaMigrator()
+        conn = _get_connection()
+        try:
+            with pytest.raises(MigrationError) as ei:
+                m._auto_reconcile(conn.cursor(), conn, self._LKEY, self._OLD, self._NEW)
+        finally:
+            conn.close()
+        assert "审计写入失败" in str(ei.value)
+        # checksum 必须保持历史值（UPDATE 已回滚），审计不新增。
+        row = _ledger_row(self._LKEY)
+        assert row and row["checksum"] == self._OLD, "审计失败必须回滚 checksum 更新"
 
 
 class TestSelfHealAndConcurrency:

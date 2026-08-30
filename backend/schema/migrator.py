@@ -260,13 +260,25 @@ class SchemaMigrator:
             problems.append("tdsql_connections 存在重复端点")
         return problems
 
+    @staticmethod
+    def _insert_reconcile_audit(cursor, key: str, recorded: str, current: str, reason: str):
+        """调和审计写入（v1.6.2.2-UAT-O-30-R2）：由调用方在同连接、同事务内调用，
+        以便基线更新与审计记录原子一致；失败抛异常由调用方回滚。"""
+        cursor.execute(
+            "INSERT INTO operation_logs "
+            "(operator, operation_type, target_type, target_id, detail) "
+            "VALUES (%s, %s, %s, %s, %s)",
+            ("system", "schema_checksum_reconcile", "schema_migrations", key,
+             f"{recorded}\u2192{current}; reason={reason}"))
+
     def _auto_reconcile(self, cursor, conn, key: str, recorded: str, current: str):
-        """checksum 漂移的一次性自动调和（O-30）。
+        """checksum 漂移的一次性自动调和（O-30 / O-30-R2）。
 
         只接受代码内账本的精确三元组；调和前验证业务结构不变量；
         以条件 UPDATE（version_key + 旧 checksum）原子写入——双 worker 并发
         只有一个进程能中标，另一进程重读确认记录已是新值后视为幂等通过；
-        调和写操作审计并以 ERROR 级日志留痕。未知组合一律失败关闭。
+        中标进程的基线更新与审计插入同连接、同事务、单次 commit，
+        审计失败即回滚并失败关闭。未知组合一律失败关闭。
         """
         entry = _KNOWN_RECONCILIATIONS.get(key)
         if not entry or entry["historical_checksum"] != recorded \
@@ -279,33 +291,42 @@ class SchemaMigrator:
         if problems:
             raise MigrationError(
                 f"迁移调和前的业务结构不变量不满足 [{key}]: " + "；".join(problems))
-        # 原子调和：只有“记录仍为旧值”时本进程才写入，天然并发安全
-        cur = cursor.execute(
+        # v1.6.2.2-UAT-O-30-R2：受影响行数从游标自身读取（本项目兼容游标 execute()
+        # 返回 int 而非游标，从返回值取 rowcount 会把中标误判为未中标，
+        # 从并发幂等分支提前返回，导致审计永不落库）。
+        cursor.execute(
             "UPDATE schema_migrations SET checksum = %s "
             "WHERE version_key = %s AND checksum = %s",
             (current, key, recorded))
+        affected = cursor.rowcount
+        if affected == 1:
+            # 基线更新与审计同事务：先写审计，任一失败即回滚（含已执行的 UPDATE），
+            # 不允许只更新基线不落审计。
+            try:
+                self._insert_reconcile_audit(
+                    cursor, key, recorded, current, entry["reason"])
+            except Exception as e:
+                conn.rollback()
+                raise MigrationError(
+                    f"迁移调和审计写入失败 [{key}]，checksum 更新已回滚，启动失败关闭: {e}") from e
+            conn.commit()
+            logger.error(
+                "迁移 checksum 一次性自动调和完成 [%s]：%s…→%s…（%s），审计已落库",
+                key, recorded[:12], current[:12], entry["reason"])
+            return
+        # affected != 1：先提交本线程空事务（刷新 REPEATABLE READ 快照，
+        # 否则回读会落在中标进程提交之前的旧快照上），再回读 checksum，
+        # 仅当确认已是新值才视为并发幂等（另一进程已中标）。
         conn.commit()
-        if getattr(cur, "rowcount", 0) != 1:
-            cursor.execute(
-                "SELECT checksum FROM schema_migrations WHERE version_key = %s",
-                (key,))
-            row = cursor.fetchone()
-            row = dict(row) if row else {}
-            if row.get("checksum") == current:
-                logger.info("迁移调和并发幂等：另一进程已完成 %s 的基线重设", key)
-                return
-            raise MigrationError(f"迁移调和原子更新失败 [{key}]")
-        logger.error(
-            "迁移 checksum 一次性自动调和完成 [%s]：%s…→%s…（%s）",
-            key, recorded[:12], current[:12], entry["reason"])
-        try:
-            from backend.services.database import log_operation
-            log_operation(
-                operator="system", operation_type="schema_checksum_reconcile",
-                target_type="schema_migrations", target_id=key,
-                detail=f"{recorded}→{current}; reason={entry['reason']}")
-        except Exception:
-            logger.warning("调和审计日志写入失败（不影响调和结果）", exc_info=True)
+        cursor.execute(
+            "SELECT checksum FROM schema_migrations WHERE version_key = %s",
+            (key,))
+        row = cursor.fetchone()
+        row = dict(row) if row else {}
+        if row.get("checksum") == current:
+            logger.info("迁移调和并发幂等：另一进程已完成 %s 的基线重设与审计", key)
+            return
+        raise MigrationError(f"迁移调和原子更新失败 [{key}]")
 
     def run_migrations(self):
         conn = _get_connection()
