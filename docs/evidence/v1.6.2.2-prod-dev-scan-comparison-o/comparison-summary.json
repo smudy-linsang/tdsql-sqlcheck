@@ -92,8 +92,9 @@
     "exact_target_fixture_covered": false
   },
   "configuration_and_entrypoint_findings": {
+    "user_confirmed_disabled_in_production": ["R033", "R036", "R037"],
     "R036_R037": "用户确认生产关闭；开发报告启用",
-    "R033": "旧在线元数据报告为0，开发文件报告为26；同一文件入口下两个版本均为26，因此不是版本新增。需确认生产是否也关闭R033，或在线元数据入口是否使用不同规则集",
+    "R033": "用户补充确认生产关闭；开发报告启用。同一文件入口下两个版本均为26，因此不是版本新增",
     "R033_known_false_positive_suffixes": {
       "_his": 18,
       "_status": 1,
@@ -105,6 +106,6 @@
     "target_fix_contradicted_by_samples": false,
     "exact_target_fixture_covered_by_attachments": false,
     "secondary_damage_found_in_same_entrypoint_version_replay": false,
-    "production_promotion_recommendation": "PASS WITH CONFIGURATION CHECK: preserve production R036/R037 switches and confirm R033 effective state"
+    "production_promotion_recommendation": "PASS: preserve the confirmed production-disabled state of R033/R036/R037 during deployment"
   }
 }
