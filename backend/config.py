@@ -136,14 +136,20 @@ def login_ip_fail_window() -> float:
 
 
 def max_body_bytes() -> int:
-    """请求体大小上限（字节）。默认 8MB，置 0 表示不限制。
+    """请求体大小上限（字节）。支持从 system_config 动态读取，默认 50MB，置 0 表示不限制。
 
     需容纳大 SQL 文件审核与元数据审核报文，故不宜过小。
     """
+    db_val = _get_db_config("max_body_bytes")
+    if db_val:
+        try:
+            return int(db_val)
+        except ValueError:
+            pass
     try:
-        return int(os.getenv("MAX_BODY_BYTES", str(8 * 1024 * 1024)))
+        return int(os.getenv("MAX_BODY_BYTES", str(50 * 1024 * 1024)))
     except ValueError:
-        return 8 * 1024 * 1024
+        return 50 * 1024 * 1024
 
 
 def docs_public() -> bool:
