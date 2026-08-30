@@ -1,0 +1,42 @@
+{
+  "tested_commit": "ddf5e6464a5e600c5c08d004a8a7352c93cd4f08",
+  "single_worker": {
+    "checksum": "c6cf33bb385456fef12af3d4888ea6b22dcfc2a64052d734adc4c37457915209",
+    "audit_delta": 1,
+    "audit": [
+      {
+        "id": 4,
+        "operator": "system",
+        "operation_type": "schema_checksum_reconcile",
+        "target_type": "schema_migrations",
+        "target_id": "v9_090_connection_unique",
+        "detail": "54ee2e97c804f5d8ec216d9f51600c19cc8463f2cede1de07fa67635abe6de28→c6cf33bb385456fef12af3d4888ea6b22dcfc2a64052d734adc4c37457915209; reason=v1.6.0.4 将 090 迁移改为 no-op（提交 08ce65c）：端点唯一约束改由 Python 层执行"
+      }
+    ],
+    "error_log_count": 1
+  },
+  "second_startup": {
+    "checksum": "c6cf33bb385456fef12af3d4888ea6b22dcfc2a64052d734adc4c37457915209",
+    "audit_delta": 0
+  },
+  "audit_failure": {
+    "migration_error": "迁移调和审计写入失败 [v9_090_connection_unique]，checksum 更新已回滚，启动失败关闭: synthetic audit write failure",
+    "checksum_after": "54ee2e97c804f5d8ec216d9f51600c19cc8463f2cede1de07fa67635abe6de28",
+    "audit_delta": 0
+  },
+  "two_workers": {
+    "results": [
+      "ok",
+      "ok"
+    ],
+    "errors": [],
+    "checksum": "c6cf33bb385456fef12af3d4888ea6b22dcfc2a64052d734adc4c37457915209",
+    "audit_delta": 1
+  },
+  "future_drift": {
+    "migration_error": "迁移版本记录与文件内容漂移 [v9_090_connection_unique]：已登记 checksum=c6cf33bb385456fef12af3d4888ea6b22dcfc2a64052d734adc4c37457915209，当前文件 checksum=tampered-after-reconcile，且不在已知调和账本中，启动失败关闭。该漂移不属于已知历史变更，请人工核实文件是否被篡改。",
+    "checksum_after": "c6cf33bb385456fef12af3d4888ea6b22dcfc2a64052d734adc4c37457915209",
+    "audit_delta": 0
+  },
+  "result": "PASS"
+}

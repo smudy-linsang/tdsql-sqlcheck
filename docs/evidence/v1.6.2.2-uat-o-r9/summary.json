@@ -1,0 +1,15 @@
+{
+  "tested_commit": "ddf5e6464a5e600c5c08d004a8a7352c93cd4f08",
+  "scope": ["O-30"],
+  "new_issue_discovery": false,
+  "result": "PASS",
+  "closure": {"O-30": "CLOSED"},
+  "targeted_pytest": "7 passed",
+  "independent_probe": {
+    "single_worker_audit_delta": 1,
+    "second_startup_audit_delta": 0,
+    "audit_failure_rolled_back": true,
+    "two_workers_audit_delta": 1,
+    "future_drift_failed_closed": true
+  }
+}
