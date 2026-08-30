@@ -39,12 +39,8 @@ Copy-Item (Join-Path $ROOT "requirements.txt") (Join-Path $PKG_DIR "requirements
 # 复制部署脚本
 $DEPLOY_DIR = Join-Path $PKG_DIR "deploy"
 New-Item -ItemType Directory -Force -Path $DEPLOY_DIR | Out-Null
-$deploy_files = @("install.sh","preflight_check.sh","make_release.sh",
-                  "verify_deploy.sh","rollback.sh","tdsql-sqlcheck.service","env.template",
-                  "nginx-sqlcheck.conf","README.md")
-foreach ($f in $deploy_files) {
-    $src = Join-Path $ROOT "deploy\$f"
-    if (Test-Path $src) { Copy-Item $src (Join-Path $DEPLOY_DIR $f) }
+Get-ChildItem -Path (Join-Path $ROOT "deploy") -Include "*.sh","*.service","env.template","nginx-sqlcheck.conf","README.md","*.env.example" -Recurse | ForEach-Object {
+    Copy-Item $_.FullName (Join-Path $DEPLOY_DIR $_.Name) -Force
 }
 
 # 复制文档 (全量复制 docs 目录下所有部署与操作指南)
@@ -60,19 +56,27 @@ Set-Content -Path (Join-Path $PKG_DIR "VERSION") -Value $VERSION -NoNewline
 # 清理 __pycache__
 Get-ChildItem -Path $PKG_DIR -Directory -Recurse -Filter "__pycache__" | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
 
-Write-Host "[2/4] 下载目标平台 wheels (manylinux2014_$ARCH, cp$PYTAG)..."
+Write-Host "[2/4] 准备目标平台 wheels (manylinux2014_$ARCH, cp$PYTAG)..."
 $WHEELS_DIR = Join-Path $PKG_DIR "wheels"
 New-Item -ItemType Directory -Force -Path $WHEELS_DIR | Out-Null
 
-python -m pip download -r (Join-Path $ROOT "requirements.txt") `
-    -d $WHEELS_DIR `
-    --platform "manylinux2014_$ARCH" --platform "manylinux_2_17_$ARCH" --platform "any" `
-    --python-version $PYTAG --implementation cp --abi "cp$PYTAG" --abi "none" --abi "abi3" `
-    --only-binary=:all:
+$WHEELS_TMP = Join-Path $DIST_DIR "wheels_tmp"
+if (Test-Path $WHEELS_TMP) {
+    Write-Host "  使用预下载的全量依赖 wheels (dist/wheels_tmp)..."
+    Get-ChildItem -Path $WHEELS_TMP -Filter "*.whl" | ForEach-Object {
+        Copy-Item $_.FullName (Join-Path $WHEELS_DIR $_.Name) -Force
+    }
+} else {
+    python -m pip download -r (Join-Path $ROOT "requirements.txt") `
+        -d $WHEELS_DIR `
+        --platform "manylinux2014_$ARCH" --platform "manylinux_2_17_$ARCH" --platform "any" `
+        --python-version $PYTAG --implementation cp --abi "cp$PYTAG" --abi "none" --abi "abi3" `
+        --only-binary=:all:
 
-# pip/setuptools/wheel (venv升级用)
-python -m pip download pip setuptools wheel -d $WHEELS_DIR `
-    --platform "any" --python-version $PYTAG --only-binary=:all: 2>$null
+    # pip/setuptools/wheel (venv升级用)
+    python -m pip download pip setuptools wheel -d $WHEELS_DIR `
+        --platform "any" --python-version $PYTAG --only-binary=:all: 2>$null
+}
 
 Write-Host "[3/4] 打包为 tar.gz..."
 # 使用Python创建tar.gz (Windows无原生tar)
