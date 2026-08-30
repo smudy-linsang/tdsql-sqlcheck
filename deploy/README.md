@@ -1,5 +1,9 @@
 # deploy/ 部署套件说明（v1.0.3）
 
+> **元数据库支持范围：仅 MySQL 8 / TDSQL。** MariaDB 不在支持范围内
+> （v1.6.2.2-UAT-A-RETEST-R2 实测：MariaDB 上外键约束建表失败，服务无法启动）。
+
+
 | 文件 | 用途 | 在哪执行 |
 |---|---|---|
 | `make_release.sh` | 构建离线发布包（代码+目标架构wheels+可选便携Python） | **打包机**（可访问 pip 源） |

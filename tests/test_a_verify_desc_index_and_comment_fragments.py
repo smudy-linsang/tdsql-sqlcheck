@@ -162,6 +162,34 @@ class TestDescIndexParsing:
         ctas = "CREATE TABLE t2 AS (SELECT a, b FROM t_src ORDER BY a DESC, b)"
         assert _strip_index_order_modifiers(ctas) == ctas
 
+    # ── DEF-A-6.2-c（A 复测）：select 判定只看普通代码段 ─────────────
+
+    def test_select_in_table_comment_still_stripped(self, checker):
+        """表注释含独立词 select 的普通建表：仍须剥离，不得误判为 CTAS"""
+        fired, r = _fired(checker, """CREATE TABLE t_sel (
+          id INT NOT NULL,
+          PRIMARY KEY (`id` DESC)
+        ) ENGINE=InnoDB COMMENT='select 结果缓存' shardkey=id""")
+        assert "E999_SYNTAX_ERROR" not in fired
+        assert "R003" not in fired and "R054" not in fired and "R077" not in fired
+
+    def test_select_in_line_comment_still_stripped(self, checker):
+        """行注释含 select 的普通建表：仍须剥离"""
+        from backend.engine.parser.parser_legacy import _strip_index_order_modifiers
+        ddl = ("CREATE TABLE t_lc (id INT NOT NULL, "
+               "PRIMARY KEY (`id` DESC) -- select 说明\n"
+               ") ENGINE=InnoDB")
+        out = _strip_index_order_modifiers(ddl)
+        assert "PRIMARY KEY (`id`)" in out, "行注释含 select 不得阻断剥离"
+
+    def test_backtick_select_column_still_stripped(self, checker):
+        """反引号列名 `select` 不阻断剥离（反引号是标识符容器）"""
+        from backend.engine.parser.parser_legacy import _strip_index_order_modifiers
+        ddl = ("CREATE TABLE t_bc (`select` INT NOT NULL, "
+               "PRIMARY KEY (`select` DESC)) ENGINE=InnoDB")
+        out = _strip_index_order_modifiers(ddl)
+        assert "PRIMARY KEY (`select`)" in out
+
 
 # ── A-6.1：降级路径注释残片表名 ────────────────────────────────
 

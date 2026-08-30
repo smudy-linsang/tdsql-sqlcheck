@@ -100,12 +100,13 @@ def _strip_index_order_modifiers(sql: str) -> str:
     body = _strip_leading_comments(sql)
     if not _DDL_ORDER_GATE_RE.match(body):
         return sql
-    # v1.6.2.2-A-RETEST OBS-1：CTAS 三种形态统一保守放行——语句体出现 select
-    # 即视为 CTAS（含无 AS 写法与 AS (SELECT…) 带括号子查询），不剥离方向语义。
-    # 注释内含 select 的语句被误判为 CTAS 只是回到修复前形态（保守、安全）。
-    if re.search(r"\bselect\b", body, re.IGNORECASE):
-        return sql
+    # v1.6.2.2-A-RETEST DEF-A-6.2-c：CTAS 判定只看普通代码段（字面量/注释/反引号
+    # 标识符之外）——上一轮“全文找 select”会把注释/标识符含 select 的普通建表
+    # 误判为 CTAS 而使剥离失效（8 例探测 5 例失效）。分段后两侧都正确：
+    # CTAS 的 select 在代码段内仍被认出；注释/字面量/反引号里的 select 不影响门控。
     parts = _LITERAL_OR_COMMENT_RE.split(sql)
+    if any(re.search(r"\bselect\b", seg, re.IGNORECASE) for seg in parts[0::2]):
+        return sql
     for i in range(0, len(parts), 2):
         parts[i] = _INDEX_ORDER_STRIP_RE.sub("", parts[i])
     return "".join(parts)

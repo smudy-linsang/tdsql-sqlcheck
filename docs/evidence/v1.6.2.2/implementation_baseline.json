@@ -1,9 +1,9 @@
 {
-  "implementation_bundle": "8225a396ebfdc373b005f962fe3081b49cfa080d876052db583a5682ab0a51f1",
+  "implementation_bundle": "a58b6a7a27332beeb9d51fe00679453d548740bd577c42438259d03082447cf4",
   "evolved_from_design_bundle": "6412e076871dcae15df8889c746819fc312729d7a69e9c4513334fdb274dfe89",
-  "previous_implementation_bundle": "21c73fb4ccce5a6131fff43f7a920140ce88453de78267b895525cf648283e3e",
-  "review_basis": "RETEST-v1.6.2.2-A核查两项既有缺陷修复复测报告-ClaudeA.md（DEF-A-6.2-b 转义引号边界 + OBS-1 CTAS 门控收紧 + ENV-1 MariaDB 默认值引号兼容）；前序基线依据 VERIFY-v1.6.2.2-R1.1（A-6.1/A-6.2）",
-  "note": "实现包已演进（A-RETEST 修复改动了 parser_legacy.py：字面量/注释分段正则支持反斜杠与双写转义、CTAS 门控收紧为含 select 即不剥离）。设计合同哈希校验独立保留；本清单记录新实现基线与其生成物审计哈希，正式门禁据此同源验证演进关系，不再拿当前实现生成章节硬套旧设计文档。",
+  "previous_implementation_bundle": "8225a396ebfdc373b005f962fe3081b49cfa080d876052db583a5682ab0a51f1",
+  "review_basis": "RETEST-v1.6.2.2-A复测遗留三项整改复测报告-ClaudeA.md（DEF-A-6.2-c：CTAS 门控只看普通代码段）；前序基线依据 RETEST-R1（DEF-A-6.2-b/OBS-1/ENV-1）",
+  "note": "实现包已演进（A-RETEST-R2 修复改动了 parser_legacy.py：CTAS 门控收敛为普通代码段内判定 select）。设计合同哈希校验独立保留；本清单记录新实现基线与其生成物审计哈希，正式门禁据此同源验证演进关系，不再拿当前实现生成章节硬套旧设计文档。",
   "target_files": [
     "backend/engine/parser/parser_legacy.py",
     "backend/engine/rules/distributed.py",
@@ -12,7 +12,7 @@
   ],
   "implementation_audit": {
     "manifest_section_sha256": "ffe13608457d48d5e87a50aaf11f5b942fd0341845d7be564a1eae523a19bf77",
-    "codestat_section_sha256": "46afa2576f15bec8378bb619622ea1a6d64f3c87b2b551978e98d507c5540c1e",
+    "codestat_section_sha256": "1a037af02bf45c7c79faeee5e0c82b0e9fdd24af05309115becc0fa1f6f70ddf",
     "generator_scripts": [
       "docs/evidence/v1.6.2.2/manifest_doc.py",
       "docs/evidence/v1.6.2.2/codestat.py"
