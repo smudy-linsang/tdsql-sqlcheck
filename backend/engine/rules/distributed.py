@@ -166,6 +166,18 @@ _UNIQUE_IDX_RE = re.compile(
 )
 
 
+def _strip_index_col_order_suffix(col: str) -> str:
+    """索引列名规范化：剥离尾随 ASC/DESC 排序修饰与引号包裹（v1.6.2.2-A-VERIFY-6.2）。
+
+    MySQL 8.0 索引定义允许 `PRIMARY KEY (\`id\` DESC)` / `UNIQUE KEY uk (a DESC, b)`；
+    正则回退提取列名时若不去修饰后缀，列名会变成 `id\` desc`，
+    分片键合规判定（R054/R077）随之误报"不在主键/唯一索引中"。
+    只做列 token 后处理，不改变既有正则的匹配范围（不放宽识别面）。
+    """
+    value = re.sub(r"\s+(?:ASC|DESC)\s*$", "", col.strip(), flags=re.IGNORECASE)
+    return value.strip('`"\' ').lower()
+
+
 def _iter_unique_indexes(parsed: ParsedSQL, raw_sql: str):
     """R054 专属：逐个产出完整唯一约束；不得被 R077 复用。"""
     seen = set()
@@ -469,10 +481,12 @@ class R054ShardKeyMustBePrimaryKey(BaseRule):
                 parsed.raw_sql, re.IGNORECASE,
             )
             if pk_match:
+                # v1.6.2.2-A-VERIFY-6.2：列 token 去除 ASC/DESC 修饰后缀（DESC 主键合规性）
                 pk_cols = {
-                    c.strip('`"\' ').lower()
+                    _strip_index_col_order_suffix(c)
                     for c in pk_match.group(1).split(",")
                 }
+                pk_cols.discard("")
         # v1.6.1.9: 空主键集合同样是 J-2 失败
         if shard_key.lower() not in pk_cols:
             if not pk_cols:
@@ -784,10 +798,12 @@ class R077CreateTableMustHaveShardKey(BaseRule):
         # 来源3: 正则回退——从原始SQL提取表级 PRIMARY KEY 声明
         pk_match = self._PK_RE.search(raw_sql)
         if pk_match:
+            # v1.6.2.2-A-VERIFY-6.2：列 token 去除 ASC/DESC 修饰后缀（DESC 主键合规性）
             pk_cols.update(
-                c.strip('`"\' ').lower()
+                _strip_index_col_order_suffix(c)
                 for c in pk_match.group(1).split(",")
             )
+            pk_cols.discard("")
         return pk_cols
 
     def _collect_unique_index_cols(self, parsed: ParsedSQL, raw_sql: str) -> set[str]:
@@ -799,6 +815,8 @@ class R077CreateTableMustHaveShardKey(BaseRule):
                 unique_index_cols.update(c.lower() for c in idx.get("columns", []))
         # 来源2: 正则回退——从原始SQL提取表级 UNIQUE KEY/INDEX 声明
         for m in self._UNIQUE_RE.finditer(raw_sql):
-            cols = {c.strip('`"\' ').lower() for c in m.group(1).split(",")}
+            # v1.6.2.2-A-VERIFY-6.2：列 token 去除 ASC/DESC 修饰后缀（与 R054 同源语义）
+            cols = {_strip_index_col_order_suffix(c) for c in m.group(1).split(",")}
+            cols.discard("")
             unique_index_cols.update(cols)
         return unique_index_cols

@@ -36,6 +36,10 @@ class R001NamingLength(BaseRule):
                 name = part.strip("`\"' ")
                 if not name:
                     continue
+                # v1.6.2.2-A-VERIFY-6.1：纯标点残片（如降级提取出的 `--` 注释残片）
+                # 不是表名候选，直接跳过，不得报命名违规（防御性双保险）。
+                if not re.search(r"[A-Za-z0-9_]", name):
+                    continue
                 # 长度检查
                 if len(name) > self.MAX_LENGTH:
                     return self._make_violation(

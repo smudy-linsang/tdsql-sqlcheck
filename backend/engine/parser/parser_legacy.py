@@ -54,6 +54,65 @@ def normalize_newlines(text: str) -> str:
     return text.replace("\r\n", "\n").replace("\r", "\n")
 
 
+# v1.6.2.2-A-VERIFY-6.2：MySQL 8.0 索引列排序修饰（`PRIMARY KEY (col DESC)` /
+# `KEY idx (a DESC, b)`）在 sqlglot 29/30 各版本均解析失败，整表退化到降级路径。
+# 审核语义不依赖索引列排序方向，故在纯文本预处理层剥离该修饰，使结构类规则
+# 恢复完整覆盖；仅对 DDL 生效、跳过 CTAS，且只在字符串/注释之外剥离（爆炸半径可控）。
+_INDEX_ORDER_STRIP_RE = re.compile(r"\s+(ASC|DESC)(?=\s*[,)])", re.IGNORECASE)
+_DDL_ORDER_GATE_RE = re.compile(
+    r"^(create\s+(or\s+replace\s+)?(table|(unique\s+)?index)|alter\s+table)\b",
+    re.IGNORECASE)
+_LITERAL_OR_COMMENT_RE = re.compile(
+    r"('[^']*'|\"[^\"]*\"|`[^`]*`|--[^\n]*|#[^\n]*|/\*.*?\*/)", re.DOTALL)
+
+
+def _strip_leading_comments(s: str) -> str:
+    """去除语句前导空白与注释，返回首个有效内容（用于 DDL 门控判定）。"""
+    while True:
+        s2 = s.lstrip()
+        if s2.startswith("--") or s2.startswith("#"):
+            nl = s2.find("\n")
+            if nl < 0:
+                return ""
+            s = s2[nl + 1:]
+        elif s2.startswith("/*"):
+            end = s2.find("*/")
+            if end < 0:
+                return ""
+            s = s2[end + 2:]
+        else:
+            return s2
+
+
+def _strip_index_order_modifiers(sql: str) -> str:
+    """剥离 DDL 索引定义中的 ASC/DESC 排序修饰（v1.6.2.2-A-VERIFY-6.2）。
+
+    仅对 CREATE TABLE / CREATE [UNIQUE] INDEX / ALTER TABLE 生效；
+    CTAS（CREATE TABLE ... AS SELECT）可能携带 ORDER BY，保持原文不动；
+    剥离只发生在字符串字面量与注释之外的普通文本段。
+    """
+    body = _strip_leading_comments(sql)
+    if not _DDL_ORDER_GATE_RE.match(body):
+        return sql
+    if re.search(r"\bas\s+select\b", body, re.IGNORECASE):
+        return sql
+    parts = _LITERAL_OR_COMMENT_RE.split(sql)
+    for i in range(0, len(parts), 2):
+        parts[i] = _INDEX_ORDER_STRIP_RE.sub("", parts[i])
+    return "".join(parts)
+
+
+def _strip_comments_for_fallback(sql: str) -> str:
+    """降级路径表名提取前的注释剥离（v1.6.2.2-A-VERIFY-6.1）。
+
+    文件审核保留 `-- SQL Object:` 等注释头，解析失败降级时若不剥离，
+    表名正则会从注释内部提取出 `--` 残片当表名，导致 R001 误报。
+    """
+    text = re.sub(r"--[^\n]*", "", sql)
+    text = re.sub(r"#[^\n]*", "", text)
+    return re.sub(r"/\*.*?\*/", "", text, flags=re.DOTALL)
+
+
 def _lex_head_words(sql: str, dialect: str = "mysql", limit: int = 8) -> Optional[list]:
     """用 sqlglot 词法器取语句头词序列（大写文本）。词法化失败返回 None。
 
@@ -2179,6 +2238,11 @@ class SQLParser:
         # 全部 span 都相对 `sql_recover` 计算，与 `_blank_spans()`/`_spans_only_diff()`
         # 共用同一个字符串，不存在"先改长度再套旧偏移"的问题。
         sql_recover = sql.strip()
+        # v1.6.2.2-A-VERIFY-6.2：MySQL 8.0 索引列 ASC/DESC 修饰在 sqlglot 各版本均解析失败，
+        # 纯文本预处理剥离（仅 DDL、跳过 CTAS、字符串/注释外）；sql_clean 与 sql_recover 同步
+        # 处理，保证恢复链 span 与解析输入同源。raw_sql 保持原文（R077/R054 提取分片键不受影响）。
+        sql_clean = _strip_index_order_modifiers(sql_clean)
+        sql_recover = _strip_index_order_modifiers(sql_recover)
 
         # 先做正则级别的快速检测（补充sqlglot可能遗漏的信息）
         parsed = self._regex_pre_parse(sql_clean, parsed)
@@ -2270,8 +2334,9 @@ class SQLParser:
                 else:
                     parsed.parse_error = str(e)
                 parsed.sql_type = self._detect_sql_type_regex(sql_clean)
-                # 正则回退提取表名（防止含中划线等语法不合规表名在解析报错时漏检）
-                tbl_match = re.search(r'\b(?:create\s+table|alter\s+table|drop\s+table|truncate\s+table|from|into|update)\s+(?:if\s+(?:not\s+)?exists\s+)?([`\'"]?[a-zA-Z0-9_\-]+[`\'"]?)', sql_clean, re.IGNORECASE)
+                # 正则回退提取表名（防止含中划线等语法不合规表名在解析报错时漏检）；
+                # v1.6.2.2-A-VERIFY-6.1：先剥离注释，避免从注释头提取出 `--` 残片当表名。
+                tbl_match = re.search(r'\b(?:create\s+table|alter\s+table|drop\s+table|truncate\s+table|from|into|update)\s+(?:if\s+(?:not\s+)?exists\s+)?([`\'"]?[a-zA-Z0-9_\-]+[`\'"]?)', _strip_comments_for_fallback(sql_clean), re.IGNORECASE)
                 if tbl_match:
                     tb_name = tbl_match.group(1).strip("`\"' ")
                     if tb_name and tb_name.lower() not in ("table", "if", "exists"):
@@ -2308,7 +2373,9 @@ class SQLParser:
                 parsed.sql_type = self._detect_sql_type_regex(sql_clean)
             parsed.tables = self._extract_tables(ast)
             if not parsed.tables:
-                tbl_match = re.search(r'\b(?:create\s+table|alter\s+table|drop\s+table|truncate\s+table|from|into|update)\s+(?:if\s+(?:not\s+)?exists\s+)?([`\'"]?[a-zA-Z0-9_\-]+[`\'"]?)', sql_clean, re.IGNORECASE)
+                # v1.6.2.2-A-VERIFY-6.1：同上——降级提取前先剥离注释，
+                # 避免把 `-- SQL Object:` 注释头内的残片当表名。
+                tbl_match = re.search(r'\b(?:create\s+table|alter\s+table|drop\s+table|truncate\s+table|from|into|update)\s+(?:if\s+(?:not\s+)?exists\s+)?([`\'"]?[a-zA-Z0-9_\-]+[`\'"]?)', _strip_comments_for_fallback(sql_clean), re.IGNORECASE)
                 if tbl_match:
                     tb_name = tbl_match.group(1).strip("`\"' ")
                     if tb_name and tb_name.lower() not in ("table", "if", "exists"):
