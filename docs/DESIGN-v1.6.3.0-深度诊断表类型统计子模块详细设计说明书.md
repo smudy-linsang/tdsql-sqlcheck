@@ -2,13 +2,13 @@
 
 | 项 | 内容 |
 |---|---|
-| 文档编号 | DESIGN-v1.6.3.0 **Rev.E** |
+| 文档编号 | DESIGN-v1.6.3.0 **Rev.F** |
 | 模块编号 | **G14 · 表类型统计**（深度诊断第 10 个子模块） |
 | 目标版本 | v1.6.3.0（当前基线 v1.6.2.2，`VERSION` / `backend/config.py:APP_VERSION`） |
 | 文档等级 | **照图施工级**——附录 A 给出全部新增/修改文件的逐行成品代码（已本地验证：42 项单测全通过），实施者不得二次设计 |
 | 编写 | 智能体 A |
-| 编写日期 | 2026-08-29（Rev.A 首版 / Rev.B～Rev.E 依四轮内网实测迭代修订） |
-| 状态 | 设计与代码**已完成，四轮实测均未推翻**。**GATE-2 无阻断项，可进入开发**。剩余 T13 一项，不阻断（§10.2） |
+| 编写日期 | 2026-08-29 首版；2026-08-31 Rev.F 依 v1.6.2.2 上线后的代码变更复核修订 |
+| 状态 | 设计与代码**已完成**；四轮内网实测均未推翻；**v1.6.2.2 已上线，本设计依赖的代码事实经逐条复核后仅迁移器一处需要适配（已在 §2.7 写入）**。**GATE-2 无阻断项，可进入开发**。剩余 T13 一项，不阻断（§10.2） |
 | 前置约束 | 本文档编写阶段**未修改任何代码**（用户要求）。仓库工作区在本文档提交时保持干净。 |
 
 ---
@@ -61,9 +61,19 @@
 
 ## 2. 现状勘查（代码事实，全部带行号，实施者可逐条复核）
 
-> 本节所有结论均来自对当前 `main` 分支（`8fee172`）的实读，不是推测。
-> **行号锚定于 `8fee172`。** 实施前请先 `git log --oneline -1` 核对；若 main 已前进，
+> 本节所有结论均来自对当前 `main` 分支（`01e2914`，v1.6.2.2 上线后）的实读，不是推测。
+> **行号锚定于 `01e2914`。** 实施前请先 `git log --oneline -1` 核对；若 main 已前进，
 > 用本节给出的**代码片段文本**（而非行号）重新定位——片段是稳定锚，行号是易腐锚。
+
+> **Rev.F 复核结论（2026-08-31）**：v1.6.2.2 已在内网上线。对本设计依赖的 13 个文件
+> 做了 `git diff 8fee172..01e2914` 逐一比对，**只有两个文件动过**：
+> `backend/schema/migrator.py`（+197/−24，失败关闭改造，影响见 §2.7）与
+> `frontend/static/js/app.js`（2 行，请求体上限与刷新交互，与本模块无关）。
+> **`auth_service.py` / `database.py` / `main.py` / `frontend/index.html` /
+> `tdsql_connector.py` / `instance_type_service.py` / `connection_registry.py` /
+> `index_audit_service.py` / `zk_scan_enrich_service.py` / `api/index_audit.py` /
+> RBAC 与路由完整性测试——全部未变**，本节 §2.1～§2.6、§2.8 的全部行号与结论继续成立
+> （已逐条重新核对，非沿用）。
 
 ### 2.1 深度诊断页的既有形态
 
@@ -147,12 +157,41 @@
 
 本模块**直接复用**，不新造判定逻辑。`source` 与 `conflict` 会原样带进结果，供用户判断口径可信度（§6.7 W5）。
 
-### 2.7 落库与迁移约定
+### 2.7 落库与迁移约定（**v1.6.2.2 上线后已大改，本节 Rev.F 重写**）
 
 * `backend/schema/loader.py` 扫描 `backend/schema/vN/NNN_*.sql`，按 `(version, sequence)` 升序执行。
-* `backend/schema/migrator.py:41-66`：按 `sha256(文件内容)` 幂等；**逐行剔除以 `--` 开头的行**，再按 `;` 切分逐条执行；已应用的 key 跳过（checksum 变动只 WARNING 不重跑）。
+* `migrator._split_statements()`（`migrator.py:159-164`）：**逐行剔除以 `--` 开头的行**，
+  再按 `;` 切分逐条执行——与 Rev.A 时一致，本模块的 SQL 写法不变。
 * 现有最高版本目录：`v10/100_zk_scan_enrich.sql`。→ 本模块用 `v11/110_table_type_stats.sql`。
-* **不动 `database.py::_create_all_tables`**：`init_db()` 在 `_create_all_tables` 之后就会调 `migrator.run_migrations()`（`database.py:411`），全新安装与存量升级都覆盖到。这样 `database.py` 只需改 P4 那 1 行。
+* **不动 `database.py::_create_all_tables`**：`init_db()` 在 `_create_all_tables` 之后调
+  `migrator.run_migrations()`（`database.py:411`），全新安装与存量升级都覆盖到。
+
+**v1.6.2.2（O-23 / O-26 / O-29 / O-30）把迁移器从"宽容"改成了"失败关闭"，
+新增三条硬约束，本模块必须逐条满足：**
+
+| # | 新行为 | 位置 | 对 G14 的影响 |
+|---|---|---|---|
+| M-1 | **任一语句执行失败即 `MigrationError` → 启动中止**（旧版只记 WARNING 继续） | `migrator.py:191` | 本模块的 DDL **必须保证在 MySQL 8 / TDSQL 上一次执行成功**。用 `CREATE TABLE IF NOT EXISTS` 保证幂等，重复启动不会二次失败 |
+| M-2 | **结构严格验收只作用于 `ALTER TABLE … ADD COLUMN`**（`_ADD_COLUMN_RE`，`migrator.py:45-48`） | `_apply_file` / `_structure_state` | 本模块是**纯 `CREATE TABLE`**，不匹配该正则 → **不进入列级结构验收**；已登记后 `_structure_state` 返回 `valid` 直接跳过。**无额外适配成本** |
+| M-3 | **checksum 漂移 → 启动失败关闭**，除非精确命中代码内 `_KNOWN_RECONCILIATIONS` 三元组账本（`migrator.py:281-296`） | `_auto_reconcile` | **发布即冻结**——见下方警示 |
+
+> ### ⚠️ M-3 是本次新增的最重要约束：迁移文件发布即冻结
+>
+> `v11/110_table_type_stats.sql` **一旦随版本发布并在任一实例上被应用，文件内容即被冻结**。
+> 事后任何修改——**哪怕只是改一个注释、加一个空格**——都会让**所有已部署实例
+> 在下次启动时失败关闭**，报"迁移版本记录与文件内容漂移……不在已知调和账本中"。
+>
+> 唯一的补救是同步往 `migrator._KNOWN_RECONCILIATIONS` 里加一条精确的
+> `(version_key, 历史 checksum, 当前 checksum, 原因)` 四元组——那是一次
+> 需要人工核实、走评审的变更，不是随手改。
+>
+> **因此表结构必须在首次发布前定稿。** 本设计的 DDL 从 Rev.B 到 Rev.E 已经增补过三次字段
+> （`skipped_databases` / `baseline_tables` / `subpartition_tables`），
+> 幸而尚未发布；**进入开发后若还要改字段，务必在打包前改完**。
+> 若发布后确需扩列，正确做法是**新增 `v11/111_*.sql` 用 `ALTER TABLE … ADD COLUMN`**，
+> 而不是回头编辑 `110_*.sql`——注意 `ADD COLUMN` 会进入 M-2 的列级严格验收，
+> 类型/可空性/默认值三项必须与既有列逐字相符。
+
 
 ### 2.8 元数据库访问
 
@@ -818,6 +857,7 @@ finally:
 | ADR-15（Rev.D 新增） | `RECON_MISMATCH` **汇总成一条**告警，逐库明细放 `item.detail` | 逐库一条告警 | 保留。Rev.E 剔除子分区后该告警不再常态触发，但**真出问题时仍可能多库同时命中**（例如一批表漏进 Proxy 路由表），50 库实例上逐库一条就是 50 条横幅。汇总告警给合计与库名，明细留在表格行里，信息一点不少 |
 | ADR-16（Rev.D 新增，Rev.E 修订） | 四个数字采用 **Proxy 口径**，逻辑基线数并排呈现 | ① 用 `information_schema` 当准 ② 只显示 Proxy 口径 | 需求问的是"单表/广播表/分片表各多少张"，这三个概念**只有 Proxy 知道**，`information_schema` 没有这个维度。Rev.E 剔除二级分区子表后两个口径精确相等（215 == 215），并排呈现从"让用户自己判断"变成"互相印证" |
 | ADR-17（Rev.E 新增） | 把 `_tdsql_subp<数字>` 结尾的二级分区物理子表**从基线中剔除并单列计数** | ① 计入基线（Rev.D 做法） ② 计入总表数 | ①会让 `RECON_MISMATCH` 在每个有二级分区的库上**永久亮着**——一个永远亮的告警是背景噪声，用户学会无视后真正的不一致就再没人看得见；②用户认知里 `cus_pub_translog` 是一张表不是十三张，Proxy 也只返回逻辑表名。剔除后 215 == 215，告警重获信号价值。子表数单列 + `SUBPARTITION_EXCLUDED` 告警，数据不藏 |
+| ADR-18（Rev.F 新增） | 表结构在**首次发布前定稿**；发布后若需扩列，**新增 `v11/111_*.sql` 用 `ALTER TABLE … ADD COLUMN`**，绝不回头编辑 `110_*.sql` | ① 直接改 `110_*.sql` ② 把表并进 `database.py::_create_all_tables` | ①v1.6.2.2 起 checksum 漂移会让**所有已部署实例启动失败关闭**（§2.7 M-3），补救需人工往 `_KNOWN_RECONCILIATIONS` 加账本三元组，代价远高于新增一个迁移文件；②`_create_all_tables` 是 27 张表的大列表，改它等于把 `database.py` 的改动面从 1 行放大到一整段 DDL，与最小化修改原则冲突（ADR-6 已述） |
 
 ---
 
@@ -859,7 +899,7 @@ finally:
 |---|---|---|---|
 | `backend/services/table_type_stats_service.py` | 全新 | 无人引用 | **零** |
 | `backend/api/table_type_stats.py` | 全新 | 新路由前缀，与现有 25 个前缀无重叠 | **零** |
-| `backend/schema/v11/110_table_type_stats.sql` | 全新 | 两张新表，`CREATE TABLE IF NOT EXISTS` 幂等 | **零** |
+| `backend/schema/v11/110_table_type_stats.sql` | 全新 | 两张新表，`CREATE TABLE IF NOT EXISTS` 幂等 | **低**（Rev.F 上调）。v1.6.2.2 起迁移失败即**启动关闭**（§2.7 M-1），且**发布即冻结**（M-3）。缓解：纯 `CREATE TABLE IF NOT EXISTS`、不进列级严格验收（M-2）、表结构须在打包前定稿（ADR-18） |
 | `tests/test_table_type_stats.py` | 全新 | 仅测试 | **零** |
 | `backend/main.py` | +2 行（第 40 行附近 import、第 176 行附近 include_router） | 路由表新增 3 条 | **极低**。`tests/test_app_routes_integrity.py` 会验证路由完整性 |
 | `backend/services/auth_service.py` | +3 行（P1/P2/P3，均为字典/列表新增条目） | 权限判定 | **极低**。新增映射不改变任何既有前缀的判定；`test_rbac_path_coverage.py` 会验证 |
@@ -1157,6 +1197,9 @@ SQL）与 `selected`（所有切库动作）——后者正是 ADR-3 护栏的�
 - [ ] **对数基准**：`lzbj_ecif` 应输出 总表 **215** / 单表 **0** / 广播表 **117** / 分片表 **98** / 逻辑基线 **215** / 二级分区子表 **78**，**且不出现 `RECON_MISMATCH`**，只有一条 `SUBPARTITION_EXCLUDED`（INFO）。六个数字全对才算通过
 - [ ] `RECON_MISMATCH` 无论涉及几个库都**只出一条**告警；逐库差异在表格「说明」列
 - [ ] 二级分区子表不计入总表数，但逐库「二级分区子表」列如实显示
+- [ ] **迁移专项**：全新安装与存量升级各跑一次 `init_db()`，两次启动均无 `MigrationError`；
+      `schema_migrations` 中出现 `v11_110_table_type_stats` 且 checksum 与文件一致
+- [ ] **迁移专项**：连续启动两次（模拟重启），第二次走 `_structure_state` → `valid` 跳过，不重复执行
 - [ ] 历史列表与明细接口可回看
 
 ### 12.2 权限
@@ -1190,6 +1233,7 @@ SQL）与 `selected`（所有切库动作）——后者正是 ADR-3 护栏的�
 | KL-9 | 空结果集是否导致命令挂起未裁决 | 赤兔页面对无单表的库一直转圈，原因未定 | 30s 读超时 + 180s 总预算兜底；T15 判决，若为 B 则升 Rev.C |
 | KL-10 | 二级分区子表识别依赖命名约定 `_tdsql_subp<数字>` | D3 实测确认该命名（`_tdsql_subp190001` / `_tdsql_subp202601`…），但无官方文档背书 | 正则锚定末尾+纯数字后缀，误判方向安全：漏识别 → `RECON_MISMATCH` 显式报出（可见），不会静默少算 |
 | KL-11 | `info` 列内容（shardkey / sub_shardkey / auto_increment）本期未使用 | 形态已入附录 B | 为将来"分片键分布"类需求预留，不在本期范围 |
+| KL-12（Rev.F 新增） | 迁移文件发布后**内容冻结**，改一个字符都会让已部署实例启动失败关闭 | v1.6.2.2 的 O-30 调和账本机制（§2.7 M-3） | 表结构须在打包前定稿；发布后扩列走新增 `111_*.sql`（ADR-18）。**这是全项目所有新增迁移文件的共性约束，不是 G14 特有** |
 
 ---
 
@@ -1931,7 +1975,7 @@ def detail(stat_id: int):
 
 ### A.3 `backend/schema/v11/110_table_type_stats.sql`（新增，41 行）
 
-> 迁移器会**逐行剔除以 `--` 开头的行**再按 `;` 切分（`backend/schema/migrator.py:52-56`），
+> 迁移器会**逐行剔除以 `--` 开头的行**再按 `;` 切分（`backend/schema/migrator.py:159-164`，v1.6.2.2 后行号），
 > 因此注释必须整行独占，语句之间必须有 `;`，文件末尾的 `;` 不可省。
 
 ```sql
@@ -3078,6 +3122,7 @@ MySQL [lzbj_ecif]> SELECT TABLE_NAME FROM information_schema.TABLES
 
 | 版本 | 日期 | 作者 | 内容 |
 |---|---|---|---|
+| Rev.F | 2026-08-31 | 智能体 A | **v1.6.2.2 上线后的代码变更复核修订。**对本设计依赖的 13 个文件做 `git diff 8fee172..01e2914` 逐一比对，只有 `migrator.py`（失败关闭改造）与 `app.js`（2 行，无关）动过；其余全部未变，§2 的行号与结论逐条重新核对后继续成立。**§2.7 重写**，写入迁移器的三条新硬约束：M-1 任一语句失败即启动关闭（旧版只 WARNING）、M-2 列级严格验收只作用于 `ADD COLUMN`（本模块纯 `CREATE TABLE`，不受影响、无适配成本）、**M-3 checksum 漂移即启动失败关闭——迁移文件发布即冻结**。据此新增 **ADR-18**（表结构须在打包前定稿；发布后扩列走新增 `111_*.sql` 而非回头编辑）、**KL-12**，并把 §9 中迁移文件的风险由"零"上调为"低"、补两条迁移专项验收。附录 A 代码在当前 main 上重跑 **42 项全过**（沙箱 MariaDB 的 `int(11)` 差异非 G14 问题，加兼容垫片后全绿）。设计主体（口径、算法、接口、爆炸半径）**无实质变更**。 |
 | Rev.E | 2026-08-29 | 智能体 A | 依第四轮内网实测（D3）**查明并消除 RISK-B 的差异**：那 78 张全部是 TDSQL 二级分区的物理子表，命名 `<逻辑表>_tdsql_subp190001` / `_tdsql_subp202601`…`202612`；6 张 `sub_func:month` 的表 × 13 个子分区 = 78，与 293 − 215 精确闭合。**ADR-17（新增）**：`_tdsql_subp<数字>` 结尾的表从基线剔除、单列 `subpartition_tables`（响应 + 两张表的 DDL 列 + 前端一列），并出一条 `SUBPARTITION_EXCLUDED`（INFO）说明剔除量。剔除后**逻辑基线 215 == Proxy 口径 215**，`RECON_MISMATCH` 从"在每个有二级分区的库上永久亮着的噪声"变回"亮起就意味着真有表没进 Proxy 路由表"的信号——推翻 Rev.D"两个数并排让用户自己判断"的做法（ADR-16 随之修订）。新增护栏用例 3 项，其中 `test_lzbj_ecif_uat_baseline` 把内网对数基准（98/117/0/215/215/78 且不报 RECON）直接编码为单测（共 42 项，全部通过）。§10 归档 D3，仅剩 T13；附录 B 增补第四轮原始数据与账目闭合验算。**GATE-2 仍无阻断项。** |
 | Rev.D | 2026-08-29 | 智能体 A | 依第三轮内网实测（T14）**裁决 RISK-B：确认成立且差异达 27%**——`lzbj_ecif` Proxy 口径 215（98 分片 + 117 广播 + 0 单表）vs `information_schema` 基线 293，差 **78 张**。三处修订：**ADR-16**（四个数字采用 Proxy 口径，基线数并排呈现而不覆盖，新增 `baseline_tables` 字段与 DDL 列）；**ADR-15**（`RECON_MISMATCH` 汇总成一条——差异每库都有，逐库告警在 50 库实例上就是 50 条横幅）；**ADR-12 改写**——Rev.B 用"某库累计表集 == information_schema 基线"作为作用域探测的完备性证明，本次实测证明两者基本不可能相等、该判据永远不成立，改为**不依赖基线的指纹比对**（连续两个非空库的原始结果集逐条相同即证明实例级作用域，固定代价 6 条命令）。新增护栏用例 2 项（共 39 项，全部通过）。§10 归档 T14 并新增 D1～D3 诊断查询（78 = 6 × 13 且 `sub_func:month` 的表恰好 6 张，二级分区物理子表为最有力假说，待验证）。附录 B 增补第三轮数据与修订后的 UAT 对数基准（五个数字）。**GATE-2 仍无阻断项。** |
 | Rev.C | 2026-08-29 | 智能体 A | 依第二轮内网实测（T15）**裁决 RISK-F**：命令不挂起，`mysql` 直连 Proxy 返回 `Query OK, 0 rows affected (0.001 sec)`—— 是 **OK 包**不是空结果集，赤兔转圈系其前端等列元数据所致。核对 PyMySQL 行为（本机 2.2.8 + 项目下限 1.1.0 wheel 源码）：OK 包 `fetchall()` 返回 `[]`、`description` 为 `None`，本模块天然按该类 0 张处理，**设计不改**。新增语义记录：OK 包与命令不被支持在协议上不可区分，§6.6 交叉校验是该静默失效模式的唯一探测器。新增护栏用例 2 项（共 37 项，全部通过）。附录 B 增补第二轮原始数据：`lzbj_ecif` = 98 分片 + 117 广播 + 0 单表 = **215**（UAT 对数基准）、`info` 列取值谱系、三条命令合计 0.004 秒。§10 归档 T15，剩余 T13 / T14 均标注**不阻断开发**；**GATE-2 无阻断项，可进入开发**。 |
