@@ -2,13 +2,13 @@
 
 | 项 | 内容 |
 |---|---|
-| 文档编号 | DESIGN-v1.6.3.0 **Rev.I** |
+| 文档编号 | DESIGN-v1.6.3.0 **Rev.J** |
 | 模块编号 | **G14 · 表类型统计**（深度诊断第 10 个子模块） |
 | 目标版本 | v1.6.3.0（当前基线 v1.6.2.2，`VERSION` / `backend/config.py:APP_VERSION`） |
-| 文档等级 | **照图施工级**——附录 A 给出全部新增/修改文件的逐行成品代码（已本地验证：71 项单测，70 通过 + 1 项 T-R08 需模块落盘后才生效），实施者不得二次设计 |
+| 文档等级 | **照图施工级**——附录 A 给出全部新增/修改文件的逐行成品代码（设计阶段本地验证：84 项，83 通过 + 1 项 T-R08 需模块落盘后才生效）。**该数字只是设计阶段记录，不能替代落盘后的全量回归证据**（§11） |
 | 编写 | 智能体 A |
-| 编写日期 | 2026-08-29 首版；2026-08-31 Rev.F 依 v1.6.2.2 上线后的代码变更复核修订；2026-08-31 Rev.G 依 O 评审报告整改（8 项 P1 + 3 项 P2 + 2 项文档一致性）；2026-08-31 Rev.H 回填第五轮内网实测（T16/T17/T18）；2026-08-31 Rev.I 回填 T19 并**更正一处迁移文件槽位冲突（DEF-1）** |
-| 状态 | 设计与代码**已完成**；**内网实测全部完成，无一推翻本设计**。**Rev.G 对 O 评审报告的 8 项 P1 全部整改**（其中 P1-08 的整改【方式】与 O 建议不同，理由见 ADR-20），3 项 P2、2 项文档一致性问题全部关闭。**Rev.H/I 用第五、六轮实测把四条只有推测的事实前提补成了证据**：T17 证实 78 张子表精确推导出 6 个父表（UAT 六个数字维持不变）、T18 证实集中式实例无 `_tdsql_subp` 表、T19 证实元数据库无同名残留表、T16 由使用者裁决关闭。**Rev.I 另更正一处此前各版均未发现的硬伤 DEF-1**：迁移文件槽位 `v11/110` 已被 v1.6.2.2 占用，改为 `v13/130`，并新增槽位护栏测试。**仅剩 T13 一项，不阻断且不影响任何数字**（§10.2） |
+| 编写日期 | 2026-08-29 首版；2026-08-31 Rev.F 依 v1.6.2.2 上线后的代码变更复核修订；2026-08-31 Rev.G 依 O 评审报告整改（8 项 P1 + 3 项 P2 + 2 项文档一致性）；2026-08-31 Rev.H 回填第五轮内网实测（T16/T17/T18）；2026-08-31 Rev.I 回填 T19 并更正迁移槽位冲突（DEF-1）；2026-08-31 Rev.J 依 O 第二轮评审整改（5 项 P1 + 3 项 P2 + 1 项文档） |
+| 状态 | 设计与代码**已完成**；内网实测全部完成，无一推翻本设计。**O 两轮评审共 22 项意见，本版全部接受并整改，无一条不认可。** 首轮 8 P1 + 3 P2 + 2 DOC 见 Rev.G（其中 P1-08 的整改【方式】与 O 建议不同，理由见 ADR-20，O 二轮已复核该分歧并只就验收深度提出新要求）；二轮 5 P1 + 3 P2 + 1 DOC 见本版 Rev.J。**Rev.J 关闭的五项 P1 里有两项是我自己论证的漏洞**：库名无条件小写会把 `Sales`/`sales` 静默合并（P1-01）、"180 秒总预算"其实不覆盖前置查询也不覆盖单库三条命令（P1-02，实际上界 269 秒）；另有一项是我为防 DEF-1 而写的护栏测试**在模块落盘当天必然把构建打红**（P1-05）。**仅剩 T13 一项内网核查，不阻断且不影响任何数字**（§10.2） |
 | 前置约束 | 本文档编写阶段**未修改任何代码**（用户要求）。仓库工作区在本文档提交时保持干净。 |
 
 ---
@@ -544,12 +544,13 @@ Query OK, 0 rows affected (0.001 sec)
 4. 建临时池 tmp（pool_size=1, read_timeout=30s）
 5. kind_map = {}        # (库, 表) -> 类型，全局去重，正是原厂「库名+表名去重」
    for db in dbs:                       # ← Rev.G：无条件逐库，不提前停止（P1-01）
-     if 已耗时 > 180s:           该库标 SKIPPED，继续
+     if 已过 deadline:           该库标 SKIPPED，继续    # Rev.J：deadline 统一自 run_stats
      staged = {}                        # ← Rev.G：本库暂存区（P1-05）
      try:
        with tmp.get_connection() as conn:      # ← Rev.G：每库一个连接上下文（P1-04）
          conn.select_db(db)
          for kind, sql in (分片, 广播, 单表):
+             if 已过 deadline: raise _BudgetExceeded   # Rev.J / P1-02：逐条检查
              rows = execute(sql)
              # rows 可能是 OK 包（Query OK, 0 rows affected）→ fetchall() 为 []
              staged[kind] = 按 known_dbs 拆库限定名，缺省归当前库
@@ -563,8 +564,10 @@ Query OK, 0 rows affected (0.001 sec)
              kind_map[(qual,name)] = 优先级更高者（分片 > 广播 > 单表）
 6. tmp.close_all()
 7. 逐库汇总 kind_map ──► items；Proxy 口径总数 = len(kind_map)
-   ── 子表判定：base 中匹配 <父表>_tdsql_subp<数字> 且父表在本库 Proxy 结果里
-      才算物理子表（P1-03）；其余保留为逻辑表 ──
+   ── 先定状态：eligible = 全部库 − 失败库 − 跳过库（Rev.J / P1-03）──
+   ── 子表判定三条件：匹配 <父表>_tdsql_subp<数字>、父表在 Proxy 结果里、
+      且【候选自身不在 Proxy 结果里】（Rev.J / P2-01）；其余保留为逻辑表 ──
+   ── 实例级汇总（含 baseline / subp / overlap）只累加 eligible 库 ──
    ── 交叉校验：每库 got 与 baseline[db]["base"]（去子表后）做双向集合差 ──
    差集写入该库 item.detail；全部处理完后汇总成【一条】RECON_MISMATCH
 8. 告警 + 落库 + 返回（total_tables 与 baseline_tables 并排）
@@ -597,10 +600,10 @@ Query OK, 0 rows affected (0.001 sec)
 
 | 类型 | 文件 | 规模 |
 |---|---|---|
-| 新增 | `backend/services/table_type_stats_service.py` | 834 行（附录 A.1，成品） |
+| 新增 | `backend/services/table_type_stats_service.py` | 1116 行（附录 A.1，成品） |
 | 新增 | `backend/api/table_type_stats.py` | 66 行（附录 A.2，成品） |
 | 新增 | `backend/schema/v13/130_table_type_stats.sql` | 46 行（附录 A.3，成品）。**槽位 v13/130**——`v11/110` 与 `v12/120` 已被 v1.6.2.2 占用（DEF-1，§2.7） |
-| 新增 | `tests/test_table_type_stats.py` | 1415 行 / 71 项（附录 A.4，成品） |
+| 新增 | `tests/test_table_type_stats.py` | 1790 行 / 84 项（附录 A.4，成品） |
 | 修改 | `backend/main.py` | **2 行**（import + include_router） |
 | 修改 | `backend/services/auth_service.py` | **3 行**（P1/P2/P3） |
 | 修改 | `backend/services/database.py` | **1 行**（P4） |
@@ -696,7 +699,14 @@ Query OK, 0 rows affected (0.001 sec)
 | 400 | `数据库不存在或当前账号不可见: xxx（SHOW DATABASES 未返回该库）` | 指定库不在 `SHOW DATABASES` 结果里（Rev.G / P2-01） |
 | **429** | `目标库 xxx 扫描并发已达上限(N)，请稍后重试` / `服务扫描并发已达上限(N)，请稍后重试` | `ScanBusyError`——与既有慢查询扫描共用同一份配额（Rev.G / P1-02，口径同 `tdsql_manage.py:432`） |
 | 500 | `元数据库缺少表 …` / `… 缺少列 …` / `… 列类型不符 …` / `… 缺少索引 …` | `SchemaNotReadyError`——留档表结构验收未通过（Rev.G / P1-08）。消息里带可执行的处置步骤，**原样透出，不被兜底 except 吞掉** |
+| 500 | `采集总时长预算 180s 在…前即已耗尽` | `TimeoutError`——deadline 在枚举库/基线查询之前就已耗尽（Rev.J / P1-02） |
 | 500 | 原始异常字符串 | 其余（照抄样板） |
+
+**并发与耗时的可证明上界（Rev.J / P1-02）**：`/run` 的墙钟耗时上界为
+**210 秒 = 180 秒 deadline + 30 秒最后一条命令读超时**（常量 `MAX_WALL_SECONDS`）。
+deadline 自拿到并发槽位之后建立，`SHOW DATABASES`、`information_schema` 基线查询、
+每个库、**每一条 Proxy 命令**开始前都检查；到期后不再启动任何新查询。
+**不再宣称"硬 180 秒"**——那个说法在 Rev.I 及以前并不成立（KL-19 / ADR-13）。
 
 **并发语义（Rev.G / P1-02）**：`/run` 在 `run_stats()` 内进入
 `registry.scan_slot(connection_id)`（与 `scan_service.py:72` 同一个入口），
@@ -917,8 +927,32 @@ total_tables == shard_tables + broadcast_tables + single_tables   （逐库 & �
 去重键为**精确大小写**的表名。理由：三个集合来自同一 Proxy 的同一会话，大小写必然
 一致；而 `lower_case_table_names=0` 的实例上强行小写会把两张不同的表合并成一张，
 造成**少算**。少算比多算危险（与项目"宁可多报不可漏报"一脉相承）。
-**库名比对**则用小写（`known_dbs` / 目标库集合），因为 MySQL 库名在多数平台不区分
-大小写，且库名来自我们自己枚举的清单，不存在合并风险。
+
+**库名比对同样必须精确（Rev.J / P1-01 修正）。** Rev.I 及此前各版对库名用的是
+`{name.lower(): name}` 单值字典，理由写的是"MySQL 库名在多数平台不区分大小写，
+且库名来自我们自己枚举的清单，不存在合并风险"——**这个理由是错的**：
+
+* 风险不来自外部输入，而来自**两个都真实存在的库**。Linux + `lower_case_table_names=0`
+  的 MySQL/TDSQL 上，`Sales` 与 `sales` 是两个不同的 schema；
+* 单值字典会让后者覆盖前者，于是两库的基线并进一个键、Proxy 行全归给字典里最后
+  那一个、另一个库显示 0 或凭空产生 `RECON_MISMATCH`；
+* 更糟的是**指定库存在性校验**也用小写去撞，会把"不存在"判成"存在"，
+  一直到 `select_db()` 才失败；
+* 全程**没有任何告警会亮**——这正是本文档 §0 硬约束 3 要杜绝的那一类错误。
+  我在表名那一侧写对了道理，却没有把同一条道理用到库名上。
+
+Rev.J 引入 `_NameSpace`（附录 A.1），把"一对多"如实表示出来：
+
+| 情形 | 行为 |
+|---|---|
+| 精确命中 | 直接返回该 canonical 名 |
+| 无精确命中，小写候选**唯一** | 返回该唯一候选（容忍 Proxy 回了不同大小写） |
+| 无精确命中，小写候选**多个** | 返回 `None` —— **不猜**，该行不计入任何库，记 `DB_NAME_AMBIGUOUS`（ERROR） |
+| 指定库参数 | **只接受精确名**；存在大小写变体时在报错里点名，便于使用者改对 |
+
+`_collect_baseline`、`_split_qualified`、目标库过滤、owner 归属四处**共用同一个
+`_NameSpace` 实例**，不存在两套规则打架的可能。实例上一旦存在大小写变体，
+另出一条 `DB_NAME_CASE_VARIANTS`（WARNING）如实告知。
 
 ### 6.6 交叉校验（应对 RISK-B）
 
@@ -960,7 +994,9 @@ total_tables == shard_tables + broadcast_tables + single_tables   （逐库 & �
 | W7 `TOO_MANY_DATABASES` | WARNING | 库数 > 500，已截断 | 用 `database` 参数分批统计 |
 | W8 `NOT_DISTRIBUTED_ENDPOINT` | ERROR | 已执行的库全部因 1064 失败 | 该连接大概率指向后端 TXSQL 而非 Proxy（§2.4） |
 | W9 `INSTANCE_WIDE_SCOPE` | INFO | 结果含跨库行（RISK-E 命中） | 本版本命令返回实例级全量，已按库限定名归属并按 `(库,表)` 去重；**为保证覆盖完整性仍逐库执行**（Rev.G / P1-01） |
-| W10 `TIME_BUDGET_EXCEEDED` | WARNING | 超出 180s 总预算 | 剩余库标 SKIPPED 未统计，请分批 |
+| W10 `TIME_BUDGET_EXCEEDED` | WARNING | 超出 180s deadline | 未采完的库标 SKIPPED 未统计，请分批 |
+| W13 `DB_NAME_CASE_VARIANTS` | WARNING | 实例上存在仅大小写不同的同名库（Rev.J / P1-01） | 它们是不同的 schema，本模块按精确名分别统计；知悉即可 |
+| W14 `DB_NAME_AMBIGUOUS` | ERROR | Proxy 返回的库限定名无法唯一归属到某个真实库（Rev.J / P1-01） | 这些行**未计入任何库**（不猜归属）。请用「库名」输入框逐库精确统计 |
 | ~~W11 `DB_ENUM_FAILED`~~ | — | **Rev.G 删除**（P2-01） | `SHOW DATABASES` 失败不再降级为"只统计指定库"，一律抛出。降级路径下 `known_dbs` 为空，库限定名无法拆分，统计结果**已经不可信**，却仍以"成功 + 一条 WARNING"呈现——这就是把错误藏在告警里 |
 | W12 `SUBPARTITION_EXCLUDED` | INFO | 基线中存在 `_tdsql_subp<数字>` 结尾**且父表已在 Proxy 结果中确认**的物理子表 | 告知剔除了多少张、为什么剔除；逐库数量见「二级分区子表」列。这是正常现象，不是问题。**集中式实例永不触发**（Rev.G / P1-03） |
 
@@ -1031,14 +1067,16 @@ def run_stats(pool, connection_id="", database="", operator=""):
 | ADR-10 | 命令常量不加分号、不做任何字符串处理 | 拼 `;` / `.strip()` | 原厂逐字口径；且 `pre_parser.py` 的既有实现证明本项目对 `/*proxy*/` 采取"原样保护"策略 |
 | ADR-11 | 结果按**行内的库限定名**归属，不按当前会话库 | 全部算在当前遍历到的库上（Rev.A 做法） | 实测返回值是 `sqltuning.t_max`；若命令是实例级作用域，Rev.A 做法会让总数放大 N 倍且逐库明细全错（RISK-E）。按限定名归属在两种作用域下都正确，且不依赖 T13 的结论 |
 | ADR-12（Rev.D 修订，**Rev.G 推翻**） | **无条件逐库执行，取消一切提前停止** | ① Rev.B 的"累计表集 == information_schema 基线"（已被 T14 实测打死：215 vs 293，判据永不成立）② Rev.D/F 的**作用域指纹比对**（连续两库结果集逐条相同即判实例级、其余库跳过）③ 检测到跨库行就 break | ②的推理只走到一半：从"两库结果集相同"能推出"命令与当前会话库无关"，**推不出"这一次返回的集合已覆盖全部目标库"**。账号可见范围、路由域、租户切分、路由元数据缺失都能造出"指纹相同但集合不完整"的实例，届时页面四个主数字是残缺的、却显示成功。我原本用 `RECON_MISMATCH` 兜底，复核后认为站不住——**用告警替代正确的数字，等于承认主结果可以是错的**。③"看到跨库行"同样只证明不限于当前库。代价：实例级作用域下多跑 3(N−2) 条命令，`lzbj_ecif` 单库实测 0.002s/条，量级可接受（§9） |
-| ADR-13 | 单条命令 `read_timeout=30s` + 整体 `180s` 预算 | 依赖连接默认 `read_timeout=10s` | 保留。RISK-F 已裁决为不挂起，但连接默认 10s 对大库仍偏紧（`lzbj_ecif` 215 张表虽只用 0.002s，更大的库未取样）；30s+180s 双层兜底让最坏情况可预期，代价为零 |
+| ADR-13（**Rev.J 修正语义**） | 单条命令 `read_timeout=30s` + 统一 `180s` deadline；**可证明墙钟上界 = 180 + 30 = 210 秒**（常量 `MAX_WALL_SECONDS`） | ① 依赖连接默认 `read_timeout=10s` ② Rev.I 的"每库检查一次预算" ③ 每条命令动态调 read_timeout=min(30, 剩余) | ①连接默认 10s 对大库偏紧；②**Rev.I 的写法根本兑现不了"180 秒"**：计时器直到 `_collect_distributed` 内部才启动，`SHOW DATABASES` 与全量基线查询（设计自己承认这才是耗时大头）完全不在预算内；进入循环后又只在每个库开始时查一次，单库随后最多跑三条 30 秒命令——179 秒进库能跑到 **269 秒**，且集中式分支根本没有预算。这不是"稍微超一点"，是承诺不成立；③动态 read_timeout 要么每条命令重建临时池（多 N 次握手），要么改 PyMySQL 连接内部状态（碰驱动），代价与收益不成比例。**Rev.J 的做法**：deadline 在拿到并发槽位之后、任何目标实例查询之前建立，`SHOW DATABASES`、基线查询、每个库、**每一条命令**开始前都检查；到期后不再启动任何新查询。最后一条已发出的命令仍可跑满 30 秒，故上界是 210 而不是 180——**这个数字写进文档和 UI，不再宣称"硬 180 秒"** |
 | ADR-14 | 超预算的库标 `SKIPPED` 而非 `FAILED` | 统一标 FAILED | "没来得及测"和"测了但错了"处置动作不同：前者重跑/分批即可，后者要查权限或端口。混成一个数会误导排障方向 |
 | ADR-15（Rev.D 新增） | `RECON_MISMATCH` **汇总成一条**告警，逐库明细放 `item.detail` | 逐库一条告警 | 保留。Rev.E 剔除子分区后该告警不再常态触发，但**真出问题时仍可能多库同时命中**（例如一批表漏进 Proxy 路由表），50 库实例上逐库一条就是 50 条横幅。汇总告警给合计与库名，明细留在表格行里，信息一点不少 |
 | ADR-16（Rev.D 新增，Rev.E 修订） | 四个数字采用 **Proxy 口径**，逻辑基线数并排呈现 | ① 用 `information_schema` 当准 ② 只显示 Proxy 口径 | 需求问的是"单表/广播表/分片表各多少张"，这三个概念**只有 Proxy 知道**，`information_schema` 没有这个维度。Rev.E 剔除二级分区子表后两个口径精确相等（215 == 215），并排呈现从"让用户自己判断"变成"互相印证" |
 | ADR-17（Rev.E 新增，**Rev.G 收紧**） | 二级分区物理子表的判定 = **后缀匹配 且 逻辑父表已在本库 Proxy 结果中确认**；**集中式实例一律不剔除** | ① 计入基线（Rev.D 做法） ② 计入总表数 ③ 只看后缀（Rev.E/F 做法） | ①会让 `RECON_MISMATCH` 在每个有二级分区的库上**永久亮着**——一个永远亮的告警是背景噪声；②用户认知里 `cus_pub_translog` 是一张表不是十三张，Proxy 也只返回逻辑表名；③**实测只证明了"这 78 张子表叫这个名字"，没证明"叫这个名字的一定是子表"**。集中式实例没有二级分区这个构造、也没有 Proxy 交叉校验兜底，一张合法业务表 `orders_tdsql_subp202601` 会被静默少算且不可见（违反 REQ-5）。加上父表确认后，未确认者保留为逻辑表 → `RECON_MISMATCH` **显式报出**，误判方向仍然安全。**T17 第五轮实测已坐实**：78 张子表精确推导出 6 个父表（各 13 张），且由「基线 293、Proxy 215、后缀表 78」三个基数的算术闭合可证 6 个父表全部落在 Proxy 结果内（推导见 §10.2 T17），收紧后 215 == 215 不变 |
 | ADR-18（Rev.F 新增） | 表结构在**首次发布前定稿**；发布后若需扩列，**新增 `v13/131_*.sql` 用 `ALTER TABLE … ADD COLUMN`**，绝不回头编辑 `130_*.sql` | ① 直接改 `130_*.sql` ② 把表并进 `database.py::_create_all_tables` | ①v1.6.2.2 起 checksum 漂移会让**所有已部署实例启动失败关闭**（§2.7 M-3），补救需人工往 `_KNOWN_RECONCILIATIONS` 加账本三元组，代价远高于新增一个迁移文件；②`_create_all_tables` 是 **46 张表、828 行**的大列表（Rev.I 复核实测；Rev.A～H 一直写的"27 张"是旧数），改它等于把 `database.py` 的改动面从 1 行放大到一整段 DDL，与最小化修改原则冲突（ADR-6 已述） |
-| ADR-19（Rev.G 新增，P1-02） | `/run` 复用既有 `registry.scan_slot(connection_id)`，**不新建并发控制** | ① 不限流（Rev.F） ② 本模块自建一套信号量 ③ 改成异步任务 | ①单次占用最长 180 秒并额外开一条 Proxy 连接，重复点击/多人同时操作就能吃掉大量 FastAPI 工作线程和目标库连接，挤占既有审核、扫描、巡检——与本文档"零回归"的承诺直接冲突；②自建一套等于**两套配额各算各的**，全局上限形同虚设，反而更危险；③异步任务要引入任务表、轮询接口和前端状态机，爆炸半径远超一个诊断子模块该有的量级（KL-6 保留为将来选项）。复用 `scan_slot` 是三者里唯一既限流又不新增机制的：`scan_service.py:72` 就是同样的用法，配置项、错误类型、HTTP 状态码全部现成 |
-| ADR-20（Rev.G 新增，P1-08） | 留档表结构验收**在 `run_stats` 入口做**（模块级、首次使用时），**不做启动期失败关闭**；验收范围 = 表存在 + 全部列 + 关键列类型 + 索引 | ① 不验收（Rev.F：迁移器不严格验收 CREATE TABLE，故"无额外适配成本"）② 扩展迁移器支持 CREATE TABLE 声明验收 ③ 进程启动期专用 schema assertion（O 的建议） | ①站不住：元数据库里若有同名但缺列/错类型的历史残留表，`CREATE TABLE IF NOT EXISTS` 会**静默跳过**、迁移仍登记成功，直到 INSERT 才 1054；迁移登记后表被删或结构漂移，`_structure_state()` 也照样返回 valid。**"不进入验收"不是安全性依据**，这一点我完全接受。②改迁移器意味着动 v1.6.2.2 刚上线的启动路径，是全平台级别的爆炸半径，为一个诊断子模块付这个代价不成比例。③**本设计与 O 的分歧仅在这一点**：表类型统计是深度诊断下的只读诊断子模块，它的留档表有问题**不应当让整个审核平台起不来**——同层级的 `index_audit`、`cluster_inspection` 在 `_create_all_tables` 里同样没有启动期结构验收，只为新模块加这一道，标准不一致且风险方向相反（把"一个页面不可用"放大成"平台不可用"）。放在 `run_stats` 入口、且在采集与并发槽位**之前**，同时满足"确定性验收"和"不让用户白跑一轮采集"。四种畸形场景（缺表/缺列/错类型/缺索引）均失败关闭，由 T-R12 五项单测钉住 |
+| ADR-19（Rev.G 新增，P1-02） | `/run` 复用既有 `registry.scan_slot(connection_id)`，**不新建并发控制** | ① 不限流（Rev.F） ② 本模块自建一套信号量 ③ 改成异步任务 | ①单次占用最长 210 秒（ADR-13）并额外开一条 Proxy 连接，重复点击/多人同时操作就能吃掉大量 FastAPI 工作线程和目标库连接，挤占既有审核、扫描、巡检——与本文档"零回归"的承诺直接冲突；②自建一套等于**两套配额各算各的**，全局上限形同虚设，反而更危险；③异步任务要引入任务表、轮询接口和前端状态机，爆炸半径远超一个诊断子模块该有的量级（KL-6 保留为将来选项）。复用 `scan_slot` 是三者里唯一既限流又不新增机制的：`scan_service.py:72` 就是同样的用法，配置项、错误类型、HTTP 状态码全部现成 |
+| ADR-20（Rev.G 新增，**Rev.J 扩展验收范围**） | 留档表结构验收**在 `run_stats` 入口做**（模块级、首次使用时），**不做启动期失败关闭**；验收范围 = 表存在 + 全部列的**完整字段契约**（类型 / 长度 / 字符集 / 可空性 / 默认值 / 自增）+ **索引全列序与唯一性** | ① 不验收（Rev.F：迁移器不严格验收 CREATE TABLE，故"无额外适配成本"）② 扩展迁移器支持 CREATE TABLE 声明验收 ③ 进程启动期专用 schema assertion（O 的建议） | ①站不住：元数据库里若有同名但缺列/错类型的历史残留表，`CREATE TABLE IF NOT EXISTS` 会**静默跳过**、迁移仍登记成功，直到 INSERT 才 1054；迁移登记后表被删或结构漂移，`_structure_state()` 也照样返回 valid。**"不进入验收"不是安全性依据**，这一点我完全接受。②改迁移器意味着动 v1.6.2.2 刚上线的启动路径，是全平台级别的爆炸半径，为一个诊断子模块付这个代价不成比例。③**本设计与 O 的分歧仅在这一点**：表类型统计是深度诊断下的只读诊断子模块，它的留档表有问题**不应当让整个审核平台起不来**——同层级的 `index_audit`、`cluster_inspection` 在 `_create_all_tables` 里同样没有启动期结构验收，只为新模块加这一道，标准不一致且风险方向相反（把"一个页面不可用"放大成"平台不可用"）。放在 `run_stats` 入口、且在采集与并发槽位**之前**，同时满足"确定性验收"和"不让用户白跑一轮采集"。**Rev.J 扩展**：O 二轮指出 Rev.I 只比 `DATA_TYPE`，仍留着一整排"采集完才失败"的路径——`detail` 收窄成 `VARCHAR(16)` 会在 500 库采完后撞 1406、`id` 丢了 `AUTO_INCREMENT` 会在第二条记录撞主键、`created_at` 没默认值在严格模式下直接失败、字符集非 utf8mb4 会让中文 detail 撞 1366。**这条我完全接受，而且 KL-15 当时的免责理由是站不住的**：我以"COLUMN_TYPE 带显示宽度、跨发行版不一致"为由放弃长度校验，但那个问题只对**整型**成立（`int(11)` vs `int`），对 varchar 长度并不成立。现按字段分工取值——整型比 `DATA_TYPE`、字符列比 `DATA_TYPE + CHARACTER_MAXIMUM_LENGTH + CHARACTER_SET_NAME`、共通比 `IS_NULLABLE` / 归一化后的 `COLUMN_DEFAULT` / `EXTRA`（自增），索引比全列序与唯一性。默认值归一自持一份（剥一层引号 + `CURRENT_TIMESTAMP` / MariaDB 字面量 `'NULL'` 归一），**刻意不复用 `migrator._normalize_default`**——后者把 `0`/`1` 归一成 `FALSE`/`TRUE` 服务于布尔列，用在本模块的计数列上会把真实漂移掩盖掉。九种畸形场景均失败关闭，由 T-R12 与 T2-R05 共十项单测钉住，且**已在本地 MariaDB 上逐项验证过"干净结构必须通过"**（过严会把功能整个打死，比过松更难发现） |
+| ADR-22（Rev.J 新增，P1-01） | 库名命名空间用 `_NameSpace`：**精确优先、CI 回退仅在候选唯一时、歧义不猜** | ① 全小写单值字典（Rev.I 及以前） ② 全部改为精确匹配、完全不容忍大小写差异 | ①在 `lower_case_table_names=0` 的实例上会把 `Sales` 与 `sales` **静默合并**——四个主数字直接错，且没有任何告警会亮。我在表名那侧已经写对了这个道理（ADR-9），却没有把它用到库名上，理由还写成"库名来自我们自己枚举的清单，不存在合并风险"——风险恰恰来自两个都真实存在的库，与输入来源无关；②过严：Proxy 若在某个版本回了不同大小写的库前缀，全精确会把整批行丢掉（**少算，且不可见**）。折中方案在候选唯一时容忍、在候选多个时拒绝并显式报 `DB_NAME_AMBIGUOUS`——**把不可判定的情况变成可见的，而不是替使用者猜** |
+| ADR-23（Rev.J 新增，P1-03） | **先定状态，再算汇总**：`eligible = 全部库 − 失败 − 跳过`，所有实例级汇总（含 baseline / subpartition / overlap）一律按 owner 过滤 | ① Rev.I 的"边遍历边累加，之后才判状态" ② 改文案，承认失败库的基线也计入 | ①与接口文案和 W1 告警里"未计入任何汇总数"直接矛盾，且矛盾**恰好发生在出问题的时候**：全部库 SKIPPED 时 `total_tables=0` 而 `baseline_tables` 仍是全库合计，两个并排的数字看起来像"Proxy 漏了一整个实例"；某个成功库的实例级返回里携带的失败库行还会让 `overlap_count` 凭空加 1。②改文案也是一种关闭方式，但 `baseline_tables` 的**唯一用途**就是与 `total_tables` 互相印证，两者覆盖的库集合不同则这个用途直接消失——所以该改的是代码不是文案。逐库行仍如实显示各自的基线（information_schema 那侧确实查成功了），只是不进实例级汇总 |
 | ADR-21（Rev.G 新增，P1-06） | 新权限键必须同时登记到 **6 处**（API 路径映射 / 菜单全集 / 标签 / 默认角色清单 / `index.html` 页签 / **`app.js` 的 `subtabs` 回退清单**） | Rev.F 只登记 4 处 + 页签 | 缺 `subtabs` 这一处时，只被授予"深度诊断 + 表类型统计"的自定义角色进入页面后，默认 `deepTab='cluster'` 对应的页签不可见，**页面没有活动页签**——权限配置成功、功能却进不去。这类缺陷在 admin 账号下**永远测不出来**（admin 有全部子页签，第一个必定可见），只有最小权限角色才暴露，故必须由 T-R08 单测钉住而不是靠人工回归 |
 
 ---
@@ -1074,7 +1112,11 @@ def run_stats(pool, connection_id="", database="", operator=""):
 | E-19 | 结果含**系统库**的行（如 `mysql.user`） | 直接丢弃，不计入任何库 | `_collect_distributed` 的 `target` 过滤 |
 | E-20 | 指定 `database=db_a` 但结果含 `db_b.*` | `db_b` 的行全部丢弃，只统计 `db_a` | 同上 |
 | E-21 | 单条命令挂起 | 30s 读超时 → 该库 FAILED，detail 写"读超时（30s）"，循环继续 | `COMMAND_READ_TIMEOUT` |
-| E-22 | 总耗时超 180s | 剩余库标 `SKIPPED`（不计入总数）+ W10；已采集的库正常返回 | `TOTAL_BUDGET_SECONDS` |
+| E-22 | 采集超出 180s deadline | 到期后**不再启动任何新查询**；未采完的库标 `SKIPPED`（不计入任何汇总）+ W10；已采完的库正常返回。**单库三条命令跑到一半到期，该库整体记 `SKIPPED` 而非 `FAILED`**——"没来得及测"与"测了但错了"处置动作不同（ADR-14） | `TOTAL_BUDGET_SECONDS` / `_BudgetExceeded` |
+| E-30 | deadline 在枚举库或基线查询之前就已耗尽 | 抛 `TimeoutError` → HTTP 500，消息点明在哪个阶段耗尽（Rev.J / P1-02） | `analyze` |
+| E-31 | 实例上存在仅大小写不同的同名库（`Sales` / `sales`） | 两库**各自独立统计**；另出一条 `DB_NAME_CASE_VARIANTS`（WARNING）（Rev.J / P1-01） | `_NameSpace` |
+| E-32 | Proxy 返回的库限定名无法唯一归属（大小写歧义） | 该行**不计入任何库**，记 `DB_NAME_AMBIGUOUS`（ERROR）——不猜归属，宁可少算并显式报出（Rev.J / P1-01） | `_split_qualified` |
+| E-33 | 指定库大小写与实例上的真实库不一致 | HTTP 400，并在消息里点名存在的大小写变体（Rev.J / P1-01） | `analyze` |
 | E-23 | 表名本身含点号（如 `odd.name`） | 点号左侧不是已知库名 → 整串当作当前库下的表名，不误拆、不丢弃 | `_split_qualified` |
 
 ---
@@ -1102,7 +1144,7 @@ def run_stats(pool, connection_id="", database="", operator=""):
 | 并发上限 | **无**（可无限并发） | 每连接 2、全局 8，**与既有慢查询扫描共用同一份配额** |
 | 超限行为 | 吃满 FastAPI 工作线程 | HTTP 429 + 可读提示，既有审核/扫描不受影响 |
 | 目标库连接数 | 每个并发请求 +1 条 | 同左，但请求数已被槽位封顶 |
-| 单次最长占用 | 180s | 180s（不变） |
+| 单次最长占用 | **无上界**（Rev.I 实测可达 269s+，见 ADR-13） | **210s = 180 预算 + 30 最后一条命令读超时**（可证明） |
 
 **取消提前停止后的耗时代价（P1-01 的账要算清楚）**：
 实例级作用域下，Rev.F 最好情况是 6 条命令，Rev.G 是 3N 条。
@@ -1494,10 +1536,29 @@ Query OK, 0 rows affected (0.001 sec)
 
 ## 11. 测试设计（开发期，可在本地 MariaDB 13306 上跑）
 
-`tests/test_table_type_stats.py`（附录 A.4），**71 项，除落库/结构验收 8 项外全部离线，
-不依赖真实 TDSQL**。数据夹具直接照搬内网实测形态（列名 `db_table`、
-库限定名 `sqltuning.t_max`、`with*` 双列 / `without` 单列），
-**Rev.H 起子分区相关用例直接使用 2026-08-31 T17 取回的 78 个真实表名**。
+`tests/test_table_type_stats.py`（附录 A.4），**collect 84 项**。数据夹具直接照搬
+内网实测形态（列名 `db_table`、库限定名 `sqltuning.t_max`、`with*` 双列 /
+`without` 单列），**Rev.H 起子分区相关用例直接使用 2026-08-31 T17 取回的
+78 个真实表名**。
+
+**测试依赖如实说明（Rev.J / DOC-01）**——Rev.I 之前一直写"除落库两例外全部离线"，
+那是 Rev.B 时期的实际情况，后来陆续加到 10 例却一直没更新，属于文档失真：
+
+| 类别 | 数量 | 依赖 |
+|---|---:|---|
+| 纯离线 | **73** | 无。`FakePool` + `FakeClock` 全内存，不连任何数据库 |
+| 元数据库集成 | **10** | 本地 MySQL/MariaDB（`SQLCHECK_DB_NAME`，默认 `tdsql_sqlcheck_test`）；`@skipif(not MYSQL_AVAILABLE)` |
+| 需模块落盘 | **1** | T-R08 权限键登记，断言仓库文件；设计阶段 skip |
+| **collect 合计** | **84** | 含 5 个参数化展开 |
+
+实测口径：不连元数据库时 `73 passed, 11 skipped`；连上后 `83 passed, 1 skipped`。
+元数据库集成用例覆盖落库与回读、`/history` 与 `created_by`、500 库告警的
+`MEDIUMTEXT` 往返，以及六项结构契约失败关闭；由 `g14_schema` fixture 在每例前后
+DROP + 按 DDL 重建，互不干扰。
+
+> **`skip` 不是 `pass`。** 设计阶段的通过/跳过数只能作为设计阶段记录，
+> **不能当作发布证据**——模块真正落盘后必须在具备元数据库的环境上重跑全套，
+> 这一点 O 在二轮 DOC-01 里说得对，本文档不再用设计阶段数字冒充回归结果。
 
 > **Rev.G 新增 25 项**，全部是 O 评审报告 §6 要求的**缺陷定向测试**——
 > 每一项都对应一个具体的 P1/P2，且都是"在 Rev.F 的代码上会失败、在 Rev.G 上通过"。
@@ -1574,7 +1635,27 @@ Query OK, 0 rows affected (0.001 sec)
 | T-R12 | `test_r12d_missing_index_fails_closed` | 缺 `idx_tts_created` → 失败关闭 | **P1-08** |
 | T-R12 | `test_r12e_run_stats_fails_before_collecting` | 结构不合格时 `analyze` **一次都没被调用**——不让用户白跑 180 秒 | **P1-08 / ADR-20** |
 | T-R12 | `test_r12f_ddl_and_service_column_lists_agree` | DDL 文件的列清单与服务的 `_STAT_COLUMNS`/`_ITEM_COLUMNS` 逐字一致，且 `warnings_json` 必须是 `MEDIUMTEXT` | **P1-07 / P1-08** |
-| DEF-1（Rev.I） | `test_migration_slot_is_not_already_taken` | 扫描 `backend/schema/` 真实目录，断言 `v13/130` 槽位**未被占用**且**是当前最大槽位之后的下一个**——把"槽位可用"从需要人记的约定变成会失败的测试 | **DEF-1 / KL-17** |
+
+**Rev.J 新增的缺陷定向测试（对应 O 第二轮评审 §7 的 T2-R01～T2-R10）**：
+
+| O 编号 | 用例 | 验证 | 关闭的问题 |
+|---|---|---|---|
+| T2-R01 | `test_t2r01_case_variant_databases_are_not_merged` | `Sales` 与 `sales` 各自成行、分片/单表各归各的、`database_count==2`、`total==2`，且不产生虚假 `RECON_MISMATCH`；另出 `DB_NAME_CASE_VARIANTS` | **P1-01** |
+| T2-R01 | `test_t2r01b_wrong_case_database_is_rejected` | 指定 `Sales` 而实例上只有 `sales` → 400，且消息点名真实变体；精确名正常 | **P1-01** |
+| T2-R01 | `test_t2r01c_ambiguous_qualified_name_is_not_guessed` | `_NameSpace` 四种解析语义逐条钉住；歧义行**不计入任何库**并记 `DB_NAME_AMBIGUOUS` | **P1-01** |
+| T2-R02 | `test_t2r02_deadline_covers_prelude_and_every_command` | 可控时钟下每条命令耗 60s：第 3 条**不得启动**，该库记 `SKIPPED`（Rev.I 会跑满三条） | **P1-02** |
+| T2-R02 | `test_t2r02b_deadline_blocks_baseline_query` | deadline 已过时，基线查询之前即抛 `TimeoutError`（Rev.I 完全不计前置查询） | **P1-02** |
+| T2-R02 | `test_t2r02c_provable_wall_upper_bound_is_documented` | `MAX_WALL_SECONDS == TOTAL_BUDGET + COMMAND_READ_TIMEOUT == 210`，常量之间自洽 | **P1-02 / KL-19** |
+| T2-R03 | `test_t2r03_failed_db_rows_do_not_enter_any_rollup` | 成功库的跨库行含失败库同一张表的两个类型 → `overlap_count==0`；失败库的基线与子分区不进实例级汇总，也不点亮 `SUBPARTITION_EXCLUDED`；逐库行仍如实显示该库基线 | **P1-03** |
+| T2-R04 | `test_time_budget_skips_remaining`（扩展） | 全部 `SKIPPED` 时 `total/baseline/subpartition/overlap` **一律为 0** | **P1-03** |
+| T2-R05 | `test_r12*` 六项（扩展为完整契约） | 缺表 / 缺列 / 错类型 / 缺索引 / 采集前拦截 / DDL 与服务列清单一致；另在本地 MariaDB 上逐项验证 `detail` 收窄、`id` 丢自增、`created_at` 缺默认、`stat_id` 可空、`warnings_json` 退回 TEXT 五种畸形均失败关闭，且**干净结构必须通过** | **P1-04** |
+| T2-R06 | `test_migration_slot_scanner_detects_duplicates` | 扫描器能看见"同槽两个文件"——Rev.I 的单值字典看不见，等于没防 | **P1-05** |
+| T2-R06 | `test_migration_slot_guard_passes_before_and_after_landing` | 用两份合成状态把**落盘前**与**落盘后**都验一遍（Rev.I 的写法在落盘后必失败） | **P1-05** |
+| T2-R06 | `test_migration_slot_guard_rejects_duplicate_and_squatter` | 同槽双文件 / 槽位被别人占 / 我们不再是最大槽，三种都必须失败 | **P1-05** |
+| T2-R06 | `test_migration_slot_is_available_and_unique` | 对**真实仓库目录**执行同一套断言 | **P1-05 / KL-17** |
+| T2-R07 | `test_t2r07_candidate_in_proxy_is_a_logical_table` | `orders` 与 `orders_tdsql_subp202601` 同时出现在 Proxy 结果中 → 两者都是逻辑表，`subpartition_tables==0`，不产生虚假差异告警 | **P2-01** |
+| T2-R07 | `test_t2r07b_real_subpartition_is_still_stripped` | 反向护栏：真正的子表（不在 Proxy 结果里）仍必须被剔除，不得因 P2-01 回退 | **P2-01** |
+| T2-R10 | 首轮 T-R01～T-R14 全套 | 继续通过，不因本轮修正回退 | 首轮全部 |
 | T-R13 | `test_r13_api_records_current_operator` | API 签名含 `http_request: Request`，`operator` 收到真实用户名；未认证兜底 `anonymous`（**不写空串**） | **P2-02** |
 | T-R13 | `test_r13_created_by_is_persisted` | `created_by` 真正落库并可从 `/history` 回读 | **P2-02** |
 | T-R14 | `test_lzbj_ecif_uat_baseline`（已有） | 端到端对数：215/0/117/98/215/78，告警仅 `SUBPARTITION_EXCLUDED` | UAT 基准 |
@@ -1593,11 +1674,12 @@ Query OK, 0 rows affected (0.001 sec)
 这是本轮我认为最有价值的一处测试设计：**P1-04 描述的缺陷在 Rev.F 的测试体系下
 根本无法被发现**，因为旧 FakePool 对异常穿不穿出 `with` 完全无感。
 
-**本地验证结果（2026-08-31，Rev.I）**：用 importlib 把附录 A.1 / A.2 分别挂载为
+**本地验证结果（2026-08-31，Rev.J）**：用 importlib 把附录 A.1 / A.2 分别挂载为
 `backend.services.table_type_stats_service` 与 `backend.api.table_type_stats`
-（**仓库代码零改动**），`python -m pytest` **70 项通过 + 1 项跳过**
+（**仓库代码零改动**），`python -m pytest` **83 项通过 + 1 项跳过**
 （跳过的是 T-R08，它断言的是模块落盘后的仓库文件，设计阶段无从断言），
-含对本地 MariaDB(13306) 的真实落库与四种畸形结构失败关闭用例。
+含对本地 MariaDB(13306) 的真实落库、告警往返与九种畸形结构失败关闭用例。
+**这是设计阶段记录，不是发布证据**（见上方说明）。
 
 
 ## 12. 验收清单
@@ -1640,6 +1722,18 @@ Query OK, 0 rows affected (0.001 sec)
 - [ ] 既有 9 个深度诊断子页签功能不变（逐个点一遍）
 - [ ] **并发专项（Rev.G / P1-02）**：同一实例连续发起 3 次统计，第 3 次返回 **429** 且提示可读；期间在**另一个浏览器标签**发起一次既有 SQL 审核 / 慢查询扫描，确认其响应时间与结果不受影响
 - [ ] **并发专项**：统计过程中断开网络或杀掉目标库连接，确认槽位被释放（随后可再次发起统计，不出现"永远 429"）
+- [ ] **超时上界专项（Rev.J / P1-02）**：在库数最多的实例上执行一次，记录端到端墙钟耗时；确认**不超过 210 秒**（180 预算 + 30 最后一条命令读超时，ADR-13）。若超出，说明 deadline 有未覆盖的路径，属阻断项
+
+### 12.4 Rev.J 新增专项（O 第二轮评审）
+
+- [ ] **库名大小写（P1-01）**：若内网存在仅大小写不同的同名库，确认两库**各自成行**、总数不合并，且出现 `DB_NAME_CASE_VARIANTS`。无此形态则注明"无"，并改为在测试环境人工建 `Sales` / `sales` 各一张表验证
+- [ ] **指定库大小写**：输入错误大小写的库名，必须回 400 并在消息里点名真实存在的变体，**不得**当成存在
+- [ ] **失败库不进汇总（P1-03）**：人为让一个库的账号权限不足，确认该库 `FAILED`，且实例级 `baseline_tables` / `subpartition_tables` / `overlap_count` **均不含该库**；逐库行仍显示该库自己的基线
+- [ ] **结构契约（P1-04）**：依次把 `detail` 收窄为 `VARCHAR(16)`、去掉 `id` 的 `AUTO_INCREMENT`、去掉 `created_at` 默认值、把 `stat_id` 改为可空，四次都必须在**采集之前**返回 500 且消息点名具体列；恢复后功能正常
+- [ ] **迁移槽护栏（P1-05）**：`backend/schema/v13/130_table_type_stats.sql` **真正落盘后**，`pytest -k migration_slot` 必须全绿（Rev.I 的写法会在此处失败）
+- [ ] **合法后缀逻辑表（P2-01）**：若内网有 `xxx` 与 `xxx_tdsql_subp<数字>` 同时出现在 Proxy 结果中的情形，确认两者都计入逻辑表、`subpartition_tables` 不含它
+- [ ] **历史告警展开（P2-02）**：制造 >10 条告警的一次统计，打开历史抽屉，确认显示总条数且可展开全部
+- [ ] **失败提示（P2-03）**：部分失败时提示为 warning 并写明成功/失败/跳过库数；全部失败时为 error，**不得**出现绿色"统计完成"
 
 ---
 
@@ -1652,7 +1746,7 @@ Query OK, 0 rows affected (0.001 sec)
 | KL-3 | 本模块两张表未接 `retention_service` | 仅人工触发时增长，年增 < 1 万行 | 与 `index_audit` 一致；若未来接入需同时补 FK 级联 |
 | KL-4 | 单分片分布式实例可能被判为集中式 | `instance_probe_rules.py:99-104` 的已知边界 | W5 告警提示 + 实例管理页可手工锁定类型；T12 确认内网是否存在此形态 |
 | KL-5 | 三条 `/*proxy*/` 命令无官方语法文档背书 | 来源为原厂口头提供 | T02/T03/T11 实测锚定；实测输出入附录 B 作为回归基线 |
-| KL-6 | 统计为同步执行 | 库数 × 3 条命令，大实例可能较慢；Rev.G 取消提前停止后**恒为 3N 条** | T10 定量；并发已由 `registry.scan_slot` 封顶（ADR-19），单次最长 180 秒预算不变。500 库实例按实测速率估算约 15 秒，仍在预算内（§9）。若 T10 实测超阈值则升版为异步任务 |
+| KL-6 | 统计为同步执行 | 库数 × 3 条命令，大实例可能较慢；Rev.G 取消提前停止后**恒为 3N 条** | T10 定量；并发已由 `registry.scan_slot` 封顶（ADR-19），单次墙钟上界 **210 秒**（ADR-13 / KL-19）。500 库实例按实测速率估算约 15 秒，远在预算内（§9）。若 T10 实测超阈值则升版为异步任务 |
 | KL-7 | 结果为快照，不反映采集期间的 DDL 变更 | 无事务一致性保证 | 结果带 `created_at`，UI 标注"采集时刻快照" |
 | KL-8 | 命令作用域（当前库 / 实例级）未裁决 | 返回库限定名 + 原厂"库名+表名去重"的措辞都指向实例级，但缺少多业务库实例的实测 | 设计在两种作用域下都正确（ADR-11）。**Rev.G 取消提前停止后，T13 已不影响任何数字**，只影响耗时预期与 W9 是否显示 |
 | ~~KL-9~~ | ~~空结果集是否导致命令挂起未裁决~~ | **已裁决（Rev.C / §3.3 RISK-F / §10.1 T15）**：命令以 **OK 包**在 0.001 秒返回，`Query OK, 0 rows affected`，不挂起；赤兔转圈是其前端在等结果集列元数据所致，与命令无关 | **本项关闭**。30s 读超时 + 180s 总预算保留为纯保险，在已实测形态下永不触发 |
@@ -1663,7 +1757,9 @@ Query OK, 0 rows affected (0.001 sec)
 | KL-12（Rev.F 新增） | 迁移文件发布后**内容冻结**，改一个字符都会让已部署实例启动失败关闭 | v1.6.2.2 的 O-30 调和账本机制（§2.7 M-3） | 表结构须在打包前定稿；发布后扩列走新增 `111_*.sql`（ADR-18）。**这是全项目所有新增迁移文件的共性约束，不是 G14 特有** |
 | KL-13（Rev.G 新增） | 结构验收在**首次调用时**而非启动期，故"表被删/结构漂移"要等到有人点统计才暴露 | ADR-20 的取舍：不让诊断子模块的表问题阻断平台启动 | 报错消息带可执行处置步骤；`/run` 在**采集之前**就失败，用户等待 < 1 秒。若将来该模块被接入定时任务（OUT-2 目前明确不做），需要重新评估是否加启动期探测 |
 | KL-14（Rev.G 新增） | 并发配额与既有扫描**共享**，重度扫描期间统计可能被 429 | ADR-19 的取舍：共享配额才能真正保护既有功能 | 提示文案已写明"请稍后重试"；配额可由 `SQLCHECK_MAX_CONCURRENT_SCANS_*` 调整。**不为本模块单开配额**——单开等于全局上限失效 |
-| KL-15（Rev.G 新增） | `_ensure_schema` 用 `information_schema.COLUMNS.DATA_TYPE` 校验类型，不校验长度/精度 | `COLUMN_TYPE` 带显示宽度（`int(11)` vs `int`），在不同 MySQL/MariaDB 发行版上不一致，用它会产生与结构无关的误报（v1.6.2.2 期间已踩过同类坑） | 现口径能挡住"计数列变 VARCHAR""`warnings_json` 退回 TEXT"这类**会导致错误或截断**的漂移；`VARCHAR(64)` 变 `VARCHAR(32)` 这类长度收窄挡不住，属已知缺口，登记在此 |
+| ~~KL-15~~（Rev.G 新增，**Rev.J 关闭**） | ~~`_ensure_schema` 不校验长度/精度~~ | 当时的免责理由是"`COLUMN_TYPE` 带显示宽度、跨发行版不一致"——**那个理由只对整型成立，对 varchar 长度不成立**，我把两件事混为一谈了 | **本项关闭**。Rev.J 按字段分工取值：整型比 `DATA_TYPE`（无显示宽度），字符列比 `CHARACTER_MAXIMUM_LENGTH` + `CHARACTER_SET_NAME`，共通比 `IS_NULLABLE` / `COLUMN_DEFAULT` / `EXTRA`，索引比全列序与唯一性（ADR-20）。**"已知"不等于"已关闭"**——这是 O 的原话，我接受 |
+| KL-18（Rev.J 新增） | 结构验收不校验排序规则（collation）与外键 | 排序规则错误不会导致 INSERT 失败，只影响排序与比较；本模块两张表无外键 | 有意留白：验收**过严**会把功能整个打死（干净安装通不过验收 = 页面永远不可用），比过松更难被发现。只钉住"错了就会写不进去或算错"的属性 |
+| KL-19（Rev.J 新增） | 总时长的可证明上界是 **210 秒**，不是 180 秒 | deadline 到期只保证"不再启动新命令"，已发出的最后一条命令仍可跑满 30 秒读超时。做到严格 180 需要每条命令动态调整 `read_timeout`，代价是每条命令重建临时池或触碰驱动内部状态（ADR-13） | 文档、`MAX_WALL_SECONDS` 常量、UI 文案统一按 **210 秒**表述，**不再宣称"硬 180 秒"**。并发影响评估（§9）按 210 秒计 |
 
 ---
 
@@ -1707,12 +1803,26 @@ Query OK, 0 rows affected (0.001 sec)
 > | 测试从 42 项增至 **67 项**，新增 25 项全部是缺陷定向测试 | §6 全表 |
 >
 > **P1-06 的 `subtabs` 登记在 A.5.5**；前端历史抽屉与告警展示上限在 A.5.4。
+>
+> **Rev.J 相对 Rev.I 的实质变化**（全部源自 O 的第二轮评审，逐条对应）：
+>
+> | 变化 | 关闭 |
+> |---|---|
+> | 新增 `_NameSpace`；`_collect_baseline` / `_split_qualified` / 目标过滤 / owner 归属四处共用同一实例；指定库只接受精确名；新增 `DB_NAME_CASE_VARIANTS` 与 `DB_NAME_AMBIGUOUS` | P1-01 |
+> | deadline 由 `run_stats` 在拿到槽位后建立并贯穿全程；**每条命令**开始前检查；新增 `_BudgetExceeded`、`MAX_WALL_SECONDS=210`、可控时钟钩子 `_now` | P1-02 |
+> | 先算 `eligible = 全部 − 失败 − 跳过`，`overlap` / `baseline` / `subp` 一律按 owner 过滤 | P1-03 |
+> | `_ensure_schema` 升级为完整字段契约（类型 / 长度 / 字符集 / 可空性 / 默认值 / 自增 + 索引全列序与唯一性），自持 `_norm_default` | P1-04 |
+> | 槽位护栏重写：`scan_migration_slots` 返回 `slot → [files]`，`assert_slot_ok` 四条断言**落盘前后都成立** | P1-05 |
+> | `_classify_subpartitions` 增加第三条件"候选自身不在 Proxy 结果中" | P2-01 |
+> | 历史抽屉告警改为 `computed` + 总数提示 + 展开全部（A.5.4 / A.5.5） | P2-02 |
+> | `runTableTypeStats` 按 failed/skipped 分流 success / warning / error 提示 | P2-03 |
+> | A.4 模块头如实列出离线 73 / 元数据库 10 / 需落盘 1 | DOC-01 |
 
-### A.1 `backend/services/table_type_stats_service.py`（新增，834 行）
+### A.1 `backend/services/table_type_stats_service.py`（新增，1116 行）
 
 ```python
 # -*- coding: utf-8 -*-
-"""G14 · 表类型统计（深度诊断子模块，DESIGN-v1.6.3.0 Rev.G）
+"""G14 · 表类型统计（深度诊断子模块，DESIGN-v1.6.3.0 Rev.J）
 
 按 TDSQL 原厂口径统计单个实例下各业务库的表类型分布：
 
@@ -1738,7 +1848,18 @@ Query OK, 0 rows affected (0.001 sec)
     本模块把子分区表从基线中剔除并单列计数，剔除后逻辑基线 215 与 Proxy 口径【精确相等】。
     故不得用未剔除的基线与 Proxy 口径比对（会产生 27% 的常态误报）。
 
-Rev.G（O 评审整改）要点：
+Rev.J（O 第二轮评审整改）要点：
+  · 库名不再无条件小写：`Sales` 与 `sales` 在 lower_case_table_names=0 下是
+    两个不同 schema，单值 lower 字典会把它们合并成一个（P1-01）。改用 _NameSpace：
+    精确优先、CI 回退仅在候选唯一时生效、歧义显式报 DB_NAME_AMBIGUOUS。
+  · 180 秒预算由 run_stats 统一建立并贯穿 SHOW DATABASES / 基线查询 / 每一条
+    Proxy 命令；可证明墙钟上界 = 180 + 30 = 210 秒（P1-02）。
+  · 失败/跳过库的基线、子分区、重叠一律不进实例级汇总——先定状态再算汇总（P1-03）。
+  · 结构验收升级为完整字段契约：类型 + 长度 + 字符集 + 可空性 + 默认值 + 自增
+    + 索引全列序与唯一性（P1-04）。
+  · 物理子表判定增加第三个条件：候选自身不得出现在 Proxy 结果中（P2-01）。
+
+Rev.G（O 首轮评审整改）要点：
   · 取消"指纹相同即提前停止"——两库指纹相同只证明结果与当前默认库无关，
     不证明已覆盖全部目标库（P1-01）。改为无条件逐库执行，正确性优先。
   · 二级分区物理子表的识别：仅对分布式生效，且要求"逻辑父表确实出现在
@@ -1804,7 +1925,15 @@ _SYS_DB = frozenset({
 MAX_DATABASES = 500           # 库数护栏。超出即截断并显式告警（绝不静默少算）
 MAX_DIFF_SAMPLE = 20          # 差集样本上限，防止 detail 撑爆 VARCHAR(512)
 COMMAND_READ_TIMEOUT = 30     # 临时池单条命令读超时（秒）。防命令挂起（RISK-F）
-TOTAL_BUDGET_SECONDS = 180    # 采集总时长预算。超出即停并把剩余库标 SKIPPED
+# 采集总时长预算：到期后【不再启动任何新的查询】，剩余库标 SKIPPED。
+# Rev.J / P1-02 说清楚它的确切语义——它是"不再开新命令"的截止线，不是墙钟上界。
+# 已经发出的最后一条命令仍可能跑满自己的读超时，故可证明的最坏墙钟上界为：
+#     TOTAL_BUDGET_SECONDS + COMMAND_READ_TIMEOUT = 210 秒
+# （基线查询走共享池，其 read_timeout 默认 10s，且同样在 deadline 之前才发起，
+#  故不改变这个上界。）Rev.I 只在每个库开始时查一次预算，单库三条命令
+# 最坏 3×30s，179 秒进库能跑到 269 秒——那个"180 秒"的承诺是不成立的。
+TOTAL_BUDGET_SECONDS = 180
+MAX_WALL_SECONDS = TOTAL_BUDGET_SECONDS + COMMAND_READ_TIMEOUT   # 可证明上界
 
 # 表名列识别规则（§6.3）。自上而下，命中即停。
 # db_table 为 2026-08-29 内网实测确认的真实列名（附录 B）。
@@ -1834,11 +1963,71 @@ _SYNTAX_ERRNO = 1064
 
 # 可测性钩子：单测用 monkeypatch 注入 FakePool（§11）。生产恒为真实连接池。
 _new_pool = TDSQLConnectionPool
+# 可测性钩子（Rev.J / P1-02）：单测用可控时钟驱动 deadline，
+# 让"命令各耗多少秒、什么时候不再启动新命令"成为可断言的事实，而不是靠 sleep 碰运气。
+# 生产恒为 time.monotonic。第二处、也是最后一处为可测性做的让步，成本 1 行。
+_now = time.monotonic
 
 
 # ══════════════════════════════════════════════════════════════════
 # 小工具
 # ══════════════════════════════════════════════════════════════════
+class _BudgetExceeded(RuntimeError):
+    """总时长预算耗尽（Rev.J / P1-02）。内部信号，不外泄给调用方。"""
+
+
+class _NameSpace:
+    """库名命名空间：精确优先，大小写不敏感回退【仅在候选唯一时】生效。
+
+    Rev.J / P1-01：Rev.I 用的是 `{name.lower(): name}` 单值字典。
+    在 `lower_case_table_names=0` 的 Linux/TDSQL 上，`Sales` 与 `sales` 是
+    两个不同的 schema——单值字典会让后者覆盖前者，于是：
+      · 两个库的 information_schema 基线被归进同一个键；
+      · Proxy 行被归给字典里最后那个库；
+      · 另一个库显示 0，或者产生虚假的 RECON_MISMATCH。
+    这是四个主数字的**静默**正确性问题，不能靠告警兜底。
+
+    本类把"一对多"如实表示出来：
+      resolve("sales")  → 精确命中 → "sales"
+      resolve("SALES")  → 无精确命中；小写候选若唯一则用之，若有多个 → None（歧义）
+    歧义返回 None，由调用方显式记一条 DB_NAME_AMBIGUOUS 告警——
+    **把不可判定的情况变成可见的，而不是替使用者猜一个。**
+    """
+
+    __slots__ = ("_exact", "_ci")
+
+    def __init__(self, names):
+        self._exact = set()
+        self._ci = {}
+        for n in names:
+            n = str(n)
+            self._exact.add(n)
+            self._ci.setdefault(n.lower(), []).append(n)
+
+    def __contains__(self, name) -> bool:
+        return str(name) in self._exact
+
+    def __len__(self) -> int:
+        return len(self._exact)
+
+    def resolve(self, name):
+        """返回 canonical 名；无法唯一确定时返回 None。"""
+        s = str(name)
+        if s in self._exact:
+            return s
+        cands = self._ci.get(s.lower(), ())
+        return cands[0] if len(cands) == 1 else None
+
+    def is_ambiguous(self, name) -> bool:
+        """名字本身不精确存在，且大小写候选有多个。"""
+        s = str(name)
+        return s not in self._exact and len(self._ci.get(s.lower(), ())) > 1
+
+    def variants(self, name) -> list:
+        """与 name 仅大小写不同的全部真实库名（含自身）。"""
+        return sorted(self._ci.get(str(name).lower(), ()))
+
+
 def _errno_of(exc: BaseException) -> Optional[int]:
     """提取数据库 errno，沿 __cause__ 链上溯一层。"""
     for e in (exc, getattr(exc, "__cause__", None)):
@@ -1894,29 +2083,40 @@ def _pick_name_column(columns: list):
     return columns[0], True          # 兜底：取第一列，并标记形态未知
 
 
-def _split_qualified(raw, current_db: str, known_dbs: set):
-    """把 db_table 值拆成 (库名, 表名)。
+def _split_qualified(raw, current_db: str, known: "_NameSpace"):
+    """把 db_table 值拆成 (库名, 表名, 是否歧义)。
 
     实测形态为 `sqltuning.t_max`。仅当点号左侧确为一个【已知库名】时才拆分，
     否则整体视为当前库下的表名——避免把含点号的表名误拆后被过滤掉（少算）。
+
+    Rev.J / P1-01：库名比对交给 _NameSpace——精确优先，大小写回退仅在候选唯一时生效。
+    左侧命中了某个库名的小写形式、但真实存在多个大小写变体时，**无法判定归属**，
+    此时回 (current_db, 原串, True)：不猜、不丢，由调用方记 DB_NAME_AMBIGUOUS。
     """
     s = str(raw if raw is not None else "").strip()
     if not s:
-        return current_db, ""
+        return current_db, "", False
     if "." in s:
         head, tail = s.split(".", 1)
         head = head.strip().strip("`").strip()
         tail = tail.strip().strip("`").strip()
-        if head and tail and head.lower() in known_dbs:
-            return head, tail
-    return current_db, s.strip("`").strip()
+        if head and tail:
+            owner = known.resolve(head)
+            if owner is not None:
+                return owner, tail, False
+            if known.is_ambiguous(head):
+                return current_db, s.strip("`").strip(), True
+    return current_db, s.strip("`").strip(), False
 
 
-def _extract_pairs(rows, current_db: str, known_dbs: set):
-    """提取 {(库名, 表名)}。返回 (集合, 实际列名, 形态是否未知, 是否含跨库行)。"""
+def _extract_pairs(rows, current_db: str, known: "_NameSpace"):
+    """提取 {(库名, 表名)}。
+
+    返回 (集合, 实际列名, 形态是否未知, 是否含跨库行, 歧义库名样本)。
+    """
     rows = rows or []
     if not rows:
-        return set(), [], False, False
+        return set(), [], False, False, set()
     first = rows[0]
     if isinstance(first, dict):
         columns = list(first.keys())
@@ -1925,15 +2125,18 @@ def _extract_pairs(rows, current_db: str, known_dbs: set):
     else:
         columns, guessed = [], False
         values = [(r[0] if r else None) for r in rows]
-    pairs, cross = set(), False
+    pairs, cross, ambiguous = set(), False, set()
     for v in values:
-        qual, name = _split_qualified(v, current_db, known_dbs)
+        qual, name, amb = _split_qualified(v, current_db, known)
         if not name:
             continue
+        if amb:
+            ambiguous.add(str(v))
+            continue          # 归属不可判定：不猜、不误计，由告警显式报出
         pairs.add((qual, name))
-        if qual.lower() != current_db.lower():
+        if qual != current_db:
             cross = True
-    return pairs, [str(c) for c in columns], guessed, cross
+    return pairs, [str(c) for c in columns], guessed, cross, ambiguous
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -1981,13 +2184,14 @@ def _collect_baseline(pool, dbs: list) -> dict:
         "SELECT TABLE_SCHEMA, TABLE_NAME, TABLE_TYPE "
         "FROM information_schema.TABLES "
         f"WHERE TABLE_SCHEMA IN ({placeholders})", tuple(dbs)) or []
-    wanted = {d.lower(): d for d in dbs}
+    # Rev.J / P1-01：精确优先、CI 回退仅在唯一时生效，绝不用单值 lower 字典
+    wanted = _NameSpace(dbs)
     for r in rows:
         if not isinstance(r, dict):
             continue
         schema = str(r.get("TABLE_SCHEMA") or r.get("table_schema") or "").strip()
-        key = wanted.get(schema.lower())
-        if not key:
+        key = wanted.resolve(schema)
+        if key is None:
             continue
         name = str(r.get("TABLE_NAME") or r.get("table_name") or "").strip()
         if not name:
@@ -2001,18 +2205,30 @@ def _collect_baseline(pool, dbs: list) -> dict:
 
 
 def _classify_subpartitions(base: set, proxy_tables: set) -> tuple:
-    """把 BASE TABLE 名单拆成 (逻辑表, 二级分区物理子表)。Rev.G / P1-03。
+    """把 BASE TABLE 名单拆成 (逻辑表, 二级分区物理子表)。
 
-    判定为子表需【同时】满足：
-      1) 名字匹配 <父表>_tdsql_subp<数字>；
-      2) 父表确实出现在本库的 Proxy 结果里（proxy_tables）。
-    只满足 1) 不满足 2) 的表保留为逻辑表——宁可让 RECON_MISMATCH 把它显式报出来，
-    也不静默少算。集中式分支传入 proxy_tables=空集，等价于"一律不剔除"。
+    判定为子表需【同时】满足三条：
+      1) 名字匹配 `<父表>_tdsql_subp<数字>`；
+      2) 父表确实出现在本库的 Proxy 结果里（Rev.G / P1-03）；
+      3) **候选自身不在 Proxy 结果里**（Rev.J / P2-01）。
+
+    第 3 条是 Rev.J 补的，理由很硬：**真正的物理子表根本不会被
+    `/*proxy*/show table` 返回**——Proxy 只认逻辑表。所以"它自己也在 Proxy 结果里"
+    就直接证伪了"它是物理子表"。少了这一条，一对合法的业务表
+    `orders` 与 `orders_tdsql_subp202601`（两者都是真逻辑表、都在 Proxy 结果中）
+    会让后者被错判成子分区：页面的「二级分区子表」多算一张，
+    逻辑基线少算一张，还会凭空冒出一条"仅 Proxy 可见"的 RECON_MISMATCH。
+
+    只满足 1) 不满足 2)/3) 的表一律保留为逻辑表——宁可让 RECON_MISMATCH
+    把它显式报出来，也不静默少算。集中式分支传入 proxy_tables=空集，
+    第 2 条恒不成立，等价于"一律不剔除"。
     """
     subp = set()
     for name in base:
+        if name in proxy_tables:
+            continue                                  # 条件 3：Proxy 认它是逻辑表
         m = _SUBPARTITION_RE.match(name)
-        if m and m.group("parent") in proxy_tables:
+        if m and m.group("parent") in proxy_tables:    # 条件 1 + 2
             subp.add(name)
     return base - subp, subp
 
@@ -2047,18 +2263,24 @@ def _collect_centralized(dbs: list, baseline: dict):
     return items, [], {}, totals
 
 
-def _collect_distributed(pool, dbs: list, baseline: dict, known_dbs: set):
+def _collect_distributed(pool, dbs: list, baseline: dict, known: "_NameSpace",
+                        deadline: float):
     """分布式：逐业务库执行三条 /*proxy*/ 命令，按【库限定名】归属去重。
 
-    Rev.G 相对 Rev.F 的三处结构性变化：
+    Rev.G 的三处结构性变化（保留）：
       P1-01  取消"指纹相同即提前停止"——两库指纹相同只证明结果与当前默认库无关，
-             不能证明已覆盖全部目标库（账号可见范围、路由域、租户切分都可能造成
-             指纹相同而集合不完整）。改为**无条件逐库执行**。
+             不能证明已覆盖全部目标库。改为**无条件逐库执行**。
       P1-04  **每库一个连接上下文**。异常一律穿出 with，由
              TDSQLConnectionPool.get_connection() 关闭并重建线程本地连接后再抛出，
              外层逐库捕获后继续下一库——坏连接不会被后续库复用。
-      P1-05  单库三条命令先写入**暂存区**，三条全部成功才原子合入全局；
-             任一失败即整库丢弃，失败库不会污染其他库的计数、重叠数与基线比对。
+      P1-05  单库三条命令先写入**暂存区**，三条全部成功才原子合入全局。
+
+    Rev.J 新增：
+      P1-01  库名归属交给 _NameSpace（精确优先 / CI 回退仅在唯一时），
+             歧义行不猜归属，记 DB_NAME_AMBIGUOUS。
+      P1-02  deadline 由 analyze 统一建立并传入，**每条命令开始前**都检查，
+             不再是"每库检查一次"——把最坏超出从 3×30s 压到 1×30s。
+      P1-03  失败/跳过库的**任何**数据都不进实例级汇总（含基线、子分区、重叠）。
     """
     items, warnings, shape = [], [], {}
     totals = {"shard": 0, "broadcast": 0, "single": 0, "total": 0,
@@ -2066,8 +2288,7 @@ def _collect_distributed(pool, dbs: list, baseline: dict, known_dbs: set):
     if not dbs:
         return items, warnings, shape, totals
 
-    target = {d.lower() for d in dbs}
-    canon = {d.lower(): d for d in dbs}
+    target = _NameSpace(dbs)
     kind_map = {}          # (db, table) -> kind
     kinds_seen = {}        # (db, table) -> {kind, ...}
     failed, skipped = {}, {}
@@ -2075,14 +2296,14 @@ def _collect_distributed(pool, dbs: list, baseline: dict, known_dbs: set):
     instance_wide = False
     syntax_errors = 0
     scanned = 0
-    started = time.monotonic()
+    ambiguous_samples = set()
 
     cfg = dataclasses.replace(pool.config, database=dbs[0],
                               read_timeout=COMMAND_READ_TIMEOUT)
     tmp = _new_pool(cfg, pool_size=1)
     try:
         for db in dbs:
-            if time.monotonic() - started > TOTAL_BUDGET_SECONDS:
+            if _now() >= deadline:
                 skipped[db] = "budget"
                 continue
             scanned += 1
@@ -2091,24 +2312,36 @@ def _collect_distributed(pool, dbs: list, baseline: dict, known_dbs: set):
             staged_cols = {}     # kind -> 实际列名
             staged_guessed = False
             staged_cross = False
+            staged_amb = set()
             try:
                 # P1-04：每库独立上下文；异常穿出即触发连接重建
                 with tmp.get_connection() as conn:
                     conn.select_db(db)
                     for kind, sql in _KIND_SQL:
+                        # P1-02：每条命令开始前再查一次 deadline。
+                        # 单库三条命令最坏 3×30s=90s，只在库开始时查一次的话，
+                        # 179 秒进库就能跑到 269 秒——远超"180 秒"的承诺。
+                        if _now() >= deadline:
+                            raise _BudgetExceeded()
                         with conn.cursor() as cur:
                             cur.execute(sql)
                             rows = cur.fetchall()
                         # rows 可能是 OK 包（某类为空时 TDSQL 返回
                         # `Query OK, 0 rows affected`）——此时 fetchall() 为 []
                         # 且无列元数据，_extract_pairs 按 0 张处理，不是错误。
-                        pairs, columns, guessed, cross = _extract_pairs(
-                            rows, db, known_dbs)
+                        pairs, columns, guessed, cross, amb = _extract_pairs(
+                            rows, db, known)
                         staged[kind] = pairs
                         if columns:
                             staged_cols[kind] = columns
                         staged_guessed = staged_guessed or guessed
                         staged_cross = staged_cross or cross
+                        staged_amb |= amb
+            except _BudgetExceeded:
+                # 预算在本库中途耗尽：本库【未采完】，按 SKIPPED 处理而不是 FAILED
+                # ——"没来得及测"与"测了但错了"处置动作不同（ADR-14）。
+                skipped[db] = "budget"
+                continue
             except Exception as e:                           # noqa: BLE001
                 detail = f"{db} 采集失败: {_err(e)}"
                 if _errno_of(e) == _SYNTAX_ERRNO:
@@ -2123,6 +2356,7 @@ def _collect_distributed(pool, dbs: list, baseline: dict, known_dbs: set):
                 shape.setdefault(kind, cols)
             if staged_cross:
                 instance_wide = True
+            ambiguous_samples |= staged_amb
             if staged_guessed and not shape_reported:
                 shape_reported = True
                 warnings.append(_warn(
@@ -2130,10 +2364,9 @@ def _collect_distributed(pool, dbs: list, baseline: dict, known_dbs: set):
                     f"未能识别表名列，已退化为取第一列；实际列名: {staged_cols}"))
             for kind, _sql in _KIND_SQL:
                 for qual, name in staged.get(kind, ()):
-                    low = qual.lower()
-                    if low not in target:
-                        continue              # 非目标库（系统库/被筛掉的库）
-                    owner = canon[low]
+                    owner = target.resolve(qual)
+                    if owner is None:
+                        continue              # 非目标库（系统库/被筛掉的库/歧义）
                     if name in baseline.get(owner, {}).get("view", ()):
                         continue              # 原厂口径：不统计视图
                     key = (owner, name)
@@ -2149,22 +2382,34 @@ def _collect_distributed(pool, dbs: list, baseline: dict, known_dbs: set):
             logger.debug("临时连接池关闭失败（忽略）", exc_info=True)
 
     # ── 组装逐库结果 ──────────────────────────────────────────────
+    #
+    # Rev.J / P1-03：**先定状态，再算汇总。**
+    # Rev.I 把 baseline / subp 的累加写在状态判断【之前】，overlap 又是对整个
+    # kinds_seen 求和——于是：
+    #   · 失败库的基线、子分区照样进实例级汇总；
+    #   · 某个成功库的实例级返回里携带的失败库行，会让 overlap_count 被加 1；
+    #   · 极端情况（全部 SKIPPED）下 total_tables=0 而 baseline_tables 仍是全库合计。
+    # 这与接口文案和 W1 告警里"未计入任何汇总数"直接矛盾。
+    # 现在先算出 eligible（既未失败也未跳过的库），所有实例级汇总一律按 owner 过滤。
+    eligible = _NameSpace([d for d in dbs if d not in failed and d not in skipped])
     per_db = {d: {KIND_SHARD: 0, KIND_BROADCAST: 0, KIND_SINGLE: 0} for d in dbs}
     for (d, _t), kind in kind_map.items():
         per_db[d][kind] += 1
-    overlap_total = sum(len(v) - 1 for v in kinds_seen.values() if len(v) > 1)
+    overlap_total = sum(len(v) - 1 for k, v in kinds_seen.items()
+                        if len(v) > 1 and k[0] in eligible)
     recon = []                 # [(db, 仅Proxy可见数, 仅基线可见数)]
 
     for db in dbs:
         item = _blank_item(db)
         proxy_tables = {t for (d, t) in kind_map if d == db}
         raw_base = baseline.get(db, {}).get("base", set())
-        # P1-03：结合 Proxy 结果做子表判定（父表必须在 Proxy 结果里）
+        # P1-03（首轮）：结合 Proxy 结果做子表判定（父表必须在 Proxy 结果里）
         logical_base, subp = _classify_subpartitions(raw_base, proxy_tables)
+        # 逐库行如实显示基线与子分区（information_schema 那一侧确实查成功了），
+        # 但**只有 eligible 库计入实例级汇总**，否则 total 与 baseline 覆盖的
+        # 库集合不同，两个数并排放就失去了互相印证的意义。
         item["baseline_tables"] = len(logical_base)
         item["subpartition_tables"] = len(subp)
-        totals["baseline"] += len(logical_base)
-        totals["subp"] += len(subp)
 
         if db in failed:
             item["status"] = "FAILED"
@@ -2179,6 +2424,8 @@ def _collect_distributed(pool, dbs: list, baseline: dict, known_dbs: set):
             items.append(item)
             continue
 
+        totals["baseline"] += len(logical_base)
+        totals["subp"] += len(subp)
         c = per_db[db]
         item["shard_tables"] = c[KIND_SHARD]
         item["broadcast_tables"] = c[KIND_BROADCAST]
@@ -2212,6 +2459,13 @@ def _collect_distributed(pool, dbs: list, baseline: dict, known_dbs: set):
             "PROXY_CMD_FAILED", "ERROR", "",
             f"{len(failed)} 个库采集失败，未计入任何汇总数（{names}）；"
             f"逐库失败原因见各行「说明」"))
+    if ambiguous_samples:
+        warnings.append(_warn(
+            "DB_NAME_AMBIGUOUS", "ERROR", "",
+            f"{len(ambiguous_samples)} 行的库限定名无法唯一归属"
+            f"（实例上存在仅大小写不同的同名库）：{_diff_sample(ambiguous_samples)}。"
+            f"这些行**未计入任何库**——归属靠猜会把两个真实的库算成一个，"
+            f"宁可少算并显式报出。请用「库名」输入框逐库精确统计"))
     if overlap_total:
         warnings.append(_warn(
             "KIND_OVERLAP", "WARNING", "",
@@ -2259,25 +2513,44 @@ def _collect_distributed(pool, dbs: list, baseline: dict, known_dbs: set):
 # ══════════════════════════════════════════════════════════════════
 # 对外
 # ══════════════════════════════════════════════════════════════════
-def analyze(pool, connection_id: str = "", database: str = "") -> dict:
+def analyze(pool, connection_id: str = "", database: str = "",
+            deadline: float = None) -> dict:
+    """执行一次统计（只读，不落库）。
+
+    Rev.J / P1-02：`deadline` 是**整个采集过程**的统一 monotonic 截止线，
+    由 run_stats 在拿到并发槽位之后、任何目标实例查询之前建立。
+    Rev.I 的计时器直到 `_collect_distributed` 内部才启动，
+    `SHOW DATABASES` 与全量基线查询（设计自己承认这才是耗时大头）根本不在预算内。
+    """
     from backend.models import InstanceType
     from backend.services.instance_type_service import instance_type_service
+
+    if deadline is None:
+        deadline = _now() + TOTAL_BUDGET_SECONDS
 
     ctx = instance_type_service.resolve(connection_id)
     is_dist = ctx.instance_type == InstanceType.DISTRIBUTED
     source = getattr(ctx.source, "value", str(ctx.source))
 
     warnings = []
+    # Rev.J / P1-02：库枚举也在预算内。它走共享池（read_timeout 默认 10s）。
+    if _now() >= deadline:
+        raise TimeoutError(
+            f"采集总时长预算 {TOTAL_BUDGET_SECONDS}s 在枚举数据库前即已耗尽")
     # Rev.G / P2-01：库枚举失败不得静默按空库处理——集中式分支查不到行与库不存在
     # 在结果上无法区分，会得到"状态 OK、总数 0"的假成功。枚举失败一律抛出。
     business, truncated, allnames = list_business_databases(pool)
-    known_dbs = {n.lower() for n in allnames}
+    known = _NameSpace(allnames)
     if database:
-        # Rev.G / P2-01：指定库必须真实存在且当前账号可见
-        if database.lower() not in known_dbs:
+        # Rev.G / P2-01 + Rev.J / P1-01：指定库必须【精确】存在。
+        # 大小写不同的库在 lower_case_table_names=0 下是两个不同的 schema，
+        # 用小写去撞会把"不存在"判成"存在"，随后在 select_db 处才失败。
+        if database not in known:
+            variants = known.variants(database)
+            hint = f"；实例上存在大小写不同的同名库: {', '.join(variants)}" if variants else ""
             raise ValueError(
                 f"数据库不存在或当前账号不可见: {database}"
-                f"（SHOW DATABASES 未返回该库）")
+                f"（SHOW DATABASES 未返回该库）{hint}")
         dbs = [database]
     else:
         dbs = business
@@ -2299,10 +2572,24 @@ def analyze(pool, connection_id: str = "", database: str = "") -> dict:
             f"当前按「{'分布式' if is_dist else '集中式'}」口径统计；"
             f"若口径不符，请在实例管理页锁定实例类型后重跑"))
 
+    # Rev.J / P1-01：同名不同大小写的业务库如实报出——它们是两个库，不是一个。
+    dupes = sorted({d.lower() for d in dbs if len(known.variants(d)) > 1})
+    if dupes:
+        warnings.append(_warn(
+            "DB_NAME_CASE_VARIANTS", "WARNING", "",
+            f"实例上存在 {len(dupes)} 组仅大小写不同的同名库"
+            f"（{', '.join(known.variants(d)[0] for d in dupes[:5])} …）。"
+            f"本模块按精确名分别统计；若 Proxy 返回的库限定名无法唯一归属，"
+            f"该行会被记入 DB_NAME_AMBIGUOUS 而不是被猜给其中一个"))
+
+    # Rev.J / P1-02：基线查询是耗时大头，必须在预算内
+    if _now() >= deadline:
+        raise TimeoutError(
+            f"采集总时长预算 {TOTAL_BUDGET_SECONDS}s 在查询 information_schema 前即已耗尽")
     baseline = _collect_baseline(pool, dbs)
     if is_dist:
         items, warns, shape, totals = _collect_distributed(
-            pool, dbs, baseline, known_dbs)
+            pool, dbs, baseline, known, deadline)
     else:
         items, warns, shape, totals = _collect_centralized(dbs, baseline)
     warnings.extend(warns)
@@ -2327,7 +2614,7 @@ def analyze(pool, connection_id: str = "", database: str = "") -> dict:
     }
 
 
-# 落库表的期望结构（与 backend/schema/v13/130_table_type_stats.sql 逐字对应）。
+# 落库表的**完整字段契约**（与 backend/schema/v13/130_table_type_stats.sql 逐字对应）。
 #
 # Rev.G / P1-08：迁移器只对 `ALTER TABLE ... ADD COLUMN` 做列级验收
 # （backend/schema/migrator.py:45-48 的 _ADD_COLUMN_RE），纯 CREATE TABLE 语句
@@ -2339,52 +2626,73 @@ def analyze(pool, connection_id: str = "", database: str = "") -> dict:
 # 迁移登记之后若表被人工删除或结构漂移，_structure_state() 同样返回 valid，
 # 不会重放。故本模块自行做一次确定性结构验收，且放在【采集之前】。
 #
-# 口径说明：类型用 information_schema.COLUMNS.DATA_TYPE（'int' / 'varchar' /
-# 'mediumtext' / 'datetime'），不用 COLUMN_TYPE——后者在不同发行版上带显示宽度
-# （int(11) vs int），会产生与结构无关的误报。
-_STAT_COLUMNS = (
-    "id", "connection_id", "database_filter", "instance_type", "type_source",
-    "database_count", "total_tables", "shard_tables", "broadcast_tables",
-    "single_tables", "baseline_tables", "subpartition_tables",
-    "failed_databases", "skipped_databases", "overlap_count",
-    "warnings_json", "created_by", "created_at",
-)
-_ITEM_COLUMNS = (
-    "id", "stat_id", "db_name", "total_tables", "shard_tables",
-    "broadcast_tables", "single_tables", "baseline_tables",
-    "subpartition_tables", "status", "detail", "created_at",
-)
-
-# 关键列的期望 DATA_TYPE。只钉住"错了就会算错或存不下"的列：
-# 计数列必须是整型（varchar 会让 SUM/排序失真），warnings_json 必须是
-# mediumtext（TEXT 在 500 库失败时会截断，正是 P1-07 的成因）。
-_STAT_COL_TYPES = {
-    "id": "int", "connection_id": "varchar", "database_filter": "varchar",
-    "instance_type": "varchar", "type_source": "varchar",
-    "database_count": "int", "total_tables": "int", "shard_tables": "int",
-    "broadcast_tables": "int", "single_tables": "int",
-    "baseline_tables": "int", "subpartition_tables": "int",
-    "failed_databases": "int", "skipped_databases": "int",
-    "overlap_count": "int", "warnings_json": "mediumtext",
-    "created_by": "varchar", "created_at": "datetime",
+# Rev.J / P1-04：Rev.I 只比 DATA_TYPE，仍留着一整排"采集完才失败"的路径：
+#   · detail 被收窄成 VARCHAR(16)  → 500 库采完才在 INSERT 撞 1406；
+#   · id 没有 AUTO_INCREMENT       → 第一条可能写进去，第二条撞主键；
+#   · created_at 没有默认值        → 严格模式下 INSERT 直接失败；
+#   · stat_id 可空 / 字符集非 utf8mb4 → 中文 detail 撞 1366。
+# KL-15 当时以"COLUMN_TYPE 带显示宽度、跨发行版不一致"为由放弃长度校验——
+# 那个理由只对**整型**成立（int(11) vs int），对 varchar 长度并不成立。
+# 现在按字段分工取值，两边都拿到确定性：
+#   整型  → DATA_TYPE（无显示宽度）
+#   字符  → DATA_TYPE + CHARACTER_MAXIMUM_LENGTH + CHARACTER_SET_NAME
+#   共通  → IS_NULLABLE、COLUMN_DEFAULT（归一化后比较）、EXTRA（自增）
+#
+# 契约元组：(DATA_TYPE, 长度或 None, 是否可空, 归一化默认值, 是否自增)
+_COL = lambda t, ln, null, dflt, ai=False: (t, ln, null, dflt, ai)
+_STAT_CONTRACT = {
+    "id":                  _COL("int", None, False, None, True),
+    "connection_id":       _COL("varchar", 64, True, ""),
+    "database_filter":     _COL("varchar", 128, True, ""),
+    "instance_type":       _COL("varchar", 32, True, ""),
+    "type_source":         _COL("varchar", 32, True, ""),
+    "database_count":      _COL("int", None, True, "0"),
+    "total_tables":        _COL("int", None, True, "0"),
+    "shard_tables":        _COL("int", None, True, "0"),
+    "broadcast_tables":    _COL("int", None, True, "0"),
+    "single_tables":       _COL("int", None, True, "0"),
+    "baseline_tables":     _COL("int", None, True, "0"),
+    "subpartition_tables": _COL("int", None, True, "0"),
+    "failed_databases":    _COL("int", None, True, "0"),
+    "skipped_databases":   _COL("int", None, True, "0"),
+    "overlap_count":       _COL("int", None, True, "0"),
+    "warnings_json":       _COL("mediumtext", None, True, None),
+    "created_by":          _COL("varchar", 64, True, ""),
+    "created_at":          _COL("datetime", None, True, "CURRENT_TIMESTAMP"),
 }
-_ITEM_COL_TYPES = {
-    "id": "int", "stat_id": "int", "db_name": "varchar",
-    "total_tables": "int", "shard_tables": "int", "broadcast_tables": "int",
-    "single_tables": "int", "baseline_tables": "int",
-    "subpartition_tables": "int", "status": "varchar",
-    "detail": "varchar", "created_at": "datetime",
+_ITEM_CONTRACT = {
+    "id":                  _COL("int", None, False, None, True),
+    "stat_id":             _COL("int", None, False, None),
+    "db_name":             _COL("varchar", 128, True, ""),
+    "total_tables":        _COL("int", None, True, "0"),
+    "shard_tables":        _COL("int", None, True, "0"),
+    "broadcast_tables":    _COL("int", None, True, "0"),
+    "single_tables":       _COL("int", None, True, "0"),
+    "baseline_tables":     _COL("int", None, True, "0"),
+    "subpartition_tables": _COL("int", None, True, "0"),
+    "status":              _COL("varchar", 16, True, "OK"),
+    "detail":              _COL("varchar", 512, True, ""),
+    "created_at":          _COL("datetime", None, True, "CURRENT_TIMESTAMP"),
 }
+# INSERT 用的列清单（顺序即 SQL 里的书写顺序，单测钉住二者一致）
+_STAT_COLUMNS = tuple(_STAT_CONTRACT)
+_ITEM_COLUMNS = tuple(_ITEM_CONTRACT)
 
-# 期望索引：名字 → 首列。缺索引不会算错，但会让 /history 在留档积累后全表扫描。
-_STAT_INDEXES = {"PRIMARY": "id", "idx_tts_conn": "connection_id",
-                 "idx_tts_created": "created_at"}
-_ITEM_INDEXES = {"PRIMARY": "id", "idx_ttsi": "stat_id"}
+# 期望索引：名字 → (列序元组, 是否唯一)。PRIMARY 天然唯一。
+_STAT_INDEXES = {"PRIMARY": (("id",), True),
+                 "idx_tts_conn": (("connection_id",), False),
+                 "idx_tts_created": (("created_at",), False)}
+_ITEM_INDEXES = {"PRIMARY": (("id",), True),
+                 "idx_ttsi": (("stat_id",), False)}
 
 _SCHEMA_SPEC = (
-    ("table_type_stat", _STAT_COLUMNS, _STAT_COL_TYPES, _STAT_INDEXES),
-    ("table_type_stat_item", _ITEM_COLUMNS, _ITEM_COL_TYPES, _ITEM_INDEXES),
+    ("table_type_stat", _STAT_CONTRACT, _STAT_INDEXES),
+    ("table_type_stat_item", _ITEM_CONTRACT, _ITEM_INDEXES),
 )
+
+# 字符列必须是 utf8mb4：latin1/utf8mb3 会让中文 detail 在 INSERT 处撞 1366，
+# 又是一条"采集完才失败"的路径。
+_EXPECTED_CHARSET = "utf8mb4"
 
 
 def _row_get(row, *keys):
@@ -2397,12 +2705,71 @@ def _row_get(row, *keys):
     return None
 
 
+def _norm_default(value):
+    """把 COLUMN_DEFAULT 归一化成可比较文本。
+
+    MariaDB 给字符串默认值加引号返回（'' → "''"），MySQL 8 返回原值；
+    CURRENT_TIMESTAMP 的大小写与括号形态也不定。剥一层成对引号 + 关键字归一。
+    注意：**不做 0/1 → FALSE/TRUE 的布尔归一**（migrator._normalize_default 做了那个，
+    那是为布尔列服务的），本模块的计数列默认值就是字面量 "0"，混淆会掩盖真实漂移。
+    """
+    if value is None:
+        return None
+    v = str(value).strip()
+    if len(v) >= 2 and v[0] == v[-1] and v[0] in ("'", '"'):
+        v = v[1:-1]
+    vu = v.upper().rstrip("()")
+    if vu in ("CURRENT_TIMESTAMP", "NOW"):
+        return "CURRENT_TIMESTAMP"
+    if vu == "NULL":
+        # MariaDB 对"可空且无默认值"的列返回字面量 'NULL'，MySQL 8 返回 SQL NULL。
+        # 两系归一为 Python None（MySQL 侧为无操作）。本模块没有任何一列
+        # 的默认值是字符串 'NULL'，故不存在误归一。
+        return None
+    return v
+
+
 class SchemaNotReadyError(RuntimeError):
-    """落库表结构验收失败（Rev.G / P1-08）。由 API 映射为 500 + 可执行提示。"""
+    """落库表结构验收失败（Rev.G / P1-08，Rev.J / P1-04 扩展为完整契约）。
+
+    由 API 映射为 500 + 可执行提示。
+    """
+
+
+def _check_column(table, col, spec, info, problems):
+    """逐列比对完整契约。info 为 information_schema.COLUMNS 的一行。"""
+    exp_type, exp_len, exp_null, exp_default, exp_ai = spec
+    dtype = str(_row_get(info, "DATA_TYPE") or "").lower()
+    if dtype != exp_type:
+        problems.append(f"{col} 类型不符（期望 {exp_type}，实际 {dtype}）")
+        return                       # 类型都不对，长度/默认值没有比的意义
+    if exp_len is not None:
+        actual_len = _row_get(info, "CHARACTER_MAXIMUM_LENGTH")
+        if actual_len is None or int(actual_len) != exp_len:
+            problems.append(
+                f"{col} 长度不符（期望 {exp_type}({exp_len})，实际 {actual_len}）")
+    if exp_type in ("varchar", "char", "text", "mediumtext", "longtext"):
+        cs = str(_row_get(info, "CHARACTER_SET_NAME") or "").lower()
+        if cs and cs != _EXPECTED_CHARSET:
+            problems.append(
+                f"{col} 字符集不符（期望 {_EXPECTED_CHARSET}，实际 {cs}）")
+    nullable = str(_row_get(info, "IS_NULLABLE") or "").upper() == "YES"
+    if nullable != exp_null:
+        problems.append(
+            f"{col} 可空性不符（期望 {'NULL' if exp_null else 'NOT NULL'}，"
+            f"实际 {'NULL' if nullable else 'NOT NULL'}）")
+    actual_default = _norm_default(_row_get(info, "COLUMN_DEFAULT"))
+    if actual_default != exp_default:
+        problems.append(
+            f"{col} 默认值不符（期望 {exp_default!r}，实际 {actual_default!r}）")
+    extra = str(_row_get(info, "EXTRA") or "").lower()
+    if exp_ai and "auto_increment" not in extra:
+        problems.append(
+            f"{col} 缺少 AUTO_INCREMENT——第一条可能写入成功，第二条即撞主键")
 
 
 def _ensure_schema() -> None:
-    """落库表结构验收：表存在 + 关键列 + 类型 + 索引，任一不符即失败关闭。
+    """落库表结构验收：表 + 全部列的完整契约 + 索引全列序，任一不符即失败关闭。
 
     放在 run_stats 入口而不是进程启动期，理由见设计 ADR-20：
     表类型统计是深度诊断下的只读诊断子模块，它的留档表有问题不应当让
@@ -2412,45 +2779,65 @@ def _ensure_schema() -> None:
     """
     conn = _get_connection()
     try:
-        for table, cols, types, indexes in _SCHEMA_SPEC:
+        for table, contract, indexes in _SCHEMA_SPEC:
             rows = conn.execute(
-                "SELECT COLUMN_NAME, DATA_TYPE FROM information_schema.COLUMNS "
+                "SELECT COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, "
+                "CHARACTER_SET_NAME, IS_NULLABLE, COLUMN_DEFAULT, EXTRA "
+                "FROM information_schema.COLUMNS "
                 "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?",
                 (table,)).fetchall()
-            actual = {str(_row_get(r, "COLUMN_NAME") or "").lower():
-                      str(_row_get(r, "DATA_TYPE") or "").lower() for r in rows}
+            actual = {str(_row_get(r, "COLUMN_NAME") or "").lower(): r for r in rows}
             if not actual:
                 raise SchemaNotReadyError(
                     f"元数据库缺少表 {table}：迁移 v13/130_table_type_stats.sql 未生效"
                     f"（可能是升级包未带该文件，或迁移已登记后表被人工删除——"
                     f"迁移器不会重放纯 CREATE TABLE 语句）。"
                     f"处置：确认该 .sql 已随版本部署，并手工执行其中的建表语句")
-            missing = [c for c in cols if c.lower() not in actual]
+            problems = []
+            missing = [c for c in contract if c.lower() not in actual]
             if missing:
                 raise SchemaNotReadyError(
                     f"元数据库表 {table} 缺少列: {', '.join(missing)}。"
                     f"该表很可能是同名历史残留——CREATE TABLE IF NOT EXISTS 会静默跳过，"
                     f"迁移仍登记成功。处置：核实该表无业务数据后删表重启，"
                     f"或按 130_table_type_stats.sql 补齐列")
-            bad = [f"{c}(期望 {t}，实际 {actual.get(c.lower())})"
-                   for c, t in types.items()
-                   if actual.get(c.lower()) and actual[c.lower()] != t]
-            if bad:
+            for col, spec in contract.items():
+                _check_column(table, col, spec, actual[col.lower()], problems)
+            if problems:
                 raise SchemaNotReadyError(
-                    f"元数据库表 {table} 列类型不符: {'; '.join(bad)}。"
-                    f"处置：按 130_table_type_stats.sql 的定义 ALTER 修正")
+                    f"元数据库表 {table} 结构与迁移 DDL 不符: {'; '.join(problems)}。"
+                    f"处置：按 130_table_type_stats.sql 的定义 ALTER 修正，"
+                    f"或核实无数据后删表重启")
             irows = conn.execute(
-                "SELECT INDEX_NAME, COLUMN_NAME FROM information_schema.STATISTICS "
-                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND SEQ_IN_INDEX = 1",
+                "SELECT INDEX_NAME, COLUMN_NAME, SEQ_IN_INDEX, NON_UNIQUE "
+                "FROM information_schema.STATISTICS "
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? "
+                "ORDER BY INDEX_NAME, SEQ_IN_INDEX",
                 (table,)).fetchall()
-            have = {str(_row_get(r, "INDEX_NAME") or "").lower():
-                    str(_row_get(r, "COLUMN_NAME") or "").lower() for r in irows}
-            lost = [f"{n}({c})" for n, c in indexes.items()
-                    if have.get(n.lower()) != c.lower()]
+            have = {}
+            for r in irows:
+                iname = str(_row_get(r, "INDEX_NAME") or "")
+                cols, uniq = have.setdefault(iname, ([], None))
+                cols.append(str(_row_get(r, "COLUMN_NAME") or "").lower())
+                if uniq is None:
+                    have[iname] = (cols, str(_row_get(r, "NON_UNIQUE")) in ("0", "False"))
+            lost = []
+            for name, (exp_cols, exp_uniq) in indexes.items():
+                got = have.get(name)
+                if got is None:
+                    lost.append(f"{name} 缺失")
+                    continue
+                got_cols, got_uniq = got
+                if tuple(got_cols) != tuple(c.lower() for c in exp_cols):
+                    lost.append(
+                        f"{name} 列序不符（期望 {exp_cols}，实际 {tuple(got_cols)}）")
+                elif got_uniq != exp_uniq:
+                    lost.append(
+                        f"{name} 唯一性不符（期望 {'UNIQUE' if exp_uniq else '非唯一'}）")
             if lost:
                 raise SchemaNotReadyError(
-                    f"元数据库表 {table} 缺少索引: {', '.join(lost)}。"
-                    f"处置：按 130_table_type_stats.sql 补建索引")
+                    f"元数据库表 {table} 索引不符: {', '.join(lost)}。"
+                    f"处置：按 130_table_type_stats.sql 补建/修正索引")
     finally:
         conn.close()
 
@@ -2476,7 +2863,12 @@ def run_stats(pool, connection_id: str = "", database: str = "",
     # （scan_service.py:72 是同样的用法），否则两套限流各算各的，全局上限失去意义。
     # 超限抛 ScanBusyError，由 API 映射为 429。槽位在 with 退出时必然释放（含异常）。
     with registry.scan_slot(connection_id):
-        res = analyze(pool, connection_id=connection_id, database=database)
+        # Rev.J / P1-02：deadline 在【拿到槽位之后、任何目标实例查询之前】建立。
+        # 放在槽位之内，是因为等槽位的时间不该算进采集预算；
+        # 放在查询之前，是因为 SHOW DATABASES 与基线查询也必须受同一预算约束。
+        deadline = _now() + TOTAL_BUDGET_SECONDS
+        res = analyze(pool, connection_id=connection_id, database=database,
+                      deadline=deadline)
     conn = _get_connection()
     try:
         cur = conn.execute(
@@ -2672,17 +3064,40 @@ CREATE TABLE IF NOT EXISTS table_type_stat_item (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ```
 
-### A.4 `tests/test_table_type_stats.py`（新增，1415 行）
+### A.4 `tests/test_table_type_stats.py`（新增，1790 行）
 
 ```python
 # -*- coding: utf-8 -*-
-"""G14 · 表类型统计 回归测试（DESIGN-v1.6.3.0 Rev.G §11）
+"""G14 · 表类型统计 回归测试（DESIGN-v1.6.3.0 Rev.J §11）
 
-除落库两例外全部离线，不依赖真实 TDSQL 实例。
-数据夹具取自 2026-08-29 内网实测（设计附录 B）：列名 db_table，值为库限定名。
+**测试依赖如实说明**（Rev.J / DOC-01——Rev.I 之前一直写"除落库两例外全部离线"，
+那是 Rev.B 时期的实际情况，后来陆续加到 10 例仍没有更新，属于文档失真）：
+
+| 类别 | 数量 | 依赖 |
+|---|---:|---|
+| 纯离线 | **73** | 无。FakePool + FakeClock 全内存，不连任何数据库 |
+| 元数据库集成 | **10** | 本地 MySQL/MariaDB；`@skipif(not MYSQL_AVAILABLE)` |
+| 需模块落盘 | **1** | T-R08 权限键登记，断言仓库文件；设计阶段 skip |
+| **collect 合计** | **84** | 含 5 个参数化展开 |
+
+实测口径：不连元数据库时 `73 passed, 11 skipped`；连上后 `83 passed, 1 skipped`。
+
+元数据库集成用例覆盖：落库与回读、`/history` 与 `created_by`、500 库告警的
+`MEDIUMTEXT` 往返、以及 6 项结构契约失败关闭（缺表 / 缺列 / 错类型 / 缺索引 /
+采集前拦截 / DDL 与服务列清单一致）。它们连接的是
+`SQLCHECK_DB_NAME`（默认 `tdsql_sqlcheck_test`），由 `g14_schema` fixture
+在每个用例前后 DROP + 按 DDL 重建，互不干扰。
+
+`TDSQL_TEST_HOST/PORT/USER/PASSWORD` 未就绪时这 10 例自动 skip——
+**skip 不是 pass**：模块真正落盘后必须在具备元数据库的环境上重跑，
+设计阶段的通过/跳过数只能作为设计阶段记录，不能当作发布证据。
+
+数据夹具取自内网实测（设计附录 B）：列名 db_table，值为库限定名；
+子分区相关用例直接使用 2026-08-31 T17 取回的 78 个真实表名。
 """
 import os
 import random
+import time
 
 import pytest
 
@@ -2834,6 +3249,27 @@ def by_db_detail(res):
     return {i["db_name"]: i["detail"] for i in res["items"]}
 
 
+class FakeClock:
+    """可控单调时钟（Rev.J / P1-02）。每次读秒推进 step 秒，可手工 advance。
+
+    用它代替 sleep：既让 deadline 行为可断言，又不让测试真的等 180 秒。
+    """
+
+    def __init__(self, start=1000.0, step=0.0):
+        self.t = float(start)
+        self.step = float(step)
+        self.reads = 0
+
+    def __call__(self):
+        self.reads += 1
+        v = self.t
+        self.t += self.step
+        return v
+
+    def advance(self, secs):
+        self.t += float(secs)
+
+
 def _patch_tmp_pool(monkeypatch, pool):
     """让 _collect_distributed 复用同一个 FakePool（ADR-3 的可测性钩子）"""
     def _factory(cfg, pool_size=1):
@@ -2888,29 +3324,29 @@ def test_pick_column_prefers_db_table_over_info():
     ([], set()),
 ])
 def test_extract_pairs_real_shapes(rows, expect):
-    pairs, _c, guessed, _x = svc._extract_pairs(
-        rows, "sqltuning", {"sqltuning", "mysql"})
+    pairs, _c, guessed, _x, _a = svc._extract_pairs(
+        rows, "sqltuning", svc._NameSpace(["sqltuning", "mysql"]))
     assert pairs == expect and guessed is False
 
 
 def test_extract_pairs_detects_cross_database_rows():
     """结果含其他库 ⇒ 命令作用域为实例级（RISK-E）"""
-    pairs, _c, _g, cross = svc._extract_pairs(
-        _rows(["db_a.t1", "db_b.t2"]), "db_a", {"db_a", "db_b"})
+    pairs, _c, _g, cross, _a = svc._extract_pairs(
+        _rows(["db_a.t1", "db_b.t2"]), "db_a", svc._NameSpace(["db_a", "db_b"]))
     assert cross is True
     assert pairs == {("db_a", "t1"), ("db_b", "t2")}
 
 
 def test_extract_pairs_keeps_dotted_table_name():
     """点号左侧不是已知库名时不得拆分——避免误拆后被过滤掉（少算）"""
-    pairs, _c, _g, cross = svc._extract_pairs(
-        [{"db_table": "odd.name"}], "db_a", {"db_a", "db_b"})
+    pairs, _c, _g, cross, _a = svc._extract_pairs(
+        [{"db_table": "odd.name"}], "db_a", svc._NameSpace(["db_a", "db_b"]))
     assert pairs == {("db_a", "odd.name")} and cross is False
 
 
 def test_extract_pairs_unknown_shape():
-    pairs, columns, guessed, _x = svc._extract_pairs(
-        [{"col_x": "t_a", "col_y": 1}], "db", {"db"})
+    pairs, columns, guessed, _x, _a = svc._extract_pairs(
+        [{"col_x": "t_a", "col_y": 1}], "db", svc._NameSpace(["db"]))
     assert pairs == {("db", "t_a")} and guessed is True
     assert columns == ["col_x", "col_y"]
 
@@ -3360,16 +3796,31 @@ def test_command_timeout_is_reported_not_hung(monkeypatch):
 def test_time_budget_skips_remaining(monkeypatch):
     """超预算的库标 SKIPPED、不计入总数，并显式告警"""
     _patch_ctx(monkeypatch, "distributed")
-    monkeypatch.setattr(svc, "TOTAL_BUDGET_SECONDS", -1)   # 立即超预算
+    clock = FakeClock()
+    monkeypatch.setattr(svc, "_now", clock)
     pool = FakePool(databases=["db_a", "db_b"],
                     info_schema={"db_a": {"base": ["s1"]},
                                  "db_b": {"base": ["s2"]}},
                     per_db={})
     _patch_tmp_pool(monkeypatch, pool)
-    res = svc.analyze(pool, connection_id="c1")
+    # 前置检查（枚举库、基线）都在预算内，进入逐库循环前把时钟推过 deadline
+    deadline = clock.t + svc.TOTAL_BUDGET_SECONDS
+    orig = svc._collect_baseline
+
+    def _slow_baseline(p, dbs):
+        out = orig(p, dbs)
+        clock.advance(svc.TOTAL_BUDGET_SECONDS + 1)     # 基线查询"耗尽"了预算
+        return out
+
+    monkeypatch.setattr(svc, "_collect_baseline", _slow_baseline)
+    res = svc.analyze(pool, connection_id="c1", deadline=deadline)
     assert res["skipped_databases"] == 2 and res["total_tables"] == 0
     assert all(i["status"] == "SKIPPED" for i in res["items"])
     assert any(w["code"] == "TIME_BUDGET_EXCEEDED" for w in res["warnings"])
+    # P1-03：全部 SKIPPED 时，声明为"不计入汇总"的数一律为 0
+    assert res["baseline_tables"] == 0
+    assert res["subpartition_tables"] == 0
+    assert res["overlap_count"] == 0
 
 
 def test_distributed_all_1064_flags_wrong_endpoint(monkeypatch):
@@ -3424,7 +3875,8 @@ def test_empty_result_set_is_not_an_error(monkeypatch):
 
 def test_extract_pairs_tolerates_none_rows():
     """OK 包路径的防御：即使驱动回 None 也不得抛异常（PyMySQL>=1.1.0 回 []）"""
-    pairs, columns, guessed, cross = svc._extract_pairs(None, "db_a", {"db_a"})
+    pairs, columns, guessed, cross, _a = svc._extract_pairs(
+        None, "db_a", svc._NameSpace(["db_a"]))
     assert pairs == set() and columns == [] and guessed is False and cross is False
 
 
@@ -3470,7 +3922,8 @@ def test_counts_are_consistent():
         try:
             items, _w, _s, totals = svc._collect_distributed(
                 pool, ["db_a"], {"db_a": {"base": set(names), "view": set()}},
-                {"db_a"})
+                svc._NameSpace(["db_a"]),
+                time.monotonic() + svc.TOTAL_BUDGET_SECONDS)
         finally:
             svc._new_pool = svc._new_pool_backup
         assert totals["total"] == (totals["shard"] + totals["broadcast"]
@@ -3878,33 +4331,347 @@ def test_r08_permission_key_is_registered_at_every_point():
         "深度诊断子页签回退清单 subtabs 未登记新页签"
 
 
-def test_migration_slot_is_not_already_taken():
-    """迁移文件槽位必须没被占用（Rev.I / DEF-1）。
+# ══════════════════════════════════════════════════════════════════
+# Rev.J 定向回归（O 第二轮评审 §7 的 T2-R01…T2-R10）
+# ══════════════════════════════════════════════════════════════════
+def test_t2r01_case_variant_databases_are_not_merged(monkeypatch):
+    """T2-R01 / P1-01：`Sales` 与 `sales` 是两个库，不得被合并成一个。
 
-    v1.6.2.2 的 UAT 第四、五轮分别新增了 v11/110_index_finding_structured.sql
-    与 v12/120_gateway_report_tickets.sql —— 本设计从 Rev.A 一直写的 v11/110
-    在那之后就被占了，而 Rev.F 的"代码变更复核"只 diff 了本设计【引用到的】文件，
-    没有重新列过 backend/schema/ 目录，于是漏掉。
-    这条测试把"槽位可用"变成可断言的事实，不再依赖人去记。
+    Rev.I 用 `{name.lower(): name}` 单值字典，后者会覆盖前者：
+    两库基线并进一个键、Proxy 行全归给字典里最后那个库、另一个库显示 0。
+    这是四个主数字的静默错误——没有任何告警会亮。
+    """
+    _patch_ctx(monkeypatch, "distributed")
+    per_db = {
+        ("Sales", svc.SQL_SHARD): _rows(["Sales.t_upper"], info="shardkey:id"),
+        ("Sales", svc.SQL_BROADCAST): [],
+        ("Sales", svc.SQL_SINGLE): [],
+        ("sales", svc.SQL_SHARD): [],
+        ("sales", svc.SQL_BROADCAST): [],
+        ("sales", svc.SQL_SINGLE): _rows(["sales.t_lower"]),
+    }
+    pool = FakePool(databases=["Sales", "sales"],
+                    info_schema={"Sales": {"base": ["t_upper"]},
+                                 "sales": {"base": ["t_lower"]}},
+                    per_db=per_db)
+    _patch_tmp_pool(monkeypatch, pool)
+    res = svc.analyze(pool, connection_id="c1")
+
+    assert res["database_count"] == 2
+    by_db = {i["db_name"]: i for i in res["items"]}
+    assert set(by_db) == {"Sales", "sales"}, "两个库必须各自成行"
+    assert by_db["Sales"]["shard_tables"] == 1 and by_db["Sales"]["single_tables"] == 0
+    assert by_db["sales"]["single_tables"] == 1 and by_db["sales"]["shard_tables"] == 0
+    assert by_db["Sales"]["baseline_tables"] == 1
+    assert by_db["sales"]["baseline_tables"] == 1
+    assert res["total_tables"] == 2
+    # 两个口径精确对齐 ⇒ 不得出现虚假的 RECON_MISMATCH
+    assert not any(w["code"] == "RECON_MISMATCH" for w in res["warnings"])
+    # 但存在大小写变体这件事本身要如实告知
+    assert any(w["code"] == "DB_NAME_CASE_VARIANTS" for w in res["warnings"])
+
+
+def test_t2r01b_wrong_case_database_is_rejected(monkeypatch):
+    """T2-R01 / P1-01：指定错误大小写的库不得被"当成存在"。"""
+    _patch_ctx(monkeypatch, "centralized")
+    pool = FakePool(databases=["sales"], info_schema={"sales": {"base": ["t1"]}})
+    with pytest.raises(ValueError) as e:
+        svc.analyze(pool, connection_id="c1", database="Sales")
+    assert "不存在" in str(e.value)
+    assert "sales" in str(e.value), "应提示实例上存在大小写不同的同名库"
+    # 精确名当然可以
+    assert svc.analyze(pool, connection_id="c1", database="sales")["total_tables"] == 1
+
+
+def test_t2r01c_ambiguous_qualified_name_is_not_guessed(monkeypatch):
+    """T2-R01 / P1-01：库限定名无法唯一归属时不猜，记 DB_NAME_AMBIGUOUS。
+
+    宁可少算并显式报出，也不把两个真实的库算成一个。
+    """
+    ns = svc._NameSpace(["Sales", "sales"])
+    assert ns.resolve("Sales") == "Sales"
+    assert ns.resolve("sales") == "sales"
+    assert ns.resolve("SALES") is None and ns.is_ambiguous("SALES")
+    assert ns.resolve("other") is None and not ns.is_ambiguous("other")
+    # 唯一候选时才允许大小写回退
+    assert svc._NameSpace(["sales"]).resolve("SALES") == "sales"
+
+    _patch_ctx(monkeypatch, "distributed")
+    per_db = {}
+    for d in ("Sales", "sales"):
+        per_db[(d, svc.SQL_SHARD)] = _rows(["SALES.mystery"])
+        per_db[(d, svc.SQL_BROADCAST)] = []
+        per_db[(d, svc.SQL_SINGLE)] = []
+    pool = FakePool(databases=["Sales", "sales"],
+                    info_schema={"Sales": {"base": []}, "sales": {"base": []}},
+                    per_db=per_db)
+    _patch_tmp_pool(monkeypatch, pool)
+    res = svc.analyze(pool, connection_id="c1")
+    assert res["total_tables"] == 0, "歧义行不得被猜给其中一个库"
+    w = [x for x in res["warnings"] if x["code"] == "DB_NAME_AMBIGUOUS"]
+    assert w and "SALES.mystery" in w[0]["detail"]
+
+
+def test_t2r02_deadline_covers_prelude_and_every_command(monkeypatch):
+    """T2-R02 / P1-02：deadline 覆盖前置查询，且**每条命令**开始前都检查。
+
+    Rev.I 只在每个库开始时查一次预算，单库随后最多跑三条 30 秒命令
+    ——179 秒进库能跑到 269 秒。这里用可控时钟把这条路径钉死。
+    """
+    _patch_ctx(monkeypatch, "distributed")
+    clock = FakeClock()
+    monkeypatch.setattr(svc, "_now", clock)
+    deadline = clock.t + 100.0
+
+    per_db = {}
+    for d in ("db_a", "db_b"):
+        per_db[(d, svc.SQL_SHARD)] = _rows([f"{d}.s"])
+        per_db[(d, svc.SQL_BROADCAST)] = _rows([f"{d}.b"])
+        per_db[(d, svc.SQL_SINGLE)] = _rows([f"{d}.n"])
+    pool = FakePool(databases=["db_a", "db_b"],
+                    info_schema={"db_a": {"base": ["s", "b", "n"]},
+                                 "db_b": {"base": ["s", "b", "n"]}},
+                    per_db=per_db)
+    _patch_tmp_pool(monkeypatch, pool)
+
+    # 每条命令耗 60 秒：db_a 跑完两条即超预算，第三条不得再启动
+    executed = []
+    orig_pairs = svc._extract_pairs
+
+    def _slow_pairs(rows, cur, known):
+        executed.append(cur)
+        clock.advance(60.0)          # 每条命令耗 60 秒
+        return orig_pairs(rows, cur, known)
+
+    monkeypatch.setattr(svc, "_extract_pairs", _slow_pairs)
+    res = svc.analyze(pool, connection_id="c1", deadline=deadline)
+
+    # db_a：第 1 条（0→60）、第 2 条（60→120，启动时 60<100 允许）执行；
+    #       第 3 条启动时已 120>=100，抛预算 → db_a 整库 SKIPPED
+    assert len(executed) == 2, f"deadline 之后不得再启动新命令，实际执行 {len(executed)} 条"
+    by_db = {i["db_name"]: i for i in res["items"]}
+    assert by_db["db_a"]["status"] == "SKIPPED"
+    assert by_db["db_b"]["status"] == "SKIPPED"
+    assert res["skipped_databases"] == 2
+    assert res["total_tables"] == 0
+
+
+def test_t2r02b_deadline_blocks_baseline_query(monkeypatch):
+    """T2-R02 / P1-02：前置基线查询也在预算内（Rev.I 完全不计它）。"""
+    _patch_ctx(monkeypatch, "centralized")
+    clock = FakeClock()
+    monkeypatch.setattr(svc, "_now", clock)
+    pool = FakePool(databases=["db_a"], info_schema={"db_a": {"base": ["t1"]}})
+    with pytest.raises(TimeoutError) as e:
+        svc.analyze(pool, connection_id="c1", deadline=clock.t - 1)
+    assert "预算" in str(e.value)
+
+
+def test_t2r02c_provable_wall_upper_bound_is_documented():
+    """T2-R02：可证明上界 = 预算 + 单条命令读超时，且常量之间要自洽。"""
+    assert svc.MAX_WALL_SECONDS == svc.TOTAL_BUDGET_SECONDS + svc.COMMAND_READ_TIMEOUT
+    assert svc.MAX_WALL_SECONDS == 210
+
+
+def test_t2r03_failed_db_rows_do_not_enter_any_rollup(monkeypatch):
+    """T2-R03 / P1-03：失败库的跨库行不得进入 overlap / baseline / subp 汇总。"""
+    _patch_ctx(monkeypatch, "distributed")
+    # db_a 成功，其实例级返回同时带回 db_b.t1，且 t1 在两个类型中出现（重叠）
+    per_db = {
+        ("db_a", svc.SQL_SHARD): _rows(["db_a.s1", "db_b.t1"]),
+        ("db_a", svc.SQL_BROADCAST): _rows(["db_b.t1"]),
+        ("db_a", svc.SQL_SINGLE): [],
+        ("db_b", svc.SQL_SHARD): _mysql_error(1142, "SELECT command denied"),
+    }
+    subp = [f"t1_tdsql_subp2026{m:02d}" for m in range(1, 13)]
+    pool = FakePool(databases=["db_a", "db_b"],
+                    info_schema={"db_a": {"base": ["s1"]},
+                                 "db_b": {"base": ["t1"] + subp}},
+                    per_db=per_db)
+    _patch_tmp_pool(monkeypatch, pool)
+    res = svc.analyze(pool, connection_id="c1")
+
+    by_db = {i["db_name"]: i for i in res["items"]}
+    assert by_db["db_b"]["status"] == "FAILED"
+    assert res["overlap_count"] == 0, "失败库的跨库行不得计入重叠"
+    assert res["baseline_tables"] == 1, "只应含 db_a 的 s1"
+    assert res["subpartition_tables"] == 0, "失败库的子分区不得进汇总"
+    assert not any(w["code"] == "SUBPARTITION_EXCLUDED" for w in res["warnings"])
+    # 逐库行仍如实显示 db_b 的基线（information_schema 那侧确实查成功了）
+    assert by_db["db_b"]["baseline_tables"] >= 1
+
+
+def test_t2r07_candidate_in_proxy_is_a_logical_table(monkeypatch):
+    """T2-R07 / P2-01：候选自身出现在 Proxy 结果中 ⇒ 它是逻辑表，不是物理子表。
+
+    真正的物理子表根本不会被 /*proxy*/show table 返回——"它自己也在 Proxy 结果里"
+    直接证伪了"它是物理子表"。
+    """
+    _patch_ctx(monkeypatch, "distributed")
+    per_db = {
+        ("db_a", svc.SQL_SHARD): _rows(["db_a.orders",
+                                        "db_a.orders_tdsql_subp202601"]),
+        ("db_a", svc.SQL_BROADCAST): [],
+        ("db_a", svc.SQL_SINGLE): [],
+    }
+    pool = FakePool(
+        databases=["db_a"],
+        info_schema={"db_a": {"base": ["orders", "orders_tdsql_subp202601"]}},
+        per_db=per_db)
+    _patch_tmp_pool(monkeypatch, pool)
+    res = svc.analyze(pool, connection_id="c1")
+    assert res["subpartition_tables"] == 0, "两张都是逻辑表，不得剔除任何一张"
+    assert res["baseline_tables"] == 2
+    assert res["total_tables"] == 2
+    assert not any(w["code"] == "RECON_MISMATCH" for w in res["warnings"]), \
+        "不得凭空产生'仅 Proxy 可见'的虚假差异"
+    assert not any(w["code"] == "SUBPARTITION_EXCLUDED" for w in res["warnings"])
+
+
+def test_t2r07b_real_subpartition_is_still_stripped(monkeypatch):
+    """T2-R07 反向：真正的子表（不在 Proxy 结果里）仍必须被剔除——不得因 P2-01 回退。"""
+    _patch_ctx(monkeypatch, "distributed")
+    subp = ["cus_pub_translog_tdsql_subp190001"] + [
+        f"cus_pub_translog_tdsql_subp2026{m:02d}" for m in range(1, 13)]
+    per_db = {("db_a", svc.SQL_SHARD): _rows(["db_a.cus_pub_translog"]),
+              ("db_a", svc.SQL_BROADCAST): [],
+              ("db_a", svc.SQL_SINGLE): []}
+    pool = FakePool(databases=["db_a"],
+                    info_schema={"db_a": {"base": ["cus_pub_translog"] + subp}},
+                    per_db=per_db)
+    _patch_tmp_pool(monkeypatch, pool)
+    res = svc.analyze(pool, connection_id="c1")
+    assert res["subpartition_tables"] == 13
+    assert res["baseline_tables"] == 1
+
+
+# ── DEF-1 / T2-R06：迁移槽位护栏 ────────────────────────────────────
+_OUR_SLOT = (13, 130)
+_OUR_SQL_NAME = "130_table_type_stats.sql"
+
+
+def scan_migration_slots(schema_dir):
+    """扫描 schema 目录，返回 {(version, sequence): [文件名, ...]}。
+
+    Rev.J / P1-05：**值必须是列表**。Rev.I 用的是单值字典
+    `taken[(v, s)] = filename`，同一槽位有两个文件时后者会覆盖前者——
+    那个护栏恰好看不见 DEF-1 想防的场景（同槽重复），等于没防。
     """
     import pathlib
-    import backend
-    repo = pathlib.Path(backend.__file__).resolve().parent.parent
-    schema = repo / "backend" / "schema"
-    taken = {}
-    for vdir in schema.iterdir():
-        if not (vdir.is_dir() and vdir.name.startswith("v") and vdir.name[1:].isdigit()):
+    slots = {}
+    d = pathlib.Path(schema_dir)
+    if not d.is_dir():
+        return slots
+    for vdir in sorted(d.iterdir()):
+        if not (vdir.is_dir() and len(vdir.name) > 1
+                and vdir.name[0] == "v" and vdir.name[1:].isdigit()):
             continue
-        for f in vdir.iterdir():
-            if f.suffix == ".sql" and f.name[:3].isdigit():
-                taken[(int(vdir.name[1:]), int(f.name[:3]))] = f.name
-    ours = (13, 130)
-    assert ours not in taken or taken[ours].startswith("130_table_type_stats"), \
-        f"迁移槽位 v{ours[0]}/{ours[1]} 已被 {taken.get(ours)} 占用，请顺延到下一个空槽"
-    # 槽位必须是当前最大之后的下一个，避免与将来的版本再撞
-    if taken:
-        assert ours > max(taken), \
-            f"迁移槽位 v13/130 不再是最大槽位（当前最大 {max(taken)}），请顺延"
+        for f in sorted(vdir.iterdir()):
+            if f.suffix != ".sql" or len(f.name) < 4 or not f.name[:3].isdigit():
+                continue
+            slots.setdefault((int(vdir.name[1:]), int(f.name[:3])), []).append(f.name)
+    return slots
+
+
+def _schema_dir():
+    import pathlib
+    import backend
+    return pathlib.Path(backend.__file__).resolve().parent / "schema"
+
+
+def assert_slot_ok(slots):
+    """四条断言，**落盘前后都成立**。抽成函数是为了能对合成状态直接验证。"""
+    dups = {k: v for k, v in slots.items() if len(v) > 1}
+    assert not dups, f"存在同槽多文件（DEF-1 形态）: {dups}"
+    others = {k: v for k, v in slots.items()
+              if not (k == _OUR_SLOT and v == [_OUR_SQL_NAME])}
+    assert _OUR_SLOT not in others, \
+        f"迁移槽位 v13/130 已被 {others.get(_OUR_SLOT)} 占用，请顺延到下一个空槽"
+    if others:
+        assert _OUR_SLOT > max(others), \
+            f"迁移槽位 v13/130 不再是最大槽位（当前最大 {max(others)}），请顺延"
+    if _OUR_SLOT in slots:
+        assert slots[_OUR_SLOT] == [_OUR_SQL_NAME]
+
+
+def test_migration_slot_scanner_detects_duplicates(tmp_path):
+    """扫描器本身必须能看见"同槽两个文件"——这正是 DEF-1 的形态。
+
+    Rev.I 的护栏用单值字典保存占用者，同槽第二个文件会覆盖第一个，
+    于是重复根本报不出来。先把扫描器钉死，护栏才有意义。
+    """
+    (tmp_path / "v11").mkdir()
+    (tmp_path / "v11" / "110_index_finding_structured.sql").write_text("-- a")
+    (tmp_path / "v11" / "110_table_type_stats.sql").write_text("-- b")
+    (tmp_path / "v12").mkdir()
+    (tmp_path / "v12" / "120_gateway_report_tickets.sql").write_text("-- c")
+    (tmp_path / "notaversion").mkdir()
+    (tmp_path / "notaversion" / "999_x.sql").write_text("-- ignored")
+
+    slots = scan_migration_slots(tmp_path)
+    assert slots[(11, 110)] == ["110_index_finding_structured.sql",
+                                "110_table_type_stats.sql"]
+    assert slots[(12, 120)] == ["120_gateway_report_tickets.sql"]
+    assert all(k[0] != 999 for k in slots), "非 vN 目录不得计入"
+    dups = {k: v for k, v in slots.items() if len(v) > 1}
+    assert dups, "同槽两个文件必须被识别为重复"
+
+
+def test_migration_slot_is_available_and_unique():
+    """T2-R06 / DEF-1：v13/130 槽位必须唯一、可用，且**落盘前后都成立**。
+
+    Rev.I 的写法是：
+        assert ours not in taken or taken[ours].startswith("130_table_type_stats")
+        assert ours > max(taken)
+    第二句在迁移文件真正落盘后必然失败——那时 max(taken) == ours，
+    `ours > max(taken)` 为假。**一条为了防错而写的护栏，会在模块上线当天把构建打红。**
+    设计阶段之所以"通过"，只是因为文件还不存在，等于什么都没验证。
+
+    正确写法：先把"本模块自己的文件"从占用集合里摘出去，再断言
+      ① 全局没有任何槽位重复；
+      ② 我们的槽位没有被【别人】占用；
+      ③ 我们的槽位仍是所有【别人的】槽位之后的下一个；
+      ④ 若我们的文件已落盘，该槽位下有且只有它。
+    四条在落盘前后都成立。
+    """
+    assert_slot_ok(scan_migration_slots(_schema_dir()))
+
+
+def test_migration_slot_guard_passes_before_and_after_landing():
+    """T2-R06 关键点：护栏在**迁移文件真正落盘之后**必须依然通过。
+
+    Rev.I 的护栏做不到这一点——`assert ours > max(taken)` 在文件落盘后必然为假。
+    这里用两份合成状态直接把两个阶段都验一遍，不用等到上线当天才发现。
+    """
+    current = {(11, 110): ["110_index_finding_structured.sql"],
+               (12, 120): ["120_gateway_report_tickets.sql"]}
+    assert_slot_ok(dict(current))                       # 阶段一：尚未落盘
+    landed = dict(current); landed[_OUR_SLOT] = [_OUR_SQL_NAME]
+    assert_slot_ok(landed)                              # 阶段二：已落盘 ← Rev.I 会在这里失败
+
+
+def test_migration_slot_guard_rejects_duplicate_and_squatter():
+    """护栏必须真的会拒：同槽双文件、槽位被别人占、我们不再是最大槽，三种都要失败。"""
+    base = {(11, 110): ["110_index_finding_structured.sql"],
+            (12, 120): ["120_gateway_report_tickets.sql"]}
+    for name, bad in (
+            ("同槽双文件", {**base, (11, 110): ["110_a.sql", "110_b.sql"]}),
+            ("槽位被别人占", {**base, _OUR_SLOT: ["130_someone_else.sql"]}),
+            ("我们不再是最大槽", {**base, (14, 140): ["140_future.sql"],
+                                 _OUR_SLOT: [_OUR_SQL_NAME]}),
+    ):
+        with pytest.raises(AssertionError):
+            assert_slot_ok(bad)
+
+
+def test_migration_slot_guard_would_reject_a_taken_slot(tmp_path):
+    """护栏必须真的会拒——用 DEF-1 的真实形态验一次，而不是只验"当前通过"。"""
+    (tmp_path / "v13").mkdir()
+    (tmp_path / "v13" / "130_someone_else.sql").write_text("-- squatter")
+    slots = scan_migration_slots(tmp_path)
+    others = {k: v for k, v in slots.items()
+              if not (k == _OUR_SLOT and v == [_OUR_SQL_NAME])}
+    assert _OUR_SLOT in others, "被别人占用的槽位必须被判定为占用"
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -4040,7 +4807,7 @@ def test_r12c_wrong_type_fails_closed(g14_schema):
     _exec_sql("ALTER TABLE table_type_stat MODIFY COLUMN warnings_json TEXT")
     with pytest.raises(svc.SchemaNotReadyError) as e:
         svc._ensure_schema()
-    assert "列类型不符" in str(e.value) and "warnings_json" in str(e.value)
+    assert "类型不符" in str(e.value) and "warnings_json" in str(e.value)
     _reset_g14_tables()
     _exec_sql("ALTER TABLE table_type_stat_item "
               "MODIFY COLUMN total_tables VARCHAR(32) DEFAULT '0'")
@@ -4055,7 +4822,7 @@ def test_r12d_missing_index_fails_closed(g14_schema):
     _exec_sql("DROP INDEX idx_tts_created ON table_type_stat")
     with pytest.raises(svc.SchemaNotReadyError) as e:
         svc._ensure_schema()
-    assert "缺少索引" in str(e.value) and "idx_tts_created" in str(e.value)
+    assert "索引不符" in str(e.value) and "idx_tts_created" in str(e.value)
 
 
 @pytest.mark.skipif(not MYSQL_AVAILABLE, reason="MySQL 测试环境未启动")
@@ -4219,10 +4986,17 @@ app.include_router(table_type_stats_router)  # G14 表类型统计
                     <el-table-column prop="failed_databases" label="失败库" width="80"></el-table-column>
                   </el-table>
                   <div style="color:#909399;font-size:12px;margin:8px 0">点击上表任意一行，查看该次统计的逐库明细。</div>
+                  <div v-if="tabletypeDetailAll.length" style="color:#909399;font-size:12px;margin-bottom:6px">
+                    该次统计共 {{ tabletypeDetailAll.length }} 条告警，当前显示 {{ tabletypeDetailWarnings.length }} 条。
+                  </div>
                   <el-alert v-for="(w,i) in tabletypeDetailWarnings" :key="i"
                             :type="w.severity==='ERROR'?'error':(w.severity==='WARNING'?'warning':'info')"
                             :closable="false" show-icon style="margin-bottom:6px"
                             :title="w.code + (w.db_name ? (' · '+w.db_name) : '')" :description="w.detail"></el-alert>
+                  <el-button v-if="tabletypeDetailAll.length>tabletypeDetailWarnings.length" link type="primary" size="small"
+                             style="margin-bottom:8px" @click="tabletypeDetailExpand=true">
+                    展开查看全部 {{ tabletypeDetailAll.length }} 条告警
+                  </el-button>
                   <el-table :data="tabletypeDetailItems" size="small" border max-height="360">
                     <el-table-column prop="db_name" label="数据库" width="180"></el-table-column>
                     <el-table-column prop="total_tables" label="总表数" width="90"></el-table-column>
@@ -4258,8 +5032,12 @@ app.include_router(table_type_stats_router)  # G14 表类型统计
     const tabletypeHistoryVisible=ref(false);
     const tabletypeHistory=ref([]);
     const tabletypeDetailItems=ref([]);
-    const tabletypeDetailWarnings=ref([]);
+    const tabletypeDetailAll=ref([]);      // Rev.J / P2-02：历史告警全量
+    const tabletypeDetailExpand=ref(false);
     const TABLETYPE_WARN_CAP=10;
+    const tabletypeDetailWarnings=computed(()=>
+      tabletypeDetailExpand.value?tabletypeDetailAll.value
+                                 :tabletypeDetailAll.value.slice(0,TABLETYPE_WARN_CAP));
     const tabletypeWarnTotal=computed(()=>deepResult.tabletype?deepResult.tabletype.warnings.length:0);
     const visibleTableTypeWarnings=computed(()=>{
       const all=deepResult.tabletype?deepResult.tabletype.warnings:[];
@@ -4268,7 +5046,16 @@ app.include_router(table_type_stats_router)  # G14 表类型统计
     const runTableTypeStats=async()=>{
       tabletypeWarnAll.value=false;
       const r=await _deepPost('tabletype','/api/v1/table-type-stats/run',{connection_id:deepConnId.value,database:deepDb.value});
-      if(r){deepResult.tabletype=r;ElementPlus.ElMessage.success(`统计完成：${r.database_count} 个库 / ${r.total_tables} 张表`)}
+      if(!r)return;
+      deepResult.tabletype=r;
+      // Rev.J / P2-03：提示必须与结果状态一致。只要接口回 200 就弹绿色"统计完成"，
+      // 在 failed_databases=500、主结果为 0 时会把"0 张"暗示成真实结论。
+      const bad=(r.failed_databases||0), skip=(r.skipped_databases||0);
+      const tail=`${r.database_count} 个库 / ${r.total_tables} 张表`
+                +(bad?` · 失败 ${bad} 库`:'')+(skip?` · 未采集 ${skip} 库`:'');
+      if(bad&&bad>=r.database_count){ElementPlus.ElMessage.error(`统计失败：全部 ${bad} 个库采集失败，主数字不可用`)}
+      else if(bad||skip){ElementPlus.ElMessage.warning(`部分完成：${tail}（失败/未采集的库未计入任何汇总）`)}
+      else{ElementPlus.ElMessage.success(`统计完成：${tail}`)}
     };
     const openTableTypeHistory=async()=>{
       if(!deepConnId.value){ElementPlus.ElMessage.warning('请先选择实例');return}
@@ -4289,7 +5076,10 @@ app.include_router(table_type_stats_router)  # G14 表类型统计
         if(!resp.ok){ElementPlus.ElMessage.error(d.detail||'加载明细失败');return}
         const body=d.data||d;
         tabletypeDetailItems.value=body.items||[];
-        tabletypeDetailWarnings.value=(body.warnings||[]).slice(0,TABLETYPE_WARN_CAP);
+        // Rev.J / P2-02：历史抽屉与实时结果共用同一套"默认 10 条 + 总数 + 展开全部"。
+        // Rev.I 在这里直接 slice 且不给任何提示，超过 10 条时用户会以为历史就这 10 条。
+        tabletypeDetailAll.value=body.warnings||[];
+        tabletypeDetailExpand.value=false;
       }catch(e){ElementPlus.ElMessage.error('加载明细失败: '+e.message)}
     };
 ```
@@ -4314,7 +5104,7 @@ app.include_router(table_type_stats_router)  # G14 表类型统计
 
 ```diff
 -...,runClusterInspect,runIndexAudit,runSchemaDiff,runEmergency,runSqlStats,visibleMenus,...
-+...,runClusterInspect,runIndexAudit,runSchemaDiff,runEmergency,runSqlStats,runTableTypeStats,openTableTypeHistory,loadTableTypeHistoryDetail,visibleTableTypeWarnings,tabletypeWarnTotal,tabletypeWarnAll,tabletypeHistoryVisible,tabletypeHistory,tabletypeDetailItems,tabletypeDetailWarnings,visibleMenus,...
++...,runClusterInspect,runIndexAudit,runSchemaDiff,runEmergency,runSqlStats,runTableTypeStats,openTableTypeHistory,loadTableTypeHistoryDetail,visibleTableTypeWarnings,tabletypeWarnTotal,tabletypeWarnAll,tabletypeHistoryVisible,tabletypeHistory,tabletypeDetailItems,tabletypeDetailWarnings,tabletypeDetailAll,tabletypeDetailExpand,visibleMenus,...
 ```
 
 > 漏掉第 ④ 步的后果：页签能渲染，但点按钮报 `runTableTypeStats is not a function`，
@@ -4604,6 +5394,7 @@ Empty set (0.005 sec)
 
 | 版本 | 日期 | 作者 | 内容 |
 |---|---|---|---|
+| **Rev.J** | **2026-08-31** | **智能体 A** | **依 O 第二轮评审报告（`REVIEW2-…`，结论"不通过，退回修订 Rev.J"）整改。5 项 P1、3 项 P2、1 项文档问题全部接受，无一条不认可。** 其中三项是我自己论证或代码的硬伤：**P1-01** 库名被无条件小写——`Sales` 与 `sales` 在 `lower_case_table_names=0` 下是两个 schema，单值 lower 字典会把它们**静默合并**，四个主数字直接错且无任何告警；我在表名那侧写对了这个道理（ADR-9），却把库名的免责理由写成"库名来自我们自己枚举的清单，不存在合并风险"——风险恰恰来自两个都真实存在的库。改用 `_NameSpace`（精确优先 / CI 回退仅在唯一时 / 歧义不猜并报 `DB_NAME_AMBIGUOUS`），新增 ADR-22。**P1-02** "180 秒总预算"根本不成立：计时器直到 `_collect_distributed` 内部才启动，`SHOW DATABASES` 与基线查询（设计自己承认是耗时大头）完全不计；进入循环后只在每库开始时查一次，单库三条 30 秒命令——179 秒进库能跑到 **269 秒**，集中式分支更是毫无预算。改为 deadline 自 `run_stats` 拿到槽位后建立、贯穿前置查询与**每一条命令**，并如实给出**可证明上界 210 秒**（`MAX_WALL_SECONDS`），文档与 UI 不再宣称"硬 180 秒"（ADR-13 修正 / KL-19）。**P1-05** 我为防 DEF-1 而写的槽位护栏本身有两个错：`assert ours > max(taken)` 在迁移文件真正落盘后必然为假——**这条护栏会在模块上线当天把构建打红**；而它用单值字典保存占用者，同槽两个文件时后者覆盖前者，**恰好看不见 DEF-1 想防的那个场景**。重写为 `scan_migration_slots`（`slot → [files]`）+ `assert_slot_ok`（四条断言落盘前后都成立），并用合成状态把两个阶段都验一遍。另：**P1-03** 先定状态再算汇总，失败/跳过库的基线、子分区、重叠一律不进实例级汇总（ADR-23）；**P1-04** 结构验收升级为完整字段契约，**KL-15 关闭**——当时"COLUMN_TYPE 带显示宽度"的免责理由只对整型成立、对 varchar 长度不成立，"已知"不等于"已关闭"；**P2-01** 物理子表判定增加第三条件"候选自身不在 Proxy 结果中"（真子表不会被 `show table` 返回，它自己在结果里就直接证伪了）；**P2-02** 历史抽屉告警不再静默截断；**P2-03** 部分/全部失败不再弹绿色"统计完成"；**DOC-01** 如实列出离线 73 / 元数据库集成 10 / 需落盘 1，并写明 **skip 不是 pass、设计阶段数字不能当发布证据**。测试 71 → **84 项**（本地 83 通过 + 1 跳过），新增可控时钟 `FakeClock` 与 `_now` 钩子使 deadline 行为可断言。新增 ADR-22/23、KL-18/19、W13/W14、E-30～E-33、§12.4 八项专项验收。**仓库代码仍零改动。** |
 | **Rev.I** | **2026-08-31** | **智能体 A** | **回填 T19（第六轮），并更正一处 Rev.A～H 各版均未发现的硬伤。** **DEF-1（必须改）**：迁移文件槽位 `v11/110` 早在 v1.6.2.2 的 UAT 第四、五轮就被 `v11/110_index_finding_structured.sql`（O-18）与 `v12/120_gateway_report_tickets.sql`（O-22）占用。Rev.A 写这句时（`5e9f438`，最高版本确为 v10/100）是对的，**但 Rev.F 那一版的任务恰恰是"依 v1.6.2.2 上线后的代码变更复核"却没抓到**——原因是我把复核范围定义成"本设计**引用到的** 13 个文件有没有变"，而**新文件要落进去的槽位本来就不在这 13 个文件里**，那种 diff 无论多仔细都不可能命中。这是复核**方法**的缺口，教训登记为 **KL-17**（今后凡"新增文件/新增标识符"类设计，复核必须含一次目录与命名空间的重新枚举；能自动化的一律变成测试）。影响评估：迁移键为 `f"v{version}_{sequence:03d}_{name}"`，故**不撞主键、不会启动失败**，但同目录两个 `110_` 前缀的执行先后只由文件名字典序决定，是没人打算建立的隐式依赖，且违反项目约定。**处置**：槽位改为 **`v13/130_table_type_stats.sql`**（正文、附录 A.1/A.3/A.4、验收项、服务的报错文案共 19 处同步更正），并新增护栏测试 `test_migration_slot_is_not_already_taken`——扫描真实目录断言槽位未被占用且为最大槽位。**T19**：元数据库 `tdsql_sqlcheck`（TDSQL `8.0.33-v24-txsql`，`10.243.20.15:15197`）无同名残留表，部署文档无需"先删表"步骤；如实登记"该失效路径当前是纯防御"，但**不削弱 ADR-20**（第二条路径"登记后结构漂移"与残留表无关且随时可能发生）。顺带得到旁证 **B-19**：该库上 v0～v12 共 13 个迁移全部成功应用过，其中 v12/120 是纯 `CREATE TABLE IF NOT EXISTS … InnoDB/utf8mb4`，**证明本模块不带 shardkey 的建表写法在这台 TDSQL 元数据库上可用**，提前排除了一个本会在 UAT 才暴露的问题。另更正两处陈旧计数（`_create_all_tables` 27 → **46 张/828 行**；路由前缀 25 → **26**）。测试 70 → **71 项**（本地 70 通过 + 1 跳过）。**至此 T16～T19 全部完成，仅剩不影响任何数字的 T13。** |
 | **Rev.H** | **2026-08-31** | **智能体 A** | **回填第五轮内网实测（T16 / T17 / T18），设计与算法无实质变更。** **T17**：`lzbj_ecif` 的 78 张 `_tdsql_subp` 表精确推导出 **6 个父表、各 13 张**，与 Rev.E 从 D3 推出的 6 个名字逐名吻合（含当时判为"未被 LIKE 匹配的第 6 张"的 `cus_pub_sync_consumer_log`）。给出**算术闭合证明**——由基线 293、Proxy 215、后缀表 78 三个基数可推出 Proxy 结果集恰为逻辑基线，故 6 个父表全部在 Proxy 结果中，**不必再取 98 行原始输出**；残留假设仅"Proxy 不返回物理子表"一条，而它会在 UAT 时被 `RECON_MISMATCH` 免费验证且失败可见。**UAT 六个数字维持 215/0/117/98/215/78 不变。** T17 另暴露出一个构造夹具想不到的真实形态：`cus_pub_updatelog` 与 `cus_pub_updatelog_detail` **互为前缀且两者都是父表**——父表推导若用任何"取最短前缀"的近似做法，`_detail` 的 13 张子表会被错算给 `cus_pub_updatelog`，UAT 变成 228/65，**数字错了还很像对的**。现行非贪婪正则已用 78 个真名逐条验算通过，并新增 3 项定向测试（`test_r07b/c/d_*`，共 **70 项**，本地 69 通过 + 1 跳过）；登记 **KL-16**。**T18**：集中式实例 `zjywgl` 库 0 行 `_tdsql_subp` 表，P1-03「集中式一律不剔除」零风险（证据范围为单库，已在文中注明）。**T16**：使用者裁决关闭——内网统一 `checksql` 账号、权限充足、与平台登记账号一致，P1-01 的"账号可见范围"场景在本环境不成立；原 T09 一并结案。**T19 仍待测**：第五轮误把 T17 的 REGEXP 语句带到元数据库上跑了，本用例未被回答（不阻断，`_ensure_schema` 两种结果都能正确处理）。附录 B 新增 **B.55 第五轮原始数据**与 **B-14～B-17** 四条结论，含环境信息（元数据库 = TDSQL `8.0.33-v24-txsql`，`10.243.20.15:15197` / 库 `tdsql_sqlcheck`）。 |
 | **Rev.G** | **2026-08-31** | **智能体 A** | **依 O 的评审报告（`REVIEW-v1.6.3.0-…设计评审报告.md`，结论"不通过，退回修订 Rev.G"）整改。8 项 P1、3 项 P2、2 项文档一致性问题全部关闭，其中 **12 条我完全认可并按 O 的要求改**，**1 条（P1-08）认可问题、但整改方式与 O 的建议不同**（见 ADR-20：不做启动期失败关闭，改为模块首次使用时的结构验收——诊断子模块的留档表问题不应把"一个页面不可用"放大成"平台起不来"，且同层级的 `index_audit` / `cluster_inspection` 也没有启动期验收，只给新模块加一道标准不一致）。逐条：**P1-01** 删除「指纹相同即提前停止」的全部代码与论证（ADR-12 被自己推翻——从"命令是实例级作用域"推不出"这次返回已覆盖全部目标库"，用告警替代正确数字等于承认主结果可以是错的）；**P1-02** `run_stats` 进入既有 `registry.scan_slot`，与既有扫描**共用**配额，`ScanBusyError` → 429（ADR-19）；**P1-03** 子表判定收紧为「后缀 **且** 逻辑父表已在 Proxy 结果中确认」，集中式**一律不剔除**（ADR-17 修订）；**P1-04** 改为每库一个连接上下文、异常穿出触发连接重建；**P1-05** 单库三条命令暂存后原子合入，任一失败整库丢弃；**P1-06** 权限键补登记到 `app.js` 的 `subtabs` 回退清单（ADR-21）；**P1-07** `PROXY_CMD_FAILED` 汇总为一条、`warnings_json` 改 `MEDIUMTEXT`、前端告警上限 10 条可展开；**P1-08** 新增 `_ensure_schema()`（表 / 列 / 类型 / 索引，四种畸形均失败关闭）+ `SchemaNotReadyError`，位置在采集与并发槽位**之前**；**P2-01** 指定库必须真实存在、`SHOW DATABASES` 失败一律抛出（删除 `DB_ENUM_FAILED` 降级）；**P2-02** API 接收 `Request` 并记录操作人，前端补历史抽屉；**P2-03** `connection_id` 改必填；**DOC-01** KL-9 标记为已裁决并关闭；**DOC-02** 全文版本头、文件清单、行数、爆炸半径、接口契约统一到 Rev.G。测试从 42 项增至 **67 项**（新增 25 项全部为缺陷定向测试，逐一对应 O 的 T-R01～T-R14），本地 **66 通过 + 1 跳过**（T-R08 断言落盘后的仓库文件）。爆炸半径由「净改 9 行 + 1 个前端块」修正为「净改 **10 行** + **2 个前端块**」。另新增 4 项**不阻断**的内网核查 T16～T19，为 P1-01/P1-03/P1-08 的事实前提取证。 |
