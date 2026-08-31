@@ -2,13 +2,13 @@
 
 | 项 | 内容 |
 |---|---|
-| 文档编号 | DESIGN-v1.6.3.0 **Rev.H** |
+| 文档编号 | DESIGN-v1.6.3.0 **Rev.I** |
 | 模块编号 | **G14 · 表类型统计**（深度诊断第 10 个子模块） |
 | 目标版本 | v1.6.3.0（当前基线 v1.6.2.2，`VERSION` / `backend/config.py:APP_VERSION`） |
-| 文档等级 | **照图施工级**——附录 A 给出全部新增/修改文件的逐行成品代码（已本地验证：70 项单测，69 通过 + 1 项 T-R08 需模块落盘后才生效），实施者不得二次设计 |
+| 文档等级 | **照图施工级**——附录 A 给出全部新增/修改文件的逐行成品代码（已本地验证：71 项单测，70 通过 + 1 项 T-R08 需模块落盘后才生效），实施者不得二次设计 |
 | 编写 | 智能体 A |
-| 编写日期 | 2026-08-29 首版；2026-08-31 Rev.F 依 v1.6.2.2 上线后的代码变更复核修订；2026-08-31 Rev.G 依 O 评审报告整改（8 项 P1 + 3 项 P2 + 2 项文档一致性）；2026-08-31 Rev.H 回填第五轮内网实测（T16/T17/T18），**设计无实质变更** |
-| 状态 | 设计与代码**已完成**；**五轮内网实测均未推翻**。**Rev.G 对 O 评审报告的 8 项 P1 全部整改**（其中 P1-08 的整改【方式】与 O 建议不同，理由见 ADR-20），3 项 P2、2 项文档一致性问题全部关闭。**Rev.H 用第五轮实测把 Rev.G 里三条只有推测的事实前提补成了证据**：T17 证实 78 张子表精确推导出 6 个父表（且 UAT 六个数字维持不变）、T18 证实集中式实例无 `_tdsql_subp` 表、T16 由使用者裁决关闭。**仅剩 T19 与 T13 两项，均不阻断**（§10.2） |
+| 编写日期 | 2026-08-29 首版；2026-08-31 Rev.F 依 v1.6.2.2 上线后的代码变更复核修订；2026-08-31 Rev.G 依 O 评审报告整改（8 项 P1 + 3 项 P2 + 2 项文档一致性）；2026-08-31 Rev.H 回填第五轮内网实测（T16/T17/T18）；2026-08-31 Rev.I 回填 T19 并**更正一处迁移文件槽位冲突（DEF-1）** |
+| 状态 | 设计与代码**已完成**；**内网实测全部完成，无一推翻本设计**。**Rev.G 对 O 评审报告的 8 项 P1 全部整改**（其中 P1-08 的整改【方式】与 O 建议不同，理由见 ADR-20），3 项 P2、2 项文档一致性问题全部关闭。**Rev.H/I 用第五、六轮实测把四条只有推测的事实前提补成了证据**：T17 证实 78 张子表精确推导出 6 个父表（UAT 六个数字维持不变）、T18 证实集中式实例无 `_tdsql_subp` 表、T19 证实元数据库无同名残留表、T16 由使用者裁决关闭。**Rev.I 另更正一处此前各版均未发现的硬伤 DEF-1**：迁移文件槽位 `v11/110` 已被 v1.6.2.2 占用，改为 `v13/130`，并新增槽位护栏测试。**仅剩 T13 一项，不阻断且不影响任何数字**（§10.2） |
 | 前置约束 | 本文档编写阶段**未修改任何代码**（用户要求）。仓库工作区在本文档提交时保持干净。 |
 
 ---
@@ -18,7 +18,7 @@
 本文档同时承担三件事，读者请按角色取用：
 
 * **实施者（智能体 Q 或人工）**：读 §5～§9 + 附录 A。附录 A 是**可直接落盘的成品代码**——四个新增文件 + 既有文件的 **10 行**改动 + **2 个前端块**（页签块 + 历史抽屉块），逐字给出。
-* **内网测试配合者**：只读 **§10**。五轮共 14 个用例已完成（裁决见 §10.1）。**只剩 T19 与 T13 两项**（§10.2），**都不阻断开发**——T19 是一句 `information_schema` 查询（第五轮误跑成了 T17 的语句，见 §10.2），T13 在 Rev.G 删除提前停止后已不影响任何数字。
+* **内网测试配合者**：只读 **§10**。六轮共 15 个用例**已全部完成**（裁决见 §10.1 与 §10.2）。**只剩 T13 一项**，且在 Rev.G 删除提前停止优化后它已**不影响任何数字**，只影响耗时预期——**没有任何待办事项阻断开发**。
 * **评审者（智能体 O / Codex）**：读 §3（原厂口径的语义风险）、§7（决策与取舍）、§8（异常矩阵）、§9（爆炸半径）、§13（风险登记册）。
 
 **三条硬约束**（贯穿全文，任何实现偏离即为不合格）：
@@ -167,7 +167,37 @@
 * `backend/schema/loader.py` 扫描 `backend/schema/vN/NNN_*.sql`，按 `(version, sequence)` 升序执行。
 * `migrator._split_statements()`（`migrator.py:159-164`）：**逐行剔除以 `--` 开头的行**，
   再按 `;` 切分逐条执行——与 Rev.A 时一致，本模块的 SQL 写法不变。
-* 现有最高版本目录：`v10/100_zk_scan_enrich.sql`。→ 本模块用 `v11/110_table_type_stats.sql`。
+* **现有最高版本目录：`v12/120_gateway_report_tickets.sql`。→ 本模块用 `v13/130_table_type_stats.sql`。**
+
+> ### ⚠️ DEF-1（Rev.I 更正）：`v11/110` 槽位已被占用，且这是我自己漏掉的
+>
+> Rev.A（`5e9f438`，2026-08-29 02:23 UTC）编写时，schema 目录的最高版本**确实**是
+> `v10/100_zk_scan_enrich.sql`，当时写 `v11/110` 没有错。
+> 但 v1.6.2.2 的 UAT 第四、五轮随后各加了一个：
+>
+> | 提交 | 新增文件 | 来源 |
+> |---|---|---|
+> | `50a1c04` | `backend/schema/v11/110_index_finding_structured.sql` | O-18 索引体检结构化字段 |
+> | `8fee172` | `backend/schema/v12/120_gateway_report_tickets.sql` | O-22 网关票据共享 |
+>
+> **Rev.F 那一版的任务就是"依 v1.6.2.2 上线后的代码变更复核"，却没抓到这条。**
+> 原因是我把复核范围定义成了"本设计**引用到的** 13 个文件有没有变"，
+> 逐个 `git diff` 过去——而**一个新文件要落进去的槽位，本来就不在"我引用的文件"里**，
+> 那种 diff 无论多仔细都不可能发现它。这是复核**方法**的缺口，不是执行不仔细。
+> 教训登记为 **KL-17**。
+>
+> **实际后果（评估后确认不是灾难，但必须改）**：迁移键是
+> `f"v{version}_{sequence:03d}_{name}"`（`migrator.py:354`），所以
+> 原方案的 `v11_110_table_type_stats` 与既有的 `v11_110_index_finding_structured`
+> **并不撞主键**，两个文件都能被加载和登记，不会启动失败。
+> 但同一个 `v11` 目录里出现两个 `110_` 前缀，二者的执行先后**只由
+> `sorted(vdir.iterdir())` 的文件名字典序决定**（`loader.py`）——
+> 这是一个没人打算建立的隐式依赖，也直接违反本项目"vN 目录 ↔ NNN 序号"的约定。
+>
+> **Rev.I 的处置**：槽位改为 **`v13/130_table_type_stats.sql`**（当前最大之后的下一个），
+> 并新增护栏测试 `test_migration_slot_is_not_already_taken`——
+> 它扫描 `backend/schema/` 的真实目录，断言本模块的槽位既未被占用、又是最大槽位。
+> **把"槽位可用"从一件需要人去记的事，变成一条会失败的测试。**
 * **不动 `database.py::_create_all_tables`**：`init_db()` 在 `_create_all_tables` 之后调
   `migrator.run_migrations()`（`database.py:411`），全新安装与存量升级都覆盖到。
 
@@ -182,7 +212,7 @@
 
 > ### ⚠️ M-3 是本次新增的最重要约束：迁移文件发布即冻结
 >
-> `v11/110_table_type_stats.sql` **一旦随版本发布并在任一实例上被应用，文件内容即被冻结**。
+> `v13/130_table_type_stats.sql` **一旦随版本发布并在任一实例上被应用，文件内容即被冻结**。
 > 事后任何修改——**哪怕只是改一个注释、加一个空格**——都会让**所有已部署实例
 > 在下次启动时失败关闭**，报"迁移版本记录与文件内容漂移……不在已知调和账本中"。
 >
@@ -193,8 +223,8 @@
 > **因此表结构必须在首次发布前定稿。** 本设计的 DDL 从 Rev.B 到 Rev.E 已经增补过三次字段
 > （`skipped_databases` / `baseline_tables` / `subpartition_tables`），
 > 幸而尚未发布；**进入开发后若还要改字段，务必在打包前改完**。
-> 若发布后确需扩列，正确做法是**新增 `v11/111_*.sql` 用 `ALTER TABLE … ADD COLUMN`**，
-> 而不是回头编辑 `110_*.sql`——注意 `ADD COLUMN` 会进入 M-2 的列级严格验收，
+> 若发布后确需扩列，正确做法是**新增 `v13/131_*.sql` 用 `ALTER TABLE … ADD COLUMN`**，
+> 而不是回头编辑 `130_*.sql`——注意 `ADD COLUMN` 会进入 M-2 的列级严格验收，
 > 类型/可空性/默认值三项必须与既有列逐字相符。
 
 > ### ⚠️ M-2 补注（Rev.G 新增）：**"不进入验收"不是安全性依据**
@@ -569,8 +599,8 @@ Query OK, 0 rows affected (0.001 sec)
 |---|---|---|
 | 新增 | `backend/services/table_type_stats_service.py` | 834 行（附录 A.1，成品） |
 | 新增 | `backend/api/table_type_stats.py` | 66 行（附录 A.2，成品） |
-| 新增 | `backend/schema/v11/110_table_type_stats.sql` | 45 行（附录 A.3，成品） |
-| 新增 | `tests/test_table_type_stats.py` | 1386 行 / 70 项（附录 A.4，成品） |
+| 新增 | `backend/schema/v13/130_table_type_stats.sql` | 46 行（附录 A.3，成品）。**槽位 v13/130**——`v11/110` 与 `v12/120` 已被 v1.6.2.2 占用（DEF-1，§2.7） |
+| 新增 | `tests/test_table_type_stats.py` | 1415 行 / 71 项（附录 A.4，成品） |
 | 修改 | `backend/main.py` | **2 行**（import + include_router） |
 | 修改 | `backend/services/auth_service.py` | **3 行**（P1/P2/P3） |
 | 修改 | `backend/services/database.py` | **1 行**（P4） |
@@ -1006,7 +1036,7 @@ def run_stats(pool, connection_id="", database="", operator=""):
 | ADR-15（Rev.D 新增） | `RECON_MISMATCH` **汇总成一条**告警，逐库明细放 `item.detail` | 逐库一条告警 | 保留。Rev.E 剔除子分区后该告警不再常态触发，但**真出问题时仍可能多库同时命中**（例如一批表漏进 Proxy 路由表），50 库实例上逐库一条就是 50 条横幅。汇总告警给合计与库名，明细留在表格行里，信息一点不少 |
 | ADR-16（Rev.D 新增，Rev.E 修订） | 四个数字采用 **Proxy 口径**，逻辑基线数并排呈现 | ① 用 `information_schema` 当准 ② 只显示 Proxy 口径 | 需求问的是"单表/广播表/分片表各多少张"，这三个概念**只有 Proxy 知道**，`information_schema` 没有这个维度。Rev.E 剔除二级分区子表后两个口径精确相等（215 == 215），并排呈现从"让用户自己判断"变成"互相印证" |
 | ADR-17（Rev.E 新增，**Rev.G 收紧**） | 二级分区物理子表的判定 = **后缀匹配 且 逻辑父表已在本库 Proxy 结果中确认**；**集中式实例一律不剔除** | ① 计入基线（Rev.D 做法） ② 计入总表数 ③ 只看后缀（Rev.E/F 做法） | ①会让 `RECON_MISMATCH` 在每个有二级分区的库上**永久亮着**——一个永远亮的告警是背景噪声；②用户认知里 `cus_pub_translog` 是一张表不是十三张，Proxy 也只返回逻辑表名；③**实测只证明了"这 78 张子表叫这个名字"，没证明"叫这个名字的一定是子表"**。集中式实例没有二级分区这个构造、也没有 Proxy 交叉校验兜底，一张合法业务表 `orders_tdsql_subp202601` 会被静默少算且不可见（违反 REQ-5）。加上父表确认后，未确认者保留为逻辑表 → `RECON_MISMATCH` **显式报出**，误判方向仍然安全。**T17 第五轮实测已坐实**：78 张子表精确推导出 6 个父表（各 13 张），且由「基线 293、Proxy 215、后缀表 78」三个基数的算术闭合可证 6 个父表全部落在 Proxy 结果内（推导见 §10.2 T17），收紧后 215 == 215 不变 |
-| ADR-18（Rev.F 新增） | 表结构在**首次发布前定稿**；发布后若需扩列，**新增 `v11/111_*.sql` 用 `ALTER TABLE … ADD COLUMN`**，绝不回头编辑 `110_*.sql` | ① 直接改 `110_*.sql` ② 把表并进 `database.py::_create_all_tables` | ①v1.6.2.2 起 checksum 漂移会让**所有已部署实例启动失败关闭**（§2.7 M-3），补救需人工往 `_KNOWN_RECONCILIATIONS` 加账本三元组，代价远高于新增一个迁移文件；②`_create_all_tables` 是 27 张表的大列表，改它等于把 `database.py` 的改动面从 1 行放大到一整段 DDL，与最小化修改原则冲突（ADR-6 已述） |
+| ADR-18（Rev.F 新增） | 表结构在**首次发布前定稿**；发布后若需扩列，**新增 `v13/131_*.sql` 用 `ALTER TABLE … ADD COLUMN`**，绝不回头编辑 `130_*.sql` | ① 直接改 `130_*.sql` ② 把表并进 `database.py::_create_all_tables` | ①v1.6.2.2 起 checksum 漂移会让**所有已部署实例启动失败关闭**（§2.7 M-3），补救需人工往 `_KNOWN_RECONCILIATIONS` 加账本三元组，代价远高于新增一个迁移文件；②`_create_all_tables` 是 **46 张表、828 行**的大列表（Rev.I 复核实测；Rev.A～H 一直写的"27 张"是旧数），改它等于把 `database.py` 的改动面从 1 行放大到一整段 DDL，与最小化修改原则冲突（ADR-6 已述） |
 | ADR-19（Rev.G 新增，P1-02） | `/run` 复用既有 `registry.scan_slot(connection_id)`，**不新建并发控制** | ① 不限流（Rev.F） ② 本模块自建一套信号量 ③ 改成异步任务 | ①单次占用最长 180 秒并额外开一条 Proxy 连接，重复点击/多人同时操作就能吃掉大量 FastAPI 工作线程和目标库连接，挤占既有审核、扫描、巡检——与本文档"零回归"的承诺直接冲突；②自建一套等于**两套配额各算各的**，全局上限形同虚设，反而更危险；③异步任务要引入任务表、轮询接口和前端状态机，爆炸半径远超一个诊断子模块该有的量级（KL-6 保留为将来选项）。复用 `scan_slot` 是三者里唯一既限流又不新增机制的：`scan_service.py:72` 就是同样的用法，配置项、错误类型、HTTP 状态码全部现成 |
 | ADR-20（Rev.G 新增，P1-08） | 留档表结构验收**在 `run_stats` 入口做**（模块级、首次使用时），**不做启动期失败关闭**；验收范围 = 表存在 + 全部列 + 关键列类型 + 索引 | ① 不验收（Rev.F：迁移器不严格验收 CREATE TABLE，故"无额外适配成本"）② 扩展迁移器支持 CREATE TABLE 声明验收 ③ 进程启动期专用 schema assertion（O 的建议） | ①站不住：元数据库里若有同名但缺列/错类型的历史残留表，`CREATE TABLE IF NOT EXISTS` 会**静默跳过**、迁移仍登记成功，直到 INSERT 才 1054；迁移登记后表被删或结构漂移，`_structure_state()` 也照样返回 valid。**"不进入验收"不是安全性依据**，这一点我完全接受。②改迁移器意味着动 v1.6.2.2 刚上线的启动路径，是全平台级别的爆炸半径，为一个诊断子模块付这个代价不成比例。③**本设计与 O 的分歧仅在这一点**：表类型统计是深度诊断下的只读诊断子模块，它的留档表有问题**不应当让整个审核平台起不来**——同层级的 `index_audit`、`cluster_inspection` 在 `_create_all_tables` 里同样没有启动期结构验收，只为新模块加这一道，标准不一致且风险方向相反（把"一个页面不可用"放大成"平台不可用"）。放在 `run_stats` 入口、且在采集与并发槽位**之前**，同时满足"确定性验收"和"不让用户白跑一轮采集"。四种畸形场景（缺表/缺列/错类型/缺索引）均失败关闭，由 T-R12 五项单测钉住 |
 | ADR-21（Rev.G 新增，P1-06） | 新权限键必须同时登记到 **6 处**（API 路径映射 / 菜单全集 / 标签 / 默认角色清单 / `index.html` 页签 / **`app.js` 的 `subtabs` 回退清单**） | Rev.F 只登记 4 处 + 页签 | 缺 `subtabs` 这一处时，只被授予"深度诊断 + 表类型统计"的自定义角色进入页面后，默认 `deepTab='cluster'` 对应的页签不可见，**页面没有活动页签**——权限配置成功、功能却进不去。这类缺陷在 admin 账号下**永远测不出来**（admin 有全部子页签，第一个必定可见），只有最小权限角色才暴露，故必须由 T-R08 单测钉住而不是靠人工回归 |
@@ -1056,8 +1086,8 @@ def run_stats(pool, connection_id="", database="", operator=""):
 | 文件 | 改动 | 影响面 | 风险 |
 |---|---|---|---|
 | `backend/services/table_type_stats_service.py` | 全新 | 无人引用 | **零** |
-| `backend/api/table_type_stats.py` | 全新 | 新路由前缀，与现有 25 个前缀无重叠 | **零** |
-| `backend/schema/v11/110_table_type_stats.sql` | 全新 | 两张新表，`CREATE TABLE IF NOT EXISTS` 幂等 | **低**（Rev.F 上调）。v1.6.2.2 起迁移失败即**启动关闭**（§2.7 M-1），且**发布即冻结**（M-3）。缓解：纯 `CREATE TABLE IF NOT EXISTS`、表结构须在打包前定稿（ADR-18）、**结构正确性由模块自身在首次使用时验收**（ADR-20，不依赖迁移器的列级验收） |
+| `backend/api/table_type_stats.py` | 全新 | 新路由前缀，与现有 **26** 个 `/api/v1/*` 前缀无重叠（Rev.I 复核实测，已确认 `table-type-stats` 在仓库中零命中） | **零** |
+| `backend/schema/v13/130_table_type_stats.sql` | 全新 | 两张新表，`CREATE TABLE IF NOT EXISTS` 幂等 | **低**（Rev.F 上调）。v1.6.2.2 起迁移失败即**启动关闭**（§2.7 M-1），且**发布即冻结**（M-3）。缓解：纯 `CREATE TABLE IF NOT EXISTS`、表结构须在打包前定稿（ADR-18）、**结构正确性由模块自身在首次使用时验收**（ADR-20，不依赖迁移器的列级验收） |
 | `tests/test_table_type_stats.py` | 全新 | 仅测试 | **零** |
 | `backend/main.py` | +2 行（第 40 行附近 import、第 176 行附近 include_router） | 路由表新增 3 条 | **极低**。`tests/test_app_routes_integrity.py` 会验证路由完整性 |
 | `backend/services/auth_service.py` | +3 行（P1/P2/P3，均为字典/列表新增条目） | 权限判定 | **极低**。新增映射不改变任何既有前缀的判定；`test_rbac_path_coverage.py` 会验证 |
@@ -1158,15 +1188,13 @@ python -m pytest tests/test_table_type_stats.py -q -k "r0 or r1"
 | **T14 交叉校验**（第三轮） | **不一致，且差得很大**：`lzbj_ecif` Proxy 口径 **215**（98+117+0）vs `information_schema` 基线 **293**，**差 78 张（27%）** | **RISK-B 确认成立**，触发三处修订：**ADR-16** 四个数字用 Proxy 口径、基线并排呈现不覆盖；**ADR-15** `RECON_MISMATCH` 汇总成一条（差异每库都有，逐库告警会刷屏）；**ADR-12 改写** —— Rev.B 用"累计表集 == 基线"做作用域探测的完备性证明，实测证明两者基本不可能相等，该判据永远不成立，改用不依赖基线的**指纹比对** |
 | **D3 差异成因**（第四轮） | **78 张全部是二级分区物理子表**，命名 `<逻辑表>_tdsql_subp190001` / `_tdsql_subp202601`…`202612`；6 张 `sub_func:month` 的表 × 13 = 78，账目精确闭合 | **ADR-17**：`_tdsql_subp<数字>` 结尾的表从基线剔除、单列 `subpartition_tables`。剔除后**逻辑基线 215 == Proxy 口径 215**，`RECON_MISMATCH` 不再常态触发，重获信号价值 |
 
-### 10.2 仍待测（T19 + T13 两项，均**不阻断开发**）
+### 10.2 仍待测（**只剩 T13 一项**，不阻断且不影响任何数字）
 
-> **Rev.H 说明**：Rev.G 新增的 4 项核查（T16～T19）第五轮已回来 3 项，
-> 裁决归档在 §10.1 与下方 **T17/T18/T16 的"✅ 已完成"小节**，
-> 三条此前只有推测的事实前提**全部被证据坐实**，且**UAT 六个数字不变**。
-> **T19 第五轮误跑成了 T17 的语句**（复制粘贴时把 REGEXP 那条带进了元数据库），
-> 因此仍然待测——它只有一句话，见下方 T19 小节。
-> T13 在 Rev.G 删除提前停止后已**不影响统计正确性**，只影响耗时预期与
-> `INSTANCE_WIDE_SCOPE` 是否显示。**两项都不阻断开发。**
+> **Rev.I 说明**：Rev.G 新增的 4 项核查（T16～T19）**已全部完成**，
+> 裁决归档在下方各"✅ 已完成"小节。四条此前只有推测的事实前提
+> **全部被证据坐实**，且 **UAT 六个数字不变**。
+> T13 在 Rev.G 删除提前停止后已**不影响统计正确性**，
+> 只影响耗时预期与 `INSTANCE_WIDE_SCOPE` 是否显示，**不阻断开发**。
 
 ---
 
@@ -1263,35 +1291,47 @@ P1-01 里"账号只能看到部分 Proxy 路由信息"这一场景在本环境**
 
 ---
 
-### T19 · 内网元数据库里是否已存在同名的 `table_type_stat` 表？（为 P1-08 取证，**不阻断**）
+### T19 · 元数据库是否已存在同名的 `table_type_stat` 表 —— ✅ **已完成（2026-08-31，第六轮）**
 
-> **第五轮误跑说明**：第五轮在元数据库上执行的是 T17 的 `_tdsql_subp` REGEXP 语句
-> （复制粘贴时带过去了），返回 `Empty set`。那个结果说明的是"元数据库里没有
-> `_tdsql_subp` 命名的表"——与本用例要问的问题无关。本用例仍待回填。
+**环境**：`mysql -h 10.243.20.15 -P 15197 -u checksql`，库 `tdsql_sqlcheck`，
+服务端 `8.0.33-v24-txsql-22.6.9-20250509`
 
-**已确认的环境信息**（第五轮顺带取得，记录备查）：
-内网元数据库为 **TDSQL**，`10.243.20.15:15197`，
-服务端 `8.0.33-v24-txsql-22.6.9-20250509`，库名 **`tdsql_sqlcheck`**。
-与"生产元数据库是 TDSQL/MySQL、MariaDB 非支持目标"这一既有结论一致。
-
-**为什么要查**：P1-08 描述的失效路径是"元数据库里已有同名但结构不符的表，
-`CREATE TABLE IF NOT EXISTS` 静默跳过"。Rev.G 已经加了结构验收（ADR-20），
-所以**查不查都不影响安全性**。但如果确实存在同名表（比如某次手工试验留下的），
-它就是一条马上会踩到的坑，部署文档里要写清楚先删表。
-
-**执行**（在元数据库 `10.243.20.15:15197` 上，**注意是 `TABLE_NAME IN (...)`，不是 REGEXP**）：
-```sql
-SELECT TABLE_NAME, TABLE_ROWS, CREATE_TIME
-FROM information_schema.TABLES
-WHERE TABLE_SCHEMA = 'tdsql_sqlcheck'
-  AND TABLE_NAME IN ('table_type_stat', 'table_type_stat_item');
+```
+MySQL [(none)]> SELECT TABLE_NAME, TABLE_ROWS, CREATE_TIME
+                FROM information_schema.TABLES
+                WHERE TABLE_SCHEMA = 'tdsql_sqlcheck'
+                  AND TABLE_NAME IN ('table_type_stat', 'table_type_stat_item');
+Empty set (0.003 sec)
 ```
 
-**回填**：查询结果（预期 0 行）。
+**结论：0 行。** 生产元数据库中**不存在同名残留表**，是干净的全新落地环境。
 
-**我要看什么**：0 行 → 全新安装、无残留，部署文档无需额外说明；
-非 0 行 → 请再执行 `SHOW CREATE TABLE table_type_stat;` 并把结果发我，
-我来判断是补列还是删表重建，并把处置步骤写进部署文档。
+**对设计的影响**：
+
+1. **部署文档无需增加"先核实/删除同名表"的步骤**（原本准备写的那条可以不写）；
+2. **P1-08 的"同名残留表"失效路径在当前环境下不会触发**，`_ensure_schema()`
+   对这条路径而言目前是**纯防御**。这一点我如实登记，**但不因此削弱 ADR-20**——
+   P1-08 还有第二条失效路径（**迁移登记后表被人工删除或结构漂移**，
+   `_structure_state()` 因无 `ADD COLUMN` 声明恒返回 `valid`、不会重放），
+   那条与残留表无关、随时可能发生；而"同名残留表"本身也可能由**一次中途失败的
+   部署**在将来制造出来。**一条现在不触发的防御，不等于一条不需要的防御。**
+3. 顺带确认了元数据库的目标环境（见下表），与"生产元数据库是 TDSQL/MySQL、
+   **MariaDB 非支持目标**"这一既有结论一致。
+
+| 项 | 值 |
+|---|---|
+| 平台元数据库 | `10.243.20.15:15197`，库 `tdsql_sqlcheck` |
+| 服务端版本 | `8.0.33-v24-txsql-22.6.9-20250509`（TDSQL） |
+| 现有 `table_type_stat*` 表 | **无** |
+
+> **一条顺带得到的、比 T19 本身更有价值的旁证**：这套元数据库上
+> v0～v12 共 13 个迁移版本**全部成功应用过**（v1.6.2.2 已在此环境上线），
+> 其中 `v12/120_gateway_report_tickets.sql` 就是一条纯
+> `CREATE TABLE IF NOT EXISTS … ENGINE=InnoDB DEFAULT CHARSET=utf8mb4` 语句。
+> 这说明本模块 DDL 的写法（`INT PRIMARY KEY AUTO_INCREMENT` + `INDEX` +
+> InnoDB/utf8mb4，**不带 shardkey**）**在这台 TDSQL 元数据库上已被既有版本证明可用**
+> ——"新建表在 TDSQL 上要不要指定分片键"这个本来会在 UAT 才暴露的问题，
+> 由此提前排除。
 
 ---
 
@@ -1424,14 +1464,8 @@ Query OK, 0 rows affected (0.001 sec)
 【T09】登记账号能否执行（是/否，errno）：
 【T12】单分片实例：有/无，若有则输出：
 
-—— 以下为 Rev.G 新增；T16/T17/T18 已于第五轮回填并归档，仅剩 T19 ——
-【T19】内网元数据库 tdsql_sqlcheck 是否已存在 table_type_stat / table_type_stat_item（0 行 / N 行）：
-【T19】（非 0 时）SHOW CREATE TABLE table_type_stat 的输出：
+—— Rev.G 新增的 T16～T19 已于第五、六轮全部回填并归档，本模板不再需要 ——
 ```
-
-> **T19 的语句务必用 `TABLE_NAME IN (...)`**，不要用 T17 那条 `REGEXP '_tdsql_subp[0-9]+$'`
-> ——第五轮就是把 T17 的语句带到元数据库上跑了，那条查的是二级分区子表，
-> 与本用例要问的"有没有同名残留表"是两回事。
 
 > T09 其实已经被 T15 顺带证明了一半：那次用的 `checksql` 账号能正常执行三条命令。
 > 只要平台"实例管理"里登记的就是 `checksql`，T09 即视为通过。
@@ -1446,7 +1480,7 @@ Query OK, 0 rows affected (0.001 sec)
 | ~~T16~~ | ✅ **已关闭**：内网统一 `checksql` 账号，不存在可见范围差异（使用者裁决）。P1-01 的"账号可见范围"场景在本环境不成立 | — |
 | ~~T17~~ | ✅ **已完成**：78 张子表 → 正好 6 个父表（各 13 张），算术闭合证明 6 个父表全部在 Proxy 结果中。**UAT 六个数字不变**。另暴露出真实数据里存在**前缀嵌套父表**（`cus_pub_updatelog` / `cus_pub_updatelog_detail`），已用真名新增 3 项定向测试钉住 | — |
 | ~~T18~~ | ✅ **已完成**：集中式实例 `zjywgl` 库 0 行 `_tdsql_subp` 表，P1-03「集中式一律不剔除」零风险 | — |
-| T19 元数据库已有同名表 | 部署文档写明先核实/删表；`_ensure_schema` 会挡住结构不符（ADR-20） | 否 |
+| ~~T19~~ | ✅ **已完成**：元数据库 `tdsql_sqlcheck` 中无同名残留表，部署文档无需额外步骤；顺带证明本模块 DDL 写法在该 TDSQL 元数据库上已被 v12 迁移证明可用 | — |
 | ~~T14 / D3~~ | ✅ **已完成**。差异 78 张查明为二级分区物理子表，已按 ADR-17 剔除，两口径精确对齐 | — |
 | ~~T15~~ | ✅ **已完成 = A**。设计不变，超时保险留作兜底 | — |
 | T09 登记账号无权限 | 出授权说明，由 DBA 补授权 | **是**（非代码问题） |
@@ -1460,7 +1494,7 @@ Query OK, 0 rows affected (0.001 sec)
 
 ## 11. 测试设计（开发期，可在本地 MariaDB 13306 上跑）
 
-`tests/test_table_type_stats.py`（附录 A.4），**70 项，除落库/结构验收 8 项外全部离线，
+`tests/test_table_type_stats.py`（附录 A.4），**71 项，除落库/结构验收 8 项外全部离线，
 不依赖真实 TDSQL**。数据夹具直接照搬内网实测形态（列名 `db_table`、
 库限定名 `sqltuning.t_max`、`with*` 双列 / `without` 单列），
 **Rev.H 起子分区相关用例直接使用 2026-08-31 T17 取回的 78 个真实表名**。
@@ -1540,6 +1574,7 @@ Query OK, 0 rows affected (0.001 sec)
 | T-R12 | `test_r12d_missing_index_fails_closed` | 缺 `idx_tts_created` → 失败关闭 | **P1-08** |
 | T-R12 | `test_r12e_run_stats_fails_before_collecting` | 结构不合格时 `analyze` **一次都没被调用**——不让用户白跑 180 秒 | **P1-08 / ADR-20** |
 | T-R12 | `test_r12f_ddl_and_service_column_lists_agree` | DDL 文件的列清单与服务的 `_STAT_COLUMNS`/`_ITEM_COLUMNS` 逐字一致，且 `warnings_json` 必须是 `MEDIUMTEXT` | **P1-07 / P1-08** |
+| DEF-1（Rev.I） | `test_migration_slot_is_not_already_taken` | 扫描 `backend/schema/` 真实目录，断言 `v13/130` 槽位**未被占用**且**是当前最大槽位之后的下一个**——把"槽位可用"从需要人记的约定变成会失败的测试 | **DEF-1 / KL-17** |
 | T-R13 | `test_r13_api_records_current_operator` | API 签名含 `http_request: Request`，`operator` 收到真实用户名；未认证兜底 `anonymous`（**不写空串**） | **P2-02** |
 | T-R13 | `test_r13_created_by_is_persisted` | `created_by` 真正落库并可从 `/history` 回读 | **P2-02** |
 | T-R14 | `test_lzbj_ecif_uat_baseline`（已有） | 端到端对数：215/0/117/98/215/78，告警仅 `SUBPARTITION_EXCLUDED` | UAT 基准 |
@@ -1558,9 +1593,9 @@ Query OK, 0 rows affected (0.001 sec)
 这是本轮我认为最有价值的一处测试设计：**P1-04 描述的缺陷在 Rev.F 的测试体系下
 根本无法被发现**，因为旧 FakePool 对异常穿不穿出 `with` 完全无感。
 
-**本地验证结果（2026-08-31，Rev.H）**：用 importlib 把附录 A.1 / A.2 分别挂载为
+**本地验证结果（2026-08-31，Rev.I）**：用 importlib 把附录 A.1 / A.2 分别挂载为
 `backend.services.table_type_stats_service` 与 `backend.api.table_type_stats`
-（**仓库代码零改动**），`python -m pytest` **69 项通过 + 1 项跳过**
+（**仓库代码零改动**），`python -m pytest` **70 项通过 + 1 项跳过**
 （跳过的是 T-R08，它断言的是模块落盘后的仓库文件，设计阶段无从断言），
 含对本地 MariaDB(13306) 的真实落库与四种畸形结构失败关闭用例。
 
@@ -1583,7 +1618,7 @@ Query OK, 0 rows affected (0.001 sec)
 - [ ] `RECON_MISMATCH` 无论涉及几个库都**只出一条**告警；逐库差异在表格「说明」列
 - [ ] 二级分区子表不计入总表数，但逐库「二级分区子表」列如实显示
 - [ ] **迁移专项**：全新安装与存量升级各跑一次 `init_db()`，两次启动均无 `MigrationError`；
-      `schema_migrations` 中出现 `v11_110_table_type_stats` 且 checksum 与文件一致
+      `schema_migrations` 中出现 `v13_130_table_type_stats` 且 checksum 与文件一致
 - [ ] **迁移专项**：连续启动两次（模拟重启），第二次走 `_structure_state` → `valid` 跳过，不重复执行
 - [ ] **结构验收专项（Rev.G / P1-08）**：手工 `ALTER TABLE table_type_stat DROP COLUMN subpartition_tables` 后调用 `/run`，必须在**采集之前**返回 500 且消息点名缺失列与处置步骤；恢复后功能正常
 - [ ] **结构验收专项**：手工 `DROP TABLE table_type_stat` 后重启服务——**服务必须能正常启动**（诊断子模块的表问题不得阻断平台启动，ADR-20），进入该页签点击统计时才报错
@@ -1622,6 +1657,7 @@ Query OK, 0 rows affected (0.001 sec)
 | KL-8 | 命令作用域（当前库 / 实例级）未裁决 | 返回库限定名 + 原厂"库名+表名去重"的措辞都指向实例级，但缺少多业务库实例的实测 | 设计在两种作用域下都正确（ADR-11）。**Rev.G 取消提前停止后，T13 已不影响任何数字**，只影响耗时预期与 W9 是否显示 |
 | ~~KL-9~~ | ~~空结果集是否导致命令挂起未裁决~~ | **已裁决（Rev.C / §3.3 RISK-F / §10.1 T15）**：命令以 **OK 包**在 0.001 秒返回，`Query OK, 0 rows affected`，不挂起；赤兔转圈是其前端在等结果集列元数据所致，与命令无关 | **本项关闭**。30s 读超时 + 180s 总预算保留为纯保险，在已实测形态下永不触发 |
 | KL-10 | 二级分区子表识别依赖命名约定 `_tdsql_subp<数字>` | D3 + **T17 全量实测**确认该命名（78/78 命中，推导出正好 6 个父表各 13 张），但无官方文档背书；实测证明的是"这些子表叫这个名字"，**"叫这个名字的一定是子表"仍无法证明** | Rev.G 收紧为「后缀匹配 **且** 逻辑父表已在 Proxy 结果中确认」，集中式一律不剔除（ADR-17）。误判方向安全：未确认者保留为逻辑表 → `RECON_MISMATCH` 显式报出（可见），不会静默少算。T17 已在全量数据上取证；**T18 另证实集中式实例无此构造** |
+| KL-17（Rev.I 新增） | **"版本复核"若只 diff 自己引用到的文件，就发现不了"自己要落进去的槽位被占了"** | Rev.F 的任务是"依 v1.6.2.2 上线后的代码变更复核"，我把范围定义成"本设计引用的 13 个文件有没有变"，逐个 diff 过去——**而新文件的槽位本来就不在这 13 个文件里**，那种 diff 无论多仔细都不可能命中。结果 `v11/110` 被 v1.6.2.2 占用一事直到 Rev.I 才发现（DEF-1，§2.7） | 两条：①**方法上**——今后凡"新增文件/新增标识符"类的设计，复核必须包含一次**目录与命名空间的重新枚举**（schema 槽位、路由前缀、权限键、菜单键、表名），而不只是 diff 引用文件；②**工程上**——把能自动化的部分变成测试：`test_migration_slot_is_not_already_taken` 已钉住 schema 槽位，`test_r08_permission_key_is_registered_at_every_point` 已钉住权限键。**能被测试钉住的约定，就不要靠人去记** |
 | KL-16（Rev.H 新增） | 父表推导对**前缀嵌套**敏感 | 内网真实数据里 `cus_pub_updatelog` 与 `cus_pub_updatelog_detail` **两者都是父表**且前者是后者的前缀（T17）。父表推导若写成任何"取最短前缀"的近似做法，`_detail` 的 13 张子表会被算到 `cus_pub_updatelog` 头上，UAT 的 215/78 变成 228/65——**数字错了，而且错得很像对的** | `_SUBPARTITION_RE` 使用**非贪婪** `^(?P<parent>.+?)_tdsql_subp\d+$`，与内网 SQL 侧 `SUBSTRING_INDEX(...,'_tdsql_subp',1)` 口径逐字一致；已用 78 个真实表名逐条验算，并由 `test_r07b/c/d_*` 三项定向测试钉住。**后续任何人改这个正则，先跑这三项** |
 | KL-11 | `info` 列内容（shardkey / sub_shardkey / auto_increment）本期未使用 | 形态已入附录 B | 为将来"分片键分布"类需求预留，不在本期范围 |
 | KL-12（Rev.F 新增） | 迁移文件发布后**内容冻结**，改一个字符都会让已部署实例启动失败关闭 | v1.6.2.2 的 O-30 调和账本机制（§2.7 M-3） | 表结构须在打包前定稿；发布后扩列走新增 `111_*.sql`（ADR-18）。**这是全项目所有新增迁移文件的共性约束，不是 G14 特有** |
@@ -2291,7 +2327,7 @@ def analyze(pool, connection_id: str = "", database: str = "") -> dict:
     }
 
 
-# 落库表的期望结构（与 backend/schema/v11/110_table_type_stats.sql 逐字对应）。
+# 落库表的期望结构（与 backend/schema/v13/130_table_type_stats.sql 逐字对应）。
 #
 # Rev.G / P1-08：迁移器只对 `ALTER TABLE ... ADD COLUMN` 做列级验收
 # （backend/schema/migrator.py:45-48 的 _ADD_COLUMN_RE），纯 CREATE TABLE 语句
@@ -2385,7 +2421,7 @@ def _ensure_schema() -> None:
                       str(_row_get(r, "DATA_TYPE") or "").lower() for r in rows}
             if not actual:
                 raise SchemaNotReadyError(
-                    f"元数据库缺少表 {table}：迁移 v11/110_table_type_stats.sql 未生效"
+                    f"元数据库缺少表 {table}：迁移 v13/130_table_type_stats.sql 未生效"
                     f"（可能是升级包未带该文件，或迁移已登记后表被人工删除——"
                     f"迁移器不会重放纯 CREATE TABLE 语句）。"
                     f"处置：确认该 .sql 已随版本部署，并手工执行其中的建表语句")
@@ -2395,14 +2431,14 @@ def _ensure_schema() -> None:
                     f"元数据库表 {table} 缺少列: {', '.join(missing)}。"
                     f"该表很可能是同名历史残留——CREATE TABLE IF NOT EXISTS 会静默跳过，"
                     f"迁移仍登记成功。处置：核实该表无业务数据后删表重启，"
-                    f"或按 110_table_type_stats.sql 补齐列")
+                    f"或按 130_table_type_stats.sql 补齐列")
             bad = [f"{c}(期望 {t}，实际 {actual.get(c.lower())})"
                    for c, t in types.items()
                    if actual.get(c.lower()) and actual[c.lower()] != t]
             if bad:
                 raise SchemaNotReadyError(
                     f"元数据库表 {table} 列类型不符: {'; '.join(bad)}。"
-                    f"处置：按 110_table_type_stats.sql 的定义 ALTER 修正")
+                    f"处置：按 130_table_type_stats.sql 的定义 ALTER 修正")
             irows = conn.execute(
                 "SELECT INDEX_NAME, COLUMN_NAME FROM information_schema.STATISTICS "
                 "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND SEQ_IN_INDEX = 1",
@@ -2414,7 +2450,7 @@ def _ensure_schema() -> None:
             if lost:
                 raise SchemaNotReadyError(
                     f"元数据库表 {table} 缺少索引: {', '.join(lost)}。"
-                    f"处置：按 110_table_type_stats.sql 补建索引")
+                    f"处置：按 130_table_type_stats.sql 补建索引")
     finally:
         conn.close()
 
@@ -2582,13 +2618,14 @@ def detail(stat_id: int):
     return svc.get_detail(stat_id)
 ```
 
-### A.3 `backend/schema/v11/110_table_type_stats.sql`（新增，45 行）
+### A.3 `backend/schema/v13/130_table_type_stats.sql`（新增，46 行）
 
 > 迁移器会**逐行剔除以 `--` 开头的行**再按 `;` 切分（`backend/schema/migrator.py:159-164`，v1.6.2.2 后行号），
 > 因此注释必须整行独占，语句之间必须有 `;`，文件末尾的 `;` 不可省。
 
 ```sql
--- v1.6.3.0 G14 表类型统计（DESIGN-v1.6.3.0 Rev.G §6.8）
+-- v1.6.3.0 G14 表类型统计（DESIGN-v1.6.3.0 Rev.I §6.8）
+-- 槽位：v13/130。v11/110 与 v12/120 已被 v1.6.2.2 的 O-18 / O-22 占用（Rev.I 更正）。
 -- 任务表：一次统计一行
 CREATE TABLE IF NOT EXISTS table_type_stat (
     id                  INT PRIMARY KEY AUTO_INCREMENT,
@@ -2635,7 +2672,7 @@ CREATE TABLE IF NOT EXISTS table_type_stat_item (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ```
 
-### A.4 `tests/test_table_type_stats.py`（新增，1386 行）
+### A.4 `tests/test_table_type_stats.py`（新增，1415 行）
 
 ```python
 # -*- coding: utf-8 -*-
@@ -3841,20 +3878,49 @@ def test_r08_permission_key_is_registered_at_every_point():
         "深度诊断子页签回退清单 subtabs 未登记新页签"
 
 
+def test_migration_slot_is_not_already_taken():
+    """迁移文件槽位必须没被占用（Rev.I / DEF-1）。
+
+    v1.6.2.2 的 UAT 第四、五轮分别新增了 v11/110_index_finding_structured.sql
+    与 v12/120_gateway_report_tickets.sql —— 本设计从 Rev.A 一直写的 v11/110
+    在那之后就被占了，而 Rev.F 的"代码变更复核"只 diff 了本设计【引用到的】文件，
+    没有重新列过 backend/schema/ 目录，于是漏掉。
+    这条测试把"槽位可用"变成可断言的事实，不再依赖人去记。
+    """
+    import pathlib
+    import backend
+    repo = pathlib.Path(backend.__file__).resolve().parent.parent
+    schema = repo / "backend" / "schema"
+    taken = {}
+    for vdir in schema.iterdir():
+        if not (vdir.is_dir() and vdir.name.startswith("v") and vdir.name[1:].isdigit()):
+            continue
+        for f in vdir.iterdir():
+            if f.suffix == ".sql" and f.name[:3].isdigit():
+                taken[(int(vdir.name[1:]), int(f.name[:3]))] = f.name
+    ours = (13, 130)
+    assert ours not in taken or taken[ours].startswith("130_table_type_stats"), \
+        f"迁移槽位 v{ours[0]}/{ours[1]} 已被 {taken.get(ours)} 占用，请顺延到下一个空槽"
+    # 槽位必须是当前最大之后的下一个，避免与将来的版本再撞
+    if taken:
+        assert ours > max(taken), \
+            f"迁移槽位 v13/130 不再是最大槽位（当前最大 {max(taken)}），请顺延"
+
+
 # ══════════════════════════════════════════════════════════════════
 # 落库与结构验收（需本地元数据库）
 # ══════════════════════════════════════════════════════════════════
 def _ddl_path():
-    """建表 DDL 的位置：落盘后是 backend/schema/v11/110_table_type_stats.sql，
+    """建表 DDL 的位置：落盘后是 backend/schema/v13/130_table_type_stats.sql，
     设计阶段在本文件旁边。测试直接读 DDL 文件本身，保证"文档里的建表语句"
     和"服务的结构验收"是同一份真相（P1-08 的账要能对上）。"""
     import pathlib
     import backend
-    here = pathlib.Path(__file__).parent / "110_table_type_stats.sql"
+    here = pathlib.Path(__file__).parent / "130_table_type_stats.sql"
     if here.exists():
         return here
     repo = pathlib.Path(backend.__file__).resolve().parent.parent
-    return repo / "backend" / "schema" / "v11" / "110_table_type_stats.sql"
+    return repo / "backend" / "schema" / "v13" / "130_table_type_stats.sql"
 
 
 def _exec_sql(*statements):
@@ -4515,13 +4581,15 @@ Empty set (0.005 sec)
 | B-15（第五轮） | 真实数据里存在**前缀嵌套的父表**：`cus_pub_updatelog` 与 `cus_pub_updatelog_detail` **两者都是父表** | **KL-16**：父表推导必须用非贪婪正则；`test_r07c/d_*` 钉住。取最短前缀的近似做法会把 UAT 的 215/78 变成 228/65 |
 | B-16（第五轮） | 集中式实例（`zjywgl`）**无** `_tdsql_subp` 命名的表 | P1-03「集中式一律不剔除」零风险 |
 | B-17（第五轮） | 内网元数据库为 TDSQL `8.0.33-v24-txsql`，`10.243.20.15:15197` / 库 `tdsql_sqlcheck` | 迁移与 `_ensure_schema` 的目标环境确认；MariaDB 仅沙箱离线用 |
+| B-18（第六轮） | 元数据库中**无** `table_type_stat` / `table_type_stat_item` 同名残留表 | T19 结案；部署文档无需"先删表"步骤；ADR-20 的"同名残留表"路径当前是纯防御（另一条"登记后结构漂移"路径仍在） |
+| B-19（第六轮，旁证） | 该元数据库上 v0～v12 共 13 个迁移版本全部成功应用过，其中 `v12/120` 是纯 `CREATE TABLE IF NOT EXISTS … ENGINE=InnoDB DEFAULT CHARSET=utf8mb4` | **本模块 DDL 写法（不带 shardkey）在这台 TDSQL 元数据库上已被既有版本证明可用**——"TDSQL 建表要不要指定分片键"这个本会在 UAT 才暴露的问题提前排除 |
 
 **待回填**：
 
 | 项 | 内容 | 来源 | 阻断 |
 |---|---|---|---|
 | 命令作用域 | 当前库 / 实例级 | T13 | 否 |
-| 元数据库是否有同名残留表 | 预期 0 行 | T19（第五轮误跑成 T17 语句） | 否 |
+| ~~元数据库是否有同名残留表~~ | 已完成：0 行 | T19 | — |
 | ~~父表是否全在 Proxy 结果中~~ | 已完成：算术闭合可证，6 个父表全在 | T17 | — |
 | ~~集中式是否有 `_tdsql_subp` 表~~ | 已完成：0 行 | T18 | — |
 | ~~账号可见范围差异~~ | 已关闭：统一 `checksql`，无差异 | T16 | — |
@@ -4536,6 +4604,7 @@ Empty set (0.005 sec)
 
 | 版本 | 日期 | 作者 | 内容 |
 |---|---|---|---|
+| **Rev.I** | **2026-08-31** | **智能体 A** | **回填 T19（第六轮），并更正一处 Rev.A～H 各版均未发现的硬伤。** **DEF-1（必须改）**：迁移文件槽位 `v11/110` 早在 v1.6.2.2 的 UAT 第四、五轮就被 `v11/110_index_finding_structured.sql`（O-18）与 `v12/120_gateway_report_tickets.sql`（O-22）占用。Rev.A 写这句时（`5e9f438`，最高版本确为 v10/100）是对的，**但 Rev.F 那一版的任务恰恰是"依 v1.6.2.2 上线后的代码变更复核"却没抓到**——原因是我把复核范围定义成"本设计**引用到的** 13 个文件有没有变"，而**新文件要落进去的槽位本来就不在这 13 个文件里**，那种 diff 无论多仔细都不可能命中。这是复核**方法**的缺口，教训登记为 **KL-17**（今后凡"新增文件/新增标识符"类设计，复核必须含一次目录与命名空间的重新枚举；能自动化的一律变成测试）。影响评估：迁移键为 `f"v{version}_{sequence:03d}_{name}"`，故**不撞主键、不会启动失败**，但同目录两个 `110_` 前缀的执行先后只由文件名字典序决定，是没人打算建立的隐式依赖，且违反项目约定。**处置**：槽位改为 **`v13/130_table_type_stats.sql`**（正文、附录 A.1/A.3/A.4、验收项、服务的报错文案共 19 处同步更正），并新增护栏测试 `test_migration_slot_is_not_already_taken`——扫描真实目录断言槽位未被占用且为最大槽位。**T19**：元数据库 `tdsql_sqlcheck`（TDSQL `8.0.33-v24-txsql`，`10.243.20.15:15197`）无同名残留表，部署文档无需"先删表"步骤；如实登记"该失效路径当前是纯防御"，但**不削弱 ADR-20**（第二条路径"登记后结构漂移"与残留表无关且随时可能发生）。顺带得到旁证 **B-19**：该库上 v0～v12 共 13 个迁移全部成功应用过，其中 v12/120 是纯 `CREATE TABLE IF NOT EXISTS … InnoDB/utf8mb4`，**证明本模块不带 shardkey 的建表写法在这台 TDSQL 元数据库上可用**，提前排除了一个本会在 UAT 才暴露的问题。另更正两处陈旧计数（`_create_all_tables` 27 → **46 张/828 行**；路由前缀 25 → **26**）。测试 70 → **71 项**（本地 70 通过 + 1 跳过）。**至此 T16～T19 全部完成，仅剩不影响任何数字的 T13。** |
 | **Rev.H** | **2026-08-31** | **智能体 A** | **回填第五轮内网实测（T16 / T17 / T18），设计与算法无实质变更。** **T17**：`lzbj_ecif` 的 78 张 `_tdsql_subp` 表精确推导出 **6 个父表、各 13 张**，与 Rev.E 从 D3 推出的 6 个名字逐名吻合（含当时判为"未被 LIKE 匹配的第 6 张"的 `cus_pub_sync_consumer_log`）。给出**算术闭合证明**——由基线 293、Proxy 215、后缀表 78 三个基数可推出 Proxy 结果集恰为逻辑基线，故 6 个父表全部在 Proxy 结果中，**不必再取 98 行原始输出**；残留假设仅"Proxy 不返回物理子表"一条，而它会在 UAT 时被 `RECON_MISMATCH` 免费验证且失败可见。**UAT 六个数字维持 215/0/117/98/215/78 不变。** T17 另暴露出一个构造夹具想不到的真实形态：`cus_pub_updatelog` 与 `cus_pub_updatelog_detail` **互为前缀且两者都是父表**——父表推导若用任何"取最短前缀"的近似做法，`_detail` 的 13 张子表会被错算给 `cus_pub_updatelog`，UAT 变成 228/65，**数字错了还很像对的**。现行非贪婪正则已用 78 个真名逐条验算通过，并新增 3 项定向测试（`test_r07b/c/d_*`，共 **70 项**，本地 69 通过 + 1 跳过）；登记 **KL-16**。**T18**：集中式实例 `zjywgl` 库 0 行 `_tdsql_subp` 表，P1-03「集中式一律不剔除」零风险（证据范围为单库，已在文中注明）。**T16**：使用者裁决关闭——内网统一 `checksql` 账号、权限充足、与平台登记账号一致，P1-01 的"账号可见范围"场景在本环境不成立；原 T09 一并结案。**T19 仍待测**：第五轮误把 T17 的 REGEXP 语句带到元数据库上跑了，本用例未被回答（不阻断，`_ensure_schema` 两种结果都能正确处理）。附录 B 新增 **B.55 第五轮原始数据**与 **B-14～B-17** 四条结论，含环境信息（元数据库 = TDSQL `8.0.33-v24-txsql`，`10.243.20.15:15197` / 库 `tdsql_sqlcheck`）。 |
 | **Rev.G** | **2026-08-31** | **智能体 A** | **依 O 的评审报告（`REVIEW-v1.6.3.0-…设计评审报告.md`，结论"不通过，退回修订 Rev.G"）整改。8 项 P1、3 项 P2、2 项文档一致性问题全部关闭，其中 **12 条我完全认可并按 O 的要求改**，**1 条（P1-08）认可问题、但整改方式与 O 的建议不同**（见 ADR-20：不做启动期失败关闭，改为模块首次使用时的结构验收——诊断子模块的留档表问题不应把"一个页面不可用"放大成"平台起不来"，且同层级的 `index_audit` / `cluster_inspection` 也没有启动期验收，只给新模块加一道标准不一致）。逐条：**P1-01** 删除「指纹相同即提前停止」的全部代码与论证（ADR-12 被自己推翻——从"命令是实例级作用域"推不出"这次返回已覆盖全部目标库"，用告警替代正确数字等于承认主结果可以是错的）；**P1-02** `run_stats` 进入既有 `registry.scan_slot`，与既有扫描**共用**配额，`ScanBusyError` → 429（ADR-19）；**P1-03** 子表判定收紧为「后缀 **且** 逻辑父表已在 Proxy 结果中确认」，集中式**一律不剔除**（ADR-17 修订）；**P1-04** 改为每库一个连接上下文、异常穿出触发连接重建；**P1-05** 单库三条命令暂存后原子合入，任一失败整库丢弃；**P1-06** 权限键补登记到 `app.js` 的 `subtabs` 回退清单（ADR-21）；**P1-07** `PROXY_CMD_FAILED` 汇总为一条、`warnings_json` 改 `MEDIUMTEXT`、前端告警上限 10 条可展开；**P1-08** 新增 `_ensure_schema()`（表 / 列 / 类型 / 索引，四种畸形均失败关闭）+ `SchemaNotReadyError`，位置在采集与并发槽位**之前**；**P2-01** 指定库必须真实存在、`SHOW DATABASES` 失败一律抛出（删除 `DB_ENUM_FAILED` 降级）；**P2-02** API 接收 `Request` 并记录操作人，前端补历史抽屉；**P2-03** `connection_id` 改必填；**DOC-01** KL-9 标记为已裁决并关闭；**DOC-02** 全文版本头、文件清单、行数、爆炸半径、接口契约统一到 Rev.G。测试从 42 项增至 **67 项**（新增 25 项全部为缺陷定向测试，逐一对应 O 的 T-R01～T-R14），本地 **66 通过 + 1 跳过**（T-R08 断言落盘后的仓库文件）。爆炸半径由「净改 9 行 + 1 个前端块」修正为「净改 **10 行** + **2 个前端块**」。另新增 4 项**不阻断**的内网核查 T16～T19，为 P1-01/P1-03/P1-08 的事实前提取证。 |
 | Rev.F | 2026-08-31 | 智能体 A | **v1.6.2.2 上线后的代码变更复核修订。**对本设计依赖的 13 个文件做 `git diff 8fee172..01e2914` 逐一比对，只有 `migrator.py`（失败关闭改造）与 `app.js`（2 行，无关）动过；其余全部未变，§2 的行号与结论逐条重新核对后继续成立。**§2.7 重写**，写入迁移器的三条新硬约束：M-1 任一语句失败即启动关闭（旧版只 WARNING）、M-2 列级严格验收只作用于 `ADD COLUMN`（本模块纯 `CREATE TABLE`，不受影响、无适配成本）、**M-3 checksum 漂移即启动失败关闭——迁移文件发布即冻结**。据此新增 **ADR-18**（表结构须在打包前定稿；发布后扩列走新增 `111_*.sql` 而非回头编辑）、**KL-12**，并把 §9 中迁移文件的风险由"零"上调为"低"、补两条迁移专项验收。附录 A 代码在当前 main 上重跑 **42 项全过**（沙箱 MariaDB 的 `int(11)` 差异非 G14 问题，加兼容垫片后全绿）。设计主体（口径、算法、接口、爆炸半径）**无实质变更**。 |
