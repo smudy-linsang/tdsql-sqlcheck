@@ -2,13 +2,13 @@
 
 | 项 | 内容 |
 |---|---|
-| 文档编号 | DESIGN-v1.6.3.0 **Rev.G** |
+| 文档编号 | DESIGN-v1.6.3.0 **Rev.H** |
 | 模块编号 | **G14 · 表类型统计**（深度诊断第 10 个子模块） |
 | 目标版本 | v1.6.3.0（当前基线 v1.6.2.2，`VERSION` / `backend/config.py:APP_VERSION`） |
-| 文档等级 | **照图施工级**——附录 A 给出全部新增/修改文件的逐行成品代码（已本地验证：67 项单测全通过，其中 T-R08 需模块落盘后才生效），实施者不得二次设计 |
+| 文档等级 | **照图施工级**——附录 A 给出全部新增/修改文件的逐行成品代码（已本地验证：70 项单测，69 通过 + 1 项 T-R08 需模块落盘后才生效），实施者不得二次设计 |
 | 编写 | 智能体 A |
-| 编写日期 | 2026-08-29 首版；2026-08-31 Rev.F 依 v1.6.2.2 上线后的代码变更复核修订；2026-08-31 Rev.G 依 O 评审报告整改（8 项 P1 + 3 项 P2 + 2 项文档一致性）|
-| 状态 | 设计与代码**已完成**；四轮内网实测均未推翻。**Rev.G 对 O 评审报告的 8 项 P1 全部整改**（其中 P1-08 的整改【方式】与 O 建议不同，理由见 ADR-20），3 项 P2、2 项文档一致性问题全部关闭。原「指纹相同即提前停止」优化**已整体删除**，T13 由此从「不阻断」降为「不影响正确性、仅影响耗时预期」（§10.2） |
+| 编写日期 | 2026-08-29 首版；2026-08-31 Rev.F 依 v1.6.2.2 上线后的代码变更复核修订；2026-08-31 Rev.G 依 O 评审报告整改（8 项 P1 + 3 项 P2 + 2 项文档一致性）；2026-08-31 Rev.H 回填第五轮内网实测（T16/T17/T18），**设计无实质变更** |
+| 状态 | 设计与代码**已完成**；**五轮内网实测均未推翻**。**Rev.G 对 O 评审报告的 8 项 P1 全部整改**（其中 P1-08 的整改【方式】与 O 建议不同，理由见 ADR-20），3 项 P2、2 项文档一致性问题全部关闭。**Rev.H 用第五轮实测把 Rev.G 里三条只有推测的事实前提补成了证据**：T17 证实 78 张子表精确推导出 6 个父表（且 UAT 六个数字维持不变）、T18 证实集中式实例无 `_tdsql_subp` 表、T16 由使用者裁决关闭。**仅剩 T19 与 T13 两项，均不阻断**（§10.2） |
 | 前置约束 | 本文档编写阶段**未修改任何代码**（用户要求）。仓库工作区在本文档提交时保持干净。 |
 
 ---
@@ -18,7 +18,7 @@
 本文档同时承担三件事，读者请按角色取用：
 
 * **实施者（智能体 Q 或人工）**：读 §5～§9 + 附录 A。附录 A 是**可直接落盘的成品代码**——四个新增文件 + 既有文件的 **10 行**改动 + **2 个前端块**（页签块 + 历史抽屉块），逐字给出。
-* **内网测试配合者**：只读 **§10**。四轮共 11 个用例已完成（裁决见 §10.1）。**待测 5 项：T13 + Rev.G 新增的 T16～T19**（§10.2），**全部不阻断开发**——它们是为 O 评审报告里几条判断的事实前提取证，查清了能让下一版更准，查不了也不影响本版正确性。
+* **内网测试配合者**：只读 **§10**。五轮共 14 个用例已完成（裁决见 §10.1）。**只剩 T19 与 T13 两项**（§10.2），**都不阻断开发**——T19 是一句 `information_schema` 查询（第五轮误跑成了 T17 的语句，见 §10.2），T13 在 Rev.G 删除提前停止后已不影响任何数字。
 * **评审者（智能体 O / Codex）**：读 §3（原厂口径的语义风险）、§7（决策与取舍）、§8（异常矩阵）、§9（爆炸半径）、§13（风险登记册）。
 
 **三条硬约束**（贯穿全文，任何实现偏离即为不合格）：
@@ -570,7 +570,7 @@ Query OK, 0 rows affected (0.001 sec)
 | 新增 | `backend/services/table_type_stats_service.py` | 834 行（附录 A.1，成品） |
 | 新增 | `backend/api/table_type_stats.py` | 66 行（附录 A.2，成品） |
 | 新增 | `backend/schema/v11/110_table_type_stats.sql` | 45 行（附录 A.3，成品） |
-| 新增 | `tests/test_table_type_stats.py` | 1321 行 / 67 项（附录 A.4，成品） |
+| 新增 | `tests/test_table_type_stats.py` | 1386 行 / 70 项（附录 A.4，成品） |
 | 修改 | `backend/main.py` | **2 行**（import + include_router） |
 | 修改 | `backend/services/auth_service.py` | **3 行**（P1/P2/P3） |
 | 修改 | `backend/services/database.py` | **1 行**（P4） |
@@ -1005,7 +1005,7 @@ def run_stats(pool, connection_id="", database="", operator=""):
 | ADR-14 | 超预算的库标 `SKIPPED` 而非 `FAILED` | 统一标 FAILED | "没来得及测"和"测了但错了"处置动作不同：前者重跑/分批即可，后者要查权限或端口。混成一个数会误导排障方向 |
 | ADR-15（Rev.D 新增） | `RECON_MISMATCH` **汇总成一条**告警，逐库明细放 `item.detail` | 逐库一条告警 | 保留。Rev.E 剔除子分区后该告警不再常态触发，但**真出问题时仍可能多库同时命中**（例如一批表漏进 Proxy 路由表），50 库实例上逐库一条就是 50 条横幅。汇总告警给合计与库名，明细留在表格行里，信息一点不少 |
 | ADR-16（Rev.D 新增，Rev.E 修订） | 四个数字采用 **Proxy 口径**，逻辑基线数并排呈现 | ① 用 `information_schema` 当准 ② 只显示 Proxy 口径 | 需求问的是"单表/广播表/分片表各多少张"，这三个概念**只有 Proxy 知道**，`information_schema` 没有这个维度。Rev.E 剔除二级分区子表后两个口径精确相等（215 == 215），并排呈现从"让用户自己判断"变成"互相印证" |
-| ADR-17（Rev.E 新增，**Rev.G 收紧**） | 二级分区物理子表的判定 = **后缀匹配 且 逻辑父表已在本库 Proxy 结果中确认**；**集中式实例一律不剔除** | ① 计入基线（Rev.D 做法） ② 计入总表数 ③ 只看后缀（Rev.E/F 做法） | ①会让 `RECON_MISMATCH` 在每个有二级分区的库上**永久亮着**——一个永远亮的告警是背景噪声；②用户认知里 `cus_pub_translog` 是一张表不是十三张，Proxy 也只返回逻辑表名；③**实测只证明了"这 78 张子表叫这个名字"，没证明"叫这个名字的一定是子表"**。集中式实例没有二级分区这个构造、也没有 Proxy 交叉校验兜底，一张合法业务表 `orders_tdsql_subp202601` 会被静默少算且不可见（违反 REQ-5）。加上父表确认后，未确认者保留为逻辑表 → `RECON_MISMATCH` **显式报出**，误判方向仍然安全。实测 6 张父表全在 `show table with shardkey` 的 98 行内，收紧后 215 == 215 不变 |
+| ADR-17（Rev.E 新增，**Rev.G 收紧**） | 二级分区物理子表的判定 = **后缀匹配 且 逻辑父表已在本库 Proxy 结果中确认**；**集中式实例一律不剔除** | ① 计入基线（Rev.D 做法） ② 计入总表数 ③ 只看后缀（Rev.E/F 做法） | ①会让 `RECON_MISMATCH` 在每个有二级分区的库上**永久亮着**——一个永远亮的告警是背景噪声；②用户认知里 `cus_pub_translog` 是一张表不是十三张，Proxy 也只返回逻辑表名；③**实测只证明了"这 78 张子表叫这个名字"，没证明"叫这个名字的一定是子表"**。集中式实例没有二级分区这个构造、也没有 Proxy 交叉校验兜底，一张合法业务表 `orders_tdsql_subp202601` 会被静默少算且不可见（违反 REQ-5）。加上父表确认后，未确认者保留为逻辑表 → `RECON_MISMATCH` **显式报出**，误判方向仍然安全。**T17 第五轮实测已坐实**：78 张子表精确推导出 6 个父表（各 13 张），且由「基线 293、Proxy 215、后缀表 78」三个基数的算术闭合可证 6 个父表全部落在 Proxy 结果内（推导见 §10.2 T17），收紧后 215 == 215 不变 |
 | ADR-18（Rev.F 新增） | 表结构在**首次发布前定稿**；发布后若需扩列，**新增 `v11/111_*.sql` 用 `ALTER TABLE … ADD COLUMN`**，绝不回头编辑 `110_*.sql` | ① 直接改 `110_*.sql` ② 把表并进 `database.py::_create_all_tables` | ①v1.6.2.2 起 checksum 漂移会让**所有已部署实例启动失败关闭**（§2.7 M-3），补救需人工往 `_KNOWN_RECONCILIATIONS` 加账本三元组，代价远高于新增一个迁移文件；②`_create_all_tables` 是 27 张表的大列表，改它等于把 `database.py` 的改动面从 1 行放大到一整段 DDL，与最小化修改原则冲突（ADR-6 已述） |
 | ADR-19（Rev.G 新增，P1-02） | `/run` 复用既有 `registry.scan_slot(connection_id)`，**不新建并发控制** | ① 不限流（Rev.F） ② 本模块自建一套信号量 ③ 改成异步任务 | ①单次占用最长 180 秒并额外开一条 Proxy 连接，重复点击/多人同时操作就能吃掉大量 FastAPI 工作线程和目标库连接，挤占既有审核、扫描、巡检——与本文档"零回归"的承诺直接冲突；②自建一套等于**两套配额各算各的**，全局上限形同虚设，反而更危险；③异步任务要引入任务表、轮询接口和前端状态机，爆炸半径远超一个诊断子模块该有的量级（KL-6 保留为将来选项）。复用 `scan_slot` 是三者里唯一既限流又不新增机制的：`scan_service.py:72` 就是同样的用法，配置项、错误类型、HTTP 状态码全部现成 |
 | ADR-20（Rev.G 新增，P1-08） | 留档表结构验收**在 `run_stats` 入口做**（模块级、首次使用时），**不做启动期失败关闭**；验收范围 = 表存在 + 全部列 + 关键列类型 + 索引 | ① 不验收（Rev.F：迁移器不严格验收 CREATE TABLE，故"无额外适配成本"）② 扩展迁移器支持 CREATE TABLE 声明验收 ③ 进程启动期专用 schema assertion（O 的建议） | ①站不住：元数据库里若有同名但缺列/错类型的历史残留表，`CREATE TABLE IF NOT EXISTS` 会**静默跳过**、迁移仍登记成功，直到 INSERT 才 1054；迁移登记后表被删或结构漂移，`_structure_state()` 也照样返回 valid。**"不进入验收"不是安全性依据**，这一点我完全接受。②改迁移器意味着动 v1.6.2.2 刚上线的启动路径，是全平台级别的爆炸半径，为一个诊断子模块付这个代价不成比例。③**本设计与 O 的分歧仅在这一点**：表类型统计是深度诊断下的只读诊断子模块，它的留档表有问题**不应当让整个审核平台起不来**——同层级的 `index_audit`、`cluster_inspection` 在 `_create_all_tables` 里同样没有启动期结构验收，只为新模块加这一道，标准不一致且风险方向相反（把"一个页面不可用"放大成"平台不可用"）。放在 `run_stats` 入口、且在采集与并发槽位**之前**，同时满足"确定性验收"和"不让用户白跑一轮采集"。四种畸形场景（缺表/缺列/错类型/缺索引）均失败关闭，由 T-R12 五项单测钉住 |
@@ -1158,14 +1158,140 @@ python -m pytest tests/test_table_type_stats.py -q -k "r0 or r1"
 | **T14 交叉校验**（第三轮） | **不一致，且差得很大**：`lzbj_ecif` Proxy 口径 **215**（98+117+0）vs `information_schema` 基线 **293**，**差 78 张（27%）** | **RISK-B 确认成立**，触发三处修订：**ADR-16** 四个数字用 Proxy 口径、基线并排呈现不覆盖；**ADR-15** `RECON_MISMATCH` 汇总成一条（差异每库都有，逐库告警会刷屏）；**ADR-12 改写** —— Rev.B 用"累计表集 == 基线"做作用域探测的完备性证明，实测证明两者基本不可能相等，该判据永远不成立，改用不依赖基线的**指纹比对** |
 | **D3 差异成因**（第四轮） | **78 张全部是二级分区物理子表**，命名 `<逻辑表>_tdsql_subp190001` / `_tdsql_subp202601`…`202612`；6 张 `sub_func:month` 的表 × 13 = 78，账目精确闭合 | **ADR-17**：`_tdsql_subp<数字>` 结尾的表从基线剔除、单列 `subpartition_tables`。剔除后**逻辑基线 215 == Proxy 口径 215**，`RECON_MISMATCH` 不再常态触发，重获信号价值 |
 
-### 10.2 仍待测（T13 + Rev.G 新增 4 项，均**不阻断开发**）
+### 10.2 仍待测（T19 + T13 两项，均**不阻断开发**）
 
-> **Rev.G 说明**：取消提前停止优化后（P1-01），T13 已经**不影响统计正确性**，
-> 只影响耗时预期与 `INSTANCE_WIDE_SCOPE` 是否显示。
-> Rev.G 另新增 4 项内网核查（T16～T19），它们是为**证实或证伪 O 提出的若干场景**——
-> 我认可 O 的整改要求（这些整改已经全部做进 Rev.G 了），但其中几条的**事实前提**
-> 目前只有推测没有证据。查清之后，或者能给 Rev.G 的判定加上事实背书，
-> 或者能让下一版把不必要的保守收回去。**这 4 项一条都不阻断开发。**
+> **Rev.H 说明**：Rev.G 新增的 4 项核查（T16～T19）第五轮已回来 3 项，
+> 裁决归档在 §10.1 与下方 **T17/T18/T16 的"✅ 已完成"小节**，
+> 三条此前只有推测的事实前提**全部被证据坐实**，且**UAT 六个数字不变**。
+> **T19 第五轮误跑成了 T17 的语句**（复制粘贴时把 REGEXP 那条带进了元数据库），
+> 因此仍然待测——它只有一句话，见下方 T19 小节。
+> T13 在 Rev.G 删除提前停止后已**不影响统计正确性**，只影响耗时预期与
+> `INSTANCE_WIDE_SCOPE` 是否显示。**两项都不阻断开发。**
+
+---
+
+### T17 · 78 张子表的父表核对 —— ✅ **已完成（2026-08-31，第五轮）**
+
+**环境**：`mysql -h 10.243.20.13 -P 15005 -u checksql`，服务端
+`8.0.33-v24-txsql-22.6.9-20250509`，库 `lzbj_ecif`
+
+**① 全部物理子表：78 行**（与 T14 算出的 293 − 215 = 78 **精确吻合**）。
+
+**② 去重后的父表候选：正好 6 个**，每个各 13 张子表（`190001` 兜底 + `202601`…`202612`）：
+
+| 父表 | 子表数 |
+|---|---:|
+| `cus_bas_merge_log` | 13 |
+| `cus_pub_sync_consumer_log` | 13 |
+| `cus_pub_sync_log` | 13 |
+| `cus_pub_translog` | 13 |
+| `cus_pub_updatelog` | 13 |
+| `cus_pub_updatelog_detail` | 13 |
+| **合计** | **6 × 13 = 78** ✓ |
+
+这 6 个名字与 Rev.E 从 D3 推出来的完全一致：D3 的 `LIKE` 直接命中了前 5 个，
+第 6 个 `cus_pub_sync_consumer_log` 当时被判断为"未被 LIKE 匹配到的那一张"——
+**本次实测确认这个推断是对的**。
+
+#### 结论一：父表全部在 Proxy 结果中（**算术闭合，不需要再取 98 行原始输出**）
+
+设 `BASE` = `information_schema` 的 `BASE TABLE` 集合，`P` = 三条 Proxy 命令按
+`(库,表)` 去重后的集合，`S` = 78 张后缀匹配的子表集合。已测得
+`|BASE| = 293`、`|P| = 98 + 117 + 0 = 215`、`|S| = 78`。
+
+1. Proxy 报出来的都是该库真实存在的表 ⟹ `P ⊆ BASE`；
+2. 三类结果集互斥（B-4 实测）⟹ `|P| = 215` 是**去重后的真实基数**；
+3. 于是 `|BASE − P| = 293 − 215 = 78`，**与 `|S|` 相等**；
+4. Proxy 的 `show table` 只返回逻辑表、不返回物理子表（B-13）⟹ `S ⊆ BASE − P`；
+5. 由 3、4 与 `|S| = |BASE − P| = 78` ⟹ **`S = BASE − P`**，即
+   `P = BASE − S` = 逻辑基线；
+6. 6 个父表都在 `BASE` 里、且都不匹配后缀（不在 `S` 里）⟹ **6 个父表全部 ∈ `P`**。∎
+
+**残留假设只有第 4 步**（Proxy 不返回物理子表）。若它不成立，第 5 步的等号会破，
+`RECON_MISMATCH` 会在 UAT 上**直接亮起来**——也就是说，
+**这条假设在 UAT 时会被免费验证一次，且失败是可见的**（Rev.G 的 P1-03 设计本意）。
+故不再要求内网补取 98 行原始输出。
+
+#### 结论二：真实数据里存在**前缀嵌套的父表**，这是构造夹具想不到的形态
+
+`cus_pub_updatelog` 与 `cus_pub_updatelog_detail` **两者都是父表**，且前者是后者的前缀。
+父表推导若写成"切到第一个 `_tdsql_subp` 之前"以外的任何近似做法，
+`cus_pub_updatelog_detail` 的 13 张子表就会被算到 `cus_pub_updatelog` 头上，
+于是 `cus_pub_updatelog_detail` 变成"父表未确认"，13 张子表回流进逻辑基线：
+**UAT 的 215/78 会变成 228/65 —— 数字错了，而且错得很像对的。**
+
+本设计的 `_SUBPARTITION_RE` 用的是**非贪婪** `^(?P<parent>.+?)_tdsql_subp\d+$`，
+已用这 78 个**真实表名**逐条验算：命中 78/78，推导出正好 6 个父表、各 13 张，
+且与内网 SQL 侧 `SUBSTRING_INDEX(TABLE_NAME,'_tdsql_subp',1)` 的口径逐字一致。
+新增三项定向测试 `test_r07b/c/d_*` 直接用真名钉住（§11）。
+
+**UAT 六个数字维持不变**：`215 / 0 / 117 / 98 / 215 / 78`。
+
+---
+
+### T18 · 集中式实例是否存在 `_tdsql_subp` 表 —— ✅ **已完成（2026-08-31，第五轮）**
+
+**环境**：`mysql -h 10.243.20.15 -P 15158 -u checksql`（集中式），库 `zjywgl`
+（注：`10.243.20.13:15158` 连不上，实际用的是 `.15`）
+
+```
+WHERE TABLE_SCHEMA='zjywgl' AND TABLE_TYPE='BASE TABLE'
+  AND TABLE_NAME REGEXP '_tdsql_subp[0-9]+$'
+→ Empty set (0.005 sec)
+```
+
+**结论：0 行。** 集中式实例上不存在二级分区物理子表这一构造，
+**P1-03「集中式一律不剔除」这条规则在真实环境上零风险**——它不会把任何东西
+多算，也不会把任何东西少算，纯粹是一道防御。
+
+> **证据范围要说清楚**：本次查的是集中式实例上的**一个库 `zjywgl`**，
+> 不是整个实例的全部库（原用例写的是不带 `TABLE_SCHEMA` 过滤的全实例扫描）。
+> 这是支持性证据、不是全称证明。但方向已经明确，且**即便某个集中式库里
+> 真有一张 `xxx_tdsql_subp202601`，Rev.G 的做法（不剔除）也正是正确的那一种**
+> ——所以这条不必再补测。
+
+---
+
+### T16 · Proxy 命令的返回是否随账号变化 —— ✅ **已关闭（2026-08-31，使用者裁决）**
+
+使用者说明：内网所有库统一使用 `checksql` 账号执行，权限充足，
+平台"实例管理"里登记的也是该账号，并对结果真实性负责。
+
+**结论：不存在"DBA 账号与登记账号可见范围不同"的情形**，
+P1-01 里"账号只能看到部分 Proxy 路由信息"这一场景在本环境**不成立**。
+本用例关闭，不再要求执行。原 T09（登记账号能否执行）也一并由此结案。
+
+---
+
+### T19 · 内网元数据库里是否已存在同名的 `table_type_stat` 表？（为 P1-08 取证，**不阻断**）
+
+> **第五轮误跑说明**：第五轮在元数据库上执行的是 T17 的 `_tdsql_subp` REGEXP 语句
+> （复制粘贴时带过去了），返回 `Empty set`。那个结果说明的是"元数据库里没有
+> `_tdsql_subp` 命名的表"——与本用例要问的问题无关。本用例仍待回填。
+
+**已确认的环境信息**（第五轮顺带取得，记录备查）：
+内网元数据库为 **TDSQL**，`10.243.20.15:15197`，
+服务端 `8.0.33-v24-txsql-22.6.9-20250509`，库名 **`tdsql_sqlcheck`**。
+与"生产元数据库是 TDSQL/MySQL、MariaDB 非支持目标"这一既有结论一致。
+
+**为什么要查**：P1-08 描述的失效路径是"元数据库里已有同名但结构不符的表，
+`CREATE TABLE IF NOT EXISTS` 静默跳过"。Rev.G 已经加了结构验收（ADR-20），
+所以**查不查都不影响安全性**。但如果确实存在同名表（比如某次手工试验留下的），
+它就是一条马上会踩到的坑，部署文档里要写清楚先删表。
+
+**执行**（在元数据库 `10.243.20.15:15197` 上，**注意是 `TABLE_NAME IN (...)`，不是 REGEXP**）：
+```sql
+SELECT TABLE_NAME, TABLE_ROWS, CREATE_TIME
+FROM information_schema.TABLES
+WHERE TABLE_SCHEMA = 'tdsql_sqlcheck'
+  AND TABLE_NAME IN ('table_type_stat', 'table_type_stat_item');
+```
+
+**回填**：查询结果（预期 0 行）。
+
+**我要看什么**：0 行 → 全新安装、无残留，部署文档无需额外说明；
+非 0 行 → 请再执行 `SHOW CREATE TABLE table_type_stat;` 并把结果发我，
+我来判断是补列还是删表重建，并把处置步骤写进部署文档。
 
 ---
 
@@ -1278,129 +1404,11 @@ Query OK, 0 rows affected (0.001 sec)
 ---
 
 
-### T16 · Proxy 命令的返回是否随**账号**变化？（为 P1-01 的场景取证，**不阻断**）
-
-**为什么要查**：O 在 P1-01 里列了四种"指纹相同但集合不完整"的场景，其中
-「账号只能看到部分 Proxy 路由信息」是最容易验证的一条。
-Rev.G 已经无条件逐库执行，所以**这条查不查都不影响正确性**；
-查清之后能让我们知道：如果平台登记的账号权限比 DBA 账号窄，
-统计结果会不会天然少一截（那属于"账号问题"而非"代码问题"，处置动作完全不同）。
-
-**执行**（同一个库、同一条命令，换两个账号各跑一次）：
-```sql
--- ① 用 DBA/管理账号
-USE lzbj_ecif;
-/*proxy*/show table with shardkey;      -- 记总行数
-
--- ② 用平台「实例管理」里实际登记的那个业务账号，重复上面两句
-```
-
-**回填**：两个账号各自的**总行数**；若不同，把只有 DBA 账号能看到的表名举 3 个例子。
-
-**我要看什么**：行数相同 → 命令的可见范围与账号无关，P1-01 的"账号可见范围"场景
-在本环境不成立；行数不同 → 需要在部署文档里写明"登记账号必须具备 X 权限"，
-并考虑在页面上提示当前账号的可见范围。
-
----
-
-### T17 · 每一张 `_tdsql_subp<数字>` 表的逻辑父表，是否都出现在 Proxy 结果里？（验证 P1-03 的父表确认规则，**不阻断**）
-
-**为什么要查**：Rev.G 把子表判定从"只看后缀"收紧为"后缀 + 父表已确认"。
-这条规则在 `lzbj_ecif` 的实测数据上成立（6 张父表都在 `with shardkey` 的 98 行里），
-但那是我从 D3 的 71 行输出**推出来**的，没有做过全量核对。
-**如果存在某张子表的父表不在 Proxy 结果里**，Rev.G 会把它保留为逻辑表并报
-`RECON_MISMATCH`——结果仍然正确且可见，但 UAT 对数的六个数字会变
-（`baseline_tables` 变大、`subpartition_tables` 变小）。我需要提前知道。
-
-**执行**（在 `lzbj_ecif` 上）：
-```sql
--- ① 全部物理子表及其推导出的父表名
-SELECT TABLE_NAME,
-       SUBSTRING_INDEX(TABLE_NAME, '_tdsql_subp', 1) AS parent_guess
-FROM information_schema.TABLES
-WHERE TABLE_SCHEMA = 'lzbj_ecif'
-  AND TABLE_TYPE = 'BASE TABLE'
-  AND TABLE_NAME REGEXP '_tdsql_subp[0-9]+$'
-ORDER BY parent_guess, TABLE_NAME;
-
--- ② 全部父表候选（去重后应当只有 6 个）
-SELECT DISTINCT SUBSTRING_INDEX(TABLE_NAME, '_tdsql_subp', 1) AS parent_guess
-FROM information_schema.TABLES
-WHERE TABLE_SCHEMA = 'lzbj_ecif'
-  AND TABLE_TYPE = 'BASE TABLE'
-  AND TABLE_NAME REGEXP '_tdsql_subp[0-9]+$';
-
--- ③ 三条 Proxy 命令的完整表名清单（用来比对 ② 是不是它的子集）
-USE lzbj_ecif;
-/*proxy*/show table with shardkey;
-/*proxy*/show table with noshardkey_allset;
-/*proxy*/show table without shardkey;
-```
-
-**回填**：① 的总行数（期望 78）；② 的完整清单（期望 6 个名字）；
-以及**② 里的每一个名字是否都能在 ③ 的输出中找到**（这一条最关键，
-只要回答"6 个全都在"或者"有 N 个不在，分别是 ⋯"即可）。
-
-**我要看什么**：6 个全在 → 父表确认规则在真实数据上无副作用，
-§12.1 的 UAT 六个数字维持 `215 / 0 / 117 / 98 / 215 / 78` 不变；
-有不在的 → 我按实际情况调整 §12.1 的期望值，并在 KL 里登记这条已知差异。
-
----
-
-### T18 · 集中式 TDSQL 实例里是否存在 `_tdsql_subp` 命名的表？（验证 P1-03 集中式分支，**不阻断**）
-
-**为什么要查**：Rev.G 让集中式分支**一律不剔除**任何 `_tdsql_subp` 表，
-依据是"集中式没有二级分区这个构造"。这个依据来自 TDSQL 的架构常识，
-我没有在集中式实例上实际验证过。若集中式实例里其实也会出现这种命名的表，
-那说明它们要么是历史迁移残留、要么这个命名不是分布式独有的——
-两种情况都值得记一笔。
-
-**执行**（在**任意一个集中式实例**上，若内网没有集中式实例请注明"无"）：
-```sql
-SELECT TABLE_SCHEMA, TABLE_NAME
-FROM information_schema.TABLES
-WHERE TABLE_TYPE = 'BASE TABLE'
-  AND TABLE_NAME LIKE '%\_tdsql\_subp%'
-LIMIT 50;
-```
-
-**回填**：行数；若非 0，把库名 + 表名贴 5 行。
-
-**我要看什么**：0 行 → 集中式不剔除这条规则零风险，符合预期；
-非 0 → 我需要知道那些表是什么来路，再决定要不要在集中式分支上也做一次
-"父表是否存在"的判断（注意集中式没有 Proxy 结果可比对，只能与同库其他表名比）。
-
----
-
-### T19 · 内网元数据库里是否已经存在同名的 `table_type_stat` 表？（为 P1-08 取证，**不阻断**）
-
-**为什么要查**：P1-08 描述的失效路径是"元数据库里已有同名但结构不符的表，
-`CREATE TABLE IF NOT EXISTS` 静默跳过"。Rev.G 已经加了结构验收（ADR-20），
-所以**查不查都不影响安全性**。但如果内网确实不存在同名表，
-那这条整改就是纯粹的防御性措施；如果**存在**（比如某次手工试验留下的），
-那它就是一条真实的、马上会踩到的坑，部署文档里要写清楚先删表。
-
-**执行**（在**内网元数据库**上，不是 TDSQL 业务实例）：
-```sql
-SELECT TABLE_NAME, TABLE_ROWS, CREATE_TIME
-FROM information_schema.TABLES
-WHERE TABLE_SCHEMA = DATABASE()
-  AND TABLE_NAME IN ('table_type_stat', 'table_type_stat_item');
-```
-
-**回填**：查询结果（很可能是 0 行）。
-
-**我要看什么**：0 行 → 全新安装，无残留，部署文档无需额外说明；
-非 0 行 → 请再执行 `SHOW CREATE TABLE table_type_stat;` 并把结果发我，
-我来判断是补列还是删表重建，并把处置步骤写进部署文档。
-
----
-
 ### 10.3 补充（有条件就测，没有就跳过）
 
 | 用例 | 内容 | 用途 |
 |---|---|---|
-| T09 权限 | 用平台"实例管理"里**实际登记的那个账号**（不是 root）跑一遍 T02 的三条命令，回填能否成功 / errno | 登记账号跑不了的话，功能上线即报错——这是授权问题不是代码问题 |
+| ~~T09 权限~~ | ✅ **已结案（2026-08-31）**：内网统一使用 `checksql` 账号，平台登记的也是该账号，权限充足（使用者裁决，见 T16） | — |
 | T10 性能 | 在**表最多**的业务库上跑三条命令，回填表数 + 各自耗时 | 若 T13 判定是当前库作用域，总响应时间 ≈ 单库耗时 × 库数；超阈值就要改异步 |
 | T12 单分片实例 | 若内网有**只有 1 个 SET** 的分布式实例，在其上跑 T02 | `instance_probe_rules.py:99-104` 的已知边界：这类实例可能被判成集中式，从而分片表被报成单表。没有就注明"无" |
 
@@ -1416,18 +1424,14 @@ WHERE TABLE_SCHEMA = DATABASE()
 【T09】登记账号能否执行（是/否，errno）：
 【T12】单分片实例：有/无，若有则输出：
 
-—— 以下为 Rev.G 新增，均不阻断 ——
-【T16】DBA 账号 with shardkey 总行数：
-【T16】平台登记账号 with shardkey 总行数：
-【T16】（不同时）只有 DBA 能看到的表名举例 3 个：
-【T17】lzbj_ecif 的 _tdsql_subp 表总行数（期望 78）：
-【T17】去重后的父表候选清单（期望 6 个名字）：
-【T17】上述父表是否全部出现在三条 Proxy 命令的输出里（全在 / 有 N 个不在，分别是）：
-【T18】集中式实例：有/无；若有，_tdsql_subp 命名的表行数：
-【T18】（非 0 时）库名 + 表名举例 5 行：
-【T19】内网元数据库是否已存在 table_type_stat / table_type_stat_item（0 行 / N 行）：
+—— 以下为 Rev.G 新增；T16/T17/T18 已于第五轮回填并归档，仅剩 T19 ——
+【T19】内网元数据库 tdsql_sqlcheck 是否已存在 table_type_stat / table_type_stat_item（0 行 / N 行）：
 【T19】（非 0 时）SHOW CREATE TABLE table_type_stat 的输出：
 ```
+
+> **T19 的语句务必用 `TABLE_NAME IN (...)`**，不要用 T17 那条 `REGEXP '_tdsql_subp[0-9]+$'`
+> ——第五轮就是把 T17 的语句带到元数据库上跑了，那条查的是二级分区子表，
+> 与本用例要问的"有没有同名残留表"是两回事。
 
 > T09 其实已经被 T15 顺带证明了一半：那次用的 `checksql` 账号能正常执行三条命令。
 > 只要平台"实例管理"里登记的就是 `checksql`，T09 即视为通过。
@@ -1439,9 +1443,9 @@ WHERE TABLE_SCHEMA = DATABASE()
 | T13 = 当前库作用域 | 逐库执行，`INSTANCE_WIDE_SCOPE` 不触发。代码无需改 | 否 |
 | T13 = 实例级作用域 | 仍逐库执行（Rev.G 已删除提前停止），按 `(库,表)` 去重，`INSTANCE_WIDE_SCOPE` 会显示——**符合设计预期** | 否 |
 | T13 无多库实例可测 | 两条路径都已实现且都有单测覆盖，按现状开发 | 否 |
-| T16 两个账号行数不同 | 部署文档补"登记账号所需权限"；页面提示可见范围 | 否（文档 + 1 行文案） |
-| T17 有父表不在 Proxy 结果里 | 按实际值调整 §12.1 的 UAT 六个数字，并在 KL 登记 | 否（只改期望值，代码已按"保留 + 显式告警"处理） |
-| T18 集中式存在 `_tdsql_subp` 表 | 记入 KL；评估是否需要集中式侧的父表存在性判断 | 否 |
+| ~~T16~~ | ✅ **已关闭**：内网统一 `checksql` 账号，不存在可见范围差异（使用者裁决）。P1-01 的"账号可见范围"场景在本环境不成立 | — |
+| ~~T17~~ | ✅ **已完成**：78 张子表 → 正好 6 个父表（各 13 张），算术闭合证明 6 个父表全部在 Proxy 结果中。**UAT 六个数字不变**。另暴露出真实数据里存在**前缀嵌套父表**（`cus_pub_updatelog` / `cus_pub_updatelog_detail`），已用真名新增 3 项定向测试钉住 | — |
+| ~~T18~~ | ✅ **已完成**：集中式实例 `zjywgl` 库 0 行 `_tdsql_subp` 表，P1-03「集中式一律不剔除」零风险 | — |
 | T19 元数据库已有同名表 | 部署文档写明先核实/删表；`_ensure_schema` 会挡住结构不符（ADR-20） | 否 |
 | ~~T14 / D3~~ | ✅ **已完成**。差异 78 张查明为二级分区物理子表，已按 ADR-17 剔除，两口径精确对齐 | — |
 | ~~T15~~ | ✅ **已完成 = A**。设计不变，超时保险留作兜底 | — |
@@ -1456,9 +1460,10 @@ WHERE TABLE_SCHEMA = DATABASE()
 
 ## 11. 测试设计（开发期，可在本地 MariaDB 13306 上跑）
 
-`tests/test_table_type_stats.py`（附录 A.4），**67 项，除落库/结构验收 8 项外全部离线，
-不依赖真实 TDSQL**。数据夹具直接照搬 2026-08-29 内网实测形态（列名 `db_table`、
-库限定名 `sqltuning.t_max`、`with*` 双列 / `without` 单列）。
+`tests/test_table_type_stats.py`（附录 A.4），**70 项，除落库/结构验收 8 项外全部离线，
+不依赖真实 TDSQL**。数据夹具直接照搬内网实测形态（列名 `db_table`、
+库限定名 `sqltuning.t_max`、`with*` 双列 / `without` 单列），
+**Rev.H 起子分区相关用例直接使用 2026-08-31 T17 取回的 78 个真实表名**。
 
 > **Rev.G 新增 25 项**，全部是 O 评审报告 §6 要求的**缺陷定向测试**——
 > 每一项都对应一个具体的 P1/P2，且都是"在 Rev.F 的代码上会失败、在 Rev.G 上通过"。
@@ -1519,6 +1524,9 @@ WHERE TABLE_SCHEMA = DATABASE()
 | T-R05 | `test_r05b_overlap_is_not_polluted_by_failed_db` | 失败库的暂存行不参与重叠判定，`overlap_count==0` | **P1-05** |
 | T-R06 | `test_r06_centralized_keeps_legit_subp_named_table` | 集中式的 `orders_tdsql_subp202601` 计入单表与总表，`subpartition_tables==0`，不告警 | **P1-03** |
 | T-R07 | `test_r07_distributed_requires_confirmed_parent` | 父表已确认 → 剔除；父表未确认 → 保留为逻辑表，且在该库 `detail` 中**被点名** + `RECON_MISMATCH` | **P1-03** |
+| T-R07（Rev.H） | `test_r07b_real_intranet_names_derive_exactly_six_parents` | **78 个真实表名**（T17）必须推导出正好 6 个父表、各 13 张，且与内网 SQL 的 `SUBSTRING_INDEX` 口径逐字一致 | **P1-03 / KL-16** |
+| T-R07（Rev.H） | `test_r07c_nested_prefix_parents_are_not_confused` | 前缀嵌套的 `cus_pub_updatelog` 与 `cus_pub_updatelog_detail` 各归各的；只确认短的那个时，`_detail` 的子表**不得**被剔除 | **KL-16** |
+| T-R07（Rev.H） | `test_r07d_uat_parent_confirmation_is_all_or_nothing_per_parent` | 6 个父表全确认 → 剔 78 张；缺一个父表 → 只剔 65 张且 13 张回流进逻辑基线（对应 UAT 会变成 228/65 并报 `RECON_MISMATCH`） | **P1-03 / KL-16** |
 | T-R08 | `test_r08_permission_key_is_registered_at_every_point` | 权限键在 4 个后端/前端文件中均已登记，且**逐字校验 `app.js` 的 `subtabs` 行**含新页签（设计阶段自动跳过，落盘后即为硬门禁） | **P1-06** |
 | T-R09 | `test_r09_five_hundred_failed_databases_is_bounded` | 500 库全失败 → 告警**仅 1 条** `PROXY_CMD_FAILED`、`warnings[]` ≤ 6 条、序列化 < 8 KiB、逐库原因仍在 `detail` 且 ≤ 512 字符 | **P1-07** |
 | T-R09 | `test_r09b_large_warnings_survive_round_trip` | 500 库失败的告警落库后**原样回读**（`MEDIUMTEXT`，无截断），500 条明细齐全 | **P1-07** |
@@ -1550,9 +1558,9 @@ WHERE TABLE_SCHEMA = DATABASE()
 这是本轮我认为最有价值的一处测试设计：**P1-04 描述的缺陷在 Rev.F 的测试体系下
 根本无法被发现**，因为旧 FakePool 对异常穿不穿出 `with` 完全无感。
 
-**本地验证结果（2026-08-31，Rev.G）**：用 importlib 把附录 A.1 / A.2 分别挂载为
+**本地验证结果（2026-08-31，Rev.H）**：用 importlib 把附录 A.1 / A.2 分别挂载为
 `backend.services.table_type_stats_service` 与 `backend.api.table_type_stats`
-（**仓库代码零改动**），`python -m pytest` **66 项通过 + 1 项跳过**
+（**仓库代码零改动**），`python -m pytest` **69 项通过 + 1 项跳过**
 （跳过的是 T-R08，它断言的是模块落盘后的仓库文件，设计阶段无从断言），
 含对本地 MariaDB(13306) 的真实落库与四种畸形结构失败关闭用例。
 
@@ -1613,7 +1621,8 @@ WHERE TABLE_SCHEMA = DATABASE()
 | KL-7 | 结果为快照，不反映采集期间的 DDL 变更 | 无事务一致性保证 | 结果带 `created_at`，UI 标注"采集时刻快照" |
 | KL-8 | 命令作用域（当前库 / 实例级）未裁决 | 返回库限定名 + 原厂"库名+表名去重"的措辞都指向实例级，但缺少多业务库实例的实测 | 设计在两种作用域下都正确（ADR-11）。**Rev.G 取消提前停止后，T13 已不影响任何数字**，只影响耗时预期与 W9 是否显示 |
 | ~~KL-9~~ | ~~空结果集是否导致命令挂起未裁决~~ | **已裁决（Rev.C / §3.3 RISK-F / §10.1 T15）**：命令以 **OK 包**在 0.001 秒返回，`Query OK, 0 rows affected`，不挂起；赤兔转圈是其前端在等结果集列元数据所致，与命令无关 | **本项关闭**。30s 读超时 + 180s 总预算保留为纯保险，在已实测形态下永不触发 |
-| KL-10 | 二级分区子表识别依赖命名约定 `_tdsql_subp<数字>` | D3 实测确认该命名（`_tdsql_subp190001` / `_tdsql_subp202601`…），但无官方文档背书；且实测**只证明"这些子表叫这个名字"，未证明"叫这个名字的一定是子表"** | Rev.G 收紧为「后缀匹配 **且** 逻辑父表已在 Proxy 结果中确认」，集中式一律不剔除（ADR-17）。误判方向仍安全：未确认者保留为逻辑表 → `RECON_MISMATCH` 显式报出（可见），不会静默少算。T17 为该规则在全量数据上取证 |
+| KL-10 | 二级分区子表识别依赖命名约定 `_tdsql_subp<数字>` | D3 + **T17 全量实测**确认该命名（78/78 命中，推导出正好 6 个父表各 13 张），但无官方文档背书；实测证明的是"这些子表叫这个名字"，**"叫这个名字的一定是子表"仍无法证明** | Rev.G 收紧为「后缀匹配 **且** 逻辑父表已在 Proxy 结果中确认」，集中式一律不剔除（ADR-17）。误判方向安全：未确认者保留为逻辑表 → `RECON_MISMATCH` 显式报出（可见），不会静默少算。T17 已在全量数据上取证；**T18 另证实集中式实例无此构造** |
+| KL-16（Rev.H 新增） | 父表推导对**前缀嵌套**敏感 | 内网真实数据里 `cus_pub_updatelog` 与 `cus_pub_updatelog_detail` **两者都是父表**且前者是后者的前缀（T17）。父表推导若写成任何"取最短前缀"的近似做法，`_detail` 的 13 张子表会被算到 `cus_pub_updatelog` 头上，UAT 的 215/78 变成 228/65——**数字错了，而且错得很像对的** | `_SUBPARTITION_RE` 使用**非贪婪** `^(?P<parent>.+?)_tdsql_subp\d+$`，与内网 SQL 侧 `SUBSTRING_INDEX(...,'_tdsql_subp',1)` 口径逐字一致；已用 78 个真实表名逐条验算，并由 `test_r07b/c/d_*` 三项定向测试钉住。**后续任何人改这个正则，先跑这三项** |
 | KL-11 | `info` 列内容（shardkey / sub_shardkey / auto_increment）本期未使用 | 形态已入附录 B | 为将来"分片键分布"类需求预留，不在本期范围 |
 | KL-12（Rev.F 新增） | 迁移文件发布后**内容冻结**，改一个字符都会让已部署实例启动失败关闭 | v1.6.2.2 的 O-30 调和账本机制（§2.7 M-3） | 表结构须在打包前定稿；发布后扩列走新增 `111_*.sql`（ADR-18）。**这是全项目所有新增迁移文件的共性约束，不是 G14 特有** |
 | KL-13（Rev.G 新增） | 结构验收在**首次调用时**而非启动期，故"表被删/结构漂移"要等到有人点统计才暴露 | ADR-20 的取舍：不让诊断子模块的表问题阻断平台启动 | 报错消息带可执行处置步骤；`/run` 在**采集之前**就失败，用户等待 < 1 秒。若将来该模块被接入定时任务（OUT-2 目前明确不做），需要重新评估是否加启动期探测 |
@@ -2626,7 +2635,7 @@ CREATE TABLE IF NOT EXISTS table_type_stat_item (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ```
 
-### A.4 `tests/test_table_type_stats.py`（新增，1321 行）
+### A.4 `tests/test_table_type_stats.py`（新增，1386 行）
 
 ```python
 # -*- coding: utf-8 -*-
@@ -3160,6 +3169,71 @@ def test_subpartition_regex_is_anchored():
     assert not svc._SUBPARTITION_RE.search("my_tdsql_subp202601_backup")
     assert not svc._SUBPARTITION_RE.search("tdsql_subp")
     assert not svc._SUBPARTITION_RE.search("t_tdsql_subp_manual")
+
+
+# 内网 lzbj_ecif 的 6 张按月二级分区父表（T17 实测，2026-08-31）。
+# 注意 cus_pub_updatelog 与 cus_pub_updatelog_detail 互为前缀——这是真实数据里
+# 存在的形态，父表推导必须把两者分开，不能把 _detail 的子表算到 cus_pub_updatelog 头上。
+_UAT_PARENTS = ("cus_bas_merge_log", "cus_pub_sync_consumer_log",
+                "cus_pub_sync_log", "cus_pub_translog",
+                "cus_pub_updatelog", "cus_pub_updatelog_detail")
+_UAT_SUFFIXES = ("190001",) + tuple(f"2026{m:02d}" for m in range(1, 13))
+_UAT_SUBP = tuple(f"{p}_tdsql_subp{s}"
+                  for p in _UAT_PARENTS for s in _UAT_SUFFIXES)
+
+
+def test_r07b_real_intranet_names_derive_exactly_six_parents():
+    """T17 实测锚点：78 张真实子表必须推导出【正好 6 个】父表，每个 13 张。
+
+    这条用真名而不是构造名，是因为真实数据里有一个构造夹具想不到的形态：
+    cus_pub_updatelog 与 cus_pub_updatelog_detail 互为前缀，且【两者都是父表】。
+    父表推导若写成贪婪或按第一个 _tdsql_subp 之前的最短前缀切，
+    cus_pub_updatelog_detail 的 13 张子表就会被算到 cus_pub_updatelog 头上，
+    于是 cus_pub_updatelog_detail 变成"父表未确认"，13 张子表回流进逻辑基线，
+    UAT 的 215/78 变成 228/65 —— 数字错了，而且错得很像对的。
+    """
+    assert len(_UAT_SUBP) == 78
+    parents = {}
+    for name in _UAT_SUBP:
+        m = svc._SUBPARTITION_RE.match(name)
+        assert m, f"正则未命中真实子表名: {name}"
+        parents[m.group("parent")] = parents.get(m.group("parent"), 0) + 1
+    assert set(parents) == set(_UAT_PARENTS)
+    assert set(parents.values()) == {13}
+    # 与内网 SQL 侧 SUBSTRING_INDEX(TABLE_NAME,'_tdsql_subp',1) 的口径一致
+    assert set(parents) == {n.split("_tdsql_subp")[0] for n in _UAT_SUBP}
+
+
+def test_r07c_nested_prefix_parents_are_not_confused():
+    """前缀嵌套的两张父表必须各归各的（T17 实测形态）。"""
+    a = svc._SUBPARTITION_RE.match("cus_pub_updatelog_tdsql_subp202601")
+    b = svc._SUBPARTITION_RE.match("cus_pub_updatelog_detail_tdsql_subp202601")
+    assert a.group("parent") == "cus_pub_updatelog"
+    assert b.group("parent") == "cus_pub_updatelog_detail"
+    # 只确认了短的那个父表时，_detail 的子表【不得】被剔除
+    base = {"cus_pub_updatelog", "cus_pub_updatelog_detail",
+            "cus_pub_updatelog_tdsql_subp202601",
+            "cus_pub_updatelog_detail_tdsql_subp202601"}
+    logical, subp = svc._classify_subpartitions(base, {"cus_pub_updatelog"})
+    assert subp == {"cus_pub_updatelog_tdsql_subp202601"}
+    assert "cus_pub_updatelog_detail_tdsql_subp202601" in logical
+
+
+def test_r07d_uat_parent_confirmation_is_all_or_nothing_per_parent(monkeypatch):
+    """T17 端到端：6 个父表全确认 → 剔 78；缺一个父表 → 只剔 65 且差异显式报出。
+
+    后一半正是"父表确认"这条规则的兜底方向：宁可多报一次 RECON_MISMATCH（可见），
+    也不静默少算（不可见）。
+    """
+    base = set(_UAT_PARENTS) | set(_UAT_SUBP)
+    logical, subp = svc._classify_subpartitions(base, set(_UAT_PARENTS))
+    assert (len(logical), len(subp)) == (6, 78)
+
+    partial = set(_UAT_PARENTS) - {"cus_pub_updatelog_detail"}
+    logical2, subp2 = svc._classify_subpartitions(base, partial)
+    assert len(subp2) == 65
+    assert len(logical2) == 19          # 6 个父表 + 回流的 13 张子表
+    assert "cus_pub_updatelog_detail_tdsql_subp202612" in logical2
 
 
 def test_lzbj_ecif_uat_baseline(monkeypatch):
@@ -4372,7 +4446,55 @@ MySQL [lzbj_ecif]> SELECT TABLE_NAME FROM information_schema.TABLES
 告警**只有一条** `SUBPARTITION_EXCLUDED`（INFO），**不得出现** `RECON_MISMATCH`。
 该基准已编码为单测 `test_lzbj_ecif_uat_baseline`。
 
-### B.6 由四轮实测直接得出的结论
+### B.55 第五轮实测（2026-08-31，T17 / T18，Rev.H 回填）
+
+**B.55.1 `lzbj_ecif` 全量二级分区物理子表（T17 ①）**
+
+```
+MySQL [(none)]> SELECT TABLE_NAME,
+                       SUBSTRING_INDEX(TABLE_NAME,'_tdsql_subp',1) AS parent_guess
+                FROM information_schema.TABLES
+                WHERE TABLE_SCHEMA='lzbj_ecif' AND TABLE_TYPE='BASE TABLE'
+                  AND TABLE_NAME REGEXP '_tdsql_subp[0-9]+$'
+                ORDER BY parent_guess, TABLE_NAME;
+…
+78 rows in set (0.004 sec)
+```
+
+**B.55.2 去重后的父表（T17 ②）—— 正好 6 个，各 13 张**
+
+| 父表 | 子表数 | Rev.E 是否已预测 |
+|---|---:|---|
+| `cus_bas_merge_log` | 13 | ✅ D3 的 `LIKE` 直接命中 |
+| `cus_pub_sync_consumer_log` | 13 | ✅ 被判为"未被 LIKE 匹配的第 6 张"，**本次证实** |
+| `cus_pub_sync_log` | 13 | ✅ D3 命中 |
+| `cus_pub_translog` | 13 | ✅ D3 命中 |
+| `cus_pub_updatelog` | 13 | ✅ D3 命中 |
+| `cus_pub_updatelog_detail` | 13 | ✅ D3 命中（经 `cus_pub_updatelog%`） |
+| **合计** | **6 × 13 = 78** | 与 293 − 215 精确吻合 |
+
+**B.55.3 集中式实例（T18）**
+
+```
+MySQL [10.243.20.15:15158]> …WHERE TABLE_SCHEMA='zjywgl' AND TABLE_TYPE='BASE TABLE'
+                              AND TABLE_NAME REGEXP '_tdsql_subp[0-9]+$';
+Empty set (0.005 sec)
+```
+
+**B.55.4 环境信息（顺带取得，记录备查）**
+
+| 项 | 值 |
+|---|---|
+| 分布式 Proxy | `10.243.20.13:15005`，库 `lzbj_ecif` |
+| 集中式实例 | `10.243.20.15:15158`，库 `zjywgl`（`10.243.20.13:15158` 不可达） |
+| **平台元数据库** | **`10.243.20.15:15197`，库 `tdsql_sqlcheck`** |
+| 三者服务端版本 | 均为 `8.0.33-v24-txsql-22.6.9-20250509` |
+| 统一账号 | `checksql`（权限充足，与平台"实例管理"登记账号一致） |
+
+> 元数据库为 **TDSQL**（`txsql` 8.0.33），与"生产元数据库是 TDSQL/MySQL、
+> **MariaDB 非支持目标**"这一既有结论一致；本地沙箱的 MariaDB 只用于离线单测。
+
+### B.6 由五轮实测直接得出的结论
 
 | 编号 | 结论 | 落到代码 |
 |---|---|---|
@@ -4389,12 +4511,20 @@ MySQL [lzbj_ecif]> SELECT TABLE_NAME FROM information_schema.TABLES
 | B-11 | `lzbj_ecif` Proxy 口径 215 vs 基线 293，差 78（27%） | **RISK-B 成立**；ADR-16 双口径并排；ADR-15 告警汇总；**ADR-12 作用域判据改指纹比对** |
 | B-12 | 78 张全部是二级分区物理子表，命名 `<逻辑表>_tdsql_subp<数字>` | **ADR-17**：从基线剔除并单列计数；剔除后 215 == 215，`RECON_MISMATCH` 重获信号价值 |
 | B-13 | 仅 `sub_func:month` 产生物理子表，`SHARDKEY_HASH_USE_SUB` 不产生 | 正则只需覆盖 `_tdsql_subp<数字>` 一种形态 |
+| B-14（第五轮） | `lzbj_ecif` 的 78 张子表精确推导出 **6 个父表、各 13 张**，与 Rev.E 的预测逐名吻合 | ADR-17 父表确认规则取证；`test_r07b_*` 用真名钉住 |
+| B-15（第五轮） | 真实数据里存在**前缀嵌套的父表**：`cus_pub_updatelog` 与 `cus_pub_updatelog_detail` **两者都是父表** | **KL-16**：父表推导必须用非贪婪正则；`test_r07c/d_*` 钉住。取最短前缀的近似做法会把 UAT 的 215/78 变成 228/65 |
+| B-16（第五轮） | 集中式实例（`zjywgl`）**无** `_tdsql_subp` 命名的表 | P1-03「集中式一律不剔除」零风险 |
+| B-17（第五轮） | 内网元数据库为 TDSQL `8.0.33-v24-txsql`，`10.243.20.15:15197` / 库 `tdsql_sqlcheck` | 迁移与 `_ensure_schema` 的目标环境确认；MariaDB 仅沙箱离线用 |
 
-**待回填（T13 / T14 完成后补入本附录）**：
+**待回填**：
 
 | 项 | 内容 | 来源 | 阻断 |
 |---|---|---|---|
 | 命令作用域 | 当前库 / 实例级 | T13 | 否 |
+| 元数据库是否有同名残留表 | 预期 0 行 | T19（第五轮误跑成 T17 语句） | 否 |
+| ~~父表是否全在 Proxy 结果中~~ | 已完成：算术闭合可证，6 个父表全在 | T17 | — |
+| ~~集中式是否有 `_tdsql_subp` 表~~ | 已完成：0 行 | T18 | — |
+| ~~账号可见范围差异~~ | 已关闭：统一 `checksql`，无差异 | T16 | — |
 | ~~那 78 张表是什么~~ | 已完成：二级分区物理子表，`_tdsql_subp<数字>` | D3 | — |
 | ~~基线交叉校验~~ | 已完成：293 vs 215，差 78（已解释并消除） | T14 | — |
 | ~~空结果集行为~~ | 已完成：OK 包，0.001s，不挂起 | T15 | — |
@@ -4406,6 +4536,7 @@ MySQL [lzbj_ecif]> SELECT TABLE_NAME FROM information_schema.TABLES
 
 | 版本 | 日期 | 作者 | 内容 |
 |---|---|---|---|
+| **Rev.H** | **2026-08-31** | **智能体 A** | **回填第五轮内网实测（T16 / T17 / T18），设计与算法无实质变更。** **T17**：`lzbj_ecif` 的 78 张 `_tdsql_subp` 表精确推导出 **6 个父表、各 13 张**，与 Rev.E 从 D3 推出的 6 个名字逐名吻合（含当时判为"未被 LIKE 匹配的第 6 张"的 `cus_pub_sync_consumer_log`）。给出**算术闭合证明**——由基线 293、Proxy 215、后缀表 78 三个基数可推出 Proxy 结果集恰为逻辑基线，故 6 个父表全部在 Proxy 结果中，**不必再取 98 行原始输出**；残留假设仅"Proxy 不返回物理子表"一条，而它会在 UAT 时被 `RECON_MISMATCH` 免费验证且失败可见。**UAT 六个数字维持 215/0/117/98/215/78 不变。** T17 另暴露出一个构造夹具想不到的真实形态：`cus_pub_updatelog` 与 `cus_pub_updatelog_detail` **互为前缀且两者都是父表**——父表推导若用任何"取最短前缀"的近似做法，`_detail` 的 13 张子表会被错算给 `cus_pub_updatelog`，UAT 变成 228/65，**数字错了还很像对的**。现行非贪婪正则已用 78 个真名逐条验算通过，并新增 3 项定向测试（`test_r07b/c/d_*`，共 **70 项**，本地 69 通过 + 1 跳过）；登记 **KL-16**。**T18**：集中式实例 `zjywgl` 库 0 行 `_tdsql_subp` 表，P1-03「集中式一律不剔除」零风险（证据范围为单库，已在文中注明）。**T16**：使用者裁决关闭——内网统一 `checksql` 账号、权限充足、与平台登记账号一致，P1-01 的"账号可见范围"场景在本环境不成立；原 T09 一并结案。**T19 仍待测**：第五轮误把 T17 的 REGEXP 语句带到元数据库上跑了，本用例未被回答（不阻断，`_ensure_schema` 两种结果都能正确处理）。附录 B 新增 **B.55 第五轮原始数据**与 **B-14～B-17** 四条结论，含环境信息（元数据库 = TDSQL `8.0.33-v24-txsql`，`10.243.20.15:15197` / 库 `tdsql_sqlcheck`）。 |
 | **Rev.G** | **2026-08-31** | **智能体 A** | **依 O 的评审报告（`REVIEW-v1.6.3.0-…设计评审报告.md`，结论"不通过，退回修订 Rev.G"）整改。8 项 P1、3 项 P2、2 项文档一致性问题全部关闭，其中 **12 条我完全认可并按 O 的要求改**，**1 条（P1-08）认可问题、但整改方式与 O 的建议不同**（见 ADR-20：不做启动期失败关闭，改为模块首次使用时的结构验收——诊断子模块的留档表问题不应把"一个页面不可用"放大成"平台起不来"，且同层级的 `index_audit` / `cluster_inspection` 也没有启动期验收，只给新模块加一道标准不一致）。逐条：**P1-01** 删除「指纹相同即提前停止」的全部代码与论证（ADR-12 被自己推翻——从"命令是实例级作用域"推不出"这次返回已覆盖全部目标库"，用告警替代正确数字等于承认主结果可以是错的）；**P1-02** `run_stats` 进入既有 `registry.scan_slot`，与既有扫描**共用**配额，`ScanBusyError` → 429（ADR-19）；**P1-03** 子表判定收紧为「后缀 **且** 逻辑父表已在 Proxy 结果中确认」，集中式**一律不剔除**（ADR-17 修订）；**P1-04** 改为每库一个连接上下文、异常穿出触发连接重建；**P1-05** 单库三条命令暂存后原子合入，任一失败整库丢弃；**P1-06** 权限键补登记到 `app.js` 的 `subtabs` 回退清单（ADR-21）；**P1-07** `PROXY_CMD_FAILED` 汇总为一条、`warnings_json` 改 `MEDIUMTEXT`、前端告警上限 10 条可展开；**P1-08** 新增 `_ensure_schema()`（表 / 列 / 类型 / 索引，四种畸形均失败关闭）+ `SchemaNotReadyError`，位置在采集与并发槽位**之前**；**P2-01** 指定库必须真实存在、`SHOW DATABASES` 失败一律抛出（删除 `DB_ENUM_FAILED` 降级）；**P2-02** API 接收 `Request` 并记录操作人，前端补历史抽屉；**P2-03** `connection_id` 改必填；**DOC-01** KL-9 标记为已裁决并关闭；**DOC-02** 全文版本头、文件清单、行数、爆炸半径、接口契约统一到 Rev.G。测试从 42 项增至 **67 项**（新增 25 项全部为缺陷定向测试，逐一对应 O 的 T-R01～T-R14），本地 **66 通过 + 1 跳过**（T-R08 断言落盘后的仓库文件）。爆炸半径由「净改 9 行 + 1 个前端块」修正为「净改 **10 行** + **2 个前端块**」。另新增 4 项**不阻断**的内网核查 T16～T19，为 P1-01/P1-03/P1-08 的事实前提取证。 |
 | Rev.F | 2026-08-31 | 智能体 A | **v1.6.2.2 上线后的代码变更复核修订。**对本设计依赖的 13 个文件做 `git diff 8fee172..01e2914` 逐一比对，只有 `migrator.py`（失败关闭改造）与 `app.js`（2 行，无关）动过；其余全部未变，§2 的行号与结论逐条重新核对后继续成立。**§2.7 重写**，写入迁移器的三条新硬约束：M-1 任一语句失败即启动关闭（旧版只 WARNING）、M-2 列级严格验收只作用于 `ADD COLUMN`（本模块纯 `CREATE TABLE`，不受影响、无适配成本）、**M-3 checksum 漂移即启动失败关闭——迁移文件发布即冻结**。据此新增 **ADR-18**（表结构须在打包前定稿；发布后扩列走新增 `111_*.sql` 而非回头编辑）、**KL-12**，并把 §9 中迁移文件的风险由"零"上调为"低"、补两条迁移专项验收。附录 A 代码在当前 main 上重跑 **42 项全过**（沙箱 MariaDB 的 `int(11)` 差异非 G14 问题，加兼容垫片后全绿）。设计主体（口径、算法、接口、爆炸半径）**无实质变更**。 |
 | Rev.E | 2026-08-29 | 智能体 A | 依第四轮内网实测（D3）**查明并消除 RISK-B 的差异**：那 78 张全部是 TDSQL 二级分区的物理子表，命名 `<逻辑表>_tdsql_subp190001` / `_tdsql_subp202601`…`202612`；6 张 `sub_func:month` 的表 × 13 个子分区 = 78，与 293 − 215 精确闭合。**ADR-17（新增）**：`_tdsql_subp<数字>` 结尾的表从基线剔除、单列 `subpartition_tables`（响应 + 两张表的 DDL 列 + 前端一列），并出一条 `SUBPARTITION_EXCLUDED`（INFO）说明剔除量。剔除后**逻辑基线 215 == Proxy 口径 215**，`RECON_MISMATCH` 从"在每个有二级分区的库上永久亮着的噪声"变回"亮起就意味着真有表没进 Proxy 路由表"的信号——推翻 Rev.D"两个数并排让用户自己判断"的做法（ADR-16 随之修订）。新增护栏用例 3 项，其中 `test_lzbj_ecif_uat_baseline` 把内网对数基准（98/117/0/215/215/78 且不报 RECON）直接编码为单测（共 42 项，全部通过）。§10 归档 D3，仅剩 T13；附录 B 增补第四轮原始数据与账目闭合验算。**GATE-2 仍无阻断项。** |
