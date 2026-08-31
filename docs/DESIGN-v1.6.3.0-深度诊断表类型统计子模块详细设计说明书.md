@@ -2,13 +2,13 @@
 
 | 项 | 内容 |
 |---|---|
-| 文档编号 | DESIGN-v1.6.3.0 **Rev.F** |
+| 文档编号 | DESIGN-v1.6.3.0 **Rev.G** |
 | 模块编号 | **G14 · 表类型统计**（深度诊断第 10 个子模块） |
 | 目标版本 | v1.6.3.0（当前基线 v1.6.2.2，`VERSION` / `backend/config.py:APP_VERSION`） |
-| 文档等级 | **照图施工级**——附录 A 给出全部新增/修改文件的逐行成品代码（已本地验证：42 项单测全通过），实施者不得二次设计 |
+| 文档等级 | **照图施工级**——附录 A 给出全部新增/修改文件的逐行成品代码（已本地验证：67 项单测全通过，其中 T-R08 需模块落盘后才生效），实施者不得二次设计 |
 | 编写 | 智能体 A |
-| 编写日期 | 2026-08-29 首版；2026-08-31 Rev.F 依 v1.6.2.2 上线后的代码变更复核修订 |
-| 状态 | 设计与代码**已完成**；四轮内网实测均未推翻；**v1.6.2.2 已上线，本设计依赖的代码事实经逐条复核后仅迁移器一处需要适配（已在 §2.7 写入）**。**GATE-2 无阻断项，可进入开发**。剩余 T13 一项，不阻断（§10.2） |
+| 编写日期 | 2026-08-29 首版；2026-08-31 Rev.F 依 v1.6.2.2 上线后的代码变更复核修订；2026-08-31 Rev.G 依 O 评审报告整改（8 项 P1 + 3 项 P2 + 2 项文档一致性）|
+| 状态 | 设计与代码**已完成**；四轮内网实测均未推翻。**Rev.G 对 O 评审报告的 8 项 P1 全部整改**（其中 P1-08 的整改【方式】与 O 建议不同，理由见 ADR-20），3 项 P2、2 项文档一致性问题全部关闭。原「指纹相同即提前停止」优化**已整体删除**，T13 由此从「不阻断」降为「不影响正确性、仅影响耗时预期」（§10.2） |
 | 前置约束 | 本文档编写阶段**未修改任何代码**（用户要求）。仓库工作区在本文档提交时保持干净。 |
 
 ---
@@ -17,14 +17,14 @@
 
 本文档同时承担三件事，读者请按角色取用：
 
-* **实施者（智能体 Q 或人工）**：读 §5～§9 + 附录 A。附录 A 是**可直接落盘的成品代码**——四个新增文件 + 既有文件的 9 行改动 + 1 个前端块，逐字给出。
-* **内网测试配合者**：只读 **§10**。四轮共 11 个用例已完成（裁决见 §10.1），**只剩 T13** 一项（§10.2），**不阻断开发**——一句 `SHOW DATABASES` 多数情况下就能结案。
+* **实施者（智能体 Q 或人工）**：读 §5～§9 + 附录 A。附录 A 是**可直接落盘的成品代码**——四个新增文件 + 既有文件的 **10 行**改动 + **2 个前端块**（页签块 + 历史抽屉块），逐字给出。
+* **内网测试配合者**：只读 **§10**。四轮共 11 个用例已完成（裁决见 §10.1）。**待测 5 项：T13 + Rev.G 新增的 T16～T19**（§10.2），**全部不阻断开发**——它们是为 O 评审报告里几条判断的事实前提取证，查清了能让下一版更准，查不了也不影响本版正确性。
 * **评审者（智能体 O / Codex）**：读 §3（原厂口径的语义风险）、§7（决策与取舍）、§8（异常矩阵）、§9（爆炸半径）、§13（风险登记册）。
 
 **三条硬约束**（贯穿全文，任何实现偏离即为不合格）：
 
 1. **只读**。本模块对目标 TDSQL 实例只执行 `SHOW` / `SELECT information_schema`，不产生任何 DDL/DML，不修改任何会话级持久设置。
-2. **零回归**。不得修改 119 条审核规则、解析引擎、既有 9 个深度诊断子模块的任何一行。修改面见 §9 清单，共计**新增 4 个文件 + 修改 5 个文件的 9 行**。
+2. **零回归**。不得修改 119 条审核规则、解析引擎、既有 9 个深度诊断子模块的任何一行。修改面见 §9 清单，共计**新增 4 个文件 + 修改 5 个文件的 10 行 + 2 个前端块**。零回归不只是「不改既有代码」，还包括**不挤占既有资源**——本模块与既有扫描共用 `registry.scan_slot` 的同一份并发配额（ADR-19）。
 3. **口径可证伪**。统计结果必须自带交叉校验（§6.6），当原厂三条命令的并集与 `information_schema` 基线不一致时，产品必须**把差异摆出来**，而不是选一个数悄悄显示。本项目既有教训（V1.5 实例类型误判、v1.6.0.6 业务库枚举降级）都指向同一条：**漏掉的数据是不可见的错误**。
 
 ---
@@ -90,7 +90,10 @@
 | **样板方法** `runIndexAudit` | `frontend/static/js/app.js:795-798` |
 | `setup()` 返回值总清单（新方法必须挂进去，否则模板取不到） | `frontend/static/js/app.js:2043` |
 
-### 2.2 一个子模块需要登记的 4 个点（缺一即失效）
+### 2.2 一个子模块需要登记的 6 个点（缺一即失效）
+
+> **Rev.G 从 4 个点改为 6 个点**：Rev.F 只数了后端的 4 处 + 一个页签块，
+> 漏掉了 `app.js` 的**子页签回退清单**（O 评审 P1-06）。见 P6 与 ADR-21。
 
 | # | 文件:行 | 内容 | 缺失后果 |
 |---|---|---|---|
@@ -98,6 +101,8 @@
 | P2 | `backend/services/auth_service.py:491-494` | `ALL_MENU_KEYS` | 权限矩阵页看不到该菜单，无法配置 |
 | P3 | `backend/services/auth_service.py:504-509` | `MENU_LABELS` | 权限矩阵页显示裸键名 |
 | P4 | `backend/services/database.py:1717` | `_init_default_data` 的 `all_menus` | **致命**：`database.py:1775` 有 `DELETE FROM role_permissions WHERE menu_key NOT IN (...)`，未登记的键会在每次启动时被删掉，菜单永久不可见 |
+| P5 | `frontend/index.html`（页签块的 `v-if="visibleMenus.has(...)"`） | 页签本身的可见性 | 页签对所有人可见 / 或对所有人不可见 |
+| **P6（Rev.G 新增）** | `frontend/static/js/app.js:1960` 的 `subtabs` | 进入"深度诊断"时**按角色选默认活动页签**的回退清单 | 只拥有该子菜单权限的自定义角色进入页面后 `deepTab` 停在不可见的 `'cluster'`，**页面没有活动页签**。admin 账号下永远测不出来（它拥有全部子页签，循环第一项必定命中） |
 
 补充事实（决定了本模块**不需要**写任何存量库订正 SQL）：
 `database.py:1733-1736` 对 `all_menus × 内置角色`执行 `INSERT IGNORE INTO role_permissions(...) VALUES(...)`，`init_db()` 每次启动都会跑（`database.py:420`）。因此新键在**存量库**上会于下次启动自动补齐，`developer` / `auditor` 的默认不可见排除清单（`database.py:1728-1731`）不含本键 → 四个内置角色默认全部可见，符合 REQ-7。
@@ -172,7 +177,7 @@
 | # | 新行为 | 位置 | 对 G14 的影响 |
 |---|---|---|---|
 | M-1 | **任一语句执行失败即 `MigrationError` → 启动中止**（旧版只记 WARNING 继续） | `migrator.py:191` | 本模块的 DDL **必须保证在 MySQL 8 / TDSQL 上一次执行成功**。用 `CREATE TABLE IF NOT EXISTS` 保证幂等，重复启动不会二次失败 |
-| M-2 | **结构严格验收只作用于 `ALTER TABLE … ADD COLUMN`**（`_ADD_COLUMN_RE`，`migrator.py:45-48`） | `_apply_file` / `_structure_state` | 本模块是**纯 `CREATE TABLE`**，不匹配该正则 → **不进入列级结构验收**；已登记后 `_structure_state` 返回 `valid` 直接跳过。**无额外适配成本** |
+| M-2 | **结构严格验收只作用于 `ALTER TABLE … ADD COLUMN`**（`_ADD_COLUMN_RE`，`migrator.py:45-48`） | `_apply_file` / `_structure_state` | 本模块是**纯 `CREATE TABLE`**，不匹配该正则 → **不进入列级结构验收**；已登记后 `_structure_state` 返回 `valid` 直接跳过。**Rev.F 曾据此判定"无额外适配成本"——Rev.G 撤回这个判断**，理由见下方 M-2 补注与 ADR-20 |
 | M-3 | **checksum 漂移 → 启动失败关闭**，除非精确命中代码内 `_KNOWN_RECONCILIATIONS` 三元组账本（`migrator.py:281-296`） | `_auto_reconcile` | **发布即冻结**——见下方警示 |
 
 > ### ⚠️ M-3 是本次新增的最重要约束：迁移文件发布即冻结
@@ -191,6 +196,27 @@
 > 若发布后确需扩列，正确做法是**新增 `v11/111_*.sql` 用 `ALTER TABLE … ADD COLUMN`**，
 > 而不是回头编辑 `110_*.sql`——注意 `ADD COLUMN` 会进入 M-2 的列级严格验收，
 > 类型/可空性/默认值三项必须与既有列逐字相符。
+
+> ### ⚠️ M-2 补注（Rev.G 新增）：**"不进入验收"不是安全性依据**
+>
+> Rev.F 把"纯 `CREATE TABLE` 不进入列级验收"当成一件好事（无适配成本）。
+> O 在 P1-08 里指出这是一个方向性错误，我复核后**完全接受**：
+> 迁移器不验收，只说明**没人替我们检查**，不说明表一定是对的。具体的失效路径有两条：
+>
+> 1. **建表被静默跳过**：元数据库里若已存在同名但缺列 / 错类型 / 缺索引的表
+>    （手工试验残留、历史同名表、上一次部署中途失败），`CREATE TABLE IF NOT EXISTS`
+>    直接跳过，**迁移仍被登记成功**，直到本模块 `INSERT` 才 1054 报错；
+> 2. **登记后结构漂移**：迁移一旦登记，`_structure_state()` 因为没有 `ADD COLUMN`
+>    声明恒返回 `valid`，即便两张表被人工删除也不会重放。
+>
+> Rev.F 新增的"连续启动两次"验收只能证明**跳过**，不能证明**表结构正确**——
+> 这两件事被我混为一谈了。
+>
+> **Rev.G 的处置**：由模块自己在 `run_stats` 入口做一次确定性结构验收
+> （表 / 全部列 / 关键列类型 / 索引，任一不符即抛 `SchemaNotReadyError`），
+> 见 ADR-20 与附录 A.1 的 `_ensure_schema()`。
+> **不改迁移器**——那是 v1.6.2.2 刚上线的全平台启动路径，为一个诊断子模块
+> 动它不成比例；**也不做启动期失败关闭**——理由同样在 ADR-20。
 
 
 ### 2.8 元数据库访问
@@ -236,8 +262,11 @@
 > 本节四条风险在 Rev.A 编写时全部未知。Rev.B 依据第一轮内网实测逐条裁决，
 > 并新增两条实测暴露出来的风险 RISK-E / RISK-F。Rev.C 裁决 RISK-F；
 > Rev.D 量化 RISK-B、Rev.E 查明其成因（二级分区物理子表）并**将其消除**。
-> **当前仅剩 RISK-E（T13，命令作用域）未裁决**——不阻断开发，
-> 设计已在两种作用域下都保证正确。
+> **Rev.G 依 O 评审报告收紧两处**：RISK-B 的子表识别从「只看后缀」改为
+> 「后缀 + 逻辑父表已确认」且集中式一律不剔除（P1-03）；RISK-E 的
+> 「指纹相同即提前停止」优化**整体删除**（P1-01）。
+> **当前仅剩 RISK-E（T13，命令作用域）未裁决**——取消提前停止后它已
+> **不影响正确性**，只影响耗时预期。
 
 #### RISK-A：`without shardkey` 可能是 `noshardkey_allset` 的超集 —— **实测证伪，对策保留**
 
@@ -290,13 +319,32 @@ cus_pub_translog_tdsql_subp202612     ← 2026-12
 没有二级分区的表；`cus_pub_sync_consumer_log` 的 13 个子表没被本次 LIKE 匹配到。
 65 + 6 = 71 ✓）
 
-**设计对策（Rev.E，ADR-17）：把二级分区物理子表从基线中剔除并单列计数。**
+**设计对策（Rev.E 提出，Rev.G 收紧，ADR-17）：把二级分区物理子表从基线中
+剔除并单列计数——但「叫这个名字」只是必要条件，不是充分条件。**
 
 ```python
-_SUBPARTITION_RE = re.compile(r"_tdsql_subp\d+$", re.IGNORECASE)
+_SUBPARTITION_RE = re.compile(r"^(?P<parent>.+?)_tdsql_subp\d+$", re.IGNORECASE)
 ```
 
-剔除后：**逻辑基线 215 == Proxy 口径 215，两个口径精确相等。**
+判定为物理子表需**同时**满足两条（Rev.G / P1-03）：
+
+1. 表名匹配 `<父表>_tdsql_subp<纯数字>`；
+2. **逻辑父表确实出现在本库的 Proxy 结果里**。
+
+且**集中式实例一律不做这个剔除**。
+
+> **为什么 Rev.F 的「只看后缀」不够**（O 评审 P1-03，本人复核后认可）：
+> 内网证据只证明了「这 78 张物理子表叫这个名字」，**没有**证明
+> 「叫这个名字的一定是物理子表」。两者是不同的命题。
+> 集中式实例根本没有二级分区这个构造，一张合法业务表若恰好叫
+> `orders_tdsql_subp202601`，Rev.F 会把它**静默少算**，而集中式分支
+> 没有 Proxy 交叉校验兜底——这个错误**不可见**，直接违反 REQ-5。
+> 加上父表确认后，误判方向仍然是安全的：父表没确认就保留为逻辑表，
+> 后果是 `RECON_MISMATCH` **显式报出来（可见）**。
+
+剔除后：**逻辑基线 215 == Proxy 口径 215，两个口径精确相等**
+（实测的 6 张父表全部出现在 `show table with shardkey` 的 98 行内，
+父表确认条件在真实数据上成立，加这一条不会破坏已验证的对数结果）。
 
 **为什么这件事必须做，而不是像 Rev.D 那样"两个数并排摆着让用户自己判断"**：
 
@@ -364,19 +412,28 @@ Rev.D 的做法会让 `RECON_MISMATCH` 在**每一个有二级分区的库上永
    而不是当前会话库。非目标库（系统库、被 `database` 参数筛掉的库）的行直接丢弃。
 2. **全局 `(库, 表)` 去重**：用一张全局 `kind_map[(db, table)] = kind` 累积，
    同一个 `(库, 表)` 无论被看到几次都只计一次——这正是原厂那句去重要求的实现。
-3. **作用域指纹比对**（Rev.D 修订，原为"与 information_schema 基线逐表相等"）：
-   记录**首个非空库**三条命令返回的原始 `(库, 表)` 集合作为指纹；
-   **第二个非空库**若返回逐条相同的集合，即证明命令与当前会话库无关
-   —— 因为当前库作用域下两库的库限定名前缀必然不同，非空集合不可能相等。
-   判定为实例级后，其余库全部跳过。
-   * 实例级作用域：**6 条命令**（两个库各 3 条）即可覆盖全实例；
-   * 当前库作用域：第二个库指纹不同 → 判定为当前库作用域，逐库老实执行；
-   * 判据是**充分必要**的，不是启发式，不存在漏库风险。
+3. **无条件逐库执行**（Rev.G / P1-01 修订，原为"指纹相同即提前停止"）：
+   对每一个目标业务库都执行三条命令，不做任何提前停止。
+4. 检测到跨库行时输出 `INSTANCE_WIDE_SCOPE`（INFO），说明本版本返回实例级全量、
+   已按库限定名归属并去重，**且为保证覆盖完整性仍逐库执行**。
 
-   > **为什么不用"与 information_schema 基线相等"**（Rev.B 的做法）：
-   > T14 实测 `lzbj_ecif` Proxy 口径 215 vs 基线 293，两者**基本不可能相等**，
-   > 那个判据永远不成立、优化永远不生效。见 ADR-12。
-4. 检测到跨库行时输出 `INSTANCE_WIDE_SCOPE`（INFO），把实际执行了几个库告诉用户。
+> **Rev.F 的「指纹相同即提前停止」为什么被整体删除**（O 评审 P1-01，本人复核后认可）：
+>
+> Rev.D/F 的论证是："当前库作用域下两库的库限定名前缀必然不同，
+> 非空集合不可能相等；故集合相等 ⟹ 实例级作用域。" 这一步推理本身没错。
+> 错在**下一步**：从"命令是实例级作用域"推不出"这一次返回的集合覆盖了全部目标库"。
+> 前者是命令的语义属性，后者是这一次调用的**结果完整性**，两者之间隔着
+> 账号可见范围、路由域、租户切分、路由元数据缺失等一整排东西。
+> 只要 db_a 与 db_b 在同一个路由域、db_c 在另一个域，两库指纹相同而 db_c 整个漏掉
+> ——页面上四个主数字照样是"成功"，这正是本项目一贯最怕的**不可见的错误**。
+>
+> 我原本准备的兜底是 `RECON_MISMATCH`。复核后认为这个兜底站不住：
+> 用告警替代正确的统计数字，等于承认主结果可以是错的。**性能优化不能拿正确性换。**
+>
+> O 给出的保留条件（返回的库限定名已覆盖全部目标库、且每库都完成一致性校验后
+> 才允许停止）在逻辑上成立，但那时"省下的"只剩下命令的往返开销，
+> 而校验本身仍要逐库查 `information_schema`——收益已经不足以支撑这份复杂度。
+> **故整体删除，不保留任何形式的提前停止。** 代价见 §9 的耗时评估。
 
 **表名含点号的边界**：拆分只在"点号左侧确为一个已知库名"时进行（已知库名来自
 `SHOW DATABASES` 的**全量**结果，含系统库）。否则整串当作当前库下的表名。
@@ -456,30 +513,37 @@ Query OK, 0 rows affected (0.001 sec)
         ──► baseline{db: {"base": {表名…}, "view": {视图名…}}}
 4. 建临时池 tmp（pool_size=1, read_timeout=30s）
 5. kind_map = {}        # (库, 表) -> 类型，全局去重，正是原厂「库名+表名去重」
-   scope_signature = None ; scope_decided = ""
-   for db in dbs:
-     if scope_decided == 实例级:  该库跳过（结果已被覆盖）
+   for db in dbs:                       # ← Rev.G：无条件逐库，不提前停止（P1-01）
      if 已耗时 > 180s:           该库标 SKIPPED，继续
-     tmp.select_db(db)
-     raw_pairs = ∅
-     for kind, sql in (分片, 广播, 单表):
-         rows = execute(sql)               # 失败→该库 FAILED，break
-         # rows 可能是 OK 包（Query OK, 0 rows affected）→ fetchall() 为 []
-         pairs = 按 known_dbs 拆库限定名，缺省归当前库
-         raw_pairs |= pairs
+     staged = {}                        # ← Rev.G：本库暂存区（P1-05）
+     try:
+       with tmp.get_connection() as conn:      # ← Rev.G：每库一个连接上下文（P1-04）
+         conn.select_db(db)
+         for kind, sql in (分片, 广播, 单表):
+             rows = execute(sql)
+             # rows 可能是 OK 包（Query OK, 0 rows affected）→ fetchall() 为 []
+             staged[kind] = 按 known_dbs 拆库限定名，缺省归当前库
+     except Exception:                  # 异常【穿出】with ⇒ 触发连接重建
+       该库标 FAILED，丢弃 staged 全部内容，continue
+     ── 三条命令全部成功，才原子合入全局（P1-05）──
+     for kind, pairs in staged:
          for (qual, name) in pairs:
              if qual 不在目标库集合:  丢弃    # 系统库 / 被筛掉的库
              if name 在 baseline[qual]["view"]:  丢弃   # 原厂：不统计视图
              kind_map[(qual,name)] = 优先级更高者（分片 > 广播 > 单表）
-     ── 作用域自判（ADR-12 修订，不依赖 information_schema）──
-     if 未判定 and raw_pairs 非空:
-         首个非空库 → 记指纹；第二个非空库 → 指纹相同判实例级，不同判当前库
 6. tmp.close_all()
 7. 逐库汇总 kind_map ──► items；Proxy 口径总数 = len(kind_map)
-   ── 交叉校验：每库 got 与 baseline[db]["base"] 做双向集合差 ──
+   ── 子表判定：base 中匹配 <父表>_tdsql_subp<数字> 且父表在本库 Proxy 结果里
+      才算物理子表（P1-03）；其余保留为逻辑表 ──
+   ── 交叉校验：每库 got 与 baseline[db]["base"]（去子表后）做双向集合差 ──
    差集写入该库 item.detail；全部处理完后汇总成【一条】RECON_MISMATCH
 8. 告警 + 落库 + 返回（total_tables 与 baseline_tables 并排）
 ```
+
+> **步骤 5 的三处 Rev.G 变化都只为一件事：让"失败"是局部的、可见的、可恢复的。**
+> 不提前停止 ⇒ 覆盖不会因为一次巧合的指纹相同而残缺；每库一个连接上下文 ⇒
+> 一条坏连接不会把后面所有库连坐；暂存后原子合入 ⇒ 失败库不会把半截结果
+> 混进别的库的账里。
 
 **恒等式（单测钉住）**：逐库与汇总均满足
 `total_tables == shard_tables + broadcast_tables + single_tables`，
@@ -503,17 +567,22 @@ Query OK, 0 rows affected (0.001 sec)
 
 | 类型 | 文件 | 规模 |
 |---|---|---|
-| 新增 | `backend/services/table_type_stats_service.py` | 656 行（附录 A.1，成品） |
-| 新增 | `backend/api/table_type_stats.py` | 44 行（附录 A.2，成品） |
-| 新增 | `backend/schema/v11/110_table_type_stats.sql` | 41 行（附录 A.3，成品） |
-| 新增 | `tests/test_table_type_stats.py` | 749 行（附录 A.4，成品） |
+| 新增 | `backend/services/table_type_stats_service.py` | 834 行（附录 A.1，成品） |
+| 新增 | `backend/api/table_type_stats.py` | 66 行（附录 A.2，成品） |
+| 新增 | `backend/schema/v11/110_table_type_stats.sql` | 45 行（附录 A.3，成品） |
+| 新增 | `tests/test_table_type_stats.py` | 1321 行 / 67 项（附录 A.4，成品） |
 | 修改 | `backend/main.py` | **2 行**（import + include_router） |
 | 修改 | `backend/services/auth_service.py` | **3 行**（P1/P2/P3） |
 | 修改 | `backend/services/database.py` | **1 行**（P4） |
-| 修改 | `frontend/index.html` | **1 处**新增 `<el-tab-pane>` 块（不改任何既有行） |
-| 修改 | `frontend/static/js/app.js` | **3 行**（`deepResult` 加字段 / 新方法 / 返回清单追加） |
+| 修改 | `frontend/index.html` | **1 处**新增 `<el-tab-pane>` 块（内含结果区 + 历史抽屉，不改任何既有行） |
+| 修改 | `frontend/static/js/app.js` | **4 行**（`deepResult` 加字段 / 新方法 / 返回清单追加 / **`subtabs` 回退清单追加**）+ 1 个纯新增方法块 |
 
-**合计：新增 4 文件，既有文件净改 9 行 + 1 个纯新增 HTML 块。**
+**合计：新增 4 文件，既有文件净改 10 行 + 2 个纯新增前端块。**
+
+> Rev.G 相对 Rev.F 多出来的 1 行，就是 O 在 P1-06 里点出的
+> `app.js:1960` 的 `subtabs` 回退清单。**这 1 行不加，一个只被授予
+> 「深度诊断 + 表类型统计」的自定义角色进入页面后会没有活动页签**——
+> 权限矩阵配置成功、功能却进不去，属于典型的"配了等于没配"。
 
 ---
 
@@ -527,8 +596,17 @@ Query OK, 0 rows affected (0.001 sec)
 ```
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
-| `connection_id` | string | 否（空=默认连接） | 目标实例 |
-| `database` | string | 否 | 空=全部业务库；非空=只统计该库（**仍会做 `_SYS_DB` 校验，系统库直接拒绝**） |
+| `connection_id` | string | **是**（Rev.G / P2-03，`min_length=1`） | 目标实例。**不接受空串** |
+| `database` | string | 否 | 空=全部业务库；非空=只统计该库（**仍会做 `_SYS_DB` 校验 + 存在性校验**） |
+
+> **为什么 Rev.G 把 `connection_id` 从"可空"改成必填**（O 评审 P2-03，本人复核后认可）：
+> 空串下 `registry.get("")` 取的是 adhoc 或默认保存连接，而
+> `instance_type_service.resolve("")` 走的是**不带连接 ID 的全局默认类型逻辑**。
+> 两者在实现上是两条独立的解析路径，**不保证指向同一个实例**。
+> 最坏情况：池是真分布式实例、类型解析回了集中式，于是走 `information_schema` 分支，
+> 分片/广播**全部报 0**，页面却显示"成功"。这是一个安静的、方向固定的错误
+> ——正是本文档 §0 硬约束 3 要杜绝的那一类。
+> 前端本来就持有当前连接 ID，改必填对使用者零影响。
 
 响应 200：
 ```json
@@ -584,11 +662,28 @@ Query OK, 0 rows affected (0.001 sec)
 |---|---|---|
 | 400 | `未连接TDSQL实例或连接不存在` | `ConnectionNotFoundError`（照抄 `index_audit.py:20-24`） |
 | 400 | `不允许统计系统库: xxx` | `database` 落在 `_SYS_DB` |
+| 400 | `必须指定 connection_id（…）` | `connection_id` 为空或全空白（Rev.G / P2-03） |
+| 400 | `数据库不存在或当前账号不可见: xxx（SHOW DATABASES 未返回该库）` | 指定库不在 `SHOW DATABASES` 结果里（Rev.G / P2-01） |
+| **429** | `目标库 xxx 扫描并发已达上限(N)，请稍后重试` / `服务扫描并发已达上限(N)，请稍后重试` | `ScanBusyError`——与既有慢查询扫描共用同一份配额（Rev.G / P1-02，口径同 `tdsql_manage.py:432`） |
+| 500 | `元数据库缺少表 …` / `… 缺少列 …` / `… 列类型不符 …` / `… 缺少索引 …` | `SchemaNotReadyError`——留档表结构验收未通过（Rev.G / P1-08）。消息里带可执行的处置步骤，**原样透出，不被兜底 except 吞掉** |
 | 500 | 原始异常字符串 | 其余（照抄样板） |
+
+**并发语义（Rev.G / P1-02）**：`/run` 在 `run_stats()` 内进入
+`registry.scan_slot(connection_id)`（与 `scan_service.py:72` 同一个入口），
+受 `SQLCHECK_MAX_CONCURRENT_SCANS_PER_CONNECTION`（默认 2）和
+`SQLCHECK_MAX_CONCURRENT_SCANS_GLOBAL`（默认 8）双重限制。
+**不新建一份配额**——新建就等于全局上限失效，见 ADR-19。
+前端在请求期间禁用按钮只是体验优化，**不能替代服务端限流**。
 
 ### 5.2 `GET /api/v1/table-type-stats/history?connection_id=&limit=20`
 
 返回 `{"items":[{...table_type_stat 行...}]}`，按 `id DESC`。
+`limit` 服务端夹取到 `[1, 200]`。行内含 `created_by`（操作人）与 `created_at`。
+
+**`created_by` 必须是真实登录用户名（Rev.G / P2-02）**：API 声明
+`http_request: Request`，取 `request.state.username`（未认证兜底 `anonymous`），
+传给 `run_stats(operator=...)`。Rev.F 的接口签名没有 `Request`，
+`created_by` 在真实调用中**恒为空串**——留档存在但不可追责，等于 REQ-6 只做了一半。
 
 ### 5.3 `GET /api/v1/table-type-stats/detail/{stat_id}`
 
@@ -689,18 +784,25 @@ s = str(值).strip()
 SELECT TABLE_SCHEMA, TABLE_NAME, TABLE_TYPE FROM information_schema.TABLES
 WHERE TABLE_SCHEMA IN (%s, %s, ...)
 ```
-返回 `{db: {"base": 逻辑表, "view": 视图, "subp": 二级分区物理子表}}`。
+返回 `{db: {"base": 全部 BASE TABLE, "view": 视图}}`。
 
-**三分类而不是两分类**：`BASE TABLE` 里混着 `_tdsql_subp<数字>` 结尾的
-二级分区物理子表（实测 `lzbj_ecif` 293 张里有 78 张是），它们不是用户认知中的
-"表"，Proxy 也只返回逻辑表名。剔除后逻辑基线与 Proxy 口径精确相等（ADR-17）。
+**Rev.G：基线阶段不再拆出 `subp`（P1-03）。** Rev.F 在这里就按后缀把子表分了出来，
+两个分支共用同一份结果——于是集中式实例也被剔了一遍，成了 P1-03 的静默少算。
+Rev.G 把子表判定**下沉**到 `_classify_subpartitions(base, proxy_tables)`：
+
+* **集中式**：传 `proxy_tables=空集`，等价于一律不剔除，全部 `BASE TABLE` 计入单表（REQ-5）；
+* **分布式**：只有「名字匹配 `<父表>_tdsql_subp<数字>`」**且**「父表出现在本库
+  Proxy 结果里」才判为物理子表。
+
+**原始 `BASE TABLE` 数量保留在 `base` 里**，分类前后账目可核对：
+`len(base) == len(logical_base) + len(subp)`，恒等式由单测钉住。
 
 **取名字而不是取 COUNT** 的四个理由：
 1. 集中式分支要的 `single = len(base)` 直接可得；
 2. 分布式分支的交叉校验需要**双向差集的表名**，光有计数说不出"差在哪张表"；
 3. "不统计视图"这条原厂要求，在分布式分支上靠 `view` 名单做扣除来落实；
 4. 逐库「说明」列要写出**差的是哪几张表**，光有计数说不出。
-   （注意：作用域判定**不**使用基线——见 ADR-12，实测证明两者基本不等。）
+   （注意：Rev.G 起已无作用域判定这一控制流——见 ADR-12。）
 
 **占位符风格**：这是打到**目标 TDSQL 实例**的查询，走 `pool._execute`（PyMySQL），
 占位符是 `%s`；元数据库那侧（`database._get_connection`）才是 `?`。
@@ -720,26 +822,43 @@ cfg = dataclasses.replace(pool.config, database=dbs[0],
                           read_timeout=COMMAND_READ_TIMEOUT)
 tmp = _new_pool(cfg, pool_size=1)
 try:
-    with tmp.get_connection() as conn:
-        for db in dbs:
-            if 已判定实例级: skipped[db] = "coverage"; continue
-            if 超预算:     skipped[db] = "budget";   continue
-            conn.select_db(db)          # 隔离连接，切库无副作用（ADR-3）
-            for kind, sql in _KIND_SQL:
-                cur.execute(sql) → 解析 → 归属 → 写入 kind_map
+    for db in dbs:                       # Rev.G / P1-01：无条件逐库，无提前停止
+        if 超预算: skipped[db] = "budget"; continue
+        staged = {}                      # Rev.G / P1-05：本库暂存区
+        try:
+            with tmp.get_connection() as conn:   # Rev.G / P1-04：每库一个连接上下文
+                conn.select_db(db)       # 隔离连接，切库无副作用（ADR-3）
+                for kind, sql in _KIND_SQL:
+                    cur.execute(sql) → 解析 → staged[kind] = pairs
+        except Exception as e:           # 异常【穿出】with ⇒ 池关闭并重建连接
+            failed[db] = 渲染(e); continue          # 整库丢弃 staged
+        # 三条全部成功，才原子合入全局
+        merge(staged → kind_map / kinds_seen / shape)
 finally:
     tmp.close_all()
 ```
 
-**逐库、逐命令独立 try**：单条失败只让**该库**降级为 `status='FAILED'`
-（三条必须全成功才算 OK），记录 errno + 消息前 200 字符，继续下一个库。
+**三条 Rev.G 结构性变化（不得再改回去）**：
 
-**异常层次是强制要求，不得调整**：`TDSQLConnectionPool.get_connection()` 的
-`except` 分支（`tdsql_connector.py:298-306`）在**任何异常穿出 `with` 块时**会关闭
-并重建线程本地连接、然后重新抛出。因此本模块**必须在 `with` 块内部把每条命令的
-异常吃掉**——否则一个库的 1064 会导致整条连接被重建、循环中断。
+**① 每库一个连接上下文（P1-04）。** Rev.F 全程只进一次 `with tmp.get_connection()`，
+并在 `with` **内部**把每条命令的异常全部吃掉，理由是"不让一个库的 1064 打断循环"。
+这个理由只对**语法/权限类错误**成立——它们不破坏连接。但**读超时、服务端主动断开、
+网络复位之后，当前这条连接已经不可用了**（超时后连接里还可能残留没读完的结果集），
+异常被内部吞掉就意味着后续所有库继续复用这条坏连接，**从"一个库失败"变成
+"从这里往后全部失败"**。Rev.G 让异常一律穿出当前库的 `with`，由
+`TDSQLConnectionPool.get_connection()`（`tdsql_connector.py:287-307`）关闭并重建
+线程本地连接后再抛出，外层逐库捕获、继续下一库。**临时池可以复用，坏连接不能复用。**
 
-**`select_db` 失败**（库被删、无权限）→ 该库 `FAILED`，不影响其余库。
+**② 单库三条命令原子合并（P1-05）。** Rev.F 每条命令成功就立刻写全局 `kind_map`。
+在命令返回**跨库行**（RISK-E 的实例级作用域形态）时，一个失败库先前写入的行会
+留在全局映射里，污染**其他库**的计数与重叠数——"失败库不计入任何汇总数"这个承诺
+在数据结构层根本没有成立。Rev.G 先写本库暂存区，三条全成功才一次性合入；
+任一条失败，本轮暂存**整体丢弃**。
+
+**③ 不提前停止（P1-01）。** 见 §3.3 RISK-E。
+
+**`select_db` 失败**（库被删、无权限）→ 与命令失败同一条路径：该库 `FAILED`，
+异常穿出触发连接重建，不影响其余库。
 
 ### 6.5 归属、去重与计数（应对 RISK-A / RISK-E）
 
@@ -789,8 +908,12 @@ total_tables == shard_tables + broadcast_tables + single_tables   （逐库 & �
 比集合而不比计数：两个集合大小相同但内容不同（少了 A、多了 B）时，比计数会漏报——
 这正是"不可见错误"的典型形态。
 
-**这里的比对结果不参与任何控制流**（Rev.D 起作用域判定改用指纹比对），
+**这里的比对结果不参与任何控制流**（Rev.G 起已无作用域判定这一控制流），
 它只负责如实呈现两个口径的差异。
+
+**Rev.G 新增的一个信号**：一张名字匹配 `_tdsql_subp<数字>` 但**父表未确认**的表，
+会留在逻辑基线里，于是在这里作为"仅基线可见"被点名报出（P1-03）。
+这正是我们要的方向——**不确定的东西要显式报出来，而不是悄悄扣掉。**
 
 集中式实例不做此校验（基线本身就是唯一数据源）。
 
@@ -798,7 +921,7 @@ total_tables == shard_tables + broadcast_tables + single_tables   （逐库 & �
 
 | code | severity | 触发 | 用户该怎么办 |
 |---|---|---|---|
-| W1 `PROXY_CMD_FAILED` | ERROR | 某库三条命令中任一失败（含读超时） | 看 `detail` 的 errno；1064→连接可能不是 Proxy 端口；1045/1142→授权不足；读超时→保险触发，见 RISK-F |
+| W1 `PROXY_CMD_FAILED` | ERROR | 某库三条命令中任一失败（含读超时） | **全实例汇总为一条**（Rev.G / P1-07），给出失败库数与前 5 个库名；**逐库 errno + 原因在表格「说明」列**。1064→连接可能不是 Proxy 端口；1045/1142→授权不足；读超时→保险触发，见 RISK-F |
 | W2 `KIND_OVERLAP` | WARNING | 三类集合有交集（RISK-A 命中） | 说明"三类互斥"在本版本不成立，已按优先级去重，总数仍正确 |
 | W3 `RECON_MISMATCH` | WARNING | 任一库的 Proxy 口径 ≠ **逻辑**基线（已剔除二级分区子表） | **全实例汇总为一条**。Rev.E 后这条不再常态触发——一旦亮起就意味着真有表没进 Proxy 路由表，值得查。逐库差集表名在表格「说明」列 |
 | W4 `SHAPE_UNKNOWN` | WARNING | 结果列形态未识别（RISK-C 兜底） | 把 `shape` 字段贴给开发，扩充 `_EXACT_NAME_COLS` |
@@ -806,10 +929,18 @@ total_tables == shard_tables + broadcast_tables + single_tables   （逐库 & �
 | W6 `NO_BUSINESS_DB` | INFO | 过滤后无业务库 | 账号权限过窄或实例确实空 |
 | W7 `TOO_MANY_DATABASES` | WARNING | 库数 > 500，已截断 | 用 `database` 参数分批统计 |
 | W8 `NOT_DISTRIBUTED_ENDPOINT` | ERROR | 已执行的库全部因 1064 失败 | 该连接大概率指向后端 TXSQL 而非 Proxy（§2.4） |
-| W9 `INSTANCE_WIDE_SCOPE` | INFO | 结果含跨库行，或前两个非空库指纹相同（RISK-E 命中） | 命令是实例级作用域，已按库归属并去重；顺带告知 N 个库里实际执行了几个 |
+| W9 `INSTANCE_WIDE_SCOPE` | INFO | 结果含跨库行（RISK-E 命中） | 本版本命令返回实例级全量，已按库限定名归属并按 `(库,表)` 去重；**为保证覆盖完整性仍逐库执行**（Rev.G / P1-01） |
 | W10 `TIME_BUDGET_EXCEEDED` | WARNING | 超出 180s 总预算 | 剩余库标 SKIPPED 未统计，请分批 |
-| W11 `DB_ENUM_FAILED` | WARNING | `SHOW DATABASES` 失败但指定了 `database` | 降级为只统计该库；库限定名判据退化，可能影响跨库行归属 |
-| W12 `SUBPARTITION_EXCLUDED` | INFO | 基线中存在 `_tdsql_subp<数字>` 结尾的二级分区物理子表 | 告知剔除了多少张、为什么剔除；逐库数量见「二级分区子表」列。这是正常现象，不是问题 |
+| ~~W11 `DB_ENUM_FAILED`~~ | — | **Rev.G 删除**（P2-01） | `SHOW DATABASES` 失败不再降级为"只统计指定库"，一律抛出。降级路径下 `known_dbs` 为空，库限定名无法拆分，统计结果**已经不可信**，却仍以"成功 + 一条 WARNING"呈现——这就是把错误藏在告警里 |
+| W12 `SUBPARTITION_EXCLUDED` | INFO | 基线中存在 `_tdsql_subp<数字>` 结尾**且父表已在 Proxy 结果中确认**的物理子表 | 告知剔除了多少张、为什么剔除；逐库数量见「二级分区子表」列。这是正常现象，不是问题。**集中式实例永不触发**（Rev.G / P1-03） |
+
+**告警条数上限（Rev.G / P1-07）**：`warnings[]` 中逐库级别的条目已全部汇总
+——`PROXY_CMD_FAILED`、`RECON_MISMATCH`、`SUBPARTITION_EXCLUDED` 各最多一条。
+即便 500 个库全部失败，`warnings[]` 也不超过 6 条、序列化后 < 8 KiB
+（单测 `test_r09_five_hundred_failed_databases_is_bounded` 钉住）。
+逐库详情落在 `table_type_stat_item.detail`（`VARCHAR(512)`，服务端截断）。
+前端告警区**默认最多渲染 10 条**，超出折叠为「展开查看全部」，
+避免几百个 `el-alert` 把页面卡住。
 
 W5 的必要性：`resolve()` 在异常时**静默回落全局默认**
 （`instance_type_service.py:112-114`）。如果一个真分布式实例被回落成"集中式"，
@@ -831,8 +962,26 @@ try:
 finally:
     conn.close()
 ```
-`warnings_json = json.dumps(warnings, ensure_ascii=False)`。
+`warnings_json = json.dumps(warnings, ensure_ascii=False)`，列类型 **`MEDIUMTEXT`**（P1-07）。
 **落库失败不得吞掉分析结果**：若 `INSERT` 抛异常，接口返回 500 且日志含完整栈——不做"落库失败但假装成功"的降级，因为 REQ-6 要求留档。
+
+**Rev.G 在 `run_stats` 入口新增三道闸（全部在采集【之前】）：**
+
+```python
+def run_stats(pool, connection_id="", database="", operator=""):
+    1. database 落在 _SYS_DB          → ValueError → 400
+    2. connection_id 为空/全空白       → ValueError → 400   （P2-03）
+    3. _ensure_schema()               → SchemaNotReadyError → 500（P1-08）
+    # 三道闸都过了才真正开工
+    with registry.scan_slot(connection_id):        # ScanBusyError → 429（P1-02）
+        res = analyze(...)
+    ... INSERT ...
+```
+
+**三道闸的次序不是随意的**：入参校验最便宜、结构验收次之、并发槽位最后。
+把 `_ensure_schema()` 放在 `scan_slot` 之前，是为了不让一次注定失败的请求
+白占一个并发名额；把它放在 `analyze` 之前，是为了不让用户白等最长 180 秒的采集
+才在 `INSERT` 处收一个 1054。
 
 ---
 
@@ -851,13 +1000,16 @@ finally:
 | ADR-9 | 去重键用精确大小写 | 统一小写 | 小写会在 `lower_case_table_names=0` 时把不同表合并 → **少算**。少算是不可见错误 |
 | ADR-10 | 命令常量不加分号、不做任何字符串处理 | 拼 `;` / `.strip()` | 原厂逐字口径；且 `pre_parser.py` 的既有实现证明本项目对 `/*proxy*/` 采取"原样保护"策略 |
 | ADR-11 | 结果按**行内的库限定名**归属，不按当前会话库 | 全部算在当前遍历到的库上（Rev.A 做法） | 实测返回值是 `sqltuning.t_max`；若命令是实例级作用域，Rev.A 做法会让总数放大 N 倍且逐库明细全错（RISK-E）。按限定名归属在两种作用域下都正确，且不依赖 T13 的结论 |
-| ADR-12（Rev.D 修订） | **作用域指纹比对**：连续两个非空库的原始 `(库,表)` 结果集若逐条相同，即判定实例级作用域，其余库跳过 | ① Rev.B 的"累计表集 == information_schema 基线" ② 检测到跨库行就 break ③ 无条件跑满 N 库 | **① 已被 T14 实测打死**：`lzbj_ecif` Proxy 口径 215 vs 基线 293，两者基本不可能相等，该判据永远不成立、优化永远不生效；②"看到跨库行"只证明不限于当前库，不证明**已覆盖全部**；③实例级作用域下要跑 3N 条重复命令。指纹比对是**充分必要**的：当前库作用域下两库的库限定名前缀必然不同，非空集合不可能相等——相等即证明与当前库无关。代价固定为 6 条命令 |
+| ADR-12（Rev.D 修订，**Rev.G 推翻**） | **无条件逐库执行，取消一切提前停止** | ① Rev.B 的"累计表集 == information_schema 基线"（已被 T14 实测打死：215 vs 293，判据永不成立）② Rev.D/F 的**作用域指纹比对**（连续两库结果集逐条相同即判实例级、其余库跳过）③ 检测到跨库行就 break | ②的推理只走到一半：从"两库结果集相同"能推出"命令与当前会话库无关"，**推不出"这一次返回的集合已覆盖全部目标库"**。账号可见范围、路由域、租户切分、路由元数据缺失都能造出"指纹相同但集合不完整"的实例，届时页面四个主数字是残缺的、却显示成功。我原本用 `RECON_MISMATCH` 兜底，复核后认为站不住——**用告警替代正确的数字，等于承认主结果可以是错的**。③"看到跨库行"同样只证明不限于当前库。代价：实例级作用域下多跑 3(N−2) 条命令，`lzbj_ecif` 单库实测 0.002s/条，量级可接受（§9） |
 | ADR-13 | 单条命令 `read_timeout=30s` + 整体 `180s` 预算 | 依赖连接默认 `read_timeout=10s` | 保留。RISK-F 已裁决为不挂起，但连接默认 10s 对大库仍偏紧（`lzbj_ecif` 215 张表虽只用 0.002s，更大的库未取样）；30s+180s 双层兜底让最坏情况可预期，代价为零 |
 | ADR-14 | 超预算的库标 `SKIPPED` 而非 `FAILED` | 统一标 FAILED | "没来得及测"和"测了但错了"处置动作不同：前者重跑/分批即可，后者要查权限或端口。混成一个数会误导排障方向 |
 | ADR-15（Rev.D 新增） | `RECON_MISMATCH` **汇总成一条**告警，逐库明细放 `item.detail` | 逐库一条告警 | 保留。Rev.E 剔除子分区后该告警不再常态触发，但**真出问题时仍可能多库同时命中**（例如一批表漏进 Proxy 路由表），50 库实例上逐库一条就是 50 条横幅。汇总告警给合计与库名，明细留在表格行里，信息一点不少 |
 | ADR-16（Rev.D 新增，Rev.E 修订） | 四个数字采用 **Proxy 口径**，逻辑基线数并排呈现 | ① 用 `information_schema` 当准 ② 只显示 Proxy 口径 | 需求问的是"单表/广播表/分片表各多少张"，这三个概念**只有 Proxy 知道**，`information_schema` 没有这个维度。Rev.E 剔除二级分区子表后两个口径精确相等（215 == 215），并排呈现从"让用户自己判断"变成"互相印证" |
-| ADR-17（Rev.E 新增） | 把 `_tdsql_subp<数字>` 结尾的二级分区物理子表**从基线中剔除并单列计数** | ① 计入基线（Rev.D 做法） ② 计入总表数 | ①会让 `RECON_MISMATCH` 在每个有二级分区的库上**永久亮着**——一个永远亮的告警是背景噪声，用户学会无视后真正的不一致就再没人看得见；②用户认知里 `cus_pub_translog` 是一张表不是十三张，Proxy 也只返回逻辑表名。剔除后 215 == 215，告警重获信号价值。子表数单列 + `SUBPARTITION_EXCLUDED` 告警，数据不藏 |
+| ADR-17（Rev.E 新增，**Rev.G 收紧**） | 二级分区物理子表的判定 = **后缀匹配 且 逻辑父表已在本库 Proxy 结果中确认**；**集中式实例一律不剔除** | ① 计入基线（Rev.D 做法） ② 计入总表数 ③ 只看后缀（Rev.E/F 做法） | ①会让 `RECON_MISMATCH` 在每个有二级分区的库上**永久亮着**——一个永远亮的告警是背景噪声；②用户认知里 `cus_pub_translog` 是一张表不是十三张，Proxy 也只返回逻辑表名；③**实测只证明了"这 78 张子表叫这个名字"，没证明"叫这个名字的一定是子表"**。集中式实例没有二级分区这个构造、也没有 Proxy 交叉校验兜底，一张合法业务表 `orders_tdsql_subp202601` 会被静默少算且不可见（违反 REQ-5）。加上父表确认后，未确认者保留为逻辑表 → `RECON_MISMATCH` **显式报出**，误判方向仍然安全。实测 6 张父表全在 `show table with shardkey` 的 98 行内，收紧后 215 == 215 不变 |
 | ADR-18（Rev.F 新增） | 表结构在**首次发布前定稿**；发布后若需扩列，**新增 `v11/111_*.sql` 用 `ALTER TABLE … ADD COLUMN`**，绝不回头编辑 `110_*.sql` | ① 直接改 `110_*.sql` ② 把表并进 `database.py::_create_all_tables` | ①v1.6.2.2 起 checksum 漂移会让**所有已部署实例启动失败关闭**（§2.7 M-3），补救需人工往 `_KNOWN_RECONCILIATIONS` 加账本三元组，代价远高于新增一个迁移文件；②`_create_all_tables` 是 27 张表的大列表，改它等于把 `database.py` 的改动面从 1 行放大到一整段 DDL，与最小化修改原则冲突（ADR-6 已述） |
+| ADR-19（Rev.G 新增，P1-02） | `/run` 复用既有 `registry.scan_slot(connection_id)`，**不新建并发控制** | ① 不限流（Rev.F） ② 本模块自建一套信号量 ③ 改成异步任务 | ①单次占用最长 180 秒并额外开一条 Proxy 连接，重复点击/多人同时操作就能吃掉大量 FastAPI 工作线程和目标库连接，挤占既有审核、扫描、巡检——与本文档"零回归"的承诺直接冲突；②自建一套等于**两套配额各算各的**，全局上限形同虚设，反而更危险；③异步任务要引入任务表、轮询接口和前端状态机，爆炸半径远超一个诊断子模块该有的量级（KL-6 保留为将来选项）。复用 `scan_slot` 是三者里唯一既限流又不新增机制的：`scan_service.py:72` 就是同样的用法，配置项、错误类型、HTTP 状态码全部现成 |
+| ADR-20（Rev.G 新增，P1-08） | 留档表结构验收**在 `run_stats` 入口做**（模块级、首次使用时），**不做启动期失败关闭**；验收范围 = 表存在 + 全部列 + 关键列类型 + 索引 | ① 不验收（Rev.F：迁移器不严格验收 CREATE TABLE，故"无额外适配成本"）② 扩展迁移器支持 CREATE TABLE 声明验收 ③ 进程启动期专用 schema assertion（O 的建议） | ①站不住：元数据库里若有同名但缺列/错类型的历史残留表，`CREATE TABLE IF NOT EXISTS` 会**静默跳过**、迁移仍登记成功，直到 INSERT 才 1054；迁移登记后表被删或结构漂移，`_structure_state()` 也照样返回 valid。**"不进入验收"不是安全性依据**，这一点我完全接受。②改迁移器意味着动 v1.6.2.2 刚上线的启动路径，是全平台级别的爆炸半径，为一个诊断子模块付这个代价不成比例。③**本设计与 O 的分歧仅在这一点**：表类型统计是深度诊断下的只读诊断子模块，它的留档表有问题**不应当让整个审核平台起不来**——同层级的 `index_audit`、`cluster_inspection` 在 `_create_all_tables` 里同样没有启动期结构验收，只为新模块加这一道，标准不一致且风险方向相反（把"一个页面不可用"放大成"平台不可用"）。放在 `run_stats` 入口、且在采集与并发槽位**之前**，同时满足"确定性验收"和"不让用户白跑一轮采集"。四种畸形场景（缺表/缺列/错类型/缺索引）均失败关闭，由 T-R12 五项单测钉住 |
+| ADR-21（Rev.G 新增，P1-06） | 新权限键必须同时登记到 **6 处**（API 路径映射 / 菜单全集 / 标签 / 默认角色清单 / `index.html` 页签 / **`app.js` 的 `subtabs` 回退清单**） | Rev.F 只登记 4 处 + 页签 | 缺 `subtabs` 这一处时，只被授予"深度诊断 + 表类型统计"的自定义角色进入页面后，默认 `deepTab='cluster'` 对应的页签不可见，**页面没有活动页签**——权限配置成功、功能却进不去。这类缺陷在 admin 账号下**永远测不出来**（admin 有全部子页签，第一个必定可见），只有最小权限角色才暴露，故必须由 T-R08 单测钉住而不是靠人工回归 |
 
 ---
 
@@ -867,8 +1019,8 @@ finally:
 |---|---|---|---|
 | E-1 | `connection_id` 不存在/未连接 | HTTP 400 `未连接TDSQL实例或连接不存在` | `api/table_type_stats.py::_pool` |
 | E-2 | `database` 指定为系统库 | HTTP 400 `不允许统计系统库: xxx` | `run_stats` 入口校验 |
-| E-3 | `database` 指定的库不存在 | 该库 `status='FAILED'`，detail 含 errno 1049，`failed_databases=1`，HTTP 200 | `_collect_distributed` |
-| E-4 | `SHOW DATABASES` 失败 | 未指定 `database` → 抛出 → HTTP 500；已指定 → 降级为只统计该库 + W11 | `analyze` |
+| E-3 | `database` 指定的库不存在（或当前账号不可见） | **HTTP 400** `数据库不存在或当前账号不可见: xxx`（Rev.G / P2-01）。Rev.F 在集中式分支下会回“成功、0 张表”——存在但空的库与不存在的库在 `information_schema` 结果上无法区分 | `analyze` 入口用 `SHOW DATABASES` 结果校验 |
+| E-4 | `SHOW DATABASES` 失败 | **一律抛出 → HTTP 500**（Rev.G / P2-01）。不再降级为“只统计指定库”：降级后 `known_dbs` 为空、库限定名无法拆分，结果已不可信却仍以“成功 + 一条 WARNING”呈现 | `analyze` |
 | E-5 | 某库三条命令之一 1064 | 该库 FAILED + W1；若**所有**库都是 1064 → 追加 W8 | `_collect_distributed` / `analyze` |
 | E-6 | 某库权限不足（1045/1142/1044） | 该库 FAILED + W1，detail 提示"授权不足" | 同上 |
 | E-7 | 业务库为 0 | HTTP 200，全 0，W6 | `analyze` |
@@ -876,10 +1028,16 @@ finally:
 | E-9 | 占位符风格混用 | 目标实例侧 `%s`（PyMySQL）、元数据库侧 `?`。本模块目标侧无参数化查询，元数据库侧全 `?` | 附录 A.1 |
 | E-10 | 命令返回 0 行 | 视为该类 0 张，合法，不告警（实测 `lzbj_ecif` 无单表即此形态） | `_extract_pairs` 返回空集 |
 | E-11 | 库名含特殊字符 | 用 `conn.select_db(db)`（驱动层转义），**不拼 `USE \`{db}\``** | ADR-3 |
-| E-12 | 统计过程中连接断开 | `finally: tmp.close_all()` 保证释放；已完成的库结果保留并返回 | `_collect_distributed` |
+| E-12 | 统计过程中连接断开 | 异常**穿出当前库的 `with`** → 池关闭并重建线程本地连接 → 外层捕获标该库 FAILED → **下一库用新连接继续**（Rev.G / P1-04）。`finally: tmp.close_all()` 保证最终释放 | `_collect_distributed` |
 | E-13 | 实例类型解析异常 | `resolve` 自身回落全局默认，本模块检测 `source==DEFAULT` → W5 | `analyze` |
 | E-14 | 库数 > 500 | 截断 + W7 | `list_business_databases` |
 | E-15 | 元数据库落库失败 | HTTP 500，不返回半成品 | `run_stats` |
+| E-24 | 留档表缺失 / 缺列 / 类型错 / 缺索引 | **采集之前**即 `SchemaNotReadyError` → HTTP 500，消息含可执行处置步骤；不先跑一轮 180 秒采集（Rev.G / P1-08） | `_ensure_schema` |
+| E-25 | 同一实例并发发起统计 | 超过每连接上限 → `ScanBusyError` → **HTTP 429**；超过全局上限同理。槽位在异常路径下也必然释放（Rev.G / P1-02） | `registry.scan_slot` |
+| E-26 | `connection_id` 为空串或全空白 | HTTP 400，提示必须显式指定（Rev.G / P2-03） | `run_stats` / `StatsRequest` |
+| E-27 | 集中式实例存在名为 `xxx_tdsql_subp202601` 的合法业务表 | **计入单表与总表**，`subpartition_tables=0`，不告警（Rev.G / P1-03） | `_collect_centralized` |
+| E-28 | 分布式实例的 `xxx_tdsql_subp<数字>` 表，父表未出现在 Proxy 结果里 | **保留为逻辑表**，并作为“仅基线可见”在该库 `detail` 中点名 + `RECON_MISMATCH`（Rev.G / P1-03） | `_classify_subpartitions` |
+| E-29 | 500 个库全部采集失败 | `warnings[]` ≤ 6 条、序列化 < 8 KiB，可落库可回读（`MEDIUMTEXT`）；逐库原因在 `item.detail`（Rev.G / P1-07） | `_collect_distributed` / DDL |
 | E-16 | `stat_id` 不存在 | `/detail/{id}` 返回 `{"items":[],"warnings":[]}`，HTTP 200 | `get_detail` |
 | E-17 | `warnings_json` 损坏 | `json.loads` 失败 → 返回 `[]`，不抛异常 | `get_detail` |
 | E-18 | 结果含**其他业务库**的行 | 按限定名归到那个库；同一 `(库,表)` 全局只计一次；点亮 W9 | `_extract_pairs` / `kind_map` |
@@ -899,13 +1057,30 @@ finally:
 |---|---|---|---|
 | `backend/services/table_type_stats_service.py` | 全新 | 无人引用 | **零** |
 | `backend/api/table_type_stats.py` | 全新 | 新路由前缀，与现有 25 个前缀无重叠 | **零** |
-| `backend/schema/v11/110_table_type_stats.sql` | 全新 | 两张新表，`CREATE TABLE IF NOT EXISTS` 幂等 | **低**（Rev.F 上调）。v1.6.2.2 起迁移失败即**启动关闭**（§2.7 M-1），且**发布即冻结**（M-3）。缓解：纯 `CREATE TABLE IF NOT EXISTS`、不进列级严格验收（M-2）、表结构须在打包前定稿（ADR-18） |
+| `backend/schema/v11/110_table_type_stats.sql` | 全新 | 两张新表，`CREATE TABLE IF NOT EXISTS` 幂等 | **低**（Rev.F 上调）。v1.6.2.2 起迁移失败即**启动关闭**（§2.7 M-1），且**发布即冻结**（M-3）。缓解：纯 `CREATE TABLE IF NOT EXISTS`、表结构须在打包前定稿（ADR-18）、**结构正确性由模块自身在首次使用时验收**（ADR-20，不依赖迁移器的列级验收） |
 | `tests/test_table_type_stats.py` | 全新 | 仅测试 | **零** |
 | `backend/main.py` | +2 行（第 40 行附近 import、第 176 行附近 include_router） | 路由表新增 3 条 | **极低**。`tests/test_app_routes_integrity.py` 会验证路由完整性 |
 | `backend/services/auth_service.py` | +3 行（P1/P2/P3，均为字典/列表新增条目） | 权限判定 | **极低**。新增映射不改变任何既有前缀的判定；`test_rbac_path_coverage.py` 会验证 |
 | `backend/services/database.py` | +1 行（`all_menus` 追加） | `role_permissions` 表新增 4 行（每角色 1 行） | **极低**。`INSERT IGNORE` 幂等；`DELETE ... NOT IN` 只删不在清单里的键，追加只会**保留**更多 |
-| `frontend/index.html` | 新增一个 `<el-tab-pane>` 块 | Vue 模板 | **极低**。插在"索引体检"页签之后、"结构比对"之前；不修改任何既有行 |
-| `frontend/static/js/app.js` | +3 行 | `deepResult` 多一个 key；新增一个方法；返回清单追加一个名字 | **极低**。`deepResult` 是 `reactive`，新增 key 不影响既有 key |
+| `frontend/index.html` | 新增一个 `<el-tab-pane>` 块（内含结果区 + 历史抽屉） | Vue 模板 | **极低**。插在“索引体检”页签之后、“结构比对”之前；不修改任何既有行 |
+| `frontend/static/js/app.js` | **+4 行** + 1 个纯新增方法块 | `deepResult` 多一个 key；新增方法；返回清单追加名字；**`subtabs` 回退清单追加一项（Rev.G / P1-06）** | **极低**。`deepResult` 是 `reactive`，新增 key 不影响既有 key；`subtabs` 是纯追加，不改既有 9 项的顺序与内容——既有角色的默认落点不变 |
+
+**Rev.G 新增的资源占用评估（P1-02 要求的证据）**：
+
+| 维度 | Rev.F | Rev.G |
+|---|---|---|
+| 并发上限 | **无**（可无限并发） | 每连接 2、全局 8，**与既有慢查询扫描共用同一份配额** |
+| 超限行为 | 吃满 FastAPI 工作线程 | HTTP 429 + 可读提示，既有审核/扫描不受影响 |
+| 目标库连接数 | 每个并发请求 +1 条 | 同左，但请求数已被槽位封顶 |
+| 单次最长占用 | 180s | 180s（不变） |
+
+**取消提前停止后的耗时代价（P1-01 的账要算清楚）**：
+实例级作用域下，Rev.F 最好情况是 6 条命令，Rev.G 是 3N 条。
+`lzbj_ecif` 实测单条命令 0.001～0.002 秒（215 张表的库），
+按 0.01 秒/条的保守估计，50 库实例 = 150 条 ≈ 1.5 秒，
+500 库实例 = 1500 条 ≈ 15 秒，**均在 180 秒预算内**。
+真正的耗时大头是 `information_schema` 基线查询（一次性），不是这三条命令。
+**这个代价买回来的是"覆盖完整"这件事本身，值。**
 
 ### 9.2 明确**不碰**的清单（评审时逐条核对 `git diff --stat`）
 
@@ -913,7 +1088,7 @@ finally:
 * `backend/services/audit_service.py` / `rule_*` / `scan_*`
 * `backend/services/tdsql_connector.py`——**只使用，不修改**（`TDSQLConnectionPool` / `TDSQLConnectionConfig` 均为现成公开构造）
 * `backend/services/instance_type_service.py`——只调 `resolve()`
-* `backend/services/connection_registry.py`——只调 `registry.get()`
+* `backend/services/connection_registry.py`——只调 `registry.get()` 与 `registry.scan_slot()`，**不修改其任何一行**（ADR-19）
 * `backend/services/retention_service.py`（ADR-7）
 * `backend/services/scheduler.py`（OUT-2）
 * `backend/services/index_audit_service.py`、`zk_scan_enrich_service.py`——**不修改其 `_SYS` / `SYSTEM_DATABASES`**（ADR-8，差异登记 KL-1）
@@ -934,9 +1109,21 @@ python -m pytest tests/test_rules.py tests/test_sit_rules.py tests/test_sit_v1_r
 # 4. 新模块自测
 python -m pytest tests/test_table_type_stats.py -q
 
-# 5. 改动面核对——期望：新增 4 文件，既有文件净增 9 行 + 1 个 HTML 块
+# 5. 改动面核对——期望：新增 4 文件，既有文件净增 10 行 + 2 个前端块
 git diff --stat
+
+# 6. Rev.G 定向回归（O 评审报告 §6 的 T-R01…T-R14）
+python -m pytest tests/test_table_type_stats.py -q -k "r0 or r1"
 ```
+
+**人工回归（不可由单测替代）**：
+
+1. 既有 9 个深度诊断子页签逐个进入并完成一次核心操作；
+2. admin / dba / developer / auditor，以及**仅授予 `deep-diag` + `deep-diag-tabletype` 的自定义角色**分别验证（后者是 P1-06 的唯一暴露路径）；
+3. 同一实例并发执行「表类型统计」与一次既有 SQL 审核 / 慢查询扫描，确认后者响应与结果不受影响，且第 3 个并发请求收到 429；
+4. 全新元数据库、由 v1.6.2.2 升级的存量元数据库**各启动两次**，确认迁移登记幂等；
+5. 手工把 `table_type_stat` 改坏（删一列）后调用 `/run`，确认**在采集之前**就返回带处置提示的 500；
+6. 内网 Proxy 账号执行三条命令，与平台结果逐表对数（六个数字见 §12.1）。
 
 ---
 
@@ -971,7 +1158,14 @@ git diff --stat
 | **T14 交叉校验**（第三轮） | **不一致，且差得很大**：`lzbj_ecif` Proxy 口径 **215**（98+117+0）vs `information_schema` 基线 **293**，**差 78 张（27%）** | **RISK-B 确认成立**，触发三处修订：**ADR-16** 四个数字用 Proxy 口径、基线并排呈现不覆盖；**ADR-15** `RECON_MISMATCH` 汇总成一条（差异每库都有，逐库告警会刷屏）；**ADR-12 改写** —— Rev.B 用"累计表集 == 基线"做作用域探测的完备性证明，实测证明两者基本不可能相等，该判据永远不成立，改用不依赖基线的**指纹比对** |
 | **D3 差异成因**（第四轮） | **78 张全部是二级分区物理子表**，命名 `<逻辑表>_tdsql_subp190001` / `_tdsql_subp202601`…`202612`；6 张 `sub_func:month` 的表 × 13 = 78，账目精确闭合 | **ADR-17**：`_tdsql_subp<数字>` 结尾的表从基线剔除、单列 `subpartition_tables`。剔除后**逻辑基线 215 == Proxy 口径 215**，`RECON_MISMATCH` 不再常态触发，重获信号价值 |
 
-### 10.2 仍待测（T13 一项，不阻断）
+### 10.2 仍待测（T13 + Rev.G 新增 4 项，均**不阻断开发**）
+
+> **Rev.G 说明**：取消提前停止优化后（P1-01），T13 已经**不影响统计正确性**，
+> 只影响耗时预期与 `INSTANCE_WIDE_SCOPE` 是否显示。
+> Rev.G 另新增 4 项内网核查（T16～T19），它们是为**证实或证伪 O 提出的若干场景**——
+> 我认可 O 的整改要求（这些整改已经全部做进 Rev.G 了），但其中几条的**事实前提**
+> 目前只有推测没有证据。查清之后，或者能给 Rev.G 的判定加上事实背书，
+> 或者能让下一版把不必要的保守收回去。**这 4 项一条都不阻断开发。**
 
 ---
 
@@ -1004,8 +1198,10 @@ USE <库A>;
 
 **我要看什么**：
 * 若只出现 `库A.*` → 当前库作用域。逐库遍历，N 个库跑 3N 条命令。
-* 若同时出现 `库A.*` 和 `库B.*` → **实例级作用域**。此时设计的指纹比对会在第二个库上生效，
-  实际只会执行 3 条命令而不是 3N 条，响应时间与库数无关。
+* 若同时出现 `库A.*` 和 `库B.*` → **实例级作用域**。页面会显示 `INSTANCE_WIDE_SCOPE`，
+  统计结果仍按 `(库,表)` 去重，不会放大 N 倍。
+  **Rev.G 起两种情况的命令条数都是 3N**——提前停止优化已删除（ADR-12），
+  所以这条测试的结论只影响"我们知道走的是哪条路径"，不影响任何数字。
 
 > **为什么我强烈怀疑是实例级**：返回值带库前缀这件事本身就没必要（只看当前库的话
 > 裸表名就够了）；更关键的是原厂那句"使用『数据库名 + 表名』去重"——如果每次执行
@@ -1031,7 +1227,8 @@ MySQL [lzbj_ecif]> SELECT COUNT(*) FROM information_schema.TABLES
 四个数字采用 Proxy 口径；`baseline_tables` 并排呈现；差集明细进「说明」列；
 `RECON_MISMATCH` 汇总成一条。**并连带修订了 ADR-12**——原先用
 "累计表集 == 基线"作为作用域探测的完备性证明，现已知两者基本不可能相等，
-该判据永远不成立，改用不依赖基线的**指纹比对**。
+该判据永远不成立，Rev.D 改用不依赖基线的指纹比对。
+（**Rev.G 后续把整个作用域提前停止优化删除了**，见 ADR-12 与 §3.3 RISK-E。）
 
 ---
 
@@ -1081,6 +1278,124 @@ Query OK, 0 rows affected (0.001 sec)
 ---
 
 
+### T16 · Proxy 命令的返回是否随**账号**变化？（为 P1-01 的场景取证，**不阻断**）
+
+**为什么要查**：O 在 P1-01 里列了四种"指纹相同但集合不完整"的场景，其中
+「账号只能看到部分 Proxy 路由信息」是最容易验证的一条。
+Rev.G 已经无条件逐库执行，所以**这条查不查都不影响正确性**；
+查清之后能让我们知道：如果平台登记的账号权限比 DBA 账号窄，
+统计结果会不会天然少一截（那属于"账号问题"而非"代码问题"，处置动作完全不同）。
+
+**执行**（同一个库、同一条命令，换两个账号各跑一次）：
+```sql
+-- ① 用 DBA/管理账号
+USE lzbj_ecif;
+/*proxy*/show table with shardkey;      -- 记总行数
+
+-- ② 用平台「实例管理」里实际登记的那个业务账号，重复上面两句
+```
+
+**回填**：两个账号各自的**总行数**；若不同，把只有 DBA 账号能看到的表名举 3 个例子。
+
+**我要看什么**：行数相同 → 命令的可见范围与账号无关，P1-01 的"账号可见范围"场景
+在本环境不成立；行数不同 → 需要在部署文档里写明"登记账号必须具备 X 权限"，
+并考虑在页面上提示当前账号的可见范围。
+
+---
+
+### T17 · 每一张 `_tdsql_subp<数字>` 表的逻辑父表，是否都出现在 Proxy 结果里？（验证 P1-03 的父表确认规则，**不阻断**）
+
+**为什么要查**：Rev.G 把子表判定从"只看后缀"收紧为"后缀 + 父表已确认"。
+这条规则在 `lzbj_ecif` 的实测数据上成立（6 张父表都在 `with shardkey` 的 98 行里），
+但那是我从 D3 的 71 行输出**推出来**的，没有做过全量核对。
+**如果存在某张子表的父表不在 Proxy 结果里**，Rev.G 会把它保留为逻辑表并报
+`RECON_MISMATCH`——结果仍然正确且可见，但 UAT 对数的六个数字会变
+（`baseline_tables` 变大、`subpartition_tables` 变小）。我需要提前知道。
+
+**执行**（在 `lzbj_ecif` 上）：
+```sql
+-- ① 全部物理子表及其推导出的父表名
+SELECT TABLE_NAME,
+       SUBSTRING_INDEX(TABLE_NAME, '_tdsql_subp', 1) AS parent_guess
+FROM information_schema.TABLES
+WHERE TABLE_SCHEMA = 'lzbj_ecif'
+  AND TABLE_TYPE = 'BASE TABLE'
+  AND TABLE_NAME REGEXP '_tdsql_subp[0-9]+$'
+ORDER BY parent_guess, TABLE_NAME;
+
+-- ② 全部父表候选（去重后应当只有 6 个）
+SELECT DISTINCT SUBSTRING_INDEX(TABLE_NAME, '_tdsql_subp', 1) AS parent_guess
+FROM information_schema.TABLES
+WHERE TABLE_SCHEMA = 'lzbj_ecif'
+  AND TABLE_TYPE = 'BASE TABLE'
+  AND TABLE_NAME REGEXP '_tdsql_subp[0-9]+$';
+
+-- ③ 三条 Proxy 命令的完整表名清单（用来比对 ② 是不是它的子集）
+USE lzbj_ecif;
+/*proxy*/show table with shardkey;
+/*proxy*/show table with noshardkey_allset;
+/*proxy*/show table without shardkey;
+```
+
+**回填**：① 的总行数（期望 78）；② 的完整清单（期望 6 个名字）；
+以及**② 里的每一个名字是否都能在 ③ 的输出中找到**（这一条最关键，
+只要回答"6 个全都在"或者"有 N 个不在，分别是 ⋯"即可）。
+
+**我要看什么**：6 个全在 → 父表确认规则在真实数据上无副作用，
+§12.1 的 UAT 六个数字维持 `215 / 0 / 117 / 98 / 215 / 78` 不变；
+有不在的 → 我按实际情况调整 §12.1 的期望值，并在 KL 里登记这条已知差异。
+
+---
+
+### T18 · 集中式 TDSQL 实例里是否存在 `_tdsql_subp` 命名的表？（验证 P1-03 集中式分支，**不阻断**）
+
+**为什么要查**：Rev.G 让集中式分支**一律不剔除**任何 `_tdsql_subp` 表，
+依据是"集中式没有二级分区这个构造"。这个依据来自 TDSQL 的架构常识，
+我没有在集中式实例上实际验证过。若集中式实例里其实也会出现这种命名的表，
+那说明它们要么是历史迁移残留、要么这个命名不是分布式独有的——
+两种情况都值得记一笔。
+
+**执行**（在**任意一个集中式实例**上，若内网没有集中式实例请注明"无"）：
+```sql
+SELECT TABLE_SCHEMA, TABLE_NAME
+FROM information_schema.TABLES
+WHERE TABLE_TYPE = 'BASE TABLE'
+  AND TABLE_NAME LIKE '%\_tdsql\_subp%'
+LIMIT 50;
+```
+
+**回填**：行数；若非 0，把库名 + 表名贴 5 行。
+
+**我要看什么**：0 行 → 集中式不剔除这条规则零风险，符合预期；
+非 0 → 我需要知道那些表是什么来路，再决定要不要在集中式分支上也做一次
+"父表是否存在"的判断（注意集中式没有 Proxy 结果可比对，只能与同库其他表名比）。
+
+---
+
+### T19 · 内网元数据库里是否已经存在同名的 `table_type_stat` 表？（为 P1-08 取证，**不阻断**）
+
+**为什么要查**：P1-08 描述的失效路径是"元数据库里已有同名但结构不符的表，
+`CREATE TABLE IF NOT EXISTS` 静默跳过"。Rev.G 已经加了结构验收（ADR-20），
+所以**查不查都不影响安全性**。但如果内网确实不存在同名表，
+那这条整改就是纯粹的防御性措施；如果**存在**（比如某次手工试验留下的），
+那它就是一条真实的、马上会踩到的坑，部署文档里要写清楚先删表。
+
+**执行**（在**内网元数据库**上，不是 TDSQL 业务实例）：
+```sql
+SELECT TABLE_NAME, TABLE_ROWS, CREATE_TIME
+FROM information_schema.TABLES
+WHERE TABLE_SCHEMA = DATABASE()
+  AND TABLE_NAME IN ('table_type_stat', 'table_type_stat_item');
+```
+
+**回填**：查询结果（很可能是 0 行）。
+
+**我要看什么**：0 行 → 全新安装，无残留，部署文档无需额外说明；
+非 0 行 → 请再执行 `SHOW CREATE TABLE table_type_stat;` 并把结果发我，
+我来判断是补列还是删表重建，并把处置步骤写进部署文档。
+
+---
+
 ### 10.3 补充（有条件就测，没有就跳过）
 
 | 用例 | 内容 | 用途 |
@@ -1100,6 +1415,18 @@ Query OK, 0 rows affected (0.001 sec)
 【T14】（不等时）双向差集表名 / 表名是否带分片数字后缀：
 【T09】登记账号能否执行（是/否，errno）：
 【T12】单分片实例：有/无，若有则输出：
+
+—— 以下为 Rev.G 新增，均不阻断 ——
+【T16】DBA 账号 with shardkey 总行数：
+【T16】平台登记账号 with shardkey 总行数：
+【T16】（不同时）只有 DBA 能看到的表名举例 3 个：
+【T17】lzbj_ecif 的 _tdsql_subp 表总行数（期望 78）：
+【T17】去重后的父表候选清单（期望 6 个名字）：
+【T17】上述父表是否全部出现在三条 Proxy 命令的输出里（全在 / 有 N 个不在，分别是）：
+【T18】集中式实例：有/无；若有，_tdsql_subp 命名的表行数：
+【T18】（非 0 时）库名 + 表名举例 5 行：
+【T19】内网元数据库是否已存在 table_type_stat / table_type_stat_item（0 行 / N 行）：
+【T19】（非 0 时）SHOW CREATE TABLE table_type_stat 的输出：
 ```
 
 > T09 其实已经被 T15 顺带证明了一半：那次用的 `checksql` 账号能正常执行三条命令。
@@ -1109,9 +1436,13 @@ Query OK, 0 rows affected (0.001 sec)
 
 | 实测结论 | 设计动作 | 是否阻断开发 |
 |---|---|---|
-| T13 = 当前库作用域 | 第二个库指纹不同 → 逐库执行；`INSTANCE_WIDE_SCOPE` 不触发。代码无需改 | 否 |
-| T13 = 实例级作用域 | 指纹比对在第二个库上判定成立，**6 条命令**搞定；`INSTANCE_WIDE_SCOPE` 会显示——**符合设计预期** | 否 |
+| T13 = 当前库作用域 | 逐库执行，`INSTANCE_WIDE_SCOPE` 不触发。代码无需改 | 否 |
+| T13 = 实例级作用域 | 仍逐库执行（Rev.G 已删除提前停止），按 `(库,表)` 去重，`INSTANCE_WIDE_SCOPE` 会显示——**符合设计预期** | 否 |
 | T13 无多库实例可测 | 两条路径都已实现且都有单测覆盖，按现状开发 | 否 |
+| T16 两个账号行数不同 | 部署文档补"登记账号所需权限"；页面提示可见范围 | 否（文档 + 1 行文案） |
+| T17 有父表不在 Proxy 结果里 | 按实际值调整 §12.1 的 UAT 六个数字，并在 KL 登记 | 否（只改期望值，代码已按"保留 + 显式告警"处理） |
+| T18 集中式存在 `_tdsql_subp` 表 | 记入 KL；评估是否需要集中式侧的父表存在性判断 | 否 |
+| T19 元数据库已有同名表 | 部署文档写明先核实/删表；`_ensure_schema` 会挡住结构不符（ADR-20） | 否 |
 | ~~T14 / D3~~ | ✅ **已完成**。差异 78 张查明为二级分区物理子表，已按 ADR-17 剔除，两口径精确对齐 | — |
 | ~~T15~~ | ✅ **已完成 = A**。设计不变，超时保险留作兜底 | — |
 | T09 登记账号无权限 | 出授权说明，由 DBA 补授权 | **是**（非代码问题） |
@@ -1125,9 +1456,13 @@ Query OK, 0 rows affected (0.001 sec)
 
 ## 11. 测试设计（开发期，可在本地 MariaDB 13306 上跑）
 
-`tests/test_table_type_stats.py`（附录 A.4），**42 项，除落库 2 项外全部离线，
+`tests/test_table_type_stats.py`（附录 A.4），**67 项，除落库/结构验收 8 项外全部离线，
 不依赖真实 TDSQL**。数据夹具直接照搬 2026-08-29 内网实测形态（列名 `db_table`、
 库限定名 `sqltuning.t_max`、`with*` 双列 / `without` 单列）。
+
+> **Rev.G 新增 25 项**，全部是 O 评审报告 §6 要求的**缺陷定向测试**——
+> 每一项都对应一个具体的 P1/P2，且都是"在 Rev.F 的代码上会失败、在 Rev.G 上通过"。
+> 我特意没有写成"再多测几个正常路径"：那种测试通过与否说明不了任何事。
 
 | 用例 | 验证 | 护栏对象 |
 |---|---|---|
@@ -1142,15 +1477,15 @@ Query OK, 0 rows affected (0.001 sec)
 | `test_business_databases_truncation_is_visible` | 超 `MAX_DATABASES` 必须告警 | W7 |
 | `test_centralized_branch` | 分片/广播恒 0，视图不计，**未发任何 `/*proxy*/`、未切库** | ADR-4 |
 | `test_distributed_happy_path` | 照搬 `sqltuning` 实测形态，2/1/2/5，无告警；临时池被关闭且 `read_timeout=30` | ADR-3 / ADR-13 |
-| `test_distributed_instance_wide_scope` | 实例级作用域：总数按 `(库,表)` 去重不放大；**前两库指纹相同即停止扫描**；点亮 W9 | **RISK-E 核心护栏** |
-| `test_distributed_per_db_scope_still_loops` | 当前库作用域：两库指纹不同，逐库执行，不点 W9 | ADR-12 |
+| `test_distributed_instance_wide_scope` | 实例级作用域：总数按 `(库,表)` 去重不放大；**三个库全部执行**；点亮 W9 | **RISK-E 核心护栏** |
+| `test_distributed_per_db_scope_still_loops` | 当前库作用域：逐库执行，不点 W9 | ADR-12 |
 | `test_single_database_filter_ignores_other_dbs` | 指定库时，实例级结果里其他库的行必须丢弃 | E-20 |
 | `test_system_db_rows_are_dropped` | `mysql.user` / `sysdb.foo` 不得计入 | E-19 |
 | `test_distributed_view_is_excluded` | 命令返回视图时按基线 VIEW 名单扣除 | 原厂口径 |
 | `test_distributed_overlap_does_not_double_count` | 若三类重叠，总数不重复计算 + W2 | RISK-A 保险 |
 | `test_distributed_recon_mismatch` | 双向差集写进 `item.detail`，告警只出一条 | RISK-B |
 | `test_recon_mismatch_is_aggregated_not_per_db` | 三个库都不一致时**只出一条**告警，含库数与合计 | **ADR-15 护栏** |
-| `test_scope_probe_ignores_baseline_mismatch` | 基线与 Proxy 口径差得再远，作用域判定照样成立 | **ADR-12 修订护栏** |
+
 | `test_baseline_excludes_tdsql_subpartitions` | 13 个 `_tdsql_subp` 子表不计入逻辑基线、单列计数、不报 `RECON_MISMATCH` | **ADR-17 核心护栏** |
 | `test_subpartition_regex_is_anchored` | 只剔除 `_tdsql_subp<纯数字>` 结尾；`my_tdsql_subp202601_backup` 不误伤 | ADR-17 边界 |
 | `test_lzbj_ecif_uat_baseline` | **端到端对数基准**：98/117/0/215/215/78，告警仅 `SUBPARTITION_EXCLUDED` | **UAT 基准编码为单测** |
@@ -1169,15 +1504,57 @@ Query OK, 0 rows affected (0.001 sec)
 | `test_run_stats_persists` | 落库后明细行数与 items 一致，warnings 可反序列化，history 可回看 | REQ-6 |
 | `test_get_detail_missing_id_is_graceful` | 不存在的 `stat_id` 返回空结构不抛异常 | E-16 |
 
+**Rev.G 新增的缺陷定向测试（对应 O 评审报告 §6 的 T-R01～T-R14）**：
+
+| O 编号 | 用例 | 验证 | 关闭的问题 |
+|---|---|---|---|
+| T-R01 | `test_r01_identical_fingerprint_must_not_skip_third_db` | 前两库返回集合完全相同、第三库另有 2 张表 → **必须执行第三库**，总数 4 不是 2，且不留 `RECON_MISMATCH` | **P1-01** |
+| T-R02 | `test_r02_same_connection_concurrency_is_rejected` | 同连接第二个请求抛 `ScanBusyError`，首请求退出后槽位可再次获取 | **P1-02** |
+| T-R02 | `test_r02b_slot_is_released_when_collection_raises` | 采集抛异常时槽位仍被释放，不泄漏成永久占用 | **P1-02** |
+| T-R02 | `test_r02c_api_maps_scan_busy_to_429` | `ScanBusyError` → HTTP 429 + 可读提示 | **P1-02** |
+| T-R03 | `test_r03_global_quota_is_shared_with_existing_scans` | **双向验证共用配额**：既有扫描占满全局槽位时本模块被拒；本模块占用时既有扫描同样被拒 | **P1-02** |
+| T-R04 | `test_r04_broken_connection_is_rebuilt_before_next_db` | 首库断链（2013）→ `ctx_count==2`、`generation==1`、次库拿到**重建后的新连接**并正常完成 | **P1-04** |
+| T-R04 | `test_r04b_read_timeout_also_rebuilds` | 读超时同样穿出 `with` 触发重建 | **P1-04** |
+| T-R05 | `test_r05_failed_db_partial_result_does_not_pollute` | db_a 第一条命令返回跨库行（含 db_b 的表）、第二条失败 → db_a 整库丢弃，db_b 只保留自扫结果 | **P1-05** |
+| T-R05 | `test_r05b_overlap_is_not_polluted_by_failed_db` | 失败库的暂存行不参与重叠判定，`overlap_count==0` | **P1-05** |
+| T-R06 | `test_r06_centralized_keeps_legit_subp_named_table` | 集中式的 `orders_tdsql_subp202601` 计入单表与总表，`subpartition_tables==0`，不告警 | **P1-03** |
+| T-R07 | `test_r07_distributed_requires_confirmed_parent` | 父表已确认 → 剔除；父表未确认 → 保留为逻辑表，且在该库 `detail` 中**被点名** + `RECON_MISMATCH` | **P1-03** |
+| T-R08 | `test_r08_permission_key_is_registered_at_every_point` | 权限键在 4 个后端/前端文件中均已登记，且**逐字校验 `app.js` 的 `subtabs` 行**含新页签（设计阶段自动跳过，落盘后即为硬门禁） | **P1-06** |
+| T-R09 | `test_r09_five_hundred_failed_databases_is_bounded` | 500 库全失败 → 告警**仅 1 条** `PROXY_CMD_FAILED`、`warnings[]` ≤ 6 条、序列化 < 8 KiB、逐库原因仍在 `detail` 且 ≤ 512 字符 | **P1-07** |
+| T-R09 | `test_r09b_large_warnings_survive_round_trip` | 500 库失败的告警落库后**原样回读**（`MEDIUMTEXT`，无截断），500 条明细齐全 | **P1-07** |
+| T-R10 | `test_r10_centralized_nonexistent_database_is_rejected` | 不存在的库 → `ValueError`；**存在但空的库仍正常返回 0 且 status=OK**（两者可区分） | **P2-01** |
+| T-R10 | `test_r10b_show_databases_failure_is_not_silent` | 库枚举失败一律抛出，不吞成"空库" | **P2-01** |
+| T-R11 | `test_r11_empty_connection_id_is_rejected` | 空串与全空白均 `ValueError` | **P2-03** |
+| T-R11 | `test_r11b_api_model_requires_connection_id` | `StatsRequest` 在契约层就挡住缺字段/空串 | **P2-03** |
+| T-R12 | `test_r12_missing_table_fails_closed` | 迁移登记后表被删 → `SchemaNotReadyError` | **P1-08** |
+| T-R12 | `test_r12b_missing_column_fails_closed` | 同名缺列表 → 失败关闭，消息点名缺哪一列 | **P1-08** |
+| T-R12 | `test_r12c_wrong_type_fails_closed` | `warnings_json` 退回 `TEXT`、计数列变 `VARCHAR` → 均失败关闭 | **P1-08 / P1-07** |
+| T-R12 | `test_r12d_missing_index_fails_closed` | 缺 `idx_tts_created` → 失败关闭 | **P1-08** |
+| T-R12 | `test_r12e_run_stats_fails_before_collecting` | 结构不合格时 `analyze` **一次都没被调用**——不让用户白跑 180 秒 | **P1-08 / ADR-20** |
+| T-R12 | `test_r12f_ddl_and_service_column_lists_agree` | DDL 文件的列清单与服务的 `_STAT_COLUMNS`/`_ITEM_COLUMNS` 逐字一致，且 `warnings_json` 必须是 `MEDIUMTEXT` | **P1-07 / P1-08** |
+| T-R13 | `test_r13_api_records_current_operator` | API 签名含 `http_request: Request`，`operator` 收到真实用户名；未认证兜底 `anonymous`（**不写空串**） | **P2-02** |
+| T-R13 | `test_r13_created_by_is_persisted` | `created_by` 真正落库并可从 `/history` 回读 | **P2-02** |
+| T-R14 | `test_lzbj_ecif_uat_baseline`（已有） | 端到端对数：215/0/117/98/215/78，告警仅 `SUBPARTITION_EXCLUDED` | UAT 基准 |
+
 **FakePool 设计**（关键，使全部分布式逻辑可离线测试）：脚本化
-`databases` / `info_schema` / `per_db[(当前库, sql)]`，并记录 `seen`（所有执行过的
-SQL）与 `selected`（所有切库动作）——后者正是 ADR-3 护栏的断言依据。
+`databases` / `info_schema` / `per_db[(当前库, sql)]` / `show_db_fail`，并记录
+`seen`（所有执行过的 SQL）与 `selected`（所有切库动作）——后者正是 ADR-3 护栏的断言依据。
 临时池的构造点是模块级钩子 `_new_pool = TDSQLConnectionPool`，测试里 monkeypatch
 该名字即可注入 FakePool；**这是唯一为可测性做的让步，成本 1 行**。
 
-**本地验证结果（2026-08-29）**：用 importlib 把附录 A.1 挂载为
-`backend.services.table_type_stats_service`（**仓库代码零改动**），
-`python -m pytest` **42 项全部通过**，含对本地 MariaDB(13306) 的真实落库用例。
+**Rev.G 给 FakePool 补的连接重建语义**（P1-04 的可测性前提）：
+`get_connection()` 忠实复刻 `tdsql_connector.py:287-307` 的行为——
+只有**异常穿出 `with`** 时才递增 `generation`（等价于真实池的"关闭并重建"）。
+测试断言 `ctx_count`（进了几次上下文）与 `conn_ids`（每个库拿到的是第几代连接），
+于是"坏连接有没有被后续库复用"变成了一个**可以断言的事实**，而不是靠读代码相信。
+这是本轮我认为最有价值的一处测试设计：**P1-04 描述的缺陷在 Rev.F 的测试体系下
+根本无法被发现**，因为旧 FakePool 对异常穿不穿出 `with` 完全无感。
+
+**本地验证结果（2026-08-31，Rev.G）**：用 importlib 把附录 A.1 / A.2 分别挂载为
+`backend.services.table_type_stats_service` 与 `backend.api.table_type_stats`
+（**仓库代码零改动**），`python -m pytest` **66 项通过 + 1 项跳过**
+（跳过的是 T-R08，它断言的是模块落盘后的仓库文件，设计阶段无从断言），
+含对本地 MariaDB(13306) 的真实落库与四种畸形结构失败关闭用例。
 
 
 ## 12. 验收清单
@@ -1200,21 +1577,26 @@ SQL）与 `selected`（所有切库动作）——后者正是 ADR-3 护栏的�
 - [ ] **迁移专项**：全新安装与存量升级各跑一次 `init_db()`，两次启动均无 `MigrationError`；
       `schema_migrations` 中出现 `v11_110_table_type_stats` 且 checksum 与文件一致
 - [ ] **迁移专项**：连续启动两次（模拟重启），第二次走 `_structure_state` → `valid` 跳过，不重复执行
-- [ ] 历史列表与明细接口可回看
+- [ ] **结构验收专项（Rev.G / P1-08）**：手工 `ALTER TABLE table_type_stat DROP COLUMN subpartition_tables` 后调用 `/run`，必须在**采集之前**返回 500 且消息点名缺失列与处置步骤；恢复后功能正常
+- [ ] **结构验收专项**：手工 `DROP TABLE table_type_stat` 后重启服务——**服务必须能正常启动**（诊断子模块的表问题不得阻断平台启动，ADR-20），进入该页签点击统计时才报错
+- [ ] 历史列表与明细可在**页面上**回看（历史抽屉可打开、可选中某次查看逐库明细），且 `created_by` 显示当前登录用户名（Rev.G / P2-02）
 
 ### 12.2 权限
 
 - [ ] `admin` / `dba` / `developer` / `auditor` 四角色默认可见该页签
 - [ ] 权限矩阵页出现"深度诊断-表类型统计"条目，可勾选/取消
-- [ ] 取消勾选后该角色刷新页面看不到页签，且调 `/run` 被拒
+- [ ] 取消勾选后该角色刷新页面看不到页签，且调 `/run` 被拒（403）
+- [ ] **仅授予 `deep-diag` + `deep-diag-tabletype` 的自定义角色**进入深度诊断页时，活动页签**自动落到"表类型统计"**（Rev.G / P1-06；这是该缺陷的唯一暴露路径，admin 账号下永远测不出来）
 - [ ] `pytest tests/test_rbac_path_coverage.py` 通过
 
-### 12.3 零回归
+### 12.3 零回归与并发
 
 - [ ] `pytest tests/` 全绿，且**通过用例数不少于改动前**
-- [ ] `git diff --stat` 与 §4.4 表格逐行一致（新增 4 文件；`main.py` +2、`auth_service.py` +3、`database.py` +1、`app.js` +3、`index.html` 仅新增块）
+- [ ] `git diff --stat` 与 §4.4 表格逐行一致（新增 4 文件；`main.py` +2、`auth_service.py` +3、`database.py` +1、`app.js` +4、`index.html` 仅新增块）
 - [ ] `backend/engine/` 目录 `git diff` 为空
 - [ ] 既有 9 个深度诊断子页签功能不变（逐个点一遍）
+- [ ] **并发专项（Rev.G / P1-02）**：同一实例连续发起 3 次统计，第 3 次返回 **429** 且提示可读；期间在**另一个浏览器标签**发起一次既有 SQL 审核 / 慢查询扫描，确认其响应时间与结果不受影响
+- [ ] **并发专项**：统计过程中断开网络或杀掉目标库连接，确认槽位被释放（随后可再次发起统计，不出现"永远 429"）
 
 ---
 
@@ -1227,47 +1609,65 @@ SQL）与 `selected`（所有切库动作）——后者正是 ADR-3 护栏的�
 | KL-3 | 本模块两张表未接 `retention_service` | 仅人工触发时增长，年增 < 1 万行 | 与 `index_audit` 一致；若未来接入需同时补 FK 级联 |
 | KL-4 | 单分片分布式实例可能被判为集中式 | `instance_probe_rules.py:99-104` 的已知边界 | W5 告警提示 + 实例管理页可手工锁定类型；T12 确认内网是否存在此形态 |
 | KL-5 | 三条 `/*proxy*/` 命令无官方语法文档背书 | 来源为原厂口头提供 | T02/T03/T11 实测锚定；实测输出入附录 B 作为回归基线 |
-| KL-6 | 统计为同步执行 | 库数 × 3 条命令，大实例可能较慢 | T10 定量；若超阈值则升版为异步任务（GATE-2 阻断项）。若 T13 判定为实例级作用域，指纹比对会把命令数压到 6 条，本项自然消解 |
+| KL-6 | 统计为同步执行 | 库数 × 3 条命令，大实例可能较慢；Rev.G 取消提前停止后**恒为 3N 条** | T10 定量；并发已由 `registry.scan_slot` 封顶（ADR-19），单次最长 180 秒预算不变。500 库实例按实测速率估算约 15 秒，仍在预算内（§9）。若 T10 实测超阈值则升版为异步任务 |
 | KL-7 | 结果为快照，不反映采集期间的 DDL 变更 | 无事务一致性保证 | 结果带 `created_at`，UI 标注"采集时刻快照" |
-| KL-8 | 命令作用域（当前库 / 实例级）未裁决 | 返回库限定名 + 原厂"库名+表名去重"的措辞都指向实例级，但缺少多业务库实例的实测 | 设计在两种作用域下都正确（ADR-11/12）；T13 只影响性能量级与 W9 是否显示。**作用域判据已改为不依赖 information_schema 的指纹比对**，固定代价 6 条命令 |
-| KL-9 | 空结果集是否导致命令挂起未裁决 | 赤兔页面对无单表的库一直转圈，原因未定 | 30s 读超时 + 180s 总预算兜底；T15 判决，若为 B 则升 Rev.C |
-| KL-10 | 二级分区子表识别依赖命名约定 `_tdsql_subp<数字>` | D3 实测确认该命名（`_tdsql_subp190001` / `_tdsql_subp202601`…），但无官方文档背书 | 正则锚定末尾+纯数字后缀，误判方向安全：漏识别 → `RECON_MISMATCH` 显式报出（可见），不会静默少算 |
+| KL-8 | 命令作用域（当前库 / 实例级）未裁决 | 返回库限定名 + 原厂"库名+表名去重"的措辞都指向实例级，但缺少多业务库实例的实测 | 设计在两种作用域下都正确（ADR-11）。**Rev.G 取消提前停止后，T13 已不影响任何数字**，只影响耗时预期与 W9 是否显示 |
+| ~~KL-9~~ | ~~空结果集是否导致命令挂起未裁决~~ | **已裁决（Rev.C / §3.3 RISK-F / §10.1 T15）**：命令以 **OK 包**在 0.001 秒返回，`Query OK, 0 rows affected`，不挂起；赤兔转圈是其前端在等结果集列元数据所致，与命令无关 | **本项关闭**。30s 读超时 + 180s 总预算保留为纯保险，在已实测形态下永不触发 |
+| KL-10 | 二级分区子表识别依赖命名约定 `_tdsql_subp<数字>` | D3 实测确认该命名（`_tdsql_subp190001` / `_tdsql_subp202601`…），但无官方文档背书；且实测**只证明"这些子表叫这个名字"，未证明"叫这个名字的一定是子表"** | Rev.G 收紧为「后缀匹配 **且** 逻辑父表已在 Proxy 结果中确认」，集中式一律不剔除（ADR-17）。误判方向仍安全：未确认者保留为逻辑表 → `RECON_MISMATCH` 显式报出（可见），不会静默少算。T17 为该规则在全量数据上取证 |
 | KL-11 | `info` 列内容（shardkey / sub_shardkey / auto_increment）本期未使用 | 形态已入附录 B | 为将来"分片键分布"类需求预留，不在本期范围 |
 | KL-12（Rev.F 新增） | 迁移文件发布后**内容冻结**，改一个字符都会让已部署实例启动失败关闭 | v1.6.2.2 的 O-30 调和账本机制（§2.7 M-3） | 表结构须在打包前定稿；发布后扩列走新增 `111_*.sql`（ADR-18）。**这是全项目所有新增迁移文件的共性约束，不是 G14 特有** |
+| KL-13（Rev.G 新增） | 结构验收在**首次调用时**而非启动期，故"表被删/结构漂移"要等到有人点统计才暴露 | ADR-20 的取舍：不让诊断子模块的表问题阻断平台启动 | 报错消息带可执行处置步骤；`/run` 在**采集之前**就失败，用户等待 < 1 秒。若将来该模块被接入定时任务（OUT-2 目前明确不做），需要重新评估是否加启动期探测 |
+| KL-14（Rev.G 新增） | 并发配额与既有扫描**共享**，重度扫描期间统计可能被 429 | ADR-19 的取舍：共享配额才能真正保护既有功能 | 提示文案已写明"请稍后重试"；配额可由 `SQLCHECK_MAX_CONCURRENT_SCANS_*` 调整。**不为本模块单开配额**——单开等于全局上限失效 |
+| KL-15（Rev.G 新增） | `_ensure_schema` 用 `information_schema.COLUMNS.DATA_TYPE` 校验类型，不校验长度/精度 | `COLUMN_TYPE` 带显示宽度（`int(11)` vs `int`），在不同 MySQL/MariaDB 发行版上不一致，用它会产生与结构无关的误报（v1.6.2.2 期间已踩过同类坑） | 现口径能挡住"计数列变 VARCHAR""`warnings_json` 退回 TEXT"这类**会导致错误或截断**的漂移；`VARCHAR(64)` 变 `VARCHAR(32)` 这类长度收窄挡不住，属已知缺口，登记在此 |
 
 ---
 
 ## 14. 附录 A · 成品代码（照图施工）
 
-> **本附录四个文件已在本地环境完整验证**：用 importlib 把 A.1 挂载为
-> `backend.services.table_type_stats_service`（**仓库代码零改动**），
-> `python -m pytest` **42 项全部通过**，其中含对本地 MariaDB(13306) 的真实落库用例；
-> A.2 的路由在 FastAPI 下正确注册出 3 条路径。实施者可直接落盘，不需要二次设计。
+> **本附录四个文件已在本地环境完整验证（2026-08-31，Rev.G）**：用 importlib 把
+> A.1 / A.2 分别挂载为 `backend.services.table_type_stats_service` 与
+> `backend.api.table_type_stats`（**仓库代码零改动**），
+> `python -m pytest` **66 项通过 + 1 项跳过**（跳过的 T-R08 断言的是模块落盘后的
+> 仓库文件，设计阶段无从断言），其中含对本地 MariaDB(13306) 的真实落库
+> 与四种畸形结构失败关闭用例。实施者可直接落盘，不需要二次设计。
 >
-> **Rev.B～Rev.D 相对 Rev.A 的实质变化**（全部源自三轮内网实测）：
+> **Rev.B～Rev.E 相对 Rev.A 的实质变化**（源自四轮内网实测）：
 > 1. `_EXACT_NAME_COLS` 首位加入实测确认的列名 `db_table`，`info` 加入排除词；
 > 2. `_extract_names` → `_extract_pairs`：解析 **`(库, 表)` 二元组**而不是裸表名，
 >    并回报是否含跨库行（RISK-E）；
 > 3. 采集从"每库三个集合"改为**全局 `kind_map[(库,表)]`**，按行内库限定名归属、
 >    全局去重、逐库反查计数（ADR-11）；
-> 4. **作用域指纹比对**（ADR-12，Rev.D 改写）：连续两个非空库的原始结果集逐条相同
->    即证明实例级作用域，其余库跳过。**判据不依赖 `information_schema`**——
->    T14 实测证明 Proxy 口径与基线基本不等，Rev.B 那版基于基线的判据永远不成立；
-> 5. `COMMAND_READ_TIMEOUT=30` / `TOTAL_BUDGET_SECONDS=180` 双层时长兜底
+> 4. `COMMAND_READ_TIMEOUT=30` / `TOTAL_BUDGET_SECONDS=180` 双层时长兜底
 >    与 `SKIPPED` 状态（ADR-13/14）；OK 包（`Query OK, 0 rows affected`）按 0 张处理；
-> 6. 新增 `skipped_databases` 与 `baseline_tables` 字段（ADR-16 双口径并排呈现）；
-> 7. `RECON_MISMATCH` 汇总成一条告警（ADR-15）；
-> 8. **剔除 `_tdsql_subp<数字>` 二级分区物理子表**并单列 `subpartition_tables`
+> 5. 新增 `skipped_databases` 与 `baseline_tables` 字段（ADR-16 双口径并排呈现）；
+> 6. `RECON_MISMATCH` 汇总成一条告警（ADR-15）；
+> 7. **剔除 `_tdsql_subp<数字>` 二级分区物理子表**并单列 `subpartition_tables`
 >    （ADR-17，Rev.E）——剔除后逻辑基线与 Proxy 口径精确相等，
 >    交叉校验从"永久亮着的噪声"变回"亮起就有事"的信号。
 >
-> **GATE-2 已无阻断项**；剩余的 T13 与 D1～D3 都不会改动这四个文件。
+> **Rev.G 相对 Rev.F 的实质变化**（全部源自 O 的评审报告，逐条对应）：
+>
+> | 变化 | 关闭 |
+> |---|---|
+> | 删除 `scope_signature` / `scope_decided` 与一切提前停止，**无条件逐库执行** | P1-01 |
+> | `run_stats` 进入 `registry.scan_slot(connection_id)`，`ScanBusyError` → 429 | P1-02 |
+> | 子表判定改为 `_classify_subpartitions(base, proxy_tables)`：**后缀 + 父表已确认**；集中式传空集，等价于一律不剔除 | P1-03 |
+> | `_collect_distributed` 改为**每库一个 `with tmp.get_connection()`**，异常穿出触发连接重建 | P1-04 |
+> | 单库三条命令先写 `staged`，全成功才原子合入全局；任一失败整库丢弃 | P1-05 |
+> | `PROXY_CMD_FAILED` 汇总为一条，`warnings_json` 改 `MEDIUMTEXT` | P1-07 |
+> | 新增 `_ensure_schema()` + `SchemaNotReadyError`，在采集与并发槽位**之前**验收表结构（列 / 类型 / 索引） | P1-08 |
+> | `analyze` 校验指定库真实存在；`SHOW DATABASES` 失败一律抛出，删除 `DB_ENUM_FAILED` 降级 | P2-01 |
+> | API 接收 `Request`，`operator=request.state.username` | P2-02 |
+> | `connection_id` 改必填（`min_length=1`），服务层再校验一次 | P2-03 |
+> | 测试从 42 项增至 **67 项**，新增 25 项全部是缺陷定向测试 | §6 全表 |
+>
+> **P1-06 的 `subtabs` 登记在 A.5.5**；前端历史抽屉与告警展示上限在 A.5.4。
 
-### A.1 `backend/services/table_type_stats_service.py`（新增，656 行）
+### A.1 `backend/services/table_type_stats_service.py`（新增，834 行）
 
 ```python
 # -*- coding: utf-8 -*-
-"""G14 · 表类型统计（深度诊断子模块，DESIGN-v1.6.3.0 Rev.B）
+"""G14 · 表类型统计（深度诊断子模块，DESIGN-v1.6.3.0 Rev.G）
 
 按 TDSQL 原厂口径统计单个实例下各业务库的表类型分布：
 
@@ -1293,6 +1693,19 @@ SQL）与 `selected`（所有切库动作）——后者正是 ADR-3 护栏的�
     本模块把子分区表从基线中剔除并单列计数，剔除后逻辑基线 215 与 Proxy 口径【精确相等】。
     故不得用未剔除的基线与 Proxy 口径比对（会产生 27% 的常态误报）。
 
+Rev.G（O 评审整改）要点：
+  · 取消"指纹相同即提前停止"——两库指纹相同只证明结果与当前默认库无关，
+    不证明已覆盖全部目标库（P1-01）。改为无条件逐库执行，正确性优先。
+  · 二级分区物理子表的识别：仅对分布式生效，且要求"逻辑父表确实出现在
+    Proxy 结果里"才判定为子表（P1-03）。集中式一律不剔除。
+  · 每库一个连接上下文，异常穿出 with 触发连接池重建，避免坏连接被后续库复用（P1-04）。
+  · 单库三条命令暂存后原子合入全局，任一失败即整库丢弃（P1-05）。
+  · run_stats 进入既有 registry.scan_slot(connection_id) 并发槽位，与 SQL 审核/
+    慢查询扫描共用同一套按连接 + 全局的限流，超限抛 ScanBusyError → 429（P1-02）。
+  · run_stats 入口做落库表结构验收（列 / 类型 / 索引），
+    避免采集完才在 INSERT 处失败（P1-08）。
+  · 指定库必须真实存在（P2-01）；connection_id 必须非空（P2-03）。
+
 设计要点（详见 DESIGN-v1.6.3.0）：
   · 结果按【库限定名】归属到库，而不是无条件算在当前会话库上——
     命令的作用域是否为实例级尚未确证，按库归属 + (库,表) 去重使两种
@@ -1300,9 +1713,6 @@ SQL）与 `selected`（所有切库动作）——后者正是 ADR-3 护栏的�
     去重"这句话的由来。
   · 基线口径：剔除二级分区物理子表后与 Proxy 口径精确对齐，使交叉校验重新成为
     有效信号（否则每个库都会常态告警 27%，等于把告警训练成噪声）。
-  · 作用域自判：连续两个非空库的原始结果集若逐条相同，即证明命令是实例级作用域，
-    其余库无需再执行——把 3×N 条命令压到 6 条。判据不依赖 information_schema
-    （实测证明并集与基线不等，用基线做判据会永不成立）。
   · 总时长预算 + 显式读超时：命令挂起不会拖垮整个请求（§3.3 RISK-F）。
   · 绝不在共享连接池上切库；另建 pool_size=1 的临时池（ADR-3）。
 
@@ -1317,6 +1727,7 @@ import re
 import time
 from typing import Optional
 
+from backend.services.connection_registry import registry
 from backend.services.database import _get_connection
 from backend.services.tdsql_connector import TDSQLConnectionPool
 
@@ -1359,12 +1770,19 @@ _EXCLUDE_TOKENS = ("type", "rows", "schema", "comment", "engine", "key", "info")
 # TDSQL 二级分区的物理子表命名（2026-08-29 内网实测，设计附录 B.5）：
 #   cus_pub_translog_tdsql_subp190001 / _tdsql_subp202601 … _tdsql_subp202612
 # 它们在 information_schema 里是独立的 BASE TABLE，但【不是】用户认知中的"表"，
-# Proxy 的 show table 也只返回逻辑表名。故从基线中剔除并单列计数。
-# 后缀限定为【纯数字】并锚定到末尾：既覆盖实测的 190001 / 202601-202612，
-# 又不会误伤 my_tdsql_subp202601_backup 这类用户自建表。
-# 万一某版本用了非数字后缀，本模块会把它当逻辑表 —— 后果是 RECON_MISMATCH
-# 把它显式报出来（可见），而不是静默少算（不可见）。方向是安全的。
-_SUBPARTITION_RE = re.compile(r"_tdsql_subp\d+$", re.IGNORECASE)
+# Proxy 的 show table 也只返回逻辑表名。故从逻辑基线中剔除并单列计数。
+#
+# Rev.G（P1-03）：命名匹配【只是必要条件，不是充分条件】。
+#   · 集中式实例根本没有二级分区物理子表这一构造 —— 一律不剔除，
+#     否则一张合法业务表 orders_tdsql_subp202601 会被静默少算，且集中式
+#     没有 Proxy 交叉校验兜底，错误不可见（违反 REQ-5）。
+#   · 分布式实例额外要求【逻辑父表确实出现在本库的 Proxy 结果中】才判定为子表。
+#     父表 = 表名去掉 _tdsql_subp<数字> 后缀的部分。
+#     实测校验：cus_pub_translog_tdsql_subp202601 → 父表 cus_pub_translog
+#     确在 show table with shardkey 的 98 行内。
+#   · 父表不存在时保留为逻辑表 —— 后果是 RECON_MISMATCH 显式报出（可见），
+#     而不是静默少算（不可见）。方向是安全的。
+_SUBPARTITION_RE = re.compile(r"^(?P<parent>.+?)_tdsql_subp\d+$", re.IGNORECASE)
 
 _PERM_ERRNO = (1044, 1045, 1142, 1143, 1227)
 _SYNTAX_ERRNO = 1064
@@ -1506,14 +1924,11 @@ def list_business_databases(pool):
 def _collect_baseline(pool, dbs: list) -> dict:
     """取 information_schema 全量名单。
 
-    返回 {db: {"base": 逻辑表, "view": 视图, "subp": 二级分区物理子表}}。
-
-    要名字不要计数：集中式分支取 len(base)；分布式分支需要名字做视图扣除，
-    以及逐库双向集合差（差的是哪几张表要写进「说明」列）。
-    注意：作用域判定【不】使用基线——实测 Proxy 口径与基线相差可达 27%
-    （lzbj_ecif 215 vs 293），用基线做判据会永不成立（ADR-12）。
+    返回 {db: {"base": 全部 BASE TABLE, "view": 视图}}。
+    Rev.G（P1-03）：**不在此处剔除二级分区子表**——是否为子表要等 Proxy 结果回来后
+    结合"逻辑父表是否存在"才能判定，且集中式一律不剔除。分类下沉到 _classify_subpartitions。
     """
-    out = {d: {"base": set(), "view": set(), "subp": set()} for d in dbs}
+    out = {d: {"base": set(), "view": set()} for d in dbs}
     if not dbs:
         return out
     placeholders = ",".join(["%s"] * len(dbs))
@@ -1534,54 +1949,71 @@ def _collect_baseline(pool, dbs: list) -> dict:
             continue
         ttype = str(r.get("TABLE_TYPE") or r.get("table_type") or "").strip().upper()
         if ttype == "BASE TABLE":
-            # 二级分区物理子表单独归类，不计入逻辑基线
-            if _SUBPARTITION_RE.search(name):
-                out[key]["subp"].add(name)
-            else:
-                out[key]["base"].add(name)
+            out[key]["base"].add(name)
         elif ttype == "VIEW":
             out[key]["view"].add(name)
     return out
 
 
-def _blank_item(db: str, baseline: dict) -> dict:
-    b = baseline.get(db, {})
+def _classify_subpartitions(base: set, proxy_tables: set) -> tuple:
+    """把 BASE TABLE 名单拆成 (逻辑表, 二级分区物理子表)。Rev.G / P1-03。
+
+    判定为子表需【同时】满足：
+      1) 名字匹配 <父表>_tdsql_subp<数字>；
+      2) 父表确实出现在本库的 Proxy 结果里（proxy_tables）。
+    只满足 1) 不满足 2) 的表保留为逻辑表——宁可让 RECON_MISMATCH 把它显式报出来，
+    也不静默少算。集中式分支传入 proxy_tables=空集，等价于"一律不剔除"。
+    """
+    subp = set()
+    for name in base:
+        m = _SUBPARTITION_RE.match(name)
+        if m and m.group("parent") in proxy_tables:
+            subp.add(name)
+    return base - subp, subp
+
+
+def _blank_item(db: str) -> dict:
     return {"db_name": db, "total_tables": 0, "shard_tables": 0,
             "broadcast_tables": 0, "single_tables": 0,
-            "baseline_tables": len(b.get("base", ())),
-            "subpartition_tables": len(b.get("subp", ())),
+            "baseline_tables": 0, "subpartition_tables": 0,
             "status": "OK", "detail": ""}
 
 
 def _collect_centralized(dbs: list, baseline: dict):
-    """集中式：纯内存换算，不发任何查询，不发任何 /*proxy*/ 命令（ADR-4）。"""
+    """集中式：纯内存换算，不发任何查询、不发任何 /*proxy*/ 命令（ADR-4）。
+
+    Rev.G（P1-03）：**不剔除任何 _tdsql_subp 表**——集中式没有二级分区物理子表
+    这一构造，剔除只会把合法业务表静默少算，且此分支没有 Proxy 交叉校验兜底。
+    """
     items = []
     totals = {"shard": 0, "broadcast": 0, "single": 0, "total": 0,
               "baseline": 0, "subp": 0, "overlap": 0, "failed": 0, "skipped": 0}
     for db in dbs:
-        n = len(baseline.get(db, {}).get("base", ()))
-        item = _blank_item(db, baseline)
+        base = baseline.get(db, {}).get("base", set())
+        n = len(base)
+        item = _blank_item(db)
         item["total_tables"] = n
         item["single_tables"] = n
+        item["baseline_tables"] = n
         items.append(item)
         totals["single"] += n
         totals["total"] += n
         totals["baseline"] += n
-        totals["subp"] += item["subpartition_tables"]
     return items, [], {}, totals
 
 
 def _collect_distributed(pool, dbs: list, baseline: dict, known_dbs: set):
     """分布式：逐业务库执行三条 /*proxy*/ 命令，按【库限定名】归属去重。
 
-    连接隔离：另建 pool_size=1 的临时池，切库不污染共享池（ADR-3）。
-    异常隔离：所有异常都在 with 块内部吃掉——若让异常穿出
-      TDSQLConnectionPool.get_connection() 的 with，池会重建连接并中断循环。
-    作用域自判（ADR-12 修订）：记录首个非空库的原始 (库,表) 结果指纹；
-      第二个非空库若返回逐条相同的集合，即证明命令是实例级作用域
-      （当前库作用域下两库的库限定名前缀必然不同，集合不可能相等），
-      其余库全部跳过。
-    时长兜底：单条命令读超时 COMMAND_READ_TIMEOUT，整体不超过 TOTAL_BUDGET_SECONDS。
+    Rev.G 相对 Rev.F 的三处结构性变化：
+      P1-01  取消"指纹相同即提前停止"——两库指纹相同只证明结果与当前默认库无关，
+             不能证明已覆盖全部目标库（账号可见范围、路由域、租户切分都可能造成
+             指纹相同而集合不完整）。改为**无条件逐库执行**。
+      P1-04  **每库一个连接上下文**。异常一律穿出 with，由
+             TDSQLConnectionPool.get_connection() 关闭并重建线程本地连接后再抛出，
+             外层逐库捕获后继续下一库——坏连接不会被后续库复用。
+      P1-05  单库三条命令先写入**暂存区**，三条全部成功才原子合入全局；
+             任一失败即整库丢弃，失败库不会污染其他库的计数、重叠数与基线比对。
     """
     items, warnings, shape = [], [], {}
     totals = {"shard": 0, "broadcast": 0, "single": 0, "total": 0,
@@ -1596,8 +2028,6 @@ def _collect_distributed(pool, dbs: list, baseline: dict, known_dbs: set):
     failed, skipped = {}, {}
     shape_reported = False
     instance_wide = False
-    scope_signature = None     # 首个非空库的原始 (库,表) 指纹
-    scope_decided = ""         # "" | "instance_wide" | "per_db"
     syntax_errors = 0
     scanned = 0
     started = time.monotonic()
@@ -1606,76 +2036,67 @@ def _collect_distributed(pool, dbs: list, baseline: dict, known_dbs: set):
                               read_timeout=COMMAND_READ_TIMEOUT)
     tmp = _new_pool(cfg, pool_size=1)
     try:
-        with tmp.get_connection() as conn:
-            for db in dbs:
-                if scope_decided == "instance_wide":
-                    skipped[db] = "coverage"
-                    continue
-                if time.monotonic() - started > TOTAL_BUDGET_SECONDS:
-                    skipped[db] = "budget"
-                    continue
-
-                scanned += 1
-                detail = ""
-                raw_pairs = set()      # 本库三条命令返回的原始并集，未过滤
-                try:
+        for db in dbs:
+            if time.monotonic() - started > TOTAL_BUDGET_SECONDS:
+                skipped[db] = "budget"
+                continue
+            scanned += 1
+            detail = ""
+            staged = {}          # kind -> {(库, 表)}
+            staged_cols = {}     # kind -> 实际列名
+            staged_guessed = False
+            staged_cross = False
+            try:
+                # P1-04：每库独立上下文；异常穿出即触发连接重建
+                with tmp.get_connection() as conn:
                     conn.select_db(db)
-                except Exception as e:                       # noqa: BLE001
-                    detail = f"切换数据库失败: {_err(e)}"
-                    if _errno_of(e) == _SYNTAX_ERRNO:
-                        syntax_errors += 1
-                if not detail:
                     for kind, sql in _KIND_SQL:
-                        try:
-                            with conn.cursor() as cur:
-                                cur.execute(sql)
-                                rows = cur.fetchall()
-                        except Exception as e:               # noqa: BLE001
-                            detail = f"{sql} 执行失败: {_err(e)}"
-                            if _errno_of(e) == _SYNTAX_ERRNO:
-                                syntax_errors += 1
-                            break
+                        with conn.cursor() as cur:
+                            cur.execute(sql)
+                            rows = cur.fetchall()
                         # rows 可能是 OK 包（某类为空时 TDSQL 返回
                         # `Query OK, 0 rows affected`）——此时 fetchall() 为 []
                         # 且无列元数据，_extract_pairs 按 0 张处理，不是错误。
                         pairs, columns, guessed, cross = _extract_pairs(
                             rows, db, known_dbs)
-                        raw_pairs |= pairs
-                        if columns and kind not in shape:
-                            shape[kind] = columns
-                        if cross:
-                            instance_wide = True
-                        if guessed and not shape_reported:
-                            shape_reported = True
-                            warnings.append(_warn(
-                                "SHAPE_UNKNOWN", "WARNING", db,
-                                f"未能识别表名列，已退化为取第一列；实际列名: {columns}"))
-                        for qual, name in pairs:
-                            low = qual.lower()
-                            if low not in target:
-                                continue              # 非目标库（系统库/被筛掉的库）
-                            owner = canon[low]
-                            if name in baseline.get(owner, {}).get("view", ()):
-                                continue              # 原厂口径：不统计视图
-                            key = (owner, name)
-                            kinds_seen.setdefault(key, set()).add(kind)
-                            cur_kind = kind_map.get(key)
-                            if (cur_kind is None
-                                    or _KIND_PRIORITY[kind] < _KIND_PRIORITY[cur_kind]):
-                                kind_map[key] = kind
-                if detail:
-                    failed[db] = detail[:512]
-                    continue
-                # ── 作用域自判：只用命令自身的返回，不依赖 information_schema ──
-                if not scope_decided and raw_pairs:
-                    sig = frozenset(raw_pairs)
-                    if scope_signature is None:
-                        scope_signature = sig
-                    elif sig == scope_signature:
-                        scope_decided = "instance_wide"
-                        instance_wide = True
-                    else:
-                        scope_decided = "per_db"
+                        staged[kind] = pairs
+                        if columns:
+                            staged_cols[kind] = columns
+                        staged_guessed = staged_guessed or guessed
+                        staged_cross = staged_cross or cross
+            except Exception as e:                           # noqa: BLE001
+                detail = f"{db} 采集失败: {_err(e)}"
+                if _errno_of(e) == _SYNTAX_ERRNO:
+                    syntax_errors += 1
+            if detail:
+                # P1-05：整库丢弃暂存区，绝不半量合入
+                failed[db] = detail[:512]
+                continue
+
+            # ── 三条全成功，原子合入全局 ──────────────────────────
+            for kind, cols in staged_cols.items():
+                shape.setdefault(kind, cols)
+            if staged_cross:
+                instance_wide = True
+            if staged_guessed and not shape_reported:
+                shape_reported = True
+                warnings.append(_warn(
+                    "SHAPE_UNKNOWN", "WARNING", db,
+                    f"未能识别表名列，已退化为取第一列；实际列名: {staged_cols}"))
+            for kind, _sql in _KIND_SQL:
+                for qual, name in staged.get(kind, ()):
+                    low = qual.lower()
+                    if low not in target:
+                        continue              # 非目标库（系统库/被筛掉的库）
+                    owner = canon[low]
+                    if name in baseline.get(owner, {}).get("view", ()):
+                        continue              # 原厂口径：不统计视图
+                    key = (owner, name)
+                    kinds_seen.setdefault(key, set()).add(kind)
+                    cur_kind = kind_map.get(key)
+                    if (cur_kind is None
+                            or _KIND_PRIORITY[kind] < _KIND_PRIORITY[cur_kind]):
+                        kind_map[key] = kind
     finally:
         try:
             tmp.close_all()
@@ -1690,14 +2111,20 @@ def _collect_distributed(pool, dbs: list, baseline: dict, known_dbs: set):
     recon = []                 # [(db, 仅Proxy可见数, 仅基线可见数)]
 
     for db in dbs:
-        item = _blank_item(db, baseline)
-        totals["baseline"] += item["baseline_tables"]
-        totals["subp"] += item["subpartition_tables"]
+        item = _blank_item(db)
+        proxy_tables = {t for (d, t) in kind_map if d == db}
+        raw_base = baseline.get(db, {}).get("base", set())
+        # P1-03：结合 Proxy 结果做子表判定（父表必须在 Proxy 结果里）
+        logical_base, subp = _classify_subpartitions(raw_base, proxy_tables)
+        item["baseline_tables"] = len(logical_base)
+        item["subpartition_tables"] = len(subp)
+        totals["baseline"] += len(logical_base)
+        totals["subp"] += len(subp)
+
         if db in failed:
             item["status"] = "FAILED"
             item["detail"] = failed[db]
             totals["failed"] += 1
-            warnings.append(_warn("PROXY_CMD_FAILED", "ERROR", db, failed[db]))
             items.append(item)
             continue
         if skipped.get(db) == "budget":
@@ -1712,35 +2139,40 @@ def _collect_distributed(pool, dbs: list, baseline: dict, known_dbs: set):
         item["broadcast_tables"] = c[KIND_BROADCAST]
         item["single_tables"] = c[KIND_SINGLE]
         item["total_tables"] = c[KIND_SHARD] + c[KIND_BROADCAST] + c[KIND_SINGLE]
-        if skipped.get(db) == "coverage":
-            item["detail"] = "结果由实例级命令一次性覆盖，未单独执行"
         totals["shard"] += item["shard_tables"]
         totals["broadcast"] += item["broadcast_tables"]
         totals["single"] += item["single_tables"]
         totals["total"] += item["total_tables"]
 
-        got = {t for (d, t) in kind_map if d == db}
-        base = baseline.get(db, {}).get("base", set())
-        only_proxy, only_base = got - base, base - got
+        only_proxy, only_base = proxy_tables - logical_base, logical_base - proxy_tables
         if only_proxy or only_base:
             recon.append((db, len(only_proxy), len(only_base)))
-            d2 = (f"Proxy 口径 {len(got)} 张，information_schema 基线 {len(base)} 张")
+            d2 = (f"Proxy 口径 {len(proxy_tables)} 张，information_schema 逻辑基线 "
+                  f"{len(logical_base)} 张")
             if only_base:
-                d2 += (f"；仅基线可见({len(only_base)}): {_diff_sample(only_base)}")
+                d2 += f"；仅基线可见({len(only_base)}): {_diff_sample(only_base)}"
             if only_proxy:
-                d2 += (f"；仅 Proxy 可见({len(only_proxy)}): {_diff_sample(only_proxy)}")
-            sep = "；" if item["detail"] else ""
-            item["detail"] = (item["detail"] + sep + d2)[:512]
+                d2 += f"；仅 Proxy 可见({len(only_proxy)}): {_diff_sample(only_proxy)}"
+            item["detail"] = d2[:512]
         items.append(item)
 
     totals["overlap"] = overlap_total
+    if failed:
+        # P1-07：失败库汇总为一条告警，逐库详情留在 item.detail，
+        # 避免 500 库全失败时 warnings_json 撑爆存储、前端渲染数百条横幅
+        names = ", ".join(sorted(failed)[:5])
+        if len(failed) > 5:
+            names += f" …等 {len(failed)} 个库"
+        warnings.append(_warn(
+            "PROXY_CMD_FAILED", "ERROR", "",
+            f"{len(failed)} 个库采集失败，未计入任何汇总数（{names}）；"
+            f"逐库失败原因见各行「说明」"))
     if overlap_total:
         warnings.append(_warn(
             "KIND_OVERLAP", "WARNING", "",
             f"三类结果集存在 {overlap_total} 处重叠，"
             f"已按 分片>广播>单表 归一化去重，总数未重复计算"))
     if recon:
-        # 汇总成一条，避免逐库刷屏（实测该差异在每个库上都会出现）
         sum_proxy = sum(x[1] for x in recon)
         sum_base = sum(x[2] for x in recon)
         names = ", ".join(x[0] for x in recon[:5])
@@ -1756,14 +2188,14 @@ def _collect_distributed(pool, dbs: list, baseline: dict, known_dbs: set):
         warnings.append(_warn(
             "SUBPARTITION_EXCLUDED", "INFO", "",
             f"information_schema 中另有 {totals['subp']} 张二级分区物理子表"
-            f"（形如 xxx_tdsql_subp202601），按逻辑表口径未计入总数；"
-            f"逐库数量见「二级分区子表」列"))
+            f"（形如 xxx_tdsql_subp202601，且其逻辑父表确在 Proxy 结果中），"
+            f"按逻辑表口径未计入总数；逐库数量见「二级分区子表」列"))
     if instance_wide:
         warnings.append(_warn(
             "INSTANCE_WIDE_SCOPE", "INFO", "",
-            f"本版本 /*proxy*/show table 返回实例级全量，"
+            f"本版本 /*proxy*/show table 返回实例级全量（结果含跨库行），"
             f"已按库限定名归属并按(库,表)去重；"
-            f"{len(dbs)} 个业务库中实际执行了 {scanned} 个，其余经作用域判定跳过"))
+            f"为保证覆盖完整性，仍逐库执行（Rev.G / P1-01）"))
     if totals["skipped"]:
         warnings.append(_warn(
             "TIME_BUDGET_EXCEEDED", "WARNING", "",
@@ -1778,6 +2210,7 @@ def _collect_distributed(pool, dbs: list, baseline: dict, known_dbs: set):
     return items, warnings, shape, totals
 
 
+
 # ══════════════════════════════════════════════════════════════════
 # 对外
 # ══════════════════════════════════════════════════════════════════
@@ -1790,16 +2223,19 @@ def analyze(pool, connection_id: str = "", database: str = "") -> dict:
     source = getattr(ctx.source, "value", str(ctx.source))
 
     warnings = []
-    try:
-        business, truncated, allnames = list_business_databases(pool)
-    except Exception as e:                                   # noqa: BLE001
-        if not database:
-            raise
-        business, truncated, allnames = [database], False, [database]
-        warnings.append(_warn("DB_ENUM_FAILED", "WARNING", "",
-                              f"SHOW DATABASES 失败，仅统计指定库: {_err(e)}"))
-    known_dbs = {n.lower() for n in allnames} or {database.lower()}
-    dbs = [database] if database else business
+    # Rev.G / P2-01：库枚举失败不得静默按空库处理——集中式分支查不到行与库不存在
+    # 在结果上无法区分，会得到"状态 OK、总数 0"的假成功。枚举失败一律抛出。
+    business, truncated, allnames = list_business_databases(pool)
+    known_dbs = {n.lower() for n in allnames}
+    if database:
+        # Rev.G / P2-01：指定库必须真实存在且当前账号可见
+        if database.lower() not in known_dbs:
+            raise ValueError(
+                f"数据库不存在或当前账号不可见: {database}"
+                f"（SHOW DATABASES 未返回该库）")
+        dbs = [database]
+    else:
+        dbs = business
 
     if truncated and not database:
         warnings.append(_warn(
@@ -1846,14 +2282,156 @@ def analyze(pool, connection_id: str = "", database: str = "") -> dict:
     }
 
 
+# 落库表的期望结构（与 backend/schema/v11/110_table_type_stats.sql 逐字对应）。
+#
+# Rev.G / P1-08：迁移器只对 `ALTER TABLE ... ADD COLUMN` 做列级验收
+# （backend/schema/migrator.py:45-48 的 _ADD_COLUMN_RE），纯 CREATE TABLE 语句
+# 不进入 _structure_state() 的验收范围。于是存在这样一条静默失效路径：
+#   元数据库里已存在同名但缺列 / 错类型 / 缺索引的历史残留表
+#   → CREATE TABLE IF NOT EXISTS 直接跳过
+#   → 迁移被登记成功
+#   → 直到本模块 INSERT 才 1054 报错，用户白等一轮采集
+# 迁移登记之后若表被人工删除或结构漂移，_structure_state() 同样返回 valid，
+# 不会重放。故本模块自行做一次确定性结构验收，且放在【采集之前】。
+#
+# 口径说明：类型用 information_schema.COLUMNS.DATA_TYPE（'int' / 'varchar' /
+# 'mediumtext' / 'datetime'），不用 COLUMN_TYPE——后者在不同发行版上带显示宽度
+# （int(11) vs int），会产生与结构无关的误报。
+_STAT_COLUMNS = (
+    "id", "connection_id", "database_filter", "instance_type", "type_source",
+    "database_count", "total_tables", "shard_tables", "broadcast_tables",
+    "single_tables", "baseline_tables", "subpartition_tables",
+    "failed_databases", "skipped_databases", "overlap_count",
+    "warnings_json", "created_by", "created_at",
+)
+_ITEM_COLUMNS = (
+    "id", "stat_id", "db_name", "total_tables", "shard_tables",
+    "broadcast_tables", "single_tables", "baseline_tables",
+    "subpartition_tables", "status", "detail", "created_at",
+)
+
+# 关键列的期望 DATA_TYPE。只钉住"错了就会算错或存不下"的列：
+# 计数列必须是整型（varchar 会让 SUM/排序失真），warnings_json 必须是
+# mediumtext（TEXT 在 500 库失败时会截断，正是 P1-07 的成因）。
+_STAT_COL_TYPES = {
+    "id": "int", "connection_id": "varchar", "database_filter": "varchar",
+    "instance_type": "varchar", "type_source": "varchar",
+    "database_count": "int", "total_tables": "int", "shard_tables": "int",
+    "broadcast_tables": "int", "single_tables": "int",
+    "baseline_tables": "int", "subpartition_tables": "int",
+    "failed_databases": "int", "skipped_databases": "int",
+    "overlap_count": "int", "warnings_json": "mediumtext",
+    "created_by": "varchar", "created_at": "datetime",
+}
+_ITEM_COL_TYPES = {
+    "id": "int", "stat_id": "int", "db_name": "varchar",
+    "total_tables": "int", "shard_tables": "int", "broadcast_tables": "int",
+    "single_tables": "int", "baseline_tables": "int",
+    "subpartition_tables": "int", "status": "varchar",
+    "detail": "varchar", "created_at": "datetime",
+}
+
+# 期望索引：名字 → 首列。缺索引不会算错，但会让 /history 在留档积累后全表扫描。
+_STAT_INDEXES = {"PRIMARY": "id", "idx_tts_conn": "connection_id",
+                 "idx_tts_created": "created_at"}
+_ITEM_INDEXES = {"PRIMARY": "id", "idx_ttsi": "stat_id"}
+
+_SCHEMA_SPEC = (
+    ("table_type_stat", _STAT_COLUMNS, _STAT_COL_TYPES, _STAT_INDEXES),
+    ("table_type_stat_item", _ITEM_COLUMNS, _ITEM_COL_TYPES, _ITEM_INDEXES),
+)
+
+
+def _row_get(row, *keys):
+    """兼容字典游标的大小写差异（MySQL 返回大写列名，部分驱动返回小写）。"""
+    d = dict(row)
+    for k in keys:
+        for cand in (k, k.upper(), k.lower()):
+            if cand in d:
+                return d[cand]
+    return None
+
+
+class SchemaNotReadyError(RuntimeError):
+    """落库表结构验收失败（Rev.G / P1-08）。由 API 映射为 500 + 可执行提示。"""
+
+
+def _ensure_schema() -> None:
+    """落库表结构验收：表存在 + 关键列 + 类型 + 索引，任一不符即失败关闭。
+
+    放在 run_stats 入口而不是进程启动期，理由见设计 ADR-20：
+    表类型统计是深度诊断下的只读诊断子模块，它的留档表有问题不应当让
+    整个审核平台起不来（既有 index_audit / cluster_inspection 等同级表在
+    _create_all_tables 中同样没有启动期结构验收）。放在采集之前则同时满足
+    "确定性验收"与"不让用户白跑一轮 180 秒采集"。
+    """
+    conn = _get_connection()
+    try:
+        for table, cols, types, indexes in _SCHEMA_SPEC:
+            rows = conn.execute(
+                "SELECT COLUMN_NAME, DATA_TYPE FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?",
+                (table,)).fetchall()
+            actual = {str(_row_get(r, "COLUMN_NAME") or "").lower():
+                      str(_row_get(r, "DATA_TYPE") or "").lower() for r in rows}
+            if not actual:
+                raise SchemaNotReadyError(
+                    f"元数据库缺少表 {table}：迁移 v11/110_table_type_stats.sql 未生效"
+                    f"（可能是升级包未带该文件，或迁移已登记后表被人工删除——"
+                    f"迁移器不会重放纯 CREATE TABLE 语句）。"
+                    f"处置：确认该 .sql 已随版本部署，并手工执行其中的建表语句")
+            missing = [c for c in cols if c.lower() not in actual]
+            if missing:
+                raise SchemaNotReadyError(
+                    f"元数据库表 {table} 缺少列: {', '.join(missing)}。"
+                    f"该表很可能是同名历史残留——CREATE TABLE IF NOT EXISTS 会静默跳过，"
+                    f"迁移仍登记成功。处置：核实该表无业务数据后删表重启，"
+                    f"或按 110_table_type_stats.sql 补齐列")
+            bad = [f"{c}(期望 {t}，实际 {actual.get(c.lower())})"
+                   for c, t in types.items()
+                   if actual.get(c.lower()) and actual[c.lower()] != t]
+            if bad:
+                raise SchemaNotReadyError(
+                    f"元数据库表 {table} 列类型不符: {'; '.join(bad)}。"
+                    f"处置：按 110_table_type_stats.sql 的定义 ALTER 修正")
+            irows = conn.execute(
+                "SELECT INDEX_NAME, COLUMN_NAME FROM information_schema.STATISTICS "
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND SEQ_IN_INDEX = 1",
+                (table,)).fetchall()
+            have = {str(_row_get(r, "INDEX_NAME") or "").lower():
+                    str(_row_get(r, "COLUMN_NAME") or "").lower() for r in irows}
+            lost = [f"{n}({c})" for n, c in indexes.items()
+                    if have.get(n.lower()) != c.lower()]
+            if lost:
+                raise SchemaNotReadyError(
+                    f"元数据库表 {table} 缺少索引: {', '.join(lost)}。"
+                    f"处置：按 110_table_type_stats.sql 补建索引")
+    finally:
+        conn.close()
+
+
 def run_stats(pool, connection_id: str = "", database: str = "",
               operator: str = "") -> dict:
     """执行一次统计并落库。落库失败不降级——直接抛出（REQ-6 要求留档）。"""
     database = (database or "").strip()
     if database and database.lower() in _SYS_DB:
         raise ValueError(f"不允许统计系统库: {database}")
+    # Rev.G / P2-03：connection_id 必须显式非空——空串下 registry.get("") 取的是
+    # adhoc/默认保存连接，而 instance_type_service.resolve("") 走的是全局默认类型，
+    # 两者可能指向不同实例，真分布式实例会被当成集中式，分片/广播全报 0。
+    if not (connection_id or "").strip():
+        raise ValueError("必须指定 connection_id（本模块不接受默认连接："
+                         "连接解析与实例类型解析在空 ID 下可能指向不同实例）")
+    # Rev.G / P1-08：先验收落库表结构，避免采集完才在 INSERT 处失败
+    _ensure_schema()
 
-    res = analyze(pool, connection_id=connection_id, database=database)
+    # Rev.G / P1-02：进入既有扫描并发槽位。本模块单次最长占用 180 秒并额外建一条
+    # Proxy 连接，不限流会挤占 SQL 审核 / 慢查询扫描 / 巡检的工作线程与目标库连接。
+    # 复用 registry.scan_slot 而不是自建信号量，才能与既有扫描【共享】同一份配额
+    # （scan_service.py:72 是同样的用法），否则两套限流各算各的，全局上限失去意义。
+    # 超限抛 ScanBusyError，由 API 映射为 429。槽位在 with 退出时必然释放（含异常）。
+    with registry.scan_slot(connection_id):
+        res = analyze(pool, connection_id=connection_id, database=database)
     conn = _get_connection()
     try:
         cur = conn.execute(
@@ -1924,23 +2502,38 @@ def get_detail(stat_id: int) -> dict:
     return {"items": items, "warnings": warnings}
 ```
 
-### A.2 `backend/api/table_type_stats.py`（新增，44 行）
+### A.2 `backend/api/table_type_stats.py`（新增，66 行）
 
 ```python
 # -*- coding: utf-8 -*-
-"""G14 · 表类型统计 API（DESIGN-v1.6.3.0 §5）"""
-from fastapi import APIRouter, HTTPException
+"""G14 · 表类型统计 API（DESIGN-v1.6.3.0 Rev.G §5）
+
+Rev.G（O 评审整改）：
+  · P1-02  /run 由 service 层进入 registry.scan_slot(connection_id)，
+           本层只负责把 ScanBusyError 映射为 429（与 tdsql_manage.py:432 同口径）。
+  · P1-08  SchemaNotReadyError 单独映射，把可执行的处置提示原样带给用户，
+           不被兜底 except 吞成一句无信息的 500。
+  · P2-02  接收 Request 并把 request.state.username 传给 run_stats(operator=)，
+           否则 created_by 在真实调用中永远为空，REQ-6 的"可回看"缺了操作人。
+  · P2-03  connection_id 必须显式非空（校验在 service，本层映射 400）。
+"""
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from backend.services import table_type_stats_service as svc
-from backend.services.connection_registry import registry, ConnectionNotFoundError
+from backend.services.connection_registry import (
+    registry, ConnectionNotFoundError, ScanBusyError)
 
 router = APIRouter(prefix="/api/v1/table-type-stats", tags=["表类型统计"])
 
 
 class StatsRequest(BaseModel):
-    connection_id: str = Field("", description="目标连接ID；空则用默认连接")
+    connection_id: str = Field(..., min_length=1, description="目标连接ID（必填）")
     database: str = Field("", description="仅统计指定库；空则全部业务库")
+
+
+def _operator(request: Request) -> str:
+    return getattr(request.state, "username", "anonymous")
 
 
 def _pool(cid):
@@ -1951,13 +2544,20 @@ def _pool(cid):
 
 
 @router.post("/run", summary="发起表类型统计")
-def run(body: StatsRequest):
+def run(body: StatsRequest, http_request: Request):
     pool = _pool(body.connection_id)
     try:
         return svc.run_stats(pool, connection_id=body.connection_id,
-                             database=body.database)
+                             database=body.database,
+                             operator=_operator(http_request))
+    except ScanBusyError as e:
+        # 并发超限：与既有慢查询扫描共用同一份配额，口径与 tdsql_manage.py:432 一致
+        raise HTTPException(status_code=429, detail=str(e))
+    except svc.SchemaNotReadyError as e:
+        # 留档表结构不符：消息里已带可执行处置步骤，原样透出
+        raise HTTPException(status_code=500, detail=str(e))
     except ValueError as e:
-        # 入参口径错误（如指定系统库）——属于调用方问题，回 400 而非 500
+        # 入参口径错误（系统库 / 空 connection_id / 指定库不存在）——回 400 而非 500
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -1973,13 +2573,13 @@ def detail(stat_id: int):
     return svc.get_detail(stat_id)
 ```
 
-### A.3 `backend/schema/v11/110_table_type_stats.sql`（新增，41 行）
+### A.3 `backend/schema/v11/110_table_type_stats.sql`（新增，45 行）
 
 > 迁移器会**逐行剔除以 `--` 开头的行**再按 `;` 切分（`backend/schema/migrator.py:159-164`，v1.6.2.2 后行号），
 > 因此注释必须整行独占，语句之间必须有 `;`，文件末尾的 `;` 不可省。
 
 ```sql
--- v1.6.3.0 G14 表类型统计（DESIGN-v1.6.3.0 §6.8）
+-- v1.6.3.0 G14 表类型统计（DESIGN-v1.6.3.0 Rev.G §6.8）
 -- 任务表：一次统计一行
 CREATE TABLE IF NOT EXISTS table_type_stat (
     id                  INT PRIMARY KEY AUTO_INCREMENT,
@@ -1997,7 +2597,11 @@ CREATE TABLE IF NOT EXISTS table_type_stat (
     failed_databases    INT DEFAULT 0,
     skipped_databases   INT DEFAULT 0,
     overlap_count       INT DEFAULT 0,
-    warnings_json       TEXT,
+    -- Rev.G / P1-07：MEDIUMTEXT 而非 TEXT。MAX_DATABASES=500，最坏情况下每库
+    -- 一条告警；虽然 Rev.G 已把 PROXY_CMD_FAILED 汇总成一条，RECON_MISMATCH 等
+    -- 逐库告警仍可能达数百条，中文 UTF-8 一个字符 3 字节，TEXT 的 64 KiB 会先触顶。
+    -- 采集已完成却在落库处 1406/截断失败，是最贵的一种失败。
+    warnings_json       MEDIUMTEXT,
     created_by          VARCHAR(64) DEFAULT '',
     created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_tts_conn (connection_id),
@@ -2022,11 +2626,11 @@ CREATE TABLE IF NOT EXISTS table_type_stat_item (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ```
 
-### A.4 `tests/test_table_type_stats.py`（新增，749 行）
+### A.4 `tests/test_table_type_stats.py`（新增，1321 行）
 
 ```python
 # -*- coding: utf-8 -*-
-"""G14 · 表类型统计 回归测试（DESIGN-v1.6.3.0 Rev.B §11）
+"""G14 · 表类型统计 回归测试（DESIGN-v1.6.3.0 Rev.G §11）
 
 除落库两例外全部离线，不依赖真实 TDSQL 实例。
 数据夹具取自 2026-08-29 内网实测（设计附录 B）：列名 db_table，值为库限定名。
@@ -2061,24 +2665,36 @@ class FakePool:
     databases   : SHOW DATABASES 返回的库名（含系统库）
     info_schema : {db: {"base":[...], "view":[...]}}
     per_db      : {(当前库, sql): 行列表 或 Exception}
+    show_db_fail: SHOW DATABASES 抛出的异常（P2-01 用）
+
+    Rev.G / P1-04：忠实复刻 TDSQLConnectionPool.get_connection() 的重建语义
+    （tdsql_connector.py:287-307）——异常【穿出】with 才会关闭并重建线程本地连接。
+    generation 记录重建次数，conn_ids 记录每库实际拿到的连接代次，
+    用来断言"坏连接没有被后续库复用"。
     """
 
     def __init__(self, databases=None, info_schema=None, per_db=None,
-                 select_db_fail=None):
+                 select_db_fail=None, show_db_fail=None):
         self.config = TDSQLConnectionConfig(host="h", port=3306, user="u",
                                             password="p", database="d")
         self.databases = databases or []
         self.info_schema = info_schema or {}
         self.per_db = per_db or {}
         self.select_db_fail = select_db_fail or {}
+        self.show_db_fail = show_db_fail
         self.seen, self.selected = [], []
         self.current_db = ""
         self.closed = False
         self.made_with_read_timeout = None
+        self.generation = 0          # 连接重建次数
+        self.ctx_count = 0           # get_connection() 进入次数
+        self.conn_ids = []           # [(db, 该库拿到的连接代次)]
 
     def _execute(self, sql, params=None):
         self.seen.append(sql)
         if sql == "SHOW DATABASES":
+            if self.show_db_fail is not None:
+                raise self.show_db_fail
             return [{"Database": d} for d in self.databases]
         if "information_schema.TABLES" in sql:
             wanted = set(params or ())
@@ -2097,6 +2713,7 @@ class FakePool:
 
     def get_connection(self):
         pool = self
+        pool.ctx_count += 1
 
         class _Cursor:
             def __enter__(self_i):
@@ -2117,8 +2734,11 @@ class FakePool:
                 return getattr(self_i, "_rows", [])
 
         class _Conn:
+            generation = pool.generation
+
             def select_db(self_i, db):
                 pool.selected.append(db)
+                pool.conn_ids.append((db, self_i.generation))
                 if db in pool.select_db_fail:
                     raise pool.select_db_fail[db]
                 pool.current_db = db
@@ -2130,7 +2750,10 @@ class FakePool:
             def __enter__(self_i):
                 return _Conn()
 
-            def __exit__(self_i, *a):
+            def __exit__(self_i, exc_type, exc, tb):
+                if exc_type is not None:
+                    # 异常穿出 ⇒ 关闭旧连接并重建（真实池的行为）
+                    pool.generation += 1
                 return False
 
         return _Ctx()
@@ -2158,6 +2781,11 @@ def _patch_ctx(monkeypatch, itype, source="probed", conflict=False):
         instance_type_service, "resolve",
         lambda cid="", requested=None: InstanceContext(
             InstanceType(itype), TypeSource(source), conflict=conflict))
+
+
+def by_db_detail(res):
+    """{库名: 明细说明}，Rev.G 起逐库失败原因只在 item.detail 里（P1-07）。"""
+    return {i["db_name"]: i["detail"] for i in res["items"]}
 
 
 def _patch_tmp_pool(monkeypatch, pool):
@@ -2305,7 +2933,7 @@ def test_distributed_happy_path(monkeypatch):
 
 
 def test_distributed_instance_wide_scope(monkeypatch):
-    """实例级作用域：按库归属拆分、(库,表) 去重；连续两库指纹相同即停止扫描。
+    """实例级作用域：按库归属拆分、(库,表) 去重；Rev.G 起【不再提前停止】。
 
     判据不依赖 information_schema —— 实测 lzbj_ecif 三类并集 215 vs 基线 293，
     用"并集 == 基线"做判据会永远不成立（ADR-12 修订的由来）。
@@ -2333,33 +2961,44 @@ def test_distributed_instance_wide_scope(monkeypatch):
     by_db = {i["db_name"]: i for i in res["items"]}
     assert by_db["db_a"]["total_tables"] == 2
     assert by_db["db_b"]["total_tables"] == 2
-    # 前两库指纹相同 ⇒ 判定实例级，db_c 不再执行
-    assert pool.selected == ["db_a", "db_b"]
+    # Rev.G / P1-01：即使前两库指纹相同，也必须把 db_c 也执行一遍
+    assert pool.selected == ["db_a", "db_b", "db_c"]
     assert any(w["code"] == "INSTANCE_WIDE_SCOPE" for w in res["warnings"])
 
 
-def test_scope_probe_ignores_baseline_mismatch(monkeypatch):
-    """作用域判定不得依赖 information_schema：基线与并集差得再远也要判对。
+def test_r01_identical_fingerprint_must_not_skip_third_db(monkeypatch):
+    """T-R01 / P1-01：前两库返回集合相同，但第三库另有表，不得提前停止。
 
-    夹具照搬 lzbj_ecif 的真实比例：Proxy 口径显著少于基线。
+    这正是 O 指出的反例：db_a、db_b 指纹相同只证明"换默认库没改变当前账号
+    看到的集合"，不证明这个集合覆盖了 db_c。Rev.F 的提前停止会把 db_c 的
+    2 张表整个漏掉，且页面四个主数字仍显示为"成功"。
     """
     _patch_ctx(monkeypatch, "distributed")
-    rows = _rows(["db_a.s1", "db_b.s2"])
+    shared = _rows(["db_a.s1", "db_b.s2"], info="shardkey:id")
     per_db = {}
-    for d in ("db_a", "db_b", "db_c"):
-        per_db[(d, svc.SQL_SHARD)] = rows
+    for d in ("db_a", "db_b"):
+        per_db[(d, svc.SQL_SHARD)] = shared
         per_db[(d, svc.SQL_BROADCAST)] = []
         per_db[(d, svc.SQL_SINGLE)] = []
+    # db_c 属于另一路由域：前两库看不到它，只有切到 db_c 才返回
+    per_db[("db_c", svc.SQL_SHARD)] = _rows(["db_c.s3"], info="shardkey:id")
+    per_db[("db_c", svc.SQL_BROADCAST)] = _rows(
+        ["db_c.b3"], info="shardkey:noshardkey_allset")
+    per_db[("db_c", svc.SQL_SINGLE)] = []
     pool = FakePool(databases=["db_a", "db_b", "db_c"],
-                    info_schema={"db_a": {"base": ["s1", "ghost1", "ghost2"]},
-                                 "db_b": {"base": ["s2", "ghost3"]},
-                                 "db_c": {"base": ["ghost4"]}},
+                    info_schema={"db_a": {"base": ["s1"]},
+                                 "db_b": {"base": ["s2"]},
+                                 "db_c": {"base": ["s3", "b3"]}},
                     per_db=per_db)
     _patch_tmp_pool(monkeypatch, pool)
     res = svc.analyze(pool, connection_id="c1")
-    assert pool.selected == ["db_a", "db_b"]      # 判定成立，db_c 跳过
-    assert res["total_tables"] == 2
-    assert res["baseline_tables"] == 6            # 基线合计仍如实回报
+    assert pool.selected == ["db_a", "db_b", "db_c"], "不得因指纹相同跳过 db_c"
+    assert res["total_tables"] == 4
+    by_db = {i["db_name"]: i for i in res["items"]}
+    assert by_db["db_c"]["total_tables"] == 2
+    assert by_db["db_c"]["status"] == "OK"
+    # 且不得留下"仅基线可见"的漏表告警——说明确实采到了
+    assert not any(w["code"] == "RECON_MISMATCH" for w in res["warnings"])
 
 
 def test_distributed_per_db_scope_still_loops(monkeypatch):
@@ -2586,8 +3225,11 @@ def test_distributed_partial_failure(monkeypatch):
     assert res["total_tables"] == 2
     statuses = {i["db_name"]: i["status"] for i in res["items"]}
     assert statuses == {"db_a": "OK", "db_b": "FAILED", "db_c": "OK"}
+    # Rev.G / P1-07：失败库汇总为【一条】告警，逐库原因下沉到 item.detail
     w = [x for x in res["warnings"] if x["code"] == "PROXY_CMD_FAILED"]
-    assert w and "授权不足" in w[0]["detail"]
+    assert len(w) == 1
+    assert "1 个库采集失败" in w[0]["detail"] and "db_b" in w[0]["detail"]
+    assert "授权不足" in by_db_detail(res)["db_b"]
 
 
 def test_command_timeout_is_reported_not_hung(monkeypatch):
@@ -2747,13 +3389,440 @@ def test_reject_system_database():
 
 
 # ══════════════════════════════════════════════════════════════════
-# 落库（需本地元数据库）
+# Rev.G 定向回归（O 评审报告 §6 的 T-R01…T-R14）
 # ══════════════════════════════════════════════════════════════════
-@pytest.mark.skipif(not MYSQL_AVAILABLE, reason="MySQL 测试环境未启动")
-def test_run_stats_persists(monkeypatch):
+def _uniq(prefix):
+    """每个并发用例用独立 connection_id：registry 的按连接信号量按 id 缓存，
+    复用同一个 id 会把上一个用例的限流配额带进来。"""
+    return f"{prefix}-{random.randrange(10**9)}"
+
+
+def test_r02_same_connection_concurrency_is_rejected(monkeypatch):
+    """T-R02 / P1-02：同一连接的第二个请求被服务端限流；槽位在退出后释放。"""
+    from backend import config
+    from backend.services.connection_registry import registry, ScanBusyError
+    monkeypatch.setattr(config, "max_concurrent_scans_per_connection", lambda: 1)
+    monkeypatch.setattr(config, "max_concurrent_scans_global", lambda: 8)
+    monkeypatch.setattr(svc, "_ensure_schema", lambda: None)
+    _patch_ctx(monkeypatch, "centralized")
+    pool = FakePool(databases=["db_a"], info_schema={"db_a": {"base": ["t1"]}})
+    cid = _uniq("tr02")
+    with registry.scan_slot(cid):
+        with pytest.raises(ScanBusyError) as e:
+            svc.run_stats(pool, connection_id=cid)
+        assert "并发已达上限" in str(e.value)
+    # 槽位已释放：同一连接可以再次进入
+    with registry.scan_slot(cid):
+        pass
+
+
+def test_r02b_slot_is_released_when_collection_raises(monkeypatch):
+    """T-R02 / P1-02：采集抛异常时槽位必须释放，不得泄漏成永久占用。"""
+    from backend import config
+    from backend.services.connection_registry import registry
+    monkeypatch.setattr(config, "max_concurrent_scans_per_connection", lambda: 1)
+    monkeypatch.setattr(svc, "_ensure_schema", lambda: None)
+
+    def _boom(*a, **k):
+        raise RuntimeError("采集炸了")
+
+    monkeypatch.setattr(svc, "analyze", _boom)
+    cid = _uniq("tr02b")
+    with pytest.raises(RuntimeError):
+        svc.run_stats(FakePool(), connection_id=cid)
+    with registry.scan_slot(cid):        # 未泄漏
+        pass
+
+
+def test_r03_global_quota_is_shared_with_existing_scans(monkeypatch):
+    """T-R03 / P1-02：表类型统计与既有扫描【共用】同一份全局配额。
+
+    这条测试的意义不是"新功能能被限流"，而是"新功能不会另开一份配额"——
+    若各算各的，全局上限就形同虚设，正是 O 指出的挤占既有审核/扫描的路径。
+    """
+    from backend import config
+    from backend.services.connection_registry import registry, ScanBusyError
+    monkeypatch.setattr(config, "max_concurrent_scans_global", lambda: 1)
+    monkeypatch.setattr(config, "max_concurrent_scans_per_connection", lambda: 4)
+    monkeypatch.setattr(svc, "_ensure_schema", lambda: None)
+    _patch_ctx(monkeypatch, "centralized")
+    pool = FakePool(databases=["db_a"], info_schema={"db_a": {"base": ["t1"]}})
+    other = _uniq("tr03-other")
+    mine = _uniq("tr03-mine")
+    # 先由"既有扫描"占满全局槽位（scan_service.py:72 用的就是这个入口）
+    with registry.scan_slot(other):
+        with pytest.raises(ScanBusyError) as e:
+            svc.run_stats(pool, connection_id=mine)
+        assert "服务扫描并发已达上限" in str(e.value)
+    # 反向：本模块占用时，既有扫描同样被挡住 —— 证明是同一份配额
+    monkeypatch.setattr(svc, "analyze",
+                        lambda *a, **k: _raise_inside_slot(registry, other))
+    with pytest.raises(ScanBusyError):
+        svc.run_stats(pool, connection_id=mine)
+
+
+def _raise_inside_slot(registry, other_cid):
+    """在本模块已持有槽位的情况下，模拟既有扫描来抢全局槽位。"""
+    with registry.scan_slot(other_cid):
+        return {}
+
+
+def test_r02c_api_maps_scan_busy_to_429(monkeypatch):
+    """T-R02 / P1-02：并发超限在 API 层映射为 429（与 tdsql_manage.py:432 同口径）。"""
+    from fastapi import HTTPException
+    from backend.api import table_type_stats as api
+    from backend.services.connection_registry import ScanBusyError
+
+    monkeypatch.setattr(api, "_pool", lambda cid: FakePool())
+
+    def _busy(*a, **k):
+        raise ScanBusyError("目标库 c1 扫描并发已达上限(2)，请稍后重试")
+
+    monkeypatch.setattr(api.svc, "run_stats", _busy)
+    with pytest.raises(HTTPException) as e:
+        api.run(api.StatsRequest(connection_id="c1"), _FakeRequest("alice"))
+    assert e.value.status_code == 429
+    assert "并发已达上限" in e.value.detail
+
+
+class _FakeRequest:
+    def __init__(self, username=None):
+        class _S:
+            pass
+        self.state = _S()
+        if username is not None:
+            self.state.username = username
+
+
+def test_r04_broken_connection_is_rebuilt_before_next_db(monkeypatch):
+    """T-R04 / P1-04：首库断链后连接被重建，次库用新连接并正常完成。"""
+    _patch_ctx(monkeypatch, "distributed")
+    per_db = {
+        ("db_a", svc.SQL_SHARD): _mysql_error(
+            2013, "Lost connection to MySQL server during query"),
+        ("db_b", svc.SQL_SHARD): _rows(["db_b.s2"]),
+        ("db_b", svc.SQL_BROADCAST): [],
+        ("db_b", svc.SQL_SINGLE): [],
+    }
+    pool = FakePool(databases=["db_a", "db_b"],
+                    info_schema={"db_a": {"base": ["s1"]},
+                                 "db_b": {"base": ["s2"]}},
+                    per_db=per_db)
+    _patch_tmp_pool(monkeypatch, pool)
+    res = svc.analyze(pool, connection_id="c1")
+    # 每库一个连接上下文（Rev.F 是全程一个）
+    assert pool.ctx_count == 2
+    # db_a 的异常穿出了 with ⇒ 真实池会关闭并重建线程本地连接
+    assert pool.generation == 1, "异常必须穿出 with，否则坏连接不会被重建"
+    gens = dict(pool.conn_ids)
+    assert gens["db_a"] == 0 and gens["db_b"] == 1, "db_b 必须用重建后的新连接"
+    by_db = {i["db_name"]: i for i in res["items"]}
+    assert by_db["db_a"]["status"] == "FAILED"
+    assert by_db["db_b"]["status"] == "OK" and by_db["db_b"]["total_tables"] == 1
+    assert res["total_tables"] == 1
+
+
+def test_r04b_read_timeout_also_rebuilds(monkeypatch):
+    """T-R04：读超时同样必须穿出 with（超时后连接里可能残留未读结果集）。"""
+    _patch_ctx(monkeypatch, "distributed")
+    per_db = {("db_a", svc.SQL_SHARD): Exception("Read timed out"),
+              ("db_b", svc.SQL_SHARD): _rows(["db_b.s2"]),
+              ("db_b", svc.SQL_BROADCAST): [],
+              ("db_b", svc.SQL_SINGLE): []}
+    pool = FakePool(databases=["db_a", "db_b"],
+                    info_schema={"db_a": {"base": ["s1"]},
+                                 "db_b": {"base": ["s2"]}},
+                    per_db=per_db)
+    _patch_tmp_pool(monkeypatch, pool)
+    res = svc.analyze(pool, connection_id="c1")
+    assert pool.generation == 1
+    assert "读超时" in by_db_detail(res)["db_a"]
+    assert res["total_tables"] == 1
+
+
+def test_r05_failed_db_partial_result_does_not_pollute(monkeypatch):
+    """T-R05 / P1-05：第一条命令返回跨库行、第二条失败 ⇒ 整库丢弃，不污染他库。"""
+    _patch_ctx(monkeypatch, "distributed")
+    per_db = {
+        # db_a 的分片命令返回了实例级结果（含 db_b 的一张幽灵表），随后广播命令失败
+        ("db_a", svc.SQL_SHARD): _rows(["db_a.s1", "db_b.ghost"],
+                                       info="shardkey:id"),
+        ("db_a", svc.SQL_BROADCAST): _mysql_error(1142, "SELECT command denied"),
+        ("db_b", svc.SQL_SHARD): _rows(["db_b.s2"], info="shardkey:id"),
+        ("db_b", svc.SQL_BROADCAST): [],
+        ("db_b", svc.SQL_SINGLE): [],
+    }
+    pool = FakePool(databases=["db_a", "db_b"],
+                    info_schema={"db_a": {"base": ["s1"]},
+                                 "db_b": {"base": ["s2", "ghost"]}},
+                    per_db=per_db)
+    _patch_tmp_pool(monkeypatch, pool)
+    res = svc.analyze(pool, connection_id="c1")
+    by_db = {i["db_name"]: i for i in res["items"]}
+    assert by_db["db_a"]["status"] == "FAILED"
+    # db_b 只保留它自己那一轮扫出来的 s2；db_a 那轮暂存的 ghost 已被整体丢弃
+    assert by_db["db_b"]["total_tables"] == 1
+    assert by_db["db_b"]["shard_tables"] == 1
+    assert res["total_tables"] == 1
+    assert res["failed_databases"] == 1
+    # ghost 只在基线里，于是被如实报成"仅基线可见"，而不是被脏数据凑成 OK
+    assert any(w["code"] == "RECON_MISMATCH" for w in res["warnings"])
+
+
+def test_r05b_overlap_is_not_polluted_by_failed_db(monkeypatch):
+    """T-R05 / P1-05：失败库的暂存结果不得进入重叠数统计。"""
+    _patch_ctx(monkeypatch, "distributed")
+    per_db = {
+        ("db_a", svc.SQL_SHARD): _rows(["db_b.s2"]),      # 与 db_b 自扫结果同一张表
+        ("db_a", svc.SQL_BROADCAST): _mysql_error(1142, "denied"),
+        ("db_b", svc.SQL_SHARD): [],
+        ("db_b", svc.SQL_BROADCAST): _rows(["db_b.s2"]),
+        ("db_b", svc.SQL_SINGLE): [],
+    }
+    pool = FakePool(databases=["db_a", "db_b"],
+                    info_schema={"db_a": {"base": []},
+                                 "db_b": {"base": ["s2"]}},
+                    per_db=per_db)
+    _patch_tmp_pool(monkeypatch, pool)
+    res = svc.analyze(pool, connection_id="c1")
+    assert res["overlap_count"] == 0, "失败库的暂存行不得参与重叠判定"
+    by_db = {i["db_name"]: i for i in res["items"]}
+    assert by_db["db_b"]["broadcast_tables"] == 1
+    assert by_db["db_b"]["shard_tables"] == 0
+
+
+def test_r06_centralized_keeps_legit_subp_named_table(monkeypatch):
+    """T-R06 / P1-03：集中式实例的 `orders_tdsql_subp202601` 是合法业务表，必须计入。
+
+    集中式没有二级分区物理子表这一构造，也没有 Proxy 交叉校验兜底——
+    按后缀剔除就是静默少算，且不可见（违反 REQ-5）。
+    """
+    _patch_ctx(monkeypatch, "centralized")
+    pool = FakePool(databases=["db_a"],
+                    info_schema={"db_a": {"base": [
+                        "orders", "orders_tdsql_subp202601",
+                        "cus_pub_translog_tdsql_subp190001"]}})
+    res = svc.analyze(pool, connection_id="c1")
+    assert res["total_tables"] == 3
+    assert res["single_tables"] == 3
+    assert res["baseline_tables"] == 3
+    assert res["subpartition_tables"] == 0
+    assert not any(w["code"] == "SUBPARTITION_EXCLUDED" for w in res["warnings"])
+
+
+def test_r07_distributed_requires_confirmed_parent(monkeypatch):
+    """T-R07 / P1-03：分布式也不能只凭后缀——父表必须确实出现在 Proxy 结果里。
+
+    db_a：父表 orders 在 Proxy 结果中 ⇒ 子表判定成立，剔除。
+    db_b：父表 legacy 不在 Proxy 结果中 ⇒ 保留为逻辑表，并由 RECON_MISMATCH
+          把这条不确定性【显式】报出来（可见），而不是静默少算（不可见）。
+    """
+    _patch_ctx(monkeypatch, "distributed")
+    per_db = {
+        ("db_a", svc.SQL_SHARD): _rows(["db_a.orders"], info="shardkey:id"),
+        ("db_a", svc.SQL_BROADCAST): [],
+        ("db_a", svc.SQL_SINGLE): [],
+        ("db_b", svc.SQL_SHARD): [],
+        ("db_b", svc.SQL_BROADCAST): [],
+        ("db_b", svc.SQL_SINGLE): _rows(["db_b.other"]),
+    }
+    pool = FakePool(
+        databases=["db_a", "db_b"],
+        info_schema={"db_a": {"base": ["orders", "orders_tdsql_subp202601"]},
+                     "db_b": {"base": ["other", "legacy_tdsql_subp202601"]}},
+        per_db=per_db)
+    _patch_tmp_pool(monkeypatch, pool)
+    res = svc.analyze(pool, connection_id="c1")
+    by_db = {i["db_name"]: i for i in res["items"]}
+    assert by_db["db_a"]["subpartition_tables"] == 1     # 父表已确认 ⇒ 剔除
+    assert by_db["db_a"]["baseline_tables"] == 1
+    assert by_db["db_b"]["subpartition_tables"] == 0     # 父表未确认 ⇒ 不剔除
+    assert by_db["db_b"]["baseline_tables"] == 2
+    assert "legacy_tdsql_subp202601" in by_db["db_b"]["detail"], \
+        "未确认的后缀表必须在明细里被点名，不能悄悄消失"
+    assert any(w["code"] == "RECON_MISMATCH" for w in res["warnings"])
+
+
+def test_r09_five_hundred_failed_databases_is_bounded(monkeypatch):
+    """T-R09 / P1-07：500 库全失败时告警可序列化、体积受控、前端条数受控。"""
+    import json as _json
+    _patch_ctx(monkeypatch, "distributed")
+    dbs = [f"db_{i:03d}" for i in range(500)]
+    long_msg = ("SELECT command denied to user 'audit'@'10.0.0.1' "
+                "for table 't_business_transaction_detail_history'") * 3
+    per_db = {(d, svc.SQL_SHARD): _mysql_error(1142, long_msg) for d in dbs}
+    pool = FakePool(databases=dbs,
+                    info_schema={d: {"base": [f"t_{d}"]} for d in dbs},
+                    per_db=per_db)
+    _patch_tmp_pool(monkeypatch, pool)
+    res = svc.analyze(pool, connection_id="c1")
+    assert res["failed_databases"] == 500
+    assert res["total_tables"] == 0
+    w = [x for x in res["warnings"] if x["code"] == "PROXY_CMD_FAILED"]
+    assert len(w) == 1, "500 库失败必须汇总为一条告警，不是 500 条"
+    assert "500 个库采集失败" in w[0]["detail"]
+    blob = _json.dumps(res["warnings"], ensure_ascii=False)
+    assert len(blob.encode("utf-8")) < 8 * 1024, \
+        f"warnings_json 体积失控: {len(blob.encode('utf-8'))} 字节"
+    assert len(res["warnings"]) <= 6, "前端横幅条数必须受控"
+    # 逐库原因没有丢，只是下沉到了明细行
+    details = by_db_detail(res)
+    assert len(details) == 500 and all(details.values())
+    assert all(len(d) <= 512 for d in details.values())
+
+
+def test_r10_centralized_nonexistent_database_is_rejected(monkeypatch):
+    """T-R10 / P2-01：指定不存在的库必须报错，不得回"成功、0 张表"。"""
+    _patch_ctx(monkeypatch, "centralized")
+    pool = FakePool(databases=["db_a"], info_schema={"db_a": {"base": ["t1"]}})
+    with pytest.raises(ValueError) as e:
+        svc.analyze(pool, connection_id="c1", database="nosuch")
+    assert "不存在" in str(e.value)
+    # 存在但为空的库仍然正常返回 0，两者可区分
+    pool2 = FakePool(databases=["db_a", "db_empty"],
+                     info_schema={"db_a": {"base": ["t1"]},
+                                  "db_empty": {"base": []}})
+    res = svc.analyze(pool2, connection_id="c1", database="db_empty")
+    assert res["total_tables"] == 0 and res["items"][0]["status"] == "OK"
+
+
+def test_r10b_show_databases_failure_is_not_silent(monkeypatch):
+    """T-R10 / P2-01：库枚举失败不得被吞成"空库"。"""
+    _patch_ctx(monkeypatch, "centralized")
+    pool = FakePool(show_db_fail=_mysql_error(1045, "Access denied for user"))
+    with pytest.raises(Exception) as e:
+        svc.analyze(pool, connection_id="c1")
+    assert "Access denied" in str(e.value)
+
+
+def test_r11_empty_connection_id_is_rejected():
+    """T-R11 / P2-03：空 connection_id 下连接解析与实例类型解析可能指向不同实例。"""
+    with pytest.raises(ValueError) as e:
+        svc.run_stats(FakePool(), connection_id="")
+    assert "connection_id" in str(e.value)
+    with pytest.raises(ValueError):
+        svc.run_stats(FakePool(), connection_id="   ")
+
+
+def test_r11b_api_model_requires_connection_id():
+    """T-R11 / P2-03：接口契约层就必须挡住空 connection_id。"""
+    import pydantic
+    from backend.api.table_type_stats import StatsRequest
+    assert StatsRequest(connection_id="c1").database == ""
+    with pytest.raises(pydantic.ValidationError):
+        StatsRequest(database="x")                 # 缺字段
+    with pytest.raises(pydantic.ValidationError):
+        StatsRequest(connection_id="", database="x")
+
+
+def test_r13_api_records_current_operator(monkeypatch):
+    """T-R13 / P2-02：API 必须把 request.state.username 传给 run_stats(operator=)。"""
+    import inspect
+    from fastapi import Request
+    from backend.api import table_type_stats as api
+
+    sig = inspect.signature(api.run)
+    assert "http_request" in sig.parameters
+    assert sig.parameters["http_request"].annotation is Request
+
+    seen = {}
+
+    def _spy(pool, connection_id="", database="", operator=""):
+        seen["operator"] = operator
+        return {"ok": True}
+
+    monkeypatch.setattr(api, "_pool", lambda cid: FakePool())
+    monkeypatch.setattr(api.svc, "run_stats", _spy)
+    api.run(api.StatsRequest(connection_id="c1"), _FakeRequest("zhangsan"))
+    assert seen["operator"] == "zhangsan"
+    # 未认证兜底不得写空串（空串会让历史留档无法追责）
+    api.run(api.StatsRequest(connection_id="c1"), _FakeRequest(None))
+    assert seen["operator"] == "anonymous"
+
+
+def test_r08_permission_key_is_registered_at_every_point():
+    """T-R08 / P1-06：新权限键必须登记到全部 6 处，缺一处就有角色进不去。
+
+    设计阶段（模块尚未落盘）自动跳过；Q 落盘后这条即成为硬门禁。
+    """
+    import pathlib
+    import backend
+    repo = pathlib.Path(backend.__file__).resolve().parent.parent
+    if not (repo / "backend" / "api" / "table_type_stats.py").exists():
+        pytest.skip("G14 尚未落盘（设计阶段）")
+    perm = "deep-diag-tabletype"
+    points = [
+        ("backend/services/auth_service.py", perm),   # API 路径 → 权限键映射
+        ("backend/services/database.py", perm),       # 默认角色权限清单
+        ("frontend/index.html", perm),                # el-tab-pane v-if
+        ("frontend/static/js/app.js", perm),          # subtabs 回退清单
+    ]
+    for rel, needle in points:
+        text = (repo / rel).read_text(encoding="utf-8")
+        assert needle in text, f"{rel} 未登记权限键 {needle}"
+    # subtabs 是 P1-06 的正主：单独钉住，防止只加了 tab-pane 忘了回退清单
+    app_js = (repo / "frontend/static/js/app.js").read_text(encoding="utf-8")
+    line = [l for l in app_js.splitlines() if "const subtabs=" in l]
+    assert line and f"perm:'{perm}'" in line[0], \
+        "深度诊断子页签回退清单 subtabs 未登记新页签"
+
+
+# ══════════════════════════════════════════════════════════════════
+# 落库与结构验收（需本地元数据库）
+# ══════════════════════════════════════════════════════════════════
+def _ddl_path():
+    """建表 DDL 的位置：落盘后是 backend/schema/v11/110_table_type_stats.sql，
+    设计阶段在本文件旁边。测试直接读 DDL 文件本身，保证"文档里的建表语句"
+    和"服务的结构验收"是同一份真相（P1-08 的账要能对上）。"""
+    import pathlib
+    import backend
+    here = pathlib.Path(__file__).parent / "110_table_type_stats.sql"
+    if here.exists():
+        return here
+    repo = pathlib.Path(backend.__file__).resolve().parent.parent
+    return repo / "backend" / "schema" / "v11" / "110_table_type_stats.sql"
+
+
+def _exec_sql(*statements):
+    from backend.services.database import _get_connection
+    conn = _get_connection()
+    try:
+        for st in statements:
+            st = st.strip()
+            if st:
+                conn.execute(st)
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _strip_sql_comments(text):
+    """去掉整行 -- 注释后按分号切分，保留真正的语句。"""
+    body = "\n".join(l for l in text.splitlines()
+                     if not l.strip().startswith("--"))
+    return [st for st in body.split(";") if st.strip()]
+
+
+def _reset_g14_tables():
+    """删表重建，回到 DDL 定义的干净状态。"""
+    ddl = _ddl_path().read_text(encoding="utf-8")
+    _exec_sql("DROP TABLE IF EXISTS table_type_stat_item",
+              "DROP TABLE IF EXISTS table_type_stat")
+    _exec_sql(*_strip_sql_comments(ddl))
+
+
+@pytest.fixture()
+def g14_schema():
     os.environ.setdefault("SQLCHECK_DB_NAME", "tdsql_sqlcheck_test")
     from backend.services.database import ensure_db
     ensure_db()
+    _reset_g14_tables()
+    yield
+    _reset_g14_tables()
+
+
+@pytest.mark.skipif(not MYSQL_AVAILABLE, reason="MySQL 测试环境未启动")
+def test_run_stats_persists(monkeypatch, g14_schema):
     _patch_ctx(monkeypatch, "centralized")
     pool = FakePool(databases=["db_a", "db_b"],
                     info_schema={"db_a": {"base": ["t1", "t2"]},
@@ -2768,16 +3837,123 @@ def test_run_stats_persists(monkeypatch):
 
 
 @pytest.mark.skipif(not MYSQL_AVAILABLE, reason="MySQL 测试环境未启动")
-def test_get_detail_missing_id_is_graceful():
-    os.environ.setdefault("SQLCHECK_DB_NAME", "tdsql_sqlcheck_test")
-    from backend.services.database import ensure_db
-    ensure_db()
+def test_r13_created_by_is_persisted(monkeypatch, g14_schema):
+    """T-R13 / P2-02：操作人真正落到 created_by，历史可回看可追责。"""
+    _patch_ctx(monkeypatch, "centralized")
+    pool = FakePool(databases=["db_a"], info_schema={"db_a": {"base": ["t1"]}})
+    res = svc.run_stats(pool, connection_id="qa", operator="zhangsan")
+    hist = svc.list_history("qa", limit=1)
+    assert hist[0]["created_by"] == "zhangsan"
+    assert hist[0]["id"] == res["stat_id"]
+    # /history 支持不带 connection_id 的全量回看
+    assert any(h["id"] == res["stat_id"] for h in svc.list_history(limit=5))
+
+
+@pytest.mark.skipif(not MYSQL_AVAILABLE, reason="MySQL 测试环境未启动")
+def test_r09b_large_warnings_survive_round_trip(monkeypatch, g14_schema):
+    """T-R09 / P1-07：500 库失败的告警必须能落库并原样回读（TEXT 会截断）。"""
+    _patch_ctx(monkeypatch, "distributed")
+    dbs = [f"db_{i:03d}" for i in range(500)]
+    per_db = {(d, svc.SQL_SHARD): _mysql_error(
+        1142, "SELECT command denied to user 'audit'@'10.0.0.1'") for d in dbs}
+    pool = FakePool(databases=dbs,
+                    info_schema={d: {"base": [f"t_{d}"]} for d in dbs},
+                    per_db=per_db)
+    _patch_tmp_pool(monkeypatch, pool)
+    res = svc.run_stats(pool, connection_id="qa", operator="pytest")
+    back = svc.get_detail(res["stat_id"])
+    assert back["warnings"] == res["warnings"], "告警回读必须与写入一致（无截断）"
+    assert len(back["items"]) == 500
+    assert all(i["detail"] for i in back["items"])
+
+
+@pytest.mark.skipif(not MYSQL_AVAILABLE, reason="MySQL 测试环境未启动")
+def test_get_detail_missing_id_is_graceful(g14_schema):
     out = svc.get_detail(99999999)
     assert out == {"items": [], "warnings": []}
+
+
+# ── T-R12 / P1-08：畸形同名表必须失败关闭 ────────────────────────────
+@pytest.mark.skipif(not MYSQL_AVAILABLE, reason="MySQL 测试环境未启动")
+def test_r12_missing_table_fails_closed(g14_schema):
+    """场景一：迁移登记后表被删除。迁移器不会重放纯 CREATE TABLE，
+    _structure_state() 也照样返回 valid —— 只能靠本模块自验。"""
+    _exec_sql("DROP TABLE IF EXISTS table_type_stat_item",
+              "DROP TABLE IF EXISTS table_type_stat")
+    with pytest.raises(svc.SchemaNotReadyError) as e:
+        svc._ensure_schema()
+    assert "缺少表 table_type_stat" in str(e.value)
+
+
+@pytest.mark.skipif(not MYSQL_AVAILABLE, reason="MySQL 测试环境未启动")
+def test_r12b_missing_column_fails_closed(g14_schema):
+    """场景二：同名但缺列的历史残留表 —— CREATE TABLE IF NOT EXISTS 会静默跳过。"""
+    _exec_sql("ALTER TABLE table_type_stat DROP COLUMN subpartition_tables")
+    with pytest.raises(svc.SchemaNotReadyError) as e:
+        svc._ensure_schema()
+    assert "缺少列" in str(e.value) and "subpartition_tables" in str(e.value)
+
+
+@pytest.mark.skipif(not MYSQL_AVAILABLE, reason="MySQL 测试环境未启动")
+def test_r12c_wrong_type_fails_closed(g14_schema):
+    """场景三：列类型错误。warnings_json 退回 TEXT 就是 P1-07 的成因，必须挡住。"""
+    _exec_sql("ALTER TABLE table_type_stat MODIFY COLUMN warnings_json TEXT")
+    with pytest.raises(svc.SchemaNotReadyError) as e:
+        svc._ensure_schema()
+    assert "列类型不符" in str(e.value) and "warnings_json" in str(e.value)
+    _reset_g14_tables()
+    _exec_sql("ALTER TABLE table_type_stat_item "
+              "MODIFY COLUMN total_tables VARCHAR(32) DEFAULT '0'")
+    with pytest.raises(svc.SchemaNotReadyError) as e:
+        svc._ensure_schema()
+    assert "total_tables" in str(e.value)
+
+
+@pytest.mark.skipif(not MYSQL_AVAILABLE, reason="MySQL 测试环境未启动")
+def test_r12d_missing_index_fails_closed(g14_schema):
+    """场景四：缺索引。不影响正确性但会让 /history 在留档积累后全表扫描。"""
+    _exec_sql("DROP INDEX idx_tts_created ON table_type_stat")
+    with pytest.raises(svc.SchemaNotReadyError) as e:
+        svc._ensure_schema()
+    assert "缺少索引" in str(e.value) and "idx_tts_created" in str(e.value)
+
+
+@pytest.mark.skipif(not MYSQL_AVAILABLE, reason="MySQL 测试环境未启动")
+def test_r12e_run_stats_fails_before_collecting(monkeypatch, g14_schema):
+    """T-R12：结构验收必须发生在【采集之前】——否则用户白等一轮 180 秒才收 500。"""
+    _exec_sql("DROP TABLE IF EXISTS table_type_stat_item")
+    _patch_ctx(monkeypatch, "centralized")
+    pool = FakePool(databases=["db_a"], info_schema={"db_a": {"base": ["t1"]}})
+    called = {"n": 0}
+    real_analyze = svc.analyze
+
+    def _counting(*a, **k):
+        called["n"] += 1
+        return real_analyze(*a, **k)
+
+    monkeypatch.setattr(svc, "analyze", _counting)
+    with pytest.raises(svc.SchemaNotReadyError):
+        svc.run_stats(pool, connection_id="qa")
+    assert called["n"] == 0, "结构不合格时不得先跑一轮采集"
+
+
+@pytest.mark.skipif(not MYSQL_AVAILABLE, reason="MySQL 测试环境未启动")
+def test_r12f_ddl_and_service_column_lists_agree(g14_schema):
+    """DDL 文件与服务的期望列清单必须逐字一致，防止两边各改各的。"""
+    ddl = _ddl_path().read_text(encoding="utf-8").lower()
+    for col in svc._STAT_COLUMNS:
+        if col != "id":
+            assert col in ddl, f"DDL 缺少 table_type_stat.{col}"
+    for col in svc._ITEM_COLUMNS:
+        if col != "id":
+            assert col in ddl, f"DDL 缺少 table_type_stat_item.{col}"
+    assert "mediumtext" in ddl, "warnings_json 必须是 MEDIUMTEXT（P1-07）"
+    # 干净结构下验收必须通过
+    svc._ensure_schema()
 ```
 
 
-### A.5 既有文件的 9 行改动 + 1 个前端块
+### A.5 既有文件的 10 行改动 + 2 个前端块
 
 #### A.5.1 `backend/main.py` —— 2 行
 
@@ -2829,6 +4005,13 @@ app.include_router(table_type_stats_router)  # G14 表类型统计
 
 插入位置：第 1839 行"索引体检"的 `</el-tab-pane>` 之后、第 1840 行 `<!-- 结构比对 G6 -->` 之前。
 
+> **Rev.G 相对 Rev.F 的两处前端变化**（关闭 P1-07 与 P2-02）：
+> 1. 告警区改为渲染 `visibleTableTypeWarnings`（默认最多 10 条）+ 一个"展开查看全部"按钮
+>    ——500 库失败时不能往页面上糊几百个 `el-alert`；
+> 2. 新增「历史」按钮 + 历史抽屉，点某一次即拉 `/detail/{id}` 展示逐库明细与告警。
+>    Rev.F 只给了 `/history`、`/detail` 两个接口却没有任何入口，
+>    REQ-6 的"可回看"在 UI 上等于不存在。
+
 ```html
               <!-- 表类型统计 G14 -->
               <el-tab-pane v-if="visibleMenus.has('deep-diag-tabletype')" label="表类型统计" name="tabletype">
@@ -2846,10 +4029,15 @@ app.include_router(table_type_stats_router)  # G14 表类型统计
                   <span v-if="deepResult.tabletype.failed_databases"> · <b style="color:var(--danger-500)">失败库 {{ deepResult.tabletype.failed_databases }}</b></span>
                   <span v-if="deepResult.tabletype.skipped_databases"> · <b style="color:var(--warning-500)">未采集 {{ deepResult.tabletype.skipped_databases }}</b></span>
                 </span>
-                <el-alert v-for="(w,i) in (deepResult.tabletype ? deepResult.tabletype.warnings : [])" :key="i"
+                <el-button size="small" style="margin-left:8px" @click="openTableTypeHistory">历史</el-button>
+                <el-alert v-for="(w,i) in visibleTableTypeWarnings" :key="i"
                           :type="w.severity==='ERROR'?'error':(w.severity==='WARNING'?'warning':'info')"
                           :closable="false" show-icon style="margin-top:8px"
                           :title="w.code + (w.db_name ? (' · '+w.db_name) : '')" :description="w.detail"></el-alert>
+                <el-button v-if="tabletypeWarnTotal>visibleTableTypeWarnings.length" link type="primary" size="small"
+                           style="margin-top:4px" @click="tabletypeWarnAll=true">
+                  展开查看全部 {{ tabletypeWarnTotal }} 条告警
+                </el-button>
                 <el-table v-if="deepResult.tabletype" :data="deepResult.tabletype.items" size="small" border style="margin-top:12px" max-height="480">
                   <el-table-column prop="db_name" label="数据库" width="200"></el-table-column>
                   <el-table-column prop="total_tables" label="总表数" width="100"></el-table-column>
@@ -2866,12 +4054,53 @@ app.include_router(table_type_stats_router)  # G14 表类型统计
                 <div style="color:#909399;font-size:12px;margin-top:8px">
                   口径：分布式实例逐业务库执行 /*proxy*/show table with shardkey · with noshardkey_allset · without shardkey，按"库名+表名"去重；
                   集中式实例统计 information_schema.TABLES 中 TABLE_TYPE='BASE TABLE'，分片表与广播表恒为 0，不统计视图。
-                  逻辑基线已剔除 xxx_tdsql_subp202601 这类二级分区物理子表（单列显示，不计入总数）。结果为采集时刻快照。
+                  逻辑基线已剔除 xxx_tdsql_subp202601 这类二级分区物理子表（仅当其逻辑父表确实出现在 Proxy 结果中；单列显示，不计入总数）。结果为采集时刻快照。
                 </div>
+
+                <!-- 历史回看抽屉（Rev.G / P2-02） -->
+                <el-drawer v-model="tabletypeHistoryVisible" title="表类型统计历史" size="60%">
+                  <el-table :data="tabletypeHistory" size="small" border highlight-current-row
+                            @current-change="loadTableTypeHistoryDetail" max-height="300">
+                    <el-table-column prop="created_at" label="统计时间" width="170">
+                      <template #default="s">{{ formatTime(s.row.created_at) }}</template>
+                    </el-table-column>
+                    <el-table-column prop="created_by" label="操作人" width="110"></el-table-column>
+                    <el-table-column prop="database_filter" label="库名" width="130">
+                      <template #default="s">{{ s.row.database_filter || '全部业务库' }}</template>
+                    </el-table-column>
+                    <el-table-column prop="instance_type" label="实例类型" width="90">
+                      <template #default="s">{{ s.row.instance_type==='distributed'?'分布式':'集中式' }}</template>
+                    </el-table-column>
+                    <el-table-column prop="database_count" label="库数" width="70"></el-table-column>
+                    <el-table-column prop="total_tables" label="总表" width="80"></el-table-column>
+                    <el-table-column prop="single_tables" label="单表" width="80"></el-table-column>
+                    <el-table-column prop="broadcast_tables" label="广播表" width="80"></el-table-column>
+                    <el-table-column prop="shard_tables" label="分片表" width="80"></el-table-column>
+                    <el-table-column prop="failed_databases" label="失败库" width="80"></el-table-column>
+                  </el-table>
+                  <div style="color:#909399;font-size:12px;margin:8px 0">点击上表任意一行，查看该次统计的逐库明细。</div>
+                  <el-alert v-for="(w,i) in tabletypeDetailWarnings" :key="i"
+                            :type="w.severity==='ERROR'?'error':(w.severity==='WARNING'?'warning':'info')"
+                            :closable="false" show-icon style="margin-bottom:6px"
+                            :title="w.code + (w.db_name ? (' · '+w.db_name) : '')" :description="w.detail"></el-alert>
+                  <el-table :data="tabletypeDetailItems" size="small" border max-height="360">
+                    <el-table-column prop="db_name" label="数据库" width="180"></el-table-column>
+                    <el-table-column prop="total_tables" label="总表数" width="90"></el-table-column>
+                    <el-table-column prop="single_tables" label="单表" width="80"></el-table-column>
+                    <el-table-column prop="broadcast_tables" label="广播表" width="80"></el-table-column>
+                    <el-table-column prop="shard_tables" label="分片表" width="80"></el-table-column>
+                    <el-table-column prop="baseline_tables" label="逻辑基线" width="90"></el-table-column>
+                    <el-table-column prop="subpartition_tables" label="二级分区子表" width="110"></el-table-column>
+                    <el-table-column prop="status" label="状态" width="90">
+                      <template #default="s"><el-tag :type="s.row.status==='OK'?'success':(s.row.status==='SKIPPED'?'warning':'danger')" size="small">{{ s.row.status }}</el-tag></template>
+                    </el-table-column>
+                    <el-table-column prop="detail" label="说明"></el-table-column>
+                  </el-table>
+                </el-drawer>
               </el-tab-pane>
 ```
 
-#### A.5.5 `frontend/static/js/app.js` —— 3 行
+#### A.5.5 `frontend/static/js/app.js` —— 4 行 + 1 个纯新增方法块
 
 **① 第 218 行**，`deepResult` 增加一个键：
 
@@ -2880,24 +4109,79 @@ app.include_router(table_type_stats_router)  # G14 表类型统计
 +    const deepResult=reactive({cluster:null,index:null,diff:null,emergency:null,sqlstats:null,tabletype:null});
 ```
 
-**② 第 814 行**（`runSqlStats` 的 `};`）之后、第 815 行 `// G10: ZK Discovery` 之前追加新方法：
+**② 第 814 行**（`runSqlStats` 的 `};`）之后、第 815 行 `// G10: ZK Discovery` 之前追加新方法块
+（Rev.G：含告警展示上限与历史抽屉）：
 
 ```javascript
+    // G14: 表类型统计
+    const tabletypeWarnAll=ref(false);
+    const tabletypeHistoryVisible=ref(false);
+    const tabletypeHistory=ref([]);
+    const tabletypeDetailItems=ref([]);
+    const tabletypeDetailWarnings=ref([]);
+    const TABLETYPE_WARN_CAP=10;
+    const tabletypeWarnTotal=computed(()=>deepResult.tabletype?deepResult.tabletype.warnings.length:0);
+    const visibleTableTypeWarnings=computed(()=>{
+      const all=deepResult.tabletype?deepResult.tabletype.warnings:[];
+      return tabletypeWarnAll.value?all:all.slice(0,TABLETYPE_WARN_CAP);
+    });
     const runTableTypeStats=async()=>{
+      tabletypeWarnAll.value=false;
       const r=await _deepPost('tabletype','/api/v1/table-type-stats/run',{connection_id:deepConnId.value,database:deepDb.value});
       if(r){deepResult.tabletype=r;ElementPlus.ElMessage.success(`统计完成：${r.database_count} 个库 / ${r.total_tables} 张表`)}
     };
+    const openTableTypeHistory=async()=>{
+      if(!deepConnId.value){ElementPlus.ElMessage.warning('请先选择实例');return}
+      tabletypeDetailItems.value=[];tabletypeDetailWarnings.value=[];
+      try{
+        const resp=await apiFetch(`${API_BASE}/api/v1/table-type-stats/history?connection_id=${encodeURIComponent(deepConnId.value)}&limit=20`);
+        const d=await resp.json();
+        if(!resp.ok){ElementPlus.ElMessage.error(d.detail||'加载历史失败');return}
+        tabletypeHistory.value=(d.data||d).items||[];
+        tabletypeHistoryVisible.value=true;
+      }catch(e){ElementPlus.ElMessage.error('加载历史失败: '+e.message)}
+    };
+    const loadTableTypeHistoryDetail=async(row)=>{
+      if(!row)return;
+      try{
+        const resp=await apiFetch(`${API_BASE}/api/v1/table-type-stats/detail/${row.id}`);
+        const d=await resp.json();
+        if(!resp.ok){ElementPlus.ElMessage.error(d.detail||'加载明细失败');return}
+        const body=d.data||d;
+        tabletypeDetailItems.value=body.items||[];
+        tabletypeDetailWarnings.value=(body.warnings||[]).slice(0,TABLETYPE_WARN_CAP);
+      }catch(e){ElementPlus.ElMessage.error('加载明细失败: '+e.message)}
+    };
 ```
 
-**③ 第 2043 行** `setup()` 返回清单，把 `runSqlStats,` 改成 `runSqlStats,runTableTypeStats,`：
+**③ 第 1960 行** 深度诊断子页签**回退清单** `subtabs`，末尾追加一项（**Rev.G / P1-06**）：
+
+```diff
+-const subtabs=[...,{perm:'deep-diag-ppt',tab:'ppt_report'},{perm:'deep-diag-toolkit',tab:'toolkit'}];
++const subtabs=[...,{perm:'deep-diag-ppt',tab:'ppt_report'},{perm:'deep-diag-toolkit',tab:'toolkit'},{perm:'deep-diag-tabletype',tab:'tabletype'}];
+```
+
+> **追加在末尾而不是插在中间**：这个清单是"当前角色的默认落点"的优先级顺序，
+> 插在中间会改变**既有角色**进入深度诊断时落到哪个页签——那是行为回归。
+> 追加在末尾只对"其他子页签一个都没有"的角色生效，对既有角色零影响。
+>
+> **漏掉这一步的后果**：只被授予 `deep-diag` + `deep-diag-tabletype` 的自定义角色
+> 进入深度诊断页时，`deepTab` 停在默认的 `'cluster'`，而该页签对它不可见
+> ——**页面没有活动页签**。这个缺陷在 admin 账号下永远测不出来
+> （admin 拥有全部子页签，循环第一项必定命中），必须靠 T-R08 单测 + 最小权限角色人工回归。
+
+**④ 第 2043 行** `setup()` 返回清单，把 `runSqlStats,` 改成下面这一串：
 
 ```diff
 -...,runClusterInspect,runIndexAudit,runSchemaDiff,runEmergency,runSqlStats,visibleMenus,...
-+...,runClusterInspect,runIndexAudit,runSchemaDiff,runEmergency,runSqlStats,runTableTypeStats,visibleMenus,...
++...,runClusterInspect,runIndexAudit,runSchemaDiff,runEmergency,runSqlStats,runTableTypeStats,openTableTypeHistory,loadTableTypeHistoryDetail,visibleTableTypeWarnings,tabletypeWarnTotal,tabletypeWarnAll,tabletypeHistoryVisible,tabletypeHistory,tabletypeDetailItems,tabletypeDetailWarnings,visibleMenus,...
 ```
 
-> 漏掉第 ③ 步的后果：页签能渲染，但点按钮报 `runTableTypeStats is not a function`。
+> 漏掉第 ④ 步的后果：页签能渲染，但点按钮报 `runTableTypeStats is not a function`，
+> 或历史抽屉的 `v-model` 绑到 `undefined` 上静默失效。
 > 这是本项目 `setup()` 显式返回清单写法的固有陷阱，必须逐条核对。
+>
+> `computed` 已在文件顶部的 Vue 解构中引入（`app.js:1` 附近），无需新增 import。
 
 ---
 
@@ -3122,6 +4406,7 @@ MySQL [lzbj_ecif]> SELECT TABLE_NAME FROM information_schema.TABLES
 
 | 版本 | 日期 | 作者 | 内容 |
 |---|---|---|---|
+| **Rev.G** | **2026-08-31** | **智能体 A** | **依 O 的评审报告（`REVIEW-v1.6.3.0-…设计评审报告.md`，结论"不通过，退回修订 Rev.G"）整改。8 项 P1、3 项 P2、2 项文档一致性问题全部关闭，其中 **12 条我完全认可并按 O 的要求改**，**1 条（P1-08）认可问题、但整改方式与 O 的建议不同**（见 ADR-20：不做启动期失败关闭，改为模块首次使用时的结构验收——诊断子模块的留档表问题不应把"一个页面不可用"放大成"平台起不来"，且同层级的 `index_audit` / `cluster_inspection` 也没有启动期验收，只给新模块加一道标准不一致）。逐条：**P1-01** 删除「指纹相同即提前停止」的全部代码与论证（ADR-12 被自己推翻——从"命令是实例级作用域"推不出"这次返回已覆盖全部目标库"，用告警替代正确数字等于承认主结果可以是错的）；**P1-02** `run_stats` 进入既有 `registry.scan_slot`，与既有扫描**共用**配额，`ScanBusyError` → 429（ADR-19）；**P1-03** 子表判定收紧为「后缀 **且** 逻辑父表已在 Proxy 结果中确认」，集中式**一律不剔除**（ADR-17 修订）；**P1-04** 改为每库一个连接上下文、异常穿出触发连接重建；**P1-05** 单库三条命令暂存后原子合入，任一失败整库丢弃；**P1-06** 权限键补登记到 `app.js` 的 `subtabs` 回退清单（ADR-21）；**P1-07** `PROXY_CMD_FAILED` 汇总为一条、`warnings_json` 改 `MEDIUMTEXT`、前端告警上限 10 条可展开；**P1-08** 新增 `_ensure_schema()`（表 / 列 / 类型 / 索引，四种畸形均失败关闭）+ `SchemaNotReadyError`，位置在采集与并发槽位**之前**；**P2-01** 指定库必须真实存在、`SHOW DATABASES` 失败一律抛出（删除 `DB_ENUM_FAILED` 降级）；**P2-02** API 接收 `Request` 并记录操作人，前端补历史抽屉；**P2-03** `connection_id` 改必填；**DOC-01** KL-9 标记为已裁决并关闭；**DOC-02** 全文版本头、文件清单、行数、爆炸半径、接口契约统一到 Rev.G。测试从 42 项增至 **67 项**（新增 25 项全部为缺陷定向测试，逐一对应 O 的 T-R01～T-R14），本地 **66 通过 + 1 跳过**（T-R08 断言落盘后的仓库文件）。爆炸半径由「净改 9 行 + 1 个前端块」修正为「净改 **10 行** + **2 个前端块**」。另新增 4 项**不阻断**的内网核查 T16～T19，为 P1-01/P1-03/P1-08 的事实前提取证。 |
 | Rev.F | 2026-08-31 | 智能体 A | **v1.6.2.2 上线后的代码变更复核修订。**对本设计依赖的 13 个文件做 `git diff 8fee172..01e2914` 逐一比对，只有 `migrator.py`（失败关闭改造）与 `app.js`（2 行，无关）动过；其余全部未变，§2 的行号与结论逐条重新核对后继续成立。**§2.7 重写**，写入迁移器的三条新硬约束：M-1 任一语句失败即启动关闭（旧版只 WARNING）、M-2 列级严格验收只作用于 `ADD COLUMN`（本模块纯 `CREATE TABLE`，不受影响、无适配成本）、**M-3 checksum 漂移即启动失败关闭——迁移文件发布即冻结**。据此新增 **ADR-18**（表结构须在打包前定稿；发布后扩列走新增 `111_*.sql` 而非回头编辑）、**KL-12**，并把 §9 中迁移文件的风险由"零"上调为"低"、补两条迁移专项验收。附录 A 代码在当前 main 上重跑 **42 项全过**（沙箱 MariaDB 的 `int(11)` 差异非 G14 问题，加兼容垫片后全绿）。设计主体（口径、算法、接口、爆炸半径）**无实质变更**。 |
 | Rev.E | 2026-08-29 | 智能体 A | 依第四轮内网实测（D3）**查明并消除 RISK-B 的差异**：那 78 张全部是 TDSQL 二级分区的物理子表，命名 `<逻辑表>_tdsql_subp190001` / `_tdsql_subp202601`…`202612`；6 张 `sub_func:month` 的表 × 13 个子分区 = 78，与 293 − 215 精确闭合。**ADR-17（新增）**：`_tdsql_subp<数字>` 结尾的表从基线剔除、单列 `subpartition_tables`（响应 + 两张表的 DDL 列 + 前端一列），并出一条 `SUBPARTITION_EXCLUDED`（INFO）说明剔除量。剔除后**逻辑基线 215 == Proxy 口径 215**，`RECON_MISMATCH` 从"在每个有二级分区的库上永久亮着的噪声"变回"亮起就意味着真有表没进 Proxy 路由表"的信号——推翻 Rev.D"两个数并排让用户自己判断"的做法（ADR-16 随之修订）。新增护栏用例 3 项，其中 `test_lzbj_ecif_uat_baseline` 把内网对数基准（98/117/0/215/215/78 且不报 RECON）直接编码为单测（共 42 项，全部通过）。§10 归档 D3，仅剩 T13；附录 B 增补第四轮原始数据与账目闭合验算。**GATE-2 仍无阻断项。** |
 | Rev.D | 2026-08-29 | 智能体 A | 依第三轮内网实测（T14）**裁决 RISK-B：确认成立且差异达 27%**——`lzbj_ecif` Proxy 口径 215（98 分片 + 117 广播 + 0 单表）vs `information_schema` 基线 293，差 **78 张**。三处修订：**ADR-16**（四个数字采用 Proxy 口径，基线数并排呈现而不覆盖，新增 `baseline_tables` 字段与 DDL 列）；**ADR-15**（`RECON_MISMATCH` 汇总成一条——差异每库都有，逐库告警在 50 库实例上就是 50 条横幅）；**ADR-12 改写**——Rev.B 用"某库累计表集 == information_schema 基线"作为作用域探测的完备性证明，本次实测证明两者基本不可能相等、该判据永远不成立，改为**不依赖基线的指纹比对**（连续两个非空库的原始结果集逐条相同即证明实例级作用域，固定代价 6 条命令）。新增护栏用例 2 项（共 39 项，全部通过）。§10 归档 T14 并新增 D1～D3 诊断查询（78 = 6 × 13 且 `sub_func:month` 的表恰好 6 张，二级分区物理子表为最有力假说，待验证）。附录 B 增补第三轮数据与修订后的 UAT 对数基准（五个数字）。**GATE-2 仍无阻断项。** |
