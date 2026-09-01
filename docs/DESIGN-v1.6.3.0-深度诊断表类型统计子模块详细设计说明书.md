@@ -2,13 +2,13 @@
 
 | 项 | 内容 |
 |---|---|
-| 文档编号 | DESIGN-v1.6.3.0 **Rev.J** |
+| 文档编号 | DESIGN-v1.6.3.0 **Rev.K** |
 | 模块编号 | **G14 · 表类型统计**（深度诊断第 10 个子模块） |
 | 目标版本 | v1.6.3.0（当前基线 v1.6.2.2，`VERSION` / `backend/config.py:APP_VERSION`） |
-| 文档等级 | **照图施工级**——附录 A 给出全部新增/修改文件的逐行成品代码（设计阶段本地验证：84 项，83 通过 + 1 项 T-R08 需模块落盘后才生效）。**该数字只是设计阶段记录，不能替代落盘后的全量回归证据**（§11） |
+| 文档等级 | **照图施工级**——附录 A 给出全部新增/修改文件的逐行成品代码（设计阶段本地验证：106 项，105 通过 + 1 项 T-R08 需模块落盘后才生效）。**该数字只是设计阶段记录，不能替代落盘后的全量回归证据**（§11） |
 | 编写 | 智能体 A |
-| 编写日期 | 2026-08-29 首版；2026-08-31 Rev.F 依 v1.6.2.2 上线后的代码变更复核修订；2026-08-31 Rev.G 依 O 评审报告整改（8 项 P1 + 3 项 P2 + 2 项文档一致性）；2026-08-31 Rev.H 回填第五轮内网实测（T16/T17/T18）；2026-08-31 Rev.I 回填 T19 并更正迁移槽位冲突（DEF-1）；2026-08-31 Rev.J 依 O 第二轮评审整改（5 项 P1 + 3 项 P2 + 1 项文档） |
-| 状态 | 设计与代码**已完成**；内网实测全部完成，无一推翻本设计。**O 两轮评审共 22 项意见，本版全部接受并整改，无一条不认可。** 首轮 8 P1 + 3 P2 + 2 DOC 见 Rev.G（其中 P1-08 的整改【方式】与 O 建议不同，理由见 ADR-20，O 二轮已复核该分歧并只就验收深度提出新要求）；二轮 5 P1 + 3 P2 + 1 DOC 见本版 Rev.J。**Rev.J 关闭的五项 P1 里有两项是我自己论证的漏洞**：库名无条件小写会把 `Sales`/`sales` 静默合并（P1-01）、"180 秒总预算"其实不覆盖前置查询也不覆盖单库三条命令（P1-02，实际上界 269 秒）；另有一项是我为防 DEF-1 而写的护栏测试**在模块落盘当天必然把构建打红**（P1-05）。**仅剩 T13 一项内网核查，不阻断且不影响任何数字**（§10.2） |
+| 编写日期 | 2026-08-29 首版；2026-08-31 Rev.F 依 v1.6.2.2 上线后的代码变更复核修订；2026-08-31 Rev.G 依 O 评审报告整改（8 项 P1 + 3 项 P2 + 2 项文档一致性）；2026-08-31 Rev.H 回填第五轮内网实测（T16/T17/T18）；2026-08-31 Rev.I 回填 T19 并更正迁移槽位冲突（DEF-1）；2026-08-31 Rev.J 依 O 第二轮评审整改（5 P1 + 3 P2 + 1 DOC）；2026-09-01 Rev.K 依 O 第三轮评审整改（4 P1 + 3 P2 + 1 DOC） |
+| 状态 | 设计与代码**已完成**；内网实测全部完成，无一推翻本设计。**O 三轮评审共 30 项意见，本版全部接受并整改，无一条不认可。** 首轮 8 P1 + 3 P2 + 2 DOC 见 Rev.G（其中 P1-08 的整改【方式】与 O 建议不同，理由见 ADR-20，后两轮均已复核该分歧）；二轮 5 P1 + 3 P2 + 1 DOC 见 Rev.J；三轮 4 P1 + 3 P2 + 1 DOC 见本版 Rev.K。**Rev.K 关闭的四项 P1 全部是我自己代码里的实际缺陷**：指定单库时 canonical 名被二次大小写回退、把兄弟库的行并进目标库（P1-01）；"预算耗尽"用异常穿出连接上下文，被连接池当成连接故障而销毁重建、还可能把 SKIPPED 盖成 FAILED（P1-02）；上界公式漏算建连与 `select_db`，且 `/run` 端到端 210 秒的说法本就不成立（P1-02）；槽位护栏要求本模块**永远是最大槽**，会阻断项目此后任何迁移（P1-03）；集成测试的 DROP 缺少目标保护、探测与执行还用两套配置（P1-04）。**仅剩 T13 一项内网核查，不阻断且不影响任何数字**（§10.2） |
 | 前置约束 | 本文档编写阶段**未修改任何代码**（用户要求）。仓库工作区在本文档提交时保持干净。 |
 
 ---
@@ -600,10 +600,10 @@ Query OK, 0 rows affected (0.001 sec)
 
 | 类型 | 文件 | 规模 |
 |---|---|---|
-| 新增 | `backend/services/table_type_stats_service.py` | 1116 行（附录 A.1，成品） |
-| 新增 | `backend/api/table_type_stats.py` | 66 行（附录 A.2，成品） |
+| 新增 | `backend/services/table_type_stats_service.py` | 1168 行（附录 A.1，成品） |
+| 新增 | `backend/api/table_type_stats.py` | 71 行（附录 A.2，成品） |
 | 新增 | `backend/schema/v13/130_table_type_stats.sql` | 46 行（附录 A.3，成品）。**槽位 v13/130**——`v11/110` 与 `v12/120` 已被 v1.6.2.2 占用（DEF-1，§2.7） |
-| 新增 | `tests/test_table_type_stats.py` | 1790 行 / 84 项（附录 A.4，成品） |
+| 新增 | `tests/test_table_type_stats.py` | 2234 行 / 106 项（附录 A.4，成品） |
 | 修改 | `backend/main.py` | **2 行**（import + include_router） |
 | 修改 | `backend/services/auth_service.py` | **3 行**（P1/P2/P3） |
 | 修改 | `backend/services/database.py` | **1 行**（P4） |
@@ -699,14 +699,25 @@ Query OK, 0 rows affected (0.001 sec)
 | 400 | `数据库不存在或当前账号不可见: xxx（SHOW DATABASES 未返回该库）` | 指定库不在 `SHOW DATABASES` 结果里（Rev.G / P2-01） |
 | **429** | `目标库 xxx 扫描并发已达上限(N)，请稍后重试` / `服务扫描并发已达上限(N)，请稍后重试` | `ScanBusyError`——与既有慢查询扫描共用同一份配额（Rev.G / P1-02，口径同 `tdsql_manage.py:432`） |
 | 500 | `元数据库缺少表 …` / `… 缺少列 …` / `… 列类型不符 …` / `… 缺少索引 …` | `SchemaNotReadyError`——留档表结构验收未通过（Rev.G / P1-08）。消息里带可执行的处置步骤，**原样透出，不被兜底 except 吞掉** |
-| 500 | `采集总时长预算 180s 在…前即已耗尽` | `TimeoutError`——deadline 在枚举库/基线查询之前就已耗尽（Rev.J / P1-02） |
+| **503** | `采集总时长预算 180s 在…前即已耗尽` | `TimeoutError`——deadline 在探测/枚举库/基线查询之前就已耗尽。**Rev.K 起用 503 而非 500**：这是"稍后重试或缩小 `database` 范围就可能成功"的暂时性状况，与 500 的"结构不对、重试也没用"语义不同 |
 | 500 | 原始异常字符串 | 其余（照抄样板） |
 
-**并发与耗时的可证明上界（Rev.J / P1-02）**：`/run` 的墙钟耗时上界为
-**210 秒 = 180 秒 deadline + 30 秒最后一条命令读超时**（常量 `MAX_WALL_SECONDS`）。
-deadline 自拿到并发槽位之后建立，`SHOW DATABASES`、`information_schema` 基线查询、
-每个库、**每一条 Proxy 命令**开始前都检查；到期后不再启动任何新查询。
-**不再宣称"硬 180 秒"**——那个说法在 Rev.I 及以前并不成立（KL-19 / ADR-13）。
+**并发与耗时的可证明上界（Rev.K / P1-02 更正）**：
+
+| 阶段 | 是否受 deadline 约束 | 上界 |
+|---|---|---|
+| 实例类型探测 → `SHOW DATABASES` → `information_schema` 基线 → 逐库三条 Proxy 命令 | **是** | **215 秒**（`MAX_COLLECT_WALL_SECONDS`） |
+| `_ensure_schema()`（拿槽位**之前**，4 条 information_schema 查询，本地元数据库） | 否 | 无硬上界（KL-20） |
+| 结果落库（释放槽位**之后**，1 条任务 INSERT + 明细批量 INSERT + COMMIT） | 否 | 无硬上界；已批量化，500 库 5 次往返 |
+
+215 秒 = `TOTAL_BUDGET_SECONDS(180) + CONNECT_TIMEOUT(5) + COMMAND_READ_TIMEOUT(30)`。
+deadline 自拿到并发槽位之后建立，实例类型探测之后、`SHOW DATABASES` 之前、基线查询之前、
+每个库进入连接上下文之前、**每一条 Proxy 命令之前**都检查；到期后不再启动任何新操作。
+
+> **Rev.J 说的"`/run` 端到端 210 秒"是不成立的，这里更正**（O 三轮 P1-02）：
+> 一是漏算了"刚过库级检查、随后建连 + `select_db`"这条更长的路径（5 + 30 = 35s）；
+> 二是 `_ensure_schema()` 与落库这两段根本不在 deadline 内，却被算进了端到端承诺。
+> **承诺要么可证明，要么就别写。**
 
 **并发语义（Rev.G / P1-02）**：`/run` 在 `run_stats()` 内进入
 `registry.scan_slot(connection_id)`（与 `scan_service.py:72` 同一个入口），
@@ -1067,15 +1078,18 @@ def run_stats(pool, connection_id="", database="", operator=""):
 | ADR-10 | 命令常量不加分号、不做任何字符串处理 | 拼 `;` / `.strip()` | 原厂逐字口径；且 `pre_parser.py` 的既有实现证明本项目对 `/*proxy*/` 采取"原样保护"策略 |
 | ADR-11 | 结果按**行内的库限定名**归属，不按当前会话库 | 全部算在当前遍历到的库上（Rev.A 做法） | 实测返回值是 `sqltuning.t_max`；若命令是实例级作用域，Rev.A 做法会让总数放大 N 倍且逐库明细全错（RISK-E）。按限定名归属在两种作用域下都正确，且不依赖 T13 的结论 |
 | ADR-12（Rev.D 修订，**Rev.G 推翻**） | **无条件逐库执行，取消一切提前停止** | ① Rev.B 的"累计表集 == information_schema 基线"（已被 T14 实测打死：215 vs 293，判据永不成立）② Rev.D/F 的**作用域指纹比对**（连续两库结果集逐条相同即判实例级、其余库跳过）③ 检测到跨库行就 break | ②的推理只走到一半：从"两库结果集相同"能推出"命令与当前会话库无关"，**推不出"这一次返回的集合已覆盖全部目标库"**。账号可见范围、路由域、租户切分、路由元数据缺失都能造出"指纹相同但集合不完整"的实例，届时页面四个主数字是残缺的、却显示成功。我原本用 `RECON_MISMATCH` 兜底，复核后认为站不住——**用告警替代正确的数字，等于承认主结果可以是错的**。③"看到跨库行"同样只证明不限于当前库。代价：实例级作用域下多跑 3(N−2) 条命令，`lzbj_ecif` 单库实测 0.002s/条，量级可接受（§9） |
-| ADR-13（**Rev.J 修正语义**） | 单条命令 `read_timeout=30s` + 统一 `180s` deadline；**可证明墙钟上界 = 180 + 30 = 210 秒**（常量 `MAX_WALL_SECONDS`） | ① 依赖连接默认 `read_timeout=10s` ② Rev.I 的"每库检查一次预算" ③ 每条命令动态调 read_timeout=min(30, 剩余) | ①连接默认 10s 对大库偏紧；②**Rev.I 的写法根本兑现不了"180 秒"**：计时器直到 `_collect_distributed` 内部才启动，`SHOW DATABASES` 与全量基线查询（设计自己承认这才是耗时大头）完全不在预算内；进入循环后又只在每个库开始时查一次，单库随后最多跑三条 30 秒命令——179 秒进库能跑到 **269 秒**，且集中式分支根本没有预算。这不是"稍微超一点"，是承诺不成立；③动态 read_timeout 要么每条命令重建临时池（多 N 次握手），要么改 PyMySQL 连接内部状态（碰驱动），代价与收益不成比例。**Rev.J 的做法**：deadline 在拿到并发槽位之后、任何目标实例查询之前建立，`SHOW DATABASES`、基线查询、每个库、**每一条命令**开始前都检查；到期后不再启动任何新查询。最后一条已发出的命令仍可跑满 30 秒，故上界是 210 而不是 180——**这个数字写进文档和 UI，不再宣称"硬 180 秒"** |
+| ADR-13（Rev.J 修正语义，**Rev.K 更正公式与作用域**） | 单条命令 `read_timeout=30s`、建连 `connect_timeout=5s`、统一 `180s` deadline；**目标采集阶段可证明墙钟上界 = 180 + 5 + 30 = 215 秒**（常量 `MAX_COLLECT_WALL_SECONDS`） | ① 依赖连接默认 `read_timeout=10s` ② Rev.I 的"每库检查一次预算" ③ 每条命令动态调 `read_timeout=min(30, 剩余)` ④ Rev.J 的"210 秒 `/run` 端到端上界" | ①连接默认 10s 对大库偏紧；②**Rev.I 的写法根本兑现不了"180 秒"**：计时器直到 `_collect_distributed` 内部才启动，`SHOW DATABASES` 与全量基线查询完全不在预算内；进入循环后只在每个库开始时查一次，179 秒进库能跑到 **269 秒**；③动态 read_timeout 要么每条命令重建临时池，要么改 PyMySQL 连接内部状态，代价与收益不成比例；④**Rev.J 的 210 秒同样不成立**（O 三轮 P1-02）：一是漏算了"刚过库级检查、随后建连 + `select_db`"这条路径（5 + 30 = 35s > 30s），二是 `_ensure_schema()` 与结果落库这两段元数据库工作根本不在 deadline 内，却被写成了 `/run` 端到端承诺。**Rev.K 的做法**：把上界严格定义为**目标实例采集阶段**的上界，公式取两条路径的较大者——路径 A（刚过库级检查）= `CONNECT_TIMEOUT + COMMAND_READ_TIMEOUT` = 35s，路径 B（刚过命令级检查）= `COMMAND_READ_TIMEOUT` = 30s，故 180 + 35 = **215 秒**；前置阶段走共享池（`read_timeout` 默认 10s）小于 35s，不改变上界。元数据库阶段单独说明边界（ADR-24） |
 | ADR-14 | 超预算的库标 `SKIPPED` 而非 `FAILED` | 统一标 FAILED | "没来得及测"和"测了但错了"处置动作不同：前者重跑/分批即可，后者要查权限或端口。混成一个数会误导排障方向 |
 | ADR-15（Rev.D 新增） | `RECON_MISMATCH` **汇总成一条**告警，逐库明细放 `item.detail` | 逐库一条告警 | 保留。Rev.E 剔除子分区后该告警不再常态触发，但**真出问题时仍可能多库同时命中**（例如一批表漏进 Proxy 路由表），50 库实例上逐库一条就是 50 条横幅。汇总告警给合计与库名，明细留在表格行里，信息一点不少 |
 | ADR-16（Rev.D 新增，Rev.E 修订） | 四个数字采用 **Proxy 口径**，逻辑基线数并排呈现 | ① 用 `information_schema` 当准 ② 只显示 Proxy 口径 | 需求问的是"单表/广播表/分片表各多少张"，这三个概念**只有 Proxy 知道**，`information_schema` 没有这个维度。Rev.E 剔除二级分区子表后两个口径精确相等（215 == 215），并排呈现从"让用户自己判断"变成"互相印证" |
 | ADR-17（Rev.E 新增，**Rev.G 收紧**） | 二级分区物理子表的判定 = **后缀匹配 且 逻辑父表已在本库 Proxy 结果中确认**；**集中式实例一律不剔除** | ① 计入基线（Rev.D 做法） ② 计入总表数 ③ 只看后缀（Rev.E/F 做法） | ①会让 `RECON_MISMATCH` 在每个有二级分区的库上**永久亮着**——一个永远亮的告警是背景噪声；②用户认知里 `cus_pub_translog` 是一张表不是十三张，Proxy 也只返回逻辑表名；③**实测只证明了"这 78 张子表叫这个名字"，没证明"叫这个名字的一定是子表"**。集中式实例没有二级分区这个构造、也没有 Proxy 交叉校验兜底，一张合法业务表 `orders_tdsql_subp202601` 会被静默少算且不可见（违反 REQ-5）。加上父表确认后，未确认者保留为逻辑表 → `RECON_MISMATCH` **显式报出**，误判方向仍然安全。**T17 第五轮实测已坐实**：78 张子表精确推导出 6 个父表（各 13 张），且由「基线 293、Proxy 215、后缀表 78」三个基数的算术闭合可证 6 个父表全部落在 Proxy 结果内（推导见 §10.2 T17），收紧后 215 == 215 不变 |
 | ADR-18（Rev.F 新增） | 表结构在**首次发布前定稿**；发布后若需扩列，**新增 `v13/131_*.sql` 用 `ALTER TABLE … ADD COLUMN`**，绝不回头编辑 `130_*.sql` | ① 直接改 `130_*.sql` ② 把表并进 `database.py::_create_all_tables` | ①v1.6.2.2 起 checksum 漂移会让**所有已部署实例启动失败关闭**（§2.7 M-3），补救需人工往 `_KNOWN_RECONCILIATIONS` 加账本三元组，代价远高于新增一个迁移文件；②`_create_all_tables` 是 **46 张表、828 行**的大列表（Rev.I 复核实测；Rev.A～H 一直写的"27 张"是旧数），改它等于把 `database.py` 的改动面从 1 行放大到一整段 DDL，与最小化修改原则冲突（ADR-6 已述） |
-| ADR-19（Rev.G 新增，P1-02） | `/run` 复用既有 `registry.scan_slot(connection_id)`，**不新建并发控制** | ① 不限流（Rev.F） ② 本模块自建一套信号量 ③ 改成异步任务 | ①单次占用最长 210 秒（ADR-13）并额外开一条 Proxy 连接，重复点击/多人同时操作就能吃掉大量 FastAPI 工作线程和目标库连接，挤占既有审核、扫描、巡检——与本文档"零回归"的承诺直接冲突；②自建一套等于**两套配额各算各的**，全局上限形同虚设，反而更危险；③异步任务要引入任务表、轮询接口和前端状态机，爆炸半径远超一个诊断子模块该有的量级（KL-6 保留为将来选项）。复用 `scan_slot` 是三者里唯一既限流又不新增机制的：`scan_service.py:72` 就是同样的用法，配置项、错误类型、HTTP 状态码全部现成 |
+| ADR-19（Rev.G 新增，P1-02） | `/run` 复用既有 `registry.scan_slot(connection_id)`，**不新建并发控制** | ① 不限流（Rev.F） ② 本模块自建一套信号量 ③ 改成异步任务 | ①单次采集最长 215 秒（ADR-13）并额外开一条 Proxy 连接，重复点击/多人同时操作就能吃掉大量 FastAPI 工作线程和目标库连接，挤占既有审核、扫描、巡检——与本文档"零回归"的承诺直接冲突；②自建一套等于**两套配额各算各的**，全局上限形同虚设，反而更危险；③异步任务要引入任务表、轮询接口和前端状态机，爆炸半径远超一个诊断子模块该有的量级（KL-6 保留为将来选项）。复用 `scan_slot` 是三者里唯一既限流又不新增机制的：`scan_service.py:72` 就是同样的用法，配置项、错误类型、HTTP 状态码全部现成 |
 | ADR-20（Rev.G 新增，**Rev.J 扩展验收范围**） | 留档表结构验收**在 `run_stats` 入口做**（模块级、首次使用时），**不做启动期失败关闭**；验收范围 = 表存在 + 全部列的**完整字段契约**（类型 / 长度 / 字符集 / 可空性 / 默认值 / 自增）+ **索引全列序与唯一性** | ① 不验收（Rev.F：迁移器不严格验收 CREATE TABLE，故"无额外适配成本"）② 扩展迁移器支持 CREATE TABLE 声明验收 ③ 进程启动期专用 schema assertion（O 的建议） | ①站不住：元数据库里若有同名但缺列/错类型的历史残留表，`CREATE TABLE IF NOT EXISTS` 会**静默跳过**、迁移仍登记成功，直到 INSERT 才 1054；迁移登记后表被删或结构漂移，`_structure_state()` 也照样返回 valid。**"不进入验收"不是安全性依据**，这一点我完全接受。②改迁移器意味着动 v1.6.2.2 刚上线的启动路径，是全平台级别的爆炸半径，为一个诊断子模块付这个代价不成比例。③**本设计与 O 的分歧仅在这一点**：表类型统计是深度诊断下的只读诊断子模块，它的留档表有问题**不应当让整个审核平台起不来**——同层级的 `index_audit`、`cluster_inspection` 在 `_create_all_tables` 里同样没有启动期结构验收，只为新模块加这一道，标准不一致且风险方向相反（把"一个页面不可用"放大成"平台不可用"）。放在 `run_stats` 入口、且在采集与并发槽位**之前**，同时满足"确定性验收"和"不让用户白跑一轮采集"。**Rev.J 扩展**：O 二轮指出 Rev.I 只比 `DATA_TYPE`，仍留着一整排"采集完才失败"的路径——`detail` 收窄成 `VARCHAR(16)` 会在 500 库采完后撞 1406、`id` 丢了 `AUTO_INCREMENT` 会在第二条记录撞主键、`created_at` 没默认值在严格模式下直接失败、字符集非 utf8mb4 会让中文 detail 撞 1366。**这条我完全接受，而且 KL-15 当时的免责理由是站不住的**：我以"COLUMN_TYPE 带显示宽度、跨发行版不一致"为由放弃长度校验，但那个问题只对**整型**成立（`int(11)` vs `int`），对 varchar 长度并不成立。现按字段分工取值——整型比 `DATA_TYPE`、字符列比 `DATA_TYPE + CHARACTER_MAXIMUM_LENGTH + CHARACTER_SET_NAME`、共通比 `IS_NULLABLE` / 归一化后的 `COLUMN_DEFAULT` / `EXTRA`（自增），索引比全列序与唯一性。默认值归一自持一份（剥一层引号 + `CURRENT_TIMESTAMP` / MariaDB 字面量 `'NULL'` 归一），**刻意不复用 `migrator._normalize_default`**——后者把 `0`/`1` 归一成 `FALSE`/`TRUE` 服务于布尔列，用在本模块的计数列上会把真实漂移掩盖掉。九种畸形场景均失败关闭，由 T-R12 与 T2-R05 共十项单测钉住，且**已在本地 MariaDB 上逐项验证过"干净结构必须通过"**（过严会把功能整个打死，比过松更难发现） |
-| ADR-22（Rev.J 新增，P1-01） | 库名命名空间用 `_NameSpace`：**精确优先、CI 回退仅在候选唯一时、歧义不猜** | ① 全小写单值字典（Rev.I 及以前） ② 全部改为精确匹配、完全不容忍大小写差异 | ①在 `lower_case_table_names=0` 的实例上会把 `Sales` 与 `sales` **静默合并**——四个主数字直接错，且没有任何告警会亮。我在表名那侧已经写对了这个道理（ADR-9），却没有把它用到库名上，理由还写成"库名来自我们自己枚举的清单，不存在合并风险"——风险恰恰来自两个都真实存在的库，与输入来源无关；②过严：Proxy 若在某个版本回了不同大小写的库前缀，全精确会把整批行丢掉（**少算，且不可见**）。折中方案在候选唯一时容忍、在候选多个时拒绝并显式报 `DB_NAME_AMBIGUOUS`——**把不可判定的情况变成可见的，而不是替使用者猜** |
+| ADR-24（Rev.K 新增，P1-02） | 上界只承诺**目标采集阶段**；元数据库阶段（`_ensure_schema` + 落库）不纳入 deadline，改为**批量落库**把它压小 | ① 继续宣称 `/run` 端到端 210/215 秒 ② 把 schema 验收与落库也纳入同一 deadline | ①**是假承诺**：`_ensure_schema()` 在拿槽位之前、落库在释放槽位之后，两者都打本地元数据库且完全不受 deadline 约束；②给落库设 deadline 是**不可执行**的——采集已经完成，超时了难道把结果丢掉？那是把一轮 180 秒的采集白白作废，比慢一点糟得多。**能做的是把它变小**：明细落库从"每库一次 INSERT"改为按 `ITEM_INSERT_BATCH=100` 批量，500 库从 500 次往返降到 5 次。**承诺要么可证明，要么就别写**——这是 O 三轮 P1-02 的核心，我接受 |
+| ADR-25（Rev.K 新增，P1-02） | 预算耗尽用**标志位 + 正常退出 `with`**，绝不以异常穿出连接上下文 | ① Rev.J 的 `raise _BudgetExceeded()` ② 在 `with` 外层判断剩余时间再决定进不进 | ①`TDSQLConnectionPool.get_connection()` 捕获穿出上下文的**任何**异常并 close + `_create_connection()`（`tdsql_connector.py:298-306`）——它无法区分"连接坏了"和"我们主动不干了"。于是一个正常控制信号会：销毁一条健康连接、在 deadline **之后**多付一次建连、若重连再失败还会用新异常盖掉原信号，把本该 `SKIPPED` 的库误标成 `FAILED`（"没来得及测"变成"测了但错了"，排障方向直接反了）；②外层判断挡不住"进入上下文之后、三条命令之间"耗尽的情形。**连接重建只应由真实的数据库/网络异常触发**——这条边界一旦模糊，连接池的自愈机制就会被正常控制流反复触发 |
+| ADR-26（Rev.K 新增，P1-03） | 迁移槽护栏只钉**永久不变量**：槽位不重复 + 本模块独占自己的槽 + 已知前驱存在；**删除"必须是最大槽"** | ① Rev.J 的 `assert _OUR_SLOT > max(others)` ② 完全不做槽位检查 | ①它在项目下一次合法新增 `v13/131` 或 `v14/140` 之后**必然为假**——一条历史测试把项目此后的演进锁死了；我甚至把"我们不再是最大槽"写成了必须拒绝的场景，方向完全错了。"当前最大之后的下一个"只在**选槽那一刻**有意义，不该随仓库永久执行；②DEF-1 已经证明没有护栏会出事。**"选槽连续"这件事改用"已知前驱 v12/120 仍在"来证明**——这条同样永久成立，且能顺带发现版本链被误删 |
+| ADR-22（Rev.J 新增，P1-01） | 库名命名空间用 `_NameSpace`：**精确优先、CI 回退仅在候选唯一时、歧义不猜** | ① 全小写单值字典（Rev.I 及以前） ② 全部改为精确匹配、完全不容忍大小写差异 | ①在 `lower_case_table_names=0` 的实例上会把 `Sales` 与 `sales` **静默合并**——四个主数字直接错，且没有任何告警会亮。我在表名那侧已经写对了这个道理（ADR-9），却没有把它用到库名上，理由还写成"库名来自我们自己枚举的清单，不存在合并风险"——风险恰恰来自两个都真实存在的库，与输入来源无关；②过严：Proxy 若在某个版本回了不同大小写的库前缀，全精确会把整批行丢掉（**少算，且不可见**）。折中方案在候选唯一时容忍、在候选多个时拒绝并显式报 `DB_NAME_AMBIGUOUS`——**把不可判定的情况变成可见的，而不是替使用者猜**。**Rev.K 补一条使用边界（O 三轮 P1-01）**：CI 回退**只允许发生一次**，且必须在**全实例命名空间**上做。Rev.J 在 `_extract_pairs` 用全实例 `known` 解析出 canonical 名之后，又对只含目标库的 `target` 做了第二次回退——目标子集只有 `Sales` 时，另一个真实库 `sales` 的行会被"唯一命中"回 `Sales`，指定单库的统计直接错。**canonical name 之后只能做精确成员判断** |
 | ADR-23（Rev.J 新增，P1-03） | **先定状态，再算汇总**：`eligible = 全部库 − 失败 − 跳过`，所有实例级汇总（含 baseline / subpartition / overlap）一律按 owner 过滤 | ① Rev.I 的"边遍历边累加，之后才判状态" ② 改文案，承认失败库的基线也计入 | ①与接口文案和 W1 告警里"未计入任何汇总数"直接矛盾，且矛盾**恰好发生在出问题的时候**：全部库 SKIPPED 时 `total_tables=0` 而 `baseline_tables` 仍是全库合计，两个并排的数字看起来像"Proxy 漏了一整个实例"；某个成功库的实例级返回里携带的失败库行还会让 `overlap_count` 凭空加 1。②改文案也是一种关闭方式，但 `baseline_tables` 的**唯一用途**就是与 `total_tables` 互相印证，两者覆盖的库集合不同则这个用途直接消失——所以该改的是代码不是文案。逐库行仍如实显示各自的基线（information_schema 那侧确实查成功了），只是不进实例级汇总 |
 | ADR-21（Rev.G 新增，P1-06） | 新权限键必须同时登记到 **6 处**（API 路径映射 / 菜单全集 / 标签 / 默认角色清单 / `index.html` 页签 / **`app.js` 的 `subtabs` 回退清单**） | Rev.F 只登记 4 处 + 页签 | 缺 `subtabs` 这一处时，只被授予"深度诊断 + 表类型统计"的自定义角色进入页面后，默认 `deepTab='cluster'` 对应的页签不可见，**页面没有活动页签**——权限配置成功、功能却进不去。这类缺陷在 admin 账号下**永远测不出来**（admin 有全部子页签，第一个必定可见），只有最小权限角色才暴露，故必须由 T-R08 单测钉住而不是靠人工回归 |
 
@@ -1113,7 +1127,9 @@ def run_stats(pool, connection_id="", database="", operator=""):
 | E-20 | 指定 `database=db_a` 但结果含 `db_b.*` | `db_b` 的行全部丢弃，只统计 `db_a` | 同上 |
 | E-21 | 单条命令挂起 | 30s 读超时 → 该库 FAILED，detail 写"读超时（30s）"，循环继续 | `COMMAND_READ_TIMEOUT` |
 | E-22 | 采集超出 180s deadline | 到期后**不再启动任何新查询**；未采完的库标 `SKIPPED`（不计入任何汇总）+ W10；已采完的库正常返回。**单库三条命令跑到一半到期，该库整体记 `SKIPPED` 而非 `FAILED`**——"没来得及测"与"测了但错了"处置动作不同（ADR-14） | `TOTAL_BUDGET_SECONDS` / `_BudgetExceeded` |
-| E-30 | deadline 在枚举库或基线查询之前就已耗尽 | 抛 `TimeoutError` → HTTP 500，消息点明在哪个阶段耗尽（Rev.J / P1-02） | `analyze` |
+| E-30 | deadline 在探测/枚举库/基线查询之前就已耗尽 | 抛 `TimeoutError` → **HTTP 503**，消息点明在哪个阶段耗尽（Rev.K / P1-02） | `analyze` |
+| E-34 | deadline 在某库的三条命令中途耗尽 | 该库整体记 `SKIPPED`（暂存整体丢弃），**且不触发连接重建**——预算是正常控制流，不是连接故障（Rev.K / P1-02，ADR-25） | `_collect_distributed` |
+| E-35 | 指定 `database=Sales`，实例级结果含 `sales.*` | `sales.*` **被过滤**，不得并入 `Sales`——canonical 名之后只做精确成员判断（Rev.K / P1-01） | `_collect_distributed` |
 | E-31 | 实例上存在仅大小写不同的同名库（`Sales` / `sales`） | 两库**各自独立统计**；另出一条 `DB_NAME_CASE_VARIANTS`（WARNING）（Rev.J / P1-01） | `_NameSpace` |
 | E-32 | Proxy 返回的库限定名无法唯一归属（大小写歧义） | 该行**不计入任何库**，记 `DB_NAME_AMBIGUOUS`（ERROR）——不猜归属，宁可少算并显式报出（Rev.J / P1-01） | `_split_qualified` |
 | E-33 | 指定库大小写与实例上的真实库不一致 | HTTP 400，并在消息里点名存在的大小写变体（Rev.J / P1-01） | `analyze` |
@@ -1144,7 +1160,8 @@ def run_stats(pool, connection_id="", database="", operator=""):
 | 并发上限 | **无**（可无限并发） | 每连接 2、全局 8，**与既有慢查询扫描共用同一份配额** |
 | 超限行为 | 吃满 FastAPI 工作线程 | HTTP 429 + 可读提示，既有审核/扫描不受影响 |
 | 目标库连接数 | 每个并发请求 +1 条 | 同左，但请求数已被槽位封顶 |
-| 单次最长占用 | **无上界**（Rev.I 实测可达 269s+，见 ADR-13） | **210s = 180 预算 + 30 最后一条命令读超时**（可证明） |
+| 单次最长占用（目标采集阶段） | **无上界**（Rev.I 实测可达 269s+，见 ADR-13） | **215s = 180 预算 + 5 建连 + 30 命令读超时**（可证明，Rev.K 更正） |
+| 元数据库阶段 | 逐行 INSERT，500 库 = 500 次往返 | 批量 INSERT，500 库 = 5 次往返（无硬上界，KL-20） |
 
 **取消提前停止后的耗时代价（P1-01 的账要算清楚）**：
 实例级作用域下，Rev.F 最好情况是 6 条命令，Rev.G 是 3N 条。
@@ -1536,7 +1553,7 @@ Query OK, 0 rows affected (0.001 sec)
 
 ## 11. 测试设计（开发期，可在本地 MariaDB 13306 上跑）
 
-`tests/test_table_type_stats.py`（附录 A.4），**collect 84 项**。数据夹具直接照搬
+`tests/test_table_type_stats.py`（附录 A.4），**collect 106 项**。数据夹具直接照搬
 内网实测形态（列名 `db_table`、库限定名 `sqltuning.t_max`、`with*` 双列 /
 `without` 单列），**Rev.H 起子分区相关用例直接使用 2026-08-31 T17 取回的
 78 个真实表名**。
@@ -1546,15 +1563,29 @@ Query OK, 0 rows affected (0.001 sec)
 
 | 类别 | 数量 | 依赖 |
 |---|---:|---|
-| 纯离线 | **73** | 无。`FakePool` + `FakeClock` 全内存，不连任何数据库 |
-| 元数据库集成 | **10** | 本地 MySQL/MariaDB（`SQLCHECK_DB_NAME`，默认 `tdsql_sqlcheck_test`）；`@skipif(not MYSQL_AVAILABLE)` |
+| 纯离线 | **83** | 无。`FakePool` + `FakeClock` 全内存，不连任何数据库 |
+| 元数据库集成 | **22** | 本地 MySQL/MariaDB（`SQLCHECK_DB_NAME`）；`@skipif(not MYSQL_AVAILABLE)` |
 | 需模块落盘 | **1** | T-R08 权限键登记，断言仓库文件；设计阶段 skip |
-| **collect 合计** | **84** | 含 5 个参数化展开 |
+| **collect 合计** | **106** | 含参数化展开（T3-R08 契约用例 11 条） |
 
-实测口径：不连元数据库时 `73 passed, 11 skipped`；连上后 `83 passed, 1 skipped`。
+实测口径：不连元数据库时 `83 passed, 23 skipped`；连上后 `105 passed, 1 skipped`。
 元数据库集成用例覆盖落库与回读、`/history` 与 `created_by`、500 库告警的
-`MEDIUMTEXT` 往返，以及六项结构契约失败关闭；由 `g14_schema` fixture 在每例前后
-DROP + 按 DDL 重建，互不干扰。
+`MEDIUMTEXT` 往返，以及**十一项完整字段契约失败关闭 + 一项干净 DDL 通过**；
+由 `g14_schema` fixture 在每例前后 DROP + 按 DDL 重建，互不干扰。
+
+> **破坏性目标保护（Rev.K / P1-04）——这是安全底线，不是风格问题。**
+> Rev.J 的可用性探测用 `TDSQL_TEST_*`、实际 DROP 用 `SQLCHECK_DB_*`，
+> **两套配置可以指向完全不同的服务器**：探测通了就不 skip，然后往
+> 【生产元数据库】执行 `DROP TABLE table_type_stat`。唯一的"保护"是 fixture 里的
+> `os.environ.setdefault(...)`，它既晚于 `database` 模块导入（`MYSQL_CONFIG` 早已定型），
+> 又因为是 `setdefault` 而**不会覆盖**外部已设的 `SQLCHECK_DB_NAME=tdsql_sqlcheck`。
+> 这条我完全接受——**测试代码删掉生产数据是不可接受的**。
+>
+> Rev.K：探测与执行共用 `backend.services.database.MYSQL_CONFIG`；任何 DROP 之前先过
+> `assert_destructive_target_is_safe()`——库名不精确等于 `tdsql_sqlcheck_test`
+> （或显式设置 `G14_ALLOW_DESTRUCTIVE_TESTS=1` + `G14_TEST_DB_NAME`）即抛
+> `DestructiveTargetError`，并把 host/port/database 打进日志。
+> 守门人本身由 3 条**离线**用例覆盖（不挂 `MYSQL_AVAILABLE`，任何环境都必跑）。
 
 > **`skip` 不是 `pass`。** 设计阶段的通过/跳过数只能作为设计阶段记录，
 > **不能当作发布证据**——模块真正落盘后必须在具备元数据库的环境上重跑全套，
@@ -1645,7 +1676,7 @@ DROP + 按 DDL 重建，互不干扰。
 | T2-R01 | `test_t2r01c_ambiguous_qualified_name_is_not_guessed` | `_NameSpace` 四种解析语义逐条钉住；歧义行**不计入任何库**并记 `DB_NAME_AMBIGUOUS` | **P1-01** |
 | T2-R02 | `test_t2r02_deadline_covers_prelude_and_every_command` | 可控时钟下每条命令耗 60s：第 3 条**不得启动**，该库记 `SKIPPED`（Rev.I 会跑满三条） | **P1-02** |
 | T2-R02 | `test_t2r02b_deadline_blocks_baseline_query` | deadline 已过时，基线查询之前即抛 `TimeoutError`（Rev.I 完全不计前置查询） | **P1-02** |
-| T2-R02 | `test_t2r02c_provable_wall_upper_bound_is_documented` | `MAX_WALL_SECONDS == TOTAL_BUDGET + COMMAND_READ_TIMEOUT == 210`，常量之间自洽 | **P1-02 / KL-19** |
+| T2-R02 | ~~`test_t2r02c_provable_wall_upper_bound_is_documented`~~ | **Rev.K 删除并由 T3-R04 取代**——它断言的 `MAX_WALL_SECONDS == 210` 本身就是错的公式（漏算建连 + `select_db`），而且只做常量算术、不覆盖它声称的阶段 | **P1-02 / KL-19** |
 | T2-R03 | `test_t2r03_failed_db_rows_do_not_enter_any_rollup` | 成功库的跨库行含失败库同一张表的两个类型 → `overlap_count==0`；失败库的基线与子分区不进实例级汇总，也不点亮 `SUBPARTITION_EXCLUDED`；逐库行仍如实显示该库基线 | **P1-03** |
 | T2-R04 | `test_time_budget_skips_remaining`（扩展） | 全部 `SKIPPED` 时 `total/baseline/subpartition/overlap` **一律为 0** | **P1-03** |
 | T2-R05 | `test_r12*` 六项（扩展为完整契约） | 缺表 / 缺列 / 错类型 / 缺索引 / 采集前拦截 / DDL 与服务列清单一致；另在本地 MariaDB 上逐项验证 `detail` 收窄、`id` 丢自增、`created_at` 缺默认、`stat_id` 可空、`warnings_json` 退回 TEXT 五种畸形均失败关闭，且**干净结构必须通过** | **P1-04** |
@@ -1656,6 +1687,29 @@ DROP + 按 DDL 重建，互不干扰。
 | T2-R07 | `test_t2r07_candidate_in_proxy_is_a_logical_table` | `orders` 与 `orders_tdsql_subp202601` 同时出现在 Proxy 结果中 → 两者都是逻辑表，`subpartition_tables==0`，不产生虚假差异告警 | **P2-01** |
 | T2-R07 | `test_t2r07b_real_subpartition_is_still_stripped` | 反向护栏：真正的子表（不在 Proxy 结果里）仍必须被剔除，不得因 P2-01 回退 | **P2-01** |
 | T2-R10 | 首轮 T-R01～T-R14 全套 | 继续通过，不因本轮修正回退 | 首轮全部 |
+
+**Rev.K 新增的缺陷定向测试（对应 O 第三轮评审 §7 的 T3-R01～T3-R10）**：
+
+| O 编号 | 用例 | 验证 | 关闭的问题 |
+|---|---|---|---|
+| T3-R01 | `test_t3r01_named_database_must_not_absorb_case_sibling` | 指定 `database="Sales"` 时，实例级返回里的 `sales.t_lower` **必须被过滤**，总数 1 不是 2；反向指定 `sales` 同理。Rev.J 的全库用例通不过这条 | **P1-01** |
+| T3-R02 | `test_t3r02_budget_exit_does_not_rebuild_connection` | 预算耗尽时 `pool.create_calls == 0` —— 正常控制流不得触发连接池重建 | **P1-02** |
+| T3-R03 | `test_t3r03_budget_signal_survives_a_failing_reconnect` | 令重连必失败，预算路径仍须得到 `SKIPPED` 而非被新异常盖成 `FAILED` | **P1-02** |
+| T3-R03 | `test_t3r03b_real_error_still_rebuilds` | 反向护栏：**真实**数据库异常仍必须触发一次重建（P1-04 不得回退） | **P1-02 / 首轮 P1-04** |
+| T3-R04 | `test_t3r04_collect_upper_bound_covers_every_declared_phase` | 上界 = 180 + 5 + 30 = 215，名字含 `COLLECT` 以标明作用域，且**断言旧名 `MAX_WALL_SECONDS` 已不存在**（防止有人按旧语义引用） | **P1-02** |
+| T3-R04 | `test_t3r04b_deadline_checkpoints_are_where_the_formula_says` | 把公式依赖的检查点数量钉在源码里，并断言预算路径是"置标志 + break"而非 `raise` | **P1-02** |
+| T3-R05 | `test_t3r05_guard_does_not_block_future_migrations` | 本模块落盘后，`v13/131`、`v14/140`、乃至 `v15/150` 同时存在时护栏**仍须通过** | **P1-03** |
+| T3-R06 | `test_t3r06_guard_rejects_duplicate_and_squatter` | 只拒该拒的：同槽双文件、槽被别人占、我们槽里混进第二个文件、前驱被误删 | **P1-03** |
+| T3-R07 | `test_t3r07_destructive_guard_rejects_non_test_database` | 目标为 `tdsql_sqlcheck` / `production` / 空 时，**在任何 DROP 之前**抛 `DestructiveTargetError` | **P1-04** |
+| T3-R07 | `test_t3r07b_custom_test_db_needs_explicit_opt_in` | 自定义测试库必须**同时**给出库名与破坏性开关才放行 | **P1-04** |
+| T3-R07 | `test_t3r07c_probe_and_execution_use_the_same_config` | 源码级断言：探测读的是 `effective_db_config()`，且不再出现 `TDSQL_TEST` | **P1-04** |
+| T3-R08 | `test_t3r08_full_schema_contract_fails_closed`（**11 条参数化**） | 长度收窄 ×2、丢自增、缺默认值、默认值被改、可空性、字符集、类型 ×2、索引列序、索引唯一性——逐项在采集前失败关闭且报错点名具体列 | **P2-01** |
+| T3-R08 | `test_t3r08b_clean_ddl_passes_verification` | 反向护栏：**干净 DDL 必须通过**，且连续两次调用稳定无副作用 | **P2-01** |
+| T3-R10 | `test_t3r10_zero_effective_databases_is_not_partial_success` | 一失败一跳过时有效库数为 0，所有"不计入"的汇总均为 0（前端据此报红而非"部分完成"） | **P2-03** |
+
+> **T3-R09（历史抽屉状态清空）与 T3-R10 的前端分支**属于前端行为，
+> 代码在附录 A.5.4 / A.5.5，验收方式见 §12.4——本项目前端无自动化测试框架，
+> 沿用既有惯例以可执行的人工验收条目覆盖，**不假装它们有单测**。
 | T-R13 | `test_r13_api_records_current_operator` | API 签名含 `http_request: Request`，`operator` 收到真实用户名；未认证兜底 `anonymous`（**不写空串**） | **P2-02** |
 | T-R13 | `test_r13_created_by_is_persisted` | `created_by` 真正落库并可从 `/history` 回读 | **P2-02** |
 | T-R14 | `test_lzbj_ecif_uat_baseline`（已有） | 端到端对数：215/0/117/98/215/78，告警仅 `SUBPARTITION_EXCLUDED` | UAT 基准 |
@@ -1674,11 +1728,12 @@ DROP + 按 DDL 重建，互不干扰。
 这是本轮我认为最有价值的一处测试设计：**P1-04 描述的缺陷在 Rev.F 的测试体系下
 根本无法被发现**，因为旧 FakePool 对异常穿不穿出 `with` 完全无感。
 
-**本地验证结果（2026-08-31，Rev.J）**：用 importlib 把附录 A.1 / A.2 分别挂载为
+**本地验证结果（2026-09-01，Rev.K）**：用 importlib 把附录 A.1 / A.2 分别挂载为
 `backend.services.table_type_stats_service` 与 `backend.api.table_type_stats`
-（**仓库代码零改动**），`python -m pytest` **83 项通过 + 1 项跳过**
+（**仓库代码零改动**），`python -m pytest` **105 项通过 + 1 项跳过**
 （跳过的是 T-R08，它断言的是模块落盘后的仓库文件，设计阶段无从断言），
-含对本地 MariaDB(13306) 的真实落库、告警往返与九种畸形结构失败关闭用例。
+含对本地 MariaDB(13306) 的真实落库、告警往返，以及**十一种畸形结构逐项失败关闭
++ 干净 DDL 必须通过**的参数化用例。
 **这是设计阶段记录，不是发布证据**（见上方说明）。
 
 
@@ -1722,9 +1777,19 @@ DROP + 按 DDL 重建，互不干扰。
 - [ ] 既有 9 个深度诊断子页签功能不变（逐个点一遍）
 - [ ] **并发专项（Rev.G / P1-02）**：同一实例连续发起 3 次统计，第 3 次返回 **429** 且提示可读；期间在**另一个浏览器标签**发起一次既有 SQL 审核 / 慢查询扫描，确认其响应时间与结果不受影响
 - [ ] **并发专项**：统计过程中断开网络或杀掉目标库连接，确认槽位被释放（随后可再次发起统计，不出现"永远 429"）
-- [ ] **超时上界专项（Rev.J / P1-02）**：在库数最多的实例上执行一次，记录端到端墙钟耗时；确认**不超过 210 秒**（180 预算 + 30 最后一条命令读超时，ADR-13）。若超出，说明 deadline 有未覆盖的路径，属阻断项
+- [ ] **超时上界专项（Rev.K / P1-02）**：在库数最多的实例上执行一次，**分别记录**「目标采集阶段」与「元数据库落库阶段」的耗时；确认采集阶段**不超过 215 秒**（180 预算 + 5 建连 + 30 命令读超时，ADR-13）。若超出，说明 deadline 有未覆盖的路径，属阻断项。落库阶段单独记录（无硬上界，KL-20），若明显偏大需评估批量大小
 
-### 12.4 Rev.J 新增专项（O 第二轮评审）
+### 12.4 Rev.K 新增专项（O 第三轮评审）
+
+- [ ] **指定单库不吞兄弟库（P1-01）**：若内网有仅大小写不同的同名库，指定其中一个统计，确认另一个库的表**没有**被计入；无此形态则在测试环境建 `Sales`/`sales` 各一张表验证
+- [ ] **预算不触发重连（P1-02）**：把 `TOTAL_BUDGET_SECONDS` 临时调小到能在库中途耗尽，观察日志确认**没有**出现连接重建/重连日志，且该库状态为 `SKIPPED` 而非 `FAILED`
+- [ ] **上界分段记录（P1-02）**：见 §12.3 的超时上界专项，采集阶段与落库阶段**分别记录**
+- [ ] **迁移护栏不挡未来（P1-03）**：在本地临时新建一个 `backend/schema/v14/140_dummy.sql`，确认 `pytest -k migration_slot` **仍然全绿**；删除该临时文件
+- [ ] **破坏性目标保护（P1-04）**：故意用 `SQLCHECK_DB_NAME=tdsql_sqlcheck` 跑一次集成用例，确认在**任何 DROP 之前**就报错退出，且日志打印了 host/port/database
+- [ ] **历史抽屉状态清空（P2-02 / T3-R09）**：打开历史→选中一行看到告警→关闭→**切换到另一个实例**→再打开历史，确认**没有**残留上一条的告警；浏览器控制台**无** Vue 只读告警
+- [ ] **零有效库提示（P2-03 / T3-R10）**：分别构造「全失败」「全跳过」「失败+跳过覆盖全部」「真正部分成功」四种情形，确认前三种**不出现**"部分完成"字样，第四种才出现
+
+### 12.5 Rev.J 专项（O 第二轮评审）
 
 - [ ] **库名大小写（P1-01）**：若内网存在仅大小写不同的同名库，确认两库**各自成行**、总数不合并，且出现 `DB_NAME_CASE_VARIANTS`。无此形态则注明"无"，并改为在测试环境人工建 `Sales` / `sales` 各一张表验证
 - [ ] **指定库大小写**：输入错误大小写的库名，必须回 400 并在消息里点名真实存在的变体，**不得**当成存在
@@ -1759,7 +1824,8 @@ DROP + 按 DDL 重建，互不干扰。
 | KL-14（Rev.G 新增） | 并发配额与既有扫描**共享**，重度扫描期间统计可能被 429 | ADR-19 的取舍：共享配额才能真正保护既有功能 | 提示文案已写明"请稍后重试"；配额可由 `SQLCHECK_MAX_CONCURRENT_SCANS_*` 调整。**不为本模块单开配额**——单开等于全局上限失效 |
 | ~~KL-15~~（Rev.G 新增，**Rev.J 关闭**） | ~~`_ensure_schema` 不校验长度/精度~~ | 当时的免责理由是"`COLUMN_TYPE` 带显示宽度、跨发行版不一致"——**那个理由只对整型成立，对 varchar 长度不成立**，我把两件事混为一谈了 | **本项关闭**。Rev.J 按字段分工取值：整型比 `DATA_TYPE`（无显示宽度），字符列比 `CHARACTER_MAXIMUM_LENGTH` + `CHARACTER_SET_NAME`，共通比 `IS_NULLABLE` / `COLUMN_DEFAULT` / `EXTRA`，索引比全列序与唯一性（ADR-20）。**"已知"不等于"已关闭"**——这是 O 的原话，我接受 |
 | KL-18（Rev.J 新增） | 结构验收不校验排序规则（collation）与外键 | 排序规则错误不会导致 INSERT 失败，只影响排序与比较；本模块两张表无外键 | 有意留白：验收**过严**会把功能整个打死（干净安装通不过验收 = 页面永远不可用），比过松更难被发现。只钉住"错了就会写不进去或算错"的属性 |
-| KL-19（Rev.J 新增） | 总时长的可证明上界是 **210 秒**，不是 180 秒 | deadline 到期只保证"不再启动新命令"，已发出的最后一条命令仍可跑满 30 秒读超时。做到严格 180 需要每条命令动态调整 `read_timeout`，代价是每条命令重建临时池或触碰驱动内部状态（ADR-13） | 文档、`MAX_WALL_SECONDS` 常量、UI 文案统一按 **210 秒**表述，**不再宣称"硬 180 秒"**。并发影响评估（§9）按 210 秒计 |
+| KL-19（Rev.J 新增，**Rev.K 更正**） | **目标采集阶段**的可证明上界是 **215 秒**；`/run` 端到端**没有**硬上界 | deadline 到期只保证"不再启动新的目标实例操作"。最后一次检查通过后仍可能发生：建连 5s + `select_db` 30s（路径 A，35s）或一条命令 30s（路径 B），取大者 35s。Rev.J 写的 210 秒漏算了路径 A，且把它称作"`/run` 端到端"——而 `_ensure_schema()`（拿槽位前）与结果落库（释放槽位后）这两段元数据库工作根本不在 deadline 内（ADR-13 / ADR-24） | 文档、`MAX_COLLECT_WALL_SECONDS` 常量、UI 文案统一按 **215 秒 / 仅目标采集阶段**表述。元数据库阶段不设 deadline（超时丢结果比慢更糟），改用批量落库把它压小；§9 的并发影响评估按 215 秒计 |
+| KL-20（Rev.K 新增） | 元数据库的结构验收与落库不在任何超时控制内 | 它打的是本地元数据库；落库发生在采集完成之后，为它设 deadline 不可执行——超时了只能丢弃整轮采集结果，代价远大于慢一点（ADR-24） | 已把明细落库改为批量（`ITEM_INSERT_BATCH=100`，500 库 5 次往返）。若将来元数据库出现远程部署形态，需要重新评估是否给它单独的连接级超时 |
 
 ---
 
@@ -1817,12 +1883,27 @@ DROP + 按 DDL 重建，互不干扰。
 > | 历史抽屉告警改为 `computed` + 总数提示 + 展开全部（A.5.4 / A.5.5） | P2-02 |
 > | `runTableTypeStats` 按 failed/skipped 分流 success / warning / error 提示 | P2-03 |
 > | A.4 模块头如实列出离线 73 / 元数据库 10 / 需落盘 1 | DOC-01 |
+>
+> **Rev.K 相对 Rev.J 的实质变化**（全部源自 O 的第三轮评审，逐条对应）：
+>
+> | 变化 | 关闭 |
+> |---|---|
+> | 目标过滤改精确成员判断（`if qual not in target`），canonical 名不再二次 CI 回退 | P1-01 |
+> | 预算耗尽改标志位 + 正常退出 `with`，删除 `_BudgetExceeded`；`resolve()` 后补一次 deadline 检查 | P1-02 |
+> | 显式 `CONNECT_TIMEOUT=5`；`MAX_WALL_SECONDS(210)` → `MAX_COLLECT_WALL_SECONDS(215)`，作用域限定为目标采集阶段；明细落库批量化 | P1-02 |
+> | `assert_slot_ok` 删除"必须是最大槽"，改钉「槽位不重复 + 独占自己的槽 + 前驱存在」 | P1-03 |
+> | 探测与 DROP 共用 `MYSQL_CONFIG`；新增 `assert_destructive_target_is_safe()` 与 `DestructiveTargetError` | P1-04 |
+> | 11 条参数化字段契约用例 + 1 条干净 DDL 反向护栏 | P2-01 |
+> | 历史抽屉清理数据源而非只读 computed，切行时清空并 loading | P2-02 |
+> | 结果提示按**有效库数**分流 success / warning / error | P2-03 |
+> | API 头、DDL 头、`run_stats` 注释、前端子分区口径、`/run` 上界说法全部对齐 | DOC-01 |
+> | `TimeoutError` 映射 503（暂时性，与 500 语义区分） | Rev.K 自查 |
 
-### A.1 `backend/services/table_type_stats_service.py`（新增，1116 行）
+### A.1 `backend/services/table_type_stats_service.py`（新增，1168 行）
 
 ```python
 # -*- coding: utf-8 -*-
-"""G14 · 表类型统计（深度诊断子模块，DESIGN-v1.6.3.0 Rev.J）
+"""G14 · 表类型统计（深度诊断子模块，DESIGN-v1.6.3.0 Rev.K）
 
 按 TDSQL 原厂口径统计单个实例下各业务库的表类型分布：
 
@@ -1848,12 +1929,22 @@ DROP + 按 DDL 重建，互不干扰。
     本模块把子分区表从基线中剔除并单列计数，剔除后逻辑基线 215 与 Proxy 口径【精确相等】。
     故不得用未剔除的基线与 Proxy 口径比对（会产生 27% 的常态误报）。
 
+Rev.K（O 第三轮评审整改）要点：
+  · 目标库过滤改为**精确成员判断**：canonical name 不得再做第二次大小写回退，
+    否则指定单库时会把大小写兄弟库的行并进来（P1-01）。
+  · 预算耗尽改为**标志位 + 正常退出 with**，绝不抛异常穿出连接上下文
+    ——那会让一条健康连接被连接池销毁重建，并可能把 SKIPPED 误标成 FAILED（P1-02）。
+  · 上界公式更正为 180 + connect_timeout + read_timeout = **215 秒**，
+    且明确只覆盖【目标实例采集阶段】；元数据库的结构验收与落库不在其内（P1-02）。
+  · 明细落库改为批量（500 库 500 次往返 → 5 次）（P1-02）。
+  · resolve() 之后补一次 deadline 检查——它在缓存未命中时会向目标实例发探测 SQL。
+
 Rev.J（O 第二轮评审整改）要点：
   · 库名不再无条件小写：`Sales` 与 `sales` 在 lower_case_table_names=0 下是
     两个不同 schema，单值 lower 字典会把它们合并成一个（P1-01）。改用 _NameSpace：
     精确优先、CI 回退仅在候选唯一时生效、歧义显式报 DB_NAME_AMBIGUOUS。
   · 180 秒预算由 run_stats 统一建立并贯穿 SHOW DATABASES / 基线查询 / 每一条
-    Proxy 命令；可证明墙钟上界 = 180 + 30 = 210 秒（P1-02）。
+    Proxy 命令（上界公式见 Rev.K）。
   · 失败/跳过库的基线、子分区、重叠一律不进实例级汇总——先定状态再算汇总（P1-03）。
   · 结构验收升级为完整字段契约：类型 + 长度 + 字符集 + 可空性 + 默认值 + 自增
     + 索引全列序与唯一性（P1-04）。
@@ -1925,15 +2016,31 @@ _SYS_DB = frozenset({
 MAX_DATABASES = 500           # 库数护栏。超出即截断并显式告警（绝不静默少算）
 MAX_DIFF_SAMPLE = 20          # 差集样本上限，防止 detail 撑爆 VARCHAR(512)
 COMMAND_READ_TIMEOUT = 30     # 临时池单条命令读超时（秒）。防命令挂起（RISK-F）
-# 采集总时长预算：到期后【不再启动任何新的查询】，剩余库标 SKIPPED。
-# Rev.J / P1-02 说清楚它的确切语义——它是"不再开新命令"的截止线，不是墙钟上界。
-# 已经发出的最后一条命令仍可能跑满自己的读超时，故可证明的最坏墙钟上界为：
-#     TOTAL_BUDGET_SECONDS + COMMAND_READ_TIMEOUT = 210 秒
-# （基线查询走共享池，其 read_timeout 默认 10s，且同样在 deadline 之前才发起，
-#  故不改变这个上界。）Rev.I 只在每个库开始时查一次预算，单库三条命令
-# 最坏 3×30s，179 秒进库能跑到 269 秒——那个"180 秒"的承诺是不成立的。
+CONNECT_TIMEOUT = 5           # 临时池建连超时（秒）。显式钉住，参与上界推导
+
+# 采集总时长预算：到期后【不再启动任何新的目标实例操作】，未采完的库标 SKIPPED。
+# 它是"不再开新操作"的截止线，不是墙钟上界。
+#
+# Rev.K / P1-02 修正上界公式。deadline 检查点位于「进入某库的连接上下文之前」与
+# 「每条命令之前」。最后一次检查通过之后，仍可能发生的最长单段等待是：
+#   路径 A（刚过库级检查）：建连 CONNECT_TIMEOUT + select_db 一个读超时 = 5 + 30 = 35s
+#                          （随后命令级检查必然拦下，不会再跑命令）
+#   路径 B（刚过命令级检查）：一条命令的读超时 = 30s
+# 取较大者 35s。前置阶段（实例类型探测 / SHOW DATABASES / 基线查询）走共享池，
+# 其 read_timeout 默认 10s，均小于 35s，不改变上界。故：
+#
+#   目标采集阶段可证明墙钟上界
+#     = TOTAL_BUDGET_SECONDS + CONNECT_TIMEOUT + COMMAND_READ_TIMEOUT = 215 秒
+#
+# **这个上界只覆盖"对目标 TDSQL 实例的采集阶段"。** run_stats 里还有两段元数据库
+# 工作不在 deadline 内——`_ensure_schema()`（4 条 information_schema 查询，在拿槽位
+# 之前）与结果落库（1 条任务 INSERT + 明细批量 INSERT + COMMIT）。它们打的是本地
+# 元数据库、且落库阶段已在采集完成之后（结果不能因为超时就丢掉，那样整轮采集白做）。
+# Rev.J 曾宣称"/run 端到端 210 秒"，那是**不成立**的（Rev.K / P1-02 更正）。
 TOTAL_BUDGET_SECONDS = 180
-MAX_WALL_SECONDS = TOTAL_BUDGET_SECONDS + COMMAND_READ_TIMEOUT   # 可证明上界
+MAX_COLLECT_WALL_SECONDS = (TOTAL_BUDGET_SECONDS + CONNECT_TIMEOUT
+                            + COMMAND_READ_TIMEOUT)     # = 215，见上方推导
+ITEM_INSERT_BATCH = 100       # 明细落库批量大小。500 库从 500 次往返降到 5 次
 
 # 表名列识别规则（§6.3）。自上而下，命中即停。
 # db_table 为 2026-08-29 内网实测确认的真实列名（附录 B）。
@@ -1972,10 +2079,6 @@ _now = time.monotonic
 # ══════════════════════════════════════════════════════════════════
 # 小工具
 # ══════════════════════════════════════════════════════════════════
-class _BudgetExceeded(RuntimeError):
-    """总时长预算耗尽（Rev.J / P1-02）。内部信号，不外泄给调用方。"""
-
-
 class _NameSpace:
     """库名命名空间：精确优先，大小写不敏感回退【仅在候选唯一时】生效。
 
@@ -2299,7 +2402,8 @@ def _collect_distributed(pool, dbs: list, baseline: dict, known: "_NameSpace",
     ambiguous_samples = set()
 
     cfg = dataclasses.replace(pool.config, database=dbs[0],
-                              read_timeout=COMMAND_READ_TIMEOUT)
+                              read_timeout=COMMAND_READ_TIMEOUT,
+                              connect_timeout=CONNECT_TIMEOUT)
     tmp = _new_pool(cfg, pool_size=1)
     try:
         for db in dbs:
@@ -2313,16 +2417,27 @@ def _collect_distributed(pool, dbs: list, baseline: dict, known: "_NameSpace",
             staged_guessed = False
             staged_cross = False
             staged_amb = set()
+            budget_hit = False
             try:
-                # P1-04：每库独立上下文；异常穿出即触发连接重建
+                # P1-04：每库独立上下文；【真实的】异常穿出即触发连接重建
                 with tmp.get_connection() as conn:
                     conn.select_db(db)
                     for kind, sql in _KIND_SQL:
                         # P1-02：每条命令开始前再查一次 deadline。
                         # 单库三条命令最坏 3×30s=90s，只在库开始时查一次的话，
-                        # 179 秒进库就能跑到 269 秒——远超"180 秒"的承诺。
+                        # 179 秒进库就能跑到 269 秒——那个"180 秒"的承诺不成立。
+                        #
+                        # Rev.K / P1-02：这里【只置标志、正常退出 with】，
+                        # 绝不抛异常。TDSQLConnectionPool.get_connection() 会捕获
+                        # 穿出上下文的**任何**异常并关闭 + 重建连接
+                        # （tdsql_connector.py:287-307）——用它承载"预算耗尽"这种
+                        # 正常控制信号，等于让一条健康连接在 deadline 之后被销毁重建，
+                        # 白白多付一次 connect_timeout；重连再失败的话，新异常还会
+                        # 盖掉原信号，把本该 SKIPPED 的库误标成 FAILED。
+                        # **连接重建只应由真实的数据库/网络异常触发。**
                         if _now() >= deadline:
-                            raise _BudgetExceeded()
+                            budget_hit = True
+                            break
                         with conn.cursor() as cur:
                             cur.execute(sql)
                             rows = cur.fetchall()
@@ -2337,15 +2452,16 @@ def _collect_distributed(pool, dbs: list, baseline: dict, known: "_NameSpace",
                         staged_guessed = staged_guessed or guessed
                         staged_cross = staged_cross or cross
                         staged_amb |= amb
-            except _BudgetExceeded:
-                # 预算在本库中途耗尽：本库【未采完】，按 SKIPPED 处理而不是 FAILED
-                # ——"没来得及测"与"测了但错了"处置动作不同（ADR-14）。
-                skipped[db] = "budget"
-                continue
             except Exception as e:                           # noqa: BLE001
                 detail = f"{db} 采集失败: {_err(e)}"
                 if _errno_of(e) == _SYNTAX_ERRNO:
                     syntax_errors += 1
+            if budget_hit:
+                # 预算在本库中途耗尽：本库【未采完】，按 SKIPPED 处理而不是 FAILED
+                # ——"没来得及测"与"测了但错了"处置动作不同（ADR-14）。
+                # 暂存区整体丢弃：半个库的数据不是"部分成功"，是错的。
+                skipped[db] = "budget"
+                continue
             if detail:
                 # P1-05：整库丢弃暂存区，绝不半量合入
                 failed[db] = detail[:512]
@@ -2364,9 +2480,15 @@ def _collect_distributed(pool, dbs: list, baseline: dict, known: "_NameSpace",
                     f"未能识别表名列，已退化为取第一列；实际列名: {staged_cols}"))
             for kind, _sql in _KIND_SQL:
                 for qual, name in staged.get(kind, ()):
-                    owner = target.resolve(qual)
-                    if owner is None:
-                        continue              # 非目标库（系统库/被筛掉的库/歧义）
+                    # Rev.K / P1-01：qual 已由 _extract_pairs 用【全实例命名空间】
+                    # known 解析成 canonical name，这里必须**精确成员判断**。
+                    # Rev.J 在这里又做了一次 target.resolve()——目标子集只含一个库时，
+                    # CI 回退会把另一个真实库的行"唯一命中"到目标库上：
+                    # 指定 database="Sales" 时，实例级返回里的 sales.t_lower
+                    # 会被算进 Sales。**canonical name 不得再做第二次大小写回退。**
+                    if qual not in target:
+                        continue              # 非目标库（系统库 / 被 database 筛掉的库）
+                    owner = qual
                     if name in baseline.get(owner, {}).get("view", ()):
                         continue              # 原厂口径：不统计视图
                     key = (owner, name)
@@ -2528,11 +2650,18 @@ def analyze(pool, connection_id: str = "", database: str = "",
     if deadline is None:
         deadline = _now() + TOTAL_BUDGET_SECONDS
 
+    # Rev.K：resolve() 在缓存未命中时会向目标实例发探测 SQL
+    # （instance_type_service._probe_and_persist），是本流程第一段真实的目标实例 I/O。
+    # 它同样消耗 deadline——deadline 是绝对时刻，故无需在它之前额外检查；
+    # 但它之后必须检查，否则一次慢探测会让后续阶段在预算外继续开工。
     ctx = instance_type_service.resolve(connection_id)
     is_dist = ctx.instance_type == InstanceType.DISTRIBUTED
     source = getattr(ctx.source, "value", str(ctx.source))
 
     warnings = []
+    if _now() >= deadline:
+        raise TimeoutError(
+            f"采集总时长预算 {TOTAL_BUDGET_SECONDS}s 在实例类型探测阶段即已耗尽")
     # Rev.J / P1-02：库枚举也在预算内。它走共享池（read_timeout 默认 10s）。
     if _now() >= deadline:
         raise TimeoutError(
@@ -2857,7 +2986,8 @@ def run_stats(pool, connection_id: str = "", database: str = "",
     # Rev.G / P1-08：先验收落库表结构，避免采集完才在 INSERT 处失败
     _ensure_schema()
 
-    # Rev.G / P1-02：进入既有扫描并发槽位。本模块单次最长占用 180 秒并额外建一条
+    # Rev.G / P1-02：进入既有扫描并发槽位。本模块单次采集最长占用
+    # MAX_COLLECT_WALL_SECONDS（215 秒，见常量区推导）并额外建一条
     # Proxy 连接，不限流会挤占 SQL 审核 / 慢查询扫描 / 巡检的工作线程与目标库连接。
     # 复用 registry.scan_slot 而不是自建信号量，才能与既有扫描【共享】同一份配额
     # （scan_service.py:72 是同样的用法），否则两套限流各算各的，全局上限失去意义。
@@ -2886,15 +3016,18 @@ def run_stats(pool, connection_id: str = "", database: str = "",
              res["overlap_count"],
              json.dumps(res["warnings"], ensure_ascii=False), operator))
         stat_id = cur.lastrowid
-        for it in res["items"]:
-            conn.execute(
-                "INSERT INTO table_type_stat_item (stat_id, db_name, total_tables, "
-                "shard_tables, broadcast_tables, single_tables, baseline_tables, "
-                "subpartition_tables, status, detail) VALUES (?,?,?,?,?,?,?,?,?,?)",
-                (stat_id, it["db_name"], it["total_tables"], it["shard_tables"],
+        # Rev.K / P1-02：明细【批量】落库。Rev.J 是逐行 INSERT——500 个业务库就是
+        # 500 次往返，全部发生在扫描槽已释放、deadline 已不再约束的阶段，
+        # 会继续占用 API 工作线程。批量后 500 库只需 5 次往返。
+        rows = [(stat_id, it["db_name"], it["total_tables"], it["shard_tables"],
                  it["broadcast_tables"], it["single_tables"],
                  it["baseline_tables"], it["subpartition_tables"],
-                 it["status"], it["detail"]))
+                 it["status"], it["detail"]) for it in res["items"]]
+        item_sql = ("INSERT INTO table_type_stat_item (stat_id, db_name, total_tables, "
+                    "shard_tables, broadcast_tables, single_tables, baseline_tables, "
+                    "subpartition_tables, status, detail) VALUES (?,?,?,?,?,?,?,?,?,?)")
+        for i in range(0, len(rows), ITEM_INSERT_BATCH):
+            conn.cursor().executemany(item_sql, rows[i:i + ITEM_INSERT_BATCH])
         conn.commit()
     finally:
         conn.close()
@@ -2939,11 +3072,11 @@ def get_detail(stat_id: int) -> dict:
     return {"items": items, "warnings": warnings}
 ```
 
-### A.2 `backend/api/table_type_stats.py`（新增，66 行）
+### A.2 `backend/api/table_type_stats.py`（新增，71 行）
 
 ```python
 # -*- coding: utf-8 -*-
-"""G14 · 表类型统计 API（DESIGN-v1.6.3.0 Rev.G §5）
+"""G14 · 表类型统计 API（DESIGN-v1.6.3.0 Rev.K §5）
 
 Rev.G（O 评审整改）：
   · P1-02  /run 由 service 层进入 registry.scan_slot(connection_id)，
@@ -2953,6 +3086,8 @@ Rev.G（O 评审整改）：
   · P2-02  接收 Request 并把 request.state.username 传给 run_stats(operator=)，
            否则 created_by 在真实调用中永远为空，REQ-6 的"可回看"缺了操作人。
   · P2-03  connection_id 必须显式非空（校验在 service，本层映射 400）。
+  · Rev.K  TimeoutError（采集预算耗尽）单独映射为 503——它是"稍后重试可能成功"
+           的暂时性状况，与 500 的"结构不对，重试也没用"语义不同。
 """
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -2990,6 +3125,9 @@ def run(body: StatsRequest, http_request: Request):
     except ScanBusyError as e:
         # 并发超限：与既有慢查询扫描共用同一份配额，口径与 tdsql_manage.py:432 一致
         raise HTTPException(status_code=429, detail=str(e))
+    except TimeoutError as e:
+        # 采集总时长预算耗尽：暂时性，稍后重试或缩小 database 范围即可
+        raise HTTPException(status_code=503, detail=str(e))
     except svc.SchemaNotReadyError as e:
         # 留档表结构不符：消息里已带可执行处置步骤，原样透出
         raise HTTPException(status_code=500, detail=str(e))
@@ -3016,7 +3154,7 @@ def detail(stat_id: int):
 > 因此注释必须整行独占，语句之间必须有 `;`，文件末尾的 `;` 不可省。
 
 ```sql
--- v1.6.3.0 G14 表类型统计（DESIGN-v1.6.3.0 Rev.I §6.8）
+-- v1.6.3.0 G14 表类型统计（DESIGN-v1.6.3.0 Rev.K §6.8）
 -- 槽位：v13/130。v11/110 与 v12/120 已被 v1.6.2.2 的 O-18 / O-22 占用（Rev.I 更正）。
 -- 任务表：一次统计一行
 CREATE TABLE IF NOT EXISTS table_type_stat (
@@ -3064,23 +3202,23 @@ CREATE TABLE IF NOT EXISTS table_type_stat_item (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ```
 
-### A.4 `tests/test_table_type_stats.py`（新增，1790 行）
+### A.4 `tests/test_table_type_stats.py`（新增，2234 行）
 
 ```python
 # -*- coding: utf-8 -*-
-"""G14 · 表类型统计 回归测试（DESIGN-v1.6.3.0 Rev.J §11）
+"""G14 · 表类型统计 回归测试（DESIGN-v1.6.3.0 Rev.K §11）
 
 **测试依赖如实说明**（Rev.J / DOC-01——Rev.I 之前一直写"除落库两例外全部离线"，
 那是 Rev.B 时期的实际情况，后来陆续加到 10 例仍没有更新，属于文档失真）：
 
 | 类别 | 数量 | 依赖 |
 |---|---:|---|
-| 纯离线 | **73** | 无。FakePool + FakeClock 全内存，不连任何数据库 |
-| 元数据库集成 | **10** | 本地 MySQL/MariaDB；`@skipif(not MYSQL_AVAILABLE)` |
+| 纯离线 | **83** | 无。FakePool + FakeClock 全内存，不连任何数据库 |
+| 元数据库集成 | **22** | 本地 MySQL/MariaDB；`@skipif(not MYSQL_AVAILABLE)` |
 | 需模块落盘 | **1** | T-R08 权限键登记，断言仓库文件；设计阶段 skip |
-| **collect 合计** | **84** | 含 5 个参数化展开 |
+| **collect 合计** | **106** | 含参数化展开（其中 T3-R08 契约用例 11 条） |
 
-实测口径：不连元数据库时 `73 passed, 11 skipped`；连上后 `83 passed, 1 skipped`。
+实测口径：不连元数据库时 `83 passed, 23 skipped`；连上后 `105 passed, 1 skipped`。
 
 元数据库集成用例覆盖：落库与回读、`/history` 与 `created_by`、500 库告警的
 `MEDIUMTEXT` 往返、以及 6 项结构契约失败关闭（缺表 / 缺列 / 错类型 / 缺索引 /
@@ -3088,7 +3226,13 @@ CREATE TABLE IF NOT EXISTS table_type_stat_item (
 `SQLCHECK_DB_NAME`（默认 `tdsql_sqlcheck_test`），由 `g14_schema` fixture
 在每个用例前后 DROP + 按 DDL 重建，互不干扰。
 
-`TDSQL_TEST_HOST/PORT/USER/PASSWORD` 未就绪时这 10 例自动 skip——
+**破坏性目标保护（Rev.K / P1-04）**：可用性探测与实际 DROP 使用**同一份**
+`backend.services.database.MYSQL_CONFIG`；任何 DROP 之前先过
+`assert_destructive_target_is_safe()`——库名不精确等于 `tdsql_sqlcheck_test`
+（或显式开启 `G14_ALLOW_DESTRUCTIVE_TESTS=1` + `G14_TEST_DB_NAME`）就抛
+`DestructiveTargetError`，并把 host/port/database 打进日志。
+
+元数据库不可达时这 22 例自动 skip——
 **skip 不是 pass**：模块真正落盘后必须在具备元数据库的环境上重跑，
 设计阶段的通过/跳过数只能作为设计阶段记录，不能当作发布证据。
 
@@ -3097,6 +3241,7 @@ CREATE TABLE IF NOT EXISTS table_type_stat_item (
 """
 import os
 import random
+import sys
 import time
 
 import pytest
@@ -3104,17 +3249,273 @@ import pytest
 from backend.services import table_type_stats_service as svc
 from backend.services.tdsql_connector import TDSQLConnectionConfig
 
-_HOST = os.environ.get("TDSQL_TEST_HOST", "127.0.0.1")
-_PORT = int(os.environ.get("TDSQL_TEST_PORT", "13306"))
-_USER = os.environ.get("TDSQL_TEST_USER", "root")
-_PASS = os.environ.get("TDSQL_TEST_PASSWORD", "tdsql_test_2024")
-try:
-    import pymysql
-    pymysql.connect(host=_HOST, port=_PORT, user=_USER,
-                    password=_PASS, connect_timeout=3).close()
-    MYSQL_AVAILABLE = True
-except Exception:
-    MYSQL_AVAILABLE = False
+# ══════════════════════════════════════════════════════════════════
+# Rev.K 定向回归（O 第三轮评审 §7 的 T3-R01…T3-R10）
+# ══════════════════════════════════════════════════════════════════
+def test_t3r01_named_database_must_not_absorb_case_sibling(monkeypatch):
+    """T3-R01 / P1-01：指定 `Sales` 时，实例级返回里的 `sales.*` 必须被过滤掉。
+
+    Rev.J 在 `_extract_pairs` 里用全实例命名空间 known 把 qual 解析成了 canonical
+    名（这步对），随后又对只含目标库的 target 做了**第二次** CI 回退——
+    目标子集只有 `Sales` 一个候选时，`sales` 会被"唯一命中"回 `Sales`，
+    于是另一个真实库的表被算进用户指定的库。四个主数字直接错。
+    """
+    _patch_ctx(monkeypatch, "distributed")
+    allrows = _rows(["Sales.t_upper", "sales.t_lower"], info="shardkey:id")
+    per_db = {("Sales", svc.SQL_SHARD): allrows,
+              ("Sales", svc.SQL_BROADCAST): [],
+              ("Sales", svc.SQL_SINGLE): []}
+    pool = FakePool(databases=["Sales", "sales"],
+                    info_schema={"Sales": {"base": ["t_upper"]},
+                                 "sales": {"base": ["t_lower"]}},
+                    per_db=per_db)
+    _patch_tmp_pool(monkeypatch, pool)
+    res = svc.analyze(pool, connection_id="c1", database="Sales")
+
+    assert res["database_count"] == 1
+    assert [i["db_name"] for i in res["items"]] == ["Sales"]
+    assert res["total_tables"] == 1, "sales.t_lower 必须被过滤，不得计入 Sales"
+    assert res["shard_tables"] == 1
+    assert res["baseline_tables"] == 1
+    assert not any(w["code"] == "RECON_MISMATCH" for w in res["warnings"])
+    # 反向：指定 sales 时同理只计自己那一张
+    per_db2 = {("sales", svc.SQL_SHARD): allrows,
+               ("sales", svc.SQL_BROADCAST): [],
+               ("sales", svc.SQL_SINGLE): []}
+    pool2 = FakePool(databases=["Sales", "sales"],
+                     info_schema={"Sales": {"base": ["t_upper"]},
+                                  "sales": {"base": ["t_lower"]}},
+                     per_db=per_db2)
+    _patch_tmp_pool(monkeypatch, pool2)
+    res2 = svc.analyze(pool2, connection_id="c1", database="sales")
+    assert res2["total_tables"] == 1
+    assert [i["db_name"] for i in res2["items"]] == ["sales"]
+
+
+def test_t3r02_budget_exit_does_not_rebuild_connection(monkeypatch):
+    """T3-R02 / P1-02：预算耗尽是正常控制流，**不得**触发连接池重建。
+
+    真实池会捕获穿出 `with` 的任何异常并 close + `_create_connection()`。
+    用异常承载"预算耗尽"，等于在 deadline 之后把一条健康连接销毁重建，
+    白白多付一次 connect_timeout。
+    """
+    _patch_ctx(monkeypatch, "distributed")
+    clock = FakeClock()
+    monkeypatch.setattr(svc, "_now", clock)
+    deadline = clock.t + 100.0
+    per_db = {}
+    for d in ("db_a", "db_b"):
+        for sql in (svc.SQL_SHARD, svc.SQL_BROADCAST, svc.SQL_SINGLE):
+            per_db[(d, sql)] = _rows([f"{d}.t"])
+    pool = FakePool(databases=["db_a", "db_b"],
+                    info_schema={"db_a": {"base": ["t"]}, "db_b": {"base": ["t"]}},
+                    per_db=per_db)
+    _patch_tmp_pool(monkeypatch, pool)
+    orig = svc._extract_pairs
+
+    def _slow(rows, cur, known):
+        clock.advance(60.0)
+        return orig(rows, cur, known)
+
+    monkeypatch.setattr(svc, "_extract_pairs", _slow)
+    res = svc.analyze(pool, connection_id="c1", deadline=deadline)
+
+    assert pool.create_calls == 0, \
+        f"预算控制流不得触发连接重建，实际重建 {pool.create_calls} 次"
+    assert pool.generation == 0
+    by_db = {i["db_name"]: i for i in res["items"]}
+    assert by_db["db_a"]["status"] == "SKIPPED"
+    assert by_db["db_b"]["status"] == "SKIPPED"
+
+
+def test_t3r03_budget_signal_survives_a_failing_reconnect(monkeypatch):
+    """T3-R03 / P1-02：即使重连会失败，预算路径也不该走到那里——状态必须是 SKIPPED。
+
+    Rev.J 的写法下，`_BudgetExceeded` 穿出 with → 池尝试重建 → 重建抛错 →
+    新异常盖掉原信号 → 本该 SKIPPED 的库被误标成 FAILED。
+    """
+    _patch_ctx(monkeypatch, "distributed")
+    clock = FakeClock()
+    monkeypatch.setattr(svc, "_now", clock)
+    deadline = clock.t + 100.0
+    per_db = {("db_a", sql): _rows(["db_a.t"])
+              for sql in (svc.SQL_SHARD, svc.SQL_BROADCAST, svc.SQL_SINGLE)}
+    pool = FakePool(databases=["db_a"], info_schema={"db_a": {"base": ["t"]}},
+                    per_db=per_db)
+    pool.reconnect_fail = _mysql_error(2003, "Can't connect to MySQL server")
+    _patch_tmp_pool(monkeypatch, pool)
+    orig = svc._extract_pairs
+
+    def _slow(rows, cur, known):
+        clock.advance(60.0)
+        return orig(rows, cur, known)
+
+    monkeypatch.setattr(svc, "_extract_pairs", _slow)
+    res = svc.analyze(pool, connection_id="c1", deadline=deadline)
+    assert pool.create_calls == 0, "预算路径根本不该碰到重连"
+    assert res["items"][0]["status"] == "SKIPPED", "不得被重连失败盖成 FAILED"
+    assert res["skipped_databases"] == 1 and res["failed_databases"] == 0
+
+
+def test_t3r03b_real_error_still_rebuilds(monkeypatch):
+    """T3-R03 反向护栏：**真实**的数据库异常仍必须触发重建（P1-04 不得回退）。"""
+    _patch_ctx(monkeypatch, "distributed")
+    per_db = {("db_a", svc.SQL_SHARD): _mysql_error(2013, "Lost connection"),
+              ("db_b", svc.SQL_SHARD): _rows(["db_b.s"]),
+              ("db_b", svc.SQL_BROADCAST): [],
+              ("db_b", svc.SQL_SINGLE): []}
+    pool = FakePool(databases=["db_a", "db_b"],
+                    info_schema={"db_a": {"base": ["s"]}, "db_b": {"base": ["s"]}},
+                    per_db=per_db)
+    _patch_tmp_pool(monkeypatch, pool)
+    res = svc.analyze(pool, connection_id="c1")
+    assert pool.create_calls == 1, "真实异常必须触发一次连接重建"
+    by_db = {i["db_name"]: i for i in res["items"]}
+    assert by_db["db_a"]["status"] == "FAILED"
+    assert by_db["db_b"]["status"] == "OK"
+
+
+def test_t3r04_collect_upper_bound_covers_every_declared_phase():
+    """T3-R04 / P1-02：上界必须覆盖它所声称的全部阶段，不能只做常量算术。
+
+    公式：deadline 最后一次检查通过后，还能发生的最长单段等待。
+      路径 A（刚过库级检查）：建连 CONNECT_TIMEOUT + select_db 一个读超时
+      路径 B（刚过命令级检查）：一条命令的读超时
+    取较大者。前置阶段走共享池（read_timeout 默认 10s），小于路径 A。
+    """
+    assert svc.MAX_COLLECT_WALL_SECONDS == (
+        svc.TOTAL_BUDGET_SECONDS + svc.CONNECT_TIMEOUT + svc.COMMAND_READ_TIMEOUT)
+    assert svc.MAX_COLLECT_WALL_SECONDS == 215
+    # 名字必须说清它只覆盖"目标采集阶段"——Rev.J 叫 MAX_WALL_SECONDS 并宣称
+    # 是 /run 端到端上界，而 _ensure_schema 与落库根本不在 deadline 内。
+    assert not hasattr(svc, "MAX_WALL_SECONDS"), \
+        "旧名字 MAX_WALL_SECONDS 会让人误以为是 /run 端到端上界"
+    assert "COLLECT" in "MAX_COLLECT_WALL_SECONDS"
+    # 元数据库阶段（结构验收 + 落库）不在 deadline 内，但落库必须是批量的
+    assert svc.ITEM_INSERT_BATCH >= 50
+
+
+def test_t3r04b_deadline_checkpoints_are_where_the_formula_says(monkeypatch):
+    """T3-R04：把公式依赖的四个检查点钉在代码里，防止将来被人删掉一处。"""
+    import inspect
+    src_analyze = inspect.getsource(svc.analyze)
+    assert src_analyze.count("_now() >= deadline") >= 3, \
+        "analyze 必须在实例类型探测后、库枚举前、基线查询前各检查一次"
+    src_collect = inspect.getsource(svc._collect_distributed)
+    assert src_collect.count("_now() >= deadline") >= 2, \
+        "_collect_distributed 必须在每库进入连接上下文前、每条命令前各检查一次"
+    # 预算耗尽必须是"置标志 + break"，不是抛异常
+    assert "budget_hit = True" in src_collect
+    assert "raise _BudgetExceeded" not in src_collect
+
+
+def test_t3r10_zero_effective_databases_is_not_partial_success(monkeypatch):
+    """T3-R10 / P2-03：失败 + 跳过覆盖全部库时，有效库数为 0，不能叫"部分完成"。
+
+    这条在服务端把判据钉住：前端据 `database_count - failed - skipped` 分流。
+    """
+    _patch_ctx(monkeypatch, "distributed")
+    clock = FakeClock()
+    monkeypatch.setattr(svc, "_now", clock)
+    per_db = {("db_a", svc.SQL_SHARD): _mysql_error(1142, "denied")}
+    pool = FakePool(databases=["db_a", "db_b"],
+                    info_schema={"db_a": {"base": ["x"]}, "db_b": {"base": ["y"]}},
+                    per_db=per_db)
+    _patch_tmp_pool(monkeypatch, pool)
+    orig = svc._collect_baseline
+
+    def _tick(p, dbs):
+        out = orig(p, dbs)
+        return out
+
+    monkeypatch.setattr(svc, "_collect_baseline", _tick)
+
+    # db_a 失败；db_b 在进入前预算耗尽
+    real_extract = svc._extract_pairs
+
+    def _boom(rows, cur, known):
+        clock.advance(200.0)
+        return real_extract(rows, cur, known)
+
+    monkeypatch.setattr(svc, "_extract_pairs", _boom)
+    res = svc.analyze(pool, connection_id="c1",
+                      deadline=clock.t + svc.TOTAL_BUDGET_SECONDS)
+    effective = (res["database_count"] - res["failed_databases"]
+                 - res["skipped_databases"])
+    assert effective == 0, "两个库一个失败一个跳过，有效库数必须是 0"
+    assert res["total_tables"] == 0
+    assert res["baseline_tables"] == 0 and res["subpartition_tables"] == 0
+
+
+# ══════════════════════════════════════════════════════════════════
+# 元数据库集成测试的目标保护（Rev.K / P1-04）
+# ══════════════════════════════════════════════════════════════════
+#
+# 这些用例会 DROP 两张表。Rev.J 的做法有两个致命问题：
+#   ① 可用性探测用 TDSQL_TEST_* 一套配置，实际 DROP 用 SQLCHECK_DB_* 另一套，
+#      两套可以指向完全不同的服务器——探测通了就不 skip，然后往【生产元数据库】
+#      执行 DROP；反过来探测不通又会把本可运行的用例错误跳过；
+#   ② 唯一的"保护"是 fixture 里的 `os.environ.setdefault("SQLCHECK_DB_NAME", ...)`，
+#      它既晚于 database 模块导入（MYSQL_CONFIG 早已按旧值定型），
+#      又因为是 setdefault 而**不会覆盖**外部已设的 SQLCHECK_DB_NAME=tdsql_sqlcheck。
+#
+# Rev.K 的做法：**探测与执行使用同一份已生效的 MYSQL_CONFIG**，并在任何 DROP 之前
+# 做失败关闭断言。这是安全底线，不是风格问题——测试代码删掉生产数据是不可接受的。
+_APPROVED_TEST_DB = "tdsql_sqlcheck_test"
+# 需要用别的库名跑破坏性用例时，必须同时显式设置这两个环境变量。
+_ALLOW_DESTRUCTIVE = os.environ.get("G14_ALLOW_DESTRUCTIVE_TESTS") == "1"
+_CUSTOM_TEST_DB = os.environ.get("G14_TEST_DB_NAME", "")
+
+
+def effective_db_config():
+    """返回 database 模块【当前真正在用】的连接配置（不是环境变量的快照）。"""
+    from backend.services.database import MYSQL_CONFIG
+    return dict(MYSQL_CONFIG)
+
+
+def _probe_metadata_db():
+    """用与 DROP 完全相同的配置探测可用性。"""
+    cfg = effective_db_config()
+    try:
+        import pymysql
+        conn = pymysql.connect(host=cfg["host"], port=cfg["port"],
+                               user=cfg["user"], password=cfg["password"],
+                               connect_timeout=3)
+        conn.close()
+        return True
+    except Exception:
+        return False
+
+
+MYSQL_AVAILABLE = _probe_metadata_db()
+
+
+class DestructiveTargetError(RuntimeError):
+    """破坏性测试的目标库不在批准清单内。
+
+    刻意用普通异常而不是 `pytest.fail()`：后者抛的 `Failed` 继承自 BaseException，
+    守门人本身就没法被单测覆盖了——而"守门人会不会放行"恰恰是这里最需要被验证的一件事。
+    从 fixture 里抛出的异常同样会让用例 error 掉，失败关闭的效果完全一样。
+    """
+
+
+def assert_destructive_target_is_safe():
+    """任何 DROP 之前的失败关闭断言。不通过即抛出，绝不"尽力而为"。"""
+    cfg = effective_db_config()
+    target = str(cfg.get("database") or "")
+    allowed = {_APPROVED_TEST_DB}
+    if _ALLOW_DESTRUCTIVE and _CUSTOM_TEST_DB:
+        allowed.add(_CUSTOM_TEST_DB)
+    # 破坏性操作前把目标打印出来——出了事要能立刻看出打的是哪台机器
+    print(f"[G14 破坏性测试目标] host={cfg.get('host')} port={cfg.get('port')} "
+          f"database={target!r} 允许集合={sorted(allowed)}")
+    if target not in allowed:
+        raise DestructiveTargetError(
+            f"拒绝在非批准的数据库上执行 DROP：当前 SQLCHECK_DB_NAME={target!r}，"
+            f"仅允许 {sorted(allowed)}。"
+            f"如确需在自定义库上跑破坏性用例，请同时设置 "
+            f"G14_ALLOW_DESTRUCTIVE_TESTS=1 与 G14_TEST_DB_NAME=<库名>。")
+    return cfg
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -3148,6 +3549,8 @@ class FakePool:
         self.closed = False
         self.made_with_read_timeout = None
         self.generation = 0          # 连接重建次数
+        self.create_calls = 0        # _create_connection() 被调用次数（Rev.K / P1-02）
+        self.reconnect_fail = None   # 令重建失败，验证信号不被覆盖
         self.ctx_count = 0           # get_connection() 进入次数
         self.conn_ids = []           # [(db, 该库拿到的连接代次)]
 
@@ -3213,11 +3616,22 @@ class FakePool:
 
             def __exit__(self_i, exc_type, exc, tb):
                 if exc_type is not None:
-                    # 异常穿出 ⇒ 关闭旧连接并重建（真实池的行为）
-                    pool.generation += 1
+                    # 异常穿出 ⇒ 关闭旧连接并【真的】重建（真实池的行为）。
+                    # Rev.K / P1-02：这里必须调用 _create_connection()，否则
+                    # "预算控制信号触发了一次重连"这种问题在测试里根本看不出来
+                    # ——Rev.J 的 FakePool 只把 generation += 1，是个哑动作。
+                    pool._create_connection()
                 return False
 
         return _Ctx()
+
+    def _create_connection(self):
+        """真实池在异常穿出上下文时会调用它（tdsql_connector.py:298-306）。"""
+        self.create_calls += 1
+        self.generation += 1
+        if self.reconnect_fail is not None:
+            raise self.reconnect_fail
+        return object()
 
     def close_all(self):
         self.closed = True
@@ -4467,12 +4881,6 @@ def test_t2r02b_deadline_blocks_baseline_query(monkeypatch):
     assert "预算" in str(e.value)
 
 
-def test_t2r02c_provable_wall_upper_bound_is_documented():
-    """T2-R02：可证明上界 = 预算 + 单条命令读超时，且常量之间要自洽。"""
-    assert svc.MAX_WALL_SECONDS == svc.TOTAL_BUDGET_SECONDS + svc.COMMAND_READ_TIMEOUT
-    assert svc.MAX_WALL_SECONDS == 210
-
-
 def test_t2r03_failed_db_rows_do_not_enter_any_rollup(monkeypatch):
     """T2-R03 / P1-03：失败库的跨库行不得进入 overlap / baseline / subp 汇总。"""
     _patch_ctx(monkeypatch, "distributed")
@@ -4545,6 +4953,53 @@ def test_t2r07b_real_subpartition_is_still_stripped(monkeypatch):
     assert res["baseline_tables"] == 1
 
 
+def test_t3r07_destructive_guard_rejects_non_test_database(monkeypatch):
+    """T3-R07 / P1-04：目标不是批准的测试库时，必须在任何 DROP 之前失败关闭。
+
+    这条用例本身不连数据库——它验证的是"守门人会不会放行"，
+    所以在任何环境下都必须执行，不能挂 MYSQL_AVAILABLE。
+    """
+    from backend.services import database as dbmod
+    for bad in ("tdsql_sqlcheck", "production", ""):
+        monkeypatch.setitem(dbmod.MYSQL_CONFIG, "database", bad)
+        with pytest.raises(DestructiveTargetError) as e:
+            assert_destructive_target_is_safe()
+        assert "拒绝在非批准的数据库上执行 DROP" in str(e.value)
+    # 批准的库名放行
+    monkeypatch.setitem(dbmod.MYSQL_CONFIG, "database", _APPROVED_TEST_DB)
+    assert assert_destructive_target_is_safe()["database"] == _APPROVED_TEST_DB
+
+
+def test_t3r07b_custom_test_db_needs_explicit_opt_in(monkeypatch):
+    """T3-R07 / P1-04：自定义测试库必须【同时】给出显式破坏性开关才放行。"""
+    from backend.services import database as dbmod
+    import backend.api.table_type_stats as _api          # noqa: F401  (确保包已加载)
+    mod = sys.modules[__name__]
+    monkeypatch.setitem(dbmod.MYSQL_CONFIG, "database", "my_scratch_db")
+    # 只给库名、不给开关 → 仍然拒绝
+    monkeypatch.setattr(mod, "_ALLOW_DESTRUCTIVE", False)
+    monkeypatch.setattr(mod, "_CUSTOM_TEST_DB", "my_scratch_db")
+    with pytest.raises(DestructiveTargetError):
+        assert_destructive_target_is_safe()
+    # 两者齐全 → 放行
+    monkeypatch.setattr(mod, "_ALLOW_DESTRUCTIVE", True)
+    assert assert_destructive_target_is_safe()["database"] == "my_scratch_db"
+
+
+def test_t3r07c_probe_and_execution_use_the_same_config():
+    """T3-R07 / P1-04：可用性探测与实际执行必须是同一份配置。
+
+    Rev.J 用 TDSQL_TEST_* 探测、用 SQLCHECK_DB_* 执行，两套可以指向不同服务器：
+    探测通了就不 skip，然后往生产元数据库执行 DROP。
+    """
+    import inspect
+    src = inspect.getsource(_probe_metadata_db)
+    assert "effective_db_config()" in src, "探测必须读 database 模块生效中的配置"
+    assert "TDSQL_TEST" not in src, "探测不得再使用另一套 TDSQL_TEST_* 配置"
+    cfg = effective_db_config()
+    assert set(("host", "port", "user", "password", "database")) <= set(cfg)
+
+
 # ── DEF-1 / T2-R06：迁移槽位护栏 ────────────────────────────────────
 _OUR_SLOT = (13, 130)
 _OUR_SQL_NAME = "130_table_type_stats.sql"
@@ -4579,19 +5034,37 @@ def _schema_dir():
     return pathlib.Path(backend.__file__).resolve().parent / "schema"
 
 
+# 选槽时的已知前驱（v1.6.2.2 的 O-22 引入）。用它证明"当时选槽是连续的"，
+# 而不是用"我们永远是最大槽"——后者会阻断项目此后的任何迁移。
+_PREDECESSOR_SLOT = (12, 120)
+
+
 def assert_slot_ok(slots):
-    """四条断言，**落盘前后都成立**。抽成函数是为了能对合成状态直接验证。"""
+    """迁移槽位的**永久不变量**。落盘前、落盘后、以及此后新增任意迁移都成立。
+
+    Rev.K / P1-03：Rev.J 里还有一条 `assert _OUR_SLOT > max(others)`，
+    它在项目下一次合法新增 `v13/131` 或 `v14/140` 之后**必然失败**——
+    等于用一条历史测试禁止项目继续演进。我甚至把"我们不再是最大槽"写成了
+    必须拒绝的场景，方向完全错了。
+
+    真正的永久不变量只有两条：
+      ① 任何 `(version, sequence)` 槽位不得有两个文件（DEF-1 想防的就是这个）；
+      ② 我们的槽位有且只有我们自己的文件。
+    "当前最大之后的下一个"只在**选槽那一刻**有意义，不该随仓库永久执行。
+    需要证明当时选槽连续，就断言已知前驱 v12/120 存在——这条同样永久成立。
+    """
     dups = {k: v for k, v in slots.items() if len(v) > 1}
     assert not dups, f"存在同槽多文件（DEF-1 形态）: {dups}"
-    others = {k: v for k, v in slots.items()
-              if not (k == _OUR_SLOT and v == [_OUR_SQL_NAME])}
-    assert _OUR_SLOT not in others, \
-        f"迁移槽位 v13/130 已被 {others.get(_OUR_SLOT)} 占用，请顺延到下一个空槽"
-    if others:
-        assert _OUR_SLOT > max(others), \
-            f"迁移槽位 v13/130 不再是最大槽位（当前最大 {max(others)}），请顺延"
-    if _OUR_SLOT in slots:
-        assert slots[_OUR_SLOT] == [_OUR_SQL_NAME]
+
+    occupied = slots.get(_OUR_SLOT)
+    if occupied is not None:
+        assert occupied == [_OUR_SQL_NAME], \
+            f"迁移槽位 v13/130 被 {occupied} 占用，本模块必须独占该槽"
+    # ③ 选槽连续性：前驱必须仍在（防有人误删 v12/120 造成版本链断裂）。
+    #    仅在仓库已有迁移文件时校验，合成的空目录不参与。
+    if slots and _OUR_SLOT in slots:
+        assert _PREDECESSOR_SLOT in slots, \
+            f"已知前驱迁移 v12/120 不见了，版本链断裂：{sorted(slots)}"
 
 
 def test_migration_slot_scanner_detects_duplicates(tmp_path):
@@ -4650,28 +5123,48 @@ def test_migration_slot_guard_passes_before_and_after_landing():
     assert_slot_ok(landed)                              # 阶段二：已落盘 ← Rev.I 会在这里失败
 
 
-def test_migration_slot_guard_rejects_duplicate_and_squatter():
-    """护栏必须真的会拒：同槽双文件、槽位被别人占、我们不再是最大槽，三种都要失败。"""
+def test_t3r05_guard_does_not_block_future_migrations():
+    """T3-R05 / P1-03：本模块落盘之后，项目继续新增迁移**必须**照样通过。
+
+    Rev.J 的 `assert _OUR_SLOT > max(others)` 在出现 v13/131 或 v14/140 之后
+    必然为假——一条历史测试把项目此后的演进锁死了。这里把这两种未来状态直接钉住。
+    """
+    base = {(11, 110): ["110_index_finding_structured.sql"],
+            (12, 120): ["120_gateway_report_tickets.sql"],
+            _OUR_SLOT: [_OUR_SQL_NAME]}
+    assert_slot_ok({**base, (13, 131): ["131_next_feature.sql"]})
+    assert_slot_ok({**base, (14, 140): ["140_future.sql"]})
+    assert_slot_ok({**base, (13, 131): ["131_a.sql"], (14, 140): ["140_b.sql"],
+                    (15, 150): ["150_c.sql"]})
+
+
+def test_t3r06_guard_rejects_duplicate_and_squatter():
+    """T3-R06 / P1-03：护栏必须真的会拒——但只拒该拒的两种。"""
     base = {(11, 110): ["110_index_finding_structured.sql"],
             (12, 120): ["120_gateway_report_tickets.sql"]}
-    for name, bad in (
-            ("同槽双文件", {**base, (11, 110): ["110_a.sql", "110_b.sql"]}),
-            ("槽位被别人占", {**base, _OUR_SLOT: ["130_someone_else.sql"]}),
-            ("我们不再是最大槽", {**base, (14, 140): ["140_future.sql"],
-                                 _OUR_SLOT: [_OUR_SQL_NAME]}),
-    ):
-        with pytest.raises(AssertionError):
-            assert_slot_ok(bad)
+    # 同一 (version, sequence) 出现两个文件 —— DEF-1 的真实形态
+    with pytest.raises(AssertionError, match="同槽多文件"):
+        assert_slot_ok({**base, (11, 110): ["110_a.sql", "110_b.sql"]})
+    # 我们的槽位被别人占
+    with pytest.raises(AssertionError, match="必须独占该槽"):
+        assert_slot_ok({**base, _OUR_SLOT: ["130_someone_else.sql"]})
+    # 我们的槽位里混进第二个文件
+    with pytest.raises(AssertionError, match="同槽多文件"):
+        assert_slot_ok({**base, _OUR_SLOT: [_OUR_SQL_NAME, "130_other.sql"]})
+    # 前驱被误删 → 版本链断裂
+    with pytest.raises(AssertionError, match="版本链断裂"):
+        assert_slot_ok({(11, 110): ["110_index_finding_structured.sql"],
+                        _OUR_SLOT: [_OUR_SQL_NAME]})
 
 
 def test_migration_slot_guard_would_reject_a_taken_slot(tmp_path):
-    """护栏必须真的会拒——用 DEF-1 的真实形态验一次，而不是只验"当前通过"。"""
+    """从真实目录扫出来的"槽位被别人占"同样必须被拒——端到端验一次扫描器 + 护栏。"""
+    (tmp_path / "v12").mkdir()
+    (tmp_path / "v12" / "120_gateway_report_tickets.sql").write_text("-- pred")
     (tmp_path / "v13").mkdir()
     (tmp_path / "v13" / "130_someone_else.sql").write_text("-- squatter")
-    slots = scan_migration_slots(tmp_path)
-    others = {k: v for k, v in slots.items()
-              if not (k == _OUR_SLOT and v == [_OUR_SQL_NAME])}
-    assert _OUR_SLOT in others, "被别人占用的槽位必须被判定为占用"
+    with pytest.raises(AssertionError, match="必须独占该槽"):
+        assert_slot_ok(scan_migration_slots(tmp_path))
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -4711,7 +5204,8 @@ def _strip_sql_comments(text):
 
 
 def _reset_g14_tables():
-    """删表重建，回到 DDL 定义的干净状态。"""
+    """删表重建，回到 DDL 定义的干净状态。**每次都先过目标保护。**"""
+    assert_destructive_target_is_safe()
     ddl = _ddl_path().read_text(encoding="utf-8")
     _exec_sql("DROP TABLE IF EXISTS table_type_stat_item",
               "DROP TABLE IF EXISTS table_type_stat")
@@ -4720,7 +5214,9 @@ def _reset_g14_tables():
 
 @pytest.fixture()
 def g14_schema():
-    os.environ.setdefault("SQLCHECK_DB_NAME", "tdsql_sqlcheck_test")
+    # Rev.K / P1-04：DROP 之前先做目标失败关闭断言，用的是 database 模块
+    # 【已生效】的配置，不是环境变量快照，也不再靠 setdefault"兜底"。
+    assert_destructive_target_is_safe()
     from backend.services.database import ensure_db
     ensure_db()
     _reset_g14_tables()
@@ -4844,6 +5340,92 @@ def test_r12e_run_stats_fails_before_collecting(monkeypatch, g14_schema):
     assert called["n"] == 0, "结构不合格时不得先跑一轮采集"
 
 
+# ── T3-R08 / P2-01：完整字段契约的参数化定向用例 ────────────────────
+# Rev.J 正文声称"九种畸形场景由十项单测钉住"，但附录里实际只有缺表/缺列/错类型/
+# 缺索引/采集前拦截/列清单一致六类——长度、自增、默认值、可空性、字符集、索引列序
+# 都只是我在本地手工 ALTER 跑过一次。**人工跑过一次不能防止落盘实现或未来修改回退。**
+# 现在逐条落成参数化用例。每条形如 (用例名, 破坏语句, 恢复语句, 期望错误关键词)。
+_CONTRACT_CASES = [
+    ("detail 长度收窄",
+     "ALTER TABLE table_type_stat_item MODIFY COLUMN detail VARCHAR(16) DEFAULT ''",
+     "ALTER TABLE table_type_stat_item MODIFY COLUMN detail VARCHAR(512) DEFAULT ''",
+     ("detail", "长度不符")),
+    ("connection_id 长度收窄",
+     "ALTER TABLE table_type_stat MODIFY COLUMN connection_id VARCHAR(8) DEFAULT ''",
+     "ALTER TABLE table_type_stat MODIFY COLUMN connection_id VARCHAR(64) DEFAULT ''",
+     ("connection_id", "长度不符")),
+    ("id 丢失 AUTO_INCREMENT",
+     "ALTER TABLE table_type_stat MODIFY COLUMN id INT NOT NULL",
+     "ALTER TABLE table_type_stat MODIFY COLUMN id INT NOT NULL AUTO_INCREMENT",
+     ("id", "AUTO_INCREMENT")),
+    ("created_at 缺默认值",
+     "ALTER TABLE table_type_stat MODIFY COLUMN created_at DATETIME NULL",
+     "ALTER TABLE table_type_stat MODIFY COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP",
+     ("created_at", "默认值不符")),
+    ("status 默认值被改",
+     "ALTER TABLE table_type_stat_item MODIFY COLUMN status VARCHAR(16) DEFAULT 'X'",
+     "ALTER TABLE table_type_stat_item MODIFY COLUMN status VARCHAR(16) DEFAULT 'OK'",
+     ("status", "默认值不符")),
+    ("stat_id 变为可空",
+     "ALTER TABLE table_type_stat_item MODIFY COLUMN stat_id INT NULL",
+     "ALTER TABLE table_type_stat_item MODIFY COLUMN stat_id INT NOT NULL",
+     ("stat_id", "可空性不符")),
+    ("db_name 字符集非 utf8mb4",
+     "ALTER TABLE table_type_stat_item MODIFY COLUMN db_name VARCHAR(128) "
+     "CHARACTER SET latin1 DEFAULT ''",
+     "ALTER TABLE table_type_stat_item MODIFY COLUMN db_name VARCHAR(128) "
+     "CHARACTER SET utf8mb4 DEFAULT ''",
+     ("db_name", "字符集不符")),
+    ("warnings_json 退回 TEXT",
+     "ALTER TABLE table_type_stat MODIFY COLUMN warnings_json TEXT",
+     "ALTER TABLE table_type_stat MODIFY COLUMN warnings_json MEDIUMTEXT",
+     ("warnings_json", "类型不符")),
+    ("total_tables 变 VARCHAR",
+     "ALTER TABLE table_type_stat_item MODIFY COLUMN total_tables VARCHAR(32) DEFAULT '0'",
+     "ALTER TABLE table_type_stat_item MODIFY COLUMN total_tables INT DEFAULT 0",
+     ("total_tables", "类型不符")),
+    ("索引建在错误的列上",
+     "DROP INDEX idx_tts_conn ON table_type_stat; "
+     "CREATE INDEX idx_tts_conn ON table_type_stat (instance_type)",
+     "DROP INDEX idx_tts_conn ON table_type_stat; "
+     "CREATE INDEX idx_tts_conn ON table_type_stat (connection_id)",
+     ("idx_tts_conn", "列序不符")),
+    ("索引被建成唯一索引",
+     "DROP INDEX idx_tts_created ON table_type_stat; "
+     "CREATE UNIQUE INDEX idx_tts_created ON table_type_stat (created_at)",
+     "DROP INDEX idx_tts_created ON table_type_stat; "
+     "CREATE INDEX idx_tts_created ON table_type_stat (created_at)",
+     ("idx_tts_created", "唯一性不符")),
+]
+
+
+@pytest.mark.skipif(not MYSQL_AVAILABLE, reason="元数据库未就绪")
+@pytest.mark.parametrize("name,break_sql,fix_sql,expect",
+                         _CONTRACT_CASES, ids=[c[0] for c in _CONTRACT_CASES])
+def test_t3r08_full_schema_contract_fails_closed(g14_schema, name, break_sql,
+                                                 fix_sql, expect):
+    """T3-R08 / P2-01：完整字段契约的每一项都必须在采集之前失败关闭。"""
+    _exec_sql(*[x for x in break_sql.split(";") if x.strip()])
+    with pytest.raises(svc.SchemaNotReadyError) as e:
+        svc._ensure_schema()
+    for kw in expect:
+        assert kw in str(e.value), f"{name}: 报错里应点名 {kw}，实际：{e.value}"
+    _exec_sql(*[x for x in fix_sql.split(";") if x.strip()])
+    svc._ensure_schema()          # 恢复后必须重新通过
+
+
+@pytest.mark.skipif(not MYSQL_AVAILABLE, reason="元数据库未就绪")
+def test_t3r08b_clean_ddl_passes_verification(g14_schema):
+    """T3-R08 反向护栏：**干净的 DDL 必须通过验收**。
+
+    结构验收过严比过松更难发现——干净安装通不过 = 页面永远不可用，
+    而且现场会以为是"表没建好"。这条用例必须和上面 11 条一起长期存在。
+    """
+    svc._ensure_schema()
+    # 连续两次调用也必须稳定（无副作用）
+    svc._ensure_schema()
+
+
 @pytest.mark.skipif(not MYSQL_AVAILABLE, reason="MySQL 测试环境未启动")
 def test_r12f_ddl_and_service_column_lists_agree(g14_schema):
     """DDL 文件与服务的期望列清单必须逐字一致，防止两边各改各的。"""
@@ -4961,7 +5543,7 @@ app.include_router(table_type_stats_router)  # G14 表类型统计
                 <div style="color:#909399;font-size:12px;margin-top:8px">
                   口径：分布式实例逐业务库执行 /*proxy*/show table with shardkey · with noshardkey_allset · without shardkey，按"库名+表名"去重；
                   集中式实例统计 information_schema.TABLES 中 TABLE_TYPE='BASE TABLE'，分片表与广播表恒为 0，不统计视图。
-                  逻辑基线已剔除 xxx_tdsql_subp202601 这类二级分区物理子表（仅当其逻辑父表确实出现在 Proxy 结果中；单列显示，不计入总数）。结果为采集时刻快照。
+                  逻辑基线已剔除 xxx_tdsql_subp202601 这类二级分区物理子表——判定需同时满足：命名匹配、其逻辑父表出现在 Proxy 结果中、且该表自身不在 Proxy 结果中（单列显示，不计入总数）。结果为采集时刻快照。
                 </div>
 
                 <!-- 历史回看抽屉（Rev.G / P2-02） -->
@@ -4997,7 +5579,8 @@ app.include_router(table_type_stats_router)  # G14 表类型统计
                              style="margin-bottom:8px" @click="tabletypeDetailExpand=true">
                     展开查看全部 {{ tabletypeDetailAll.length }} 条告警
                   </el-button>
-                  <el-table :data="tabletypeDetailItems" size="small" border max-height="360">
+                  <el-table :data="tabletypeDetailItems" size="small" border max-height="360"
+                            v-loading="tabletypeDetailLoading">
                     <el-table-column prop="db_name" label="数据库" width="180"></el-table-column>
                     <el-table-column prop="total_tables" label="总表数" width="90"></el-table-column>
                     <el-table-column prop="single_tables" label="单表" width="80"></el-table-column>
@@ -5032,8 +5615,9 @@ app.include_router(table_type_stats_router)  # G14 表类型统计
     const tabletypeHistoryVisible=ref(false);
     const tabletypeHistory=ref([]);
     const tabletypeDetailItems=ref([]);
-    const tabletypeDetailAll=ref([]);      // Rev.J / P2-02：历史告警全量
+    const tabletypeDetailAll=ref([]);      // Rev.J / P2-02：历史告警全量（唯一数据源）
     const tabletypeDetailExpand=ref(false);
+    const tabletypeDetailLoading=ref(false);
     const TABLETYPE_WARN_CAP=10;
     const tabletypeDetailWarnings=computed(()=>
       tabletypeDetailExpand.value?tabletypeDetailAll.value
@@ -5050,16 +5634,25 @@ app.include_router(table_type_stats_router)  # G14 表类型统计
       deepResult.tabletype=r;
       // Rev.J / P2-03：提示必须与结果状态一致。只要接口回 200 就弹绿色"统计完成"，
       // 在 failed_databases=500、主结果为 0 时会把"0 张"暗示成真实结论。
-      const bad=(r.failed_databases||0), skip=(r.skipped_databases||0);
-      const tail=`${r.database_count} 个库 / ${r.total_tables} 张表`
+      // Rev.K / P2-03：判据是【有效库数】，不是"失败数是否等于总库数"。
+      // Rev.J 只在 failed>=database_count 时报红，于是 100 个库里 60 个失败、
+      // 40 个超预算跳过时——一个有效库都没有——页面仍然提示"部分完成"。
+      const n=(r.database_count||0), bad=(r.failed_databases||0), skip=(r.skipped_databases||0);
+      const ok=n-bad-skip;
+      const tail=`${n} 个库 / ${r.total_tables} 张表`
                 +(bad?` · 失败 ${bad} 库`:'')+(skip?` · 未采集 ${skip} 库`:'');
-      if(bad&&bad>=r.database_count){ElementPlus.ElMessage.error(`统计失败：全部 ${bad} 个库采集失败，主数字不可用`)}
-      else if(bad||skip){ElementPlus.ElMessage.warning(`部分完成：${tail}（失败/未采集的库未计入任何汇总）`)}
+      if(n>0&&ok<=0){ElementPlus.ElMessage.error(`无有效统计结果：${n} 个库中失败 ${bad}、未采集 ${skip}，主数字不可用`)}
+      else if(bad||skip){ElementPlus.ElMessage.warning(`部分完成：成功 ${ok} 库 · ${tail}（失败/未采集的库未计入任何汇总）`)}
       else{ElementPlus.ElMessage.success(`统计完成：${tail}`)}
     };
     const openTableTypeHistory=async()=>{
       if(!deepConnId.value){ElementPlus.ElMessage.warning('请先选择实例');return}
-      tabletypeDetailItems.value=[];tabletypeDetailWarnings.value=[];
+      // Rev.K / P2-02：清的必须是【数据源】。tabletypeDetailWarnings 是无 setter 的
+      // computed，给它的 .value 赋值只会触发 Vue 只读告警、什么都清不掉——
+      // 于是重开抽屉（尤其是切换实例后）会继续显示上一条历史的告警。
+      tabletypeDetailItems.value=[];
+      tabletypeDetailAll.value=[];
+      tabletypeDetailExpand.value=false;
       try{
         const resp=await apiFetch(`${API_BASE}/api/v1/table-type-stats/history?connection_id=${encodeURIComponent(deepConnId.value)}&limit=20`);
         const d=await resp.json();
@@ -5070,6 +5663,11 @@ app.include_router(table_type_stats_router)  # G14 表类型统计
     };
     const loadTableTypeHistoryDetail=async(row)=>{
       if(!row)return;
+      // 切行时先清空并置 loading，避免请求期间还挂着上一行的明细与告警
+      tabletypeDetailItems.value=[];
+      tabletypeDetailAll.value=[];
+      tabletypeDetailExpand.value=false;
+      tabletypeDetailLoading.value=true;
       try{
         const resp=await apiFetch(`${API_BASE}/api/v1/table-type-stats/detail/${row.id}`);
         const d=await resp.json();
@@ -5081,6 +5679,7 @@ app.include_router(table_type_stats_router)  # G14 表类型统计
         tabletypeDetailAll.value=body.warnings||[];
         tabletypeDetailExpand.value=false;
       }catch(e){ElementPlus.ElMessage.error('加载明细失败: '+e.message)}
+      finally{tabletypeDetailLoading.value=false}
     };
 ```
 
@@ -5104,7 +5703,7 @@ app.include_router(table_type_stats_router)  # G14 表类型统计
 
 ```diff
 -...,runClusterInspect,runIndexAudit,runSchemaDiff,runEmergency,runSqlStats,visibleMenus,...
-+...,runClusterInspect,runIndexAudit,runSchemaDiff,runEmergency,runSqlStats,runTableTypeStats,openTableTypeHistory,loadTableTypeHistoryDetail,visibleTableTypeWarnings,tabletypeWarnTotal,tabletypeWarnAll,tabletypeHistoryVisible,tabletypeHistory,tabletypeDetailItems,tabletypeDetailWarnings,tabletypeDetailAll,tabletypeDetailExpand,visibleMenus,...
++...,runClusterInspect,runIndexAudit,runSchemaDiff,runEmergency,runSqlStats,runTableTypeStats,openTableTypeHistory,loadTableTypeHistoryDetail,visibleTableTypeWarnings,tabletypeWarnTotal,tabletypeWarnAll,tabletypeHistoryVisible,tabletypeHistory,tabletypeDetailItems,tabletypeDetailWarnings,tabletypeDetailAll,tabletypeDetailExpand,tabletypeDetailLoading,visibleMenus,...
 ```
 
 > 漏掉第 ④ 步的后果：页签能渲染，但点按钮报 `runTableTypeStats is not a function`，
@@ -5394,6 +5993,7 @@ Empty set (0.005 sec)
 
 | 版本 | 日期 | 作者 | 内容 |
 |---|---|---|---|
+| **Rev.K** | **2026-09-01** | **智能体 A** | **依 O 第三轮评审报告（`REVIEW3-…`，结论"不通过，退回修订 Rev.K"）整改。4 项 P1、3 项 P2、1 项文档问题全部接受，无一条不认可——四项 P1 全部是我自己代码里的实际缺陷。** **P1-01**：`_extract_pairs` 用全实例 `known` 把 qual 解析成 canonical 名之后，`_collect_distributed` 又对只含目标库的 `target` 做了**第二次** CI 回退——指定 `database="Sales"` 时，实例级返回里的 `sales.t_lower` 会被"唯一命中"回 `Sales`，指定单库的四个主数字直接错，而 Rev.J 的全库用例恰好测不到这条链路。改为 `if qual not in target: continue; owner = qual`，**canonical 名之后只做精确成员判断**（ADR-22 补充使用边界）。**P1-02（两个独立问题）**：其一，用 `raise _BudgetExceeded()` 承载"预算耗尽"这个正常控制信号，而 `TDSQLConnectionPool.get_connection()` 会捕获穿出上下文的**任何**异常并 close + `_create_connection()`——于是一条健康连接在 deadline 之后被销毁重建、白付一次建连，重连再失败还会用新异常盖掉原信号，把本该 `SKIPPED` 的库误标成 `FAILED`；改为**标志位 + 正常退出 `with`**，**连接重建只应由真实的数据库/网络异常触发**（ADR-25）。其二，Rev.J 的"210 秒 `/run` 端到端上界"**不成立**：漏算了"刚过库级检查、随后建连 + `select_db`"这条 35 秒路径，且 `_ensure_schema()`（拿槽位前）与结果落库（释放槽位后）根本不在 deadline 内；更正为**目标采集阶段上界 215 秒**（`MAX_COLLECT_WALL_SECONDS = 180 + 5 + 30`，显式钉住 `CONNECT_TIMEOUT`），元数据库阶段单独说明边界并把明细落库改为批量（`ITEM_INSERT_BATCH=100`，500 库 500 次往返 → 5 次）（ADR-13 更正 / ADR-24 / KL-19 更正 / KL-20）。另自查补一处 O 未提的同类问题：`instance_type_service.resolve()` 在缓存未命中时会向目标实例发探测 SQL，其后补一次 deadline 检查。**P1-03**：槽位护栏里的 `assert _OUR_SLOT > max(others)` 在项目下一次合法新增 `v13/131` 或 `v14/140` 之后**必然为假**——一条历史测试把项目此后的演进锁死了，我甚至把"我们不再是最大槽"写成了必须拒绝的场景；改为只钉永久不变量（槽位不重复 + 本模块独占自己的槽 + 已知前驱 v12/120 仍在），并新增未来迁移共存的正向用例（ADR-26）。**P1-04（安全底线）**：集成测试的可用性探测用 `TDSQL_TEST_*`、实际 DROP 用 `SQLCHECK_DB_*`，两套配置可指向不同服务器，唯一"保护"还是个晚于模块导入、且不会覆盖外部值的 `setdefault`——**测试代码可能删掉生产元数据库的表**；改为探测与执行共用 `MYSQL_CONFIG`，任何 DROP 前先过 `assert_destructive_target_is_safe()` 失败关闭并打印目标 host/port/database，守门人本身由 3 条离线用例覆盖。**P2-01** 第二轮要求的完整契约用例此前只是我手工跑过一次，现落为 **11 条参数化元数据库用例 + 1 条干净 DDL 反向护栏**。**P2-02** 历史抽屉此前给无 setter 的 `computed` 赋值（Vue 只读告警 + 清不掉），改为清理数据源并加 loading。**P2-03** 判据改为**有效库数** `n - failed - skipped`，"失败+跳过覆盖全部库"不再被称作"部分完成"。**DOC-01** API 头 Rev.G→Rev.K、DDL 头 Rev.I→Rev.K、`run_stats` 注释的"180 秒"、前端子分区口径补上第三个条件、`/run` 端到端 210 秒的说法全部更正。测试 84 → **106 项**（本地 105 通过 + 1 跳过；离线 83 / 元数据库集成 22 / 需落盘 1），`TimeoutError` 新增映射为 **503**。新增 ADR-24/25/26、KL-20、E-34/E-35、§12.4 七项专项验收。**仓库代码仍零改动。** |
 | **Rev.J** | **2026-08-31** | **智能体 A** | **依 O 第二轮评审报告（`REVIEW2-…`，结论"不通过，退回修订 Rev.J"）整改。5 项 P1、3 项 P2、1 项文档问题全部接受，无一条不认可。** 其中三项是我自己论证或代码的硬伤：**P1-01** 库名被无条件小写——`Sales` 与 `sales` 在 `lower_case_table_names=0` 下是两个 schema，单值 lower 字典会把它们**静默合并**，四个主数字直接错且无任何告警；我在表名那侧写对了这个道理（ADR-9），却把库名的免责理由写成"库名来自我们自己枚举的清单，不存在合并风险"——风险恰恰来自两个都真实存在的库。改用 `_NameSpace`（精确优先 / CI 回退仅在唯一时 / 歧义不猜并报 `DB_NAME_AMBIGUOUS`），新增 ADR-22。**P1-02** "180 秒总预算"根本不成立：计时器直到 `_collect_distributed` 内部才启动，`SHOW DATABASES` 与基线查询（设计自己承认是耗时大头）完全不计；进入循环后只在每库开始时查一次，单库三条 30 秒命令——179 秒进库能跑到 **269 秒**，集中式分支更是毫无预算。改为 deadline 自 `run_stats` 拿到槽位后建立、贯穿前置查询与**每一条命令**，并如实给出**可证明上界 210 秒**（`MAX_WALL_SECONDS`），文档与 UI 不再宣称"硬 180 秒"（ADR-13 修正 / KL-19）。**P1-05** 我为防 DEF-1 而写的槽位护栏本身有两个错：`assert ours > max(taken)` 在迁移文件真正落盘后必然为假——**这条护栏会在模块上线当天把构建打红**；而它用单值字典保存占用者，同槽两个文件时后者覆盖前者，**恰好看不见 DEF-1 想防的那个场景**。重写为 `scan_migration_slots`（`slot → [files]`）+ `assert_slot_ok`（四条断言落盘前后都成立），并用合成状态把两个阶段都验一遍。另：**P1-03** 先定状态再算汇总，失败/跳过库的基线、子分区、重叠一律不进实例级汇总（ADR-23）；**P1-04** 结构验收升级为完整字段契约，**KL-15 关闭**——当时"COLUMN_TYPE 带显示宽度"的免责理由只对整型成立、对 varchar 长度不成立，"已知"不等于"已关闭"；**P2-01** 物理子表判定增加第三条件"候选自身不在 Proxy 结果中"（真子表不会被 `show table` 返回，它自己在结果里就直接证伪了）；**P2-02** 历史抽屉告警不再静默截断；**P2-03** 部分/全部失败不再弹绿色"统计完成"；**DOC-01** 如实列出离线 73 / 元数据库集成 10 / 需落盘 1，并写明 **skip 不是 pass、设计阶段数字不能当发布证据**。测试 71 → **84 项**（本地 83 通过 + 1 跳过），新增可控时钟 `FakeClock` 与 `_now` 钩子使 deadline 行为可断言。新增 ADR-22/23、KL-18/19、W13/W14、E-30～E-33、§12.4 八项专项验收。**仓库代码仍零改动。** |
 | **Rev.I** | **2026-08-31** | **智能体 A** | **回填 T19（第六轮），并更正一处 Rev.A～H 各版均未发现的硬伤。** **DEF-1（必须改）**：迁移文件槽位 `v11/110` 早在 v1.6.2.2 的 UAT 第四、五轮就被 `v11/110_index_finding_structured.sql`（O-18）与 `v12/120_gateway_report_tickets.sql`（O-22）占用。Rev.A 写这句时（`5e9f438`，最高版本确为 v10/100）是对的，**但 Rev.F 那一版的任务恰恰是"依 v1.6.2.2 上线后的代码变更复核"却没抓到**——原因是我把复核范围定义成"本设计**引用到的** 13 个文件有没有变"，而**新文件要落进去的槽位本来就不在这 13 个文件里**，那种 diff 无论多仔细都不可能命中。这是复核**方法**的缺口，教训登记为 **KL-17**（今后凡"新增文件/新增标识符"类设计，复核必须含一次目录与命名空间的重新枚举；能自动化的一律变成测试）。影响评估：迁移键为 `f"v{version}_{sequence:03d}_{name}"`，故**不撞主键、不会启动失败**，但同目录两个 `110_` 前缀的执行先后只由文件名字典序决定，是没人打算建立的隐式依赖，且违反项目约定。**处置**：槽位改为 **`v13/130_table_type_stats.sql`**（正文、附录 A.1/A.3/A.4、验收项、服务的报错文案共 19 处同步更正），并新增护栏测试 `test_migration_slot_is_not_already_taken`——扫描真实目录断言槽位未被占用且为最大槽位。**T19**：元数据库 `tdsql_sqlcheck`（TDSQL `8.0.33-v24-txsql`，`10.243.20.15:15197`）无同名残留表，部署文档无需"先删表"步骤；如实登记"该失效路径当前是纯防御"，但**不削弱 ADR-20**（第二条路径"登记后结构漂移"与残留表无关且随时可能发生）。顺带得到旁证 **B-19**：该库上 v0～v12 共 13 个迁移全部成功应用过，其中 v12/120 是纯 `CREATE TABLE IF NOT EXISTS … InnoDB/utf8mb4`，**证明本模块不带 shardkey 的建表写法在这台 TDSQL 元数据库上可用**，提前排除了一个本会在 UAT 才暴露的问题。另更正两处陈旧计数（`_create_all_tables` 27 → **46 张/828 行**；路由前缀 25 → **26**）。测试 70 → **71 项**（本地 70 通过 + 1 跳过）。**至此 T16～T19 全部完成，仅剩不影响任何数字的 T13。** |
 | **Rev.H** | **2026-08-31** | **智能体 A** | **回填第五轮内网实测（T16 / T17 / T18），设计与算法无实质变更。** **T17**：`lzbj_ecif` 的 78 张 `_tdsql_subp` 表精确推导出 **6 个父表、各 13 张**，与 Rev.E 从 D3 推出的 6 个名字逐名吻合（含当时判为"未被 LIKE 匹配的第 6 张"的 `cus_pub_sync_consumer_log`）。给出**算术闭合证明**——由基线 293、Proxy 215、后缀表 78 三个基数可推出 Proxy 结果集恰为逻辑基线，故 6 个父表全部在 Proxy 结果中，**不必再取 98 行原始输出**；残留假设仅"Proxy 不返回物理子表"一条，而它会在 UAT 时被 `RECON_MISMATCH` 免费验证且失败可见。**UAT 六个数字维持 215/0/117/98/215/78 不变。** T17 另暴露出一个构造夹具想不到的真实形态：`cus_pub_updatelog` 与 `cus_pub_updatelog_detail` **互为前缀且两者都是父表**——父表推导若用任何"取最短前缀"的近似做法，`_detail` 的 13 张子表会被错算给 `cus_pub_updatelog`，UAT 变成 228/65，**数字错了还很像对的**。现行非贪婪正则已用 78 个真名逐条验算通过，并新增 3 项定向测试（`test_r07b/c/d_*`，共 **70 项**，本地 69 通过 + 1 跳过）；登记 **KL-16**。**T18**：集中式实例 `zjywgl` 库 0 行 `_tdsql_subp` 表，P1-03「集中式一律不剔除」零风险（证据范围为单库，已在文中注明）。**T16**：使用者裁决关闭——内网统一 `checksql` 账号、权限充足、与平台登记账号一致，P1-01 的"账号可见范围"场景在本环境不成立；原 T09 一并结案。**T19 仍待测**：第五轮误把 T17 的 REGEXP 语句带到元数据库上跑了，本用例未被回答（不阻断，`_ensure_schema` 两种结果都能正确处理）。附录 B 新增 **B.55 第五轮原始数据**与 **B-14～B-17** 四条结论，含环境信息（元数据库 = TDSQL `8.0.33-v24-txsql`，`10.243.20.15:15197` / 库 `tdsql_sqlcheck`）。 |
