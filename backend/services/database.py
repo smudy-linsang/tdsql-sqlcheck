@@ -1715,6 +1715,7 @@ def _init_default_data(conn):
         'deep-diag-cluster', 'deep-diag-daily', 'deep-diag-index', 'deep-diag-diff',
         'deep-diag-emergency', 'deep-diag-sqlstats', 'deep-diag-gateway', 'deep-diag-ppt',
         'deep-diag-toolkit',
+        'deep-diag-tabletype',
         # V1.4：移除 projects / gate（菜单隐藏）。下方 DELETE ... NOT IN 会自动清理残留权限行。
         'rulesets', 'monitor', 'inspection',
         'sys-users', 'sys-retention', 'sys-auditlog', 'sys-info',

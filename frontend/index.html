@@ -1837,6 +1837,99 @@
                   <el-table-column prop="suggestion" label="建议" width="220"></el-table-column>
                 </el-table>
               </el-tab-pane>
+              <!-- 表类型统计 G14 -->
+              <el-tab-pane v-if="visibleMenus.has('deep-diag-tabletype')" label="表类型统计" name="tabletype">
+                <el-input v-model="deepDb" placeholder="库名(空=全部业务库)" size="small" style="width:200px;margin-right:8px"></el-input>
+                <el-button type="primary" size="small" :loading="deepLoading==='tabletype'" :disabled="!deepConnId" @click="runTableTypeStats">统计表类型</el-button>
+                <span v-if="deepResult.tabletype" style="margin-left:12px;font-size:13px">
+                  实例类型 <b>{{ deepResult.tabletype.instance_type==='distributed'?'分布式':'集中式' }}</b>
+                  · 库 {{ deepResult.tabletype.database_count }}
+                  · 总表 <b>{{ deepResult.tabletype.total_tables }}</b>
+                  · 单表 <b>{{ deepResult.tabletype.single_tables }}</b>
+                  · 广播表 <b style="color:var(--warning-500)">{{ deepResult.tabletype.broadcast_tables }}</b>
+                  · 分片表 <b style="color:var(--success-500)">{{ deepResult.tabletype.shard_tables }}</b>
+                  <span style="color:#909399"> · 逻辑基线 {{ deepResult.tabletype.baseline_tables }}</span>
+                  <span v-if="deepResult.tabletype.subpartition_tables" style="color:#909399"> · 二级分区子表 {{ deepResult.tabletype.subpartition_tables }}（未计入）</span>
+                  <span v-if="deepResult.tabletype.failed_databases"> · <b style="color:var(--danger-500)">失败库 {{ deepResult.tabletype.failed_databases }}</b></span>
+                  <span v-if="deepResult.tabletype.skipped_databases"> · <b style="color:var(--warning-500)">未采集 {{ deepResult.tabletype.skipped_databases }}</b></span>
+                </span>
+                <el-button size="small" style="margin-left:8px" @click="openTableTypeHistory">历史</el-button>
+                <el-alert v-for="(w,i) in visibleTableTypeWarnings" :key="i"
+                          :type="w.severity==='ERROR'?'error':(w.severity==='WARNING'?'warning':'info')"
+                          :closable="false" show-icon style="margin-top:8px"
+                          :title="w.code + (w.db_name ? (' · '+w.db_name) : '')" :description="w.detail"></el-alert>
+                <el-button v-if="tabletypeWarnTotal>visibleTableTypeWarnings.length" link type="primary" size="small"
+                           style="margin-top:4px" @click="tabletypeWarnAll=true">
+                  展开查看全部 {{ tabletypeWarnTotal }} 条告警
+                </el-button>
+                <el-table v-if="deepResult.tabletype" :data="deepResult.tabletype.items" size="small" border style="margin-top:12px" max-height="480">
+                  <el-table-column prop="db_name" label="数据库" width="200"></el-table-column>
+                  <el-table-column prop="total_tables" label="总表数" width="100"></el-table-column>
+                  <el-table-column prop="single_tables" label="单表" width="90"></el-table-column>
+                  <el-table-column prop="broadcast_tables" label="广播表" width="90"></el-table-column>
+                  <el-table-column prop="shard_tables" label="分片表" width="90"></el-table-column>
+                  <el-table-column prop="baseline_tables" label="逻辑基线" width="100"></el-table-column>
+                  <el-table-column prop="subpartition_tables" label="二级分区子表" width="120"></el-table-column>
+                  <el-table-column prop="status" label="状态" width="90">
+                    <template #default="s"><el-tag :type="s.row.status==='OK'?'success':(s.row.status==='SKIPPED'?'warning':'danger')" size="small">{{ s.row.status }}</el-tag></template>
+                  </el-table-column>
+                  <el-table-column prop="detail" label="说明"></el-table-column>
+                </el-table>
+                <div style="color:#909399;font-size:12px;margin-top:8px">
+                  口径：分布式实例逐业务库执行 /*proxy*/show table with shardkey · with noshardkey_allset · without shardkey，按"库名+表名"去重；
+                  集中式实例统计 information_schema.TABLES 中 TABLE_TYPE='BASE TABLE'，分片表与广播表恒为 0，不统计视图。
+                  逻辑基线已剔除 xxx_tdsql_subp202601 这类二级分区物理子表——判定需同时满足：命名匹配、其逻辑父表出现在 Proxy 结果中、且该表自身不在 Proxy 结果中（单列显示，不计入总数）。结果为采集时刻快照。
+                </div>
+
+                <!-- 历史回看抽屉（Rev.G / P2-02） -->
+                <el-drawer v-model="tabletypeHistoryVisible" title="表类型统计历史" size="60%">
+                  <el-table :data="tabletypeHistory" size="small" border highlight-current-row
+                            @current-change="loadTableTypeHistoryDetail" max-height="300">
+                    <el-table-column prop="created_at" label="统计时间" width="170">
+                      <template #default="s">{{ formatTime(s.row.created_at) }}</template>
+                    </el-table-column>
+                    <el-table-column prop="created_by" label="操作人" width="110"></el-table-column>
+                    <el-table-column prop="database_filter" label="库名" width="130">
+                      <template #default="s">{{ s.row.database_filter || '全部业务库' }}</template>
+                    </el-table-column>
+                    <el-table-column prop="instance_type" label="实例类型" width="90">
+                      <template #default="s">{{ s.row.instance_type==='distributed'?'分布式':'集中式' }}</template>
+                    </el-table-column>
+                    <el-table-column prop="database_count" label="库数" width="70"></el-table-column>
+                    <el-table-column prop="total_tables" label="总表" width="80"></el-table-column>
+                    <el-table-column prop="single_tables" label="单表" width="80"></el-table-column>
+                    <el-table-column prop="broadcast_tables" label="广播表" width="80"></el-table-column>
+                    <el-table-column prop="shard_tables" label="分片表" width="80"></el-table-column>
+                    <el-table-column prop="failed_databases" label="失败库" width="80"></el-table-column>
+                  </el-table>
+                  <div style="color:#909399;font-size:12px;margin:8px 0">点击上表任意一行，查看该次统计的逐库明细。</div>
+                  <div v-if="tabletypeDetailAll.length" style="color:#909399;font-size:12px;margin-bottom:6px">
+                    该次统计共 {{ tabletypeDetailAll.length }} 条告警，当前显示 {{ tabletypeDetailWarnings.length }} 条。
+                  </div>
+                  <el-alert v-for="(w,i) in tabletypeDetailWarnings" :key="i"
+                            :type="w.severity==='ERROR'?'error':(w.severity==='WARNING'?'warning':'info')"
+                            :closable="false" show-icon style="margin-bottom:6px"
+                            :title="w.code + (w.db_name ? (' · '+w.db_name) : '')" :description="w.detail"></el-alert>
+                  <el-button v-if="tabletypeDetailAll.length>tabletypeDetailWarnings.length" link type="primary" size="small"
+                             style="margin-bottom:8px" @click="tabletypeDetailExpand=true">
+                    展开查看全部 {{ tabletypeDetailAll.length }} 条告警
+                  </el-button>
+                  <el-table :data="tabletypeDetailItems" size="small" border max-height="360"
+                            v-loading="tabletypeDetailLoading">
+                    <el-table-column prop="db_name" label="数据库" width="180"></el-table-column>
+                    <el-table-column prop="total_tables" label="总表数" width="90"></el-table-column>
+                    <el-table-column prop="single_tables" label="单表" width="80"></el-table-column>
+                    <el-table-column prop="broadcast_tables" label="广播表" width="80"></el-table-column>
+                    <el-table-column prop="shard_tables" label="分片表" width="80"></el-table-column>
+                    <el-table-column prop="baseline_tables" label="逻辑基线" width="90"></el-table-column>
+                    <el-table-column prop="subpartition_tables" label="二级分区子表" width="110"></el-table-column>
+                    <el-table-column prop="status" label="状态" width="90">
+                      <template #default="s"><el-tag :type="s.row.status==='OK'?'success':(s.row.status==='SKIPPED'?'warning':'danger')" size="small">{{ s.row.status }}</el-tag></template>
+                    </el-table-column>
+                    <el-table-column prop="detail" label="说明"></el-table-column>
+                  </el-table>
+                </el-drawer>
+              </el-tab-pane>
               <!-- 结构比对 G6 -->
               <el-tab-pane v-if="visibleMenus.has('deep-diag-diff')" label="结构比对" name="diff">
                 <el-select v-model="deepRightConnId" placeholder="对比实例" filterable size="small" style="width:220px;margin-right:8px">

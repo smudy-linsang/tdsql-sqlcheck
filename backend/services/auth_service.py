@@ -377,6 +377,7 @@ _PATH_TO_MENU = {
     "/api/v1/gateway-log": "deep-diag-gateway",
     "/api/v1/ppt-report": "deep-diag-ppt",
     "/api/v1/toolkit": "deep-diag-toolkit",
+    "/api/v1/table-type-stats": "deep-diag-tabletype",
     # V1.3 扫描结果纵向对比（接口层另按 module 二次校验模块自身权限）
     "/api/v1/scan-compare": ("schema-check", "schema-extractor-audit", "slow-tasks", "bigtable"),
     # ── R01：补齐此前未登记、靠"未映射默认放行"兜底的写端点 ──
@@ -492,6 +493,7 @@ ALL_MENU_KEYS = [
     'deep-diag-cluster', 'deep-diag-daily', 'deep-diag-index', 'deep-diag-diff',
     'deep-diag-emergency', 'deep-diag-sqlstats', 'deep-diag-gateway', 'deep-diag-ppt',
     'deep-diag-toolkit',
+    'deep-diag-tabletype',
     'instances', 'rules', 'rulesets',
     'sys-users', 'sys-roles', 'sys-perms', 'sys-retention', 'sys-auditlog', 'sys-info',
 ]
@@ -507,6 +509,7 @@ MENU_LABELS = {
     'deep-diag-emergency': '深度诊断-应急诊断', 'deep-diag-sqlstats': '深度诊断-SQL分析',
     'deep-diag-gateway': '深度诊断-网关日志分析', 'deep-diag-ppt': '深度诊断-PDF报告与大屏',
     'deep-diag-toolkit': '深度诊断-运维工具箱',
+    'deep-diag-tabletype': '深度诊断-表类型统计',
     'rulesets': '评估规则集', 'monitor': '监控告警',
     'inspection': '巡检管理', 'sys-users': '用户管理', 'sys-retention': '数据保留',
     'sys-auditlog': '操作审计', 'sys-info': '系统信息',

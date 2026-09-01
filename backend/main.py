@@ -37,6 +37,7 @@ from backend.api.monitor import router as monitor_router
 from backend.api.inspection import router as inspection_router
 from backend.api.cluster_inspect import router as cluster_inspect_router
 from backend.api.index_audit import router as index_audit_router
+from backend.api.table_type_stats import router as table_type_stats_router
 from backend.api.schema_diff import router as schema_diff_router
 from backend.api.emergency import router as emergency_router
 from backend.api.daily_inspect import router as daily_inspect_router
@@ -171,6 +172,7 @@ app.include_router(zk_discovery_router)     # G10 ZK 发现
 app.include_router(gateway_log_router)      # G11 网关日志
 app.include_router(ppt_report_router)       # G12 PPT 生成与大屏
 app.include_router(toolkit_router)          # G13 运维工具箱
+app.include_router(table_type_stats_router)  # G14 表类型统计
 app.include_router(scan_compare_router)     # V1.3 扫描结果纵向对比
 app.include_router(raw_slowlog_router)      # V1.5.3 原始慢日志采集（独立模块）
 
