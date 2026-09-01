@@ -1732,6 +1732,51 @@ def test_r08_permission_key_is_registered_at_every_point():
         "深度诊断子页签回退清单 subtabs 未登记新页签"
 
 
+def test_sit01_write_endpoint_is_reachable_by_non_admin_roles():
+    """DEF-SIT-01：G14 写端点必须与既有深度诊断子模块处于同一放行清单。
+
+    check_permission 是两级判定：第一级按角色 + _DEVELOPER_WRITE_PREFIXES 放行，
+    第二级才查 role_permissions 菜单可见性。只登记 _PATH_TO_MENU 而不登记
+    _OPERATIONAL_WRITE_PREFIXES 时，developer 与全部自定义角色会卡在第一级，
+    拿到 403——而页签仍然显示，现场极易误判为权限矩阵没配对。
+
+    本用例刻意用【与既有 G5 对照】的方式断言，而不是硬编码"必须为 True"：
+    G14 与既有深度诊断子模块的可达性口径应当完全一致，将来平台整体调整
+    角色策略时，这条断言会随之一起变，不会变成需要人工维护的死值。
+    """
+    from backend.services import auth_service as A
+
+    G14 = "/api/v1/table-type-stats/run"
+    G5 = "/api/v1/index-audit/run"          # 既有深度诊断写端点，作为基准
+    for role in ("admin", "dba", "developer", "auditor"):
+        assert A.check_permission(role, "POST", G14) == \
+               A.check_permission(role, "POST", G5), \
+            f"角色 {role} 对 G14 写端点的可达性与既有深度诊断子模块不一致"
+
+    # 前缀本身必须登记，且带尾斜杠（判定用 startswith，不带会误命中兄弟路径）
+    assert "/api/v1/table-type-stats/" in A._OPERATIONAL_WRITE_PREFIXES
+    assert A._DEVELOPER_WRITE_PREFIXES is A._OPERATIONAL_WRITE_PREFIXES
+
+
+def test_sit03_blank_connection_id_reports_the_right_reason(monkeypatch):
+    """DEF-SIT-03：全空白 connection_id 必须报"必须指定"，而不是"未连接实例"。
+
+    Rev.M 的 API 先做连接解析、后做入参校验，于是服务层守卫在 HTTP 路径上不可达，
+    用户输入空白却被指向连接管理页。这条用例直接打 API 层，覆盖真实调用顺序。
+    """
+    from fastapi import HTTPException
+    from backend.api import table_type_stats as api
+
+    called = {"pool": 0}
+    monkeypatch.setattr(api, "_pool", lambda cid: called.__setitem__("pool", 1))
+    for blank in ("   ", "\t", " \n "):
+        with pytest.raises(HTTPException) as e:
+            api.run(api.StatsRequest(connection_id=blank), _FakeRequest("u"))
+        assert e.value.status_code == 400
+        assert "必须指定 connection_id" in e.value.detail
+    assert called["pool"] == 0, "入参不合格时不得先去解析连接"
+
+
 # ══════════════════════════════════════════════════════════════════
 # Rev.J 定向回归（O 第二轮评审 §7 的 T2-R01…T2-R10）
 # ══════════════════════════════════════════════════════════════════

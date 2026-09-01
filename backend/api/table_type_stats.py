@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""G14 · 表类型统计 API（DESIGN-v1.6.3.0 Rev.M §5）
+"""G14 · 表类型统计 API（DESIGN-v1.6.3.0 Rev.N §5）
 
 Rev.G（O 评审整改）：
   · P1-02  /run 由 service 层进入 registry.scan_slot(connection_id)，
@@ -8,7 +8,9 @@ Rev.G（O 评审整改）：
            不被兜底 except 吞成一句无信息的 500。
   · P2-02  接收 Request 并把 request.state.username 传给 run_stats(operator=)，
            否则 created_by 在真实调用中永远为空，REQ-6 的"可回看"缺了操作人。
-  · P2-03  connection_id 必须显式非空（校验在 service，本层映射 400）。
+  · P2-03  connection_id 必须显式非空：空串/缺字段由模型 `min_length=1` 在进入路由前
+           拦截（422）；**全空白由本层在连接解析之前拦截（400，Rev.N / DEF-SIT-03）**；
+           service 层保留同名守卫作为服务被直接调用时的兜底。
   · Rev.K  TimeoutError（采集预算耗尽）单独映射为 503——它是"稍后重试可能成功"
            的暂时性状况，与 500 的"结构不对，重试也没用"语义不同。
 """
@@ -40,6 +42,14 @@ def _pool(cid):
 
 @router.post("/run", summary="发起表类型统计")
 def run(body: StatsRequest, http_request: Request):
+    # DEF-SIT-03：入参口径校验必须先于连接解析。否则 registry.get("   ") 会先抛
+    # ConnectionNotFoundError，用户输入空白却被告知"未连接TDSQL实例"，排查方向跑偏；
+    # 服务层同名守卫也因此在 HTTP 路径上永远不可达（单测直调服务层，测不出来）。
+    if not body.connection_id.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="必须指定 connection_id（本模块不接受默认连接："
+                   "连接解析与实例类型解析在空 ID 下可能指向不同实例）")
     pool = _pool(body.connection_id)
     try:
         return svc.run_stats(pool, connection_id=body.connection_id,

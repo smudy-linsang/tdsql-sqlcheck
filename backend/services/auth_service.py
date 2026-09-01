@@ -295,6 +295,7 @@ _OPERATIONAL_WRITE_PREFIXES = (
     "/api/v1/emergency/",                   # 深度诊断-应急工具
     "/api/v1/sql-stats/",                   # 深度诊断-SQL统计
     "/api/v1/toolkit/",                     # 深度诊断-工具箱
+    "/api/v1/table-type-stats/",            # 深度诊断-表类型统计
 )
 _DEVELOPER_WRITE_PREFIXES = _OPERATIONAL_WRITE_PREFIXES
 
