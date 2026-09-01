@@ -2,13 +2,13 @@
 
 | 项 | 内容 |
 |---|---|
-| 文档编号 | DESIGN-v1.6.3.0 **Rev.L** |
+| 文档编号 | DESIGN-v1.6.3.0 **Rev.M** |
 | 模块编号 | **G14 · 表类型统计**（深度诊断第 10 个子模块） |
 | 目标版本 | v1.6.3.0（当前基线 v1.6.2.2，`VERSION` / `backend/config.py:APP_VERSION`） |
-| 文档等级 | **照图施工级**——附录 A 给出全部新增/修改文件的逐行成品代码；Rev.L 预计 collect **110 项**（离线 87 / 元数据库 22 / 落盘后仓库检查 1）。Rev.K 的“105 通过 + 1 跳过”仅是上一版设计阶段记录，**不冒充 Rev.L 或实现落盘后的回归证据**（§11） |
-| 编写 | 智能体 A（Rev.A～K）；智能体 O / Codex（Rev.L 修订） |
-| 编写日期 | 2026-08-29 首版；2026-08-31 Rev.F～J 多轮复核与整改；2026-09-01 Rev.K 依 O 第三轮评审整改；2026-09-01 **Rev.L 依第四轮评审整改（2 P1 + 2 P2 + 1 DOC）** |
-| 状态 | **Rev.L 方案修订完成，待智能体 A 第五轮评审；仓库实现尚未落盘。** 第四轮 2 项 P1、2 项 P2、1 项 DOC 全部接受：基线库名改为全实例 canonical 解析后精确过滤；删除不可证明的 215 秒硬上界，180 秒明确为“服务层在 checkpoint 后不再启动新阶段/库/命令”的软预算；无业务库不再弹绿色成功；元数据库探测真正连接批准的目标库；当前态文档统一。**仅剩 T13 一项内网核查，不阻断且不影响任何数字**（§10.2） |
+| 文档等级 | **照图施工级**——附录 A 给出全部新增/修改文件的逐行成品代码；Rev.M collect **110 项**（离线 87 / 元数据库 22 / 落盘后仓库检查 1）。A 在第五轮将 Rev.L 附录独立抽取后实测 **109 passed, 1 skipped**；该结果只证明设计附录自洽，**不冒充实现落盘后的仓库回归证据**（§11） |
+| 编写 | 智能体 A（Rev.A～K、第五轮评审）；智能体 O / Codex（Rev.L～M 修订） |
+| 编写日期 | 2026-08-29 首版；2026-08-31 Rev.F～J 多轮复核与整改；2026-09-01 Rev.K 依 O 第三轮评审整改；2026-09-01 Rev.L 依第四轮评审整改；2026-09-01 **Rev.M 依 A 第五轮评审定点整改（1 P2）** |
+| 状态 | **Rev.M 已完成第五轮唯一 P2 的定点整改，待智能体 A 单点复核；仓库实现尚未落盘。** 基线 SQL 恢复为可下推的 `TABLE_SCHEMA IN (...)`，不再依赖已实测导致全库扫描的 `BINARY`；大小写正确性完全由“全实例 canonical 解析 + 目标集合精确过滤”承担。同步修订 §6.4、ADR-27、E-36、T4-R01，并新增内网最大实例谓词性能验收 T20（§10.3 / §12.4）。第五轮对第四轮 2 P1、2 P2、1 DOC 均确认关闭。**T13 与 T20 均不影响当前统计正确性；T20 是发布前性能证据门禁。** |
 | 前置约束 | 本文档编写阶段**未修改任何代码**（用户要求）。仓库工作区在本文档提交时保持干净。 |
 
 ---
@@ -18,8 +18,8 @@
 本文档同时承担三件事，读者请按角色取用：
 
 * **实施者（智能体 Q 或人工）**：读 §5～§9 + 附录 A。附录 A 是**可直接落盘的成品代码**——四个新增文件 + 既有文件的 **10 行**改动 + **2 个前端块**（页签块 + 历史抽屉块），逐字给出。
-* **内网测试配合者**：只读 **§10**。六轮共 15 个用例**已全部完成**（裁决见 §10.1 与 §10.2）。**只剩 T13 一项**，且在 Rev.G 删除提前停止优化后它已**不影响任何数字**，只影响耗时预期——**没有任何待办事项阻断开发**。
-* **评审者（智能体 A，Rev.L 第五轮评审）**：读 §3（原厂口径的语义风险）、§7（决策与取舍）、§8（异常矩阵）、§9（爆炸半径）、§11（缺陷定向测试）、§13（风险登记册）。
+* **内网测试配合者**：只读 **§10**。既有六轮用例的裁决见 §10.1 与 §10.2；另执行 T20，记录普通 `IN` 与 `BINARY IN` 的 `EXPLAIN` 扫描库数及耗时。T13 不影响数字，T20 不阻断开发、但属于发布前性能证据门禁。
+* **单点复核者（智能体 A，Rev.M）**：核对 §6.4、ADR-27、E-36、T4-R01 与 T20 是否逐项关闭第五轮 P2-01；无需重开第四轮已关闭项。
 
 **三条硬约束**（贯穿全文，任何实现偏离即为不合格）：
 
@@ -539,9 +539,10 @@ Query OK, 0 rows affected (0.001 sec)
                   ──► 过滤 _SYS_DB ──► dbs = [db1, db2, ...]
 3. 一次性查 information_schema 全量名单（要名字，不只要计数）：
    SELECT TABLE_SCHEMA, TABLE_NAME, TABLE_TYPE FROM information_schema.TABLES
-   WHERE BINARY TABLE_SCHEMA IN (%s,%s,...)
+   WHERE TABLE_SCHEMA IN (%s,%s,...)
    每行先在 all_dbs 全实例命名空间解析一次 canonical 库名，
-   再对 dbs 做精确成员过滤；禁止在目标子集上二次大小写回退（Rev.L / P1-01）
+   再对 dbs 做精确成员过滤；SQL 端不承担大小写正确性，
+   禁止在目标子集上二次大小写回退（Rev.M / P2-01）
         ──► baseline{db: {"base": {表名…}, "view": {视图名…}}}
 4. 建临时池 tmp（pool_size=1, read_timeout=30s）
 5. kind_map = {}        # (库, 表) -> 类型，全局去重，正是原厂「库名+表名去重」
@@ -606,7 +607,7 @@ Query OK, 0 rows affected (0.001 sec)
 | 新增 | `backend/services/table_type_stats_service.py` | 附录 A.1 给出完整成品代码（不以易漂移的行数作验收条件） |
 | 新增 | `backend/api/table_type_stats.py` | 71 行（附录 A.2，成品） |
 | 新增 | `backend/schema/v13/130_table_type_stats.sql` | 46 行（附录 A.3，成品）。**槽位 v13/130**——`v11/110` 与 `v12/120` 已被 v1.6.2.2 占用（DEF-1，§2.7） |
-| 新增 | `tests/test_table_type_stats.py` | 附录 A.4 给出完整成品代码；Rev.L 预计 collect 110 项 |
+| 新增 | `tests/test_table_type_stats.py` | 附录 A.4 给出完整成品代码；Rev.M collect 110 项 |
 | 修改 | `backend/main.py` | **2 行**（import + include_router） |
 | 修改 | `backend/services/auth_service.py` | **3 行**（P1/P2/P3） |
 | 修改 | `backend/services/database.py` | **1 行**（P4） |
@@ -842,16 +843,23 @@ s = str(值).strip()
 
 ```sql
 SELECT TABLE_SCHEMA, TABLE_NAME, TABLE_TYPE FROM information_schema.TABLES
-WHERE BINARY TABLE_SCHEMA IN (%s, %s, ...)
+WHERE TABLE_SCHEMA IN (%s, %s, ...)
 ```
 返回 `{db: {"base": 全部 BASE TABLE, "view": 视图}}`。
 
-**Rev.L / P1-01：参数化 `IN` 不等于大小写精确。** `TABLE_SCHEMA`
-的比较受元数数据排序规则影响，指定 `database=Sales` 时仍可能返回
-`sales.*`。因此必须同时做两层防护：SQL 端用 `BINARY TABLE_SCHEMA IN (...)`
-缩小返回集；代码端先用**全实例** `_NameSpace known` 将返回值解析为
-canonical 库名，再对目标子集做**精确成员判断**。绝不在目标子集上再做
-CI 回退；否则目标只有 `Sales` 时，真实兄弟库 `sales` 会被误并。
+**Rev.M / 第五轮 P2-01：SQL 端不做大小写语义假设。** 参数化 `IN` 负责防注入并
+保留 `information_schema` 的谓词下推能力；它既不被当成大小写精确保证，也不承担
+最终正确性。服务端即使因排序规则、Proxy 行为或版本差异多返回 `sales.*`，代码端仍先用
+**全实例** `_NameSpace known` 将返回值解析为 canonical 库名，再对目标子集做
+**精确成员判断**。绝不在目标子集上再做 CI 回退；否则目标只有 `Sales` 时，真实兄弟库
+`sales` 会被误并。该应用层防线严格覆盖 SQL 可能多返的情形，T4-R01 只钉行为、不再钉
+SQL 字符串形态。
+
+第五轮在 MariaDB 10.11.14、120 个业务库 × 10 张表环境实测：普通 `IN` 的
+`EXPLAIN` 为 `Scanned 1 database`、中位 0.32 ms；`BINARY IN` 退化为
+`Scanned all databases`、中位 2.04 ms，返回行数同为 10。故附录不得在
+`TABLE_SCHEMA` 上施加 `BINARY`、`CAST` 或其他可能阻断下推的函数/操作符；目标 TDSQL
+仍须按 T20 在最大实例留存同口径 `EXPLAIN` 与耗时证据。
 
 **Rev.G：基线阶段不再拆出 `subp`（P1-03）。** Rev.F 在这里就按后缀把子表分了出来，
 两个分支共用同一份结果——于是集中式实例也被剔了一遍，成了 P1-03 的静默少算。
@@ -1105,7 +1113,7 @@ def run_stats(pool, connection_id="", database="", operator=""):
 | ADR-24（Rev.K 新增，**Rev.L 扩展**） | 元数据库阶段（`_ensure_schema` + 落库）不纳入目标软预算；明细使用批量 INSERT | ① 宣称 `/run` 或目标采集有 210/215 秒硬上界 ② 把结果落库强行纳入目标 deadline | `_ensure_schema()` 在拿槽位之前，落库在释放槽位之后；采集已完成时因 deadline 丢弃结果会让整轮工作白费。Rev.L 同时承认目标阶段本身也没有硬墙钟上界，不再把边界问题只归因于元数据库。能确定优化的是 `ITEM_INSERT_BATCH=100`，500 库由 500 次往返降为 5 次 |
 | ADR-25（Rev.K 新增，P1-02） | 预算耗尽用**标志位 + 正常退出 `with`**，绝不以异常穿出连接上下文 | ① Rev.J 的 `raise _BudgetExceeded()` ② 在 `with` 外层判断剩余时间再决定进不进 | ①`TDSQLConnectionPool.get_connection()` 捕获穿出上下文的**任何**异常并 close + `_create_connection()`（`tdsql_connector.py:298-306`）——它无法区分"连接坏了"和"我们主动不干了"。于是一个正常控制信号会：销毁一条健康连接、在 deadline **之后**多付一次建连、若重连再失败还会用新异常盖掉原信号，把本该 `SKIPPED` 的库误标成 `FAILED`（"没来得及测"变成"测了但错了"，排障方向直接反了）；②外层判断挡不住"进入上下文之后、三条命令之间"耗尽的情形。**连接重建只应由真实的数据库/网络异常触发**——这条边界一旦模糊，连接池的自愈机制就会被正常控制流反复触发 |
 | ADR-26（Rev.K 新增，P1-03） | 迁移槽护栏只钉**永久不变量**：槽位不重复 + 本模块独占自己的槽 + 已知前驱存在；**删除"必须是最大槽"** | ① Rev.J 的 `assert _OUR_SLOT > max(others)` ② 完全不做槽位检查 | ①它在项目下一次合法新增 `v13/131` 或 `v14/140` 之后**必然为假**——一条历史测试把项目此后的演进锁死了；我甚至把"我们不再是最大槽"写成了必须拒绝的场景，方向完全错了。"当前最大之后的下一个"只在**选槽那一刻**有意义，不该随仓库永久执行；②DEF-1 已经证明没有护栏会出事。**"选槽连续"这件事改用"已知前驱 v12/120 仍在"来证明**——这条同样永久成立，且能顺带发现版本链被误删 |
-| ADR-27（Rev.L 新增，P1-01） | 基线查询用 `BINARY TABLE_SCHEMA IN (...)`，返回行先经**全实例** `_NameSpace` 解析 canonical 库名，再对目标子集精确过滤 | ① 仅依赖参数化 `IN` ② 在目标子集上做 CI 回退 ③ 全部只做精确匹配 | ①参数化防注入，不改变列的比较语义；`Sales` 查询可带回 `sales.*`。②会重现 ADR-22 已封堵的兄弟库误并。③对 Proxy 偶发返回不同大小写过严。只有全实例命名空间才有足够信息判断 CI 唯一或歧义；canonical 后则只允许精确成员判断 |
+| ADR-27（Rev.L 新增，**Rev.M 修正**） | 基线查询保持可下推的 `TABLE_SCHEMA IN (...)`；**SQL 端不做大小写正确性假设**。返回行一律经全实例 `_NameSpace` 解析 canonical 库名，再对目标子集精确过滤 | ① `BINARY TABLE_SCHEMA IN (...)` ② `CAST(TABLE_SCHEMA AS BINARY)` ③ 仅依赖普通 `IN` 的服务端比较结果 ④ 在目标子集上做 CI 回退 ⑤ 全部只做精确匹配 | ①第五轮本地实测使 `information_schema` 从扫描 1 库退化为扫描全库、耗时 6.4 倍，且对应用层已覆盖的正确性零增益；②同样可能阻断下推；③参数化只防注入，不保证服务端大小写语义，故仍须检查每一返回行；④会重现 ADR-22 已封堵的兄弟库误并；⑤对 Proxy 偶发返回不同大小写过严。普通 `IN` 只做候选集减载，正确性边界固定在“全实例 canonical 解析 + 目标集精确判断”；T20 在最大内网实例留存 `EXPLAIN` 与耗时证据 |
 | ADR-22（Rev.J 新增，P1-01） | 库名命名空间用 `_NameSpace`：**精确优先、CI 回退仅在候选唯一时、歧义不猜** | ① 全小写单值字典（Rev.I 及以前） ② 全部改为精确匹配、完全不容忍大小写差异 | ①在 `lower_case_table_names=0` 的实例上会把 `Sales` 与 `sales` **静默合并**——四个主数字直接错，且没有任何告警会亮。我在表名那侧已经写对了这个道理（ADR-9），却没有把它用到库名上，理由还写成"库名来自我们自己枚举的清单，不存在合并风险"——风险恰恰来自两个都真实存在的库，与输入来源无关；②过严：Proxy 若在某个版本回了不同大小写的库前缀，全精确会把整批行丢掉（**少算，且不可见**）。折中方案在候选唯一时容忍、在候选多个时拒绝并显式报 `DB_NAME_AMBIGUOUS`——**把不可判定的情况变成可见的，而不是替使用者猜**。**Rev.K 补一条使用边界（O 三轮 P1-01）**：CI 回退**只允许发生一次**，且必须在**全实例命名空间**上做。Rev.J 在 `_extract_pairs` 用全实例 `known` 解析出 canonical 名之后，又对只含目标库的 `target` 做了第二次回退——目标子集只有 `Sales` 时，另一个真实库 `sales` 的行会被"唯一命中"回 `Sales`，指定单库的统计直接错。**canonical name 之后只能做精确成员判断** |
 | ADR-23（Rev.J 新增，P1-03） | **先定状态，再算汇总**：`eligible = 全部库 − 失败 − 跳过`，所有实例级汇总（含 baseline / subpartition / overlap）一律按 owner 过滤 | ① Rev.I 的"边遍历边累加，之后才判状态" ② 改文案，承认失败库的基线也计入 | ①与接口文案和 W1 告警里"未计入任何汇总数"直接矛盾，且矛盾**恰好发生在出问题的时候**：全部库 SKIPPED 时 `total_tables=0` 而 `baseline_tables` 仍是全库合计，两个并排的数字看起来像"Proxy 漏了一整个实例"；某个成功库的实例级返回里携带的失败库行还会让 `overlap_count` 凭空加 1。②改文案也是一种关闭方式，但 `baseline_tables` 的**唯一用途**就是与 `total_tables` 互相印证，两者覆盖的库集合不同则这个用途直接消失——所以该改的是代码不是文案。逐库行仍如实显示各自的基线（information_schema 那侧确实查成功了），只是不进实例级汇总 |
 | ADR-21（Rev.G 新增，P1-06） | 新权限键必须同时登记到 **6 处**（API 路径映射 / 菜单全集 / 标签 / 默认角色清单 / `index.html` 页签 / **`app.js` 的 `subtabs` 回退清单**） | Rev.F 只登记 4 处 + 页签 | 缺 `subtabs` 这一处时，只被授予"深度诊断 + 表类型统计"的自定义角色进入页面后，默认 `deepTab='cluster'` 对应的页签不可见，**页面没有活动页签**——权限配置成功、功能却进不去。这类缺陷在 admin 账号下**永远测不出来**（admin 有全部子页签，第一个必定可见），只有最小权限角色才暴露，故必须由 T-R08 单测钉住而不是靠人工回归 |
@@ -1147,7 +1155,7 @@ def run_stats(pool, connection_id="", database="", operator=""):
 | E-30 | deadline 在探测/枚举库/基线查询之前就已耗尽 | 抛 `TimeoutError` → **HTTP 503**，消息点明在哪个阶段耗尽（Rev.K / P1-02） | `analyze` |
 | E-34 | deadline 在某库的三条命令中途耗尽 | 该库整体记 `SKIPPED`（暂存整体丢弃），**且不触发连接重建**——预算是正常控制流，不是连接故障（Rev.K / P1-02，ADR-25） | `_collect_distributed` |
 | E-35 | 指定 `database=Sales`，实例级结果含 `sales.*` | `sales.*` **被过滤**，不得并入 `Sales`——canonical 名之后只做精确成员判断（Rev.K / P1-01） | `_collect_distributed` |
-| E-36 | 指定 `database=Sales`，基线 `IN` 因排序规则返回 `sales.*` | SQL 端 `BINARY`；代码端用全实例 `known` 归一后精确过滤，`sales.*` 不得进入 `Sales` 基线 | `_collect_baseline` / ADR-27 |
+| E-36 | 指定 `database=Sales`，普通基线 `IN` 因排序规则或服务端行为返回 `sales.*` | SQL 返回集不作为正确性边界；代码端用全实例 `known` 解析 canonical 后对目标集精确过滤，`sales.*` 不得进入 `Sales` 基线 | `_collect_baseline` / ADR-27 / T4-R01 |
 | E-37 | `database_count == 0` 且接口正常返回 | 前端弹**黄色提示**"未发现可统计的业务库"，不弹绿色"统计完成" | `runTableTypeStats` |
 | E-31 | 实例上存在仅大小写不同的同名库（`Sales` / `sales`） | 两库**各自独立统计**；另出一条 `DB_NAME_CASE_VARIANTS`（WARNING）（Rev.J / P1-01） | `_NameSpace` |
 | E-32 | Proxy 返回的库限定名无法唯一归属（大小写歧义） | 该行**不计入任何库**，记 `DB_NAME_AMBIGUOUS`（ERROR）——不猜归属，宁可少算并显式报出（Rev.J / P1-01） | `_split_qualified` |
@@ -1529,6 +1537,7 @@ Query OK, 0 rows affected (0.001 sec)
 | ~~T09 权限~~ | ✅ **已结案（2026-08-31）**：内网统一使用 `checksql` 账号，平台登记的也是该账号，权限充足（使用者裁决，见 T16） | — |
 | T10 性能 | 在**表最多**的业务库上跑三条命令，回填表数 + 各自耗时 | 若 T13 判定是当前库作用域，总响应时间 ≈ 单库耗时 × 库数；超阈值就要改异步 |
 | T12 单分片实例 | 若内网有**只有 1 个 SET** 的分布式实例，在其上跑 T02 | `instance_probe_rules.py:99-104` 的已知边界：这类实例可能被判成集中式，从而分片表被报成单表。没有就注明"无" |
+| **T20 基线谓词性能（Rev.M / 发布前必测）** | 在**业务库数量最多**的内网实例选同一目标库，分别对 `TABLE_SCHEMA IN ('目标库')` 与 `BINARY TABLE_SCHEMA IN ('目标库')` 执行 `EXPLAIN`，各预热 1 次后实跑至少 5 次；记录 `Scanned N database(s)`、每次耗时/中位数、返回行数，并确认两种写法的 `(TABLE_SCHEMA,TABLE_NAME,TABLE_TYPE)` 集合一致 | 验证普通 `IN` 保留元数据谓词下推；正确性仍由应用层过滤保证，不以服务端大小写行为为前提。**普通 `IN` 扫描库数或中位耗时不得劣于 `BINARY IN`；否则发布前分析原因并寻找不破坏下推的替代写法，禁止直接恢复 `BINARY`/`CAST`** |
 
 ### 10.4 汇总回填模板
 
@@ -1541,6 +1550,10 @@ Query OK, 0 rows affected (0.001 sec)
 【T14】（不等时）双向差集表名 / 表名是否带分片数字后缀：
 【T09】登记账号能否执行（是/否，errno）：
 【T12】单分片实例：有/无，若有则输出：
+【T20】目标实例业务库数 / 目标库：
+【T20】普通 IN：EXPLAIN Extra= ，5 次耗时= ，中位数= ，返回行数= ：
+【T20】BINARY IN：EXPLAIN Extra= ，5 次耗时= ，中位数= ，返回行数= ：
+【T20】两种返回集合是否一致（是/否；否则附差集）：
 
 —— Rev.G 新增的 T16～T19 已于第五、六轮全部回填并归档，本模板不再需要 ——
 ```
@@ -1564,6 +1577,9 @@ Query OK, 0 rows affected (0.001 sec)
 | T09 登记账号无权限 | 出授权说明，由 DBA 补授权 | **是**（非代码问题） |
 | T10 单库 > 1s 且 T13 = 当前库作用域 且库数 > 20 | 需追加"异步任务 + 进度"设计 | **是**（设计升版）。已知 `lzbj_ecif`（215 张表）单库仅 0.004s，风险很低 |
 | T12 存在单分片分布式实例 | UI 强化 W5 文案 | 否（前端 1 行文案） |
+| T20 普通 `IN` 扫描库数和中位耗时均不劣于 `BINARY IN`，且返回集合一致 | 保持 Rev.M 普通 `IN`；归档 `EXPLAIN` 与原始耗时 | 否 |
+| T20 普通 `IN` 返回集合不同 | **不改变应用层过滤**；先确认差异行经服务层过滤后的最终结果一致，并记录服务端大小写语义 | 否（正确性已有 T4-R01），但必须归档 |
+| T20 普通 `IN` 的扫描库数或中位耗时反而更差 | 发布前分析 TDSQL 优化器行为并给出不破坏下推的替代谓词及新证据；禁止无证据恢复 `BINARY`/`CAST` | **是（阻断发布，不阻断开发）** |
 
 **只要没有命中"是"，开发即可按附录 A 照图施工。**
 
@@ -1572,7 +1588,7 @@ Query OK, 0 rows affected (0.001 sec)
 
 ## 11. 测试设计（开发期，可在本地 MariaDB 13306 上跑）
 
-`tests/test_table_type_stats.py`（附录 A.4），**Rev.L 预计 collect 110 项**。数据夹具直接照搬
+`tests/test_table_type_stats.py`（附录 A.4），**Rev.M collect 110 项**。数据夹具直接照搬
 内网实测形态（列名 `db_table`、库限定名 `sqltuning.t_max`、`with*` 双列 /
 `without` 单列），**Rev.H 起子分区相关用例直接使用 2026-08-31 T17 取回的
 78 个真实表名**。
@@ -1588,8 +1604,11 @@ Query OK, 0 rows affected (0.001 sec)
 | **collect 合计** | **110** | 含参数化展开（T3-R08 契约用例 11 条） |
 
 Rev.K 历史实测口径：不连元数据库时 `83 passed, 23 skipped`；连上后
-`105 passed, 1 skipped`。**Rev.L 新增 4 条离线用例后的 110 项是设计收集数，
-尚未以真实落盘模块重跑，不写成 passed。**
+`105 passed, 1 skipped`。第五轮评审中，A 将 Rev.L 的 A.1～A.4 逐字抽取到临时目录，
+以 importlib 挂载设计模块后实测：`pytest --collect-only` 为 **110 collected**；连元数据库
+**109 passed, 1 skipped**；离线 **87 passed, 23 skipped**。Rev.M 只删除基线 SQL 的
+`BINARY` 与 T4-R01 的 SQL 形态断言，不增加测试项，collect 仍为 110。
+**这些数字是设计附录抽取验证，不是真实仓库模块落盘后的回归证据。**
 元数据库集成用例覆盖落库与回读、`/history` 与 `created_by`、500 库告警的
 `MEDIUMTEXT` 往返，以及**十一项完整字段契约失败关闭 + 一项干净 DDL 通过**；
 由 `g14_schema` fixture 在每例前后 DROP + 按 DDL 重建，互不干扰。
@@ -1729,19 +1748,19 @@ Rev.K 历史实测口径：不连元数据库时 `83 passed, 23 skipped`；连�
 | T3-R08 | `test_t3r08b_clean_ddl_passes_verification` | 反向护栏：**干净 DDL 必须通过**，且连续两次调用稳定无副作用 | **P2-01** |
 | T3-R10 | `test_t3r10_zero_effective_databases_is_not_partial_success` | 一失败一跳过时有效库数为 0，所有"不计入"的汇总均为 0（前端据此报红而非"部分完成"） | **P2-03** |
 
-**Rev.L 新增的缺陷定向测试（对应 O 第四轮评审）**：
+**Rev.L 新增、Rev.M 定点修正的缺陷定向测试（对应 O 第四轮与 A 第五轮评审）**：
 
 | O 编号 | 用例 | 验证 | 关闭的问题 |
 |---|---|---|---|
-| T4-R01 | `test_t4r01_baseline_rejects_case_sibling_returned_by_ci_in` | 模拟 `WHERE ... IN ('Sales')` 因排序规则同时返回 `Sales` / `sales`；断言 SQL 含 `BINARY`，且全实例 canonical 后只保留 `Sales` | **P1-01** |
+| T4-R01 | `test_t4r01_baseline_rejects_case_sibling_returned_by_ci_in` | 在普通 `IN` 下让测试替身故意同时返回 `Sales` / `sales`；只断言全实例 canonical 后保留 `Sales` 的行为，**不再断言 SQL 含 `BINARY`** | **P1-01 / 五轮 P2-01** |
 | T4-R02 | `test_t4r02_real_pool_tail_path_can_exceed_old_formula` | 直接跑真实 `TDSQLConnectionPool.get_connection()` 控制流，模拟 `ping` 30s + 建连 5s + `select_db` 30s + 异常重建 5s = 70s，证明旧公式不成立；反向再断言 `ping→建连` 跨过 deadline 后，服务层在拿到连接复查并不发 `select_db` | **P1-02** |
 | T4-R03 | `test_t4r03_pymysql_read_timeout_is_per_read` | 对 PyMySQL `_read_bytes` 连续两次模拟各 20s 成功读取，总时长 40s 仍不超时，钉住 `read_timeout=30` 是**每次底层读取**而非整条 SQL 总时间 | **P1-02** |
-| T4-R04 | 前端 UAT（§12.4） | `database_count=0` 弹黄色"未发现可统计的业务库"，不弹绿色"统计完成" | **P2-01** |
+| T4-R04 | 前端 UAT（§12.5） | `database_count=0` 弹黄色"未发现可统计的业务库"，不弹绿色"统计完成" | **P2-01** |
 | T4-R05 | `test_t4r05_probe_connects_effective_database` | monkeypatch `pymysql.connect`，逐项断言 host/port/user/password/**database**/charset 全部来自 `effective_db_config()` | **P2-02** |
-| T4-R06 | 全文一致性扫描（§12.4） | 当前态不再声称 210/215 秒硬上界，Rev.K 数字只留在历史记录 | **DOC-01** |
+| T4-R06 | 全文一致性扫描（§12.5） | 当前态不再声称 210/215 秒硬上界，Rev.K 数字只留在历史记录 | **DOC-01** |
 
 > **T3-R09（历史抽屉状态清空）与 T3-R10 的前端分支**属于前端行为，
-> 代码在附录 A.5.4 / A.5.5，验收方式见 §12.4——本项目前端无自动化测试框架，
+> 代码在附录 A.5.4 / A.5.5，验收方式见 §12.5——本项目前端无自动化测试框架，
 > 沿用既有惯例以可执行的人工验收条目覆盖，**不假装它们有单测**。
 | T-R13 | `test_r13_api_records_current_operator` | API 签名含 `http_request: Request`，`operator` 收到真实用户名；未认证兜底 `anonymous`（**不写空串**） | **P2-02** |
 | T-R13 | `test_r13_created_by_is_persisted` | `created_by` 真正落库并可从 `/history` 回读 | **P2-02** |
@@ -1761,14 +1780,13 @@ Rev.K 历史实测口径：不连元数据库时 `83 passed, 23 skipped`；连�
 这是本轮我认为最有价值的一处测试设计：**P1-04 描述的缺陷在 Rev.F 的测试体系下
 根本无法被发现**，因为旧 FakePool 对异常穿不穿出 `with` 完全无感。
 
-**历史验证结果（2026-09-01，Rev.K）**：用 importlib 把附录 A.1 / A.2 分别挂载为
-`backend.services.table_type_stats_service` 与 `backend.api.table_type_stats`
-（**仓库代码零改动**），`python -m pytest` **105 项通过 + 1 项跳过**
-（跳过的是 T-R08，它断言的是模块落盘后的仓库文件，设计阶段无从断言），
-含对本地 MariaDB(13306) 的真实落库、告警往返，以及**十一种畸形结构逐项失败关闭
-+ 干净 DDL 必须通过**的参数化用例。
-**这是设计阶段记录，不是发布证据**（见上方说明）。Rev.L 附录新增
-4 条离线用例，预计 collect 110 项；因仓库实现仍未落盘，本版不伪造新的 passed 数字。
+**设计附录验证结果（2026-09-01，第五轮评审）**：A 用 importlib 把 Rev.L 附录
+A.1 / A.2 挂载为 `backend.services.table_type_stats_service` 与
+`backend.api.table_type_stats`（**仓库功能代码零改动**），实测 **110 collected**；
+连接元数据库时 **109 passed + 1 skipped**，离线模式 **87 passed + 23 skipped**。
+其中唯一长期跳过项 T-R08 断言模块落盘后的仓库权限键，设计阶段无从满足。
+Rev.M 不新增测试项，只删除生产 SQL 的 `BINARY` 与 T4-R01 的 SQL 字符串断言。
+**这是设计阶段记录，不是发布证据**；仓库实现落盘后仍必须重跑全部 110 项。
 
 
 ## 12. 验收清单
@@ -1813,7 +1831,13 @@ Rev.K 历史实测口径：不连元数据库时 `83 passed, 23 skipped`；连�
 - [ ] **并发专项**：统计过程中断开网络或杀掉目标库连接，确认槽位被释放（随后可再次发起统计，不出现"永远 429"）
 - [ ] **软预算专项（Rev.L / P1-02）**：在库数最多的实例上分别记录目标采集与元数据库落库耗时；把 `TOTAL_BUDGET_SECONDS` 临时调小，确认 deadline 到期后不再启动下一条 Proxy 命令、未开始的库标 `SKIPPED`。**不再以 215 秒为通过条件**；若长尾明显影响既有扫描，按 KL-6 升版异步
 
-### 12.4 Rev.L 新增专项（第四轮评审）
+### 12.4 Rev.M 定点整改专项（第五轮评审）
+
+- [ ] **基线谓词性能（P2-01 / T20）**：在业务库数量最多的内网实例，对同一目标库分别执行普通 `TABLE_SCHEMA IN (...)` 与 `BINARY TABLE_SCHEMA IN (...)`；按 §10.3 记录 `EXPLAIN` 的 `Scanned N database(s)`、至少 5 次耗时及中位数、返回集合差异。普通 `IN` 的扫描库数或中位耗时不得更差；异常时阻断发布并分析优化器，禁止直接恢复 `BINARY` / `CAST`
+- [ ] **应用层行为不依赖 SQL 大小写语义（P2-01 / T4-R01）**：让测试替身在普通 `IN` 下故意同时返回 `Sales.*` 与 `sales.*`，集中式/分布式均只保留 `Sales.*`；测试只断言结果，不断言 SQL 必须包含某个关键字
+- [ ] **文档与附录一致性**：§4.2、§6.4、ADR-27、E-36、附录 A.1 均为普通 `TABLE_SCHEMA IN (...)`；除第五轮历史证据、T20 对照 SQL 和修订记录外，当前态不得把 `BINARY` 描述为生产方案
+
+### 12.5 Rev.L 新增专项（第四轮评审）
 
 - [ ] **基线不吞大小写兄弟库（P1-01 / T4-R01）**：指定 `Sales`，令 `information_schema` 返回 `Sales.*` 与 `sales.*`，集中式/分布式均只保留 `Sales.*`
 - [ ] **连接池尾部路径（P1-02 / T4-R02）**：覆盖 `ping → connect → select_db → 异常重建`；确认文档和代码均不再声称 180+35 是硬上界
@@ -1822,7 +1846,7 @@ Rev.K 历史实测口径：不连元数据库时 `83 passed, 23 skipped`；连�
 - [ ] **探测完整目标配置（P2-02 / T4-R05）**：捕获 `pymysql.connect` 实参，host/port/user/database 必须与 `MYSQL_CONFIG` 一致
 - [ ] **当前态文档一致性（DOC-01 / T4-R06）**：当前章节不再出现 210/215 秒硬上界、Rev.G 的 66+1 当前测试数或“本模块必须永远是最大迁移”
 
-### 12.5 Rev.K 专项（O 第三轮评审）
+### 12.6 Rev.K 专项（O 第三轮评审）
 
 - [ ] **指定单库不吞兄弟库（P1-01）**：若内网有仅大小写不同的同名库，指定其中一个统计，确认另一个库的表**没有**被计入；无此形态则在测试环境建 `Sales`/`sales` 各一张表验证
 - [ ] **预算不触发重连（P1-02）**：把 `TOTAL_BUDGET_SECONDS` 临时调小到能在库中途耗尽，观察日志确认**没有**出现连接重建/重连日志，且该库状态为 `SKIPPED` 而非 `FAILED`
@@ -1832,7 +1856,7 @@ Rev.K 历史实测口径：不连元数据库时 `83 passed, 23 skipped`；连�
 - [ ] **历史抽屉状态清空（P2-02 / T3-R09）**：打开历史→选中一行看到告警→关闭→**切换到另一个实例**→再打开历史，确认**没有**残留上一条的告警；浏览器控制台**无** Vue 只读告警
 - [ ] **零有效库提示（P2-03 / T3-R10）**：分别构造「无业务库」「全失败」「全跳过」「失败+跳过覆盖全部」「真正部分成功」「全部成功」六种情形；无业务库为 warning，后三类无有效结果不得称“部分完成”，仅全部成功为 success
 
-### 12.6 Rev.J 专项（O 第二轮评审）
+### 12.7 Rev.J 专项（O 第二轮评审）
 
 - [ ] **库名大小写（P1-01）**：若内网存在仅大小写不同的同名库，确认两库**各自成行**、总数不合并，且出现 `DB_NAME_CASE_VARIANTS`。无此形态则注明"无"，并改为在测试环境人工建 `Sales` / `sales` 各一张表验证
 - [ ] **指定库大小写**：输入错误大小写的库名，必须回 400 并在消息里点名真实存在的变体，**不得**当成存在
@@ -1867,18 +1891,19 @@ Rev.K 历史实测口径：不连元数据库时 `83 passed, 23 skipped`；连�
 | KL-14（Rev.G 新增） | 并发配额与既有扫描**共享**，重度扫描期间统计可能被 429 | ADR-19 的取舍：共享配额才能真正保护既有功能 | 提示文案已写明"请稍后重试"；配额可由 `SQLCHECK_MAX_CONCURRENT_SCANS_*` 调整。**不为本模块单开配额**——单开等于全局上限失效 |
 | ~~KL-15~~（Rev.G 新增，**Rev.J 关闭**） | ~~`_ensure_schema` 不校验长度/精度~~ | 当时的免责理由是"`COLUMN_TYPE` 带显示宽度、跨发行版不一致"——**那个理由只对整型成立，对 varchar 长度不成立**，我把两件事混为一谈了 | **本项关闭**。Rev.J 按字段分工取值：整型比 `DATA_TYPE`（无显示宽度），字符列比 `CHARACTER_MAXIMUM_LENGTH` + `CHARACTER_SET_NAME`，共通比 `IS_NULLABLE` / `COLUMN_DEFAULT` / `EXTRA`，索引比全列序与唯一性（ADR-20）。**"已知"不等于"已关闭"**——这是 O 的原话，我接受 |
 | KL-18（Rev.J 新增） | 结构验收不校验排序规则（collation）与外键 | 排序规则错误不会导致 INSERT 失败，只影响排序与比较；本模块两张表无外键 | 有意留白：验收**过严**会把功能整个打死（干净安装通不过验收 = 页面永远不可用），比过松更难被发现。只钉住"错了就会写不进去或算错"的属性 |
-| KL-19（Rev.J 新增，**Rev.L 最终更正**） | 180 秒只是**软预算检查点**；目标采集阶段与 `/run` 端到端都**没有可证明的硬墙钟上界** | Rev.K 把 PyMySQL `read_timeout=30` 当成"整条 SQL 最多 30s"，因而推导 215s，这个前提不成立：它在 `_read_bytes` 中每次底层读取前重设 socket timeout，持续有分片数据到达时整条语句可超过 30s。真实池还有复用连接 `ping()`、失败建连、`select_db`、异常后重建的组合路径，旧的 35s 尾部公式无法覆盖 | 删除 `MAX_COLLECT_WALL_SECONDS`。保留阶段/库/命令前的 monotonic checkpoint，只承诺"到期后不再主动启动新的目标 I/O"。T4-R02 用真实连接池控制流证明旧公式可被突破，T4-R03 钉住 PyMySQL 每次读取语义；长尾不可接受时升版异步任务 |
+| KL-19（Rev.J 新增，**Rev.L 最终更正，Rev.M 补横向口径**） | 180 秒只是**软预算检查点**；目标采集阶段与 `/run` 端到端都**没有可证明的硬墙钟上界** | Rev.K 把 PyMySQL `read_timeout=30` 当成"整条 SQL 最多 30s"，因而推导 215s，这个前提不成立：它在 `_read_bytes` 中每次底层读取前重设 socket timeout，持续有分片数据到达时整条语句可超过 30s。真实池还有复用连接 `ping()`、失败建连、`select_db`、异常后重建的组合路径，旧的 35s 尾部公式无法覆盖。第五轮横向核查确认：既有 `scan_service` 与深度诊断服务同样没有可证明的墙钟硬上界；G14 另有 180s 软预算与显式 30s 读取超时，标准不低于既有模块，该风险不是 G14 特有 | 删除 `MAX_COLLECT_WALL_SECONDS`。保留阶段/库/命令前的 monotonic checkpoint，只承诺"到期后不再主动启动新的目标 I/O"。T4-R02 用真实连接池控制流证明旧公式可被突破，T4-R03 钉住 PyMySQL 每次读取语义；长尾不可接受时升版异步任务。若平台未来统一引入采集看门狗，G14 与既有扫描/巡检一并接入 |
 | KL-20（Rev.K 新增） | 元数据库的结构验收与落库不在任何超时控制内 | 它打的是本地元数据库；落库发生在采集完成之后，为它设 deadline 不可执行——超时了只能丢弃整轮采集结果，代价远大于慢一点（ADR-24） | 已把明细落库改为批量（`ITEM_INSERT_BATCH=100`，500 库 5 次往返）。若将来元数据库出现远程部署形态，需要重新评估是否给它单独的连接级超时 |
 
 ---
 
 ## 14. 附录 A · 成品代码（照图施工）
 
-> **验证证据边界（Rev.L）**：Rev.K 附录曾用 importlib 把 A.1 / A.2 分别挂载为
-> `backend.services.table_type_stats_service` 与 `backend.api.table_type_stats`（**仓库代码零改动**），
-> 得到 105 passed + 1 skipped；这只是 Rev.K 的历史设计阶段记录。Rev.L 又新增 4 条离线缺陷定向用例，
-> 预计 collect 110 项；由于功能模块仍未落盘，本版不宣称它们已经作为仓库回归通过。
-> 实施者可按附录落盘，但发布门禁仍以落盘后 110 项实际 collect 与执行结果为准。
+> **验证证据边界（Rev.M）**：第五轮评审中，A 将 Rev.L 的 A.1～A.4 逐字抽出并以 importlib
+> 挂载设计模块（**仓库功能代码零改动**），得到 110 collected、连元数据库 109 passed +
+> 1 skipped、离线 87 passed + 23 skipped。Rev.M 只恢复可下推的普通 `IN` 并删除
+> T4-R01 的 SQL 关键字断言，不增加测试项；本次再做语法、T4-R01 定点行为与全文一致性验证。
+> 上述结果都只是设计附录证据，**不能冒充真实仓库模块落盘后的回归**；发布门禁仍以落盘后
+> 110 项实际 collect 与执行结果为准。
 >
 > **Rev.B～Rev.E 相对 Rev.A 的实质变化**（源自四轮内网实测）：
 > 1. `_EXACT_NAME_COLS` 首位加入实测确认的列名 `db_table`，`info` 加入排除词；
@@ -1951,11 +1976,20 @@ Rev.K 历史实测口径：不连元数据库时 `83 passed, 23 skipped`；连�
 > | `_probe_metadata_db()` 传入 `database` 与 `charset`，真正探测即将被破坏性测试使用的目标库 | P2-02 |
 > | 新增 T4-R01/R02/R03/R05 四条离线回归；当前态文档全部收敛到 Rev.L | DOC-01 |
 
+> **Rev.M 相对 Rev.L 的实质变化**（源自 A 的第五轮评审，定点关闭唯一 P2）：
+>
+> | 变化 | 关闭 |
+> |---|---|
+> | 基线 SQL 删除 `BINARY`，恢复可下推的 `TABLE_SCHEMA IN (...)`；大小写正确性完全由全实例 canonical 解析 + 目标集精确过滤承担 | P2-01 |
+> | T4-R01 删除 `BINARY TABLE_SCHEMA IN` 字符串断言，只保留“服务端多返兄弟库也不得吸收”的行为断言 | P2-01 |
+> | §6.4、ADR-27、E-36 同步改为“SQL 不做大小写假设”；§10.3 / §12.4 新增最大内网实例 T20 性能证据门禁 | P2-01 |
+> | KL-19 补充与既有扫描/巡检的横向口径；第五轮 110 项抽取实测结果按设计证据回填 | 非阻断建议 / 证据边界 |
+
 ### A.1 `backend/services/table_type_stats_service.py`（新增，完整成品）
 
 ```python
 # -*- coding: utf-8 -*-
-"""G14 · 表类型统计（深度诊断子模块，DESIGN-v1.6.3.0 Rev.L）
+"""G14 · 表类型统计（深度诊断子模块，DESIGN-v1.6.3.0 Rev.M）
 
 按 TDSQL 原厂口径统计单个实例下各业务库的表类型分布：
 
@@ -1981,9 +2015,15 @@ Rev.K 历史实测口径：不连元数据库时 `83 passed, 23 skipped`；连�
     本模块把子分区表从基线中剔除并单列计数，剔除后逻辑基线 215 与 Proxy 口径【精确相等】。
     故不得用未剔除的基线与 Proxy 口径比对（会产生 27% 的常态误报）。
 
+Rev.M（A 第五轮评审定点整改）要点：
+  · 基线 SQL 使用可下推的普通 TABLE_SCHEMA IN；不假定服务端大小写语义，
+    正确性完全由全实例 known canonical 解析 + 目标集合精确过滤承担（P2-01）。
+  · T4-R01 只验证服务端多返 Sales/sales 时的结果行为，不固化 SQL 关键字；
+    最大内网实例须按 T20 留存普通 IN 与 BINARY IN 的 EXPLAIN/耗时对比。
+
 Rev.L（O 第四轮评审整改）要点：
-  · 基线查询不再把参数化 IN 误当大小写精确：SQL 加 BINARY，
-    代码用全实例 known 解析 canonical 后对目标库精确过滤（P1-01）。
+  · 基线查询增加应用层防御：用全实例 known 解析 canonical 后对目标库精确过滤；
+    Rev.M 进一步确认 SQL 无需也不得依赖 BINARY（P1-01 / Rev.M P2-01）。
   · 删除 215 秒硬上界常量与论证。PyMySQL read_timeout 是每次底层读取超时，
     不是整条 SQL 总时间；180 秒只承诺服务层在 checkpoint 后不新开阶段/库/命令（P1-02）。
 
@@ -2332,10 +2372,10 @@ def _collect_baseline(pool, dbs: list, known: "_NameSpace") -> dict:
     rows = pool._execute(
         "SELECT TABLE_SCHEMA, TABLE_NAME, TABLE_TYPE "
         "FROM information_schema.TABLES "
-        f"WHERE BINARY TABLE_SCHEMA IN ({placeholders})", tuple(dbs)) or []
-    # Rev.L / P1-01：参数化 IN 只防注入，不保证大小写精确。
-    # SQL 端 BINARY 是第一道防线；代码端仍必须先在【全实例命名空间】
-    # 解析 canonical 库名，再对目标子集精确过滤。不得在目标子集上再做 CI 回退。
+        f"WHERE TABLE_SCHEMA IN ({placeholders})", tuple(dbs)) or []
+    # Rev.M / P2-01：普通 IN 只做参数化候选集查询并保留谓词下推，
+    # 不假定服务端大小写语义。正确性完全由应用层承担：先在【全实例命名空间】
+    # 解析 canonical 库名，再对目标子集精确过滤；不得在目标子集上再做 CI 回退。
     target = _NameSpace(dbs)  # 只使用 __contains__ 的精确成员语义，不调 resolve()
     for r in rows:
         if not isinstance(r, dict):
@@ -3132,7 +3172,7 @@ def get_detail(stat_id: int) -> dict:
 
 ```python
 # -*- coding: utf-8 -*-
-"""G14 · 表类型统计 API（DESIGN-v1.6.3.0 Rev.L §5）
+"""G14 · 表类型统计 API（DESIGN-v1.6.3.0 Rev.M §5）
 
 Rev.G（O 评审整改）：
   · P1-02  /run 由 service 层进入 registry.scan_slot(connection_id)，
@@ -3210,7 +3250,7 @@ def detail(stat_id: int):
 > 因此注释必须整行独占，语句之间必须有 `;`，文件末尾的 `;` 不可省。
 
 ```sql
--- v1.6.3.0 G14 表类型统计（DESIGN-v1.6.3.0 Rev.L §6.8）
+-- v1.6.3.0 G14 表类型统计（DESIGN-v1.6.3.0 Rev.M §6.8）
 -- 槽位：v13/130。v11/110 与 v12/120 已被 v1.6.2.2 的 O-18 / O-22 占用（Rev.I 更正）。
 -- 任务表：一次统计一行
 CREATE TABLE IF NOT EXISTS table_type_stat (
@@ -3262,7 +3302,7 @@ CREATE TABLE IF NOT EXISTS table_type_stat_item (
 
 ```python
 # -*- coding: utf-8 -*-
-"""G14 · 表类型统计 回归测试（DESIGN-v1.6.3.0 Rev.L §11）
+"""G14 · 表类型统计 回归测试（DESIGN-v1.6.3.0 Rev.M §11）
 
 **测试依赖如实说明**（Rev.J / DOC-01——Rev.I 之前一直写"除落库两例外全部离线"，
 那是 Rev.B 时期的实际情况，后来陆续加到 10 例仍没有更新，属于文档失真）：
@@ -3275,7 +3315,8 @@ CREATE TABLE IF NOT EXISTS table_type_stat_item (
 | **collect 合计** | **110** | 含参数化展开（其中 T3-R08 契约用例 11 条） |
 
 Rev.K 历史实测口径：不连元数据库时 `83 passed, 23 skipped`；连上后
-`105 passed, 1 skipped`。Rev.L 新增 4 条离线回归，本文不把未落盘的设计收集数写成 passed。
+`105 passed, 1 skipped`。第五轮将 Rev.L 附录抽取后实测 110 collected、连元数据库
+109 passed + 1 skipped、离线 87 passed + 23 skipped；这仍不是落盘后的仓库回归证据。
 
 元数据库集成用例覆盖：落库与回读、`/history` 与 `created_by`、500 库告警的
 `MEDIUMTEXT` 往返、以及 6 项结构契约失败关闭（缺表 / 缺列 / 错类型 / 缺索引 /
@@ -3306,14 +3347,14 @@ import pytest
 from backend.services import table_type_stats_service as svc
 from backend.services.tdsql_connector import TDSQLConnectionConfig
 
-# Rev.L 定向回归（O 第四轮评审的 T4-R01…T4-R05）
+# Rev.L 定向回归（O 第四轮评审的 T4-R01…T4-R05；Rev.M 修正 T4-R01）
 def test_t4r01_baseline_rejects_case_sibling_returned_by_ci_in(monkeypatch):
     """T4-R01 / P1-01：指定库基线多返兄弟库时，两个分支都不得吸收。"""
     class _CiMetadataPool(FakePool):
         def _execute(self, sql, params=None):
             if "information_schema.TABLES" in sql:
                 self.seen.append(sql)
-                # 模拟元数数据排序规则忽略大小写：只查 Sales 却带回 sales。
+                # 模拟服务端不遵守大小写精确语义：普通 IN 只查 Sales 却带回 sales。
                 return [
                     {"TABLE_SCHEMA": "Sales", "TABLE_NAME": "t_upper",
                      "TABLE_TYPE": "BASE TABLE"},
@@ -3340,7 +3381,6 @@ def test_t4r01_baseline_rejects_case_sibling_returned_by_ci_in(monkeypatch):
         assert res["baseline_tables"] == 1
         assert res["items"][0]["db_name"] == "Sales"
         assert not any(w["code"] == "RECON_MISMATCH" for w in res["warnings"])
-        assert any("BINARY TABLE_SCHEMA IN" in sql for sql in pool.seen)
 
 
 def test_t4r02_real_pool_tail_path_can_exceed_old_formula(monkeypatch):
@@ -6246,6 +6286,7 @@ Empty set (0.005 sec)
 
 | 版本 | 日期 | 作者 | 内容 |
 |---|---|---|---|
+| **Rev.M** | **2026-09-01** | **O / Codex** | **依 A 第五轮评审报告定点整改，唯一 P2-01 全部接受。** 生产基线查询删除 `BINARY`，恢复可下推的 `TABLE_SCHEMA IN (...)`；SQL 端不再承担或假定大小写正确性，所有返回行仍经全实例 `_NameSpace known` 解析 canonical 库名，再对目标集合做精确成员判断。同步重写 §4.2 / §6.4 / ADR-27 / E-36 与附录 A.1；T4-R01 删除 `BINARY TABLE_SCHEMA IN` 字符串断言，只钉“服务端多返 `Sales.*` / `sales.*` 时两个分支均只计 `Sales.*`”的行为。新增 T20：在业务库数量最多的内网实例比较普通 `IN` 与 `BINARY IN` 的 `EXPLAIN Scanned N database(s)`、至少 5 次耗时中位数及返回集合，普通 `IN` 异常劣化时阻断发布、但禁止无证据恢复阻断下推的 `BINARY` / `CAST`。回填第五轮独立抽取实测：110 collected；连元数据库 109 passed + 1 skipped；离线 87 passed + 23 skipped，明确仅为设计附录证据。按非阻断建议在 KL-19 补充既有扫描/巡检横向口径。**测试项仍为 110，仓库实现尚未落盘，待 A 单点复核。** |
 | **Rev.L** | **2026-09-01** | **O / Codex** | **依 O 第四轮评审结果整改，2 项 P1、2 项 P2、1 项 DOC 全部接受。** **P1-01**：Rev.K 只在 Proxy 结果过滤上封堵了大小写兄弟库，基线查询仍用受排序规则影响的 `TABLE_SCHEMA IN (...)`，指定 `Sales` 可带回 `sales.*`；改为 `BINARY TABLE_SCHEMA IN`，并把全实例 `_NameSpace known` 传入 `_collect_baseline`，先解析 canonical 库名、再对目标子集精确过滤（ADR-27 / E-36 / T4-R01）。**P1-02**：Rev.K 的 215 秒目标采集硬上界仍不成立；PyMySQL `read_timeout` 是每次底层读取的空闲超时，不是整条 SQL 总时间，且真实池存在 `ping` / 建连 / `select_db` / 异常重建组合路径。删除 `MAX_COLLECT_WALL_SECONDS`，180 秒只承诺"到期后不再启动新目标 I/O"（ADR-13 / KL-19 / T4-R02/R03）。**P2-01**：前端对 `database_count===0` 单独弹黄色"未发现可统计的业务库"，不再把空结果表述为绿色成功（E-37 / T4-R04）。**P2-02**：`_probe_metadata_db()` 补传 `database` 与 `charset`，确保探测的就是后续破坏性测试使用的元数据库（T4-R05）。**DOC-01**：当前态标题、测试数、KL-6/KL-19、附录注释和验收口径统一到 Rev.L；预计 collect **110 项**（离线 87 / 元数据库 22 / 落盘后仓库检查 1），因功能尚未落盘，不伪造新 passed 数字。**仓库实现仍零改动，待智能体 A 第五轮评审。** |
 | **Rev.K** | **2026-09-01** | **智能体 A** | **依 O 第三轮评审报告（`REVIEW3-…`，结论"不通过，退回修订 Rev.K"）整改。4 项 P1、3 项 P2、1 项文档问题全部接受，无一条不认可——四项 P1 全部是我自己代码里的实际缺陷。** **P1-01**：`_extract_pairs` 用全实例 `known` 把 qual 解析成 canonical 名之后，`_collect_distributed` 又对只含目标库的 `target` 做了**第二次** CI 回退——指定 `database="Sales"` 时，实例级返回里的 `sales.t_lower` 会被"唯一命中"回 `Sales`，指定单库的四个主数字直接错，而 Rev.J 的全库用例恰好测不到这条链路。改为 `if qual not in target: continue; owner = qual`，**canonical 名之后只做精确成员判断**（ADR-22 补充使用边界）。**P1-02（两个独立问题）**：其一，用 `raise _BudgetExceeded()` 承载"预算耗尽"这个正常控制信号，而 `TDSQLConnectionPool.get_connection()` 会捕获穿出上下文的**任何**异常并 close + `_create_connection()`——于是一条健康连接在 deadline 之后被销毁重建、白付一次建连，重连再失败还会用新异常盖掉原信号，把本该 `SKIPPED` 的库误标成 `FAILED`；改为**标志位 + 正常退出 `with`**，**连接重建只应由真实的数据库/网络异常触发**（ADR-25）。其二，Rev.J 的"210 秒 `/run` 端到端上界"**不成立**：漏算了"刚过库级检查、随后建连 + `select_db`"这条 35 秒路径，且 `_ensure_schema()`（拿槽位前）与结果落库（释放槽位后）根本不在 deadline 内；更正为**目标采集阶段上界 215 秒**（`MAX_COLLECT_WALL_SECONDS = 180 + 5 + 30`，显式钉住 `CONNECT_TIMEOUT`），元数据库阶段单独说明边界并把明细落库改为批量（`ITEM_INSERT_BATCH=100`，500 库 500 次往返 → 5 次）（ADR-13 更正 / ADR-24 / KL-19 更正 / KL-20）。另自查补一处 O 未提的同类问题：`instance_type_service.resolve()` 在缓存未命中时会向目标实例发探测 SQL，其后补一次 deadline 检查。**P1-03**：槽位护栏里的 `assert _OUR_SLOT > max(others)` 在项目下一次合法新增 `v13/131` 或 `v14/140` 之后**必然为假**——一条历史测试把项目此后的演进锁死了，我甚至把"我们不再是最大槽"写成了必须拒绝的场景；改为只钉永久不变量（槽位不重复 + 本模块独占自己的槽 + 已知前驱 v12/120 仍在），并新增未来迁移共存的正向用例（ADR-26）。**P1-04（安全底线）**：集成测试的可用性探测用 `TDSQL_TEST_*`、实际 DROP 用 `SQLCHECK_DB_*`，两套配置可指向不同服务器，唯一"保护"还是个晚于模块导入、且不会覆盖外部值的 `setdefault`——**测试代码可能删掉生产元数据库的表**；改为探测与执行共用 `MYSQL_CONFIG`，任何 DROP 前先过 `assert_destructive_target_is_safe()` 失败关闭并打印目标 host/port/database，守门人本身由 3 条离线用例覆盖。**P2-01** 第二轮要求的完整契约用例此前只是我手工跑过一次，现落为 **11 条参数化元数据库用例 + 1 条干净 DDL 反向护栏**。**P2-02** 历史抽屉此前给无 setter 的 `computed` 赋值（Vue 只读告警 + 清不掉），改为清理数据源并加 loading。**P2-03** 判据改为**有效库数** `n - failed - skipped`，"失败+跳过覆盖全部库"不再被称作"部分完成"。**DOC-01** API 头 Rev.G→Rev.K、DDL 头 Rev.I→Rev.K、`run_stats` 注释的"180 秒"、前端子分区口径补上第三个条件、`/run` 端到端 210 秒的说法全部更正。测试 84 → **106 项**（本地 105 通过 + 1 跳过；离线 83 / 元数据库集成 22 / 需落盘 1），`TimeoutError` 新增映射为 **503**。新增 ADR-24/25/26、KL-20、E-34/E-35、§12.4 七项专项验收。**仓库代码仍零改动。** |
 | **Rev.J** | **2026-08-31** | **智能体 A** | **依 O 第二轮评审报告（`REVIEW2-…`，结论"不通过，退回修订 Rev.J"）整改。5 项 P1、3 项 P2、1 项文档问题全部接受，无一条不认可。** 其中三项是我自己论证或代码的硬伤：**P1-01** 库名被无条件小写——`Sales` 与 `sales` 在 `lower_case_table_names=0` 下是两个 schema，单值 lower 字典会把它们**静默合并**，四个主数字直接错且无任何告警；我在表名那侧写对了这个道理（ADR-9），却把库名的免责理由写成"库名来自我们自己枚举的清单，不存在合并风险"——风险恰恰来自两个都真实存在的库。改用 `_NameSpace`（精确优先 / CI 回退仅在唯一时 / 歧义不猜并报 `DB_NAME_AMBIGUOUS`），新增 ADR-22。**P1-02** "180 秒总预算"根本不成立：计时器直到 `_collect_distributed` 内部才启动，`SHOW DATABASES` 与基线查询（设计自己承认是耗时大头）完全不计；进入循环后只在每库开始时查一次，单库三条 30 秒命令——179 秒进库能跑到 **269 秒**，集中式分支更是毫无预算。改为 deadline 自 `run_stats` 拿到槽位后建立、贯穿前置查询与**每一条命令**，并如实给出**可证明上界 210 秒**（`MAX_WALL_SECONDS`），文档与 UI 不再宣称"硬 180 秒"（ADR-13 修正 / KL-19）。**P1-05** 我为防 DEF-1 而写的槽位护栏本身有两个错：`assert ours > max(taken)` 在迁移文件真正落盘后必然为假——**这条护栏会在模块上线当天把构建打红**；而它用单值字典保存占用者，同槽两个文件时后者覆盖前者，**恰好看不见 DEF-1 想防的那个场景**。重写为 `scan_migration_slots`（`slot → [files]`）+ `assert_slot_ok`（四条断言落盘前后都成立），并用合成状态把两个阶段都验一遍。另：**P1-03** 先定状态再算汇总，失败/跳过库的基线、子分区、重叠一律不进实例级汇总（ADR-23）；**P1-04** 结构验收升级为完整字段契约，**KL-15 关闭**——当时"COLUMN_TYPE 带显示宽度"的免责理由只对整型成立、对 varchar 长度不成立，"已知"不等于"已关闭"；**P2-01** 物理子表判定增加第三条件"候选自身不在 Proxy 结果中"（真子表不会被 `show table` 返回，它自己在结果里就直接证伪了）；**P2-02** 历史抽屉告警不再静默截断；**P2-03** 部分/全部失败不再弹绿色"统计完成"；**DOC-01** 如实列出离线 73 / 元数据库集成 10 / 需落盘 1，并写明 **skip 不是 pass、设计阶段数字不能当发布证据**。测试 71 → **84 项**（本地 83 通过 + 1 跳过），新增可控时钟 `FakeClock` 与 `_now` 钩子使 deadline 行为可断言。新增 ADR-22/23、KL-18/19、W13/W14、E-30～E-33、§12.4 八项专项验收。**仓库代码仍零改动。** |
