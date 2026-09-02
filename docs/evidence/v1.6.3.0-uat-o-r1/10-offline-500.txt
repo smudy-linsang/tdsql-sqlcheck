@@ -1,0 +1,14 @@
+v1.6.3.0 G14 UAT Round 1 - offline endpoint observation
+Date: 2026-09-02
+Endpoint: POST /api/v1/table-type-stats/run
+Observed HTTP status: 500 Internal Server Error
+
+Key server-log lines (secrets omitted):
+  POST /api/v1/table-type-stats/run -> 500
+  pymysql.err.OperationalError: (2003, "Can't connect to MySQL server on '127.0.0.1' ([WinError 10061] ...)")
+  backend/api/table_type_stats.py, line 53: pool = _pool(body.connection_id)
+  backend/api/table_type_stats.py, line 38: return registry.get(cid)
+
+Interpretation:
+  The connection failure happens before the route enters its try/except block at line 54.
+  It is therefore not translated into a readable connection-domain response and is logged as an unhandled 500.
