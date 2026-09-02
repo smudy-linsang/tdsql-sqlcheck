@@ -1,0 +1,52 @@
+{
+  "tested_commit": "37ea3eab1bb7f8e40ca28acac00d78ca8889768f",
+  "version": "1.6.3.0",
+  "targeted_pytest": {
+    "passed": 145,
+    "failed": 0
+  },
+  "full_pytest": {
+    "passed": 1761,
+    "failed": 0,
+    "warnings": 11,
+    "duration_seconds": 307.14
+  },
+  "target_api": {
+    "database": "tdsql_demo_distributed",
+    "database_count": 1,
+    "total_tables": 8,
+    "single_tables": 4,
+    "broadcast_tables": 2,
+    "shard_tables": 2,
+    "baseline_tables": 8,
+    "failed_databases": 0,
+    "overlap_count": 0,
+    "category_union_equals_baseline": true,
+    "categories_pairwise_disjoint": true,
+    "response_timestamp_equals_history_to_second": true
+  },
+  "empty_category_case": {
+    "database": "tdsql_demo_centralized",
+    "total_tables": 1,
+    "single_tables": 1,
+    "broadcast_tables": 0,
+    "shard_tables": 0,
+    "status": "OK"
+  },
+  "browser": {
+    "stale_error_suppressed_after_scope_switch": true,
+    "current_error_still_visible": true,
+    "loading_released": true,
+    "cross_user_state_clean": true,
+    "auditor_run_disabled": true,
+    "auditor_history_visible": true,
+    "console_warn_error_count": 0
+  },
+  "target_fidelity": {
+    "real_tdsql_product": false,
+    "implementation": "Python MySQL-protocol emulator backed by stock MySQL 8",
+    "handshake_database_without_com_init_db_returns_empty_categories": true,
+    "can_replace_real_tdsql_reconciliation": false,
+    "can_replace_t20_optimizer_test": false
+  }
+}
