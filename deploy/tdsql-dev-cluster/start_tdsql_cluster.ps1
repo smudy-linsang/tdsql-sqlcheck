@@ -12,12 +12,12 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $ProjectDir = Split-Path -Parent (Split-Path -Parent $ScriptDir)
 
 Write-Host "==========================================================" -ForegroundColor Cyan
-Write-Host "       TDSQL-SQLCheck 轻量 Docker 靶场集群管理工具        " -ForegroundColor Cyan
+Write-Host "     TDSQL-SQLCheck Python TDSQL 协议模拟靶场管理工具     " -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Cyan
 
 switch ($Action) {
     "start" {
-        Write-Host "[1/3] 启动 ZooKeeper 容器 (tdsql-zk)..." -ForegroundColor Yellow
+        Write-Host "[1/3] 启动 ZooKeeper 与模拟网关 (tdsql-zk, tdsql-proxy)..." -ForegroundColor Yellow
         docker compose -f "$ScriptDir\docker-compose.yml" up -d
         
         Write-Host "[2/3] 检查 MySQL 容器 (tdsql-mysql-test)..." -ForegroundColor Yellow
@@ -43,9 +43,9 @@ conn.commit()
 conn.close()
 print('[OK] 靶场元数据与监控库初始化就绪！')
 "
-        Write-Host "`n[SUCCESS] TDSQL 轻量靶场已全部就绪！" -ForegroundColor Green
-        Write-Host "  - TDSQL 网关 : 127.0.0.1:15002 (原生支持 shardkey= 语法与 /*proxy*/ 指令)" -ForegroundColor Green
-        Write-Host "  - 存储数据节点: 127.0.0.1:13306 (user: root, db: tdsql_demo_distributed)" -ForegroundColor White
+        Write-Host "`n[SUCCESS] Python TDSQL 协议模拟靶场已全部就绪！" -ForegroundColor Green
+        Write-Host "  - 模拟协议网关: 127.0.0.1:15002 (支持分片DDL过滤与 /*proxy*/ 响应)" -ForegroundColor Green
+        Write-Host "  - 存储数据节点: 127.0.0.1:13306 (标准 MySQL 8.0, user: root)" -ForegroundColor White
         Write-Host "  - ZooKeeper   : 127.0.0.1:2181 (root_path: /tdsqlzk)" -ForegroundColor White
         Write-Host "  - 慢SQL监控库 : tdsqlpcloud_monitor (proxy_classes_analysis 表已就绪)" -ForegroundColor White
     }

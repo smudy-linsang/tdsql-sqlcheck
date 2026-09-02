@@ -1,20 +1,22 @@
 # -*- coding: utf-8 -*-
 """
-TDSQL 本地轻量化 Proxy 服务 (TDSQL Mock Gateway)
-功能特性:
-1. 监听 15002 端口 (TDSQL 官方标准网关端口)
-2. 原生支持 TDSQL 分布式 DDL 语法:
+Python TDSQL 协议模拟靶场网关服务 (Python TDSQL Protocol Mock Gateway)
+定位说明:
+1. 本服务为开发测试环境的轻量化“协议模拟靶场”，后端为标准 MySQL 8.0 容器。
+2. 模拟响应 TDSQL 特有网关指令:
+   - /*proxy*/show status (模拟分布式拓扑签名与 Hash 范围，供 PR001 探针判定)
+   - /*proxy*/show backends / /*proxy*/show config
+   - /*proxy*/show table with noshardkey_allset / with shardkey / without shardkey (G14 原厂统计指令模拟)
+3. 原生支持 TDSQL 分布式 DDL 语法过滤与下推:
    - CREATE TABLE ... shardkey=xxx;
    - CREATE TABLE ... shardkey=noshardkey_allset;
    - CREATE TABLE ... TDSQL_DISTRIBUTED BY ...;
-   自动拦截并转换下发给底层数据节点，杜绝 1064 语法报错。
-3. SHOW CREATE TABLE 原生注入:
-   拦截 SHOW CREATE TABLE 查询，动态在末尾输出正宗的原厂 shardkey 语法 (非 COMMENT 伪装)。
-4. 原生响应 TDSQL 特有网关指令:
-   - /*proxy*/show status (返回多 SET 拓扑签名与 Hash 范围)
-   - /*proxy*/show backends
-   - /*proxy*/show config
-5. 其余全部常规 SQL / DML / 事务 / EXPLAIN 100% 透明透传。
+   自动拦截并转换下发给底层 MySQL 8.0 数据节点，杜绝 1064 语法报错。
+4. 会话库上下文跟踪:
+   - 握手包默认库提取 (HandshakeResponse41 CLIENT_CONNECT_WITH_DB)
+   - COM_INIT_DB 命令跟踪 (0x02)
+   - COM_QUERY USE db 跟踪 (0x03)
+5. 其余全部常规 SQL / DML / 事务 / EXPLAIN 100% 透明透传底层 MySQL 8。
 """
 
 import asyncio
@@ -231,11 +233,39 @@ async def handle_client(client_reader, client_writer):
     async def client_to_backend():
         nonlocal current_show_table
         current_db = ""
+        is_first_client_packet = True
         try:
             while True:
                 data = await client_reader.read(65536)
                 if not data:
                     break
+
+                # -1. 握手阶段 (Packet 1 HandshakeResponse41) 提取连接指定的默认库
+                if is_first_client_packet:
+                    is_first_client_packet = False
+                    try:
+                        if len(data) >= 36:
+                            client_flags = struct.unpack('<I', data[4:8])[0]
+                            # CLIENT_CONNECT_WITH_DB = 0x0008
+                            if client_flags & 0x0008:
+                                offset = 4 + 32  # flags(4) + max_packet(4) + charset(1) + filler(23)
+                                user_end = data.find(b'\x00', offset)
+                                if user_end != -1:
+                                    offset = user_end + 1
+                                    # 跳过 auth response 数据
+                                    if client_flags & 0x00200000 or client_flags & 0x00008000:
+                                        auth_len = data[offset]
+                                        offset += 1 + auth_len
+                                    else:
+                                        auth_end = data.find(b'\x00', offset)
+                                        offset = auth_end + 1 if auth_end != -1 else offset
+                                    db_end = data.find(b'\x00', offset)
+                                    if db_end != -1:
+                                        init_db = data[offset:db_end].decode('utf-8', errors='ignore').strip()
+                                        if init_db:
+                                            current_db = init_db
+                    except Exception:
+                        pass
 
                 # 0. 跟踪 COM_INIT_DB（PyMySQL select_db 走该命令而非 COM_QUERY 的 USE，
                 #    G14 逐库统计靠 select_db 切换——不跟踪则三条命令返回错库结果）

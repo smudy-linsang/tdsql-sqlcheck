@@ -1,72 +1,66 @@
-# TDSQL 本地轻量化 Docker 靶场使用说明
+# Python TDSQL 协议模拟靶场使用说明 (Python TDSQL Protocol Mock Range)
 
-针对宿主机内存资源敏感（32GB 内存占用较高）的开发自测场景定制，整套靶场内存占用仅约 **0.9GB ~ 1.2GB**，秒级启停，100% 满足 TDSQL-SQLCheck 平台的各种分布式/集中式功能联调需求。
+针对本地开发测试资源受限环境（Windows 宿主机高内存占用）定制，整套靶场基于 **“Python 协议网关 + 标准开源 MySQL 8.0 + ZooKeeper 3.8”** 构建，内存占用控制在 **约 0.9GB ~ 1.2GB**。
+
+> **架构定位澄清**：  
+> 本靶场为 **TDSQL 通信协议与接口形态测试桩（Mock Stub）**，后端底层存储引擎为标准单节点 MySQL 8.0。网关指令（如 `/*proxy*/show status`、`/*proxy*/show table with ...`）由 Python 协议网关进行通信层模拟响应。**本靶场并非腾讯云官方多节点闭源物理集群，不具备真实物理数据分片与跨节点分布式路由执行能力。**
 
 ---
 
-## 一、 组件架构与端口分布
+## 一、 能力验证边界矩阵 (Capability Matrix)
+
+为了保证测试与交付验收的严谨性，特此明确本模拟靶场的能力验证边界：
+
+| 维度 | 能力项 | 靶场判定 | 详细说明 |
+|---|---|---|---|
+| **通信与协议** | TCP MySQL 二进制协议包通信 | **可验证** | 基于原生 Socket/AsyncIO 转发，支持明文 MySQL 协议通信。 |
+| **通信与协议** | 连接握手默认库跟踪 | **可验证** | 解析 `HandshakeResponse41` 中的 `CLIENT_CONNECT_WITH_DB` 标志与库名字段。 |
+| **通信与协议** | COM_INIT_DB 会话库切换 | **可验证** | 支持抓取 `0x02` 命令码，使 PyMySQL `select_db()` 能够准确切换库上下文。 |
+| **通信与协议** | COM_QUERY USE db 跟踪 | **可验证** | 支持解析文本 SQL 中的 `USE <db>` 语句。 |
+| **语法与指令** | DDL 原生分片/广播语法下推 | **可验证** | 拦截 `shardkey=`、`noshardkey_allset`，过滤下推至底层 MySQL 避免 1064 报错。 |
+| **语法与指令** | SHOW CREATE TABLE 逆向呈现 | **可验证** | 结合元数据表动态将真实 `shardkey=` 拼入建表语句，摆脱 COMMENT 伪装。 |
+| **语法与指令** | G14 原厂网关拓扑与表统计指令 | **可验证** | 模拟响应 `/*proxy*/show status`、`show table with/without shardkey` 的结果集形态。 |
+| **平台业务链路** | SQLCheck 规则审核与元数据联动 | **可验证** | 成功验证 R012、R020 分片表审核规则触发与元数据联动。 |
+| **平台业务链路** | ZooKeeper 实例自动发现与库枚举 | **可验证** | 成功验证 `/tdsqlzk` 拓扑探测与业务库 `SHOW DATABASES` 枚举。 |
+| **分布式物理层** | 真实跨节点物理哈希路由 | **不可验证** | 仅单节点 MySQL 存储，无真实 Set 间分片分发。 |
+| **分布式物理层** | 物理分区落盘与跨分片事务 (XA) | **不可验证** | 无法验证多物理节点两阶段提交与死锁仲裁。 |
+| **网关核心引擎** | TDSQL 原厂自研分布式优化器 | **不可验证** | 无法模拟多表跨分片 JOIN 重写、下推聚合与算子计算。 |
+| **权限与版本** | TDSQL 原厂细粒度安全权限与内核差异 | **不可验证** | 无法模拟 TDSQL 各小版本（如 TXSQL 各补丁包）私有行为。 |
+
+---
+
+## 二、 组件架构与端口映射
 
 | 组件名称 | 容器名 | 镜像 | 映射端口 | 内存配额 | 功能与模拟作用 |
 |---|---|---|---|---|---|
-| **TDSQL 网关** | `tdsql-proxy` | `python:3.11-slim` | **`15002`** | 150MB | **原厂 Proxy 协议网关**：原生支持 `CREATE TABLE ... shardkey=...` 建表与广播表语法；动态拦截并注入真实 DDL；原生响应 `/*proxy*/show status` 等指令，供 PR001 探针判定分布式拓扑。 |
-| **ZooKeeper** | `tdsql-zk` | `zookeeper:3.8` | **`2181`** | 256MB | 真实 ZK 节点树，供平台【ZK 实例自动发现】模块检索 `/tdsqlzk` 下的分布式 group 与集中式 setrun。 |
-| **MySQL 引擎** | `tdsql-mysql-test` | `mysql:8.0` | **`13306`** | ~600MB | 承载底层数据存储、分片元数据字典表、以及 TDSQL 原厂慢查询监控库 `tdsqlpcloud_monitor`。 |
+| **TDSQL 模拟网关** | `tdsql-proxy` | `tdsql-proxy:mock-v1.0` | **`15002`** | 150MB | **Python 协议模拟网关**：解析并过滤分片 DDL；模拟响应 `/*proxy*/show` 系列指令；跟踪会话库上下文。 |
+| **ZooKeeper 服务** | `tdsql-zk` | `zookeeper:3.8` | **`2181`** | 256MB | 真实 ZK 节点树，供平台【ZK 实例自动发现】检索 `/tdsqlzk` 下的分布式与集中式拓扑。 |
+| **底层存储数据节点** | `tdsql-mysql-test` | `mysql:8.0` | **`13306`** | ~600MB | 承载业务数据表、分片字典元数据表 `_tdsql_sys_meta` 以及慢查询库 `tdsqlpcloud_monitor`。 |
 
 ---
 
-## 二、 原厂原生语法支持与测试
+## 三、 镜像构建与内网复现确定性
 
-通过连接 **15002** 端口（TDSQL 网关端口），即可像在真实公有云/私有云 TDSQL 集群上一样直接执行原生 DDL：
+为杜绝在无外网或内网构建环境中启动容器时在线 `pip install` 产生的不确定性与超时风险，网关已封装为固化镜像：
 
-### 1. 原生分片表（无需任何 COMMENT 伪装）：
-```sql
-CREATE TABLE `t_order` (
-  `order_id` BIGINT NOT NULL,
-  `user_id` BIGINT NOT NULL,
-  `amount` DECIMAL(12,2),
-  PRIMARY KEY (`order_id`, `user_id`)
-) ENGINE=InnoDB shardkey=user_id;
-```
-
-### 2. 原生广播表（小表广播）：
-```sql
-CREATE TABLE `t_dict_item` (
-  `item_code` VARCHAR(32) PRIMARY KEY,
-  `item_name` VARCHAR(64)
-) ENGINE=InnoDB shardkey=noshardkey_allset;
-```
-
-### 3. 原厂网关拓扑探测指令：
-```sql
-/*proxy*/show status;
-/*proxy*/show backends;
-```
+- **镜像名称**：`tdsql-proxy:mock-v1.0`
+- **基础镜像**：`python:3.11-slim`
+- **锁定依赖**：`pymysql==1.1.1`
+- **构建命令**：
+  ```powershell
+  docker build -t tdsql-proxy:mock-v1.0 deploy/tdsql-dev-cluster
+  ```
+- **镜像摘要参考**：
+  - Image Config SHA256: `sha256:347969b55dbd4cb1bae0d38bdd29abe1af2238d5c43e9abd8f5557dbd041abaf`
 
 ---
 
-## 三、 预置业务数据库与对象清单
-
-### 1. 分布式业务库：`tdsql_demo_distributed`
-- **`big_audit_trail`**：经典分片表，分片键 `user_id`。
-- **`cus_bas_corp_contact`**：哈希分片表，分片键 `cust_no`。
-- **`cus_name_list_type`**：全局广播表（`shardkey=noshardkey_allset`）。
-- **`t_dict`**：字典广播表（`shardkey=noshardkey_allset`）。
-- **`t_single_sys_config`**：单表（用于反向对照单表审核）。
-
-### 2. 辅助系统库：`xa`
-- 预置 `xa` 库，供平台实例探测算法（PR004 判据）将实例类型精准判定为 `distributed`。
-
-### 3. 监控数据库：`tdsqlpcloud_monitor`
-- 预置 `proxy_classes_analysis` 慢 SQL 监控表（包含 31 个标准原厂字段），预注入典型慢 SQL 样本，供慢查询分析模块拉取测试。
-
----
-
-## 四、 常用管理命令
+## 四、 常用运维管理命令
 
 在 `TDSQL-SQLCheck/deploy/tdsql-dev-cluster` 目录下打开 PowerShell 执行：
 
 ```powershell
-# 1. 一键启动并初始化靶场（启动容器、启动 Proxy、灌入 ZK 树、创建表）
+# 1. 一键启动并初始化靶场（启动容器、启动模拟网关、灌入 ZK 树、初始化元数据）
 .\start_tdsql_cluster.ps1 start
 
 # 2. 查看靶场容器运行状态
@@ -81,29 +75,30 @@ CREATE TABLE `t_dict_item` (
 
 ---
 
-## 五、 在 TDSQL-SQLCheck 平台中配置连接
+## 五、 在 TDSQL-SQLCheck 平台中的配置信息
 
-在平台前端界面【实例管理】中，填写如下信息即可立即连接：
+在平台【实例管理】中，填写如下信息即可连接靶场：
 
-- **实例名称**：`TDSQL本地轻量分布式靶场(经Proxy 15002)`
+- **实例名称**：`TDSQL本地协议模拟靶场(Proxy 15002)`
 - **主机地址**：`127.0.0.1`
-- **业务端口**：`15002`（走 Proxy 代理，支持原厂语法与探针）
+- **业务端口**：`15002`（走模拟网关，支持语法过滤与探针）
 - **用户账号**：`root`
 - **用户密码**：`tdsql_test_2024`
 - **默认数据库**：`tdsql_demo_distributed`
 - **实例类型**：`分布式`
 - **监控主机**：`127.0.0.1`
-- **监控端口**：`15002`（或 `13306`）
+- **监控端口**：`15002`（或直连 `13306`）
 - **监控库名**：`tdsqlpcloud_monitor`
 
----
-
-## 六、 ZooKeeper 自动发现与业务库枚举配置说明
-
-在平台【ZK 实例自动发现】界面中配置：
+在平台【ZK 实例自动发现】中配置：
 - **ZK 连接串**：`127.0.0.1:2181`
 - **ZK 根路径**：`/tdsqlzk`
 - **业务库探针用户名**：`root`
 - **业务库探针密码**：`tdsql_test_2024`
 
-> **重要说明**：TDSQL 的 ZooKeeper 仅存放分布式物理拓扑，不记录业务数据库名称。配置业务探针账号密码后，平台会在发现实例时自动向实例网关发起 `SHOW DATABASES` 探测，将业务库完整枚举并填充至表格中。
+---
+
+## 六、 仿真度后续演进准则
+
+1. **协议语料脱敏回放**：若后续需进一步提升对真实 TDSQL 网关返回形态的保真度，应从真实 TDSQL 生产/测试环境（覆盖各主要版本）采集实际执行的结果集二进制与文本通信语料，脱敏后纳入测试固件，通过回放机制进行兼容性验证。
+2. **严禁盲目硬编码宣称等价**：不得仅通过在网关中手工添加特定 SQL 字符串匹配与硬编码分支便宣称与官方 TDSQL 等价。必须在能力矩阵中清晰标定支持范围与未支持范围。
