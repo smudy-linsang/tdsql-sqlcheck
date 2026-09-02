@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <!-- 主题预置：首帧前置 data-theme，避免深/浅切换闪烁；默认深色，localStorage 记忆 -->
   <script>(function(){try{var t=localStorage.getItem('tdsql-theme');if(t!=='light'&&t!=='dark')t='dark';document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','dark');}})();</script>
-  <title>TDSQL数据库SQL审核工具 V1.6.2.2</title>
+  <title>TDSQL数据库SQL审核工具 V1.6.3.0</title>
   <link rel="icon" href="/favicon.ico">
   <script src="/static/vendor/vue.global.prod.js"></script>
   <link rel="stylesheet" href="/static/vendor/element-plus.css">
@@ -13,9 +13,9 @@
   <script src="/static/vendor/element-plus-locale-zh-cn.min.js"></script>
   <script src="/static/vendor/element-plus-icons.iife.min.js"></script>
   <script src="/static/vendor/echarts.min.js"></script>
-  <link rel="stylesheet" href="/static/css/app.css?v=1.6.2.2">
+  <link rel="stylesheet" href="/static/css/app.css?v=1.6.3.0">
   <!-- 深蓝高密度主题：视觉重构层，最后加载以覆盖 Element Plus 与 app.css -->
-  <link rel="stylesheet" href="/static/css/theme-dark-blue.css?v=1.6.2.2">
+  <link rel="stylesheet" href="/static/css/theme-dark-blue.css?v=1.6.3.0">
 </head>
 <body>
 <div id="app">
@@ -27,7 +27,7 @@
     </div>
     <div class="login-brand">
       <h1>TDSQL数据库SQL审核工具</h1>
-      <div class="version">V1.6.2.2 · Design by Linsang</div>
+      <div class="version">V1.6.3.0 · Design by Linsang</div>
     </div>
     <div class="login-form">
       <el-card>
@@ -1840,18 +1840,21 @@
               <!-- 表类型统计 G14 -->
               <el-tab-pane v-if="visibleMenus.has('deep-diag-tabletype')" label="表类型统计" name="tabletype">
                 <el-input v-model="deepDb" placeholder="库名(空=全部业务库)" size="small" style="width:200px;margin-right:8px"></el-input>
-                <el-button type="primary" size="small" :loading="deepLoading==='tabletype'" :disabled="!deepConnId" @click="runTableTypeStats">统计表类型</el-button>
-                <span v-if="deepResult.tabletype" style="margin-left:12px;font-size:13px">
-                  实例类型 <b>{{ deepResult.tabletype.instance_type==='distributed'?'分布式':'集中式' }}</b>
-                  · 库 {{ deepResult.tabletype.database_count }}
-                  · 总表 <b>{{ deepResult.tabletype.total_tables }}</b>
-                  · 单表 <b>{{ deepResult.tabletype.single_tables }}</b>
-                  · 广播表 <b style="color:var(--warning-500)">{{ deepResult.tabletype.broadcast_tables }}</b>
-                  · 分片表 <b style="color:var(--success-500)">{{ deepResult.tabletype.shard_tables }}</b>
-                  <span style="color:#909399"> · 逻辑基线 {{ deepResult.tabletype.baseline_tables }}</span>
-                  <span v-if="deepResult.tabletype.subpartition_tables" style="color:#909399"> · 二级分区子表 {{ deepResult.tabletype.subpartition_tables }}（未计入）</span>
-                  <span v-if="deepResult.tabletype.failed_databases"> · <b style="color:var(--danger-500)">失败库 {{ deepResult.tabletype.failed_databases }}</b></span>
-                  <span v-if="deepResult.tabletype.skipped_databases"> · <b style="color:var(--warning-500)">未采集 {{ deepResult.tabletype.skipped_databases }}</b></span>
+                <el-tooltip v-if="!canRunTableTypeStats" content="审计员仅可查看历史" placement="top">
+                  <span><el-button type="primary" size="small" :disabled="true">统计表类型</el-button></span>
+                </el-tooltip>
+                <el-button v-else type="primary" size="small" :loading="deepLoading==='tabletype'" :disabled="!deepConnId" @click="runTableTypeStats">统计表类型</el-button>
+                <span v-if="tabletypeView" style="margin-left:12px;font-size:13px">
+                  实例类型 <b>{{ tabletypeView.instance_type==='distributed'?'分布式':'集中式' }}</b>
+                  · 库 {{ tabletypeView.database_count }}
+                  · 总表 <b>{{ tabletypeView.total_tables }}</b>
+                  · 单表 <b>{{ tabletypeView.single_tables }}</b>
+                  · 广播表 <b style="color:var(--warning-500)">{{ tabletypeView.broadcast_tables }}</b>
+                  · 分片表 <b style="color:var(--success-500)">{{ tabletypeView.shard_tables }}</b>
+                  <span style="color:#909399"> · 逻辑基线 {{ tabletypeView.baseline_tables }}</span>
+                  <span v-if="tabletypeView.subpartition_tables" style="color:#909399"> · 二级分区子表 {{ tabletypeView.subpartition_tables }}（未计入）</span>
+                  <span v-if="tabletypeView.failed_databases"> · <b style="color:var(--danger-500)">失败库 {{ tabletypeView.failed_databases }}</b></span>
+                  <span v-if="tabletypeView.skipped_databases"> · <b style="color:var(--warning-500)">未采集 {{ tabletypeView.skipped_databases }}</b></span>
                 </span>
                 <el-button size="small" style="margin-left:8px" @click="openTableTypeHistory">历史</el-button>
                 <el-alert v-for="(w,i) in visibleTableTypeWarnings" :key="i"
@@ -1862,7 +1865,7 @@
                            style="margin-top:4px" @click="tabletypeWarnAll=true">
                   展开查看全部 {{ tabletypeWarnTotal }} 条告警
                 </el-button>
-                <el-table v-if="deepResult.tabletype" :data="deepResult.tabletype.items" size="small" border style="margin-top:12px" max-height="480">
+                <el-table v-if="tabletypeView" :data="tabletypeView.items" size="small" border style="margin-top:12px" max-height="480">
                   <el-table-column prop="db_name" label="数据库" width="200"></el-table-column>
                   <el-table-column prop="total_tables" label="总表数" width="100"></el-table-column>
                   <el-table-column prop="single_tables" label="单表" width="90"></el-table-column>
@@ -1875,6 +1878,7 @@
                   </el-table-column>
                   <el-table-column prop="detail" label="说明"></el-table-column>
                 </el-table>
+                <div v-if="tabletypeView" style="color:#909399;font-size:12px;margin-top:4px">结果范围：{{ tabletypeScopeText }}</div>
                 <div style="color:#909399;font-size:12px;margin-top:8px">
                   口径：分布式实例逐业务库执行 /*proxy*/show table with shardkey · with noshardkey_allset · without shardkey，按"库名+表名"去重；
                   集中式实例统计 information_schema.TABLES 中 TABLE_TYPE='BASE TABLE'，分片表与广播表恒为 0，不统计视图。
@@ -2867,6 +2871,6 @@
     </div>
   </el-dialog>
 </div>
-<script src="/static/js/app.js?v=1.6.2.2"></script>
+<script src="/static/js/app.js?v=1.6.3.0"></script>
 </body>
 </html>

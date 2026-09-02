@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""G14 · 表类型统计 回归测试（DESIGN-v1.6.3.0 Rev.N §11）
+"""G14 · 表类型统计 回归测试（DESIGN-v1.6.3.0 Rev.P §11）
 
 **测试依赖如实说明**（Rev.J / DOC-01——Rev.I 之前一直写"除落库两例外全部离线"，
 那是 Rev.B 时期的实际情况，后来陆续加到 10 例仍没有更新，属于文档失真）：
@@ -1775,6 +1775,87 @@ def test_sit03_blank_connection_id_reports_the_right_reason(monkeypatch):
         assert e.value.status_code == 400
         assert "必须指定 connection_id" in e.value.detail
     assert called["pool"] == 0, "入参不合格时不得先去解析连接"
+
+
+def test_uat04_offline_instance_maps_to_readable_422(monkeypatch):
+    """UAT-O-G14-04：已保存但离线的实例——连接异常映射为可读 422，不再裸 500。
+
+    registry.get() 对已登记实例自动建连，离线时抛 pymysql OperationalError(2003)。
+    Rev.N 的 run() 把 _pool() 放在 try 之外，该异常穿透成未处理 500，
+    页面只能显示"执行失败"。修复后：白名单映射为 422 + 可执行提示，
+    且**不发起任何采集**（run_stats 不得被调用，结果自然不落历史）。
+    """
+    import pymysql
+    from fastapi import HTTPException
+    from backend.api import table_type_stats as api
+
+    def _offline(cid):
+        raise pymysql.err.OperationalError(2003, "Can't connect to MySQL server on '127.0.0.1'")
+
+    monkeypatch.setattr(api.registry, "get", _offline)
+    called = {"run": 0}
+    monkeypatch.setattr(api.svc, "run_stats",
+                        lambda *a, **k: called.__setitem__("run", 1))
+    with pytest.raises(HTTPException) as e:
+        api.run(api.StatsRequest(connection_id="offline-1"), _FakeRequest("dev"))
+    assert e.value.status_code == 422
+    assert "实例连接失败" in e.value.detail
+    assert "本次未产生统计结果" in e.value.detail
+    assert "127.0.0.1" not in e.value.detail, "422 响应不得回带主机等驱动原文"
+    assert "Can't connect" not in e.value.detail
+    assert called["run"] == 0, "连接失败时不得发起采集"
+
+
+def test_uat04b_timeout_and_auth_map_to_stable_422(monkeypatch):
+    """UAT-O-G14-04：连接超时（2013）与认证失败（1045）各自稳定映射为 422。
+
+    认证失败的响应不得回带口令/SQL 原文等内部细节之外的泄漏——
+    白名单消息只含 errno 语义与可执行提示。
+    """
+    import pymysql
+    from fastapi import HTTPException
+    from backend.api import table_type_stats as api
+
+    cases = [
+        (pymysql.err.OperationalError(2013, "Lost connection to MySQL server during query"),
+         "实例连接失败"),
+        (pymysql.err.OperationalError(1045, "Access denied for user 'root'@'%'"),
+         "实例认证失败"),
+    ]
+    for exc, expect in cases:
+        monkeypatch.setattr(api.registry, "get",
+                            lambda cid, _e=exc: (_ for _ in ()).throw(_e))
+        monkeypatch.setattr(api.svc, "run_stats",
+                            lambda *a, **k: pytest.fail("连接失败时不得发起采集"))
+        with pytest.raises(HTTPException) as e:
+            api.run(api.StatsRequest(connection_id="c-bad"), _FakeRequest("dev"))
+        assert e.value.status_code == 422
+        assert expect in e.value.detail
+
+
+def test_uat04c_runtime_error_still_fails_closed_500(monkeypatch, caplog):
+    """UAT-O-G14-04 反向护栏：未知程序异常仍是 500，绝不伪装成连接失败。
+
+    RuntimeError 不属于连接异常族——若把代码缺陷包装成 422"连接失败"，
+    监控与故障定位都会被误导。且 500 响应不得回带原始异常串
+    （可能含主机/口令/SQL 细节），以 X-Request-ID 关联日志。
+    """
+    from fastapi import HTTPException
+    from backend.api import table_type_stats as api
+
+    def _boom(cid):
+        raise RuntimeError("unexpected bug at host=10.0.0.1 password=s3cret")
+
+    monkeypatch.setattr(api.registry, "get", _boom)
+    with caplog.at_level("ERROR"):
+        with pytest.raises(HTTPException) as e:
+            api.run(api.StatsRequest(connection_id="c-x"), _FakeRequest("dev"))
+    assert e.value.status_code == 500
+    assert "X-Request-ID" in e.value.detail
+    assert "s3cret" not in e.value.detail, "500 响应不得回带原始异常串"
+    assert "unexpected bug" not in e.value.detail
+    # 完整堆栈留在日志里供运维排查
+    assert any("表类型统计发生未预期异常" in r.message for r in caplog.records)
 
 
 # ══════════════════════════════════════════════════════════════════

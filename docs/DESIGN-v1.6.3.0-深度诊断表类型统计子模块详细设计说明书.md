@@ -2,13 +2,13 @@
 
 | 项 | 内容 |
 |---|---|
-| 文档编号 | DESIGN-v1.6.3.0 **Rev.O** |
+| 文档编号 | DESIGN-v1.6.3.0 **Rev.P** |
 | 模块编号 | **G14 · 表类型统计**（深度诊断第 10 个子模块） |
 | 目标版本 | v1.6.3.0（当前基线 v1.6.2.2，`VERSION` / `backend/config.py:APP_VERSION`） |
-| 文档等级 | **照图施工级**——附录 A 给出全部新增/修改文件的逐行成品代码；Rev.N collect **112 项**（离线 89 / 元数据库 22 / 落盘后仓库检查 1）。Rev.M 已由 Q 照图施工落盘（提交 `0c0b3b4`），第一轮 SIT（`35e05ad`）发现 1 BLOCK + 2 MINOR，Rev.N 为整改定版（`e94f3b6`）；第二轮 SIT（`0aec853`）确认三项全关闭、有条件通过，新发现 2 MINOR + 1 NIT（均为文档/测试覆盖类），**Rev.O 为第二轮 SIT 整改定版**。附录 A.1～A.4 与仓库落盘的逐字一致由门禁 `tests/test_design_appendix_matches_repo.py` 自动钉住（Rev.O 新增） |
-| 编写 | 智能体 A（Rev.A～K、第五轮评审、第一/二轮 SIT）；智能体 O / Codex（Rev.L～M 修订）；智能体 Q（Rev.N～O：依第一/二轮 SIT 报告整改落盘） |
-| 编写日期 | 2026-08-29 首版；2026-08-31 Rev.F～J 多轮复核与整改；2026-09-01 Rev.K 依 O 第三轮评审整改；2026-09-01 Rev.L 依第四轮评审整改；2026-09-01 Rev.M 依 A 第五轮评审定点整改（1 P2）；2026-09-01 Rev.N 依 A 第一轮 SIT 整改（1 BLOCK + 2 MINOR）；2026-09-02 **Rev.O 依 A 第二轮 SIT 整改（2 MINOR + 1 NIT）** |
-| 状态 | **Rev.O 已完成第二轮 SIT 三项缺陷整改并落盘**：DEF-SIT2-01（附录 A.4 回填 2 条用例 + docstring 版本同步 + 新增附录↔仓库一致性门禁）；DEF-SIT2-02（附录 A.2 文件头版本号同步）；DEF-SIT2-03（防复发提升为平台级守卫 `test_rbac_path_coverage.py::test_deep_diag_write_endpoints_are_in_operational_allowlist`，变异验证 M0 绿 / M1 红并精确点名）。ADR-21 / KL-17 / §9 / §11 / §12.2 同步，OBS-3 顺带落实。 |
+| 文档等级 | **照图施工级**——附录 A 给出全部新增/修改文件的逐行成品代码；Rev.P collect **115 项**（离线 92 / 元数据库 22 / 落盘后仓库检查 1）。附录 A.1～A.4 与仓库落盘的逐字一致由门禁 `tests/test_design_appendix_matches_repo.py` 自动钉住。第一轮 SIT（`35e05ad`）1 BLOCK + 2 MINOR → Rev.N 整改定版（`e94f3b6`）；第二轮 SIT（`0aec853`）2 MINOR + 1 NIT → Rev.O 整改定版（`0f01346`）；**第一轮 UAT（智能体 O，结论不通过）1 BLOCK + 2 MAJOR + 1 MINOR → Rev.P 整改定版** |
+| 编写 | 智能体 A（Rev.A～K、第五轮评审、第一/二轮 SIT）；智能体 O / Codex（Rev.L～M 修订、第一轮 UAT）；智能体 Q（Rev.N～P：依 SIT/UAT 报告整改落盘） |
+| 编写日期 | 2026-08-29 首版；2026-08-31 Rev.F～J 多轮复核与整改；2026-09-01 Rev.K 依 O 第三轮评审整改；2026-09-01 Rev.L 依第四轮评审整改；2026-09-01 Rev.M 依 A 第五轮评审定点整改（1 P2）；2026-09-01 Rev.N 依 A 第一轮 SIT 整改；2026-09-02 Rev.O 依 A 第二轮 SIT 整改；2026-09-02 **Rev.P 依 O 第一轮 UAT 整改（1 BLOCK + 2 MAJOR + 1 MINOR）** |
+| 状态 | **Rev.P 已完成第一轮 UAT 四项缺陷整改并落盘**：O-G14-01（BLOCK）结果绑定用户/实例/查询条件（统一清理点 + 序号守卫 + watch 失效 + 登录态隔离 + 范围绑定展示）；O-G14-02（MAJOR）发布标识全部提升 1.6.3.0 并新增一致性门禁；O-G14-03（MINOR）统一 `apiErrorMessage` + auditor 按钮禁用；O-G14-04（MAJOR）连接解析纳入完整异常边界，白名单映射 422，未知程序异常仍 500。 |
 | 前置约束 | 本文档编写阶段**未修改任何代码**（用户要求）。仓库工作区在本文档提交时保持干净。 |
 
 ---
@@ -17,7 +17,7 @@
 
 本文档同时承担三件事，读者请按角色取用：
 
-* **实施者（智能体 Q 或人工）**：读 §5～§9 + 附录 A。附录 A 是**可直接落盘的成品代码**——四个新增文件 + 既有文件的 **10 行**改动 + **2 个前端块**（页签块 + 历史抽屉块），逐字给出。
+* **实施者（智能体 Q 或人工）**：读 §5～§9 + 附录 A。附录 A 是**可直接落盘的成品代码**——四个新增文件 + 既有文件的改动 + **2 个前端块**（页签块 + 历史抽屉块），逐字给出。Rev.P 起前端块含 UAT 整改（结果绑定与登录态隔离），见附录 A.5 与 §9。
 * **内网测试配合者**：只读 **§10**。既有六轮用例的裁决见 §10.1 与 §10.2；另执行 T20，记录普通 `IN` 与 `BINARY IN` 的 `EXPLAIN` 扫描库数及耗时。T13 不影响数字，T20 不阻断开发、但属于发布前性能证据门禁。
 * **单点复核者（智能体 A，Rev.M）**：核对 §6.4、ADR-27、E-36、T4-R01 与 T20 是否逐项关闭第五轮 P2-01；无需重开第四轮已关闭项。
 
@@ -608,16 +608,19 @@ Query OK, 0 rows affected (0.001 sec)
 | 类型 | 文件 | 规模 |
 |---|---|---|
 | 新增 | `backend/services/table_type_stats_service.py` | 附录 A.1 给出完整成品代码（不以易漂移的行数作验收条件） |
-| 新增 | `backend/api/table_type_stats.py` | 81 行（附录 A.2，成品；Rev.N 因 DEF-SIT-03 由 71 行增至 81 行） |
+| 新增 | `backend/api/table_type_stats.py` | 118 行（附录 A.2，成品；Rev.N 因 DEF-SIT-03 增至 81 行，Rev.P 因 UAT-O-G14-04 异常边界增至 118 行） |
 | 新增 | `backend/schema/v13/130_table_type_stats.sql` | 46 行（附录 A.3，成品）。**槽位 v13/130**——`v11/110` 与 `v12/120` 已被 v1.6.2.2 占用（DEF-1，§2.7） |
-| 新增 | `tests/test_table_type_stats.py` | 附录 A.4 给出完整成品代码；Rev.N collect 112 项 |
+| 新增 | `tests/test_table_type_stats.py` | 附录 A.4 给出完整成品代码；Rev.P collect 115 项 |
+| 新增（Rev.P） | `tests/test_version_consistency.py` | 发布版本一致性门禁 4 项（UAT-O-G14-02） |
+| 新增（Rev.P） | `tests/test_g14_frontend_state_binding.py` | 前端结果绑定静态门禁 9 项（UAT-O-G14-01 / O-G14-03） |
 | 修改 | `backend/main.py` | **2 行**（import + include_router） |
 | 修改 | `backend/services/auth_service.py` | **4 行**（P1/P2/P3 + Rev.N 新增 P7：`_OPERATIONAL_WRITE_PREFIXES`） |
 | 修改 | `backend/services/database.py` | **1 行**（P4） |
-| 修改 | `frontend/index.html` | **1 处**新增 `<el-tab-pane>` 块（内含结果区 + 历史抽屉，不改任何既有行） |
-| 修改 | `frontend/static/js/app.js` | **4 行**（`deepResult` 加字段 / 新方法 / 返回清单追加 / **`subtabs` 回退清单追加**）+ 1 个纯新增方法块 |
+| 修改（Rev.P / UAT-O-G14-02） | `VERSION` / `backend/config.py` | 发布标识 1.6.2.2 → **1.6.3.0**（`APP_VERSION` + `APP_DESCRIPTION`） |
+| 修改 | `frontend/index.html` | **1 处**新增 `<el-tab-pane>` 块（内含结果区 + 历史抽屉）；Rev.P 起块内含 auditor 按钮禁用与结果范围绑定；另 4 处发布标识（title/2×CSS 缓存参数/登录页）+ 1 处 app.js 缓存参数 |
+| 修改 | `frontend/static/js/app.js` | `deepResult` 加字段 / 新方法 / 返回清单追加 / **`subtabs` 回退清单追加**；Rev.P 起含 UAT 整改：统一清理点 `resetTableTypeState`、序号守卫、范围绑定、登录态隔离、`apiErrorMessage`、`canRunTableTypeStats`、`watch([deepConnId,deepDb])` |
 
-**合计：新增 4 文件，既有文件净改 11 行 + 2 个纯新增前端块。**（Rev.N 相对 Rev.M 净增 1 行：`auth_service.py` 的 P7。）
+**合计（Rev.P 当前态）：新增 6 文件（模块 4 + 门禁测试 2），既有文件净改 11 行 + 2 个前端块 + Rev.P 发布标识/前端整改。**（Rev.N 相对 Rev.M 净增 1 行：`auth_service.py` 的 P7。）
 
 > Rev.G 相对 Rev.F 多出来的 1 行，就是 O 在 P1-06 里点出的
 > `app.js:1960` 的 `subtabs` 回退清单。**这 1 行不加，一个只被授予
@@ -705,10 +708,11 @@ Query OK, 0 rows affected (0.001 sec)
 | 422 | `string_too_short` / `Field required` / `string_type` 等 FastAPI 请求体校验错误 | `connection_id` 缺失、为空串或类型不符——由 `StatsRequest` 的 `min_length=1` 在进入路由前拦截（Rev.N / DEF-SIT-02：422 是 FastAPI 请求体校验失败的标准语义；Rev.O / OBS-3：实测 `null` 为第三种 `string_type`，枚举不再穷举具体 `type`） |
 | 400 | `必须指定 connection_id（…）` | `connection_id` 为**全空白**字符串（通过了 `min_length` 但 `.strip()` 为空），由 **API 层**在连接解析之前拦截（Rev.N / DEF-SIT-03）；服务层同名守卫保留，作为服务被直接调用时的兜底 |
 | 400 | `数据库不存在或当前账号不可见: xxx（SHOW DATABASES 未返回该库）` | 指定库不在 `SHOW DATABASES` 结果里（Rev.G / P2-01） |
+| **422** | `实例连接失败：请检查地址、端口、网络和账号；本次未产生统计结果` / `实例认证失败（请核对连接的用户名/口令）；本次未产生统计结果` / `目标数据库不存在；本次未产生统计结果` | 已登记实例当前离线/超时/认证失败——`registry.get()` 自动建连时抛出底层驱动异常，经 `translate_db_error` **严格白名单**映射（Rev.P / UAT-O-G14-04）；**响应不回带主机/凭据/驱动原文**，完整堆栈只留服务端日志；未知程序异常**不**进此分支，仍为 500 |
 | **429** | `目标库 xxx 扫描并发已达上限(N)，请稍后重试` / `服务扫描并发已达上限(N)，请稍后重试` | `ScanBusyError`——与既有慢查询扫描共用同一份配额（Rev.G / P1-02，口径同 `tdsql_manage.py:432`） |
 | 500 | `元数据库缺少表 …` / `… 缺少列 …` / `… 列类型不符 …` / `… 缺少索引 …` | `SchemaNotReadyError`——留档表结构验收未通过（Rev.G / P1-08）。消息里带可执行的处置步骤，**原样透出，不被兜底 except 吞掉** |
 | **503** | `采集总时长预算 180s 在…前即已耗尽` | `TimeoutError`——deadline 在探测/枚举库/基线查询之前就已耗尽。**Rev.K 起用 503 而非 500**：这是"稍后重试或缩小 `database` 范围就可能成功"的暂时性状况，与 500 的"结构不对、重试也没用"语义不同 |
-| 500 | 原始异常字符串 | 其余（照抄样板） |
+| 500 | `表类型统计内部错误，请携带 X-Request-ID 联系管理员排查` | 其余未预期异常（Rev.P / UAT-O-G14-04：不再回带原始异常串——可能含主机/口令/SQL 细节；完整堆栈留在服务端日志，以 X-Request-ID 关联） |
 
 **并发与耗时边界（Rev.L / 第四轮 P1-02）**：
 
@@ -1165,6 +1169,7 @@ def run_stats(pool, connection_id="", database="", operator=""):
 | E-32 | Proxy 返回的库限定名无法唯一归属（大小写歧义） | 该行**不计入任何库**，记 `DB_NAME_AMBIGUOUS`（ERROR）——不猜归属，宁可少算并显式报出（Rev.J / P1-01） | `_split_qualified` |
 | E-33 | 指定库大小写与实例上的真实库不一致 | HTTP 400，并在消息里点名存在的大小写变体（Rev.J / P1-01） | `analyze` |
 | E-23 | 表名本身含点号（如 `odd.name`） | 点号左侧不是已知库名 → 整串当作当前库下的表名，不误拆、不丢弃 | `_split_qualified` |
+| E-38 | 已登记实例当前离线/超时/认证失败 | **HTTP 422** 可读提示（"实例连接失败/认证失败/目标数据库不存在，本次未产生统计结果"），不发起采集、不落历史；未知程序异常仍 **500** 失败关闭（Rev.P / UAT-O-G14-04） | API `run` / `translate_db_error` |
 
 ---
 
@@ -1180,6 +1185,11 @@ def run_stats(pool, connection_id="", database="", operator=""):
 | `tests/test_table_type_stats.py` | 全新 | 仅测试 | **零** |
 | `tests/test_rbac_path_coverage.py` | **+41 行**（1 个 `_menu_keys` helper + 1 条平台级守卫用例 + 1 处 import 追加；Rev.O / DEF-SIT2-03） | 仅测试。新增断言只对 deep-diag* 归属写端点生效，经全仓库穷举核查对现存 12 个深度诊断写端点**零误伤**（SIT2 §6.2.3），对非 deep-diag 管理类写端点不适用本不变量 | **零** |
 | `tests/test_design_appendix_matches_repo.py` | 全新（Rev.O / DEF-SIT2-01③） | 仅测试：附录 A.1～A.4 与仓库落盘的逐字一致性门禁，替代人工"附录逐字核对"验收项 | **零** |
+| `tests/test_version_consistency.py` | 全新（Rev.P / UAT-O-G14-02） | 仅测试：发布版本七处同源门禁 | **零** |
+| `tests/test_g14_frontend_state_binding.py` | 全新（Rev.P / UAT-O-G14-01/03） | 仅测试：前端结果绑定静态门禁（删掉任一清理点即红灯） | **零** |
+| `VERSION` / `backend/config.py` | 发布标识 1.6.2.2 → 1.6.3.0（Rev.P / UAT-O-G14-02） | `/health`、OpenAPI、系统信息、启动日志的版本显示 | **极低**。`test_version_consistency.py` 钉住七处同源；`APP_DESCRIPTION` 文案变更无功能影响 |
+| `frontend/index.html`（Rev.P 增量） | 发布标识 5 处 + G14 页签块内 auditor 禁用/范围绑定展示 | 深度诊断页 G14 页签 | **极低**。其余 9 个页签零改动 |
+| `frontend/static/js/app.js`（Rev.P 增量） | `resetTableTypeState` / 序号守卫 / `watch([deepConnId,deepDb])` / `clearRoleScopedState` 增补 / `apiErrorMessage` / `canRunTableTypeStats` / 返回清单追加 | 深度诊断页 G14 页签 + 登录态切换路径 | **低**。`clearRoleScopedState` 是全局登录态清理函数——新增的只是"清得更多"，方向安全；其余 9 个深度诊断子模块的结果键一并清空属预期行为（跨用户会话隔离）；`test_g14_frontend_state_binding.py` 静态门禁钉住全部清理点 |
 | `backend/main.py` | +2 行（第 40 行附近 import、第 176 行附近 include_router） | 路由表新增 3 条 | **极低**。`tests/test_app_routes_integrity.py` 会验证路由完整性 |
 | `backend/services/auth_service.py` | +3 行（P1/P2/P3，均为字典/列表新增条目） | 权限判定 | **极低**。新增映射不改变任何既有前缀的判定；`test_rbac_path_coverage.py` 会验证 |
 | `backend/services/database.py` | +1 行（`all_menus` 追加） | `role_permissions` 表新增 4 行（每角色 1 行） | **极低**。`INSERT IGNORE` 幂等；`DELETE ... NOT IN` 只删不在清单里的键，追加只会**保留**更多 |
@@ -1231,11 +1241,14 @@ python -m pytest tests/test_rules.py tests/test_sit_rules.py tests/test_sit_v1_r
 # 4. 新模块自测
 python -m pytest tests/test_table_type_stats.py -q
 
-# 5. 改动面核对——期望：新增 4 文件，既有文件净增 11 行 + 2 个前端块（Rev.N）
+# 5. 改动面核对——期望：新增 6 文件（模块 4 + 门禁测试 2）；既有文件净增 11 行 + 2 个前端块 + Rev.P 发布标识/前端整改
 git diff --stat
 
 # 6. Rev.G 定向回归（O 评审报告 §6 的 T-R01…T-R14）
 python -m pytest tests/test_table_type_stats.py -q -k "r0 or r1"
+
+# 7. Rev.O/P 新增门禁
+python -m pytest tests/test_rbac_path_coverage.py tests/test_design_appendix_matches_repo.py tests/test_version_consistency.py tests/test_g14_frontend_state_binding.py -q
 ```
 
 **人工回归（不可由单测替代）**：
@@ -1594,7 +1607,7 @@ Query OK, 0 rows affected (0.001 sec)
 
 ## 11. 测试设计（开发期，可在本地 MariaDB 13306 上跑）
 
-`tests/test_table_type_stats.py`（附录 A.4），**Rev.N collect 112 项**。数据夹具直接照搬
+`tests/test_table_type_stats.py`（附录 A.4），**Rev.P collect 115 项**。数据夹具直接照搬
 内网实测形态（列名 `db_table`、库限定名 `sqltuning.t_max`、`with*` 双列 /
 `without` 单列），**Rev.H 起子分区相关用例直接使用 2026-08-31 T17 取回的
 78 个真实表名**。
@@ -1604,10 +1617,10 @@ Query OK, 0 rows affected (0.001 sec)
 
 | 类别 | 数量 | 依赖 |
 |---|---:|---|
-| 纯离线 | **89** | 无。`FakePool` + `FakeClock` 全内存，不连任何数据库 |
+| 纯离线 | **92** | 无。`FakePool` + `FakeClock` 全内存，不连任何数据库 |
 | 元数据库集成 | **22** | 本地 MySQL/MariaDB（`SQLCHECK_DB_NAME`）；`@skipif(not MYSQL_AVAILABLE)` |
 | 需模块落盘 | **1** | T-R08 权限键登记，断言仓库文件；设计阶段 skip |
-| **collect 合计** | **112** | 含参数化展开（T3-R08 契约用例 11 条） |
+| **collect 合计** | **115** | 含参数化展开（T3-R08 契约用例 11 条） |
 
 Rev.K 历史实测口径：不连元数据库时 `83 passed, 23 skipped`；连上后
 `105 passed, 1 skipped`。第五轮评审中，A 将 Rev.L 的 A.1～A.4 逐字抽取到临时目录，
@@ -1779,6 +1792,18 @@ Rev.K 历史实测口径：不连元数据库时 `83 passed, 23 skipped`；连�
 | DEF-SIT2-03 | `tests/test_rbac_path_coverage.py::test_deep_diag_write_endpoints_are_in_operational_allowlist`（**平台级，非本模块文件，故不计入 A.4 的 collect 数**） | 扫描全部 deep-diag* 归属写端点，凡已登记 `_PATH_TO_MENU`（第二级）而未登记 `_OPERATIONAL_WRITE_PREFIXES`（第一级）即红灯并精确点名端点与文件；变异验证 M0 绿 / M1（摘除 P7）红 | **MINOR：防复发只做到模块级，下一个子模块仍会漏网** |
 | DEF-SIT2-01 | `tests/test_design_appendix_matches_repo.py::test_design_appendix_matches_repo[A.1～A.4]`（**平台级门禁，不计入 A.4 的 collect 数**） | 附录 A.1～A.4 的最大代码块与仓库落盘文件**逐字一致**，任何一侧单独改动即红灯；变异验证（注入 1 行差异）红灯 | **MINOR：照图施工级文档的附录与仓库脱节** |
 
+**Rev.P 新增的缺陷定向测试（对应 O 第一轮 UAT 报告）**：
+
+| UAT 编号 | 用例 | 验证 | 关闭的问题 |
+|---|---|---|---|
+| O-G14-04 | `test_uat04_offline_instance_maps_to_readable_422` | `registry.get` 抛 `OperationalError(2003)` → 422 可读提示 + **不发起采集** | **MAJOR：离线实例裸 500** |
+| O-G14-04 | `test_uat04b_timeout_and_auth_map_to_stable_422` | 连接超时（2013）/ 认证失败（1045）各自稳定映射 422，响应不含凭据 | **MAJOR：离线实例裸 500** |
+| O-G14-04 | `test_uat04c_runtime_error_still_fails_closed_500` | `RuntimeError` 仍 500 失败关闭，500 响应不回带原始异常串，堆栈留日志 | **MAJOR 反向护栏：代码缺陷不得伪装成连接错误** |
+| O-G14-01 / O-G14-03 | `tests/test_g14_frontend_state_binding.py`（9 项静态门禁，**平台级文件，不计入 A.4 collect 数**） | 统一清理点 8 项齐全 / reset 先于请求 / 序号守卫 / watch 失效 / 登录态隔离 / 范围绑定展示 / auditor 禁用 / `apiErrorMessage` 三处调用点 / setup 返回清单登记 | **BLOCK + MINOR 的前端侧** |
+| O-G14-02 | `tests/test_version_consistency.py`（4 项，平台级文件） | VERSION / `APP_VERSION` / `/health` / OpenAPI / HTML title / 登录页 / CSS·JS 缓存参数七处同源 | **MAJOR：发布标识仍为旧版本** |
+
+> Rev.P 前端行为级验收（浏览器路径）见 §12.8。
+
 > **T3-R09（历史抽屉状态清空）与 T3-R10 的前端分支**属于前端行为，
 > 代码在附录 A.5.4 / A.5.5，验收方式见 §12.5——本项目前端无自动化测试框架，
 > 沿用既有惯例以可执行的人工验收条目覆盖，**不假装它们有单测**。
@@ -1889,6 +1914,18 @@ Rev.M 不新增测试项，只删除生产 SQL 的 `BINARY` 与 T4-R01 的 SQL �
 - [ ] **合法后缀逻辑表（P2-01）**：若内网有 `xxx` 与 `xxx_tdsql_subp<数字>` 同时出现在 Proxy 结果中的情形，确认两者都计入逻辑表、`subpartition_tables` 不含它
 - [ ] **历史告警展开（P2-02）**：制造 >10 条告警的一次统计，打开历史抽屉，确认显示总条数且可展开全部
 - [ ] **失败提示（P2-03）**：部分失败时提示为 warning 并写明成功/失败/跳过库数；全部失败时为 error，**不得**出现绿色"统计完成"
+
+### 12.8 Rev.P 专项（O 第一轮 UAT）
+
+- [ ] **查询失败即清空（O-G14-01 路径 1）**：成功查询 A 库 → 改输入为不存在库 → 点击统计 → 弹错且摘要/告警/明细**全部为空**，不得残留 A 库结果
+- [ ] **切实例即清空（O-G14-01 路径 2）**：集中式成功 → 切换到分布式/离线实例 → 切换瞬间旧结果消失；连接失败（422）后也不恢复
+- [ ] **跨用户隔离（O-G14-01 路径 3）**：developer 查询 → 退出 → auditor/最小权限用户登录 → 页面不出现前一用户的实例、输入、结果或抽屉数据
+- [ ] **迟到响应丢弃（O-G14-01 路径 4）**：发起统计 → 请求未结束时切实例 → 旧响应回来后仍不得显示
+- [ ] **改输入不点击（O-G14-01 路径 5）**：A 库成功 → 只把输入改为 B 库不点击 → 页面不得继续把 A 库数字挂在 B 库输入框下
+- [ ] **结果范围明示**：成功结果旁显示"结果范围：实例名 / 全部业务库或指定库 / 采集时间"
+- [ ] **发布标识（O-G14-02）**：全新进程 + 无缓存会话下，登录页 / 浏览器 title / `/health` / 系统信息 / 启动日志 / `VERSION` 全部显示 1.6.3.0；`tests/test_version_consistency.py` 4 项全绿
+- [ ] **离线实例（O-G14-04）**：选择离线实例点击统计 → 可读 422 提示（"实例连接失败…本次未产生统计结果"），服务日志无未处理 ASGI traceback；切回可用实例继续成功查询
+- [ ] **auditor 只读（O-G14-03）**：auditor 进入页签，"统计表类型"按钮禁用且提示"审计员仅可查看历史"；绕过 UI 直接 POST 仍为 403 且文案可读；developer/DBA/最小权限自定义角色不受影响
 
 ---
 
@@ -3200,11 +3237,11 @@ def get_detail(stat_id: int) -> dict:
     return {"items": items, "warnings": warnings}
 ```
 
-### A.2 `backend/api/table_type_stats.py`（新增，81 行）
+### A.2 `backend/api/table_type_stats.py`
 
 ```python
 # -*- coding: utf-8 -*-
-"""G14 · 表类型统计 API（DESIGN-v1.6.3.0 Rev.N §5）
+"""G14 · 表类型统计 API（DESIGN-v1.6.3.0 Rev.P §5）
 
 Rev.G（O 评审整改）：
   · P1-02  /run 由 service 层进入 registry.scan_slot(connection_id)，
@@ -3218,13 +3255,24 @@ Rev.G（O 评审整改）：
            service 层保留同名守卫作为服务被直接调用时的兜底。
   · Rev.K  TimeoutError（采集预算耗尽）单独映射为 503——它是"稍后重试可能成功"
            的暂时性状况，与 500 的"结构不对，重试也没用"语义不同。
+  · Rev.P  UAT-O-G14-04：`_pool()` 连接解析纳入完整异常边界——离线/超时/认证
+           失败经 translate_db_error 严格白名单映射为可读 422；未知程序异常
+           原样抛出走 500，绝不伪装成连接失败（口径同 daily_inspect.py O-19/O-24）。
 """
+import logging
+
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from backend.services import table_type_stats_service as svc
+from backend.services.connection_errors import (
+    AuthenticationFailedError, ConnectionRefusedError_, DatabaseNotFoundError,
+    InstanceConnectionError, translate_db_error,
+)
 from backend.services.connection_registry import (
     registry, ConnectionNotFoundError, ScanBusyError)
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/table-type-stats", tags=["表类型统计"])
 
@@ -3255,11 +3303,25 @@ def run(body: StatsRequest, http_request: Request):
             status_code=400,
             detail="必须指定 connection_id（本模块不接受默认连接："
                    "连接解析与实例类型解析在空 ID 下可能指向不同实例）")
-    pool = _pool(body.connection_id)
     try:
+        try:
+            pool = _pool(body.connection_id)
+        except HTTPException:
+            raise
+        except Exception as conn_exc:
+            # UAT-O-G14-04：registry.get 对已保存但当前离线的实例会抛底层连接
+            # 异常（如 pymysql OperationalError 2003），此前绕过本函数 except
+            # 穿透为裸 500。严格白名单映射；未知程序异常原样抛出走 500，
+            # 绝不伪装成"实例连接失败"掩盖代码缺陷。
+            mapped = translate_db_error(conn_exc)
+            if mapped is None:
+                raise
+            raise mapped
         return svc.run_stats(pool, connection_id=body.connection_id,
                              database=body.database,
                              operator=_operator(http_request))
+    except HTTPException:
+        raise
     except ScanBusyError as e:
         # 并发超限：与既有慢查询扫描共用同一份配额，口径与 tdsql_manage.py:432 一致
         raise HTTPException(status_code=429, detail=str(e))
@@ -3269,11 +3331,23 @@ def run(body: StatsRequest, http_request: Request):
     except svc.SchemaNotReadyError as e:
         # 留档表结构不符：消息里已带可执行处置步骤，原样透出
         raise HTTPException(status_code=500, detail=str(e))
+    except ConnectionRefusedError_ as e:
+        raise HTTPException(status_code=422, detail="实例连接失败：请检查地址、端口、网络和账号；本次未产生统计结果")
+    except AuthenticationFailedError as e:
+        raise HTTPException(status_code=422, detail="实例认证失败（请核对连接的用户名/口令）；本次未产生统计结果")
+    except DatabaseNotFoundError as e:
+        raise HTTPException(status_code=422, detail="目标数据库不存在；本次未产生统计结果")
+    except InstanceConnectionError as e:
+        raise HTTPException(status_code=422, detail="实例连接失败：请检查地址、端口、网络和账号；本次未产生统计结果")
     except ValueError as e:
         # 入参口径错误（系统库 / 空 connection_id / 指定库不存在）——回 400 而非 500
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        # 未知程序错误仍是 500 并记录完整堆栈，响应不泄漏主机/口令/SQL 细节，
+        # 以 X-Request-ID 关联日志（中间件下发）。
+        logger.exception("表类型统计发生未预期异常")
+        raise HTTPException(status_code=500,
+                            detail="表类型统计内部错误，请携带 X-Request-ID 联系管理员排查")
 
 
 @router.get("/history", summary="表类型统计历史")
@@ -3340,11 +3414,11 @@ CREATE TABLE IF NOT EXISTS table_type_stat_item (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ```
 
-### A.4 `tests/test_table_type_stats.py`（新增，完整成品）
+### A.4 `tests/test_table_type_stats.py`
 
 ```python
 # -*- coding: utf-8 -*-
-"""G14 · 表类型统计 回归测试（DESIGN-v1.6.3.0 Rev.N §11）
+"""G14 · 表类型统计 回归测试（DESIGN-v1.6.3.0 Rev.P §11）
 
 **测试依赖如实说明**（Rev.J / DOC-01——Rev.I 之前一直写"除落库两例外全部离线"，
 那是 Rev.B 时期的实际情况，后来陆续加到 10 例仍没有更新，属于文档失真）：
@@ -5122,6 +5196,87 @@ def test_sit03_blank_connection_id_reports_the_right_reason(monkeypatch):
     assert called["pool"] == 0, "入参不合格时不得先去解析连接"
 
 
+def test_uat04_offline_instance_maps_to_readable_422(monkeypatch):
+    """UAT-O-G14-04：已保存但离线的实例——连接异常映射为可读 422，不再裸 500。
+
+    registry.get() 对已登记实例自动建连，离线时抛 pymysql OperationalError(2003)。
+    Rev.N 的 run() 把 _pool() 放在 try 之外，该异常穿透成未处理 500，
+    页面只能显示"执行失败"。修复后：白名单映射为 422 + 可执行提示，
+    且**不发起任何采集**（run_stats 不得被调用，结果自然不落历史）。
+    """
+    import pymysql
+    from fastapi import HTTPException
+    from backend.api import table_type_stats as api
+
+    def _offline(cid):
+        raise pymysql.err.OperationalError(2003, "Can't connect to MySQL server on '127.0.0.1'")
+
+    monkeypatch.setattr(api.registry, "get", _offline)
+    called = {"run": 0}
+    monkeypatch.setattr(api.svc, "run_stats",
+                        lambda *a, **k: called.__setitem__("run", 1))
+    with pytest.raises(HTTPException) as e:
+        api.run(api.StatsRequest(connection_id="offline-1"), _FakeRequest("dev"))
+    assert e.value.status_code == 422
+    assert "实例连接失败" in e.value.detail
+    assert "本次未产生统计结果" in e.value.detail
+    assert "127.0.0.1" not in e.value.detail, "422 响应不得回带主机等驱动原文"
+    assert "Can't connect" not in e.value.detail
+    assert called["run"] == 0, "连接失败时不得发起采集"
+
+
+def test_uat04b_timeout_and_auth_map_to_stable_422(monkeypatch):
+    """UAT-O-G14-04：连接超时（2013）与认证失败（1045）各自稳定映射为 422。
+
+    认证失败的响应不得回带口令/SQL 原文等内部细节之外的泄漏——
+    白名单消息只含 errno 语义与可执行提示。
+    """
+    import pymysql
+    from fastapi import HTTPException
+    from backend.api import table_type_stats as api
+
+    cases = [
+        (pymysql.err.OperationalError(2013, "Lost connection to MySQL server during query"),
+         "实例连接失败"),
+        (pymysql.err.OperationalError(1045, "Access denied for user 'root'@'%'"),
+         "实例认证失败"),
+    ]
+    for exc, expect in cases:
+        monkeypatch.setattr(api.registry, "get",
+                            lambda cid, _e=exc: (_ for _ in ()).throw(_e))
+        monkeypatch.setattr(api.svc, "run_stats",
+                            lambda *a, **k: pytest.fail("连接失败时不得发起采集"))
+        with pytest.raises(HTTPException) as e:
+            api.run(api.StatsRequest(connection_id="c-bad"), _FakeRequest("dev"))
+        assert e.value.status_code == 422
+        assert expect in e.value.detail
+
+
+def test_uat04c_runtime_error_still_fails_closed_500(monkeypatch, caplog):
+    """UAT-O-G14-04 反向护栏：未知程序异常仍是 500，绝不伪装成连接失败。
+
+    RuntimeError 不属于连接异常族——若把代码缺陷包装成 422"连接失败"，
+    监控与故障定位都会被误导。且 500 响应不得回带原始异常串
+    （可能含主机/口令/SQL 细节），以 X-Request-ID 关联日志。
+    """
+    from fastapi import HTTPException
+    from backend.api import table_type_stats as api
+
+    def _boom(cid):
+        raise RuntimeError("unexpected bug at host=10.0.0.1 password=s3cret")
+
+    monkeypatch.setattr(api.registry, "get", _boom)
+    with caplog.at_level("ERROR"):
+        with pytest.raises(HTTPException) as e:
+            api.run(api.StatsRequest(connection_id="c-x"), _FakeRequest("dev"))
+    assert e.value.status_code == 500
+    assert "X-Request-ID" in e.value.detail
+    assert "s3cret" not in e.value.detail, "500 响应不得回带原始异常串"
+    assert "unexpected bug" not in e.value.detail
+    # 完整堆栈留在日志里供运维排查
+    assert any("表类型统计发生未预期异常" in r.message for r in caplog.records)
+
+
 # ══════════════════════════════════════════════════════════════════
 # Rev.J 定向回归（O 第二轮评审 §7 的 T2-R01…T2-R10）
 # ══════════════════════════════════════════════════════════════════
@@ -6373,6 +6528,7 @@ Empty set (0.005 sec)
 
 | 版本 | 日期 | 作者 | 内容 |
 |---|---|---|---|
+| **Rev.P** | **2026-09-02** | **智能体 Q** | **依 O 第一轮 UAT 报告（`UAT-v1.6.3.0-…第一轮用户验收测试报告-智能体O.md`，结论"不通过：1 BLOCK + 2 MAJOR + 1 MINOR"）整改。四项全部关闭。** **O-G14-01（BLOCK，结果未绑定用户/实例/查询条件）**：前端六步——①统一清理点 `resetTableTypeState()`（8 个状态点）；②`runTableTypeStats` 查询开始即失效旧结果，失败保持空态；③`tabletypeSeq` 序号守卫 + 范围快照（用户/实例/库）防异步串台，迟到响应直接丢弃；④`watch([deepConnId,deepDb])` 实例或库名变化即失效，实例变化连带关闭并清空历史抽屉；⑤`clearRoleScopedState()` 增补连接/深度诊断上下文/G14 状态清理并删除 `localStorage.tdsql_conn`；⑥展示层 `tabletypeView`/`tabletypeScopeMatch` 范围绑定，模板不再直接引用 `deepResult.tabletype`，结果旁显示"结果范围：实例名/库/采集时间"。新增 9 项静态门禁 `test_g14_frontend_state_binding.py`（删掉任一清理点即红灯）。**O-G14-02（MAJOR，发布标识仍为 1.6.2.2）**：`VERSION`/`APP_VERSION`/`APP_DESCRIPTION`/HTML title/登录页/CSS·JS 缓存参数全部提升 1.6.3.0；新增 `test_version_consistency.py`（4 项）钉住七处同源。**O-G14-03（MINOR，auditor 按钮可点且 403 文案被吞）**：新增统一 `apiErrorMessage()`（字符串 detail → message → FastAPI 校验数组首条），`_deepPost`/历史/明细三处统一接入；新增 `canRunTableTypeStats`，auditor 按钮禁用并提示"审计员仅可查看历史"；后端 403 不变。**O-G14-04（MAJOR，离线实例裸 500）**：`_pool()` 连接解析纳入完整 `try` 边界；`translate_db_error` 严格白名单映射为 422（连接失败/认证失败/库不存在，提示含"本次未产生统计结果"）；未知程序异常原样 500 失败关闭且响应不回带原始异常串（日志含完整堆栈与 X-Request-ID 关联）。新增 `test_uat04/b/c` 三条用例。§5 错误表新增 422 连接类行、兜底 500 文案更新；§8 新增 E-38；§11 collect 112→115（离线 89→92）；§9.1/§12.8 登记。附录 A.2/A.4 与仓库逐字同步（一致性门禁复核 4 项全绿）。 |
 | **Rev.O** | **2026-09-02** | **智能体 Q** | **依 A 第二轮 SIT 报告（`SIT2-v1.6.3.0-…第二轮SIT测试报告-ClaudeA.md`，结论"有条件通过：第一轮 3 项缺陷全部关闭、零次生灾害成立；本轮新发现 2 MINOR + 1 NIT，均为文档/测试覆盖类"）整改。三项全部按报告方案关闭，运行代码零改动。** **DEF-SIT2-01（MINOR，附录 A.4 未随 Rev.N 同步）**：附录 A.4 回填 `test_sit01_*` / `test_sit03_*` 两条用例（45 行，与仓库逐字一致），A.4 与仓库文件的 docstring 版本号 `Rev.M §11` → `Rev.N §11` **两边一起改**；按报告建议③将比对脚本固化为新门禁 `tests/test_design_appendix_matches_repo.py`（A.1～A.4 参数化逐字比对，任何一侧单独改动即红灯；已做变异验证：注入 1 行差异 → A.2 红灯，恢复 → 4 项全绿），替代 §12.2 的人工"附录逐字核对"。**DEF-SIT2-02（NIT，附录 A.2 文件头版本号）**：文档 A.2 代码块第 2 行 `Rev.M §5` → `Rev.N §5`，仓库文件不动，比对门禁确认逐字一致。**DEF-SIT2-03（MINOR，防复发只做到模块级）**：`tests/test_rbac_path_coverage.py` 追加 `_menu_keys` helper 与平台级守卫 `test_deep_diag_write_endpoints_are_in_operational_allowlist`（import 追加 `_OPERATIONAL_WRITE_PREFIXES`，+41 行），扫描全部 deep-diag* 归属写端点、两级登记缺一即红灯并精确点名；变异验证复现报告结论：**M0 = 4 passed；M1（临时还原 `35e05ad` 版 auth_service.py，等价摘除 P7）= 1 failed 且断言消息精确点名 `POST /api/v1/table-type-stats/run (table_type_stats.py)`；恢复后 4 passed**。ADR-21 补"钉住位置是平台级守卫而非子模块用例"；KL-17 的防复发做法升级为"平台级守卫自动拦截，grep 对照降级为可选辅助"；§9.1 登记两个测试文件改动面；§11 新增 Rev.O 平台级守卫表；§12.2 新增两条验收项。**顺带落实观察项 OBS-3**：§5 错误表 422 行枚举放宽为"`string_too_short` / `Field required` / `string_type` 等 FastAPI 请求体校验错误"。OBS-1（VERSION 提升）移交打包环节；OBS-2/4/5 按报告不改。 |
 | **Rev.N** | **2026-09-01** | **智能体 Q** | **依 A 第一轮 SIT 报告（`SIT-v1.6.3.0-…第一轮SIT测试报告-ClaudeA.md`，结论"不通过：1 BLOCK + 2 MINOR"）整改并落盘。三项全部按报告给出的方案关闭。** **DEF-SIT-01（BLOCK）**：`_OPERATIONAL_WRITE_PREFIXES` 漏登记 `/api/v1/table-type-stats/`，导致 `developer` 与全部自定义角色在 `check_permission` 第一级即被拒、写端点恒 403 而页签照常显示（设计遗漏——§2.2 的 6 处登记清单未含第一级放行清单）。补登记 1 行（带尾斜杠），§2.2 改为 **7 处**（新增 P7），ADR-21 / §12.2（新增 developer 验收项）/ KL-17（第三次复发补记 + 全仓库 grep 对照法）同步；新增行为级用例 `test_sit01_*`（以既有 G5 为基准对照四角色可达性，不硬编码死值）。**DEF-SIT-02（MINOR）**：纯文档修订——空串/缺字段实际为 422（FastAPI 请求体校验标准语义），§5 错误表与 §8 E-26 修正为"422（空串/缺字段）或 400（全空白）"，实现不动。**DEF-SIT-03（MINOR）**：附录 A.2 `run()` 的全空白校验提前到 `_pool()` 连接解析之前（否则服务层守卫经 HTTP 永远不可达、报错文案误导为"未连接实例"）；服务层同名守卫保留为直接调用兜底；新增 `test_sit03_*` 直接打 API 层、断言不合格时不得先解析连接。collect 110 → **112**（离线 87 → 89）。**SIT 报告同时确认：四个新增文件与设计附录逐字一致、零次生灾害。** |
 | **Rev.M** | **2026-09-01** | **O / Codex** | **依 A 第五轮评审报告定点整改，唯一 P2-01 全部接受。** 生产基线查询删除 `BINARY`，恢复可下推的 `TABLE_SCHEMA IN (...)`；SQL 端不再承担或假定大小写正确性，所有返回行仍经全实例 `_NameSpace known` 解析 canonical 库名，再对目标集合做精确成员判断。同步重写 §4.2 / §6.4 / ADR-27 / E-36 与附录 A.1；T4-R01 删除 `BINARY TABLE_SCHEMA IN` 字符串断言，只钉“服务端多返 `Sales.*` / `sales.*` 时两个分支均只计 `Sales.*`”的行为。新增 T20：在业务库数量最多的内网实例比较普通 `IN` 与 `BINARY IN` 的 `EXPLAIN Scanned N database(s)`、至少 5 次耗时中位数及返回集合，普通 `IN` 异常劣化时阻断发布、但禁止无证据恢复阻断下推的 `BINARY` / `CAST`。回填第五轮独立抽取实测：110 collected；连元数据库 109 passed + 1 skipped；离线 87 passed + 23 skipped，明确仅为设计附录证据。按非阻断建议在 KL-19 补充既有扫描/巡检横向口径。**测试项仍为 110，仓库实现尚未落盘，待 A 单点复核。** |
