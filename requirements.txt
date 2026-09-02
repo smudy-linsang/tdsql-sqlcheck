@@ -10,8 +10,3 @@ kazoo>=2.10,<3
 click>=8.0.0
 httpx>=0.27.0
 python-multipart>=0.0.9
-
-# UAT3-O-G14-01：G14 前端异步所有权行为级测试（tests/test_g14_request_ownership_browser.py）
-# 浏览器二进制：优先系统 Chrome（channel=chrome），回退 playwright Chromium；
-# CI 镜像必须内置浏览器，本地缺浏览器时该测试失败关闭（不静默 skip）
-playwright==1.62.0

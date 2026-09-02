@@ -25,7 +25,7 @@
 
 | # | 报告要求 | 落实 |
 |---|---|---|
-| 1 | 固定浏览器自动化版本；缺浏览器不得静默 skip | `requirements.txt` 固定 `playwright==1.62.0`（含 CI 镜像须内置浏览器的注释）；测试中 Chrome/Chromium 均不可用时 `pytest.fail` **失败关闭** |
+| 1 | 固定浏览器自动化版本；缺浏览器不得静默 skip | ~~`requirements.txt` 固定 `playwright==1.62.0`~~ **【Rev.S / UAT4-O-REL-01 更正】**`requirements.txt` 是生产依赖清单（Docker/离线安装/发布包共用），playwright 误落该处会导致离线 wheel 仓校验确定性失败。正确落点为 `pyproject.toml` 的 `[project.optional-dependencies].dev` 精确固定 `playwright==1.62.0`；Chrome/Chromium 均不可用时 `pytest.fail` **失败关闭** |
 | 2 | 独立测试文件，真实服务 + 真实页面 | 新增 `tests/test_g14_request_ownership_browser.py`：子进程启动真实后端（隔离库 `tdsql_sqlcheck_test`、免认证、独立端口 18977），Playwright 驱动**仓库内的真实** `frontend/index.html` + `app.js`，无复制简化版 |
 | 3 | 请求拦截精确控制时序 | `page.route("**/api/v1/table-type-stats/run")` + `_RunGate`（按序号挂起/放行）；响应体采用现有接口契约，不依赖真实数据库 |
 | 4 | 四个行为用例 | ①A 延迟 422 切 B：无 A 的 error toast/结果，按钮可用 ✅；②A 未返回发起 B：A 的 finally 不关 B 的 loading，B 完成才关闭 ✅；③A 延迟 200：无 A 的成功 toast/数据，B 只显示 B 的 scope 与数据 ✅；④不切 scope 的 400/422/500：服务端可读错误正常展示、按钮恢复 ✅ |
@@ -54,7 +54,7 @@
 
 `backend/**`（含 G14 服务层/API）、`frontend/**`（含 app.js/index.html）、
 `backend/schema/**`、119 条规则、`auth_service.py`——**本轮全部零改动**。
-变更仅：新增 1 个测试文件 + `requirements.txt` 追加固定依赖 + 设计文档 Rev.R。
+变更仅：新增 1 个测试文件 + ~~`requirements.txt` 追加固定依赖~~ **【Rev.S / UAT4-O-REL-01 更正】**`pyproject.toml` 的 dev extra 固定依赖（不进入生产发布包）+ 设计文档 Rev.R。
 
 ## 4. 遗留事项（如实登记）
 

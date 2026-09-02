@@ -2,13 +2,13 @@
 
 | 项 | 内容 |
 |---|---|
-| 文档编号 | DESIGN-v1.6.3.0 **Rev.R** |
+| 文档编号 | DESIGN-v1.6.3.0 **Rev.S** |
 | 模块编号 | **G14 · 表类型统计**（深度诊断第 10 个子模块） |
 | 目标版本 | v1.6.3.0（当前基线 v1.6.2.2，`VERSION` / `backend/config.py:APP_VERSION`） |
 | 文档等级 | **照图施工级**——附录 A 给出全部新增/修改文件的逐行成品代码；Rev.Q collect **118 项**（离线 92 / 元数据库 25 / 落盘后仓库检查 1）。附录 A.1～A.4 与仓库落盘的逐字一致由门禁 `tests/test_design_appendix_matches_repo.py` 自动钉住。SIT 两轮 + UAT 第一轮 → Rev.N/O/P 整改定版；**第二轮 UAT（智能体 O，结论不通过）1 MAJOR + 1 MINOR → Rev.Q 整改定版** |
-| 编写 | 智能体 A（Rev.A～K、第五轮评审、两轮 SIT）；智能体 O / Codex（Rev.L～M 修订、三轮 UAT）；智能体 Q（Rev.N～R：依 SIT/UAT 报告整改落盘） |
-| 编写日期 | 2026-08-29 首版；2026-08-31 Rev.F～J 多轮复核与整改；2026-09-01 Rev.K 依 O 第三轮评审整改；2026-09-01 Rev.L 依第四轮评审整改；2026-09-01 Rev.M 依 A 第五轮评审定点整改（1 P2）；2026-09-01 Rev.N 依 A 第一轮 SIT 整改；2026-09-02 Rev.O 依 A 第二轮 SIT 整改；2026-09-02 Rev.P 依 O 第一轮 UAT 整改；2026-09-02 Rev.Q 依 O 第二轮 UAT 整改；2026-09-02 **Rev.R 依 O 第三轮 UAT 整改（1 P2：行为级自动化补齐）** |
-| 状态 | **Rev.R 已完成第三轮 UAT 唯一 P2 整改并落盘**：UAT3-O-G14-01——新增行为级浏览器测试 `tests/test_g14_request_ownership_browser.py`（真实服务 + 真实页面 + 请求拦截可控 Promise，4 个用例覆盖：迟到 422 提示作废 / 旧请求 finally 不误关新请求 loading / 迟到 200 数据与 toast 作废 / 当前 scope 错误正常展示），变异验证（删除 2 处 isCurrent 守卫）红灯、恢复后全绿；`test_g14_frontend_state_binding.py` 静态门禁**降级为补充**，不再冒充行为测试。requirements 固定 `playwright==1.62.0`，本地缺浏览器时测试**失败关闭**（不静默 skip）。 |
+| 编写 | 智能体 A（Rev.A～K、第五轮评审、两轮 SIT）；智能体 O / Codex（Rev.L～M 修订、四轮 UAT）；智能体 Q（Rev.N～S：依 SIT/UAT 报告整改落盘） |
+| 编写日期 | 2026-08-29 首版；2026-08-31 Rev.F～J 多轮复核与整改；2026-09-01 Rev.K 依 O 第三轮评审整改；2026-09-01 Rev.L 依第四轮评审整改；2026-09-01 Rev.M 依 A 第五轮评审定点整改（1 P2）；2026-09-01 Rev.N 依 A 第一轮 SIT 整改；2026-09-02 Rev.O 依 A 第二轮 SIT 整改；2026-09-02 Rev.P 依 O 第一轮 UAT 整改；2026-09-02 Rev.Q 依 O 第二轮 UAT 整改；2026-09-02 Rev.R 依 O 第三轮 UAT 整改（1 P2：行为级自动化补齐）；2026-09-02 **Rev.S 依 O 第四轮 UAT 整改（1 P1：测试依赖落点更正——playwright 从生产 requirements.txt 移至 pyproject dev extra）** |
+| 状态 | **Rev.S 已完成第四轮 UAT 唯一 P1 整改并落盘**：UAT4-O-REL-01——playwright 从生产 `requirements.txt`（Docker/离线安装/发布包共用清单）移至 `pyproject.toml` 的 `[project.optional-dependencies].dev` 精确固定 `playwright==1.62.0`；新增 `tests/test_release_dependency_boundary.py` 门禁钉住"生产清单不含测试框架 + dev extra 精确固定 playwright"；离线 wheel 仓（`dist/wheels_tmp`）对整改后生产清单的 `--no-index` 满足性校验（manylinux cp311 目标平台模拟）通过。Rev.R 的行为级自动化成果不受影响（4 项行为用例仍全绿）。 |
 | 前置约束 | 本文档编写阶段**未修改任何代码**（用户要求）。仓库工作区在本文档提交时保持干净。 |
 
 ---
@@ -1188,6 +1188,8 @@ def run_stats(pool, connection_id="", database="", operator=""):
 | `tests/test_version_consistency.py` | 全新（Rev.P / UAT-O-G14-02） | 仅测试：发布版本七处同源门禁 | **零** |
 | `tests/test_g14_frontend_state_binding.py` | 全新（Rev.P / UAT-O-G14-01/03） | 仅测试：前端结果绑定静态门禁（删掉任一清理点即红灯）。**Rev.R 起降级为补充**，行为语义由浏览器用例承担 | **零** |
 | `tests/test_g14_request_ownership_browser.py` | 全新（Rev.R / UAT3-O-G14-01） | 仅测试：真实服务 + 真实页面 + 请求拦截的**行为级**异步所有权用例；启动隔离测试库的子进程服务，缺浏览器失败关闭 | **零** |
+| `tests/test_release_dependency_boundary.py` | 全新（Rev.S / UAT4-O-REL-01） | 仅测试：生产 `requirements.txt` 不得含测试框架 + dev extra 精确固定 `playwright==1.62.0` | **零** |
+| `pyproject.toml` | dev extra 追加 `playwright==1.62.0`（Rev.S / UAT4-O-REL-01） | 测试依赖落点；**不影响**生产发布包（Docker/`install.sh`/`make_release` 均用根 `requirements.txt`） | **零** |
 | `VERSION` / `backend/config.py` | 发布标识 1.6.2.2 → 1.6.3.0（Rev.P / UAT-O-G14-02） | `/health`、OpenAPI、系统信息、启动日志的版本显示 | **极低**。`test_version_consistency.py` 钉住七处同源；`APP_DESCRIPTION` 文案变更无功能影响 |
 | `frontend/index.html`（Rev.P 增量） | 发布标识 5 处 + G14 页签块内 auditor 禁用/范围绑定展示 | 深度诊断页 G14 页签 | **极低**。其余 9 个页签零改动 |
 | `frontend/static/js/app.js`（Rev.P 增量） | `resetTableTypeState` / 序号守卫 / `watch([deepConnId,deepDb])` / `clearRoleScopedState` 增补 / `apiErrorMessage` / `canRunTableTypeStats` / 返回清单追加 | 深度诊断页 G14 页签 + 登录态切换路径 | **低**。`clearRoleScopedState` 是全局登录态清理函数——新增的只是"清得更多"，方向安全；其余 9 个深度诊断子模块的结果键一并清空属预期行为（跨用户会话隔离）；`test_g14_frontend_state_binding.py` 静态门禁钉住全部清理点 |
@@ -1825,6 +1827,11 @@ Rev.K 历史实测口径：不连元数据库时 `83 passed, 23 skipped`；连�
 > Rev.R 起 `tests/test_g14_frontend_state_binding.py` 的静态门禁**降级为补充**（防误删标记），
 > 行为语义由上述浏览器用例承担；两类并存，互不替代。缺浏览器环境时行为用例
 > **失败关闭**（pytest.fail），不静默 skip；CI 镜像须内置 Chromium/Chrome。
+> **Rev.S / UAT4-O-REL-01 更正**：测试依赖的落点是 `pyproject.toml` 的
+> `[project.optional-dependencies].dev`（精确固定 `playwright==1.62.0`），
+> **不是**生产 `requirements.txt`——后者是 Docker/离线安装/发布包共用的生产依赖清单，
+> 混入测试框架会让离线 wheel 仓校验确定性失败。该边界由
+> `tests/test_release_dependency_boundary.py` 门禁钉住。
 
 > Rev.P 前端行为级验收（浏览器路径）见 §12.8。
 
@@ -6636,6 +6643,7 @@ Empty set (0.005 sec)
 
 | 版本 | 日期 | 作者 | 内容 |
 |---|---|---|---|
+| **Rev.S** | **2026-09-02** | **智能体 Q** | **依 O 第四轮 UAT 报告（`UAT4-v1.6.3.0-…第四轮用户验收测试报告-智能体O.md`，结论"有条件通过：功能 UAT 通过、真实六数字对账通过、T20 风险接受免测；新增 1 项 P1 发布依赖阻断"）整改。** **UAT4-O-REL-01（P1，测试专用 Playwright 污染生产依赖并阻断离线发布）**：Rev.R 把 `playwright==1.62.0` 误加进根 `requirements.txt`——该文件是 Dockerfile / `deploy/install.sh` / 发布包共用的**生产**依赖清单，而离线 wheel 仓 `dist/wheels_tmp` 没有 playwright，发布校验确定性失败。整改：生产清单删除 playwright 及注释恢复纯净；正确落点为 `pyproject.toml` 既有 `[project.optional-dependencies].dev` 精确固定 `playwright==1.62.0`（报告方案①，项目已有该机制）；新增门禁 `tests/test_release_dependency_boundary.py`（生产清单不含 pytest/playwright 等测试框架 + dev extra 精确固定 playwright + 既有测试栈完整）；离线满足性校验通过（`pip install --dry-run --no-index --find-links dist/wheels_tmp --platform manylinux2014_x86_64 --python-version 3.11 -r requirements.txt`，Would install 31 包无 playwright 无 ERROR）；行为用例 4/4 复跑通过；第三轮整改报告与设计文档的依赖落点表述已更正。G14 业务代码零改动。 |
 | **Rev.R** | **2026-09-02** | **智能体 Q** | **依 O 第三轮 UAT 报告（`UAT3-v1.6.3.0-…第三轮用户验收测试报告-智能体O.md`，结论"有条件通过：第二轮两项均已关闭，新增 1 项 P2"）整改。** **UAT3-O-G14-01（P2，异步请求所有权无行为级自动化）**：Rev.Q 的静态源码断言被点名"只能防误删标记、冒充行为测试"。补齐为真实行为级：新增 `tests/test_g14_request_ownership_browser.py`——子进程启动真实后端（隔离测试库 `tdsql_sqlcheck_test`、免认证、独立端口），Playwright 驱动真实 `frontend/index.html`，`page.route` 拦截 `/api/v1/table-type-stats/run` 做可控 Promise（handler 不阻塞驱动线程：只登记挂起的 route、主线程 release 时 fulfill——首版阻塞式 Event 曾造成死锁，改为挂起-放行模式）；四个用例逐一对应报告要求（迟到 422 提示作废 / 旧请求 finally 不误关新请求 loading / 迟到 200 数据与 toast 作废且只显示 B / 当前 scope 的 400/422/500 正常展示）。断言全部基于可见行为（toast 文本与数量、结果范围、汇总数字、按钮 class）。**变异证据：删除 2 处 isCurrent 守卫 → `test_stale_422_error_toast_suppressed` 红灯；恢复 → 4 项全绿。** 静态门禁 `test_g14_frontend_state_binding.py` 保留但**降级为补充**，不再冒充行为测试。requirements 固定 `playwright==1.62.0`；浏览器优先级：系统 Chrome → playwright Chromium；都不可用即**失败关闭**（报告明确禁止静默 skip）。模块四个文件与附录 A 本轮零改动（一致性门禁仍全绿）。 |
 | **Rev.Q** | **2026-09-02** | **智能体 Q** | **依 O 第二轮 UAT 报告（`UAT2-v1.6.3.0-…第二轮用户验收测试报告-智能体O.md`，结论"不通过：1 MAJOR + 1 MINOR"）整改。两项全部关闭。** **UAT2-O-G14-01（MAJOR，迟到错误提示串到新实例上下文）**：根因是错误提示在通用 `_deepPost()` 内部、序号检查之前已弹出，数据能丢弃、错误副作用无法撤回，且共享 `deepLoading` 无法区分请求所有权。按报告 6 步施工：G14 独立 `tabletypeLoading`；新增纯判定 `isTableTypeRequestCurrent(mySeq, scope)`（序号+用户+实例+规范化库名）；`runTableTypeStats` 不再委托 `_deepPost`，自带 `apiFetch`/解析/提示，顺序固定为"递增序号→快照→清空→loading→请求→先判 isCurrent，过期静默丢弃（无提示/无数据/不动 loading）→finally 仅序号仍持有时关闭"；`watch([deepConnId,deepDb])` 与 `clearRoleScopedState()` 同步释放 loading。静态门禁扩展 3 项（迟到提示抑制 / loading 归属 / 范围尾段），**删掉任一关键检查即红灯**。**UAT2-O-G14-02（MINOR，实时结果范围缺采集时间）**：`run_stats()` 采集完成后生成一次 `captured_at`（精确到秒），显式写入历史行 `created_at` 并随响应返回（`res["created_at"]`）——响应与历史严格同源，禁止前端取本机时间冒充；前端 `tabletypeScopeText` 缺失时明示"采集时间不可用"。新增 3 条元数据库集成用例（含空库/部分失败分支）。**附：本轮用 TDSQL 高仿靶场（`deploy/tdsql-dev-cluster`）完成分布式成功路径端到端验证**——靶场 Proxy 扩展支持三条 `/*proxy*/show table ...` 命令（按会话默认库返回库限定名，with* 双列带 info、without 单列，形态与真实实测一致）并补 COM_INIT_DB 跟踪（`select_db` 不切 query 通道）；平台经 15002 统计 `tdsql_demo_distributed` 六数字 **2/2/4/8/8/0** 精确对账、无 `RECON_MISMATCH`。collect 115 → **118**（元数据库集成 22→25）。**边界如实登记**：靶场是高仿 Mock，真实 TDSQL 分布式六数字对账与 T20 性能证据仍属受控生产上线后的内网最终验收项，本轮不宣称已通过。 |
 | **Rev.P** | **2026-09-02** | **智能体 Q** | **依 O 第一轮 UAT 报告（`UAT-v1.6.3.0-…第一轮用户验收测试报告-智能体O.md`，结论"不通过：1 BLOCK + 2 MAJOR + 1 MINOR"）整改。四项全部关闭。** **O-G14-01（BLOCK，结果未绑定用户/实例/查询条件）**：前端六步——①统一清理点 `resetTableTypeState()`（8 个状态点）；②`runTableTypeStats` 查询开始即失效旧结果，失败保持空态；③`tabletypeSeq` 序号守卫 + 范围快照（用户/实例/库）防异步串台，迟到响应直接丢弃；④`watch([deepConnId,deepDb])` 实例或库名变化即失效，实例变化连带关闭并清空历史抽屉；⑤`clearRoleScopedState()` 增补连接/深度诊断上下文/G14 状态清理并删除 `localStorage.tdsql_conn`；⑥展示层 `tabletypeView`/`tabletypeScopeMatch` 范围绑定，模板不再直接引用 `deepResult.tabletype`，结果旁显示"结果范围：实例名/库/采集时间"。新增 9 项静态门禁 `test_g14_frontend_state_binding.py`（删掉任一清理点即红灯）。**O-G14-02（MAJOR，发布标识仍为 1.6.2.2）**：`VERSION`/`APP_VERSION`/`APP_DESCRIPTION`/HTML title/登录页/CSS·JS 缓存参数全部提升 1.6.3.0；新增 `test_version_consistency.py`（4 项）钉住七处同源。**O-G14-03（MINOR，auditor 按钮可点且 403 文案被吞）**：新增统一 `apiErrorMessage()`（字符串 detail → message → FastAPI 校验数组首条），`_deepPost`/历史/明细三处统一接入；新增 `canRunTableTypeStats`，auditor 按钮禁用并提示"审计员仅可查看历史"；后端 403 不变。**O-G14-04（MAJOR，离线实例裸 500）**：`_pool()` 连接解析纳入完整 `try` 边界；`translate_db_error` 严格白名单映射为 422（连接失败/认证失败/库不存在，提示含"本次未产生统计结果"）；未知程序异常原样 500 失败关闭且响应不回带原始异常串（日志含完整堆栈与 X-Request-ID 关联）。新增 `test_uat04/b/c` 三条用例。§5 错误表新增 422 连接类行、兜底 500 文案更新；§8 新增 E-38；§11 collect 112→115（离线 89→92）；§9.1/§12.8 登记。附录 A.2/A.4 与仓库逐字同步（一致性门禁复核 4 项全绿）。 |
