@@ -1843,7 +1843,7 @@
                 <el-tooltip v-if="!canRunTableTypeStats" content="审计员仅可查看历史" placement="top">
                   <span><el-button type="primary" size="small" :disabled="true">统计表类型</el-button></span>
                 </el-tooltip>
-                <el-button v-else type="primary" size="small" :loading="deepLoading==='tabletype'" :disabled="!deepConnId" @click="runTableTypeStats">统计表类型</el-button>
+                <el-button v-else type="primary" size="small" :loading="tabletypeLoading" :disabled="!deepConnId" @click="runTableTypeStats">统计表类型</el-button>
                 <span v-if="tabletypeView" style="margin-left:12px;font-size:13px">
                   实例类型 <b>{{ tabletypeView.instance_type==='distributed'?'分布式':'集中式' }}</b>
                   · 库 {{ tabletypeView.database_count }}

@@ -39,20 +39,72 @@ def test_run_invalidates_old_result_before_request():
     """查询开始即失效旧结果：reset 必须先于请求，且失败时不得恢复。"""
     body = _fn_body("runTableTypeStats")
     reset_pos = body.find("resetTableTypeState()")
-    post_pos = body.find("_deepPost(")
+    post_pos = body.find("apiFetch(")
     assert reset_pos != -1 and post_pos != -1 and reset_pos < post_pos, \
         "runTableTypeStats 必须先 resetTableTypeState() 再发起请求"
 
 
+def test_uat2_stale_error_toast_is_suppressed():
+    """UAT2-O-G14-01：迟到请求的【错误提示】也必须作废，不能只丢弃数据。
+
+    报告的根因：错误提示在通用 _deepPost 内部、序号检查之前就已弹出。
+    修复后 runTableTypeStats 自带请求——响应/异常回来先判 isCurrent，
+    过期则静默 return，不得出现任何成功/失败提示。
+    """
+    body = _fn_body("runTableTypeStats")
+    # 不再委托共用 _deepPost（其内部先行弹错，迟到错误无法撤回）
+    assert "_deepPost(" not in body, "runTableTypeStats 不得再委托共用 _deepPost 发请求"
+    assert "apiFetch(" in body, "应自带 apiFetch 请求"
+    # 错误提示之前必须先有 isCurrent 判定（顺序断言）
+    for branch_pos in (body.find("if(!resp.ok)"), body.find("}catch")):
+        assert branch_pos != -1
+        assert body.rfind("isTableTypeRequestCurrent(mySeq,scope)", 0, branch_pos) != -1, \
+            "每个提示分支之前都必须先判 isTableTypeRequestCurrent"
+    # 成功 toast 前同样要有数据守卫
+    assert "ElementPlus.ElMessage" in body
+
+
+def test_uat2_loading_has_independent_ownership():
+    """UAT2-O-G14-01：loading 独立且按序号归属——旧请求 finally 不得误关新请求。"""
+    assert "const tabletypeLoading=ref(false)" in _APP_JS
+    body = _fn_body("runTableTypeStats")
+    assert "tabletypeLoading.value=true" in body, "请求开始必须置 loading"
+    fin = body.find("finally{")
+    assert fin != -1
+    assert "mySeq===tabletypeSeq.value" in body[fin:], \
+        "finally 里必须以序号守卫关闭 loading"
+    # 页面按钮改用独立 loading
+    assert ':loading="tabletypeLoading"' in _INDEX
+    # watch 与登录态清理都要释放 loading（切换后不被旧请求锁住按钮）
+    w = re.search(r"watch\(\[deepConnId,deepDb\],(.*?)\}\);", _APP_JS, re.S).group(1)
+    assert "tabletypeLoading.value=false" in w, "watch 未释放 loading"
+    cr = _fn_body("clearRoleScopedState")
+    assert "tabletypeLoading.value=false" in cr, "clearRoleScopedState 未释放 loading"
+    # 返回清单登记（模板否则静默取 undefined）
+    m = re.search(r"return\{(.+?)\};\s*\n\s*}\s*\n\}\)", _APP_JS, re.S)
+    assert re.search(r"\btabletypeLoading\b", m.group(1))
+
+
+def test_uat2_scope_text_never_blank_tail():
+    """UAT2-O-G14-02：范围行缺失采集时间时必须明示，不得留下空白尾段。"""
+    body = _fn_body("tabletypeScopeText")
+    assert "采集时间不可用" in body
+    assert "formatTime(r.created_at||'')" not in body, "缺失时间不得再格式化成空串"
+
+
 def test_run_uses_sequence_guard_against_late_response():
-    """防异步串台：每次统计递增序号，响应回来时校验序号与范围快照。"""
+    """防异步串台：每次统计递增序号，响应回来时经 isTableTypeRequestCurrent
+    校验序号与范围快照（UAT2 起判定收敛为独立纯函数）。"""
     body = _fn_body("runTableTypeStats")
     assert "tabletypeSeq.value+=1" in body, "缺少请求序号递增"
-    assert "mySeq!==tabletypeSeq.value" in body, "缺少迟到响应丢弃判断"
-    for cond in ("now.username!==scope.username", "now.connectionId!==scope.connectionId",
-                 "now.database!==scope.database"):
-        assert cond in body, f"缺少范围快照比对: {cond}"
+    assert "isTableTypeRequestCurrent(mySeq,scope)" in body, "缺少迟到响应丢弃判断"
     assert "r._scope=scope" in body, "响应必须携带发起时的范围快照"
+    # 判定函数本身：序号 + 用户 + 实例 + 库 四维度
+    isf = _fn_body("isTableTypeRequestCurrent")
+    assert "mySeq!==tabletypeSeq.value" in isf
+    for cond in ("n.username===scope.username", "n.connectionId===scope.connectionId",
+                 "n.database===scope.database"):
+        assert cond in isf, f"范围快照比对缺少: {cond}"
 
 
 def test_watch_clears_result_on_conn_or_db_change():

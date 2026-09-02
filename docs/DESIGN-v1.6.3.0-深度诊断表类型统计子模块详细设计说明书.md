@@ -2,13 +2,13 @@
 
 | 项 | 内容 |
 |---|---|
-| 文档编号 | DESIGN-v1.6.3.0 **Rev.P** |
+| 文档编号 | DESIGN-v1.6.3.0 **Rev.Q** |
 | 模块编号 | **G14 · 表类型统计**（深度诊断第 10 个子模块） |
 | 目标版本 | v1.6.3.0（当前基线 v1.6.2.2，`VERSION` / `backend/config.py:APP_VERSION`） |
-| 文档等级 | **照图施工级**——附录 A 给出全部新增/修改文件的逐行成品代码；Rev.P collect **115 项**（离线 92 / 元数据库 22 / 落盘后仓库检查 1）。附录 A.1～A.4 与仓库落盘的逐字一致由门禁 `tests/test_design_appendix_matches_repo.py` 自动钉住。第一轮 SIT（`35e05ad`）1 BLOCK + 2 MINOR → Rev.N 整改定版（`e94f3b6`）；第二轮 SIT（`0aec853`）2 MINOR + 1 NIT → Rev.O 整改定版（`0f01346`）；**第一轮 UAT（智能体 O，结论不通过）1 BLOCK + 2 MAJOR + 1 MINOR → Rev.P 整改定版** |
-| 编写 | 智能体 A（Rev.A～K、第五轮评审、第一/二轮 SIT）；智能体 O / Codex（Rev.L～M 修订、第一轮 UAT）；智能体 Q（Rev.N～P：依 SIT/UAT 报告整改落盘） |
-| 编写日期 | 2026-08-29 首版；2026-08-31 Rev.F～J 多轮复核与整改；2026-09-01 Rev.K 依 O 第三轮评审整改；2026-09-01 Rev.L 依第四轮评审整改；2026-09-01 Rev.M 依 A 第五轮评审定点整改（1 P2）；2026-09-01 Rev.N 依 A 第一轮 SIT 整改；2026-09-02 Rev.O 依 A 第二轮 SIT 整改；2026-09-02 **Rev.P 依 O 第一轮 UAT 整改（1 BLOCK + 2 MAJOR + 1 MINOR）** |
-| 状态 | **Rev.P 已完成第一轮 UAT 四项缺陷整改并落盘**：O-G14-01（BLOCK）结果绑定用户/实例/查询条件（统一清理点 + 序号守卫 + watch 失效 + 登录态隔离 + 范围绑定展示）；O-G14-02（MAJOR）发布标识全部提升 1.6.3.0 并新增一致性门禁；O-G14-03（MINOR）统一 `apiErrorMessage` + auditor 按钮禁用；O-G14-04（MAJOR）连接解析纳入完整异常边界，白名单映射 422，未知程序异常仍 500。 |
+| 文档等级 | **照图施工级**——附录 A 给出全部新增/修改文件的逐行成品代码；Rev.Q collect **118 项**（离线 92 / 元数据库 25 / 落盘后仓库检查 1）。附录 A.1～A.4 与仓库落盘的逐字一致由门禁 `tests/test_design_appendix_matches_repo.py` 自动钉住。SIT 两轮 + UAT 第一轮 → Rev.N/O/P 整改定版；**第二轮 UAT（智能体 O，结论不通过）1 MAJOR + 1 MINOR → Rev.Q 整改定版** |
+| 编写 | 智能体 A（Rev.A～K、第五轮评审、两轮 SIT）；智能体 O / Codex（Rev.L～M 修订、两轮 UAT）；智能体 Q（Rev.N～Q：依 SIT/UAT 报告整改落盘） |
+| 编写日期 | 2026-08-29 首版；2026-08-31 Rev.F～J 多轮复核与整改；2026-09-01 Rev.K 依 O 第三轮评审整改；2026-09-01 Rev.L 依第四轮评审整改；2026-09-01 Rev.M 依 A 第五轮评审定点整改（1 P2）；2026-09-01 Rev.N 依 A 第一轮 SIT 整改；2026-09-02 Rev.O 依 A 第二轮 SIT 整改；2026-09-02 Rev.P 依 O 第一轮 UAT 整改；2026-09-02 **Rev.Q 依 O 第二轮 UAT 整改（1 MAJOR + 1 MINOR）** |
+| 状态 | **Rev.Q 已完成第二轮 UAT 两项缺陷整改并落盘**：UAT2-O-G14-01（MAJOR）G14 独立 `tabletypeLoading` + `isTableTypeRequestCurrent` 纯判定 + `runTableTypeStats` 自带请求（不再委托 `_deepPost`），迟到请求的提示/数据/loading 副作用全部作废；UAT2-O-G14-02（MINOR）`run_stats` 生成同源 `captured_at` 显式落库并随响应返回，前端缺失时明示"采集时间不可用"。**本轮已用 TDSQL 高仿靶场（deploy/tdsql-dev-cluster，Proxy 15002）完成分布式成功路径端到端验证：2/2/4/8/8/0 精确对账**（靶场 Proxy 同步扩展支持三条 show table 命令与 COM_INIT_DB 跟踪）。 |
 | 前置约束 | 本文档编写阶段**未修改任何代码**（用户要求）。仓库工作区在本文档提交时保持干净。 |
 
 ---
@@ -610,7 +610,7 @@ Query OK, 0 rows affected (0.001 sec)
 | 新增 | `backend/services/table_type_stats_service.py` | 附录 A.1 给出完整成品代码（不以易漂移的行数作验收条件） |
 | 新增 | `backend/api/table_type_stats.py` | 118 行（附录 A.2，成品；Rev.N 因 DEF-SIT-03 增至 81 行，Rev.P 因 UAT-O-G14-04 异常边界增至 118 行） |
 | 新增 | `backend/schema/v13/130_table_type_stats.sql` | 46 行（附录 A.3，成品）。**槽位 v13/130**——`v11/110` 与 `v12/120` 已被 v1.6.2.2 占用（DEF-1，§2.7） |
-| 新增 | `tests/test_table_type_stats.py` | 附录 A.4 给出完整成品代码；Rev.P collect 115 项 |
+| 新增 | `tests/test_table_type_stats.py` | 附录 A.4 给出完整成品代码；Rev.Q collect 118 项 |
 | 新增（Rev.P） | `tests/test_version_consistency.py` | 发布版本一致性门禁 4 项（UAT-O-G14-02） |
 | 新增（Rev.P） | `tests/test_g14_frontend_state_binding.py` | 前端结果绑定静态门禁 9 项（UAT-O-G14-01 / O-G14-03） |
 | 修改 | `backend/main.py` | **2 行**（import + include_router） |
@@ -1607,7 +1607,7 @@ Query OK, 0 rows affected (0.001 sec)
 
 ## 11. 测试设计（开发期，可在本地 MariaDB 13306 上跑）
 
-`tests/test_table_type_stats.py`（附录 A.4），**Rev.P collect 115 项**。数据夹具直接照搬
+`tests/test_table_type_stats.py`（附录 A.4），**Rev.Q collect 118 项**。数据夹具直接照搬
 内网实测形态（列名 `db_table`、库限定名 `sqltuning.t_max`、`with*` 双列 /
 `without` 单列），**Rev.H 起子分区相关用例直接使用 2026-08-31 T17 取回的
 78 个真实表名**。
@@ -1618,9 +1618,9 @@ Query OK, 0 rows affected (0.001 sec)
 | 类别 | 数量 | 依赖 |
 |---|---:|---|
 | 纯离线 | **92** | 无。`FakePool` + `FakeClock` 全内存，不连任何数据库 |
-| 元数据库集成 | **22** | 本地 MySQL/MariaDB（`SQLCHECK_DB_NAME`）；`@skipif(not MYSQL_AVAILABLE)` |
+| 元数据库集成 | **25** | 本地 MySQL/MariaDB（`SQLCHECK_DB_NAME`）；`@skipif(not MYSQL_AVAILABLE)` |
 | 需模块落盘 | **1** | T-R08 权限键登记，断言仓库文件；设计阶段 skip |
-| **collect 合计** | **115** | 含参数化展开（T3-R08 契约用例 11 条） |
+| **collect 合计** | **118** | 含参数化展开（T3-R08 契约用例 11 条） |
 
 Rev.K 历史实测口径：不连元数据库时 `83 passed, 23 skipped`；连上后
 `105 passed, 1 skipped`。第五轮评审中，A 将 Rev.L 的 A.1～A.4 逐字抽取到临时目录，
@@ -1802,6 +1802,19 @@ Rev.K 历史实测口径：不连元数据库时 `83 passed, 23 skipped`；连�
 | O-G14-01 / O-G14-03 | `tests/test_g14_frontend_state_binding.py`（9 项静态门禁，**平台级文件，不计入 A.4 collect 数**） | 统一清理点 8 项齐全 / reset 先于请求 / 序号守卫 / watch 失效 / 登录态隔离 / 范围绑定展示 / auditor 禁用 / `apiErrorMessage` 三处调用点 / setup 返回清单登记 | **BLOCK + MINOR 的前端侧** |
 | O-G14-02 | `tests/test_version_consistency.py`（4 项，平台级文件） | VERSION / `APP_VERSION` / `/health` / OpenAPI / HTML title / 登录页 / CSS·JS 缓存参数七处同源 | **MAJOR：发布标识仍为旧版本** |
 
+**Rev.Q 新增的缺陷定向测试（对应 O 第二轮 UAT 报告）**：
+
+| UAT 编号 | 用例 | 验证 | 关闭的问题 |
+|---|---|---|---|
+| UAT2-O-G14-02 | `test_uat2_created_at_in_run_response` | `/run` 200 响应含非空、可解析的服务端 `created_at` | **MINOR：范围行采集时间为空** |
+| UAT2-O-G14-02 | `test_uat2_created_at_matches_history_row` | 响应时间与 `stat_id` 历史行落库时间精确到秒一致（解析后同源比较） | 同上 |
+| UAT2-O-G14-02 | `test_uat2_created_at_on_empty_and_failed_runs` | 空库与部分失败（1064）分支同样携带时间 | 同上（防只修全成功分支） |
+| UAT2-O-G14-01 | `test_uat2_stale_error_toast_is_suppressed`（`test_g14_frontend_state_binding.py`） | `runTableTypeStats` 不再委托 `_deepPost`；每个提示分支前先判 `isTableTypeRequestCurrent`；删掉检查即红灯 | **MAJOR：迟到错误提示串到新实例上下文** |
+| UAT2-O-G14-01 | `test_uat2_loading_has_independent_ownership`（同文件） | 独立 `tabletypeLoading`；finally 以序号守卫关闭；watch 与 `clearRoleScopedState` 均释放；模板按钮与返回清单登记 | 同上 |
+| UAT2-O-G14-02 | `test_uat2_scope_text_never_blank_tail`（同文件） | 范围行缺失时间时明示"采集时间不可用"，不得空白尾段 | MINOR 前端侧 |
+
+> 前端行为级复跑（浏览器四步：离线发起→立即切换→无旧错误提示）见 §12.8。
+
 > Rev.P 前端行为级验收（浏览器路径）见 §12.8。
 
 > **T3-R09（历史抽屉状态清空）与 T3-R10 的前端分支**属于前端行为，
@@ -1926,6 +1939,11 @@ Rev.M 不新增测试项，只删除生产 SQL 的 `BINARY` 与 T4-R01 的 SQL �
 - [ ] **发布标识（O-G14-02）**：全新进程 + 无缓存会话下，登录页 / 浏览器 title / `/health` / 系统信息 / 启动日志 / `VERSION` 全部显示 1.6.3.0；`tests/test_version_consistency.py` 4 项全绿
 - [ ] **离线实例（O-G14-04）**：选择离线实例点击统计 → 可读 422 提示（"实例连接失败…本次未产生统计结果"），服务日志无未处理 ASGI traceback；切回可用实例继续成功查询
 - [ ] **auditor 只读（O-G14-03）**：auditor 进入页签，"统计表类型"按钮禁用且提示"审计员仅可查看历史"；绕过 UI 直接 POST 仍为 403 且文案可读；developer/DBA/最小权限自定义角色不受影响
+- [ ] **迟到错误提示作废（UAT2-O-G14-01，浏览器四步）**：离线实例发起统计 → 请求未结束立即切换到集中式实例 → **当前实例上下文中不得出现旧离线实例的错误提示**；旧结果为空；按钮不被旧请求锁住
+- [ ] **迟到成功响应作废**：慢请求在途时切实例，旧响应回来后**不出现**旧实例的成功 toast 与数据
+- [ ] **当前请求反馈不受影响**：不切 scope 的普通 400/422/500 仍显示服务端可读消息（不得因抑制迟到提示而把当前错误也吞掉）
+- [ ] **采集时间同源（UAT2-O-G14-02）**：实时结果范围行显示"实例 / 库 / 采集时间"，且该时间与该次 `stat_id` 历史记录精确到秒一致；缺失时显示"采集时间不可用"而非空白尾段
+- [ ] **靶场分布式成功路径（Rev.Q 新增）**：经 `deploy/tdsql-dev-cluster`（Proxy 15002）统计 `tdsql_demo_distributed`，六数字 **2/2/4/8/8/0**（分片/广播/单表/总表/逻辑基线/子分区），无 `RECON_MISMATCH`
 
 ---
 
@@ -2058,7 +2076,7 @@ Rev.M 不新增测试项，只删除生产 SQL 的 `BINARY` 与 T4-R01 的 SQL �
 
 ```python
 # -*- coding: utf-8 -*-
-"""G14 · 表类型统计（深度诊断子模块，DESIGN-v1.6.3.0 Rev.M）
+"""G14 · 表类型统计（深度诊断子模块，DESIGN-v1.6.3.0 Rev.Q）
 
 按 TDSQL 原厂口径统计单个实例下各业务库的表类型分布：
 
@@ -2083,6 +2101,11 @@ Rev.M 不新增测试项，只删除生产 SQL 的 `BINARY` 与 T4-R01 的 SQL �
     基线 293 = 逻辑表 215 + 子分区 78（6 张 sub_func:month 的表 × 13 个子分区）。
     本模块把子分区表从基线中剔除并单列计数，剔除后逻辑基线 215 与 Proxy 口径【精确相等】。
     故不得用未剔除的基线与 Proxy 口径比对（会产生 27% 的常态误报）。
+
+Rev.Q（O 第二轮 UAT 整改）要点：
+  · run_stats() 采集完成后生成一次 captured_at（精确到秒），显式写入历史行
+    created_at 并随响应返回——实时"结果范围"展示的采集时间与 stat_id 对应
+    历史记录严格同源，前端不得另取本机时间冒充（UAT2-O-G14-02）。
 
 Rev.M（A 第五轮评审定点整改）要点：
   · 基线 SQL 使用可下推的普通 TABLE_SCHEMA IN；不假定服务端大小写语义，
@@ -2149,6 +2172,7 @@ import json
 import logging
 import re
 import time
+from datetime import datetime
 from typing import Optional
 
 from backend.services.connection_registry import registry
@@ -3165,21 +3189,25 @@ def run_stats(pool, connection_id: str = "", database: str = "",
         res = analyze(pool, connection_id=connection_id, database=database,
                       deadline=deadline)
     conn = _get_connection()
+    # Rev.Q / UAT2-O-G14-02：采集完成即生成同源 captured_at——同一值既显式写入
+    # 历史行 created_at，也随响应带给前端"结果范围"展示；禁止前端另取本机时间冒充。
+    captured_at = datetime.now().replace(microsecond=0)
     try:
         cur = conn.execute(
             "INSERT INTO table_type_stat (connection_id, database_filter, "
             "instance_type, type_source, database_count, total_tables, "
             "shard_tables, broadcast_tables, single_tables, baseline_tables, "
             "subpartition_tables, failed_databases, skipped_databases, "
-            "overlap_count, warnings_json, created_by) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "overlap_count, warnings_json, created_by, created_at) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (connection_id, database, res["instance_type"], res["type_source"],
              res["database_count"], res["total_tables"], res["shard_tables"],
              res["broadcast_tables"], res["single_tables"],
              res["baseline_tables"], res["subpartition_tables"],
              res["failed_databases"], res["skipped_databases"],
              res["overlap_count"],
-             json.dumps(res["warnings"], ensure_ascii=False), operator))
+             json.dumps(res["warnings"], ensure_ascii=False), operator,
+             captured_at))
         stat_id = cur.lastrowid
         # Rev.K / P1-02：明细【批量】落库。Rev.J 是逐行 INSERT——500 个业务库就是
         # 500 次往返，全部发生在扫描槽已释放、deadline 已不再约束的阶段，
@@ -3197,6 +3225,9 @@ def run_stats(pool, connection_id: str = "", database: str = "",
     finally:
         conn.close()
     res["stat_id"] = stat_id
+    # Rev.Q / UAT2-O-G14-02：响应与历史同源——前端"结果范围"展示的采集时间
+    # 必须与 stat_id 对应历史行的 created_at 精确到秒一致。
+    res["created_at"] = captured_at.isoformat(sep=" ")
     return res
 
 
@@ -3237,7 +3268,7 @@ def get_detail(stat_id: int) -> dict:
     return {"items": items, "warnings": warnings}
 ```
 
-### A.2 `backend/api/table_type_stats.py`
+### A.2 `backend/api/table_type_stats.py`（新增，118 行）
 
 ```python
 # -*- coding: utf-8 -*-
@@ -3414,11 +3445,11 @@ CREATE TABLE IF NOT EXISTS table_type_stat_item (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ```
 
-### A.4 `tests/test_table_type_stats.py`
+### A.4 `tests/test_table_type_stats.py`（新增，2620 行）
 
 ```python
 # -*- coding: utf-8 -*-
-"""G14 · 表类型统计 回归测试（DESIGN-v1.6.3.0 Rev.P §11）
+"""G14 · 表类型统计 回归测试（DESIGN-v1.6.3.0 Rev.Q §11）
 
 **测试依赖如实说明**（Rev.J / DOC-01——Rev.I 之前一直写"除落库两例外全部离线"，
 那是 Rev.B 时期的实际情况，后来陆续加到 10 例仍没有更新，属于文档失真）：
@@ -5278,6 +5309,71 @@ def test_uat04c_runtime_error_still_fails_closed_500(monkeypatch, caplog):
 
 
 # ══════════════════════════════════════════════════════════════════
+# Rev.Q 定向回归（O 第二轮 UAT：UAT2-O-G14-02 采集时间同源）
+# ══════════════════════════════════════════════════════════════════
+@pytest.mark.skipif(not MYSQL_AVAILABLE, reason="MySQL 测试环境未启动")
+def test_uat2_created_at_in_run_response(monkeypatch, g14_schema):
+    """UAT2-O-G14-02：/run 200 响应必须携带非空、可解析的服务端采集时间。
+
+    Rev.P 的 res 只补了 stat_id，实时结果范围行尾段空白。
+    禁止前端另取本机时间冒充服务端采集时间。
+    """
+    from datetime import datetime as _dt
+    _patch_ctx(monkeypatch, "centralized")
+    pool = FakePool(databases=["db_a"], info_schema={"db_a": {"base": ["t1"]}})
+    res = svc.run_stats(pool, connection_id="qa", operator="pytest")
+    ca = res.get("created_at")
+    assert ca, "run_stats 响应必须携带 created_at"
+    parsed = _dt.fromisoformat(ca)
+    assert parsed.tzinfo is None and parsed.year >= 2026, f"created_at 不可解析: {ca!r}"
+
+
+@pytest.mark.skipif(not MYSQL_AVAILABLE, reason="MySQL 测试环境未启动")
+def test_uat2_created_at_matches_history_row(monkeypatch, g14_schema):
+    """UAT2-O-G14-02：响应时间与 stat_id 对应历史行落库时间精确到秒一致。"""
+    _patch_ctx(monkeypatch, "centralized")
+    pool = FakePool(databases=["db_a"], info_schema={"db_a": {"base": ["t1"]}})
+    res = svc.run_stats(pool, connection_id="qa", operator="pytest")
+    hist = svc.list_history("qa", limit=1)
+    assert hist and hist[0]["id"] == res["stat_id"]
+    # 响应与历史行同源：解析为 datetime 后必须精确到秒一致
+    # （数据库层读回的分隔符形态可能是 "T" 或空格，语义必须相同）
+    from datetime import datetime as _dt
+    resp_t = _dt.fromisoformat(res["created_at"])
+    db_raw = hist[0]["created_at"]
+    db_t = db_raw if isinstance(db_raw, _dt) else _dt.fromisoformat(str(db_raw))
+    assert resp_t == db_t, \
+        f"响应 created_at（{res['created_at']}）与历史行（{db_raw}）必须同源"
+
+
+@pytest.mark.skipif(not MYSQL_AVAILABLE, reason="MySQL 测试环境未启动")
+def test_uat2_created_at_on_empty_and_failed_runs(monkeypatch, g14_schema):
+    """UAT2-O-G14-02：空库与部分失败分支同样携带时间——不得只修全成功分支。"""
+    # 空库：无业务库
+    _patch_ctx(monkeypatch, "centralized")
+    pool = FakePool(databases=[], info_schema={})
+    res_empty = svc.run_stats(pool, connection_id="qa", operator="pytest")
+    assert res_empty["database_count"] == 0
+    assert res_empty.get("created_at"), "空库响应也必须携带 created_at"
+
+    # 部分失败：分布式 + 1064（db_b 失败、db_a 成功）
+    _patch_ctx(monkeypatch, "distributed")
+    per_db = {
+        ("db_a", svc.SQL_SHARD): _rows(["db_a.t1"], info="shardkey:id"),
+        ("db_a", svc.SQL_BROADCAST): [],
+        ("db_a", svc.SQL_SINGLE): [],
+        ("db_b", svc.SQL_SHARD): _mysql_error(1142, "SELECT command denied"),
+    }
+    pool = FakePool(databases=["db_a", "db_b"],
+                    info_schema={"db_a": {"base": ["t1"]}, "db_b": {"base": ["t2"]}},
+                    per_db=per_db)
+    _patch_tmp_pool(monkeypatch, pool)
+    res_part = svc.run_stats(pool, connection_id="qa", operator="pytest")
+    assert res_part["failed_databases"] == 1
+    assert res_part.get("created_at"), "部分失败响应也必须携带 created_at"
+
+
+# ══════════════════════════════════════════════════════════════════
 # Rev.J 定向回归（O 第二轮评审 §7 的 T2-R01…T2-R10）
 # ══════════════════════════════════════════════════════════════════
 def test_t2r01_case_variant_databases_are_not_merged(monkeypatch):
@@ -6528,6 +6624,7 @@ Empty set (0.005 sec)
 
 | 版本 | 日期 | 作者 | 内容 |
 |---|---|---|---|
+| **Rev.Q** | **2026-09-02** | **智能体 Q** | **依 O 第二轮 UAT 报告（`UAT2-v1.6.3.0-…第二轮用户验收测试报告-智能体O.md`，结论"不通过：1 MAJOR + 1 MINOR"）整改。两项全部关闭。** **UAT2-O-G14-01（MAJOR，迟到错误提示串到新实例上下文）**：根因是错误提示在通用 `_deepPost()` 内部、序号检查之前已弹出，数据能丢弃、错误副作用无法撤回，且共享 `deepLoading` 无法区分请求所有权。按报告 6 步施工：G14 独立 `tabletypeLoading`；新增纯判定 `isTableTypeRequestCurrent(mySeq, scope)`（序号+用户+实例+规范化库名）；`runTableTypeStats` 不再委托 `_deepPost`，自带 `apiFetch`/解析/提示，顺序固定为"递增序号→快照→清空→loading→请求→先判 isCurrent，过期静默丢弃（无提示/无数据/不动 loading）→finally 仅序号仍持有时关闭"；`watch([deepConnId,deepDb])` 与 `clearRoleScopedState()` 同步释放 loading。静态门禁扩展 3 项（迟到提示抑制 / loading 归属 / 范围尾段），**删掉任一关键检查即红灯**。**UAT2-O-G14-02（MINOR，实时结果范围缺采集时间）**：`run_stats()` 采集完成后生成一次 `captured_at`（精确到秒），显式写入历史行 `created_at` 并随响应返回（`res["created_at"]`）——响应与历史严格同源，禁止前端取本机时间冒充；前端 `tabletypeScopeText` 缺失时明示"采集时间不可用"。新增 3 条元数据库集成用例（含空库/部分失败分支）。**附：本轮用 TDSQL 高仿靶场（`deploy/tdsql-dev-cluster`）完成分布式成功路径端到端验证**——靶场 Proxy 扩展支持三条 `/*proxy*/show table ...` 命令（按会话默认库返回库限定名，with* 双列带 info、without 单列，形态与真实实测一致）并补 COM_INIT_DB 跟踪（`select_db` 不切 query 通道）；平台经 15002 统计 `tdsql_demo_distributed` 六数字 **2/2/4/8/8/0** 精确对账、无 `RECON_MISMATCH`。collect 115 → **118**（元数据库集成 22→25）。**边界如实登记**：靶场是高仿 Mock，真实 TDSQL 分布式六数字对账与 T20 性能证据仍属受控生产上线后的内网最终验收项，本轮不宣称已通过。 |
 | **Rev.P** | **2026-09-02** | **智能体 Q** | **依 O 第一轮 UAT 报告（`UAT-v1.6.3.0-…第一轮用户验收测试报告-智能体O.md`，结论"不通过：1 BLOCK + 2 MAJOR + 1 MINOR"）整改。四项全部关闭。** **O-G14-01（BLOCK，结果未绑定用户/实例/查询条件）**：前端六步——①统一清理点 `resetTableTypeState()`（8 个状态点）；②`runTableTypeStats` 查询开始即失效旧结果，失败保持空态；③`tabletypeSeq` 序号守卫 + 范围快照（用户/实例/库）防异步串台，迟到响应直接丢弃；④`watch([deepConnId,deepDb])` 实例或库名变化即失效，实例变化连带关闭并清空历史抽屉；⑤`clearRoleScopedState()` 增补连接/深度诊断上下文/G14 状态清理并删除 `localStorage.tdsql_conn`；⑥展示层 `tabletypeView`/`tabletypeScopeMatch` 范围绑定，模板不再直接引用 `deepResult.tabletype`，结果旁显示"结果范围：实例名/库/采集时间"。新增 9 项静态门禁 `test_g14_frontend_state_binding.py`（删掉任一清理点即红灯）。**O-G14-02（MAJOR，发布标识仍为 1.6.2.2）**：`VERSION`/`APP_VERSION`/`APP_DESCRIPTION`/HTML title/登录页/CSS·JS 缓存参数全部提升 1.6.3.0；新增 `test_version_consistency.py`（4 项）钉住七处同源。**O-G14-03（MINOR，auditor 按钮可点且 403 文案被吞）**：新增统一 `apiErrorMessage()`（字符串 detail → message → FastAPI 校验数组首条），`_deepPost`/历史/明细三处统一接入；新增 `canRunTableTypeStats`，auditor 按钮禁用并提示"审计员仅可查看历史"；后端 403 不变。**O-G14-04（MAJOR，离线实例裸 500）**：`_pool()` 连接解析纳入完整 `try` 边界；`translate_db_error` 严格白名单映射为 422（连接失败/认证失败/库不存在，提示含"本次未产生统计结果"）；未知程序异常原样 500 失败关闭且响应不回带原始异常串（日志含完整堆栈与 X-Request-ID 关联）。新增 `test_uat04/b/c` 三条用例。§5 错误表新增 422 连接类行、兜底 500 文案更新；§8 新增 E-38；§11 collect 112→115（离线 89→92）；§9.1/§12.8 登记。附录 A.2/A.4 与仓库逐字同步（一致性门禁复核 4 项全绿）。 |
 | **Rev.O** | **2026-09-02** | **智能体 Q** | **依 A 第二轮 SIT 报告（`SIT2-v1.6.3.0-…第二轮SIT测试报告-ClaudeA.md`，结论"有条件通过：第一轮 3 项缺陷全部关闭、零次生灾害成立；本轮新发现 2 MINOR + 1 NIT，均为文档/测试覆盖类"）整改。三项全部按报告方案关闭，运行代码零改动。** **DEF-SIT2-01（MINOR，附录 A.4 未随 Rev.N 同步）**：附录 A.4 回填 `test_sit01_*` / `test_sit03_*` 两条用例（45 行，与仓库逐字一致），A.4 与仓库文件的 docstring 版本号 `Rev.M §11` → `Rev.N §11` **两边一起改**；按报告建议③将比对脚本固化为新门禁 `tests/test_design_appendix_matches_repo.py`（A.1～A.4 参数化逐字比对，任何一侧单独改动即红灯；已做变异验证：注入 1 行差异 → A.2 红灯，恢复 → 4 项全绿），替代 §12.2 的人工"附录逐字核对"。**DEF-SIT2-02（NIT，附录 A.2 文件头版本号）**：文档 A.2 代码块第 2 行 `Rev.M §5` → `Rev.N §5`，仓库文件不动，比对门禁确认逐字一致。**DEF-SIT2-03（MINOR，防复发只做到模块级）**：`tests/test_rbac_path_coverage.py` 追加 `_menu_keys` helper 与平台级守卫 `test_deep_diag_write_endpoints_are_in_operational_allowlist`（import 追加 `_OPERATIONAL_WRITE_PREFIXES`，+41 行），扫描全部 deep-diag* 归属写端点、两级登记缺一即红灯并精确点名；变异验证复现报告结论：**M0 = 4 passed；M1（临时还原 `35e05ad` 版 auth_service.py，等价摘除 P7）= 1 failed 且断言消息精确点名 `POST /api/v1/table-type-stats/run (table_type_stats.py)`；恢复后 4 passed**。ADR-21 补"钉住位置是平台级守卫而非子模块用例"；KL-17 的防复发做法升级为"平台级守卫自动拦截，grep 对照降级为可选辅助"；§9.1 登记两个测试文件改动面；§11 新增 Rev.O 平台级守卫表；§12.2 新增两条验收项。**顺带落实观察项 OBS-3**：§5 错误表 422 行枚举放宽为"`string_too_short` / `Field required` / `string_type` 等 FastAPI 请求体校验错误"。OBS-1（VERSION 提升）移交打包环节；OBS-2/4/5 按报告不改。 |
 | **Rev.N** | **2026-09-01** | **智能体 Q** | **依 A 第一轮 SIT 报告（`SIT-v1.6.3.0-…第一轮SIT测试报告-ClaudeA.md`，结论"不通过：1 BLOCK + 2 MINOR"）整改并落盘。三项全部按报告给出的方案关闭。** **DEF-SIT-01（BLOCK）**：`_OPERATIONAL_WRITE_PREFIXES` 漏登记 `/api/v1/table-type-stats/`，导致 `developer` 与全部自定义角色在 `check_permission` 第一级即被拒、写端点恒 403 而页签照常显示（设计遗漏——§2.2 的 6 处登记清单未含第一级放行清单）。补登记 1 行（带尾斜杠），§2.2 改为 **7 处**（新增 P7），ADR-21 / §12.2（新增 developer 验收项）/ KL-17（第三次复发补记 + 全仓库 grep 对照法）同步；新增行为级用例 `test_sit01_*`（以既有 G5 为基准对照四角色可达性，不硬编码死值）。**DEF-SIT-02（MINOR）**：纯文档修订——空串/缺字段实际为 422（FastAPI 请求体校验标准语义），§5 错误表与 §8 E-26 修正为"422（空串/缺字段）或 400（全空白）"，实现不动。**DEF-SIT-03（MINOR）**：附录 A.2 `run()` 的全空白校验提前到 `_pool()` 连接解析之前（否则服务层守卫经 HTTP 永远不可达、报错文案误导为"未连接实例"）；服务层同名守卫保留为直接调用兜底；新增 `test_sit03_*` 直接打 API 层、断言不合格时不得先解析连接。collect 110 → **112**（离线 87 → 89）。**SIT 报告同时确认：四个新增文件与设计附录逐字一致、零次生灾害。** |

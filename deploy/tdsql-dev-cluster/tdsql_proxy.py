@@ -36,6 +36,15 @@ SHARD_METADATA = {
     "t_dict": "shardkey=noshardkey_allset",
 }
 
+# 库维度分片元数据: (db_name.lower(), table_name.lower()) -> shard_clause
+# 供 G14 三条 /*proxy*/show table 命令按当前库精确过滤（真实 Proxy 按会话默认库返回）。
+_SHARD_BY_DB = {
+    ("tdsql_demo_distributed", "big_audit_trail"): "shardkey=user_id",
+    ("tdsql_demo_distributed", "cus_bas_corp_contact"): "shardkey=cust_no",
+    ("tdsql_demo_distributed", "cus_name_list_type"): "shardkey=noshardkey_allset",
+    ("tdsql_demo_distributed", "t_dict"): "shardkey=noshardkey_allset",
+}
+
 def init_metadata_table():
     """在后端存储库中创建元数据持久化表"""
     try:
@@ -54,9 +63,10 @@ def init_metadata_table():
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
             """)
             # 加载已有记录
-            cur.execute("SELECT `table_name`, `shard_clause` FROM `_tdsql_sys_meta`.`table_sharding_rules`")
-            for t_name, s_clause in cur.fetchall():
+            cur.execute("SELECT `db_name`, `table_name`, `shard_clause` FROM `_tdsql_sys_meta`.`table_sharding_rules`")
+            for db_n, t_name, s_clause in cur.fetchall():
                 SHARD_METADATA[t_name.lower()] = s_clause
+                _SHARD_BY_DB[(db_n.lower(), t_name.lower())] = s_clause
         conn.close()
     except Exception as e:
         print(f"[Proxy Init] Load metadata warning: {e}")
@@ -75,8 +85,28 @@ def persist_shard_rule(db_name: str, table_name: str, shard_clause: str):
             """, (db_name or "default", table_name.lower(), shard_clause))
         conn.commit()
         conn.close()
+        _SHARD_BY_DB[((db_name or "default").lower(), table_name.lower())] = shard_clause
     except Exception as e:
         print(f"[Proxy Metadata] Save error: {e}")
+
+def _list_base_tables(db_name: str) -> list:
+    """查询后端指定库的 BASE TABLE 名单（G14 单表判定的数据源；视图天然排除）。"""
+    if not db_name:
+        return []
+    conn = pymysql.connect(
+        host=BACKEND_HOST, port=BACKEND_PORT, user="root",
+        password=os.getenv("MYSQL_ROOT_PASSWORD", "tdsql_test_2024")
+    )
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT TABLE_NAME FROM information_schema.TABLES "
+                "WHERE TABLE_SCHEMA=%s AND TABLE_TYPE='BASE TABLE' ORDER BY TABLE_NAME",
+                (db_name,))
+            return [r[0] for r in cur.fetchall()]
+    finally:
+        conn.close()
+
 
 def build_resultset(columns, rows, seq=1):
     """构建标准 MySQL Resultset 数据包"""
@@ -207,6 +237,11 @@ async def handle_client(client_reader, client_writer):
                 if not data:
                     break
 
+                # 0. 跟踪 COM_INIT_DB（PyMySQL select_db 走该命令而非 COM_QUERY 的 USE，
+                #    G14 逐库统计靠 select_db 切换——不跟踪则三条命令返回错库结果）
+                if len(data) > 5 and data[3] == 0x00 and data[4] == 0x02:
+                    current_db = data[5:].decode('utf-8', errors='ignore').strip()
+
                 if len(data) > 5 and data[3] == 0x00 and data[4] == 0x03:
                     sql = data[5:].decode('utf-8', errors='ignore').strip()
                     sql_lower = sql.lower()
@@ -246,6 +281,32 @@ async def handle_client(client_reader, client_writer):
                         ]
                         resp = build_resultset(cols, rows, seq=1)
                         client_writer.write(resp)
+                        await client_writer.drain()
+                        continue
+
+                    # 3.5 G14 表类型统计三条原厂命令（按当前会话默认库返回，形态与真实
+                    # Proxy 实测一致：值为库限定名 db.table；with* 双列带 info，
+                    # without 单列；空集返回空结果集）。
+                    elif "/*proxy*/show table with noshardkey_allset" in sql_lower:
+                        rows = [(f"{current_db}.{t}", "shardkey:noshardkey_allset")
+                                for (d, t), c in sorted(_SHARD_BY_DB.items())
+                                if d == current_db.lower() and "noshardkey_allset" in c]
+                        client_writer.write(build_resultset(["db_table", "info"], rows, seq=1))
+                        await client_writer.drain()
+                        continue
+                    elif "/*proxy*/show table with shardkey" in sql_lower:
+                        rows = [(f"{current_db}.{t}", f"shardkey:{c.split('=', 1)[-1]}")
+                                for (d, t), c in sorted(_SHARD_BY_DB.items())
+                                if d == current_db.lower() and "noshardkey_allset" not in c]
+                        client_writer.write(build_resultset(["db_table", "info"], rows, seq=1))
+                        await client_writer.drain()
+                        continue
+                    elif "/*proxy*/show table without shardkey" in sql_lower:
+                        # 单表 = 当前库 BASE TABLE 中未登记分片/广播规则的表
+                        sharded = {t for (d, t) in _SHARD_BY_DB if d == current_db.lower()}
+                        rows = [(f"{current_db}.{t}",) for t in _list_base_tables(current_db)
+                                if t.lower() not in sharded]
+                        client_writer.write(build_resultset(["db_table"], rows, seq=1))
                         await client_writer.drain()
                         continue
 

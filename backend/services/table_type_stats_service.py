@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""G14 · 表类型统计（深度诊断子模块，DESIGN-v1.6.3.0 Rev.M）
+"""G14 · 表类型统计（深度诊断子模块，DESIGN-v1.6.3.0 Rev.Q）
 
 按 TDSQL 原厂口径统计单个实例下各业务库的表类型分布：
 
@@ -24,6 +24,11 @@
     基线 293 = 逻辑表 215 + 子分区 78（6 张 sub_func:month 的表 × 13 个子分区）。
     本模块把子分区表从基线中剔除并单列计数，剔除后逻辑基线 215 与 Proxy 口径【精确相等】。
     故不得用未剔除的基线与 Proxy 口径比对（会产生 27% 的常态误报）。
+
+Rev.Q（O 第二轮 UAT 整改）要点：
+  · run_stats() 采集完成后生成一次 captured_at（精确到秒），显式写入历史行
+    created_at 并随响应返回——实时"结果范围"展示的采集时间与 stat_id 对应
+    历史记录严格同源，前端不得另取本机时间冒充（UAT2-O-G14-02）。
 
 Rev.M（A 第五轮评审定点整改）要点：
   · 基线 SQL 使用可下推的普通 TABLE_SCHEMA IN；不假定服务端大小写语义，
@@ -90,6 +95,7 @@ import json
 import logging
 import re
 import time
+from datetime import datetime
 from typing import Optional
 
 from backend.services.connection_registry import registry
@@ -1106,21 +1112,25 @@ def run_stats(pool, connection_id: str = "", database: str = "",
         res = analyze(pool, connection_id=connection_id, database=database,
                       deadline=deadline)
     conn = _get_connection()
+    # Rev.Q / UAT2-O-G14-02：采集完成即生成同源 captured_at——同一值既显式写入
+    # 历史行 created_at，也随响应带给前端"结果范围"展示；禁止前端另取本机时间冒充。
+    captured_at = datetime.now().replace(microsecond=0)
     try:
         cur = conn.execute(
             "INSERT INTO table_type_stat (connection_id, database_filter, "
             "instance_type, type_source, database_count, total_tables, "
             "shard_tables, broadcast_tables, single_tables, baseline_tables, "
             "subpartition_tables, failed_databases, skipped_databases, "
-            "overlap_count, warnings_json, created_by) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "overlap_count, warnings_json, created_by, created_at) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (connection_id, database, res["instance_type"], res["type_source"],
              res["database_count"], res["total_tables"], res["shard_tables"],
              res["broadcast_tables"], res["single_tables"],
              res["baseline_tables"], res["subpartition_tables"],
              res["failed_databases"], res["skipped_databases"],
              res["overlap_count"],
-             json.dumps(res["warnings"], ensure_ascii=False), operator))
+             json.dumps(res["warnings"], ensure_ascii=False), operator,
+             captured_at))
         stat_id = cur.lastrowid
         # Rev.K / P1-02：明细【批量】落库。Rev.J 是逐行 INSERT——500 个业务库就是
         # 500 次往返，全部发生在扫描槽已释放、deadline 已不再约束的阶段，
@@ -1138,6 +1148,9 @@ def run_stats(pool, connection_id: str = "", database: str = "",
     finally:
         conn.close()
     res["stat_id"] = stat_id
+    # Rev.Q / UAT2-O-G14-02：响应与历史同源——前端"结果范围"展示的采集时间
+    # 必须与 stat_id 对应历史行的 created_at 精确到秒一致。
+    res["created_at"] = captured_at.isoformat(sep=" ")
     return res
 
 

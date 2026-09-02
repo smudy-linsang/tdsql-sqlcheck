@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""G14 · 表类型统计 回归测试（DESIGN-v1.6.3.0 Rev.P §11）
+"""G14 · 表类型统计 回归测试（DESIGN-v1.6.3.0 Rev.Q §11）
 
 **测试依赖如实说明**（Rev.J / DOC-01——Rev.I 之前一直写"除落库两例外全部离线"，
 那是 Rev.B 时期的实际情况，后来陆续加到 10 例仍没有更新，属于文档失真）：
@@ -1856,6 +1856,71 @@ def test_uat04c_runtime_error_still_fails_closed_500(monkeypatch, caplog):
     assert "unexpected bug" not in e.value.detail
     # 完整堆栈留在日志里供运维排查
     assert any("表类型统计发生未预期异常" in r.message for r in caplog.records)
+
+
+# ══════════════════════════════════════════════════════════════════
+# Rev.Q 定向回归（O 第二轮 UAT：UAT2-O-G14-02 采集时间同源）
+# ══════════════════════════════════════════════════════════════════
+@pytest.mark.skipif(not MYSQL_AVAILABLE, reason="MySQL 测试环境未启动")
+def test_uat2_created_at_in_run_response(monkeypatch, g14_schema):
+    """UAT2-O-G14-02：/run 200 响应必须携带非空、可解析的服务端采集时间。
+
+    Rev.P 的 res 只补了 stat_id，实时结果范围行尾段空白。
+    禁止前端另取本机时间冒充服务端采集时间。
+    """
+    from datetime import datetime as _dt
+    _patch_ctx(monkeypatch, "centralized")
+    pool = FakePool(databases=["db_a"], info_schema={"db_a": {"base": ["t1"]}})
+    res = svc.run_stats(pool, connection_id="qa", operator="pytest")
+    ca = res.get("created_at")
+    assert ca, "run_stats 响应必须携带 created_at"
+    parsed = _dt.fromisoformat(ca)
+    assert parsed.tzinfo is None and parsed.year >= 2026, f"created_at 不可解析: {ca!r}"
+
+
+@pytest.mark.skipif(not MYSQL_AVAILABLE, reason="MySQL 测试环境未启动")
+def test_uat2_created_at_matches_history_row(monkeypatch, g14_schema):
+    """UAT2-O-G14-02：响应时间与 stat_id 对应历史行落库时间精确到秒一致。"""
+    _patch_ctx(monkeypatch, "centralized")
+    pool = FakePool(databases=["db_a"], info_schema={"db_a": {"base": ["t1"]}})
+    res = svc.run_stats(pool, connection_id="qa", operator="pytest")
+    hist = svc.list_history("qa", limit=1)
+    assert hist and hist[0]["id"] == res["stat_id"]
+    # 响应与历史行同源：解析为 datetime 后必须精确到秒一致
+    # （数据库层读回的分隔符形态可能是 "T" 或空格，语义必须相同）
+    from datetime import datetime as _dt
+    resp_t = _dt.fromisoformat(res["created_at"])
+    db_raw = hist[0]["created_at"]
+    db_t = db_raw if isinstance(db_raw, _dt) else _dt.fromisoformat(str(db_raw))
+    assert resp_t == db_t, \
+        f"响应 created_at（{res['created_at']}）与历史行（{db_raw}）必须同源"
+
+
+@pytest.mark.skipif(not MYSQL_AVAILABLE, reason="MySQL 测试环境未启动")
+def test_uat2_created_at_on_empty_and_failed_runs(monkeypatch, g14_schema):
+    """UAT2-O-G14-02：空库与部分失败分支同样携带时间——不得只修全成功分支。"""
+    # 空库：无业务库
+    _patch_ctx(monkeypatch, "centralized")
+    pool = FakePool(databases=[], info_schema={})
+    res_empty = svc.run_stats(pool, connection_id="qa", operator="pytest")
+    assert res_empty["database_count"] == 0
+    assert res_empty.get("created_at"), "空库响应也必须携带 created_at"
+
+    # 部分失败：分布式 + 1064（db_b 失败、db_a 成功）
+    _patch_ctx(monkeypatch, "distributed")
+    per_db = {
+        ("db_a", svc.SQL_SHARD): _rows(["db_a.t1"], info="shardkey:id"),
+        ("db_a", svc.SQL_BROADCAST): [],
+        ("db_a", svc.SQL_SINGLE): [],
+        ("db_b", svc.SQL_SHARD): _mysql_error(1142, "SELECT command denied"),
+    }
+    pool = FakePool(databases=["db_a", "db_b"],
+                    info_schema={"db_a": {"base": ["t1"]}, "db_b": {"base": ["t2"]}},
+                    per_db=per_db)
+    _patch_tmp_pool(monkeypatch, pool)
+    res_part = svc.run_stats(pool, connection_id="qa", operator="pytest")
+    assert res_part["failed_databases"] == 1
+    assert res_part.get("created_at"), "部分失败响应也必须携带 created_at"
 
 
 # ══════════════════════════════════════════════════════════════════
