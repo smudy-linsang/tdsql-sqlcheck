@@ -40,10 +40,10 @@ def init_zk():
             "user": "root",
             "password": "tdsql_test_2024",
             "proxy": [
-                {"name": "127.0.0.1_13306"}
+                {"name": "127.0.0.1_15002"}
             ],
             "ip": "127.0.0.1",
-            "port": 13306,
+            "port": 15002,
             "shard_type": "distributed"
         }
         raw_bytes = json.dumps(setrun_data, ensure_ascii=False).encode("utf-8")
@@ -69,10 +69,10 @@ def init_zk():
         "user": "root",
         "password": "tdsql_test_2024",
         "proxy": [
-            {"name": "127.0.0.1_13306"}
+            {"name": "127.0.0.1_15002"}
         ],
         "ip": "127.0.0.1",
-        "port": 13306,
+        "port": 15002,
         "shard_type": "centralized"
     }
     raw_bytes = json.dumps(cent_setrun_data, ensure_ascii=False).encode("utf-8")

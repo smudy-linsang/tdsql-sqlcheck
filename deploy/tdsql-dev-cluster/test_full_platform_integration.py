@@ -36,12 +36,12 @@ def run_integration_test():
     print("\n[步骤 2] 测试靶场连通性 (POST /api/v1/tdsql/test-connection)...")
     test_body = {
         "host": "127.0.0.1",
-        "port": 13306,
+        "port": 15002,
         "user": "root",
         "password": "tdsql_test_2024",
         "database": "tdsql_demo_distributed",
         "monitor_host": "127.0.0.1",
-        "monitor_port": 13306,
+        "monitor_port": 15002,
         "monitor_user": "root",
         "monitor_password": "tdsql_test_2024",
         "monitor_db": "tdsqlpcloud_monitor"
@@ -60,16 +60,16 @@ def run_integration_test():
     # 3. 创建并保存分布式靶场实例
     print("\n[步骤 3] 创建并注册靶场实例 (POST /api/v1/tdsql/connections)...")
     conn_body = {
-        "name": "TDSQL本地轻量分布式靶场",
+        "name": "TDSQL本地轻量分布式靶场(经Proxy 15002)",
         "host": "127.0.0.1",
-        "port": 13306,
+        "port": 15002,
         "username": "root",
         "password": "tdsql_test_2024",
         "database": "tdsql_demo_distributed",
         "instance_type": "distributed",
         "set_list": "set_1782132369_1,set_1782132389_2",
         "monitor_host": "127.0.0.1",
-        "monitor_port": 13306,
+        "monitor_port": 15002,
         "monitor_user": "root",
         "monitor_password": "tdsql_test_2024",
         "monitor_db": "tdsqlpcloud_monitor",

@@ -44,13 +44,14 @@ conn.close()
 print('[OK] 靶场元数据与监控库初始化就绪！')
 "
         Write-Host "`n[SUCCESS] TDSQL 轻量靶场已全部就绪！" -ForegroundColor Green
-        Write-Host "  - MySQL 地址: 127.0.0.1:13306 (user: root, db: tdsql_demo_distributed)" -ForegroundColor White
-        Write-Host "  - ZooKeeper : 127.0.0.1:2181 (root_path: /tdsqlzk)" -ForegroundColor White
-        Write-Host "  - 监控库:     tdsqlpcloud_monitor (proxy_classes_analysis 慢SQL表已就绪)" -ForegroundColor White
+        Write-Host "  - TDSQL 网关 : 127.0.0.1:15002 (原生支持 shardkey= 语法与 /*proxy*/ 指令)" -ForegroundColor Green
+        Write-Host "  - 存储数据节点: 127.0.0.1:13306 (user: root, db: tdsql_demo_distributed)" -ForegroundColor White
+        Write-Host "  - ZooKeeper   : 127.0.0.1:2181 (root_path: /tdsqlzk)" -ForegroundColor White
+        Write-Host "  - 慢SQL监控库 : tdsqlpcloud_monitor (proxy_classes_analysis 表已就绪)" -ForegroundColor White
     }
 
     "stop" {
-        Write-Host "正在停止 ZooKeeper 容器..." -ForegroundColor Yellow
+        Write-Host "正在停止靶场服务 (ZooKeeper & TDSQL Proxy)..." -ForegroundColor Yellow
         docker compose -f "$ScriptDir\docker-compose.yml" stop
         Write-Host "[OK] 靶场服务已停止。" -ForegroundColor Green
     }

@@ -13,3 +13,25 @@ services:
       resources:
         limits:
           memory: 256M
+
+  tdsql-proxy:
+    image: python:3.11-slim
+    container_name: tdsql-proxy
+    restart: unless-stopped
+    ports:
+      - "15002:15002"
+    volumes:
+      - .:/app
+    command: >
+      bash -c "pip install --no-cache-dir pymysql -i https://mirrors.aliyun.com/pypi/simple/ && python /app/tdsql_proxy.py"
+    environment:
+      TDSQL_BACKEND_HOST: "host.docker.internal"
+      TDSQL_BACKEND_PORT: "13306"
+      TDSQL_PROXY_PORT: "15002"
+      MYSQL_ROOT_PASSWORD: "tdsql_test_2024"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    deploy:
+      resources:
+        limits:
+          memory: 150M
