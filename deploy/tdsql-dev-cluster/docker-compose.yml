@@ -1,0 +1,15 @@
+services:
+  tdsql-zk:
+    image: zookeeper:3.8
+    container_name: tdsql-zk
+    restart: unless-stopped
+    ports:
+      - "2181:2181"
+    environment:
+      ZOO_MY_ID: 1
+      ZOO_STANDALONE_ENABLED: "true"
+      ZOO_4LW_COMMANDS_WHITELIST: "ruok,srvr,stat,conf,isro"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
