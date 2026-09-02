@@ -2,13 +2,13 @@
 
 | 项 | 内容 |
 |---|---|
-| 文档编号 | DESIGN-v1.6.3.0 **Rev.Q** |
+| 文档编号 | DESIGN-v1.6.3.0 **Rev.R** |
 | 模块编号 | **G14 · 表类型统计**（深度诊断第 10 个子模块） |
 | 目标版本 | v1.6.3.0（当前基线 v1.6.2.2，`VERSION` / `backend/config.py:APP_VERSION`） |
 | 文档等级 | **照图施工级**——附录 A 给出全部新增/修改文件的逐行成品代码；Rev.Q collect **118 项**（离线 92 / 元数据库 25 / 落盘后仓库检查 1）。附录 A.1～A.4 与仓库落盘的逐字一致由门禁 `tests/test_design_appendix_matches_repo.py` 自动钉住。SIT 两轮 + UAT 第一轮 → Rev.N/O/P 整改定版；**第二轮 UAT（智能体 O，结论不通过）1 MAJOR + 1 MINOR → Rev.Q 整改定版** |
-| 编写 | 智能体 A（Rev.A～K、第五轮评审、两轮 SIT）；智能体 O / Codex（Rev.L～M 修订、两轮 UAT）；智能体 Q（Rev.N～Q：依 SIT/UAT 报告整改落盘） |
-| 编写日期 | 2026-08-29 首版；2026-08-31 Rev.F～J 多轮复核与整改；2026-09-01 Rev.K 依 O 第三轮评审整改；2026-09-01 Rev.L 依第四轮评审整改；2026-09-01 Rev.M 依 A 第五轮评审定点整改（1 P2）；2026-09-01 Rev.N 依 A 第一轮 SIT 整改；2026-09-02 Rev.O 依 A 第二轮 SIT 整改；2026-09-02 Rev.P 依 O 第一轮 UAT 整改；2026-09-02 **Rev.Q 依 O 第二轮 UAT 整改（1 MAJOR + 1 MINOR）** |
-| 状态 | **Rev.Q 已完成第二轮 UAT 两项缺陷整改并落盘**：UAT2-O-G14-01（MAJOR）G14 独立 `tabletypeLoading` + `isTableTypeRequestCurrent` 纯判定 + `runTableTypeStats` 自带请求（不再委托 `_deepPost`），迟到请求的提示/数据/loading 副作用全部作废；UAT2-O-G14-02（MINOR）`run_stats` 生成同源 `captured_at` 显式落库并随响应返回，前端缺失时明示"采集时间不可用"。**本轮已用 TDSQL 高仿靶场（deploy/tdsql-dev-cluster，Proxy 15002）完成分布式成功路径端到端验证：2/2/4/8/8/0 精确对账**（靶场 Proxy 同步扩展支持三条 show table 命令与 COM_INIT_DB 跟踪）。 |
+| 编写 | 智能体 A（Rev.A～K、第五轮评审、两轮 SIT）；智能体 O / Codex（Rev.L～M 修订、三轮 UAT）；智能体 Q（Rev.N～R：依 SIT/UAT 报告整改落盘） |
+| 编写日期 | 2026-08-29 首版；2026-08-31 Rev.F～J 多轮复核与整改；2026-09-01 Rev.K 依 O 第三轮评审整改；2026-09-01 Rev.L 依第四轮评审整改；2026-09-01 Rev.M 依 A 第五轮评审定点整改（1 P2）；2026-09-01 Rev.N 依 A 第一轮 SIT 整改；2026-09-02 Rev.O 依 A 第二轮 SIT 整改；2026-09-02 Rev.P 依 O 第一轮 UAT 整改；2026-09-02 Rev.Q 依 O 第二轮 UAT 整改；2026-09-02 **Rev.R 依 O 第三轮 UAT 整改（1 P2：行为级自动化补齐）** |
+| 状态 | **Rev.R 已完成第三轮 UAT 唯一 P2 整改并落盘**：UAT3-O-G14-01——新增行为级浏览器测试 `tests/test_g14_request_ownership_browser.py`（真实服务 + 真实页面 + 请求拦截可控 Promise，4 个用例覆盖：迟到 422 提示作废 / 旧请求 finally 不误关新请求 loading / 迟到 200 数据与 toast 作废 / 当前 scope 错误正常展示），变异验证（删除 2 处 isCurrent 守卫）红灯、恢复后全绿；`test_g14_frontend_state_binding.py` 静态门禁**降级为补充**，不再冒充行为测试。requirements 固定 `playwright==1.62.0`，本地缺浏览器时测试**失败关闭**（不静默 skip）。 |
 | 前置约束 | 本文档编写阶段**未修改任何代码**（用户要求）。仓库工作区在本文档提交时保持干净。 |
 
 ---
@@ -1186,7 +1186,8 @@ def run_stats(pool, connection_id="", database="", operator=""):
 | `tests/test_rbac_path_coverage.py` | **+41 行**（1 个 `_menu_keys` helper + 1 条平台级守卫用例 + 1 处 import 追加；Rev.O / DEF-SIT2-03） | 仅测试。新增断言只对 deep-diag* 归属写端点生效，经全仓库穷举核查对现存 12 个深度诊断写端点**零误伤**（SIT2 §6.2.3），对非 deep-diag 管理类写端点不适用本不变量 | **零** |
 | `tests/test_design_appendix_matches_repo.py` | 全新（Rev.O / DEF-SIT2-01③） | 仅测试：附录 A.1～A.4 与仓库落盘的逐字一致性门禁，替代人工"附录逐字核对"验收项 | **零** |
 | `tests/test_version_consistency.py` | 全新（Rev.P / UAT-O-G14-02） | 仅测试：发布版本七处同源门禁 | **零** |
-| `tests/test_g14_frontend_state_binding.py` | 全新（Rev.P / UAT-O-G14-01/03） | 仅测试：前端结果绑定静态门禁（删掉任一清理点即红灯） | **零** |
+| `tests/test_g14_frontend_state_binding.py` | 全新（Rev.P / UAT-O-G14-01/03） | 仅测试：前端结果绑定静态门禁（删掉任一清理点即红灯）。**Rev.R 起降级为补充**，行为语义由浏览器用例承担 | **零** |
+| `tests/test_g14_request_ownership_browser.py` | 全新（Rev.R / UAT3-O-G14-01） | 仅测试：真实服务 + 真实页面 + 请求拦截的**行为级**异步所有权用例；启动隔离测试库的子进程服务，缺浏览器失败关闭 | **零** |
 | `VERSION` / `backend/config.py` | 发布标识 1.6.2.2 → 1.6.3.0（Rev.P / UAT-O-G14-02） | `/health`、OpenAPI、系统信息、启动日志的版本显示 | **极低**。`test_version_consistency.py` 钉住七处同源；`APP_DESCRIPTION` 文案变更无功能影响 |
 | `frontend/index.html`（Rev.P 增量） | 发布标识 5 处 + G14 页签块内 auditor 禁用/范围绑定展示 | 深度诊断页 G14 页签 | **极低**。其余 9 个页签零改动 |
 | `frontend/static/js/app.js`（Rev.P 增量） | `resetTableTypeState` / 序号守卫 / `watch([deepConnId,deepDb])` / `clearRoleScopedState` 增补 / `apiErrorMessage` / `canRunTableTypeStats` / 返回清单追加 | 深度诊断页 G14 页签 + 登录态切换路径 | **低**。`clearRoleScopedState` 是全局登录态清理函数——新增的只是"清得更多"，方向安全；其余 9 个深度诊断子模块的结果键一并清空属预期行为（跨用户会话隔离）；`test_g14_frontend_state_binding.py` 静态门禁钉住全部清理点 |
@@ -1815,6 +1816,16 @@ Rev.K 历史实测口径：不连元数据库时 `83 passed, 23 skipped`；连�
 
 > 前端行为级复跑（浏览器四步：离线发起→立即切换→无旧错误提示）见 §12.8。
 
+**Rev.R 新增的缺陷定向测试（对应 O 第三轮 UAT 报告）**：
+
+| UAT 编号 | 用例 | 验证 | 关闭的问题 |
+|---|---|---|---|
+| UAT3-O-G14-01 | `tests/test_g14_request_ownership_browser.py`（4 项**行为级**用例，真实后端服务 + 真实 `frontend/index.html` + 请求拦截可控 Promise；平台级文件，不计入 A.4 collect 数） | ①A 延迟 422：切到 B 后无 A 的错误 toast/结果/告警，按钮可用；②A 未返回发起 B：A 的 finally 不得关闭 B 的 loading，B 完成才关闭；③A 延迟 200：无 A 的成功 toast 与数据，B 只显示 B；④不切 scope 的 400/422/500：服务端可读错误正常展示、按钮恢复。断言全部基于可见行为（`.el-message` 文本/数量、结果范围、汇总数字、按钮 class）。**变异证据：删除 2 处 isCurrent 守卫 → 用例 1 红灯；恢复 → 全绿** | **P2：异步请求所有权此前只有静态源码断言，无行为级自动化** |
+
+> Rev.R 起 `tests/test_g14_frontend_state_binding.py` 的静态门禁**降级为补充**（防误删标记），
+> 行为语义由上述浏览器用例承担；两类并存，互不替代。缺浏览器环境时行为用例
+> **失败关闭**（pytest.fail），不静默 skip；CI 镜像须内置 Chromium/Chrome。
+
 > Rev.P 前端行为级验收（浏览器路径）见 §12.8。
 
 > **T3-R09（历史抽屉状态清空）与 T3-R10 的前端分支**属于前端行为，
@@ -1944,6 +1955,7 @@ Rev.M 不新增测试项，只删除生产 SQL 的 `BINARY` 与 T4-R01 的 SQL �
 - [ ] **当前请求反馈不受影响**：不切 scope 的普通 400/422/500 仍显示服务端可读消息（不得因抑制迟到提示而把当前错误也吞掉）
 - [ ] **采集时间同源（UAT2-O-G14-02）**：实时结果范围行显示"实例 / 库 / 采集时间"，且该时间与该次 `stat_id` 历史记录精确到秒一致；缺失时显示"采集时间不可用"而非空白尾段
 - [ ] **靶场分布式成功路径（Rev.Q 新增）**：经 `deploy/tdsql-dev-cluster`（Proxy 15002）统计 `tdsql_demo_distributed`，六数字 **2/2/4/8/8/0**（分片/广播/单表/总表/逻辑基线/子分区），无 `RECON_MISMATCH`
+- [ ] **行为级异步守卫（UAT3-O-G14-01 / Rev.R）**：`python -m pytest tests/test_g14_request_ownership_browser.py -q` **4 项全绿**；变异验证（删除 `runTableTypeStats` 的 2 处 isCurrent 守卫）必须红灯、恢复后全绿；缺浏览器环境必须**失败关闭**而非 skip
 
 ---
 
@@ -6624,6 +6636,7 @@ Empty set (0.005 sec)
 
 | 版本 | 日期 | 作者 | 内容 |
 |---|---|---|---|
+| **Rev.R** | **2026-09-02** | **智能体 Q** | **依 O 第三轮 UAT 报告（`UAT3-v1.6.3.0-…第三轮用户验收测试报告-智能体O.md`，结论"有条件通过：第二轮两项均已关闭，新增 1 项 P2"）整改。** **UAT3-O-G14-01（P2，异步请求所有权无行为级自动化）**：Rev.Q 的静态源码断言被点名"只能防误删标记、冒充行为测试"。补齐为真实行为级：新增 `tests/test_g14_request_ownership_browser.py`——子进程启动真实后端（隔离测试库 `tdsql_sqlcheck_test`、免认证、独立端口），Playwright 驱动真实 `frontend/index.html`，`page.route` 拦截 `/api/v1/table-type-stats/run` 做可控 Promise（handler 不阻塞驱动线程：只登记挂起的 route、主线程 release 时 fulfill——首版阻塞式 Event 曾造成死锁，改为挂起-放行模式）；四个用例逐一对应报告要求（迟到 422 提示作废 / 旧请求 finally 不误关新请求 loading / 迟到 200 数据与 toast 作废且只显示 B / 当前 scope 的 400/422/500 正常展示）。断言全部基于可见行为（toast 文本与数量、结果范围、汇总数字、按钮 class）。**变异证据：删除 2 处 isCurrent 守卫 → `test_stale_422_error_toast_suppressed` 红灯；恢复 → 4 项全绿。** 静态门禁 `test_g14_frontend_state_binding.py` 保留但**降级为补充**，不再冒充行为测试。requirements 固定 `playwright==1.62.0`；浏览器优先级：系统 Chrome → playwright Chromium；都不可用即**失败关闭**（报告明确禁止静默 skip）。模块四个文件与附录 A 本轮零改动（一致性门禁仍全绿）。 |
 | **Rev.Q** | **2026-09-02** | **智能体 Q** | **依 O 第二轮 UAT 报告（`UAT2-v1.6.3.0-…第二轮用户验收测试报告-智能体O.md`，结论"不通过：1 MAJOR + 1 MINOR"）整改。两项全部关闭。** **UAT2-O-G14-01（MAJOR，迟到错误提示串到新实例上下文）**：根因是错误提示在通用 `_deepPost()` 内部、序号检查之前已弹出，数据能丢弃、错误副作用无法撤回，且共享 `deepLoading` 无法区分请求所有权。按报告 6 步施工：G14 独立 `tabletypeLoading`；新增纯判定 `isTableTypeRequestCurrent(mySeq, scope)`（序号+用户+实例+规范化库名）；`runTableTypeStats` 不再委托 `_deepPost`，自带 `apiFetch`/解析/提示，顺序固定为"递增序号→快照→清空→loading→请求→先判 isCurrent，过期静默丢弃（无提示/无数据/不动 loading）→finally 仅序号仍持有时关闭"；`watch([deepConnId,deepDb])` 与 `clearRoleScopedState()` 同步释放 loading。静态门禁扩展 3 项（迟到提示抑制 / loading 归属 / 范围尾段），**删掉任一关键检查即红灯**。**UAT2-O-G14-02（MINOR，实时结果范围缺采集时间）**：`run_stats()` 采集完成后生成一次 `captured_at`（精确到秒），显式写入历史行 `created_at` 并随响应返回（`res["created_at"]`）——响应与历史严格同源，禁止前端取本机时间冒充；前端 `tabletypeScopeText` 缺失时明示"采集时间不可用"。新增 3 条元数据库集成用例（含空库/部分失败分支）。**附：本轮用 TDSQL 高仿靶场（`deploy/tdsql-dev-cluster`）完成分布式成功路径端到端验证**——靶场 Proxy 扩展支持三条 `/*proxy*/show table ...` 命令（按会话默认库返回库限定名，with* 双列带 info、without 单列，形态与真实实测一致）并补 COM_INIT_DB 跟踪（`select_db` 不切 query 通道）；平台经 15002 统计 `tdsql_demo_distributed` 六数字 **2/2/4/8/8/0** 精确对账、无 `RECON_MISMATCH`。collect 115 → **118**（元数据库集成 22→25）。**边界如实登记**：靶场是高仿 Mock，真实 TDSQL 分布式六数字对账与 T20 性能证据仍属受控生产上线后的内网最终验收项，本轮不宣称已通过。 |
 | **Rev.P** | **2026-09-02** | **智能体 Q** | **依 O 第一轮 UAT 报告（`UAT-v1.6.3.0-…第一轮用户验收测试报告-智能体O.md`，结论"不通过：1 BLOCK + 2 MAJOR + 1 MINOR"）整改。四项全部关闭。** **O-G14-01（BLOCK，结果未绑定用户/实例/查询条件）**：前端六步——①统一清理点 `resetTableTypeState()`（8 个状态点）；②`runTableTypeStats` 查询开始即失效旧结果，失败保持空态；③`tabletypeSeq` 序号守卫 + 范围快照（用户/实例/库）防异步串台，迟到响应直接丢弃；④`watch([deepConnId,deepDb])` 实例或库名变化即失效，实例变化连带关闭并清空历史抽屉；⑤`clearRoleScopedState()` 增补连接/深度诊断上下文/G14 状态清理并删除 `localStorage.tdsql_conn`；⑥展示层 `tabletypeView`/`tabletypeScopeMatch` 范围绑定，模板不再直接引用 `deepResult.tabletype`，结果旁显示"结果范围：实例名/库/采集时间"。新增 9 项静态门禁 `test_g14_frontend_state_binding.py`（删掉任一清理点即红灯）。**O-G14-02（MAJOR，发布标识仍为 1.6.2.2）**：`VERSION`/`APP_VERSION`/`APP_DESCRIPTION`/HTML title/登录页/CSS·JS 缓存参数全部提升 1.6.3.0；新增 `test_version_consistency.py`（4 项）钉住七处同源。**O-G14-03（MINOR，auditor 按钮可点且 403 文案被吞）**：新增统一 `apiErrorMessage()`（字符串 detail → message → FastAPI 校验数组首条），`_deepPost`/历史/明细三处统一接入；新增 `canRunTableTypeStats`，auditor 按钮禁用并提示"审计员仅可查看历史"；后端 403 不变。**O-G14-04（MAJOR，离线实例裸 500）**：`_pool()` 连接解析纳入完整 `try` 边界；`translate_db_error` 严格白名单映射为 422（连接失败/认证失败/库不存在，提示含"本次未产生统计结果"）；未知程序异常原样 500 失败关闭且响应不回带原始异常串（日志含完整堆栈与 X-Request-ID 关联）。新增 `test_uat04/b/c` 三条用例。§5 错误表新增 422 连接类行、兜底 500 文案更新；§8 新增 E-38；§11 collect 112→115（离线 89→92）；§9.1/§12.8 登记。附录 A.2/A.4 与仓库逐字同步（一致性门禁复核 4 项全绿）。 |
 | **Rev.O** | **2026-09-02** | **智能体 Q** | **依 A 第二轮 SIT 报告（`SIT2-v1.6.3.0-…第二轮SIT测试报告-ClaudeA.md`，结论"有条件通过：第一轮 3 项缺陷全部关闭、零次生灾害成立；本轮新发现 2 MINOR + 1 NIT，均为文档/测试覆盖类"）整改。三项全部按报告方案关闭，运行代码零改动。** **DEF-SIT2-01（MINOR，附录 A.4 未随 Rev.N 同步）**：附录 A.4 回填 `test_sit01_*` / `test_sit03_*` 两条用例（45 行，与仓库逐字一致），A.4 与仓库文件的 docstring 版本号 `Rev.M §11` → `Rev.N §11` **两边一起改**；按报告建议③将比对脚本固化为新门禁 `tests/test_design_appendix_matches_repo.py`（A.1～A.4 参数化逐字比对，任何一侧单独改动即红灯；已做变异验证：注入 1 行差异 → A.2 红灯，恢复 → 4 项全绿），替代 §12.2 的人工"附录逐字核对"。**DEF-SIT2-02（NIT，附录 A.2 文件头版本号）**：文档 A.2 代码块第 2 行 `Rev.M §5` → `Rev.N §5`，仓库文件不动，比对门禁确认逐字一致。**DEF-SIT2-03（MINOR，防复发只做到模块级）**：`tests/test_rbac_path_coverage.py` 追加 `_menu_keys` helper 与平台级守卫 `test_deep_diag_write_endpoints_are_in_operational_allowlist`（import 追加 `_OPERATIONAL_WRITE_PREFIXES`，+41 行），扫描全部 deep-diag* 归属写端点、两级登记缺一即红灯并精确点名；变异验证复现报告结论：**M0 = 4 passed；M1（临时还原 `35e05ad` 版 auth_service.py，等价摘除 P7）= 1 failed 且断言消息精确点名 `POST /api/v1/table-type-stats/run (table_type_stats.py)`；恢复后 4 passed**。ADR-21 补"钉住位置是平台级守卫而非子模块用例"；KL-17 的防复发做法升级为"平台级守卫自动拦截，grep 对照降级为可选辅助"；§9.1 登记两个测试文件改动面；§11 新增 Rev.O 平台级守卫表；§12.2 新增两条验收项。**顺带落实观察项 OBS-3**：§5 错误表 422 行枚举放宽为"`string_too_short` / `Field required` / `string_type` 等 FastAPI 请求体校验错误"。OBS-1（VERSION 提升）移交打包环节；OBS-2/4/5 按报告不改。 |
