@@ -1,0 +1,18 @@
+Command:
+python -m pip install --dry-run --ignore-installed --no-index --find-links dist/wheels_tmp playwright==1.62.0
+
+Exit code: 1
+
+Output:
+Looking in links: dist/wheels_tmp
+ERROR: Could not find a version that satisfies the requirement playwright==1.62.0 (from versions: none)
+ERROR: No matching distribution found for playwright==1.62.0
+
+Additional evidence:
+- requirements.txt contains playwright==1.62.0.
+- Dockerfile installs requirements.txt into the production image.
+- deploy/install.sh installs requirements.txt into the production virtual environment.
+- deploy/make_release.ps1 and deploy/make_release.sh copy requirements.txt into the release package.
+- deploy/make_release.sh validates requirements.txt against dist/wheels_tmp and exits on an unsatisfied dependency.
+- dist/wheels_tmp exists but contains no playwright wheel.
+- The installed playwright Python package directory occupies approximately 106.49 MiB before any browser binary is installed.

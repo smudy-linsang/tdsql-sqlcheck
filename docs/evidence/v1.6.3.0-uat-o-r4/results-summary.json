@@ -1,0 +1,78 @@
+{
+  "tested_commit": "02c64fff2d73d3b2b236cc89aa99c2023907c89e",
+  "app": {
+    "url": "http://127.0.0.1:18803/",
+    "metadata_database": "tdsql_uat_o_g14_r4_1630",
+    "health_status": 200,
+    "version": "1.6.3.0"
+  },
+  "q_p2_retest": {
+    "test_file": "tests/test_g14_request_ownership_browser.py",
+    "consecutive_runs": 2,
+    "result_each_run": "4 passed",
+    "targeted_suite": "149 passed, 4 warnings",
+    "full_suite": "1765 passed, 11 warnings",
+    "skipped": 0
+  },
+  "browser_uat": {
+    "target_result": {
+      "database_count": 1,
+      "total_tables": 8,
+      "single_tables": 4,
+      "broadcast_tables": 2,
+      "shard_tables": 2,
+      "baseline_tables": 8,
+      "subpartition_tables": 0,
+      "failed_databases": 0,
+      "overlap_count": 0
+    },
+    "history_visible": true,
+    "stale_error_toasts": [],
+    "stale_request_left_old_result": false,
+    "run_button_enabled_after_stale_response": true,
+    "current_400_visible": true,
+    "auditor_run_enabled": false,
+    "auditor_history_visible": true,
+    "console_error_or_warn": 0
+  },
+  "local_protocol_target": {
+    "single": 4,
+    "broadcast": 2,
+    "shard": 2,
+    "union": 8,
+    "independent_base_table_count": 8,
+    "pairwise_disjoint": true,
+    "union_equals_baseline": true
+  },
+  "user_supplied_real_tdsql_evidence": {
+    "source_99001_sha256": "84C3128172E89CDD1313E047443C40A1B0380ED0392B02999BC77CFD307FF4DB",
+    "source_1_jpg_sha256": "6000C82C1CB4A83FF63577E2374D06702AACA9D920AE6F21D3C024A8090052C8",
+    "source_2_jpg_sha256": "D77D314B108FFF1D67DB7CE4856CBFCFFB24AF7DFC66DEBF15F3D1F1A01B8CF8",
+    "server_version_in_99001": "8.0.33-v24-txsql-22.6.9-20250509",
+    "database": "lzbj_ecif",
+    "single": 0,
+    "broadcast": 117,
+    "shard": 98,
+    "category_union": 215,
+    "category_overlap": 0,
+    "base_tables": 293,
+    "logical_baseline": 215,
+    "subpartition_tables": 78,
+    "timings_seconds": {
+      "single": 0.001,
+      "broadcast": 0.002,
+      "shard": 0.001,
+      "base_count": 0.004
+    }
+  },
+  "decision": {
+    "uat": "CONDITIONAL_PASS",
+    "functional_uat": "PASS",
+    "real_set_and_six_number_reconciliation": "PASS_BY_AUTHENTIC_EVIDENCE",
+    "t20": "WAIVED_BY_PRODUCT_OWNER_RISK_ACCEPTANCE",
+    "mandatory_intranet_pre_release_test": false,
+    "recommended_post_deployment_read_only_smoke": true,
+    "new_defects": 1,
+    "release_blocker": "UAT4-O-REL-01_PLAYWRIGHT_IN_RUNTIME_REQUIREMENTS_AND_MISSING_OFFLINE_WHEEL"
+  }
+}
