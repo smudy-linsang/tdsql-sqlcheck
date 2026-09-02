@@ -19,7 +19,8 @@ import pytest
 
 from backend.services.auth_service import (PUBLIC_PATHS, WEBHOOK_PATHS,
                                            _PATH_TO_MENU,
-                                           _SELF_SERVICE_PREFIXES)
+                                           _SELF_SERVICE_PREFIXES,
+                                           _OPERATIONAL_WRITE_PREFIXES)
 
 _API_DIR = Path(__file__).resolve().parent.parent / "backend" / "api"
 
@@ -84,3 +85,42 @@ def test_exempt_paths_still_exist():
     actual = {path for _, path, _ in _write_endpoints()}
     stale = [p for p in _EXEMPT if p not in actual]
     assert not stale, f"豁免清单中的端点已不存在，请清理：{stale}"
+
+
+def _menu_keys(path: str) -> list:
+    """返回该路径命中的菜单键列表（元组映射会被摊平），未命中返回空列表"""
+    for p in sorted(_PATH_TO_MENU.keys(), key=len, reverse=True):
+        if path == p or path.startswith(p + "/"):
+            mk = _PATH_TO_MENU[p]
+            return list(mk) if isinstance(mk, (tuple, list, set)) else [mk]
+    return []
+
+
+def test_deep_diag_write_endpoints_are_in_operational_allowlist():
+    """深度诊断写端点必须同时登记第一级放行清单，不能只登记第二级菜单映射。
+
+    check_permission 是两级判定：第一级按角色 + _DEVELOPER_WRITE_PREFIXES
+    （即 _OPERATIONAL_WRITE_PREFIXES 的别名）放行，第二级才查 role_permissions
+    菜单可见性。只登记 _PATH_TO_MENU 而漏登记放行清单时：
+
+      · admin / dba 在第一级短路放行，冒烟全绿；
+      · developer 与全部自定义角色卡在第一级，写端点恒 403；
+      · 页签因菜单可见性正常而照常显示，现场极易误判为权限矩阵没配对。
+
+    上一条用例 test_all_write_endpoints_are_mapped 只覆盖第二级，
+    这一条补上第一级——两级都钉住，新子模块才不会重蹈 DEF-SIT-01。
+
+    只对 deep-diag* 归属的写端点做此断言：这类"运维操作性工具"按平台既定策略
+    对 dba/developer 开放；而 /api/v1/rules、/api/v1/auth/roles 等管理类写端点
+    本就应仅限 admin，不适用本不变量。
+    """
+    missing = []
+    for method, path, fname in _write_endpoints():
+        if not any(str(k).startswith("deep-diag") for k in _menu_keys(path)):
+            continue
+        if not any(path.startswith(p) for p in _OPERATIONAL_WRITE_PREFIXES):
+            missing.append(f"{method} {path}  ({fname})")
+    assert not missing, (
+        "以下深度诊断写端点已登记 _PATH_TO_MENU（第二级），却未登记 "
+        "_OPERATIONAL_WRITE_PREFIXES（第一级），developer 与全部自定义角色将恒 403，"
+        "而页签照常显示；admin/dba 因短路放行测不出来：\n  " + "\n  ".join(missing))
