@@ -2,12 +2,12 @@
 
 | 项 | 内容 |
 |---|---|
-| 文档编号 | DESIGN-v1.6.3.2 Rev.B |
+| 文档编号 | DESIGN-v1.6.3.2 Rev.C |
 | 目标版本 | v1.6.3.2 |
-| 当前代码基线 | v1.6.3.0，`main` 分支，评审合并基线 `003ea95`；应用代码与 Rev.A 锚定的 `03ac422` 一致 |
+| 当前代码基线 | v1.6.3.0，`main` 分支，第二轮评审合并基线 `5885c1f`；应用代码与 Rev.A 锚定的 `03ac422` 一致 |
 | 编写日期 | 2026-09-03 |
 | 设计范围 | 6 项审核规则调整、新增 2 条规则、4 个扫描历史页面的跨页选择修复 |
-| 文档状态 | **Rev.B 已完成 A 第一轮评审整改，P1/P2 全部关闭；1 项 P3 不采纳并给出实证理由** |
+| 文档状态 | **Rev.C 已完成 A 第二轮“通过（有条件）”的 5 项定点订正，待 A 定点确认** |
 | 本阶段约束 | 只提交本文档，不修改业务代码、测试代码、数据库脚本或版本号 |
 
 ---
@@ -42,14 +42,28 @@
 | P2-05 未指名现成规范化类型字段 | **接受** | CREATE 明确读取 `parsed.column_types[i]["type"]`/`col["type"]`，`raw_type` 只展示；避免另造归一器 |
 | P2-06 质量门禁双向变化未量化 | **接受** | 新增 strict/normal 的放松与收紧矩阵、发布通知和回归测试 |
 | P2-07 集中式零覆盖风险未登记 | **接受** | 明确视图/存储过程/触发器与临时表在集中式变为零覆盖，并设 DBA 书面确认门禁 |
-| P3-01 两参数 LIMIT 的 AST 字段陷阱 | **接受** | 明确先看 `Limit.offset`，不得只读 `Limit.expression` |
+| P3-01 两参数 LIMIT 的 AST 字段陷阱 | **接受** | Rev.B 明确先检查 offset；Rev.C 按第二轮 N-01 将取值精确订正为 `lim.args.get("offset")` |
 | P3-02 既有 `limit_offset` 正则与新原则的边界 | **接受** | 登记为 R114 既有例外，本期不动、不复用 |
 | P3-03 四表共用一个 `cmpTableRef` | **接受** | 补充互斥挂载、空值保护和卸载竞态 |
 | P3-04 退出登录清理没有函数落点 | **接受** | 明确 `doLogout()` 新增调用 `clearCompareSelection()` |
 | P3-05 仓库没有 Playwright dev 依赖 | **不接受** | 当前基线 `pyproject.toml:25-33` 已有 dev extra，且精确固定 `playwright==1.62.0`；`tests/test_release_dependency_boundary.py` 明确锁定该契约。保留“复用既有依赖”，不新增依赖任务 |
-| P3-06 ALTER REORGANIZE 与 ADD 的失败形态不同 | **接受** | 分别登记 ParseError/Command，并明确二者均需独立 token 扫描入口 |
+| P3-06 ALTER REORGANIZE 与 ADD 的失败形态不同 | **接受** | 分别登记 ParseError/Command，并明确二者使用独立状态分支但共享一次预检词法化 |
 
 除 P3-05 外，评审技术意见全部接受。P3-05 的结论与被评审基线事实相反：`pyproject.toml` 的 Playwright 固定版本来自 `03ac422`，早于 Rev.A 的 `d59c7f0`，不是评审后新增；因此不能据此新增重复依赖或错误扩大实施范围。
+
+### 0.2 A 第二轮评审处置结论
+
+评审报告：`docs/REVIEW2-v1.6.3.2-审核规则调整与扫描历史跨页对比设计第二轮评审报告-ClaudeA.md`。报告结论为“通过（有条件）”，新增 3 项 P2、2 项 P3；经 Rev.C 独立复现，5 项均接受，无不接受项：
+
+| 评审项 | 处置 | Rev.C 落点 |
+|---|---|---|
+| N-01 `exp.Limit` 没有 `.offset` 属性访问器 | **接受** | 统一改读 `lim.args.get("offset")`，补充 UPDATE/DELETE 与 SELECT 的 AST 差异和异常兜底风险，见 §5.3、§10.1 |
+| N-02 独立无条件扫描会破坏 Rev.Q“一次预检词法化”决策 | **接受，选方案 i** | R121 并入 `_preflight_create_definition_status()` 的既有 tokenization；ALTER 在 CREATE 提前返回前分流，见 §4.7.3、§5.4、§10.1 |
+| N-03 固定数量清点漏掉 `tests_3p/` | **接受** | 补充第三方冒烟用例名、docstring 和 119 断言的修改清单，见 §9.3～§9.4 |
+| N-04 ALTER ADD 正常上界同样会 ParseError | **接受** | KFN 矩阵及 R121 负例明确为“含 E999、不含 R121”，见 §4.7.5、§10.1 |
+| N-05 v1.6.3.0 部署手册的 119 属版本实测样例 | **接受** | 明确版本戳历史样例保留；新建 v1.6.3.2 手册时使用 121，见 §9.4 |
+
+A 已在第二轮报告中确认第一轮 P3-05 判断有误，因此 Rev.B 对该项“不接受”的处置维持不变；这不是本轮遗留分歧。Rev.C 的 5 项改动均为设计文本订正，不改变既定规则口径、前端方案或发布门禁。
 
 ---
 
@@ -130,7 +144,7 @@
 
 ## 3. 当前实现勘查
 
-> 应用代码行号锚定提交 `03ac422`；Rev.B 合并基线 `003ea95` 只增加发布件和评审文档，以下应用代码事实未变。实施前如 `main` 已前进，应以类名、函数名和模板片段重新定位，不能机械套用旧行号。
+> 应用代码行号锚定提交 `03ac422`；截至 Rev.C 的第二轮评审合并基线 `5885c1f`，后续提交只增加发布件、评审报告和设计修订，以下应用代码事实未变。实施前如 `main` 已前进，应以类名、函数名和模板片段重新定位，不能机械套用旧行号。
 
 ### 3.1 规则与解析器现状
 
@@ -473,15 +487,15 @@ dml_limit.verifiable    是否能静态证明 row_count
 #### 4.7.2 覆盖语句
 
 1. `CREATE TABLE ... [SHARDKEY/TDSQL_DISTRIBUTED ...] PARTITION BY RANGE (...) (...)` 中的二级分区定义；
-2. `ALTER TABLE ... ADD PARTITION (...)` 中新增的 RANGE 分区定义；当前 sqlglot 对带 `PARTITION name` 的实际形态直接 ParseError，需从零新增 token 扫描入口；
-3. `ALTER TABLE ... REORGANIZE PARTITION ... INTO (...)` 中重组后的 RANGE 分区定义；当前 sqlglot 降级为 `Command` 且不给出分区结构，需独立 token 扫描入口；
+2. `ALTER TABLE ... ADD PARTITION (...)` 中新增的 RANGE 分区定义；当前 sqlglot 对带 `PARTITION name` 的实际形态直接 ParseError，需从零新增 token 状态分支，但与其他预检共享同一份 tokens；
+3. `ALTER TABLE ... REORGANIZE PARTITION ... INTO (...)` 中重组后的 RANGE 分区定义；当前 sqlglot 降级为 `Command` 且不给出分区结构，需独立 token 状态分支，但与其他预检共享同一份 tokens；
 4. `SHOW CREATE TABLE` 常见的可执行版本注释 `/*!... PARTITION BY RANGE ... */`，解析器应按现有可执行注释通道识别。
 
 建表时，`PARTITION BY RANGE` 是 TDSQL 一级分片规则之后的二级分区子句；仅 `TDSQL_DISTRIBUTED BY RANGE` 的一级分区定义不属于本规则。
 
 #### 4.7.3 语法识别
 
-采用评审方案 A：R121 只读 token 层的策略事实，不依赖 sqlglot AST 是否恢复成功。必须扩展现有二级分区 token 状态机，并将结果写入结构化字段，例如：
+采用第一轮评审方案 A，并按第二轮 N-02 选择性能方案 i：R121 只读 token 层的策略事实，不依赖 sqlglot AST 是否恢复成功；但不得为它再做一次无条件词法化。扩展现有 `_preflight_create_definition_status()`，让 KFN、定义完整性和二级分区策略事实共享同一次 tokenization，并将第三项写入结构化字段，例如：
 
 ```text
 secondary_partition.has_definition
@@ -492,15 +506,16 @@ secondary_partition.source_context  # CREATE / ALTER_ADD / ALTER_REORGANIZE
 
 识别步骤：
 
-1. 在进入 sqlglot 主解析前，无条件调用只读 `_scan_secondary_partition_policy()`；词法器忽略普通注释和字符串语义，保留并验证官方可执行版本注释；
-2. 确认当前语法原子是二级 `PARTITION BY RANGE` 或 ALTER 的分区定义；
-3. 只在 `VALUES LESS THAN` 的边界位置接受 `MAXVALUE`；
-4. `_consume_partition_values()` 接受 bare `MAXVALUE`，`_consume_value_list()` 接受单元素 `(MAXVALUE)`；两种形态归一为同一个 `LESS_THAN_MAXVALUE` 指纹；
-5. 记录命中的真实分区名，供提示模板使用；
-6. `LIST ... VALUES IN (...)` 不允许把 MAXVALUE 当普通值；非法语法继续由 `E999_SYNTAX_ERROR` 兜底；
-7. 不把 `TDSQL_MAXVALUE` 序列关键字、普通标识符、注释或字符串误判为分区上界；
-8. 扫描结果在 AST try/except 之前写入 `parsed.secondary_partition`，或保证在正常 AST、Command 降级、ParseError 提前返回三条出口均被写入；严禁放在 `_retry_ast is not None` 条件内；
-9. R121 只读 `parsed.secondary_partition.maxvalue_partitions`，不读 AST、不读 `raw_sql`。
+1. `_preflight_create_definition_status()` 仍只调用一次 tokenizer，返回值由二元组扩为 `(known_fidelity_failures, unique_source_definitions_complete, secondary_partition_policy)`；二级分区扫描器接收这份既有 tokens，不接收原 SQL 后自行 tokenize；
+2. 在该函数当前 `open_idx < 0` 的 CREATE 专用提前返回之前，先按首个有效 token 分流 CREATE/ALTER；只有这两类语句进入二级分区状态扫描，其他语句返回空策略事实；词法器忽略普通注释和字符串语义，保留并验证官方可执行版本注释；
+3. 确认当前语法原子是二级 `PARTITION BY RANGE` 或 ALTER 的分区定义；
+4. 只在 `VALUES LESS THAN` 的边界位置接受 `MAXVALUE`；
+5. `_consume_partition_values()` 接受 bare `MAXVALUE`，`_consume_value_list()` 接受单元素 `(MAXVALUE)`；两种形态归一为同一个 `LESS_THAN_MAXVALUE` 指纹；
+6. 记录命中的真实分区名，供提示模板使用；
+7. `LIST ... VALUES IN (...)` 不允许把 MAXVALUE 当普通值；非法语法继续由 `E999_SYNTAX_ERROR` 兜底；
+8. 不把 `TDSQL_MAXVALUE` 序列关键字、普通标识符、注释或字符串误判为分区上界；
+9. parse() 在 sqlglot AST try/except 前一次性接收预检三元组并写入 `parsed.secondary_partition`，因此正常 AST、Command 降级、ParseError 提前返回三条出口都保留该事实；严禁放在 `_retry_ast is not None` 条件内；
+10. R121 只读 `parsed.secondary_partition.maxvalue_partitions`，不读 AST、不读 `raw_sql`。
 
 #### 4.7.4 正反例
 
@@ -526,6 +541,7 @@ Rev.B 明确不通过“掩码整个分区子句”来关闭 sqlglot KFN，因�
 | CREATE 二级 `LESS THAN MAXVALUE` | 至少包含 E999、R121；现有其他结构类规则的后续结果不在本次改造范围 | 包含 E999，不含 R121 |
 | CREATE 二级 `LESS THAN (MAXVALUE)` | 包含 R121，不含 E999 | 不含 R121/E999 |
 | ALTER ADD bare 或括号形态 | 当前均会有 E999；token 命中后 distributed 另含 R121 | 仅 E999，不含 R121 |
+| ALTER ADD 正常上界（无 MAXVALUE） | 当前有 E999；sqlglot 对 `ADD PARTITION (PARTITION name …)` 整体不支持，与 MAXVALUE 无关；不含 R121 | 同左：含 E999，不含 R121 |
 | ALTER REORGANIZE bare 或括号形态 | 当前为 Command、无 E999；token 命中后 distributed 含 R121 | 不含 R121/E999 |
 
 验收只对 E999/R121 子集作精确断言，不把当前 parse_error 后可能伴生的其他既有规则结果误写为本次承诺。关闭 bare KFN、恢复完整 AST 或抑制其他结构规则属于独立解析器课题，不在 v1.6.3.2 内。
@@ -577,27 +593,33 @@ parsed.alter_column_types[i] = {
 
 ### 5.3 LIMIT 结构
 
-- AST 正常路径：从顶层 UPDATE/DELETE 节点读取 `limit`；SQLGlot 两参数语法 `LIMIT offset,count` 的 count 位于 `Limit.expression`、offset 位于 `Limit.offset`，必须先检查 `offset`；
+- AST 正常路径：从顶层 UPDATE/DELETE 节点读取 `limit`；SQLGlot 两参数语法 `LIMIT offset,count` 的 count 位于 `lim.expression`、offset 位于 `lim.args.get("offset")`，必须先检查后者；
 - 占位符路径：识别 `Placeholder`，设置 `parameterized=true`、`verifiable=false`；
-- offset 路径：只要 `Limit.offset` 非空，就设置 `verifiable=false`，R058 给出不可证明的 WARNING，不能仅因 `expression <= 2000` 放行；
+- offset 路径：只要 `lim.args.get("offset")` 非空，就设置 `verifiable=false`，R058 给出不可证明的 WARNING，不能仅因 `expression <= 2000` 放行；
 - TDSQL 恢复路径：使用词法 token 扫描顶层 LIMIT，不进入括号、字符串、普通注释；
 - 超大整数字面量必须安全转换，转换溢出或非法值视为不可证明，不能让审核异常；
 - 解析器不得把 SELECT 子查询内部的 LIMIT 误当成外层 UPDATE/DELETE 的批量上限。
 
 `UPDATE/DELETE ... LIMIT 2000 OFFSET 1` 在目标 MySQL/TDSQL 方言中属于非法语法，当前 SQLGlot 会 ParseError，因此用户可见结果是 E999，不进入上述合法 AST offset 分支，也不产生 R058。该用例用于锁定语法失败边界；合法的 `LIMIT 1,2000` 用于锁定 SQLGlot 字段映射和 R058 的不可证明分支。
 
+SQLGlot 30.14.0 的 `exp.Limit` 只在 `arg_types` 中声明 `offset`，类上没有 `.offset` 属性访问器；实测 `hasattr(exp.Limit, "offset") is False`，直接读取 `lim.offset` 会抛 `AttributeError`。该异常还会被 `checker.py` 的规则异常兜底转成“规则 R058 执行异常”WARNING，导致真实判定失效，因此实现一律使用 `lim.args.get("offset")`。另需区分：UPDATE/DELETE 两参数 LIMIT 的 offset 位于 `Limit.args["offset"]` 且值为 `Literal`；SELECT 的 offset 位于语句节点 `Select.args["offset"]` 且值为 `Offset`，两种 AST 形态不得互相套用。
+
 ### 5.4 二级分区结构
 
-现有 `_consume_partition_values`、`_consume_partition_defs`、`_consume_secondary_partition` 已形成小型语法状态机，但它们目前主要服务 AST 恢复计划。R121 必须把 token 策略事实前移到 sqlglot 主解析之前，不能继续挂在“恢复成功才回填”的条件下：
+现有 `_consume_partition_values`、`_consume_partition_defs`、`_consume_secondary_partition` 已形成小型语法状态机，但它们目前主要服务 AST 恢复计划。R121 必须把 token 策略事实前移到 sqlglot 主解析之前，不能继续挂在“恢复成功才回填”的条件下。第二轮 N-02 定版采用方案 i：并入 Rev.Q 既有的单次预检词法化，不新增独立 tokenizer 调用：
 
-1. 新增独立只读 `_scan_secondary_partition_policy(sql)`，在 AST try/except 前运行；
-2. RANGE 值解析新增 `LESS_THAN_MAXVALUE` 指纹，bare 与单元素括号形态归一；
-3. 定义解析把命中分区名、方法及 `CREATE/ALTER_ADD/ALTER_REORGANIZE` 来源汇总到 `ParsedSQL.secondary_partition`；
-4. CREATE 普通文本和可执行注释走同一策略扫描；
-5. ALTER ADD 当前是 ParseError，ALTER REORGANIZE 当前是 Command，两者使用各自有限状态入口，不能把一种降级路径的假设套到另一种；
-6. 策略事实无论 AST 正常、Command 降级还是 ParseError 提前返回都必须保留；
-7. 保留原有完整性门禁：未知或半解析语法不能伪装成完整 AST 成功；
-8. 更新当前将 MAXVALUE 标成已知假阴性的注释和测试，避免文档与实际能力相反。
+1. `_preflight_create_definition_status()` 内部仍只执行一次 `tokenize(sql)`，返回三元组；正常、tokenize 异常、终止分号非法、非 CREATE/ALTER 等所有出口都必须返回相同三元结构，空策略事实使用统一默认值；现有 `_preflight_known_fidelity_failures()` 继续只取索引 0，保持兼容；
+2. 新增接收既有 token 列表的只读 `_scan_secondary_partition_policy_tokens(toks)`；禁止它接收 SQL 后再次 tokenize；
+3. 在当前 `_tdsql_table_def_bounds()` 得出 `open_idx < 0` 并提前返回之前，先识别首个有效 token：CREATE 走既有定义/KFN流程并附加策略扫描，ALTER 走 ADD/REORGANIZE 策略扫描，其他语句只返回空策略事实；
+4. RANGE 值解析新增 `LESS_THAN_MAXVALUE` 指纹，bare 与单元素括号形态归一；
+5. 定义解析把命中分区名、方法及 `CREATE/ALTER_ADD/ALTER_REORGANIZE` 来源汇总到 `ParsedSQL.secondary_partition`；
+6. CREATE 普通文本和可执行注释走同一策略扫描；
+7. ALTER ADD 当前是 ParseError，ALTER REORGANIZE 当前是 Command，两者使用各自有限状态入口，不能把一种降级路径的假设套到另一种；
+8. 策略事实无论 AST 正常、Command 降级还是 ParseError 提前返回都必须保留；
+9. 保留原有完整性门禁：未知或半解析语法不能伪装成完整 AST 成功；
+10. 更新当前将 MAXVALUE 标成已知假阴性的注释和测试，避免文档与实际能力相反。
+
+性能不变量：本改动不得使单条语句的**预检词法化**次数超过 Rev.Q 既有基线一次。SQLGlot `parse_one()` 自身的内部解析成本不属于新增预检次数，但实现前后也不得因 R121 额外调用 `parse_one()`。测试使用 tokenizer spy/monkeypatch 对一批 SELECT、INSERT 等非 DDL 语句比较调用次数，必须证明相对当前基线没有新增 tokenization；同时断言非 DDL 的 `secondary_partition` 为空。
 
 ---
 
@@ -789,7 +811,7 @@ rule_id / category / severity / message / suggestion / line_number
 
 | 文件 | 设计改动 |
 |---|---|
-| `backend/engine/parser/parser_legacy.py` | CREATE 继续使用 `column_types`；从零新增 ALTER ADD/MODIFY/CHANGE 的 `alter_column_types`；新增结构化 DML LIMIT；在 AST 前生成独立的二级分区策略事实，并分别覆盖 ALTER ADD 的 ParseError 与 REORGANIZE 的 Command 路径 |
+| `backend/engine/parser/parser_legacy.py` | CREATE 继续使用 `column_types`；从零新增 ALTER ADD/MODIFY/CHANGE 的 `alter_column_types`；新增结构化 DML LIMIT；扩展现有单次预检词法化生成独立于 AST 成败的二级分区策略事实，并分别覆盖 ALTER ADD 的 ParseError 与 REORGANIZE 的 Command 路径 |
 | `backend/engine/rules/ddl.py` | 重写 R011、调整 R030/R032/R035、新增 R120 |
 | `backend/engine/rules/distributed.py` | R058 阈值及数值判定；新增 R121 |
 | `backend/engine/rules/__init__.py` | 注册 R120/R121、更新总数和分类说明 |
@@ -819,6 +841,7 @@ rule_id / category / severity / message / suggestion / line_number
 | `tests/test_oracle_compat_rules.py` | 只更新全局规则总数断言，R078-R119 范围保持 42 条不变 |
 | `tests/test_sit_full.py`、`tests/test_sit_round2.py`、`tests/test_sit_rules.py`、`tests/test_sit_v1_rules.py` | 更新当前规则总数/API 断言；不改历史版本语义 |
 | `tests/test_uat_rules.py`、`tests/test_uat_v1.py`、`tests/test_v2_uat.py` | 更新当前总数/下限断言，并补本版 UAT 结果口径 |
+| `tests_3p/test_1_smoke.py` | 第三方冒烟套件；该目录不在 `pyproject.toml` 的默认 `testpaths` 内。将 `test_sm09_rule_library_119` 用例名、docstring 和 `assert body["total"] == 119` 一并更新为 121 |
 | `tests/rule_audit_materials/verify_rules.py`、`verify_metadata_rules.py`、`tests/TEST_SPEC-规则覆盖与压力测试.md` | 扩充 R120/R121 物料，更新当前 121 条覆盖目标；IP 地址和身份证测试数据中的数字 119 不是规则数量，不得改写 |
 | 前端静态契约测试 | 四张表都必须有稳定 row-key + reserve-selection |
 | 前端浏览器行为测试 | 四个 module 的跨页勾选、超选、清空、慢响应竞态 |
@@ -832,7 +855,9 @@ rule_id / category / severity / message / suggestion / line_number
 | `deploy/verify_deploy.sh` | 把规则总数硬断言和说明从 119 更新为 121，同时保留 Oracle 兼容子集 42 条核对 |
 | `deploy/README.md` | 把“一键冒烟/119规则”的当前说明更新为 121 |
 
-实施结束必须使用排除 vendor、测试结果和历史证据目录的仓库搜索逐条清点固定数字。分类规则为：当前能力声明和当前测试断言改为 121；`docs/发布说明-v1.0.2.md` 等已发布版本、历史验收证据及旧设计/报告不改；Oracle 子集 `R078-R119` 的编号范围和 42 条数量不改；`parser_legacy.py` 中“实测 119 条规则无消费者”属于当时恢复安全性证据，应标明历史基线而不是改成未经重测的 121。不得执行盲目全局替换。
+实施结束必须使用排除 vendor、测试结果和历史证据目录的仓库搜索逐条清点固定数字，且清点范围必须显式包含 `tests_3p/`；该目录不在默认 `testpaths=["tests"]` 内，不能只靠运行默认 pytest 等待失败来发现。分类规则为：当前能力声明和当前测试断言改为 121；`docs/发布说明-v1.0.2.md` 等已发布版本、历史验收证据及旧设计/报告不改；Oracle 子集 `R078-R119` 的编号范围和 42 条数量不改；`parser_legacy.py` 中“实测 119 条规则无消费者”属于当时恢复安全性证据，应标明历史基线而不是改成未经重测的 121。不得执行盲目全局替换。
+
+版本戳文档单独归类：`docs/DEPLOY-v1.6.3.0-内网测试环境部署手册.md` 中 `[PASS] 规则总数 119` 是 v1.6.3.0 的实测输出样例，按 OUT-08 保留不改；如果为 v1.6.3.2 新建部署手册，新手册的当前期望必须写 121。不得因旧手册仍可供操作参考而篡改其版本证据，也不得复制旧样例到新版本手册。
 
 ---
 
@@ -886,7 +911,7 @@ rule_id / category / severity / message / suggestion / line_number
 3. 非分片表上下文不触发；
 4. 集中式实例按适用域跳过；
 5. 超大整数字面量不抛异常；
-6. 合法 `LIMIT 1,2000` 先识别 `Limit.offset`，走不可证明 WARNING，不能读取 `expression=2000` 后误放行；
+6. 合法 `LIMIT 1,2000` 通过 `lim.args.get("offset")` 先识别 offset，走不可证明 WARNING，不能读取 `expression=2000` 后误放行；结果中不得含“执行异常”或 `AttributeError` 字样；
 7. 非法 `LIMIT 2000 OFFSET 1` 产生 E999 且不产生 R058；
 8. 现有 `limit_offset` 及 R114 行为保持不变；
 9. R022 的 1000 文案保持不变。
@@ -901,10 +926,12 @@ rule_id / category / severity / message / suggestion / line_number
 4. CREATE bare 形态在分布式结果中至少同时包含 E999 与 R121，在集中式包含 E999 且不含 R121；
 5. CREATE 括号形态在分布式包含 R121 且不含 E999，在集中式不含 R121/E999；
 6. ALTER ADD 在当前 ParseError 出口仍保留 token 策略事实，ALTER REORGANIZE 在当前 Command 出口也保留该事实；
-7. 其他语法不完整时产生 E999，不把 R121 当通用语法修复器；
-8. parser 指纹在 MAXVALUE 与普通数值边界间可区分；
-9. 一级和二级同时存在时只读取二级节点；
-10. 所有测试不通过全文 `in`/正则假阳性来满足。
+7. ALTER ADD 正常数值上界在分布式和集中式都含 E999、不含 R121，证明 ADD 的 ParseError 与 MAXVALUE 无关；
+8. 其他语法不完整时产生 E999，不把 R121 当通用语法修复器；
+9. parser 指纹在 MAXVALUE 与普通数值边界间可区分；
+10. 一级和二级同时存在时只读取二级节点；
+11. 所有测试不通过全文 `in`/正则假阳性来满足；
+12. 对一批 SELECT/INSERT 非 DDL 语句用 tokenizer spy/monkeypatch 锁定预检词法化次数相对 Rev.Q 基线不增加，且 `secondary_partition` 始终为空；R121 不得额外调用 `parse_one()`。
 
 ### 10.2 数量、注册与质量门禁测试
 
@@ -1058,7 +1085,7 @@ distributed-only exact set 包含 R030/R032/R121
 | RISK-17 | 官方 bare MAXVALUE 在当前 sqlglot 上仍 ParseError | 采用独立 token 事实使分布式同时返回 E999+R121；关闭 KFN 另立课题 |
 | RISK-18 | ALTER 类型通道与 R035 批内上下文均是评审确认的扩围 | 按 REQ-01A/REQ-05A 完整实现；若工期不可控，只能由需求方书面批准降级并同步修改验收口径 |
 
-Rev.B 已把 P1/P2 设计缺口关闭，可以进入编码。生产发布仍有三项书面门禁：目标分布式实例满足 UPDATE/DELETE LIMIT 版本前提；DBA 接受 R030/R032 在集中式造成的零覆盖；活动规则集及流水线负责人接受 §10.2 的门禁双向变化。任何一项未确认都不影响开发和测试，但不得发布相关规则行为到生产。REQ-01A/REQ-05A 是本版已承诺范围，未经需求方书面批准不得在实现阶段静默裁剪。
+Rev.B 已把 P1/P2 结构性设计缺口关闭，Rev.C 又完成第二轮 5 项定点文本订正；待 A 定点确认后即可进入编码。生产发布仍有三项书面门禁：目标分布式实例满足 UPDATE/DELETE LIMIT 版本前提；DBA 接受 R030/R032 在集中式造成的零覆盖；活动规则集及流水线负责人接受 §10.2 的门禁双向变化。任何一项未确认都不影响开发和测试，但不得发布相关规则行为到生产。REQ-01A/REQ-05A 是本版已承诺范围，未经需求方书面批准不得在实现阶段静默裁剪。
 
 ---
 
@@ -1070,9 +1097,11 @@ v1.6.3.2 只有同时满足以下条件才算完成：
 - [ ] R030/R032 仅分布式适用，R031/R024 未被越权修改，集中式零覆盖已获 DBA 书面确认；
 - [ ] R035 不比较任何括号参数，并通过文件/在线元数据两条入口的请求内跨表上下文测试；
 - [ ] R058 实际校验 LIMIT 数值，上边界为 2000，注释/字符串不能放行；
-- [ ] R058 的两参数 `Limit.offset`、非法 `LIMIT ... OFFSET` 与 R114 既有 `limit_offset` 边界均有回归测试；
+- [ ] R058 的两参数 `lim.args.get("offset")`、非法 `LIMIT ... OFFSET` 与 R114 既有 `limit_offset` 边界均有回归测试，结果不含规则执行异常；
 - [ ] R121 只对分布式二级 RANGE 分区中的 MAXVALUE 报错，并覆盖 CREATE/ALTER；normal AST、Command、ParseError 三类出口均符合 §4.7.5；
+- [ ] R121 与既有 KFN/定义完整性共享一次预检词法化；非 DDL 批量回归证明没有新增 tokenizer/parse_one 调用；
 - [ ] 规则总数、分类数、适用域数和 API 数量与 §6.2 一致；
+- [ ] 固定数量清点覆盖默认 `tests/`、非默认 `tests_3p/`、部署脚本和当前态文档；版本戳历史样例保持原值；
 - [ ] 本期没有新增迁移；启动能幂等补插 R120/R121，且运行时不新增对 `rule_configs` 的读取依赖；
 - [ ] 四个指定页面均可跨页选择两条记录，超选/不兼容/清空边界正确；
 - [ ] 共享 `cmpTableRef` 在 module 卸载窗口空值安全，`doLogout()` 清空选择，前端不存在旧响应覆盖新页；
@@ -1096,3 +1125,4 @@ v1.6.3.2 只有同时满足以下条件才算完成：
 |---|---|---|
 | Rev.A | 2026-09-03 | 首版开发详细设计 |
 | Rev.B | 2026-09-03 | 复核 A 第一轮报告正文全部 15 项：接受 14 项并整改；P3-05 因仓库已有 Playwright dev extra 和依赖边界测试而不接受；未修改任何代码 |
+| Rev.C | 2026-09-03 | 接受并完成 A 第二轮 5 项定点订正：offset 取值、单次预检词法化、`tests_3p` 清点、ALTER ADD 正常上界、版本戳部署样例归类；未修改任何代码 |
