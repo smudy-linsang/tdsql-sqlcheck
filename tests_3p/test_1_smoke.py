@@ -77,12 +77,12 @@ class TestA2Auth:
 class TestA3CoreBusiness:
     """C. 核心业务链路"""
 
-    def test_sm09_rule_library_119(self, client, admin_token):
-        """SM-09 规则库加载 119 条规则"""
+    def test_sm09_rule_library_121(self, client, admin_token):
+        """SM-09 规则库加载 121 条规则（v1.6.3.2：R120/R121 新增）"""
         r = client.get("/api/v1/rules", headers=auth(admin_token))
         assert r.status_code == 200
         body = r.json()
-        assert body["total"] == 119, f"规则数异常: {body['total']}"
+        assert body["total"] == 121, f"规则数异常: {body['total']}"
         cats = {rule["category"] for rule in body["rules"]}
         assert len(cats) == 9, f"规则分类数异常: {cats}"
 

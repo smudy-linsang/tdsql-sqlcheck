@@ -25,7 +25,7 @@ class RuleChecker:
         self.rules: list[BaseRule] = self._load_default_rules()
 
     def _load_default_rules(self) -> list[BaseRule]:
-        """加载全部119条规则"""
+        """加载全部121条规则"""
         return [cls() for cls in ALL_RULE_CLASSES]
 
     def get_enabled_rules(self, rule_overrides: Optional[dict] = None,
@@ -138,6 +138,26 @@ class RuleChecker:
         # v1.6.2.2-UAT-O-14：三入口统一换行规范化——拆句/解析/语句头判定必须消费同一份文本。
         sql = normalize_newlines(sql)
         parsed = self.parser.parse(sql)
+        violations = self._audit_parsed(parsed, sql, table_metadata, line_number,
+                                        rule_overrides, instance_type)
+        return AuditResult(
+            sql=sql.strip(),
+            sql_type=parsed.sql_type,
+            passed=len(violations) == 0,
+            violations=violations,
+            file_path=file_path,
+            line_number=line_number,
+        )
+
+    def _audit_parsed(self, parsed: ParsedSQL, sql: str,
+                      table_metadata: Optional[dict], line_number: Optional[int],
+                      rule_overrides: Optional[dict],
+                      instance_type: Optional[str]) -> list[Violation]:
+        """对**已解析**的 ParsedSQL 执行规则（audit_sql 与 audit_file 共用）。
+
+        v1.6.3.2 / REQ-05A：把"解析后执行规则"从 audit_sql 下沉，使 audit_file
+        能对整批语句各解析一次后直接复用，禁止为构造 R035 索引再解析第二遍。
+        """
         violations: list[Violation] = []
 
         # 语法解析报错或结构不全时直接报 ERROR（排除存储过程/触发器/视图及 LOAD DATA 特殊语法）
@@ -174,12 +194,21 @@ class RuleChecker:
             ))
 
         is_ddl_sql = (parsed.is_create_table or parsed.is_alter_table or parsed.sql_type in ("CREATE", "ALTER", "DROP", "TRUNCATE", "RENAME") or any(k in sql.upper() for k in ("CREATE", "ALTER", "DROP", "TRUNCATE", "RENAME")))
+        # v1.6.3.2 / REQ-05A：R035 批内跨表上下文经 table_metadata 保留键传入，
+        # 但该内部键不得污染依赖 `if not table_metadata` 判定的通用规则（如 R064
+        # 覆盖索引建议）——audit_file 批量场景 meta 仅含保留键时，对非 R035 规则
+        # 必须还原为 None，保持与旧「逐条 audit_sql」路径完全一致的行为。
+        public_meta = table_metadata
+        if table_metadata and self._R035_CROSS_KEY in table_metadata:
+            public_meta = {k: v for k, v in table_metadata.items()
+                           if k != self._R035_CROSS_KEY} or None
         for rule in self.get_enabled_rules(rule_overrides, instance_type):
             # DDL 规则只在 DDL 语句时检查
             if rule.category.value == "ddl" and not is_ddl_sql:
                 continue
             try:
-                violation = rule.check(parsed, table_metadata=table_metadata)
+                meta_for_rule = table_metadata if rule.rule_id == "R035" else public_meta
+                violation = rule.check(parsed, table_metadata=meta_for_rule)
                 if violation is not None:
                     # 确保行号信息传递
                     if violation.line_number is None and line_number is not None:
@@ -214,15 +243,7 @@ class RuleChecker:
                 message=f"SQL 语句存在解析错误，语句头豁免不得吞掉解析失败（可能是拉取截断/语法错误）: {parsed.parse_error}",
                 line_number=line_number,
             ))
-
-        return AuditResult(
-            sql=sql.strip(),
-            sql_type=parsed.sql_type,
-            passed=len(violations) == 0,
-            violations=violations,
-            file_path=file_path,
-            line_number=line_number,
-        )
+        return violations
 
     def audit_file(self, content: str, file_path: str = "",
                    rule_overrides: Optional[dict] = None,
@@ -244,22 +265,72 @@ class RuleChecker:
 
         if file_path.lower().endswith(".xml"):
             # MyBatis XML 文件
-            sqls = self._extract_sql_from_mybatis(content)
-            for sql_text, line_no in sqls:
-                result = self.audit_sql(sql_text, file_path=file_path, line_number=line_no,
-                                        rule_overrides=rule_overrides,
-                                        instance_type=instance_type)
-                results.append(result)
+            stmts = self._extract_sql_from_mybatis(content)
         else:
             # 纯 SQL 文件：按分号分割
-            sqls = self._split_sql_file(content)
-            for sql_text, line_no in sqls:
-                result = self.audit_sql(sql_text, file_path=file_path, line_number=line_no,
-                                        rule_overrides=rule_overrides,
-                                        instance_type=instance_type)
-                results.append(result)
+            stmts = self._split_sql_file(content)
 
+        # v1.6.3.2 / REQ-05A：整批语句各解析**一次**，构造 R035 批内跨表上下文后
+        # 直接复用解析结果执行规则，禁止为索引再解析第二遍。
+        parsed_items = [(sql_text, line_no, self.parser.parse(sql_text))
+                        for sql_text, line_no in stmts]
+        metas = self._build_r035_cross_table_context(
+            parsed_items, rule_overrides, instance_type)
+        for (sql_text, line_no, parsed), meta in zip(parsed_items, metas):
+            violations = self._audit_parsed(parsed, sql_text, meta, line_no,
+                                            rule_overrides, instance_type)
+            results.append(AuditResult(
+                sql=sql_text.strip(),
+                sql_type=parsed.sql_type,
+                passed=len(violations) == 0,
+                violations=violations,
+                file_path=file_path,
+                line_number=line_no,
+            ))
         return results
+
+    _R035_CROSS_KEY = "__r035_cross_table_columns__"
+
+    def _r035_enabled(self, rule_overrides: Optional[dict],
+                      instance_type: Optional[str]) -> bool:
+        """只有本次实际启用列表包含 R035 才构造跨表索引（过滤先于构造）。"""
+        return any(r.rule_id == "R035"
+                   for r in self.get_enabled_rules(rule_overrides, instance_type))
+
+    def _build_r035_cross_table_context(self, parsed_items, rule_overrides=None,
+                                        instance_type=None) -> list[dict]:
+        """为一批语句构造 R035 批内跨表上下文（REQ-05A）。
+
+        返回与 parsed_items 对齐的 table_metadata 列表；每条的保留键
+        `__r035_cross_table_columns__` 指向**此前语句**中同名列的
+        `{table_name, type, raw_type, statement_index}` 列表（基准方向：
+        只与更早出现的表比较，第一张表建立基准但不报）。只读成功解析的
+        CREATE TABLE 及其 columns；解析失败的语句不进入索引（E999 负责失败关闭）。
+        生命周期为单次审核请求，请求结束即释放，不做跨请求缓存。
+        """
+        metas: list[dict] = [{} for _ in parsed_items]
+        if not self._r035_enabled(rule_overrides, instance_type):
+            return metas
+        index: dict[str, list[dict]] = {}
+        for idx, (_sql, _line, parsed) in enumerate(parsed_items):
+            # 快照此前语句的同名列引用（list(v) 浅拷贝，避免后续追加污染快照）
+            metas[idx][self._R035_CROSS_KEY] = {k: list(v) for k, v in index.items()}
+            if not parsed.is_create_table or parsed.parse_error:
+                continue
+            table_name = parsed.tables[0] if parsed.tables else ""
+            if not table_name:
+                continue
+            for col in parsed.columns:
+                name = col.get("name", "")
+                if not name:
+                    continue
+                index.setdefault(name.lower(), []).append({
+                    "table_name": table_name,
+                    "type": col.get("type", ""),
+                    "raw_type": col.get("raw_type", ""),
+                    "statement_index": idx,
+                })
+        return metas
 
     def compute_summary(self, results: list[AuditResult]) -> AuditSummary:
         """计算审核汇总"""

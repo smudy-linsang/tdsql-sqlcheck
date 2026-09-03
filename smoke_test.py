@@ -9,6 +9,15 @@ import os
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 
+# Windows 控制台默认 GBK，强制 stdout/stderr 用 UTF-8，避免末尾汇总的 ✅/⚠️
+# emoji 触发 UnicodeEncodeError 使脚本在打印结论前崩溃（与 verify_rules.py 同制；
+# Linux 部署环境本就是 UTF-8，不受影响）。
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
 # 冒烟测试为进程内验证，API段以免认证模式执行（部署后健康检查见部署手册）
 os.environ.setdefault("AUTH_ENABLED", "false")
 os.environ.setdefault("DATA_MASKING_ENABLED", "false")
@@ -88,13 +97,23 @@ try:
             fail(f"表 {t} 缺失")
 
     # 检查规则配置
+    # v1.6.3.2：只写目录启动补插回归——下限由历史 >=76 提升为 >=121，并验证
+    # R120/R121 已被 init_rule_configs() 幂等补插。rule_configs 不是运行时真值源
+    # （产品 API/规则引擎/前端均读规则类），此处只做启动补插回归，不断言存量文案。
     conn = _get_connection()
     rule_count = conn.execute("SELECT COUNT(*) AS cnt FROM rule_configs").fetchone()["cnt"]
+    new_rules = conn.execute(
+        "SELECT rule_id FROM rule_configs WHERE rule_id IN ('R120','R121')"
+    ).fetchall()
     conn.close()
-    if rule_count >= 76:
+    if rule_count >= 121:
         ok(f"规则配置表有 {rule_count} 条规则")
     else:
-        fail(f"规则配置表只有 {rule_count} 条，期望 >= 76")
+        fail(f"规则配置表只有 {rule_count} 条，期望 >= 121")
+    if len(new_rules) == 2:
+        ok("R120/R121 已由启动补插写入 rule_configs")
+    else:
+        fail(f"R120/R121 补插不全，实际 {len(new_rules)} 条")
 
 except Exception as e:
     fail("数据库初始化", str(e))

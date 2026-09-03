@@ -207,28 +207,72 @@ class R010VarcharLength(BaseRule):
 
 
 class R011TextBlobType(BaseRule):
-    """R011: 禁止在活跃表使用 TEXT/BLOB"""
+    """R011: 谨慎使用TEXT大对象字段（v1.6.3.2 收窄为仅 TEXT，级别 INFO）"""
     rule_id = "R011"
     category = RuleCategory.DDL
-    severity = Severity.WARNING
-    description = "禁止在活跃表使用 TEXT/BLOB 类型，影响性能"
+    severity = Severity.INFO
+    description = "谨慎使用TEXT大对象字段"
     enabled = True
-    spec_source = "TDSQL数据库开发规范 - 列设计规范"
-    fix_suggestion = "建议拆分到独立扩展表或使用 VARCHAR 限定长度"
+    spec_source = "TDSQL数据库开发规范 - 列设计规范（v1.6.3.2原厂专家定版）"
+    fix_suggestion = "建议将大对象字段拆分到独立扩展表，或根据实际容量改用 VARCHAR(n) 并明确长度上限"
 
-    LARGE_TYPES = {"TEXT", "TINYTEXT", "MEDIUMTEXT", "LONGTEXT", "BLOB", "TINYBLOB", "MEDIUMBLOB", "LONGBLOB", "JSON"}
+    # v1.6.3.2 / REQ-01：只匹配精确归一值 TEXT。TINYTEXT/MEDIUMTEXT/LONGTEXT/
+    # 任何 BLOB/JSON 改由 R120 或不再覆盖（定版边界），不使用
+    # endsWith/contains/startswith 等扩大匹配。
+    TEXT_ONLY = {"TEXT"}
 
     def check(self, parsed: ParsedSQL, table_metadata: Optional[dict] = None) -> Optional[Violation]:
-        if not parsed.is_create_table:
+        hits = []
+        if parsed.is_create_table:
+            sources = parsed.column_types
+        elif parsed.is_alter_table:
+            # v1.6.3.2 / REQ-01A：ALTER ADD/MODIFY/CHANGE 列类型通道
+            sources = parsed.alter_column_types
+        else:
             return None
-        for col in parsed.column_types:
-            col_type = col.get("type", "").upper()
-            raw_type = col.get("raw_type", "").upper()
-            if col_type in self.LARGE_TYPES or any(raw_type.startswith(t) for t in self.LARGE_TYPES):
-                return self._make_violation(
-                    f"字段 '{col['name']}' 使用了 {col_type or raw_type} 类型，活跃表不建议使用",
-                )
-        return None
+        for col in sources:
+            if (col.get("type") or "").upper() in self.TEXT_ONLY:
+                hits.append(col.get("name", ""))
+        if not hits:
+            return None
+        return self._make_violation(
+            f"字段 {', '.join(hits)} 使用了 TEXT 数据类型，可能影响 TDSQL 的读写与存储性能。",
+        )
+
+
+class R120LobAbuse(BaseRule):
+    """R120: 禁止滥用LOB大对象字段（v1.6.3.2 新增）"""
+    rule_id = "R120"
+    category = RuleCategory.DDL
+    severity = Severity.ERROR
+    description = "禁止滥用LOB大对象字段"
+    enabled = True
+    spec_source = "TDSQL数据库开发规范 - 列设计规范（v1.6.3.2原厂专家定版）"
+    fix_suggestion = "不要使用上述大对象类型；非结构化数据建议对接影像平台或对象存储"
+
+    # v1.6.3.2 / REQ-02：5 种受限 LOB 的精确归一集合。TINYTEXT/TINYBLOB/JSON
+    # 不在其中（OUT-04）；列名 blob_url 或字符串 'LONGTEXT' 不得误命中。
+    LOB_TYPES = {"BLOB", "MEDIUMTEXT", "LONGBLOB", "MEDIUMBLOB", "LONGTEXT"}
+
+    def check(self, parsed: ParsedSQL, table_metadata: Optional[dict] = None) -> Optional[Violation]:
+        if parsed.is_create_table:
+            sources = parsed.column_types
+        elif parsed.is_alter_table:
+            sources = parsed.alter_column_types
+        else:
+            return None
+        hits = []
+        for col in sources:
+            col_type = (col.get("type") or "").upper()
+            if col_type in self.LOB_TYPES:
+                display = col.get("raw_type") or col_type
+                hits.append(f"{col.get('name', '')}({display})")
+        if not hits:
+            return None
+        return self._make_violation(
+            f"字段 {', '.join(hits)} 使用了受限 LOB 大对象类型；"
+            "这些类型在 TDSQL 上会大幅降低性能，禁止使用。",
+        )
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -387,10 +431,14 @@ class R029ColumnMustHaveComment(BaseRule):
 
 
 class R030NoViewProcTrigger(BaseRule):
-    """R030: 禁视图/存储过程/触发器"""
+    """R030: 禁视图/存储过程/触发器（v1.6.3.2 仅分布式适用）"""
     rule_id = "R030"
     category = RuleCategory.DDL
     severity = Severity.ERROR
+    # v1.6.3.2 / REQ-03：腾讯云 TDSQL MySQL 版使用限制把自定义函数/存储过程/
+    # 触发器列为分布式限制；集中式改域后对视图/过程/触发器为零覆盖（RISK-16，
+    # 需 DBA 书面确认），R031 对自定义函数的残余覆盖保持原状（OUT-01）。
+    instance_scope = InstanceScope.DISTRIBUTED
     description = "禁止使用视图、存储过程、触发器、自定义函数"
     enabled = True
     spec_source = "TDSQL数据库开发规范 - DDL规范"
@@ -425,10 +473,13 @@ class R031NoCustomFunction(BaseRule):
 
 
 class R032NoTemporaryTableRule(BaseRule):
-    """R032: 禁临时表(R024补充)"""
+    """R032: 禁临时表(R024补充)（v1.6.3.2 仅分布式适用）"""
     rule_id = "R032"
     category = RuleCategory.DDL
     severity = Severity.ERROR
+    # v1.6.3.2 / REQ-04：TDSQL 分布式官方限制不支持 CREATE TEMPORARY TABLE；
+    # 与 R024 同域后集中式对临时表为零覆盖（RISK-16，需 DBA 书面确认）。
+    instance_scope = InstanceScope.DISTRIBUTED
     description = "禁止使用临时表进行复杂业务逻辑"
     enabled = True
     spec_source = "TDSQL数据库开发规范 - DDL规范"
@@ -486,27 +537,47 @@ class R034BackupTableNaming(BaseRule):
 
 
 class R035CrossTableFieldType(BaseRule):
-    """R035: 多表同含义字段类型必须一致"""
+    """R035: 跨表关联字段类型必须一致（v1.6.3.2 不再比较长度等括号参数）"""
     rule_id = "R035"
     category = RuleCategory.DDL
     severity = Severity.ERROR
-    description = "多个数据表中相同业务含义字段的名称、类型、长度必须保持一致"
+    description = "跨表关联字段类型必须一致"
     enabled = True
     spec_source = "TDSQL数据库开发规范 - 列设计规范"
-    fix_suggestion = "请统一同名字段的类型和长度"
+    fix_suggestion = "请统一关联字段的数据类型；字段长度可按各表实际容量分别设置"
+
+    # v1.6.3.2 / REQ-05A：批内跨表上下文保留键。由 RuleChecker 在单次审核
+    # 请求内构造（只读、请求结束释放）；其他规则不得消费它。
+    CROSS_KEY = "__r035_cross_table_columns__"
 
     def check(self, parsed: ParsedSQL, table_metadata: Optional[dict] = None) -> Optional[Violation]:
-        if not parsed.is_create_table or not table_metadata:
+        if not parsed.is_create_table:
             return None
-        existing = table_metadata.get("existing_columns", {})
+        meta = table_metadata or {}
+        index = meta.get(self.CROSS_KEY)
+        if not isinstance(index, dict) or not index:
+            # 单条离线 SQL 无第二张表/实时库上下文：明确跳过，不伪造违规，
+            # 也不把"没有证据"描述为"检查通过"。
+            return None
+        current_table = parsed.tables[0] if parsed.tables else ""
         for col in parsed.columns:
-            col_name = col.get("name", "")
-            new_type = col.get("raw_type", "")
-            if col_name in existing and existing[col_name] != new_type:
-                return self._make_violation(
-                    f"字段 {col_name} 类型({new_type})与已有表中的同名字段类型({existing[col_name]})不一致",
-                    suggestion=f"请统一 {col_name} 的类型为 {existing[col_name]}",
-                )
+            name = col.get("name", "")
+            cur_type = col.get("type") or ""
+            cur_raw = col.get("raw_type") or cur_type
+            refs = index.get(name) or index.get(name.lower()) or []
+            for ref in refs:
+                ref_table = ref.get("table_name", "")
+                if not ref_table or ref_table == current_table:
+                    continue                     # 同一表内部不做跨表规则
+                ref_type = ref.get("type") or ""
+                if ref_type != cur_type:
+                    ref_raw = ref.get("raw_type") or ref_type
+                    return self._make_violation(
+                        f"关联字段 {name} 在表 {current_table} 中的类型为 {cur_raw}，"
+                        f"与表 {ref_table} 中的类型 {ref_raw} 不一致。",
+                        suggestion=f"请统一关联字段 {name} 的数据类型；"
+                                   "字段长度可按各表实际容量分别设置。",
+                    )
         return None
 
 

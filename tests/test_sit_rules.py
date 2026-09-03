@@ -91,10 +91,10 @@ class TestRulesAPI:
 
         # 验证每个分类的规则数
         assert len(categories["naming"]) == 5, f"Expected 5 naming rules"
-        assert len(categories["ddl"]) == 22, f"Expected 22 DDL rules"
+        assert len(categories["ddl"]) == 23, f"Expected 23 DDL rules"
         assert len(categories["dml"]) == 9, f"Expected 9 DML rules"
         assert len(categories["index"]) == 10, f"Expected 10 index rules"
-        assert len(categories["distributed"]) == 14, f"Expected 14 distributed rules"
+        assert len(categories["distributed"]) == 15, f"Expected 15 distributed rules"
         assert len(categories["security"]) == 8, f"Expected 8 security rules"
         assert len(categories["performance"]) == 5, f"Expected 5 performance rules"
         assert len(categories["transaction"]) == 4, f"Expected 4 transaction rules"
@@ -205,8 +205,8 @@ class TestEndToEnd:
         data = resp.json()
 
         # 2. 验证数据完整性
-        assert data["total"] == 119
-        assert len(data["rules"]) == 119
+        assert data["total"] == 121
+        assert len(data["rules"]) == 121
 
         # 3. 验证每条规则都有描述
         for rule in data["rules"]:

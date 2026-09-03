@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""119 条规则覆盖验证 harness（本地引擎驱动，无需启动服务）
+"""121 条规则覆盖验证 harness（本地引擎驱动，无需启动服务）
 
 工作原理
 ========
@@ -36,7 +36,7 @@
     python tests/rule_audit_materials/verify_rules.py --verbose  # 打印每条样例明细
     python tests/rule_audit_materials/verify_rules.py --json out.json
 
-退出码：0=全部通过且 119 条规则全覆盖；1=存在失败或未覆盖规则。
+退出码：0=全部通过且 121 条规则全覆盖；1=存在失败或未覆盖规则。
 """
 import argparse
 import json
@@ -67,8 +67,10 @@ ALL_RULE_IDS = sorted({cls().rule_id for cls in ALL_RULE_CLASSES})
 #        而解析器 raw_type 仅为数据类型 SQL（如 'BIGINT'），AUTO_INCREMENT
 #        作为列约束不会进入 raw_type，故任何 CREATE TABLE 都无法触发该规则。
 #   R049 表别名规范：规则体在文件审核分支恒 return None（仅占位，未实现检测）。
-#   R035 多表同含义字段类型一致：需 table_metadata['existing_columns']，
-#        而所有产品审核路径（文件/在线/with-metadata）均未填充该字段，不可达。
+#   R035 多表同含义字段类型一致：本 harness 走单条 audit_sql（table_metadata=None），
+#        无批内跨表依据故不可达；v1.6.3.2/REQ-05A 起 audit_file 批量路径已通过
+#        __r035_cross_table_columns__ 保留键构造请求内跨表上下文激活 R035（见
+#        tests/test_rules_v1632.py 的跨表用例），此处豁免仅针对单条 harness 路径。
 #   R025 禁改分片键：依赖 parsed.alter_actions，而解析器对 ALTER TABLE 恒不
 #        填充 alter_actions（实测为空），规则循环从不执行，不可达。
 #   R059 禁分布式事务：规则要求 is_begin 且 table_metadata 非空；而 BEGIN 语句

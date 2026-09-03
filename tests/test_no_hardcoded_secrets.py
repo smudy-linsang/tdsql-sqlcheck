@@ -32,6 +32,7 @@ _ALLOWED_TEST_DEFAULTS = {
     "Sec01#Pass123", "Sec01#Pass456", "Sec01#Pass789",
     "Sec02#Pass123", "Sit05#Pass123", "Init#Pass123", "New#Passw0rd9",
     "my_secret_password_123!@#", "Test@2026Admin", "SecretPassword123!", "MonitorSecret123!",
+    "Admin_Test_2026!",      # v1.6.3.0 内网测试环境 verify_deploy 验证口令（历史交付文档实录，非生产凭据）
 }
 
 # 已确认泄露、必须永不再出现的生产凭据（值本身不写在此处，用特征匹配）

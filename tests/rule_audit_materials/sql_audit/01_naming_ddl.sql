@@ -2,7 +2,7 @@
 -- 文件审核测试物料 01：命名规范 + DDL 规范
 -- 覆盖规则：R001,R002,R003,R004,R005,R006,R007,R008,R009,R010,R011,
 --           R023,R024,R026,R027,R028,R029,R032,R033,R034,R036,R037,
---           R078,R097,R098,R115,R116,R117,R118
+--           R078,R097,R098,R115,R116,R117,R118,R120
 -- 用法：python tests/rule_audit_materials/verify_rules.py
 -- 约定：@rules 为默认期望；@rules.dist / @rules.cent 为分实例口径期望（可选）。
 --       DDL 通用规则在分布式口径下会额外共触发 R077（分布式建表必须声明分片键），
@@ -147,9 +147,10 @@ CREATE TABLE t_text (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='大字段表';
 
 -- @case: R023_01
--- @rules: R003,R004,R005,R023,R028,R036,R037
+-- @rules: R003,R004,R005,R023,R028
 -- @scope: distributed
--- @note: CREATE TABLE ... SELECT，分布式不支持（CTAS 跳过 R077；缺主键等共触发）
+-- @note: CREATE TABLE ... SELECT，分布式不支持（CTAS 跳过 R077；缺主键等共触发）；
+--        CTAS 无显式列定义 → columns 空 → R036/R037 按降级豁免不触发（防误报）
 CREATE TABLE t_copy AS SELECT cust_id, cust_name FROM t_customer;
 
 -- @case: R024_01
@@ -195,13 +196,18 @@ CREATE TABLE t_order_bak (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='备份表';
 
 -- @case: R030_R031_01
--- @rules: R030,R031
--- @note: 创建自定义函数（R030 禁视图/存储过程/触发器/函数 + R031 禁自定义函数）
+-- @rules: R031
+-- @rules.dist: R030,R031
+-- @note: 创建自定义函数；R030(禁视图/过程/触发器/函数)v1.6.3.2 起仅分布式，
+--        R031(禁自定义函数)仍全适用域：分布式=R030+R031，集中式=R031（R030 零覆盖）
 CREATE FUNCTION fn_calc(a INT, b INT) RETURNS INT BEGIN RETURN a + b; END;
 
 -- @case: R030_02
 -- @rules: R030
--- @note: 创建触发器（R030 禁视图/存储过程/触发器/函数）
+-- @rules.dist: R030
+-- @rules.cent:
+-- @note: 创建触发器；R030 v1.6.3.2 起仅分布式，集中式对 TRIGGER 零覆盖
+--        （RISK-16 已接受边界，本用例锁定集中式不再触发 R030）
 CREATE TRIGGER trg_audit BEFORE INSERT ON t_customer FOR EACH ROW SET NEW.create_time = NOW();
 
 -- @case: R078_01
@@ -232,9 +238,10 @@ CREATE TABLE t_deffunc (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='默认值函数表';
 
 -- @case: R098_01
--- @rules: R036,R037,R098
--- @rules.dist: R036,R037,R077,R098
--- @note: 非整型字段做 HASH 分区（PARTITION 子句致时间戳/逻辑删除列解析丢失，共触发 R036/R037）
+-- @rules: R098
+-- @rules.dist: R077,R098
+-- @note: 非整型字段做 HASH 分区；PARTITION 方言子句致 sqlglot 降级、columns 解析丢失
+--        → R036/R037 按 columns 空豁免不触发（防降级误报，非漏报）
 CREATE TABLE t_hashpart (
     id BIGINT NOT NULL COMMENT '主键',
     region_code VARCHAR(16) NOT NULL COMMENT '地区码',
@@ -254,9 +261,10 @@ CREATE TABLE t_longpk (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='长主键表';
 
 -- @case: R116_01
--- @rules: R036,R037,R116
+-- @rules: R116
 -- @scope: distributed
--- @note: 多字段联合分片键，TDSQL 仅支持单字段（R116 仅分布式；SHARDKEY 子句致 R036/R037 共触发）
+-- @note: 多字段联合分片键，TDSQL 仅支持单字段（R116 仅分布式）；SHARDKEY 多字段方言
+--        致 columns 解析丢失 → R036/R037 按 columns 空豁免不触发
 CREATE TABLE t_multishard (
     id BIGINT NOT NULL COMMENT '主键',
     cust_id BIGINT NOT NULL COMMENT '客户ID',
@@ -292,3 +300,18 @@ CREATE TABLE t_shardnull (
     is_deleted TINYINT DEFAULT 0 COMMENT '逻辑删除',
     PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='分片键可空表' SHARDKEY=cust_id;
+
+-- @case: R120_01
+-- @rules: R120
+-- @scope: all
+-- @note: LOB 大字段滥用（LONGTEXT），R120 报错（v1.6.3.2 新增，ERROR）；
+--        dist/cent 均触发；合规 SHARDKEY+复合主键避免分布式额外共触发 R077
+CREATE TABLE t_lob_abuse (
+    id BIGINT NOT NULL COMMENT '主键',
+    cust_id BIGINT NOT NULL COMMENT '客户ID',
+    remark LONGTEXT COMMENT '大文本字段',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '更新时间',
+    is_deleted TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除',
+    PRIMARY KEY (id, cust_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='LOB滥用表' SHARDKEY=cust_id;

@@ -1,12 +1,12 @@
 """
 TDSQL SQL审核工具 - 规则引擎 (V2.1)
 
-共119条规则（R001-R119），按9个类别组织:
+共121条规则（R001-R121），按9个类别组织:
 - 命名规范 (NAMING): R001-R002, R033-R034, R049
-- DDL规范 (DDL): R003-R011, R023-R032, R035-R038
+- DDL规范 (DDL): R003-R011, R023-R032, R035-R038, R120
 - DML规范 (DML): R012-R015, R017, R040-R041, R043, R047
 - 性能规范 (PERFORMANCE): R016, R044, R050-R052
-- 分布式规范 (DISTRIBUTED): R020-R022, R025, R048, R053-R060, R077
+- 分布式规范 (DISTRIBUTED): R020-R022, R025, R048, R053-R060, R077, R121
 - 索引规范 (INDEX): R018-R019, R061-R068
 - 事务规范 (TRANSACTION): R069-R072
 - 安全规范 (SECURITY): R039, R042, R045-R046, R073-R076
@@ -14,6 +14,9 @@ TDSQL SQL审核工具 - 规则引擎 (V2.1)
 
 V2.0: 支持规则集(rule_sets)按项目覆盖规则启停与严重级别。
 V2.1: 新增42条Oracle迁移兼容规则(R078-R119)。
+V2.2 (v1.6.3.2): R011 收窄为仅 TEXT(INFO)；新增 R120(LOB,ERROR)、
+R121(二级分区MAXVALUE,ERROR,仅分布式)；R030/R032 适用域改 DISTRIBUTED；
+R035 改比较规范化基础类型并启用批内跨表上下文；R058 上限 1000→2000 且结构化判定。
 """
 from backend.engine.rules.base import BaseRule
 from backend.engine.rules.naming import R001NamingLength, R002ReservedKeywords
@@ -27,6 +30,7 @@ from backend.engine.rules.ddl import (
     R032NoTemporaryTableRule, R033NoPluralTableName, R034BackupTableNaming,
     R035CrossTableFieldType, R036SuggestTimestampColumns,
     R037SuggestLogicalDelete, R038NoAutoIncrementForLargeTable,
+    R120LobAbuse,
 )
 from backend.engine.rules.dml import (
     R012SelectStar, R013DmlWithoutWhere, R014UpdateDeleteWithoutWhere,
@@ -45,6 +49,7 @@ from backend.engine.rules.distributed import (
     R057NoBulkInsertWithoutShardKey, R058BatchUpdateLimit,
     R059NoDistributedTransaction, R060ExplainShardKeyCheck,
     R077CreateTableMustHaveShardKey,
+    R121SecondaryPartitionMaxValue,
 )
 from backend.engine.rules.index import (
     R061IndexNaming, R062CompositeIndexOrder, R063NoIndexOnLowCardinality,
@@ -132,6 +137,8 @@ ALL_RULE_CLASSES = [
     R110UserEnv, R111WindowFunction, R112CursorUsage, R113DropPartitionRisk,
     R114DeepPagination, R115PrimaryKeyLength, R116ShardKeySingleColumn,
     R117ShardKeyType, R118ShardKeyNotNull, R119DateArithmetic,
+    # v1.6.3.2 新增（§6.1：追加在 R119 之后，不插中间，避免存量顺序依赖漂移）
+    R120LobAbuse, R121SecondaryPartitionMaxValue,
 ]
 
 __all__ = [
@@ -192,4 +199,6 @@ __all__ = [
     "R110UserEnv", "R111WindowFunction", "R112CursorUsage", "R113DropPartitionRisk",
     "R114DeepPagination", "R115PrimaryKeyLength", "R116ShardKeySingleColumn",
     "R117ShardKeyType", "R118ShardKeyNotNull", "R119DateArithmetic",
+    # v1.6.3.2 新增
+    "R120LobAbuse", "R121SecondaryPartitionMaxValue",
 ]

@@ -17,7 +17,7 @@ def list_rules(instance_type: Optional[str] = None) -> dict:
     """
     获取所有审核规则列表。
 
-    返回系统中所有审核规则的详细信息（动态计数，当前119条）。
+    返回系统中所有审核规则的详细信息（动态计数，当前121条，v1.6.3.2）。
     V1.5：instance_scope 无条件返回（规则固有属性）；传 instance_type 时
     额外返回 effective_total/skipped_total 与逐条 effective 标记（按实例类型口径）。
     """

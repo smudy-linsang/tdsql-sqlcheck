@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <!-- 主题预置：首帧前置 data-theme，避免深/浅切换闪烁；默认深色，localStorage 记忆 -->
   <script>(function(){try{var t=localStorage.getItem('tdsql-theme');if(t!=='light'&&t!=='dark')t='dark';document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','dark');}})();</script>
-  <title>TDSQL数据库SQL审核工具 V1.6.3.0</title>
+  <title>TDSQL数据库SQL审核工具 V1.6.3.2</title>
   <link rel="icon" href="/favicon.ico">
   <script src="/static/vendor/vue.global.prod.js"></script>
   <link rel="stylesheet" href="/static/vendor/element-plus.css">
@@ -13,9 +13,9 @@
   <script src="/static/vendor/element-plus-locale-zh-cn.min.js"></script>
   <script src="/static/vendor/element-plus-icons.iife.min.js"></script>
   <script src="/static/vendor/echarts.min.js"></script>
-  <link rel="stylesheet" href="/static/css/app.css?v=1.6.3.0">
+  <link rel="stylesheet" href="/static/css/app.css?v=1.6.3.2">
   <!-- 深蓝高密度主题：视觉重构层，最后加载以覆盖 Element Plus 与 app.css -->
-  <link rel="stylesheet" href="/static/css/theme-dark-blue.css?v=1.6.3.0">
+  <link rel="stylesheet" href="/static/css/theme-dark-blue.css?v=1.6.3.2">
 </head>
 <body>
 <div id="app">
@@ -27,7 +27,7 @@
     </div>
     <div class="login-brand">
       <h1>TDSQL数据库SQL审核工具</h1>
-      <div class="version">V1.6.3.0 · Design by Linsang</div>
+      <div class="version">V1.6.3.2 · Design by Linsang</div>
     </div>
     <div class="login-form">
       <el-card>
@@ -489,8 +489,8 @@
                     <el-button type="primary" size="small" @click="cmpQuery('schema_audit')">查询</el-button>
                     <el-button size="small" @click="cmpResetFilters('schema_audit')">重置</el-button>
                   </div>
-                  <el-table ref="cmpTableRef" :data="cmpState.list" v-loading="cmpState.loading" stripe size="small" class="w-full" empty-text="暂无快照数据，请执行新的扫描以生成比对基线" @selection-change="onSnapshotSelect">
-                    <el-table-column type="selection" width="40"></el-table-column>
+                  <el-table ref="cmpTableRef" :data="cmpState.list" v-loading="cmpState.loading" stripe size="small" class="w-full" row-key="id" empty-text="暂无快照数据，请执行新的扫描以生成比对基线" @selection-change="onSnapshotSelect">
+                    <el-table-column type="selection" width="40" reserve-selection></el-table-column>
                     <el-table-column label="扫描时间" width="160"><template #default="{row}">{{ formatTime(row.scan_finished_at) }}</template></el-table-column>
                     <el-table-column label="实例" show-overflow-tooltip><template #default="{row}">{{ row.connection_name || row.connection_id || '未知实例' }}</template></el-table-column>
                     <el-table-column label="库名" width="130"><template #default="{row}">{{ row.db_name || '-' }}</template></el-table-column>
@@ -711,8 +711,8 @@
                     <el-button type="primary" size="small" @click="cmpQuery('slow_scan')">查询</el-button>
                     <el-button size="small" @click="cmpResetFilters('slow_scan')">重置</el-button>
                   </div>
-                  <el-table ref="cmpTableRef" :data="cmpState.list" v-loading="cmpState.loading" stripe size="small" class="w-full" empty-text="暂无快照数据，请执行新的扫描以生成比对基线" @selection-change="onSnapshotSelect">
-                    <el-table-column type="selection" width="40"></el-table-column>
+                  <el-table ref="cmpTableRef" :data="cmpState.list" v-loading="cmpState.loading" stripe size="small" class="w-full" row-key="id" empty-text="暂无快照数据，请执行新的扫描以生成比对基线" @selection-change="onSnapshotSelect">
+                    <el-table-column type="selection" width="40" reserve-selection></el-table-column>
                     <el-table-column label="扫描时间" width="160"><template #default="{row}">{{ formatTime(row.scan_finished_at) }}</template></el-table-column>
                     <el-table-column label="实例" show-overflow-tooltip><template #default="{row}">{{ row.connection_name || row.connection_id || '未知实例' }}</template></el-table-column>
                     <el-table-column label="数据源" width="110"><template #default="{row}"><el-tag size="small" :type="row.data_source==='digest'?'warning':(row.data_source==='processlist'?'info':'primary')">{{ row.data_source_label || row.data_source || '全网慢SQL' }}</el-tag></template></el-table-column>
@@ -1276,8 +1276,8 @@
                     <el-button type="primary" size="small" @click="cmpQuery('launch_check')">查询</el-button>
                     <el-button size="small" @click="cmpResetFilters('launch_check')">重置</el-button>
                   </div>
-                  <el-table ref="cmpTableRef" :data="cmpState.list" v-loading="cmpState.loading" stripe size="small" class="w-full" empty-text="暂无检查历史，请执行新的上线检查以生成比对基线" @selection-change="onSnapshotSelect">
-                    <el-table-column type="selection" width="40"></el-table-column>
+                  <el-table ref="cmpTableRef" :data="cmpState.list" v-loading="cmpState.loading" stripe size="small" class="w-full" row-key="id" empty-text="暂无检查历史，请执行新的上线检查以生成比对基线" @selection-change="onSnapshotSelect">
+                    <el-table-column type="selection" width="40" reserve-selection></el-table-column>
                     <el-table-column label="检查时间" width="160"><template #default="{row}">{{ formatTime(row.scan_finished_at) }}</template></el-table-column>
                     <el-table-column label="实例" show-overflow-tooltip><template #default="{row}">{{ row.connection_name || row.connection_id || '未知实例' }}</template></el-table-column>
                     <el-table-column label="库名" width="130"><template #default="{row}">{{ row.db_name || '-' }}</template></el-table-column>
@@ -1511,8 +1511,8 @@
                     <el-button type="primary" size="small" @click="cmpQuery('bigtable')">查询</el-button>
                     <el-button size="small" @click="cmpResetFilters('bigtable')">重置</el-button>
                   </div>
-                  <el-table ref="cmpTableRef" :data="cmpState.list" v-loading="cmpState.loading" stripe size="small" class="w-full" empty-text="暂无快照数据，请执行新的扫描以生成比对基线" @selection-change="onSnapshotSelect">
-                    <el-table-column type="selection" width="40"></el-table-column>
+                  <el-table ref="cmpTableRef" :data="cmpState.list" v-loading="cmpState.loading" stripe size="small" class="w-full" row-key="id" empty-text="暂无快照数据，请执行新的扫描以生成比对基线" @selection-change="onSnapshotSelect">
+                    <el-table-column type="selection" width="40" reserve-selection></el-table-column>
                     <el-table-column label="扫描时间" width="160"><template #default="{row}">{{ formatTime(row.scan_finished_at) }}</template></el-table-column>
                     <el-table-column label="实例" show-overflow-tooltip><template #default="{row}">{{ row.connection_name || row.connection_id || '未知实例' }}</template></el-table-column>
                     <el-table-column label="库名" width="130"><template #default="{row}">{{ row.db_name || '-' }}</template></el-table-column>
@@ -2871,6 +2871,6 @@
     </div>
   </el-dialog>
 </div>
-<script src="/static/js/app.js?v=1.6.3.0"></script>
+<script src="/static/js/app.js?v=1.6.3.2"></script>
 </body>
 </html>

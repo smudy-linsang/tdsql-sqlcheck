@@ -498,6 +498,8 @@ const app=createApp({
       try{await apiFetch(`${API_BASE}/api/v1/auth/logout`,{method:'POST'})}catch(e){}
       clearToken();
       clearRoleScopedState();
+      // v1.6.3.2 / §7.4：退出登录清空跨页选择，防止跨用户残留 UI 状态
+      clearCompareSelection();
       authState.token='';
       authState.user=null;
       loginForm.username='';
@@ -1934,8 +1936,12 @@ const app=createApp({
     };
     // ═══ V1.3 扫描结果纵向对比 ═══
     const cmpResetResult=()=>{cmpState.result=null;cmpState.visible=false};
+    // v1.6.3.2 / §7.6：跨页选择依赖"当前页与当前查询上下文"一致。请求序号防止
+    // 用户快速翻页时旧请求晚返回覆盖新页；过期响应直接丢弃，不更新 list/total/loading。
+    let cmpReqSeq=0;
     const loadSnapshots=async(module)=>{
       if(module) cmpState.module=module;
+      const mySeq=++cmpReqSeq;
       cmpState.loading=true;
       try{
         const f=cmpState.filters;
@@ -1944,40 +1950,61 @@ const app=createApp({
           data_source:f.data_source||'',
           limit:cmpState.pageSize,offset:(cmpState.page-1)*cmpState.pageSize});
         const resp=await apiFetch(`${API_BASE}/api/v1/scan-compare/snapshots?${qs}`);
+        if(mySeq!==cmpReqSeq) return;                 // 过期响应丢弃
         if(!resp.ok){cmpState.list=[];cmpState.total=0;return}
         const d=await resp.json();
+        if(mySeq!==cmpReqSeq) return;                 // 过期响应丢弃
         cmpState.list=d.items||[];cmpState.total=d.total||0;
-      }catch(e){cmpState.list=[];cmpState.total=0}
-      finally{cmpState.loading=false}
+      }catch(e){ if(mySeq===cmpReqSeq){cmpState.list=[];cmpState.total=0} }
+      finally{ if(mySeq===cmpReqSeq) cmpState.loading=false; }
     };
-    const cmpQuery=(module)=>{cmpState.page=1;cmpState.selected=[];cmpResetResult();loadSnapshots(module)};
+    // v1.6.3.2 / §7.4：统一清空选择——业务集合与 Element Plus 内部 selection store
+    // 同步清空；nextTick 中对 ref 做空值与方法存在性保护，避免互斥 v-if 卸载窗口空引用。
+    const clearCompareSelection=()=>{
+      cmpState.selected=[];
+      nextTick(()=>{
+        const t=cmpTableRef.value;
+        if(t&&typeof t.clearSelection==='function'){ try{t.clearSelection()}catch(e){} }
+      });
+    };
+    // 切换四个 module 时清空选择（不允许跨模块比较）
+    watch(()=>cmpState.module,(nv,ov)=>{ if(nv&&ov&&nv!==ov) clearCompareSelection(); });
+    const cmpQuery=(module)=>{cmpState.page=1;clearCompareSelection();cmpResetResult();loadSnapshots(module)};
     const cmpResetFilters=(module)=>{cmpState.filters={connection_id:'',db_name:'',date_from:'',date_to:'',data_source:''};cmpQuery(module)};
-    // 限选两个：相同实例与相同数据源校验，超选或不匹配自动提示并取消最新勾选
+    // v1.6.3.2 / §7.5：选择集合按快照 ID 建模。超选/不兼容只取消 addedRow，
+    // 取消后等待下一次 selection-change 收敛，不先把错误 rows 写回 cmpState.selected。
     const onSnapshotSelect=(rows)=>{
+      const prevIds=new Set(cmpState.selected.map(r=>r.id));
+      const added=rows.filter(r=>!prevIds.has(r.id));
+      if(added.length===0){ cmpState.selected=rows; return; }   // 仅取消勾选
+      if(added.length>1){
+        // 差集不可唯一确定 → 失败关闭：清空并提示重新勾选，绝不提交错误集合
+        ElementPlus.ElMessage.warning('选择状态已重置，请重新勾选两条记录');
+        clearCompareSelection();
+        return;
+      }
+      const addedRow=added[0];
       if(rows.length>2){
         ElementPlus.ElMessage.warning('最多只能选择两次扫描结果进行对比');
-        const extra=rows[rows.length-1];
-        nextTick(()=>{try{cmpTableRef.value&&cmpTableRef.value.toggleRowSelection(extra,false)}catch(e){}});
+        nextTick(()=>{try{cmpTableRef.value&&cmpTableRef.value.toggleRowSelection(addedRow,false)}catch(e){}});
         return;
       }
       if(rows.length===2){
-        const [r1,r2]=rows;
-        const c1=r1.connection_id||r1.connection_name||'';
-        const c2=r2.connection_id||r2.connection_name||'';
+        const other=rows.find(r=>r.id!==addedRow.id);
+        const c1=other.connection_id||other.connection_name||'';
+        const c2=addedRow.connection_id||addedRow.connection_name||'';
         if(c1&&c2&&c1!==c2){
-          ElementPlus.ElMessage.warning(`实例不一致：仅支持相同实例的历史扫描进行对比（${r1.connection_name||c1} vs ${r2.connection_name||c2}）`);
-          const extra=rows[rows.length-1];
-          nextTick(()=>{try{cmpTableRef.value&&cmpTableRef.value.toggleRowSelection(extra,false)}catch(e){}});
+          ElementPlus.ElMessage.warning(`实例不一致：仅支持相同实例的历史扫描进行对比（${other.connection_name||c1} vs ${addedRow.connection_name||c2}）`);
+          nextTick(()=>{try{cmpTableRef.value&&cmpTableRef.value.toggleRowSelection(addedRow,false)}catch(e){}});
           return;
         }
-        const s1=r1.data_source||r1.module||'';
-        const s2=r2.data_source||r2.module||'';
+        const s1=other.data_source||other.module||'';
+        const s2=addedRow.data_source||addedRow.module||'';
         if(s1&&s2&&s1!==s2){
-          const l1=r1.data_source_label||s1;
-          const l2=r2.data_source_label||s2;
+          const l1=other.data_source_label||s1;
+          const l2=addedRow.data_source_label||s2;
           ElementPlus.ElMessage.warning(`数据源不一致：仅支持相同数据源的历史扫描进行对比（${l1} vs ${l2}）`);
-          const extra=rows[rows.length-1];
-          nextTick(()=>{try{cmpTableRef.value&&cmpTableRef.value.toggleRowSelection(extra,false)}catch(e){}});
+          nextTick(()=>{try{cmpTableRef.value&&cmpTableRef.value.toggleRowSelection(addedRow,false)}catch(e){}});
           return;
         }
       }
@@ -2206,6 +2233,9 @@ const app=createApp({
         const resp=await apiFetch(`${API_BASE}/api/v1/scan-compare/snapshots/${row.id}`,{method:'DELETE'});
         if(resp.ok){
           ElementPlus.ElMessage.success('历史记录已删除');
+          // v1.6.3.2 / §7.4：删除已选快照→清空选择（已选实体失效）；
+          // 删除未选快照→保留选择（选择实体仍有效）。
+          if(cmpState.selected.some(r=>r.id===row.id)) clearCompareSelection();
           loadSnapshots(row.module||cmpState.module);
         }else{
           const err=await resp.json().catch(()=>({}));
@@ -2221,7 +2251,7 @@ const app=createApp({
 
     return{currentPage,sidebarCollapsed,theme,toggleTheme,
       rawSlowlogEnabled,
-      cmpState,cmpTableRef,loadSnapshots,cmpQuery,cmpResetFilters,onSnapshotSelect,
+      cmpState,cmpTableRef,loadSnapshots,cmpQuery,cmpResetFilters,onSnapshotSelect,clearCompareSelection,
       runCompare,exportCompareHtml,saveCompareReport,loadCompareReports,viewSavedCompareReport,downloadSavedCompareReportHtml,deleteSavedCompareReport,cmpFmtChange,cmpReportQuery,cmpReportResetFilters,
       snapshotDetailDialog,filteredSnapshotIssues,openSnapshotDetail,downloadSnapshotHtml,deleteSnapshot,
       fileReportFilters,resetFileReportFilters,scanTaskFilters,scanTaskQuery,resetScanTaskFilters,

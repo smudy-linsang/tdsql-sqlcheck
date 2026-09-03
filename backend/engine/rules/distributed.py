@@ -585,15 +585,18 @@ class R057NoBulkInsertWithoutShardKey(BaseRule):
 
 
 class R058BatchUpdateLimit(BaseRule):
-    """R058: 批量UPDATE/DELETE限制行数"""
+    """R058: 批量UPDATE/DELETE限制行数（v1.6.3.2 上限 1000→2000，结构化判定）"""
     rule_id = "R058"
     instance_scope = InstanceScope.DISTRIBUTED
     category = RuleCategory.DISTRIBUTED
     severity = Severity.WARNING
-    description = "分布式表批量UPDATE/DELETE建议加LIMIT限制单次影响行数(≤1000)"
+    description = "分布式表批量UPDATE/DELETE建议加LIMIT限制单次影响行数(≤2000)"
     enabled = True
     spec_source = "TDSQL数据库开发规范 - 分布式规范"
-    fix_suggestion = "请添加 LIMIT 1000 限制单次操作行数。注意：update/delete…limit依赖proxy内嵌myisam临时表，主键varchar长度须<250(utf8mb4)/<333(utf8)，详见R115"
+    fix_suggestion = "请将单次 UPDATE/DELETE 控制为 LIMIT 2000 或更小，并按稳定主键分批提交；同时遵守 R115 对相关主键长度的限制"
+
+    # v1.6.3.2 / REQ-06：治理阈值 2000（原厂沟通定版，闭区间）。
+    MAX_LIMIT = 2000
 
     def check(self, parsed: ParsedSQL, table_metadata: Optional[dict] = None) -> Optional[Violation]:
         if parsed.sql_type not in ("UPDATE", "DELETE"):
@@ -611,12 +614,51 @@ class R058BatchUpdateLimit(BaseRule):
                 break
         if not is_shard:
             return None
-        raw_lower = parsed.raw_sql.lower()
-        if "limit" not in raw_lower:
+        op = parsed.sql_type
+        # v1.6.3.2 / REQ-06：消费解析器的结构化 LIMIT 事实，不再用
+        # "limit" in raw_sql 的全文包含判断（注释/字符串会错误放行）。
+        lim = parsed.dml_limit or {}
+        unprovable = (f"分布式表批量 {op} 的 LIMIT 无法在审核阶段确定，"
+                      "不能证明单次影响行数不超过 2000。")
+        if not lim.get("present"):
             return self._make_violation(
-                "分布式表批量UPDATE/DELETE未加LIMIT，可能导致长事务和锁等待",
+                f"分布式表批量 {op} 未设置 LIMIT，可能导致长事务和锁等待；"
+                "单次影响行数应不超过 2000。",
+            )
+        if not lim.get("verifiable"):
+            return self._make_violation(unprovable)
+        count = lim.get("row_count")
+        if count is None:
+            return self._make_violation(unprovable)
+        if count > self.MAX_LIMIT:
+            return self._make_violation(
+                f"分布式表批量 {op} 的 LIMIT 为 {count}，超过 2000。",
             )
         return None
+
+
+class R121SecondaryPartitionMaxValue(BaseRule):
+    """R121: 二级分区禁止使用MAXVALUE（v1.6.3.2 新增，仅分布式）"""
+    rule_id = "R121"
+    category = RuleCategory.DISTRIBUTED
+    severity = Severity.ERROR
+    instance_scope = InstanceScope.DISTRIBUTED
+    description = "二级分区禁止使用MAXVALUE"
+    enabled = True
+    spec_source = "TDSQL数据库开发规范 - 二级分区规范（v1.6.3.2原厂专家定版）"
+    fix_suggestion = "请删除 MAXVALUE 兜底分区，由业务按规划提前创建并持续维护明确上界的二级分区"
+
+    def check(self, parsed: ParsedSQL, table_metadata: Optional[dict] = None) -> Optional[Violation]:
+        # v1.6.3.2 / REQ-07：只读解析器的二级分区 token 策略事实，不读 AST、
+        # 不读 raw_sql；CREATE/ALTER_ADD/ALTER_REORGANIZE 三条出口均保留该事实。
+        sp = parsed.secondary_partition or {}
+        names = tuple(sp.get("maxvalue_partitions") or ())
+        if not names:
+            return None
+        return self._make_violation(
+            f"二级 RANGE 分区 {', '.join(names)} 使用了 MAXVALUE 兜底边界；"
+            "本项目禁止该设计，二级分区必须由业务按明确边界维护。",
+        )
 
 
 class R059NoDistributedTransaction(BaseRule):

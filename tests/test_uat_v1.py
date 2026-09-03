@@ -418,8 +418,8 @@ class TestUAT40_RulesUserAcceptance:
         resp = client.get("/api/v1/rules")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["total"] == 119
-        assert len(data["rules"]) == 119
+        assert data["total"] == 121
+        assert len(data["rules"]) == 121
 
     def test_uat40_02_filter_by_category(self):
         """UAT-40-02: 用户按类别筛选规则（客户端过滤）"""

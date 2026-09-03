@@ -1807,7 +1807,11 @@ def _init_default_data(conn):
 
 
 def init_rule_configs(conn=None):
-    """初始化规则配置表 — 将所有76条规则元数据写入rule_configs表"""
+    """初始化规则配置表 — 将全部规则元数据写入rule_configs表（条数动态取 ALL_RULE_CLASSES）。
+
+    v1.6.3.2：rule_configs 是只写目录快照（INSERT IGNORE 幂等补插），不是运行时
+    真值源；此处不写死条数，也不新增读取逻辑、不改变管理员覆盖状态。
+    """
     from backend.engine.rules import ALL_RULE_CLASSES
 
     close_conn = False

@@ -3,7 +3,7 @@
 
 背景
 ====
-119 条规则中有 7 条（R048/R055/R056/R057/R058/R060/R064）必须拿到真实表
+121 条规则中有 7 条（R048/R055/R056/R057/R058/R060/R064）必须拿到真实表
 元数据（分片键/是否分片表/索引）才能触发。文件审核与在线元数据审核
 （extract-and-audit）均不传 table_metadata，故这 7 条不在 verify_rules.py 中
 验证，而由本脚本调用专用端点 POST /api/v1/tdsql/audit/with-metadata 验证——

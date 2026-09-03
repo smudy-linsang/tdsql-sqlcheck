@@ -7,7 +7,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional, Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -137,12 +137,30 @@ class AuditResponse(BaseModel):
 
 
 class FileAuditRequest(BaseModel):
-    """文件审核请求"""
-    content: str = Field(..., description="文件内容")
+    """文件审核请求。
+
+    v1.6.3.2（G 建议，向前兼容增强）：`content` 改为可选；新增 `sql_list`
+    （SQL 语句列表）。当调用方传入 `sql_list` 而 `content` 为空时，自动以
+    `"\\n;\\n".join(sql_list)` 填充 `content`，兼顾脚本直调（传数组）与
+    Web 页面（传文本）两种调用习惯。二者皆空时由下游按空内容处理。
+    """
+    content: str = Field("", description="文件内容")
+    sql_list: Optional[list[str]] = Field(None, description="SQL语句列表")
     file_path: str = Field("", description="文件路径")
     project_id: Optional[str] = Field(None, description="项目ID")
     connection_id: Optional[str] = Field(None, description="TDSQL连接ID")
     instance_type: Optional[str] = Field(None, description="实例类型：distributed | centralized")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _fill_content_from_sql_list(cls, data):
+        if isinstance(data, dict):
+            content = data.get("content") or ""
+            sql_list = data.get("sql_list")
+            if (not content) and sql_list:
+                data = dict(data)
+                data["content"] = "\n;\n".join(sql_list)
+        return data
 
 
 class FileAuditResponse(BaseModel):

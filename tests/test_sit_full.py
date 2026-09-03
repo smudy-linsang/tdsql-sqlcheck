@@ -541,11 +541,11 @@ class TestDashboard:
         assert "audit" in data
         assert "slow_queries" in data
         assert "rules" in data
-        assert data["rules"]["total"] == 119
+        assert data["rules"]["total"] == 121
         assert data["rules"]["by_category"]["naming"] == 5
-        assert data["rules"]["by_category"]["ddl"] == 22
+        assert data["rules"]["by_category"]["ddl"] == 23
         assert data["rules"]["by_category"]["dml"] == 9
-        assert data["rules"]["by_category"]["distributed"] == 14
+        assert data["rules"]["by_category"]["distributed"] == 15
 
     def test_audit_trend(self):
         """审核趋势"""

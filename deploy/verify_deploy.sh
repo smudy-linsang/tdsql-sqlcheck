@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 部署后自动验证（一键冒烟）: health/版本/登录/规则数119/Oracle兼容规则命中/前端资产
+# 部署后自动验证（一键冒烟）: health/版本/登录/规则数121/Oracle兼容规则命中/前端资产
 # 用法: ./verify_deploy.sh [--port 8000] [--host 127.0.0.1]
 set -uo pipefail
 PORT=8000; HOST=127.0.0.1; TIMEOUT=10
@@ -43,11 +43,11 @@ else
 fi
 AUTHH=(-H "Authorization: Bearer ${TOKEN}")
 
-# 4. 规则库 119 条（含 oracle_compat 42 条）
+# 4. 规则库 121 条（含 oracle_compat 42 条）
 RULES=$(curl -s -m ${TIMEOUT} "${AUTHH[@]}" "${BASE}/api/v1/rules")
 TOTAL=$(echo "$RULES" | J 'd["total"]')
 OC=$(echo "$RULES" | J 'len([r for r in d["rules"] if r["category"]=="oracle_compat"])')
-[[ "$TOTAL" == "119" ]] && ok "规则总数 119" || bad "规则总数=${TOTAL}"
+[[ "$TOTAL" == "121" ]] && ok "规则总数 121" || bad "规则总数=${TOTAL}"
 [[ "$OC" == "42" ]] && ok "Oracle迁移兼容规则 42 条" || bad "oracle_compat=${OC}"
 
 # 5. 审核链路（nvl 必须命中 R080）

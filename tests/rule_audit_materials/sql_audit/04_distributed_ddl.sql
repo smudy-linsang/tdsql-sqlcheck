@@ -1,6 +1,6 @@
 -- ============================================================================
 -- 文件审核测试物料 04：分布式建表规范（文件审核可触发部分）
--- 覆盖规则：R054,R077
+-- 覆盖规则：R054,R077,R121
 -- 说明：R048/R055/R056/R057/R058/R060 需真实表元数据（分片键/分片表标记），
 --       文件审核（B类通道，无元数据）下不触发，统一在「在线元数据审核」
 --       场景验证（见测试说明书 第5章）。
@@ -44,3 +44,22 @@ CREATE TABLE t_shard_ok (
     is_deleted TINYINT DEFAULT 0 COMMENT '逻辑删除',
     PRIMARY KEY (id, cust_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='合规分片表' SHARDKEY=cust_id;
+
+-- @case: R121_01
+-- @rules: R121
+-- @scope: distributed
+-- @note: 分布式二级 RANGE 分区含 VALUES LESS THAN (MAXVALUE)，R121 报错
+--        （v1.6.3.2 新增，ERROR）；括号形态 sqlglot 可恢复结构化 AST，不触发
+--        E999；R121 仅分布式口径，集中式跳过（bare MAXVALUE 形态见 test_rules_v1632）
+CREATE TABLE t_part_maxvalue (
+    id BIGINT NOT NULL COMMENT '主键',
+    cust_id BIGINT NOT NULL COMMENT '客户ID',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '更新时间',
+    is_deleted TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除',
+    PRIMARY KEY (id, cust_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='二级分区MAXVALUE表' SHARDKEY=cust_id
+PARTITION BY RANGE (YEAR(create_time)) (
+    PARTITION p2024 VALUES LESS THAN (2025),
+    PARTITION pmax VALUES LESS THAN (MAXVALUE)
+);

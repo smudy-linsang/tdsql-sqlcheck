@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 """V1.5 实例类型适用域 — 规则标注一致性 + 核心行为测试
 
-本文件锁定 DETAIL-v1.5 §3.3 的 119 条判定表，是本次改造的正确性基准。
+本文件锁定 DETAIL-v1.5 §3.3 判定表（v1.5 历史基线 119 条；v1.6.3.2 新增
+R120/R121 并调整 R030/R032 适用域后扩展至 121 条），是本次改造的正确性基准。
 test_distributed_only_list_is_exactly_as_designed 失败意味着有人改动了规则的
 instance_scope 标注——错标一条为 DISTRIBUTED 就会让集中式实例静默漏报一项检查。
 """
@@ -11,13 +12,15 @@ from backend.engine.rules import ALL_RULE_CLASSES
 from backend.engine.checker import RuleChecker
 
 
-# 27 条仅分布式适用规则，判定依据见 DETAIL-v1.5 §3.3；
-# R097/R113 由负责人 2026-07-29 裁定归 DISTRIBUTED。
+# 30 条仅分布式适用规则，判定依据见 DETAIL-v1.5 §3.3；
+# R097/R113 由负责人 2026-07-29 裁定归 DISTRIBUTED；
+# v1.6.3.2：R030/R032 适用域改 DISTRIBUTED（REQ-03/04），新增 R121（仅分布式）。
 DISTRIBUTED_ONLY = {
     "R020", "R021", "R022", "R023", "R024", "R025", "R043", "R048",
     "R053", "R054", "R055", "R056", "R057", "R058", "R059", "R060",
     "R077", "R092", "R097", "R100", "R111", "R112", "R113",
     "R115", "R116", "R117", "R118",
+    "R030", "R032", "R121",
 }
 
 
@@ -44,11 +47,11 @@ def test_no_centralized_only_rules_yet():
 
 
 def test_rule_counts():
-    """总数 119；分布式跑 119；集中式跑 92。"""
-    assert len(ALL_RULE_CLASSES) == 119
+    """总数 121；分布式跑 121；集中式跑 91（v1.6.3.2）。"""
+    assert len(ALL_RULE_CLASSES) == 121
     checker = RuleChecker()
-    assert len(checker.get_enabled_rules(None, "distributed")) == 119
-    assert len(checker.get_enabled_rules(None, "centralized")) == 92
+    assert len(checker.get_enabled_rules(None, "distributed")) == 121
+    assert len(checker.get_enabled_rules(None, "centralized")) == 91
 
 
 def test_every_rule_has_valid_scope():
@@ -127,13 +130,13 @@ def test_ruleset_can_still_disable_applicable_rule():
 
 
 def test_legacy_calls_still_work():
-    """存量调用（不传 instance_type）行为与 V1.4 完全一致：返回全部 119 条。"""
-    assert len(RuleChecker().get_enabled_rules()) == 119
+    """存量调用（不传 instance_type）行为与 V1.4 完全一致：返回全部 121 条。"""
+    assert len(RuleChecker().get_enabled_rules()) == 121
 
 
 def test_count_skipped_by_scope():
     """跳过计数：集中式跳 27 条，分布式跳 0 条。"""
     checker = RuleChecker()
-    assert checker.count_skipped_by_scope("centralized") == 27
+    assert checker.count_skipped_by_scope("centralized") == 30
     assert checker.count_skipped_by_scope("distributed") == 0
     assert checker.count_skipped_by_scope(None) == 0

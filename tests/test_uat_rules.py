@@ -255,7 +255,7 @@ class TestRulesUATContentQuality:
         
         # 验证总数
         total = sum(len(rules) for rules in categories.values())
-        assert total == 119, f"规则总数应为119条，实际{total}条"
+        assert total == 121, f"规则总数应为121条，实际{total}条"
 
 
 class TestRulesUATIntegration:

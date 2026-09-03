@@ -690,7 +690,9 @@ def _consume_column_constraints(toks, i, stop, family):
     第十一轮 BLOCK-11-06：官方列属性 `COLUMN_FORMAT` / `ENGINE_ATTRIBUTE`
     在 sqlglot 30.x 上**候选仍 ParseError**（Rev.L 只验了规划层就宣称"已恢复"，
     结论与代码相反）。本版按复审方推荐方案把它们作为**辅助掩码 span**：
-    只在已有主目标时随之掩码，`raw_sql` 不变，且实测 119 条规则无消费者。
+    只在已有主目标时随之掩码，`raw_sql` 不变，且实测无规则消费者（结论基于
+    v1.6.2.x 历史基线 119 条规则；v1.6.3.2 为 121 条，新增 R120/R121 亦不消费
+    该两个列属性，故本恢复安全性结论按历史基线保留，未经重测不擅改为 121）。
     """
     seen, fp, spans = [], [], []
     j = i
@@ -988,7 +990,7 @@ def _unquote_str(tok):
     return txt
 
 
-def _consume_value_list(toks, i, stop):
+def _consume_value_list(toks, i, stop, allow_maxvalue=False, accept_maxvalue=False):
     """消费 `( 字面量 [, 字面量]* )`；返回 (下一个下标, 值元组) 或 (-1, None)。
 
     第十轮 BLOCK-J5：**符号只能修饰数值**。Rev.J 先可选吃掉 DASH 再统一接受
@@ -996,6 +998,11 @@ def _consume_value_list(toks, i, stop):
     第十二轮 BLOCK-12-04：Rev.M 只返回**个数**，于是候选把
     `VALUES LESS THAN (10)` 改成 `(99)`、把 `VALUES IN (1,2)` 改成 `(8,9)`，
     指纹完全相同、门禁放行。本版返回逐个归一后的值。
+    v1.6.3.2 / REQ-07：`accept_maxvalue=True` 时接受单元素 `MAXVALUE`
+    （仅 RANGE 的 VALUES LESS THAN 路径传入）；LIST 的 VALUES IN 不允许。
+    括号形态 `(MAXVALUE)` 在**恢复/掩码路径同样接受**（§4.7.5：括号形态命中
+    R121、不报 E999——掩码后 sqlglot 可恢复为结构化 AST）；`allow_maxvalue`
+    只额外控制 bare 形态的 LESS_THAN_MAXVALUE 归一（策略扫描专属）。
     """
     if i >= stop or toks[i].token_type != TokenType.L_PAREN:
         return -1, None
@@ -1013,6 +1020,9 @@ def _consume_value_list(toks, i, stop):
         elif j < stop and toks[j].token_type == TokenType.STRING:
             vals.append(("str", _unquote_str(toks[j])))
             j += 1
+        elif accept_maxvalue and j < stop and _is_bare_kw(toks[j], "MAXVALUE"):
+            vals.append(("maxvalue", "MAXVALUE"))
+            j += 1
         else:
             return -1, None
         if j < stop and toks[j].token_type == TokenType.COMMA:
@@ -1023,11 +1033,17 @@ def _consume_value_list(toks, i, stop):
         return -1, None
 
 
-def _consume_partition_values(toks, i, stop, method):
+def _consume_partition_values(toks, i, stop, method, allow_maxvalue=False):
     """按**分区方法**消费 VALUES 子句；返回 (下一个下标, 指纹) 或 (-1, "")。
 
-    RANGE → 只接受 `VALUES LESS THAN (...)`（`MAXVALUE` 属 KFN-1，仍失败关闭）
-    LIST  → 只接受 `VALUES IN (...)`
+    RANGE → 只接受 `VALUES LESS THAN (...)`。bare `MAXVALUE` 归一为
+            `LESS_THAN_MAXVALUE` 指纹**仅当 allow_maxvalue=True**（R121 策略
+            扫描路径，v1.6.3.2 / REQ-07）。恢复/掩码路径（allow_maxvalue=False）
+            仍拒绝 bare MAXVALUE，保留 sqlglot ParseError/Command → E999 的失败
+            关闭（§4.7.5：bare 形态分布式结果至少含 E999 + R121）。
+            括号形态 `(MAXVALUE)` **两条路径都接受**（§4.7.5：命中 R121、
+            不报 E999——掩码后 sqlglot 可恢复为结构化 AST）。
+    LIST  → 只接受 `VALUES IN (...)`，且不接受 MAXVALUE 当普通值
     """
     if i >= stop or toks[i].token_type != TokenType.VALUES:
         return -1, ""
@@ -1036,9 +1052,12 @@ def _consume_partition_values(toks, i, stop, method):
         if not (j + 1 < stop and _is_bare_kw(toks[j], "LESS") and _is_bare_kw(toks[j + 1], "THAN")):
             return -1, ""
         j += 2
-        if j < stop and _is_bare_kw(toks[j], "MAXVALUE"):
-            return -1, ""                              # KFN-1：已登记的已知假阴性
-        k, vals = _consume_value_list(toks, j, stop)
+        if allow_maxvalue and j < stop and _is_bare_kw(toks[j], "MAXVALUE"):
+            return j + 1, ("LESS_THAN_MAXVALUE", ())   # bare 形态归一（仅策略扫描）
+        k, vals = _consume_value_list(toks, j, stop, allow_maxvalue=allow_maxvalue,
+                                      accept_maxvalue=True)
+        if allow_maxvalue and k >= 0 and len(vals) == 1 and vals[0][0] == "maxvalue":
+            return k, ("LESS_THAN_MAXVALUE", ())       # 单元素括号形态归一
         return (k, ("LESS_THAN", vals)) if k >= 0 else (-1, "")
     if method == "LIST":
         if not (j < stop and toks[j].token_type == TokenType.IN):
@@ -1091,7 +1110,8 @@ def _consume_partition_options(toks, i, stop):
     return j, spans, "/".join(fp)
 
 
-def _consume_partition_defs(toks, i, stop, method, require_partition_kw):
+def _consume_partition_defs(toks, i, stop, method, require_partition_kw,
+                            allow_maxvalue=False):
     """消费分区/分片定义表；返回 (下一个下标, 可掩码 span, 指纹) 或 (-1, [], "")。"""
     if i >= stop or toks[i].token_type != TokenType.L_PAREN:
         return -1, [], ""
@@ -1107,7 +1127,8 @@ def _consume_partition_defs(toks, i, stop, method, require_partition_kw):
             return -1, [], ""
         pname = (toks[j].text or "").strip("` ").lower()
         j += 1
-        j, vshape = _consume_partition_values(toks, j, stop, method)
+        j, vshape = _consume_partition_values(toks, j, stop, method,
+                                              allow_maxvalue=allow_maxvalue)
         if j < 0:
             return -1, [], ""
         j, osp, oshape = _consume_partition_options(toks, j, stop)
@@ -1139,6 +1160,123 @@ def _consume_secondary_partition(toks, i, stop):
     if j < 0:
         return -1, [], ""
     return j, spans, ("part", method, eshape, dshape)
+
+
+# ── v1.6.3.2 / REQ-07：二级分区策略事实（R121 的唯一真值源）────────────────
+#
+# R121 只读 token 层事实，不依赖 sqlglot AST 是否恢复成功：bare MAXVALUE 在
+# sqlglot 上 ParseError、ALTER ADD 整体 ParseError、ALTER REORGANIZE 降级为
+# Command，三条出口都必须保留策略事实。本扫描器**接收既有 tokens**，禁止再次
+# tokenize（Rev.C / N-02 方案 i：并入 _preflight_create_definition_status 的
+# 单次词法化）。
+_EMPTY_SECONDARY_POLICY = {
+    "has_definition": False,
+    "method": "",
+    "maxvalue_partitions": (),
+    "source_context": "",
+}
+
+
+def _maxvalue_partition_names(defs):
+    """从分区定义表中提取 VALUES LESS THAN MAXVALUE 的分区名（保序去重）。"""
+    names = []
+    for pname, vshape, _oshape in defs or ():
+        if vshape and vshape[0] == "LESS_THAN_MAXVALUE" and pname not in names:
+            names.append(pname)
+    return tuple(names)
+
+
+def _scan_secondary_partition_policy_tokens(toks):
+    """扫描二级 RANGE 分区定义与 ALTER 分区定义，返回策略事实 dict。
+
+    只认以下来源（§4.7.2）：
+      · CREATE：`PARTITION BY RANGE (...) (...)`（二级子句；一级
+        `TDSQL_DISTRIBUTED BY RANGE` 不属于本规则）；
+      · ALTER ADD：`ADD PARTITION (...)`；
+      · ALTER REORGANIZE：`REORGANIZE PARTITION ... INTO (...)`。
+    非 CREATE/ALTER 首 token 返回空策略事实；不消费原 SQL、不再次 tokenize。
+    """
+    fact = {
+        "has_definition": False,
+        "method": "",
+        "maxvalue_partitions": (),
+        "source_context": "",
+    }
+    if not toks:
+        return fact
+    first = (toks[0].text or "").upper()
+    n = len(toks)
+    if first == "CREATE":
+        k = 0
+        while k + 1 < n:
+            if (toks[k].token_type == TokenType.PARTITION_BY
+                    and _is_bare_kw(toks[k + 1], "RANGE")):
+                fact["has_definition"] = True
+                fact["method"] = "RANGE"
+                fact["source_context"] = "CREATE"
+                j, _eshape = _consume_partition_expr(toks, k + 2, n)
+                if j < 0:
+                    k += 2
+                    continue
+                j2, _spans, dshape = _consume_partition_defs(
+                    toks, j, n, "RANGE", require_partition_kw=True,
+                    allow_maxvalue=True)
+                if j2 >= 0:
+                    names = _maxvalue_partition_names(dshape)
+                    merged = list(fact["maxvalue_partitions"])
+                    merged.extend(p for p in names if p not in merged)
+                    fact["maxvalue_partitions"] = tuple(merged)
+                    k = j2
+                    continue
+                k = j
+                continue
+            k += 1
+        return fact
+    if first == "ALTER":
+        k = 1
+        while k + 1 < n:
+            if _is_bare_kw(toks[k], "ADD") and toks[k + 1].token_type == TokenType.PARTITION:
+                fact["has_definition"] = True
+                fact["method"] = "RANGE"
+                fact["source_context"] = "ALTER_ADD"
+                j, _spans, dshape = _consume_partition_defs(
+                    toks, k + 2, n, "RANGE", require_partition_kw=True,
+                    allow_maxvalue=True)
+                if j >= 0:
+                    names = _maxvalue_partition_names(dshape)
+                    merged = list(fact["maxvalue_partitions"])
+                    merged.extend(p for p in names if p not in merged)
+                    fact["maxvalue_partitions"] = tuple(merged)
+                    k = j
+                    continue
+                k += 2
+                continue
+            if (_is_bare_kw(toks[k], "REORGANIZE")
+                    and toks[k + 1].token_type == TokenType.PARTITION):
+                fact["has_definition"] = True
+                fact["method"] = "RANGE"
+                fact["source_context"] = "ALTER_REORGANIZE"
+                j = k + 2
+                while j < n and not (toks[j].token_type == TokenType.IN
+                                     or _is_bare_kw(toks[j], "INTO")):
+                    j += 1
+                if j < n:
+                    j += 1
+                j2, _spans, dshape = _consume_partition_defs(
+                    toks, j, n, "RANGE", require_partition_kw=True,
+                    allow_maxvalue=True)
+                if j2 >= 0:
+                    names = _maxvalue_partition_names(dshape)
+                    merged = list(fact["maxvalue_partitions"])
+                    merged.extend(p for p in names if p not in merged)
+                    fact["maxvalue_partitions"] = tuple(merged)
+                    k = j2
+                    continue
+                k = j
+                continue
+            k += 1
+        return fact
+    return fact
 
 
 # ── 本地表选项（第十轮 BLOCK-J4）─────────────────────────────────────────────
@@ -1690,20 +1828,29 @@ def _definition_item_kfns(toks, start: int, stop: int):
 
 
 def _preflight_create_definition_status(sql: str, dialect: str = "mysql"):
-    """一次词法化同时返回 `(逐项 KFN, 定义列表完整性)`。"""
+    """一次词法化同时返回 `(逐项 KFN, 定义列表完整性, 二级分区策略事实)`。
+
+    v1.6.3.2 / Rev.C / N-02：返回值由二元组扩为三元组；二级分区策略扫描
+    接收本次既有的 tokens（禁止再次 tokenize），且在 `open_idx < 0` 的
+    CREATE 专用提前返回**之前**按首个有效 token 分流 CREATE/ALTER——
+    ALTER ADD/REORGANIZE 的策略事实不依赖定义边界是否可得。
+    所有出口（tokenize 异常、终止分号非法、非 CREATE/ALTER）都返回相同
+    三元结构，空策略事实使用统一默认值。
+    """
     try:
         toks = sqlglot.Dialect.get_or_raise(dialect).tokenizer_class().tokenize(sql)
     except Exception:
-        return (), False
+        return (), False, dict(_EMPTY_SECONDARY_POLICY)
     toks = _strip_terminal_semicolon(toks)
     if toks is None:
-        return (), False
+        return (), False, dict(_EMPTY_SECONDARY_POLICY)
+    policy = _scan_secondary_partition_policy_tokens(toks)
     open_idx, close_idx, _table_name, _head = _tdsql_table_def_bounds(toks)
     if open_idx < 0:
-        return (), False
+        return (), False, policy
     ranges = _top_level_definition_ranges(toks, open_idx, close_idx)
     if ranges is None:
-        return (), False
+        return (), False, policy
 
     # KFN 与 strict scanner 的全表成功/失败解耦：任何一个未知伴生项都不得
     # 清空其他项已经证明的 KFN。
@@ -1711,7 +1858,7 @@ def _preflight_create_definition_status(sql: str, dialect: str = "mysql"):
     for start, stop in ranges:
         known.extend(_definition_item_kfns(toks, start, stop))
     defs, _primary, _auxiliary = _scan_definition_list(toks, open_idx, close_idx)
-    return tuple(sorted(set(known))), defs is not None
+    return tuple(sorted(set(known))), defs is not None, policy
 
 
 def _preflight_known_fidelity_failures(sql: str, dialect: str = "mysql"):
@@ -2178,6 +2325,18 @@ class ParsedSQL:
     is_temporary_table: bool = False
     has_drop_database: bool = False
     alter_actions: list[dict] = field(default_factory=list)
+    # v1.6.3.2 / REQ-01A：ALTER ADD/MODIFY/CHANGE 的列类型只读通道。
+    # 与 CREATE 的 column_types 同制（name/type/raw_type/length），另带 operation。
+    # 解析失败时为空集合（保留 E999），不得用全文正则猜测类型。
+    alter_column_types: list[dict] = field(default_factory=list)
+    # v1.6.3.2 / REQ-06：UPDATE/DELETE 顶层 LIMIT 的结构化事实。
+    # {present, row_count, offset, parameterized, verifiable}。
+    # 只消费顶层 Limit 节点；SELECT 子查询内部的 LIMIT 不属于外层 DML 上限。
+    dml_limit: dict = field(default_factory=dict)
+    # v1.6.3.2 / REQ-07：二级分区策略事实，独立于 sqlglot AST 成败。
+    # {has_definition, method, maxvalue_partitions, source_context}；
+    # 由单次预检词法化产出，CREATE/ALTER_ADD/ALTER_REORGANIZE 三条出口均保留。
+    secondary_partition: dict = field(default_factory=dict)
 
     # === DML结构信息 ===
     has_wildcard_select: bool = False
@@ -2258,8 +2417,12 @@ class SQLParser:
         parsed = self._regex_pre_parse(sql_clean, parsed)
 
         # Rev.Q：KFN 与全表定义完整性同源但不互相吞没；只词法化一次。
+        # v1.6.3.2 / Rev.C：status 函数返回三元组；二级分区策略事实在
+        # sqlglot AST try/except **之前**写入 parsed，因此正常 AST、Command
+        # 降级、ParseError 提前返回三条出口都保留该事实（严禁放在重试条件内）。
         (parsed.known_fidelity_failures,
-         parsed.unique_source_definitions_complete) = (
+         parsed.unique_source_definitions_complete,
+         parsed.secondary_partition) = (
             _preflight_create_definition_status(sql_recover, self.dialect)
         )
 
@@ -2295,6 +2458,16 @@ class SQLParser:
                             _retry_ast = None
                         if _validate_recovery_candidate(_retry_ast, _plan2):
                             ast = _retry_ast
+                # v1.6.3.2 / §4.7.5：sqlglot 30.14 把 CREATE bare MAXVALUE 静默
+                # 降级为 Command（不抛 ParseError，RISK-17 的实测形态），恢复链
+                # 又按门控拒绝 bare 形态（allow_maxvalue=False）。若二级分区策略
+                # 事实命中 MAXVALUE 而 ast 仍是 Command，显式落 parse_error 保留
+                # E999 失败关闭——分布式 bare 形态结果至少含 E999 + R121。
+                if (isinstance(ast, exp.Command)
+                        and parsed.secondary_partition.get("maxvalue_partitions")):
+                    parsed.parse_error = (
+                        "KNOWN_FIDELITY_GAP[SECONDARY-PARTITION-MAXVALUE]: "
+                        "二级分区 MAXVALUE 形态无法恢复为结构化 AST（sqlglot 降级为 Command）")
             parsed.ast = ast
         except (SqlglotError, Exception) as e:
             # v1.6.2.2 / DEF-2: UNIQUE 索引带 COMMENT 会让 sqlglot 抛 ParseError，
@@ -2344,6 +2517,10 @@ class SQLParser:
                 else:
                     parsed.parse_error = str(e)
                 parsed.sql_type = self._detect_sql_type_regex(sql_clean)
+                # v1.6.3.2 / REQ-06：ParseError 出口无可靠 AST，DML LIMIT 走
+                # token 回退（忽略注释/字符串/括号内 LIMIT）。
+                if parsed.sql_type in ("UPDATE", "DELETE"):
+                    parsed.dml_limit = self._extract_dml_limit(None, sql_recover)
                 # 正则回退提取表名（防止含中划线等语法不合规表名在解析报错时漏检）；
                 # v1.6.2.2-A-VERIFY-6.1：先剥离注释，避免从注释头提取出 `--` 残片当表名。
                 tbl_match = re.search(r'\b(?:create\s+table|alter\s+table|drop\s+table|truncate\s+table|from|into|update)\s+(?:if\s+(?:not\s+)?exists\s+)?([`\'"]?[a-zA-Z0-9_\-]+[`\'"]?)', _strip_comments_for_fallback(sql_clean), re.IGNORECASE)
@@ -2357,6 +2534,10 @@ class SQLParser:
 
         # 确定 SQL 类型
         parsed.sql_type = self._get_sql_type(ast)
+        # v1.6.3.2 / REQ-06：UPDATE/DELETE 顶层 LIMIT 结构化事实（AST 优先；
+        # 只读顶层 Limit 节点，SELECT 子查询内部的 LIMIT 不属于外层 DML 上限）。
+        if parsed.sql_type in ("UPDATE", "DELETE"):
+            parsed.dml_limit = self._extract_dml_limit(ast, sql_recover)
 
         # 根据SQL类型分别解析
         if isinstance(ast, exp.Select):
@@ -3017,7 +3198,11 @@ class SQLParser:
             parsed.tables.append(table.sql(dialect=self.dialect))
 
         # 尝试提取ALTER操作
-        for action in ast.expressions if hasattr(ast, 'expressions') else []:
+        # v1.6.3.2 / REQ-01A：sqlglot 30.14 的 Alter 动作在 args["actions"]
+        # （`expressions` 属性对 Alter 恒为空），旧写法读 expressions 导致
+        # alter_actions 恒为空、ALTER 列类型通道无从建立。
+        actions = ast.args.get("actions") if isinstance(ast.args, dict) else None
+        for action in actions or []:
             action_info = {"action": "modify", "column": "", "old_type": "", "new_type": ""}
             if isinstance(action, exp.AlterColumn):
                 action_info["action"] = "modify"
@@ -3028,6 +3213,120 @@ class SQLParser:
                 if hasattr(action, 'this') and action.this:
                     action_info["column"] = action.this.name
             parsed.alter_actions.append(action_info)
+            # v1.6.3.2 / REQ-01A：ADD/MODIFY/CHANGE 的列类型只读通道。
+            self._collect_alter_column_type(action, parsed)
+
+    def _collect_alter_column_type(self, action, parsed: ParsedSQL):
+        """从 ALTER action 提取列类型事实（REQ-01A）。
+
+        sqlglot 30.14 形态（锁定版本实测）：ADD COLUMN → 直接 `ColumnDef`；
+        MODIFY/CHANGE COLUMN → `ModifyColumn(this=ColumnDef)`，CHANGE 另带
+        `rename_from`。DROP/RENAME/DEFAULT 等动作不进入该集合（OUT-09）。
+        类型归一与 CREATE 共用 `_parse_column_def`，不另造归一器。
+        """
+        op, col_def = None, None
+        if isinstance(action, exp.ColumnDef):
+            op, col_def = "ADD", action
+        elif isinstance(action, exp.ModifyColumn):
+            op = "CHANGE" if action.args.get("rename_from") else "MODIFY"
+            inner = action.this
+            col_def = inner if isinstance(inner, exp.ColumnDef) else None
+        if op is None or col_def is None:
+            return
+        info = self._parse_column_def(col_def)
+        parsed.alter_column_types.append({
+            "name": info["name"],
+            "type": info["type"],
+            "raw_type": info["raw_type"],
+            "length": info.get("length"),
+            "operation": op,
+        })
+
+    # ── v1.6.3.2 / REQ-06：DML LIMIT 结构化 ────────────────────────────────
+
+    @staticmethod
+    def _safe_limit_int(value) -> Optional[int]:
+        """安全转换 LIMIT 字面量；非法/溢出/负值返回 None（视为不可证明）。"""
+        try:
+            v = int(str(value).strip())
+        except (ValueError, TypeError):
+            return None
+        if v < 0 or v > 10 ** 12:
+            return None
+        return v
+
+    def _extract_dml_limit(self, ast, sql: str) -> dict:
+        """提取 UPDATE/DELETE 顶层 LIMIT 的结构化事实。
+
+        优先从 SQLGlot AST 的 `Limit.expression` 读取；AST 不可靠（None 或
+        Command 降级）时才使用词法 token 有限回退。回退忽略注释与字符串，
+        且只接受括号深度 0 的 LIMIT（SELECT 子查询内部的不算外层上限）。
+        N-01：`exp.Limit` 类上没有 `.offset` 访问器，一律 `args.get("offset")`；
+        UPDATE/DELETE 两参数 LIMIT 的 offset 在 `Limit.args["offset"]`（Literal），
+        与 SELECT 的 `Select.args["offset"]`（Offset 节点）不得互相套用。
+        """
+        fact = {"present": False, "row_count": None, "offset": None,
+                "parameterized": False, "verifiable": False}
+        lim = None
+        if ast is not None and not isinstance(ast, exp.Command):
+            args = getattr(ast, "args", None)
+            if isinstance(args, dict):
+                lim = args.get("limit")
+        if isinstance(lim, exp.Limit):
+            fact["present"] = True
+            off = lim.args.get("offset")
+            if off is not None:
+                fact["offset"] = self._safe_limit_int(
+                    off.this if isinstance(off, exp.Literal) else off)
+                fact["verifiable"] = False
+                return fact
+            expr = lim.args.get("expression")
+            if isinstance(expr, exp.Placeholder):
+                fact["parameterized"] = True
+                fact["verifiable"] = False
+                return fact
+            val = self._safe_limit_int(
+                expr.this if isinstance(expr, exp.Literal) else expr)
+            if val is None:
+                fact["verifiable"] = False
+                return fact
+            fact["row_count"] = val
+            fact["verifiable"] = True
+            return fact
+        # token 回退：仅当 AST 不可靠时使用
+        try:
+            toks = sqlglot.Dialect.get_or_raise(
+                self.dialect).tokenizer_class().tokenize(sql)
+        except Exception:
+            return fact
+        depth, k, n = 0, 0, len(toks)
+        while k < n:
+            tt = toks[k].token_type
+            if tt == TokenType.L_PAREN:
+                depth += 1
+            elif tt == TokenType.R_PAREN:
+                depth -= 1
+            elif depth == 0 and tt == TokenType.LIMIT:
+                fact["present"] = True
+                j = k + 1
+                if j < n and toks[j].token_type == TokenType.NUMBER:
+                    first = self._safe_limit_int(toks[j].text)
+                    j += 1
+                    if j < n and toks[j].token_type == TokenType.COMMA:
+                        fact["offset"] = first
+                        fact["verifiable"] = False
+                        return fact
+                    fact["row_count"] = first
+                    fact["verifiable"] = first is not None
+                    return fact
+                if j < n and (toks[j].text or "").strip()[:1] in ("?", ":"):
+                    fact["parameterized"] = True
+                    fact["verifiable"] = False
+                    return fact
+                fact["verifiable"] = False
+                return fact
+            k += 1
+        return fact
 
     # ── DROP 解析 ────────────────────────────────────────
 

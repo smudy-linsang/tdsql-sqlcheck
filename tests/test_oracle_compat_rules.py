@@ -29,7 +29,7 @@ class TestOracleCompatBasic:
 
     def test_total_rules_119(self, checker):
         info = checker.get_rules_info()
-        assert len(info) == 119
+        assert len(info) == 121
 
     def test_oracle_compat_count_42(self, checker):
         info = checker.get_rules_info()
