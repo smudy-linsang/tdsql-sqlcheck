@@ -39,7 +39,7 @@ Copy-Item (Join-Path $ROOT "requirements.txt") (Join-Path $PKG_DIR "requirements
 # 复制部署脚本
 $DEPLOY_DIR = Join-Path $PKG_DIR "deploy"
 New-Item -ItemType Directory -Force -Path $DEPLOY_DIR | Out-Null
-Get-ChildItem -Path (Join-Path $ROOT "deploy") -Include "*.sh","*.service","env.template","nginx-sqlcheck.conf","README.md","*.env.example" -Recurse | ForEach-Object {
+Get-ChildItem -Path (Join-Path $ROOT "deploy") -Include "*.sh","*.service","env.template","nginx-sqlcheck.conf","README.md","*.env.example","*.sql" -Recurse | ForEach-Object {
     Copy-Item $_.FullName (Join-Path $DEPLOY_DIR $_.Name) -Force
 }
 
