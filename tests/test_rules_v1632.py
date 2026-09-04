@@ -368,3 +368,144 @@ def test_gate_distributed_maxvalue_tightened(parser, checker):
     r = _audit_only(checker, sql, {"R121"}, "distributed")
     assert not _gate_pass(r, "strict")
     assert not _gate_pass(r, "normal")
+
+
+# ════════════════════════════════════════════════════════════
+# SIT 第一轮整改回归锁（DEF-SIT-01 / DEF-SIT-02 / DEF-SIT-03）
+# ════════════════════════════════════════════════════════════
+
+_BASE_CREATE_PART = ("CREATE TABLE t_part (id BIGINT NOT NULL, dt DATE NOT NULL, "
+                     "PRIMARY KEY (id, dt)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4")
+
+# 真实 MariaDB SHOW CREATE TABLE 产物（DEF-SIT-01 的主战场形态：
+# to_days + 反引号 + ENGINE = InnoDB + 多行 + COLLATE）
+_REAL_SHOW_CREATE_TABLE = """CREATE TABLE `t_part` (
+  `id` bigint(20) NOT NULL,
+  `dt` date NOT NULL,
+  PRIMARY KEY (`id`,`dt`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+ PARTITION BY RANGE (to_days(`dt`))
+(PARTITION `p0` VALUES LESS THAN (738000) ENGINE = InnoDB,
+ PARTITION `pmax` VALUES LESS THAN MAXVALUE ENGINE = InnoDB)"""
+
+
+@pytest.mark.parametrize("expr", [
+    "(dt)", "(`dt`)", "(YEAR(dt))", "(MONTH(dt))", "(DAY(dt))",
+    "(TO_DAYS(dt))", "(to_days(`dt`))", "(TO_SECONDS(dt))",
+    "(UNIX_TIMESTAMP(dt))", "(EXTRACT(YEAR FROM dt))",
+    "(ABS(id))", "(MOD(id,7))", "(FLOOR(id/100))",
+    "COLUMNS(dt)", "COLUMNS(`dt`,id)", "(id,dt)",
+])
+def test_r121_covers_all_partition_expression_forms(checker, expr):
+    """DEF-SIT-01：R121 不得因分区表达式形态而漏报——SHOW CREATE TABLE 的真实形态面。
+
+    首版 _PARTITION_FUNCS 白名单（YEAR/MONTH/DAY）使 TO_DAYS/UNIX_TIMESTAMP/
+    COLUMNS/多列表达式全部读不出 maxvalue_partitions；括号 (MAXVALUE) 形态下
+    更是连 E999 都没有、完全静默通过。整改后策略扫描改用只跳过不校验的
+    宽松表达式消费器（_consume_partition_expr_lenient）。
+    """
+    for boundary in ("MAXVALUE", "(MAXVALUE)"):
+        sql = (_BASE_CREATE_PART + f" PARTITION BY RANGE {expr} "
+               f"(PARTITION p0 VALUES LESS THAN (738000), "
+               f"PARTITION pmax VALUES LESS THAN {boundary}) SHARDKEY=id")
+        ids = _ids(checker.audit_sql(sql, instance_type="distributed"))
+        assert "R121" in ids, f"{expr} + {boundary} 漏报 R121"
+
+
+def test_r121_hits_real_show_create_table_output(parser, checker):
+    """DEF-SIT-01：真实 SHOW CREATE TABLE 产物端到端锁（在线元数据审核主战场）。"""
+    ids = _ids(checker.audit_sql(_REAL_SHOW_CREATE_TABLE, instance_type="distributed"))
+    assert "R121" in ids
+    fact = parser.parse(_REAL_SHOW_CREATE_TABLE).secondary_partition
+    assert fact["has_definition"] is True
+    assert fact["method"] == "RANGE"              # 整改要求③：method 正常回填
+    assert fact["maxvalue_partitions"] == ("pmax",)
+    assert fact["source_context"] == "CREATE"
+    # 集中式：R121 按适用域跳过
+    assert "R121" not in _ids(
+        checker.audit_sql(_REAL_SHOW_CREATE_TABLE, instance_type="centralized"))
+
+
+def test_lenient_expr_does_not_widen_recovery_gate():
+    """DEF-SIT-01 反向锁：宽松表达式消费器只服务策略扫描，不得放宽 AST 恢复门禁。
+
+    _consume_partition_expr 的白名单同时服务 _plan_recovery 的恢复门禁
+    （v1.6.2.2 十三轮评审收敛的最敏感面），放宽它会让原先失败关闭的语句
+    开始被恢复。本锁保证恢复链三个函数源码不引用宽松消费器。
+    """
+    import inspect
+    import backend.engine.parser.parser_legacy as PL
+    for fn in (PL._plan_recovery, PL._scan_table_tail, PL._consume_secondary_partition):
+        src = inspect.getsource(fn)
+        assert "_consume_partition_expr_lenient" not in src, \
+            f"{fn.__name__} 不得使用宽松表达式消费器"
+        assert "_skip_balanced_parens" not in src, \
+            f"{fn.__name__} 不得使用只跳过不校验的括号消费器"
+
+
+@pytest.mark.parametrize("boundary", ["MAXVALUE", "(MAXVALUE)"])
+@pytest.mark.parametrize("inst", ["distributed", "centralized"])
+def test_reorganize_maxvalue_must_not_fabricate_e999(checker, boundary, inst):
+    """DEF-SIT-02：ALTER … REORGANIZE 的 Command 降级是该语法的正常形态，不得合成为语法错误。
+
+    首版对任何 Command + MAXVALUE 都合成 parse_error，使合法 DDL 在集中式
+    实例上凭空多出一条 ERROR 级 E999（strict/normal 双门禁全卡）。整改后
+    合成守卫限定 source_context == "CREATE"。
+    """
+    sql = ("ALTER TABLE t REORGANIZE PARTITION p0 INTO ("
+           "PARTITION p0 VALUES LESS THAN (2020), "
+           f"PARTITION pmax VALUES LESS THAN {boundary})")
+    ids = _ids(checker.audit_sql(sql, instance_type=inst))
+    assert "E999_SYNTAX_ERROR" not in ids, "REORGANIZE 的正常 Command 降级不得报语法错误"
+    assert ("R121" in ids) is (inst == "distributed")
+
+
+def test_create_bare_maxvalue_still_fails_closed(checker):
+    """DEF-SIT-02 整改不得削弱 CREATE bare 形态的失败关闭（§4.7.5：E999 + R121）。"""
+    sql = (_BASE_CREATE_PART + " PARTITION BY RANGE (dt) "
+           "(PARTITION p0 VALUES LESS THAN (100), "
+           "PARTITION pmax VALUES LESS THAN MAXVALUE) SHARDKEY=id")
+    ids = _ids(checker.audit_sql(sql, instance_type="distributed"))
+    assert {"E999_SYNTAX_ERROR", "R121"} <= ids
+
+
+def test_create_paren_maxvalue_still_no_e999(checker):
+    """§4.7.5：CREATE 括号形态命中 R121、不报 E999（DEF-SIT-02 整改后仍须保持）。"""
+    sql = (_BASE_CREATE_PART + " PARTITION BY RANGE (dt) "
+           "(PARTITION p0 VALUES LESS THAN (100), "
+           "PARTITION pmax VALUES LESS THAN (MAXVALUE)) SHARDKEY=id")
+    ids = _ids(checker.audit_sql(sql, instance_type="distributed"))
+    assert "R121" in ids
+    assert "E999_SYNTAX_ERROR" not in ids
+
+
+def test_dml_limit_does_not_add_tokenization_when_ast_is_sound(parser):
+    """DEF-SIT-03：AST 完好时不得为「确认没有 LIMIT」再做一次全量词法化（设计 §5.4）。
+
+    首版 _extract_dml_limit 的回退条件把「AST 不可靠」与「AST 里没有 limit
+    节点」混为一谈，无 LIMIT 的 UPDATE/DELETE 每条多付一次全量词法化
+    （非 DDL 批 15→17）。整改后 AST 完好即早退。
+    """
+    import sqlglot
+    import sqlglot.tokens
+    orig = sqlglot.tokens.Tokenizer.tokenize
+    calls = {"n": 0}
+
+    def spy(self, sql, *a, **k):
+        calls["n"] += 1
+        return orig(self, sql, *a, **k)
+
+    sqlglot.tokens.Tokenizer.tokenize = spy
+    try:
+        counts = {}
+        for s in ("SELECT * FROM t WHERE id=1",
+                  "INSERT INTO t (a) VALUES (1)",
+                  "UPDATE t SET a=1 WHERE id=1",
+                  "DELETE FROM t WHERE id=1",
+                  "UPDATE t SET a=1 WHERE id>0 LIMIT 2000"):
+            calls["n"] = 0
+            parser.parse(s)
+            counts[s] = calls["n"]
+    finally:
+        sqlglot.tokens.Tokenizer.tokenize = orig
+    assert len(set(counts.values())) == 1, f"各类语句的词法化次数应一致，实测 {counts}"

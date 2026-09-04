@@ -515,7 +515,8 @@ secondary_partition.source_context  # CREATE / ALTER_ADD / ALTER_REORGANIZE
 7. `LIST ... VALUES IN (...)` 不允许把 MAXVALUE 当普通值；非法语法继续由 `E999_SYNTAX_ERROR` 兜底；
 8. 不把 `TDSQL_MAXVALUE` 序列关键字、普通标识符、注释或字符串误判为分区上界；
 9. parse() 在 sqlglot AST try/except 前一次性接收预检三元组并写入 `parsed.secondary_partition`，因此正常 AST、Command 降级、ParseError 提前返回三条出口都保留该事实；严禁放在 `_retry_ast is not None` 条件内；
-10. R121 只读 `parsed.secondary_partition.maxvalue_partitions`，不读 AST、不读 `raw_sql`。
+10. R121 只读 `parsed.secondary_partition.maxvalue_partitions`，不读 AST、不读 `raw_sql`；
+11. （Rev.D / DEF-SIT-01）**分区表达式形态不参与 R121 的命中判定**：策略扫描对 `PARTITION BY RANGE` 后的表达式**只跳过、不校验**（配平括号 + 可选 `COLUMNS` 前缀，覆盖 TO_DAYS/TO_SECONDS/UNIX_TIMESTAMP/EXTRACT/ABS/MOD/FLOOR/多列等真实 `SHOW CREATE TABLE` 形态）；表达式合法性校验仍由服务 AST 恢复门禁的 `_consume_partition_expr()` 白名单独立负责，两者按用途分流、不得互相替代——白名单"认不出=不恢复"对恢复门禁是安全失败关闭，但对策略扫描是规则漏报，安全方向相反。
 
 #### 4.7.4 正反例
 
@@ -543,8 +544,11 @@ Rev.B 明确不通过“掩码整个分区子句”来关闭 sqlglot KFN，因�
 | ALTER ADD bare 或括号形态 | 当前均会有 E999；token 命中后 distributed 另含 R121 | 仅 E999，不含 R121 |
 | ALTER ADD 正常上界（无 MAXVALUE） | 当前有 E999；sqlglot 对 `ADD PARTITION (PARTITION name …)` 整体不支持，与 MAXVALUE 无关；不含 R121 | 同左：含 E999，不含 R121 |
 | ALTER REORGANIZE bare 或括号形态 | 当前为 Command、无 E999；token 命中后 distributed 含 R121 | 不含 R121/E999 |
+| ALTER REORGANIZE 正常上界（无 MAXVALUE） | 无 E999、无 R121（Command 是该语法的正常降级形态，不得合成 parse_error） | 无 E999、无 R121 |
 
 验收只对 E999/R121 子集作精确断言，不把当前 parse_error 后可能伴生的其他既有规则结果误写为本次承诺。关闭 bare KFN、恢复完整 AST 或抑制其他结构规则属于独立解析器课题，不在 v1.6.3.2 内。
+
+Rev.D / DEF-SIT-02 订正：首版实现曾在「ast 为 Command 且策略事实含 MAXVALUE」时合成 parse_error，其立论（"sqlglot 30.14 把 CREATE bare MAXVALUE 静默降级为 Command"）经第一轮 SIT 实测**不成立**——CREATE bare 是真实 ParseError（ast=None）、CREATE 括号正常产出 Create，两者均不进该分支；唯一命中的 `ALTER … REORGANIZE` 恰是该语法的**正常** Command 降级，导致合法 DDL 在集中式实例被凭空误报 ERROR 级 E999（strict/normal 双门禁全卡）。定版口径：合成守卫仅在 `secondary_partition.source_context == "CREATE"` 时允许生效（且仅作为将来 sqlglot 改变 CREATE 降级行为时的兜底）；ALTER REORGANIZE 的 Command 降级**不得**据此合成 parse_error。
 
 ---
 
@@ -617,9 +621,13 @@ SQLGlot 30.14.0 的 `exp.Limit` 只在 `arg_types` 中声明 `offset`，类上�
 7. ALTER ADD 当前是 ParseError，ALTER REORGANIZE 当前是 Command，两者使用各自有限状态入口，不能把一种降级路径的假设套到另一种；
 8. 策略事实无论 AST 正常、Command 降级还是 ParseError 提前返回都必须保留；
 9. 保留原有完整性门禁：未知或半解析语法不能伪装成完整 AST 成功；
-10. 更新当前将 MAXVALUE 标成已知假阴性的注释和测试，避免文档与实际能力相反。
+10. 更新当前将 MAXVALUE 标成已知假阴性的注释和测试，避免文档与实际能力相反；
+11. （Rev.D / DEF-SIT-02）策略事实只用于**补充** R121 命中，不得反向合成 parse_error：`ALTER … REORGANIZE` 的 Command 降级是该语法的正常形态；唯一允许的合成守卫限定 `source_context == "CREATE"`，且仅作为将来 sqlglot 改变 CREATE 降级行为时的兜底（实测 sqlglot 30.14.0 下 CREATE bare 为真实 ParseError、括号为正常 Create，均不进该分支）；
+12. （Rev.D / DEF-SIT-01）策略扫描的分区表达式消费与恢复门禁的表达式校验**按用途分流**：策略扫描使用只跳过不校验的宽松消费器（配平括号 + 可选 `COLUMNS` 前缀），恢复门禁继续使用 `_consume_partition_expr()` 白名单；宽松消费器不得被 `_plan_recovery()` / `_scan_table_tail()` / `_consume_secondary_partition()` 引用，并以源码级反向锁测试固定。
 
 性能不变量：本改动不得使单条语句的**预检词法化**次数超过 Rev.Q 既有基线一次。SQLGlot `parse_one()` 自身的内部解析成本不属于新增预检次数，但实现前后也不得因 R121 额外调用 `parse_one()`。测试使用 tokenizer spy/monkeypatch 对一批 SELECT、INSERT 等非 DDL 语句比较调用次数，必须证明相对当前基线没有新增 tokenization；同时断言非 DDL 的 `secondary_partition` 为空。
+
+Rev.D / DEF-SIT-03 落实：该性能不变量同样约束 DML LIMIT 通道——token 回退仅在 AST 不可靠（`ast is None` 或降级为 Command）时执行；AST 完好时「无 limit 节点」即权威结论、直接早退，不得为确认无 LIMIT 再做一次全量词法化（首版曾使非 DDL 批 15→17、无 LIMIT 的 UPDATE/DELETE 每条 3→4）。
 
 ---
 
@@ -931,7 +939,11 @@ rule_id / category / severity / message / suggestion / line_number
 9. parser 指纹在 MAXVALUE 与普通数值边界间可区分；
 10. 一级和二级同时存在时只读取二级节点；
 11. 所有测试不通过全文 `in`/正则假阳性来满足；
-12. 对一批 SELECT/INSERT 非 DDL 语句用 tokenizer spy/monkeypatch 锁定预检词法化次数相对 Rev.Q 基线不增加，且 `secondary_partition` 始终为空；R121 不得额外调用 `parse_one()`。
+12. 对一批 SELECT/INSERT 非 DDL 语句用 tokenizer spy/monkeypatch 锁定预检词法化次数相对 Rev.Q 基线不增加，且 `secondary_partition` 始终为空；R121 不得额外调用 `parse_one()`；
+13. （Rev.D / DEF-SIT-01）分区表达式全形态参数化：裸列 / 反引号列 / YEAR / MONTH / DAY / TO_DAYS / TO_SECONDS / UNIX_TIMESTAMP / EXTRACT / ABS / MOD / FLOOR / COLUMNS（单列与多列）/ 多列 RANGE，逐一 × bare 与括号 MAXVALUE，R121 均必须命中；
+14. （Rev.D / DEF-SIT-01）真实 `SHOW CREATE TABLE` 产物（to_days + 反引号 + `ENGINE = InnoDB` + 多行）端到端命中 R121，`method` 正常回填 RANGE、`maxvalue_partitions` 记录真实分区名；
+15. （Rev.D / DEF-SIT-01）反向锁：宽松表达式消费器不得出现在恢复门禁（`_plan_recovery` / `_scan_table_tail` / `_consume_secondary_partition`）源码中；
+16. （Rev.D / DEF-SIT-02）ALTER REORGANIZE bare/括号 × 双实例类型四组合均不得出现 E999，R121 仅分布式命中；CREATE bare 失败关闭（E999+R121）不因整改削弱；无 LIMIT 的 UPDATE/DELETE 词法化次数与 SELECT 基线一致（DEF-SIT-03）。
 
 ### 10.2 数量、注册与质量门禁测试
 
@@ -1084,6 +1096,7 @@ distributed-only exact set 包含 R030/R032/R121
 | RISK-16 | R030/R032 改为仅分布式后，集中式的视图/过程/触发器和临时表治理变为零覆盖 | 发布前由 DBA 书面确认；不能用 R031 对函数的残余覆盖掩盖其他对象缺口 |
 | RISK-17 | 官方 bare MAXVALUE 在当前 sqlglot 上仍 ParseError | 采用独立 token 事实使分布式同时返回 E999+R121；关闭 KFN 另立课题 |
 | RISK-18 | ALTER 类型通道与 R035 批内上下文均是评审确认的扩围 | 按 REQ-01A/REQ-05A 完整实现；若工期不可控，只能由需求方书面批准降级并同步修改验收口径 |
+| RISK-19 | 分区表达式白名单曾使 R121 对真实 `SHOW CREATE TABLE` 形态（TO_DAYS/UNIX_TIMESTAMP/COLUMNS/多列）整体失明，括号 MAXVALUE 形态甚至无 E999 完全静默通过（SIT DEF-SIT-01） | Rev.D：策略扫描改用只跳过不校验的宽松表达式消费器并与恢复门禁按用途分流；全表达式形态参数化 + 真实产物端到端 + 源码级反向锁三重回归 |
 
 Rev.B 已把 P1/P2 结构性设计缺口关闭，Rev.C 又完成第二轮 5 项定点文本订正；待 A 定点确认后即可进入编码。生产发布仍有三项书面门禁：目标分布式实例满足 UPDATE/DELETE LIMIT 版本前提；DBA 接受 R030/R032 在集中式造成的零覆盖；活动规则集及流水线负责人接受 §10.2 的门禁双向变化。任何一项未确认都不影响开发和测试，但不得发布相关规则行为到生产。REQ-01A/REQ-05A 是本版已承诺范围，未经需求方书面批准不得在实现阶段静默裁剪。
 
@@ -1126,3 +1139,4 @@ v1.6.3.2 只有同时满足以下条件才算完成：
 | Rev.A | 2026-09-03 | 首版开发详细设计 |
 | Rev.B | 2026-09-03 | 复核 A 第一轮报告正文全部 15 项：接受 14 项并整改；P3-05 因仓库已有 Playwright dev extra 和依赖边界测试而不接受；未修改任何代码 |
 | Rev.C | 2026-09-03 | 接受并完成 A 第二轮 5 项定点订正：offset 取值、单次预检词法化、`tests_3p` 清点、ALTER ADD 正常上界、版本戳部署样例归类；未修改任何代码 |
+| Rev.D | 2026-09-04 | 按第一轮 SIT（DEF-SIT-01/02/03）整改同步：§4.7.3 增补分区表达式"只跳过不校验"分流原则（第 11 条）；§4.7.5 订正合成守卫立论、限定 CREATE 来源并新增 ALTER REORGANIZE 正常上界行；§5.4 增补守卫适用范围与宽松消费器分流（第 11/12 条）、性能不变量扩展至 DML LIMIT 通道；§10.1 R121 增加第 13-16 条；§12 新增 RISK-19 |

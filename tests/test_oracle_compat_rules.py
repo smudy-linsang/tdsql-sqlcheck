@@ -27,7 +27,7 @@ def _hit(checker, sql, rule_id):
 class TestOracleCompatBasic:
     """基础验证：规则数、ID连续性、元数据"""
 
-    def test_total_rules_119(self, checker):
+    def test_total_rules_121(self, checker):
         info = checker.get_rules_info()
         assert len(info) == 121
 

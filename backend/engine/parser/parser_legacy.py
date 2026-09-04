@@ -977,6 +977,48 @@ def _consume_partition_expr(toks, i, stop):
     return (j + 1, shape) if (j < stop and toks[j].token_type == TokenType.R_PAREN) else (-1, "")
 
 
+def _skip_balanced_parens(toks, i, stop):
+    """从 `(` 开始跳过一整段配平括号，返回下一个下标；不配平返回 -1。
+
+    DEF-SIT-01：只供 R121 的**策略扫描**使用——策略扫描的目标是找到分区
+    定义表并读出 VALUES LESS THAN 边界，不需要证明分区表达式合法。表达式
+    的合法性校验仍由 `_consume_partition_expr()` 负责，它服务 AST 恢复门禁
+    （v1.6.2.2 十三轮评审收敛的最敏感面），本函数绝不替代它，也不得被
+    `_plan_recovery()` / `_scan_create_tail()` / `_consume_secondary_partition()`
+    调用。
+    """
+    if i >= stop or toks[i].token_type != TokenType.L_PAREN:
+        return -1
+    depth, j = 0, i
+    while j < stop:
+        tt = toks[j].token_type
+        if tt == TokenType.L_PAREN:
+            depth += 1
+        elif tt == TokenType.R_PAREN:
+            depth -= 1
+            if depth == 0:
+                return j + 1
+        j += 1
+    return -1
+
+
+def _consume_partition_expr_lenient(toks, i, stop):
+    """策略扫描专用：接受 `(任意配平表达式)` 与 `COLUMNS(...)` 两种形态。
+
+    DEF-SIT-01：覆盖 MySQL/TDSQL 允许的全部分区表达式（TO_DAYS/TO_SECONDS/
+    UNIX_TIMESTAMP/EXTRACT/ABS/MOD/FLOOR、RANGE COLUMNS、多列 RANGE 等），
+    不做函数白名单——真实 `SHOW CREATE TABLE` 产物（如
+    ``RANGE (to_days(`dt`))``）是在线元数据审核的主战场形态，白名单曾使
+    R121 对其整体失明、括号 MAXVALUE 形态甚至完全静默通过。
+    返回 (下一个下标, "lenient") 或 (-1, "")。
+    """
+    j = i
+    if j < stop and _is_bare_kw(toks[j], "COLUMNS"):
+        j += 1
+    k = _skip_balanced_parens(toks, j, stop)
+    return (k, "lenient") if k >= 0 else (-1, "")
+
+
 def _unquote_str(tok):
     """字符串字面量的归一内容：去外层引号并还原成对转义。
 
@@ -1214,7 +1256,10 @@ def _scan_secondary_partition_policy_tokens(toks):
                 fact["has_definition"] = True
                 fact["method"] = "RANGE"
                 fact["source_context"] = "CREATE"
-                j, _eshape = _consume_partition_expr(toks, k + 2, n)
+                # DEF-SIT-01：策略扫描改用宽松表达式消费器（只跳过不校验），
+                # 覆盖 TO_DAYS/UNIX_TIMESTAMP/COLUMNS/多列等真实 SHOW CREATE
+                # TABLE 形态；恢复门禁的 _consume_partition_expr 严格性不动。
+                j, _eshape = _consume_partition_expr_lenient(toks, k + 2, n)
                 if j < 0:
                     k += 2
                     continue
@@ -2458,12 +2503,15 @@ class SQLParser:
                             _retry_ast = None
                         if _validate_recovery_candidate(_retry_ast, _plan2):
                             ast = _retry_ast
-                # v1.6.3.2 / §4.7.5：sqlglot 30.14 把 CREATE bare MAXVALUE 静默
-                # 降级为 Command（不抛 ParseError，RISK-17 的实测形态），恢复链
-                # 又按门控拒绝 bare 形态（allow_maxvalue=False）。若二级分区策略
-                # 事实命中 MAXVALUE 而 ast 仍是 Command，显式落 parse_error 保留
-                # E999 失败关闭——分布式 bare 形态结果至少含 E999 + R121。
+                # v1.6.3.2 / §4.7.5：仅针对 CREATE 来源的兜底。实测（sqlglot
+                # 30.14.0，SIT DEF-SIT-02 复核）CREATE 的 bare MAXVALUE 是真实
+                # ParseError（ast=None）、括号形态正常产出 Create，两者都不会
+                # 落到本分支；本分支只在将来 sqlglot 改变 CREATE 降级行为时才
+                # 生效。ALTER REORGANIZE 的 Command 是该语法的**正常降级形态、
+                # 不是缺陷**，不得据此合成 parse_error——否则合法 DDL 在集中式
+                # 实例上凭空多出一条 ERROR 级 E999，strict/normal 双门禁全卡。
                 if (isinstance(ast, exp.Command)
+                        and parsed.secondary_partition.get("source_context") == "CREATE"
                         and parsed.secondary_partition.get("maxvalue_partitions")):
                     parsed.parse_error = (
                         "KNOWN_FIDELITY_GAP[SECONDARY-PARTITION-MAXVALUE]: "
@@ -3293,6 +3341,12 @@ class SQLParser:
             fact["row_count"] = val
             fact["verifiable"] = True
             return fact
+        # DEF-SIT-03：AST 完好（非 None、非 Command）时，"没有 limit 节点"
+        # 本身就是权威结论——语句确实没有 LIMIT，无需再做一次全量词法化
+        # （设计 §5.4 性能不变量：非 DDL 批不得新增 tokenization）。只有
+        # AST 不可靠（ast is None 或降级为 Command）才允许 token 回退。
+        if ast is not None and not isinstance(ast, exp.Command):
+            return fact                      # present=False, verifiable=False
         # token 回退：仅当 AST 不可靠时使用
         try:
             toks = sqlglot.Dialect.get_or_raise(

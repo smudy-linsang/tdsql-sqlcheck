@@ -3,9 +3,9 @@
 | 项目 | 内容 |
 |---|---|
 | 版本 | v1.6.3.0 → **v1.6.3.2** |
-| 报告类型 | 编码开发完成报告 |
+| 报告类型 | 编码开发完成报告（R1：含第一轮 SIT 整改，见 §11） |
 | 开发者 | 开发智能体 Q |
-| 日期 | 2026-09-03 |
+| 日期 | 2026-09-03（R1 修订：2026-09-04） |
 | 设计依据 | `DESIGN-v1.6.3.2-审核规则调整与扫描历史跨页对比详细设计说明书.md`（Rev.C，经 REVIEW1/REVIEW2 两轮评审 + CONFIRM 定点确认准出） |
 | 锁定依赖 | sqlglot **30.14.0**（`pyproject.toml` 已锁，开工复测字段形态一致） |
 
@@ -155,3 +155,40 @@
 - 测试：`tests/test_rules_v1632.py`（新建）、`test_sit_full.py`、`test_sit_rules.py`、`test_instance_scope_rules.py`、`test_oracle_compat_rules.py`、`test_no_hardcoded_secrets.py`、多个 SIT/UAT 断言、`tests/rule_audit_materials/`（verify_rules.py、verify_metadata_rules.py、sql_audit/01、sql_audit/04）、`tests_3p/test_1_smoke.py`
 - 部署/版本：`VERSION`、`deploy/README.md`、`deploy/verify_deploy.sh`、`smoke_test.py`
 - 文档：`README.md`、`CONTEXT.md`、`docs/USER_GUIDE.md`、`docs/功能使用手册.md`、`docs/全系统SIT-UAT测试用例.md`、`docs/GATE-v1.6.3.2-*.md`（新建）、本报告
+
+---
+
+## 11. 第一轮 SIT 整改（2026-09-04，修订 R1）
+
+A 第一轮 SIT 结论**不通过**（`SIT-v1.6.3.2-…第一轮SIT测试报告-ClaudeA.md`：2 BLOCK + 2 MINOR + 1 NIT，问题集中在 R121 与配套物料）。**五项全部认可，无申诉项**，已按 A 的整改方案照图施工并全部验证归位。
+
+### 11.1 逐项整改
+
+| 编号 | 级别 | 问题 | 整改 | 验证 |
+|---|---|---|---|---|
+| DEF-SIT-01 | BLOCK | R121 对 TO_DAYS/UNIX_TIMESTAMP/COLUMNS/多列等真实 `SHOW CREATE TABLE` 分区表达式失明（复用恢复门禁的 `_PARTITION_FUNCS` 白名单；括号 MAXVALUE 形态甚至无 E999、完全静默通过） | 采纳方案 A：新增 `_skip_balanced_parens` + `_consume_partition_expr_lenient`（只跳过不校验），仅策略扫描 CREATE 分支改用；恢复门禁 `_consume_partition_expr` 一字未动；`method` 正常回填 | 16 种表达式形态 × bare/括号 = **32 组合漏报 0**；真实 MariaDB `SHOW CREATE TABLE` 产物命中 R121 且 `method='RANGE'`、`maxvalue_partitions=('pmax',)`；源码级反向锁（恢复链三函数不得引用宽松消费器）入测试 |
+| DEF-SIT-02 | BLOCK | 合成 KFN 守卫立论事实错误——"CREATE bare 降级 Command"是施工**中间态**观察，最终代码下 CREATE bare 为真实 ParseError(ast=None)、括号为正常 Create，守卫对 CREATE 一次不执行；唯一命中的合法 `ALTER … REORGANIZE … MAXVALUE` 被误判 E999（集中式纯误报，strict/normal 双门禁全卡） | 守卫加 `source_context == "CREATE"` 门闸；注释按 A 实测事实改写 | §4.7.5 矩阵**五行全部归位**（与 A 变异验证预期逐行一致）：CREATE bare dist=[E999,…,R121]/cent=[E999,…]；CREATE 括号含 R121 无 E999；REORG bare/括号 dist=[R121]、cent=[]、均无 E999；REORG 正常上界双空 |
+| DEF-SIT-03 | MINOR | `_extract_dml_limit` 把"AST 不可靠"与"AST 无 limit 节点"混为一谈，无 LIMIT 的 UPDATE/DELETE 每条多付一次全量词法化（非 DDL 批 15→17），违反设计 §5.4 性能不变量 | AST 完好（非 None 非 Command）时早退；token 回退仅在 AST 不可靠时执行 | tokenizer spy：SELECT/INSERT/UPDATE/DELETE/UPDATE+LIMIT 五类语句词法化次数**全部 =3 一致**；spy 回归锁入测试 |
+| DEF-SIT-04 | MINOR | 设计 §9.3 点名的 `tests/TEST_SPEC-规则覆盖与压力测试.md` 未更新（根因：数字清点时 grep 结果被 25 条上限截断、未缩小范围重查） | 11 处更新：119→121（5 处能力声明）、107→109（A 类覆盖数 4 处）、物料清单补 R120/R121、覆盖统计按 harness 实跑回填"规则总数: 121 文件审核已覆盖: 109 未覆盖: 0"；`119.45.220.89` 内网 IP 按 §9.4 保持原样 | harness 重跑 [PASS]，与文档回填一致 |
+| DEF-SIT-05 | NIT | `test_oracle_compat_rules.py::test_total_rules_119` 用例名残留（断言已是 121，与 tests_3p 改名做法不一致） | 改名 `test_total_rules_121`；`test_r078_to_r119_continuous` 的 R119 是 Oracle 子集编号上界，按 §9.4 保持不变 | 该文件全过 |
+
+### 11.2 整改后验证汇总
+
+| 验证项 | 结果 |
+|---|---|
+| 专项 `test_rules_v1632.py`（新增 25 项 SIT 回归锁：表达式全形态参数化 / 真实 SCT 产物 / 恢复门禁反向锁 / REORG 四组合 / CREATE bare 失败关闭 / 括号无 E999 / 词法化 spy） | **64 passed**（39 → 64） |
+| 全量回归 `tests/` | **1804 passed, 28 skipped**（1779 → 1804，零回归） |
+| 规则物料 harness `verify_rules.py` | **[PASS]** 121 = 覆盖 109 + 元数据 7 + 豁免 5，断言失败 0 |
+| A 报告 §4.1 表达式矩阵 | 32/32 命中 R121，漏报 0 |
+| A 报告 §5.1（§4.7.5 矩阵） | 五行归位 |
+| A 报告 §6.1 词法化计数 | 五类语句全 =3（整改前无 LIMIT 的 UPDATE/DELETE 为 4） |
+
+### 11.3 设计文档同步（Rev.C → Rev.D）
+
+按 A 整改方案⑥完成：§4.7.3 新增第 11 条（分区表达式"只跳过不校验"分流原则）；§4.7.5 订正合成守卫立论、限定 CREATE 来源、新增 ALTER REORGANIZE 正常上界行；§5.4 新增第 11/12 条（守卫适用范围 + 宽松消费器分流）并把性能不变量显式扩展到 DML LIMIT 通道；§10.1 R121 新增第 13-16 条；§12 新增 RISK-19；§15 修订记录登记 Rev.D（2026-09-04）。
+
+### 11.4 反思（防复发）
+
+1. **中间态观察必须在最终态复核**（DEF-SIT-02 根因）：守卫立论来自施工中途的探针输出，其后 `accept_maxvalue` 修复改变了 bare CREATE 的解析路径，未在最终代码上重跑探针确认事实仍成立就写入了守卫与注释。
+2. **共享组件的失败语义要按新消费者重估**（DEF-SIT-01 根因）：恢复门禁白名单"认不出=失败关闭"是安全方向，被 R121 策略扫描复用后变成"认不出=漏报"，方向相反。
+3. **grep 清点结果被截断时必须缩小范围重查**（DEF-SIT-04 根因）：25 条上限截断后未对 tests/ 目录单独复查。

@@ -3,25 +3,25 @@
 | 项 | 内容 |
 |---|---|
 | 适用版本 | v1.5.2.3 |
-| 测试对象 | 119 条 SQL 审核规则（文件审核 / 在线元数据审核）+ 慢SQL治理扫描模块 |
+| 测试对象 | 121 条 SQL 审核规则（文件审核 / 在线元数据审核）+ 慢SQL治理扫描模块 |
 | 测试环境 | 后端 `http://127.0.0.1:8000`；云上 SIT-分布式实例A（119.45.220.89:15005）、SIT-集中式实例A（119.45.220.89:15002） |
 | 目录 | `tests/rule_audit_materials/`（规则覆盖物料）、`tests/pressure_test/`（压力测试） |
 
 本说明书描述三类测试物料的工作原理与使用方法：
 
-1. **文件审核测试物料**（`.sql` + MyBatis `.xml`）——验证 119 条规则能否被「文件审核」与「在线元数据审核」有效触发；
+1. **文件审核测试物料**（`.sql` + MyBatis `.xml`）——验证 121 条规则能否被「文件审核」与「在线元数据审核」有效触发；
 2. **规则覆盖验证 harness**（`verify_rules.py` / `verify_metadata_rules.py`）——自动化断言每条规则按预期触发；
 3. **SQL 治理压力测试**（`run_pressure_test.py`）——对两实例施加负载，验证慢SQL扫描任务的抓取与分析是否符合规则预期。
 
 ---
 
-## 一、119 条规则的验证路径划分
+## 一、121 条规则的验证路径划分
 
-经实测，119 条规则按「触发所需信息」分为三类，**走不同的验证路径**：
+经实测，121 条规则按「触发所需信息」分为三类，**走不同的验证路径**：
 
 | 类别 | 规则 | 触发条件 | 验证路径 |
 |---|---|---|---|
-| **A. 文件审核可触发** | 107 条 | 仅需 SQL 文本（静态检查） | `verify_rules.py` 驱动 `RuleChecker` |
+| **A. 文件审核可触发** | 109 条 | 仅需 SQL 文本（静态检查） | `verify_rules.py` 驱动 `RuleChecker` |
 | **B. 需真实表元数据** | 7 条：R048/R055/R056/R057/R058/R060/R064 | 需分片键/是否分片表/索引信息 | `verify_metadata_rules.py` 调 `POST /api/v1/tdsql/audit/with-metadata` |
 | **C. 已知不可触发** | 5 条：R025/R035/R038/R049/R059 | 解析器/规则实现限制（见下） | 不列入覆盖要求，记录为发现 |
 
@@ -50,13 +50,13 @@
 
 ```
 tests/rule_audit_materials/
-├── verify_rules.py              # 文件审核覆盖验证 harness（A 类 107 条）
+├── verify_rules.py              # 文件审核覆盖验证 harness（A 类 109 条）
 ├── verify_metadata_rules.py     # 元数据依赖规则验证（B 类 7 条，调 API）
 ├── sql_audit/                   # 纯 SQL 测试文件（按规则类别分组）
-│   ├── 01_naming_ddl.sql        # 命名 + DDL：R001-R011,R023-R034,R036,R037,R078,R097,R098,R115-R118,R030,R031
+│   ├── 01_naming_ddl.sql        # 命名 + DDL：R001-R011,R023-R034,R036,R037,R078,R097,R098,R115-R118,R120,R030,R031
 │   ├── 02_dml_perf_sec_txn.sql  # DML/性能/安全/事务：R012-R022,R039-R053,R069-R076,R084,R092,R095,R096,R100,R107,R109,R114
 │   ├── 03_index.sql             # 索引：R018,R019,R061-R063,R065-R067
-│   ├── 04_distributed_ddl.sql   # 分布式建表：R054,R077
+│   ├── 04_distributed_ddl.sql   # 分布式建表：R054,R077,R121
 │   └── 05_oracle_compat.sql     # Oracle 兼容：R079-R083,R085-R091,R093,R094,R099,R101-R106,R108,R110-R113,R119
 └── mybatis_xml/
     └── CustomerMapper.xml       # MyBatis 动态 SQL：R012,R013,R014,R016,R047,R051,R070,R076 + 动态标签清洗验证
@@ -101,12 +101,12 @@ python tests/rule_audit_materials/verify_rules.py
 python tests/rule_audit_materials/verify_rules.py --json report.json
 ```
 
-**判定标准**：退出码 0 = A 类 107 条规则全部按预期触发且断言 0 失败。
+**判定标准**：退出码 0 = A 类 109 条规则全部按预期触发且断言 0 失败。
 
 **开发环境实测结论**：
 
 ```
-规则总数: 119  文件审核已覆盖: 107  未覆盖: 0
+规则总数: 121  文件审核已覆盖: 109  未覆盖: 0
   其中 需元数据验证(走 with-metadata 端点): 7 -> R048,R055,R056,R057,R058,R060,R064
   其中 已知不可触发(豁免): 5 -> R025,R035,R038,R049,R059
 断言失败: 0 条
@@ -261,7 +261,7 @@ CENT（centralized）:
 
 | # | 复测项 | 命令 | 通过标准 |
 |---|---|---|---|
-| 1 | 文件审核规则覆盖 | `python tests/rule_audit_materials/verify_rules.py` | 退出码 0；107 条文件审核规则全覆盖、断言 0 失败；7 条元数据依赖 + 5 条已知不可触发如实列出 |
+| 1 | 文件审核规则覆盖 | `python tests/rule_audit_materials/verify_rules.py` | 退出码 0；109 条文件审核规则全覆盖、断言 0 失败；7 条元数据依赖 + 5 条已知不可触发如实列出 |
 | 2 | 元数据依赖规则 | `python tests/rule_audit_materials/verify_metadata_rules.py` | 退出码 0；R048/R055/R056/R057/R058/R060/R064 共 7 条在分布式实例全部触发 |
 | 3 | SQL 治理压测（两实例×三源） | `python tests/pressure_test/run_pressure_test.py` | 退出码 0；DIST/CENT 的 monitordb/digest/processlist 六组 (a) 管道 (b) 分析器正确性全 PASS |
 | 4 | 工程全量单测 | `python -m pytest tests -q` | 与干净基线逐项一致、零回归（本容器无 MySQL 时的既有 fail/error 属环境现象，需与基线比对而非绝对清零） |
