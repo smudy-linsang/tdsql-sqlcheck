@@ -2,7 +2,8 @@
 """V1.5 实例类型适用域 — 规则标注一致性 + 核心行为测试
 
 本文件锁定 DETAIL-v1.5 §3.3 判定表（v1.5 历史基线 119 条；v1.6.3.2 新增
-R120/R121 并调整 R030/R032 适用域后扩展至 121 条），是本次改造的正确性基准。
+R120/R121、调整 R030/R032 适用域，并经 GATE-2 决议将 R031 同步改为仅分布式后
+扩展至 121 条），是本次改造的正确性基准。
 test_distributed_only_list_is_exactly_as_designed 失败意味着有人改动了规则的
 instance_scope 标注——错标一条为 DISTRIBUTED 就会让集中式实例静默漏报一项检查。
 """
@@ -12,15 +13,17 @@ from backend.engine.rules import ALL_RULE_CLASSES
 from backend.engine.checker import RuleChecker
 
 
-# 30 条仅分布式适用规则，判定依据见 DETAIL-v1.5 §3.3；
+# 31 条仅分布式适用规则，判定依据见 DETAIL-v1.5 §3.3；
 # R097/R113 由负责人 2026-07-29 裁定归 DISTRIBUTED；
-# v1.6.3.2：R030/R032 适用域改 DISTRIBUTED（REQ-03/04），新增 R121（仅分布式）。
+# v1.6.3.2：R030/R032 适用域改 DISTRIBUTED（REQ-03/04），新增 R121（仅分布式）；
+# GATE-2（林桑签署决议 §二）：R031 同步改 DISTRIBUTED，消除集中式“放行视图/过程/
+# 触发器却拦截函数”的逻辑割裂（推翻设计 §4.3 OUT-01 锁，属 DBA 授权的另行评审）。
 DISTRIBUTED_ONLY = {
     "R020", "R021", "R022", "R023", "R024", "R025", "R043", "R048",
     "R053", "R054", "R055", "R056", "R057", "R058", "R059", "R060",
     "R077", "R092", "R097", "R100", "R111", "R112", "R113",
     "R115", "R116", "R117", "R118",
-    "R030", "R032", "R121",
+    "R030", "R031", "R032", "R121",
 }
 
 
@@ -47,11 +50,11 @@ def test_no_centralized_only_rules_yet():
 
 
 def test_rule_counts():
-    """总数 121；分布式跑 121；集中式跑 91（v1.6.3.2）。"""
+    """总数 121；分布式跑 121；集中式跑 90（v1.6.3.2 + GATE-2 R031 改域）。"""
     assert len(ALL_RULE_CLASSES) == 121
     checker = RuleChecker()
     assert len(checker.get_enabled_rules(None, "distributed")) == 121
-    assert len(checker.get_enabled_rules(None, "centralized")) == 91
+    assert len(checker.get_enabled_rules(None, "centralized")) == 90
 
 
 def test_every_rule_has_valid_scope():
@@ -135,8 +138,8 @@ def test_legacy_calls_still_work():
 
 
 def test_count_skipped_by_scope():
-    """跳过计数：集中式跳 27 条，分布式跳 0 条。"""
+    """跳过计数：集中式跳 31 条（v1.6.3.2 + GATE-2 R031），分布式跳 0 条。"""
     checker = RuleChecker()
-    assert checker.count_skipped_by_scope("centralized") == 30
+    assert checker.count_skipped_by_scope("centralized") == 31
     assert checker.count_skipped_by_scope("distributed") == 0
     assert checker.count_skipped_by_scope(None) == 0

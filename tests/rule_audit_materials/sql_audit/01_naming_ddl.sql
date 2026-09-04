@@ -196,10 +196,10 @@ CREATE TABLE t_order_bak (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='备份表';
 
 -- @case: R030_R031_01
--- @rules: R031
+-- @rules:
 -- @rules.dist: R030,R031
--- @note: 创建自定义函数；R030(禁视图/过程/触发器/函数)v1.6.3.2 起仅分布式，
---        R031(禁自定义函数)仍全适用域：分布式=R030+R031，集中式=R031（R030 零覆盖）
+-- @note: 创建自定义函数；GATE-2（林桑决议）起 R030 与 R031 均仅分布式：
+--        分布式=R030+R031，集中式两者皆跳过（零覆盖，DBA 接受集中式允许视图/过程/触发器/函数）
 CREATE FUNCTION fn_calc(a INT, b INT) RETURNS INT BEGIN RETURN a + b; END;
 
 -- @case: R030_02

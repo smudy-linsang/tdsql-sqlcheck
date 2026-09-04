@@ -3,9 +3,9 @@
 | 项目 | 内容 |
 |---|---|
 | 版本 | v1.6.3.0 → **v1.6.3.2** |
-| 报告类型 | 编码开发完成报告（R1：第一轮 SIT §11；R2：第一轮 UAT P1 §12；R3：第二轮 UAT P2 §13；R4：第三轮 UAT P2 §14） |
+| 报告类型 | 编码开发完成报告（R1：第一轮 SIT §11；R2：第一轮 UAT P1 §12；R3：第二轮 UAT P2 §13；R4：第三轮 UAT P2 §14；R5：门禁签署决议整改 §15） |
 | 开发者 | 开发智能体 Q |
-| 日期 | 2026-09-03（R1~R4 修订：2026-09-04） |
+| 日期 | 2026-09-03（R1~R4：2026-09-04；R5：2026-09-05） |
 | 设计依据 | `DESIGN-v1.6.3.2-审核规则调整与扫描历史跨页对比详细设计说明书.md`（Rev.C，经 REVIEW1/REVIEW2 两轮评审 + CONFIRM 定点确认准出） |
 | 锁定依赖 | sqlglot **30.14.0**（`pyproject.toml` 已锁，开工复测字段形态一致） |
 
@@ -15,7 +15,7 @@
 
 本版按详细设计说明书 Rev.C 施工，完成两大类交付：
 
-1. **审核规则调整**（7 项规则变化）：R011 收窄降级、新增 R120、R030/R032 改适用域、R035 激活批内跨表上下文、R058 上限提升 + 结构化判定、新增 R121；规则总数 **119 → 121**（分布式生效 121 / 集中式生效 91 / 集中式因适用域跳过 30）。
+1. **审核规则调整**（8 项规则变化）：R011 收窄降级、新增 R120、R030/R032 改适用域、R035 激活批内跨表上下文、R058 上限提升 + 结构化判定、新增 R121；规则总数 **119 → 121**（分布式生效 121 / 集中式生效 90 / 集中式因适用域跳过 31；集中式数经 GATE-2 将 R031 同步改仅分布式后由 91/30 调整为 90/31，见 §15）。
 2. **扫描历史跨页对比修复**：四个扫描历史对比页面统一 `row-key="id"` + `reserve-selection`，跨页保留勾选，语义上下文变化时清空。
 
 开发已按 A 的开工叮嘱落实四项纪律要求，并按 G 的建议增强 `FileAuditRequest` 入参容错。全量回归、专项测试、规则物料 harness、冒烟测试均已通过（API 段 7 项 401 为既有环境项，详见 §7）。
@@ -82,7 +82,7 @@
 | 全量回归 `tests/` | **1779 passed, 28 skipped**（最终复核见 §7 补记） |
 | 规则物料 harness `verify_rules.py` | **[PASS] 断言全过、未覆盖 0**：121 = 覆盖 109 + 元数据 7 + 豁免 5 |
 | 冒烟 `smoke_test.py` | 90 项 83 通过；规则引擎段（121 条/R120-R121 补插/规则加载/CLI）**全 OK**；7 项 API 401 为既有（§7） |
-| 适用域 `test_instance_scope_rules.py` | 121/121/91/30，仅分布式集合含 R030/R032/R121，集中式零覆盖锁定 |
+| 适用域 `test_instance_scope_rules.py` | 121/121/90/31（GATE-2 后），仅分布式集合含 R030/R031/R032/R121，集中式零覆盖锁定 |
 
 ---
 
@@ -137,7 +137,7 @@
 | R058 两参数 offset、非法 LIMIT...OFFSET、R114 边界回归 | 已实现 + 专项 |
 | R121 仅分布式二级 RANGE MAXVALUE，CREATE/ALTER，normal/Command/ParseError 三出口 | 已实现（§4.7.5 三出口）+ 专项 |
 | R121 与 KFN/定义完整性共享一次预检词法化，无新增 tokenize | 已实现（三元组 status） |
-| 规则总数/分类/适用域/API 数量与 §6.2 一致 | 121；ddl 23、distributed 15；121/121/91/30 |
+| 规则总数/分类/适用域/API 数量与 §6.2 一致 | 121；ddl 23、distributed 15；121/121/90/31（GATE-2 修订，见 §15） |
 | 数字清点覆盖 tests/ + tests_3p/ + 部署脚本 + 当前态文档，历史样例保原值 | 已完成（§6） |
 | 无新增迁移，启动幂等补插 R120/R121，运行时不新增 rule_configs 读依赖 | 已实现 + 冒烟验证补插 |
 | 四页面跨页选择两条、超选/不兼容/清空边界正确 | 前端已实现（行为级浏览器测试见 §7 补记/后续 UAT） |
@@ -319,4 +319,51 @@ O 第三轮裁决：业务功能 UAT 通过、第二轮 P2 关闭、第三轮通
 - 目标麒麟 V10 SP3 主机部署后运行正式脚本确认 12/0/0 exit 0；
 - O 第四轮定点复测关闭本 P2。
 
-至此 v1.6.3.2 **软件侧 P0/P1/P2/P3 全部清零**（三轮 SIT/UAT 发现的所有代码/脚本/测试/文档缺陷均已修复并回归锁定），准出仅余外部签字与目标主机部署验证两项非开发职责前置。
+至此第二轮 P2 与第三轮 P2 均已关闭。（注：其后林桑在生产门禁签署实测中，对 GATE-3 关联的 bare MAXVALUE 建表 DDL 发现级联假阳性并**拒签**，属 §14 之后新暴露的阻断级缺陷，见 §15。）
+
+---
+
+## 15. 门禁签署决议整改（2026-09-05，修订 R5）
+
+林桑（DBA / 系统负责人）出具《GATE-DECISION-v1.6.3.2 生产发布门禁签署决议与整改任务书》、G 协同实测：**GATE-1 签署通过、GATE-2 有条件通过（附整改指令）、GATE-3 坚决拒签（严重假阳性阻断）**。两项整改指令均已照图施工完成并验证。
+
+### 15.1 GATE-2（有条件通过）：R031 同步改为仅分布式
+
+- **DBA 裁决**：R030/R032 已改仅分布式，但 R031（禁自定义函数）仍为 ALL，形成集中式“放行视图/存储过程/触发器却拦截函数”的逻辑割裂；裁决将 R031 同步改为 `instance_scope = DISTRIBUTED`。
+- **授权合规性**：设计 §4.3 原将 R031 列为 OUT-01 回归锁（“实施人员不得借本次需求顺手修改”），但同时明确“若业务目标是集中式允许自定义函数，必须另行评审 R031”。本次 DBA 签署决议正是该“另行评审”的**正式授权**，属合法需求变更，非实施方擅自扩围。
+- **实施**：`ddl.py` R031 加 `instance_scope = InstanceScope.DISTRIBUTED`（附 GATE-2 授权注释）；`DISTRIBUTED_ONLY` 集合加 R031；集中式生效 **91→90**、跳过 **30→31**；同步 R030 注释、`rulesets.py` 显示口径注释、harness `R030_R031_01` 用例（集中式期望改为空）。
+- **验证**：CREATE FUNCTION 分布式 `[R030,R031]`、集中式 `[]`（割裂消除）；`test_instance_scope_rules.py` 计数 121/121/**90/31** 全过。
+
+### 15.2 GATE-3（拒签阻断）：bare MAXVALUE 级联假阳性
+
+- **缺陷（林桑页面实测）**：一条合法建表 DDL（`PARTITION BY RANGE (YEAR(create_time))` + bare `VALUES LESS THAN MAXVALUE`）爆发 7 项违规——E999 + R003(未指定主键)/R004(未指定引擎)/R005(未指定字符集)/R118(分片键未 NOT NULL) 级联假阳性 + R028 + R121。根因：bare MAXVALUE 触发 sqlglot ParseError → `ast=None` → 主键/引擎/字符集/列约束/表注释全部提取失败 → 基础 DDL 规则大面积误报。
+- **DBA 定性**：明确否定“用假阳性 E999 兜底业务规则拦截”，推翻设计 §4.7.5 与本人此前 DEF-SIT-02 的“bare 失败关闭 E999+R121”口径。**认可，无申诉。**
+- **实施（照 G §5）**：
+  1. 新增 `_normalize_bare_partition_maxvalue()`，在 `parse_one` **之前**把 bare `VALUES LESS THAN MAXVALUE` 规整为语义等价的 `VALUES LESS THAN (MAXVALUE)`（sqlglot 100% 解析为 `exp.Create`）；复用 `_LITERAL_OR_COMMENT_RE` 分段，**仅改字符串/注释外的代码段**（不误伤 `COMMENT '...MAXVALUE...'`）；对 `sql_clean` 与 `sql_recover` 同步、`raw_sql` 保持原文（R077/R054/R104 不受影响）；
+  2. R121 仍由独立 token 策略扫描命中（不依赖归一化，bare/括号两形态均产出 `maxvalue_partitions`）；
+  3. **删除** DEF-SIT-02 引入的 `KNOWN_FIDELITY_GAP[SECONDARY-PARTITION-MAXVALUE]` 合成守卫（bare 已归一化、不再降级 Command；DBA 否定合成 E999）。
+- **验证（林桑原始 SQL）**：distributed 由 `[E999,R003,R004,R005,R028,R104,R118,R121]` → `[R028,R036,R104,R121]`；**E999/R003/R004/R005/R118 五项级联假阳性全部消除**，`ast=Create`、`has_pk=True`、`engine=INNODB`、`charset=UTF8MB4`，R121 精准命中 p_max。新增 `test_create_bare_maxvalue_no_e999_only_r121` 与 `test_gate3_user_ddl_no_cascade_false_positives`（用户实测 DDL 验收锁）。
+- **残留说明（真阳性/既有，非本缺陷）**：R028（该表确无表级 COMMENT）、R036（INFO，确无 update_time）为**真阳性**；R104 命中列注释内全角括号 `（）`（`_RE_FULLWIDTH_PAREN` 扫 raw_sql 全文），是**既有独立行为**、与 bare MAXVALUE 级联无关、不在 GATE-3 范围，已如实上报待用户决定是否另立课题（不擅自改动 O/A 已回归锁定的 Oracle 规则）。
+
+### 15.3 设计文档同步（Rev.D → Rev.E）
+
+DESIGN-v1.6.3.2 追加 Rev.E：记录 GATE-2（§4.3 OUT-01 经 DBA 授权推翻、§6.2 集中式 90 / 跳过 31）与 GATE-3（§4.7.5 bare MAXVALUE 由“失败关闭 E999”改为“parse_one 前归一化、消除级联假阳性”）两项经签署决议授权的口径变更，指向 GATE-DECISION 为权威来源。
+
+### 15.4 整改后验证汇总
+
+| 验证项 | 结果 |
+|---|---|
+| 专项 `test_rules_v1632.py` | 65 passed（含 GATE-3 用户 DDL 验收锁、bare 不报 E999） |
+| 适用域 `test_instance_scope_rules.py` | 121/121/**90/31**，R031 入 DISTRIBUTED_ONLY |
+| 特殊语句 `test_kfn_fail_closed` / `test_o14_cr_fail_closed` | 全过（R031 改域未误伤 E999 失败关闭与真实特殊语句豁免） |
+| 规则物料 harness | [PASS] 121 = 覆盖 109 + 元数据 7 + 豁免 5 |
+| 全量回归 `tests/` | **1844 passed, 0 failed**（本轮 localhost:8000 服务在线，此前无服务时跳过的 ~28 项服务端依赖集成测试全部运行并通过；1815+28+1 净增专项 = 1844 对账一致） |
+
+> **附带修正（本轮全量发现，值得记录的教训）**：`test_sit_rules.py::test_ddl_rules_have_correct_ids` / `test_distributed_rules_have_correct_ids` 与 `test_uat_rules.py::test_category_rule_count_balanced` 三处仍硬编码旧分类计数（DDL 22 / distributed 14）。它们是"打真实服务"的集成测试，`localhost:8000` 无服务时整体 skip，故初始 v1.6.3.2 及前三轮全量回归（无本地服务）均未暴露；本轮用户为页面终验启动了服务，它们才运行并失败。已修正为 DDL 23 / distributed 15（R120/R121 的静态事实，与服务端版本无关）。**教训与 A 对 tests_3p 的告诫同源：条件跳过的测试（依赖外部服务/环境）不会在默认回归里暴露陈旧断言，数字清点必须静态覆盖它们，不能只靠"跑一遍看哪里红"。**
+
+### 15.5 门禁状态与准出
+
+- **GATE-1**：已签署通过（林桑，2026-09-05）。
+- **GATE-2**：整改指令已执行（R031 改域，集中式 90/31），待林桑/G 第五轮复测确认后正式签署。
+- **GATE-3**：拒签缺陷已修复（级联假阳性消除、用户原始 SQL 验证归位），待 O 第五轮定点 UAT + 林桑页面终验复测后签署。
+- 生产准出仍需：GATE-2/GATE-3 复签 + 目标麒麟 V10 SP3 主机部署验证 12/0/0 exit 0。

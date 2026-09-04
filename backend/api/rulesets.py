@@ -90,7 +90,7 @@ def get_ruleset(rule_set_id: str):
     result = ruleset_service.get_ruleset(rule_set_id)
     if not result:
         raise HTTPException(status_code=404, detail="规则集不存在")
-    # V1.5：补充按实例类型的实跑条数（规则集页面显示"启用N条（分布式121/集中式91）"，v1.6.3.2）
+    # V1.5：补充按实例类型的实跑条数（规则集页面显示"启用N条（分布式121/集中式90）"，v1.6.3.2 + GATE-2 R031 改域）
     from backend.engine.checker import RuleChecker
     checker = RuleChecker()
     overrides = {it["rule_id"]: {"enabled": bool(it.get("enabled", True)),

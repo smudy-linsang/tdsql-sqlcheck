@@ -230,7 +230,9 @@ def test_r121_create_bare_maxvalue(parser, checker):
            "PARTITION BY RANGE(id) (PARTITION pmax VALUES LESS THAN MAXVALUE)")
     r = checker.audit_sql(sql, instance_type="distributed")
     assert "R121" in _ids(r)
-    assert "E999_SYNTAX_ERROR" in _ids(r)     # bare 形态当前 sqlglot ParseError
+    # GATE-3（林桑签署决议 §5）：bare MAXVALUE 已在 parse_one 前规整为等价括号形态、
+    # 正常解析为 Create，绝不报 E999（推翻原 §4.7.5「bare 失败关闭 E999+R121」口径）。
+    assert "E999_SYNTAX_ERROR" not in _ids(r)
     assert _sev(r, "R121") == "ERROR"
 
 
@@ -305,13 +307,13 @@ def test_parser_alter_column_types(parser):
 def test_parser_secondary_partition_three_exits(parser):
     bare = ("CREATE TABLE t (id INT) TDSQL_DISTRIBUTED BY HASH(id) "
             "PARTITION BY RANGE(id) (PARTITION pmax VALUES LESS THAN MAXVALUE)")
-    p = parser.parse(bare)     # ParseError 出口
+    p = parser.parse(bare)     # GATE-3：bare 已归一化为括号形态，正常 Create 出口
     assert p.secondary_partition["maxvalue_partitions"] == ("pmax",)
     add = "ALTER TABLE t ADD PARTITION (PARTITION pmax VALUES LESS THAN MAXVALUE)"
-    pa = parser.parse(add)     # Command/ParseError 出口
+    pa = parser.parse(add)     # ALTER ADD：sqlglot 不支持该语法，ParseError 出口
     assert pa.secondary_partition["source_context"] == "ALTER_ADD"
     reorg = "ALTER TABLE t REORGANIZE PARTITION p0 INTO (PARTITION pmax VALUES LESS THAN (MAXVALUE))"
-    pr = parser.parse(reorg)   # Command 出口
+    pr = parser.parse(reorg)   # ALTER REORGANIZE：sqlglot 正常降级 Command 出口
     assert pr.secondary_partition["source_context"] == "ALTER_REORGANIZE"
     sel = parser.parse("SELECT 1")
     assert sel.secondary_partition["has_definition"] is False
@@ -446,11 +448,10 @@ def test_lenient_expr_does_not_widen_recovery_gate():
 @pytest.mark.parametrize("boundary", ["MAXVALUE", "(MAXVALUE)"])
 @pytest.mark.parametrize("inst", ["distributed", "centralized"])
 def test_reorganize_maxvalue_must_not_fabricate_e999(checker, boundary, inst):
-    """DEF-SIT-02：ALTER … REORGANIZE 的 Command 降级是该语法的正常形态，不得合成为语法错误。
-
-    首版对任何 Command + MAXVALUE 都合成 parse_error，使合法 DDL 在集中式
-    实例上凭空多出一条 ERROR 级 E999（strict/normal 双门禁全卡）。整改后
-    合成守卫限定 source_context == "CREATE"。
+    """DEF-SIT-02 / GATE-3：ALTER … REORGANIZE 的 Command 降级是该语法的正常形态，
+    不得合成为语法错误。首版对任何 Command + MAXVALUE 都合成 parse_error，使合法
+    DDL 在集中式凭空多出 ERROR 级 E999。DEF-SIT-02 曾把守卫限定 source_context==CREATE；
+    GATE-3 进一步彻底删除该合成守卫（bare MAXVALUE 已在 parse_one 前归一化为括号形态）。
     """
     sql = ("ALTER TABLE t REORGANIZE PARTITION p0 INTO ("
            "PARTITION p0 VALUES LESS THAN (2020), "
@@ -460,13 +461,59 @@ def test_reorganize_maxvalue_must_not_fabricate_e999(checker, boundary, inst):
     assert ("R121" in ids) is (inst == "distributed")
 
 
-def test_create_bare_maxvalue_still_fails_closed(checker):
-    """DEF-SIT-02 整改不得削弱 CREATE bare 形态的失败关闭（§4.7.5：E999 + R121）。"""
-    sql = (_BASE_CREATE_PART + " PARTITION BY RANGE (dt) "
-           "(PARTITION p0 VALUES LESS THAN (100), "
-           "PARTITION pmax VALUES LESS THAN MAXVALUE) SHARDKEY=id")
+def test_create_bare_maxvalue_no_e999_only_r121(checker):
+    """GATE-3（林桑签署决议 §5 步骤3）：CREATE bare MAXVALUE 绝不报 E999，只精准命中 R121。
+
+    推翻原 DEF-SIT-02 的「bare 失败关闭 E999+R121」口径——DBA 明确否定用假阳性
+    E999 兜底业务拦截。bare 已在 parse_one 前归一化为等价括号形态，PK/引擎/字符集
+    正常提取，R003/R004/R005 等级联假阳性归零。
+    """
+    sql = ("CREATE TABLE t (id INT NOT NULL, dt DATE NOT NULL, PRIMARY KEY(id, dt)) "
+           "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 shardkey=id "
+           "PARTITION BY RANGE (to_days(dt)) ("
+           "PARTITION p0 VALUES LESS THAN (738000), "
+           "PARTITION pmax VALUES LESS THAN MAXVALUE)")
     ids = _ids(checker.audit_sql(sql, instance_type="distributed"))
-    assert {"E999_SYNTAX_ERROR", "R121"} <= ids
+    assert "E999_SYNTAX_ERROR" not in ids, "绝对不得误报 E999"
+    assert "R003" not in ids, "绝对不得误报未指定主键"
+    assert "R004" not in ids, "绝对不得误报未指定引擎"
+    assert "R005" not in ids, "绝对不得误报未指定字符集"
+    assert "R121" in ids, "必须精准命中 R121"
+
+
+# 林桑 GATE-3 拒签时在分布式即时审核页面实测失败的真实建表 DDL；整改前爆发 7 项
+# 违规（E999 + R003/R004/R005/R028/R118 级联假阳性 + R121）。
+_GATE3_USER_DDL = """CREATE TABLE `t_order_history` (
+  `order_id` BIGINT NOT NULL COMMENT '订单ID（一级分片键）',
+  `user_id` BIGINT NOT NULL COMMENT '用户ID',
+  `amount` DECIMAL(10, 2) NOT NULL DEFAULT '0.00' COMMENT '订单金额',
+  `create_time` DATETIME NOT NULL COMMENT '创建时间（二级Range分区键）',
+  `status` TINYINT NOT NULL DEFAULT '0' COMMENT '订单状态',
+  PRIMARY KEY (`order_id`, `create_time`),
+  KEY `idx_user_id` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+shardkey=order_id
+PARTITION BY RANGE (YEAR(create_time)) (
+  PARTITION p2023 VALUES LESS THAN (2024),
+  PARTITION p2024 VALUES LESS THAN (2025),
+  PARTITION p2025 VALUES LESS THAN (2026),
+  PARTITION p2026 VALUES LESS THAN (2027),
+  PARTITION p_max VALUES LESS THAN MAXVALUE
+)"""
+
+
+def test_gate3_user_ddl_no_cascade_false_positives(checker):
+    """GATE-3 验收锁：林桑实测拒签的建表 DDL，整改后必须消除全部级联假阳性。
+
+    整改前：E999 + R003(未指定主键) + R004(未指定引擎) + R005(未指定字符集) +
+    R118(分片键未 NOT NULL) 五项假阳性 + R121。整改后这五项必须全部消失，仅保留
+    R121（真实命中）；该表本就缺失的表级 COMMENT(R028)/update_time(R036 INFO) 属
+    真阳性，不在本锁的假阳性断言范围内。
+    """
+    ids = _ids(checker.audit_sql(_GATE3_USER_DDL, instance_type="distributed"))
+    for fp in ("E999_SYNTAX_ERROR", "R003", "R004", "R005", "R118"):
+        assert fp not in ids, f"GATE-3 级联假阳性未消除: {fp} ∈ {sorted(ids)}"
+    assert "R121" in ids, "必须精准命中 R121（p_max 二级分区 MAXVALUE）"
 
 
 def test_create_paren_maxvalue_still_no_e999(checker):

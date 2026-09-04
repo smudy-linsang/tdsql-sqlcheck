@@ -112,6 +112,34 @@ def _strip_index_order_modifiers(sql: str) -> str:
     return "".join(parts)
 
 
+# v1.6.3.2 / GATE-3（林桑签署决议 §5，推翻 §4.7.5 的 bare MAXVALUE 失败关闭口径）：
+# bare `VALUES LESS THAN MAXVALUE` 是 MySQL/TDSQL 官方合法写法，但 sqlglot MySQL
+# 方言严格要求 `VALUES LESS THAN (` 后接左括号，遇 bare 直接 ParseError。仅在
+# 字符串/注释外的代码段匹配，避免误伤 COMMENT '...MAXVALUE...' 文本。
+_BARE_MAXVALUE_RE = re.compile(r"\bVALUES\s+LESS\s+THAN\s+MAXVALUE\b", re.IGNORECASE)
+
+
+def _normalize_bare_partition_maxvalue(sql: str) -> str:
+    """把分区定义里的 bare `VALUES LESS THAN MAXVALUE` 规整为 `VALUES LESS THAN (MAXVALUE)`。
+
+    GATE-3 根因：bare MAXVALUE 触发 sqlglot ParseError → parsed.ast=None → 主键/引擎/
+    字符集/列约束/表注释全部提取失败 → R003/R004/R005/R028/R118 大面积级联假阳性。
+    DBA 明确否定“用假阳性 E999 兜底业务拦截”。本函数在 parse_one **之前**把 bare 形态
+    规整为语义等价的括号形态（sqlglot 100% 解析为 exp.Create），从根源消除 E999 与
+    级联假阳性；R121 仍由独立的 token 策略扫描命中，不依赖本规整。
+
+    与 _strip_index_order_modifiers 同制：仅改写字符串字面量与注释之外的普通代码段；
+    调用方对 sql_clean 与 sql_recover 同步调用，保证恢复链 span 与解析输入同源；
+    raw_sql 保持原文（R077/R054 分片键提取、R104 全角括号检测等不受影响）。
+    """
+    if not _BARE_MAXVALUE_RE.search(sql):
+        return sql
+    parts = _LITERAL_OR_COMMENT_RE.split(sql)
+    for i in range(0, len(parts), 2):
+        parts[i] = _BARE_MAXVALUE_RE.sub("VALUES LESS THAN (MAXVALUE)", parts[i])
+    return "".join(parts)
+
+
 def _strip_comments_for_fallback(sql: str) -> str:
     """降级路径表名提取前的注释剥离（v1.6.2.2-A-VERIFY-6.1）。
 
@@ -2457,6 +2485,11 @@ class SQLParser:
         # 处理，保证恢复链 span 与解析输入同源。raw_sql 保持原文（R077/R054 提取分片键不受影响）。
         sql_clean = _strip_index_order_modifiers(sql_clean)
         sql_recover = _strip_index_order_modifiers(sql_recover)
+        # v1.6.3.2 / GATE-3：bare `VALUES LESS THAN MAXVALUE` 规整为括号形态，消除
+        # sqlglot ParseError 及 R003/R004/R005/R028/R118 级联假阳性（DBA 签署决议 §5）。
+        # 与索引修饰剥离同制：sql_clean 与 sql_recover 同步、raw_sql 保持原文。
+        sql_clean = _normalize_bare_partition_maxvalue(sql_clean)
+        sql_recover = _normalize_bare_partition_maxvalue(sql_recover)
 
         # 先做正则级别的快速检测（补充sqlglot可能遗漏的信息）
         parsed = self._regex_pre_parse(sql_clean, parsed)
@@ -2503,19 +2536,11 @@ class SQLParser:
                             _retry_ast = None
                         if _validate_recovery_candidate(_retry_ast, _plan2):
                             ast = _retry_ast
-                # v1.6.3.2 / §4.7.5：仅针对 CREATE 来源的兜底。实测（sqlglot
-                # 30.14.0，SIT DEF-SIT-02 复核）CREATE 的 bare MAXVALUE 是真实
-                # ParseError（ast=None）、括号形态正常产出 Create，两者都不会
-                # 落到本分支；本分支只在将来 sqlglot 改变 CREATE 降级行为时才
-                # 生效。ALTER REORGANIZE 的 Command 是该语法的**正常降级形态、
-                # 不是缺陷**，不得据此合成 parse_error——否则合法 DDL 在集中式
-                # 实例上凭空多出一条 ERROR 级 E999，strict/normal 双门禁全卡。
-                if (isinstance(ast, exp.Command)
-                        and parsed.secondary_partition.get("source_context") == "CREATE"
-                        and parsed.secondary_partition.get("maxvalue_partitions")):
-                    parsed.parse_error = (
-                        "KNOWN_FIDELITY_GAP[SECONDARY-PARTITION-MAXVALUE]: "
-                        "二级分区 MAXVALUE 形态无法恢复为结构化 AST（sqlglot 降级为 Command）")
+                # v1.6.3.2 / GATE-3（林桑签署决议 §5）：删除原「Command + MAXVALUE
+                # 合成 KNOWN_FIDELITY_GAP parse_error」守卫。bare MAXVALUE 已在
+                # parse_one 前规整为括号形态、正常解析为 Create，不再降级 Command；
+                # DBA 明确否定用假阳性 E999 兜底业务拦截。ALTER REORGANIZE 的
+                # Command 是该语法正常降级形态，同样不得合成 parse_error。
             parsed.ast = ast
         except (SqlglotError, Exception) as e:
             # v1.6.2.2 / DEF-2: UNIQUE 索引带 COMMENT 会让 sqlglot 抛 ParseError，

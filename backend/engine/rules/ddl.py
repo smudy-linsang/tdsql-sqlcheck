@@ -436,8 +436,10 @@ class R030NoViewProcTrigger(BaseRule):
     category = RuleCategory.DDL
     severity = Severity.ERROR
     # v1.6.3.2 / REQ-03：腾讯云 TDSQL MySQL 版使用限制把自定义函数/存储过程/
-    # 触发器列为分布式限制；集中式改域后对视图/过程/触发器为零覆盖（RISK-16，
-    # 需 DBA 书面确认），R031 对自定义函数的残余覆盖保持原状（OUT-01）。
+    # 触发器列为分布式限制；集中式改域后对视图/过程/触发器为零覆盖（RISK-16）。
+    # GATE-2（林桑签署决议 §二）：R031 亦同步改为仅分布式，集中式对自定义函数
+    # 也零覆盖，消除“放行视图/过程/触发器却拦截函数”的割裂——原设计 §4.3 OUT-01
+    # 锁经 DBA 授权的“另行评审 R031”正式推翻。
     instance_scope = InstanceScope.DISTRIBUTED
     description = "禁止使用视图、存储过程、触发器、自定义函数"
     enabled = True
@@ -455,10 +457,16 @@ class R030NoViewProcTrigger(BaseRule):
 
 
 class R031NoCustomFunction(BaseRule):
-    """R031: 禁自定义函数"""
+    """R031: 禁自定义函数（v1.6.3.2 GATE-2 起仅分布式适用）"""
     rule_id = "R031"
     category = RuleCategory.DDL
     severity = Severity.ERROR
+    # v1.6.3.2 / GATE-2（林桑签署决议 §二）：集中式实例作为传统单机/主从架构，本身
+    # 允许使用存储过程、视图、触发器及自定义函数。原 R030/R032 已改仅分布式、而 R031
+    # 仍全局适用，形成“集中式放行视图/过程/触发器却拦截函数”的逻辑割裂。DBA 裁决将
+    # R031 同步改为仅分布式以消除割裂；集中式生效 91→90、跳过 30→31。本项推翻设计
+    # §4.3 的 OUT-01 锁，属 DBA 正式“另行评审 R031”的授权变更（设计原文即要求此路径）。
+    instance_scope = InstanceScope.DISTRIBUTED
     description = "禁止创建自定义函数"
     enabled = True
     spec_source = "TDSQL数据库开发规范 - DDL规范"

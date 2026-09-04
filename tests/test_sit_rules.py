@@ -139,7 +139,7 @@ class TestRulesAPI:
         ddl_rules = [r for r in data["rules"] if r["category"] == "ddl"]
         ddl_ids = {r["rule_id"] for r in ddl_rules}
         assert "R003" in ddl_ids, "Missing R003 DDL rule"
-        assert len(ddl_ids) == 22, f"Expected 22 DDL rule IDs, got {len(ddl_ids)}"
+        assert len(ddl_ids) == 23, f"Expected 23 DDL rule IDs, got {len(ddl_ids)}"
 
     def test_dml_rules_have_correct_ids(self):
         """测试DML规则ID"""
@@ -157,7 +157,7 @@ class TestRulesAPI:
         dist_rules = [r for r in data["rules"] if r["category"] == "distributed"]
         dist_ids = {r["rule_id"] for r in dist_rules}
         assert "R020" in dist_ids, "Missing R020 distributed rule"
-        assert len(dist_ids) == 14, f"Expected 14 distributed rule IDs, got {len(dist_ids)}"
+        assert len(dist_ids) == 15, f"Expected 15 distributed rule IDs, got {len(dist_ids)}"
 
 
 class TestFrontendIntegration:
