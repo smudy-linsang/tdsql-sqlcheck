@@ -61,11 +61,17 @@ JSON 解析解释器按以下顺序选择：`SQLCHECK_VERIFY_PYTHON`（显式指
 |---|---|
 | `json_get` 用 `json.load(sys.stdin)`，脚本以 `printf '%s' "$BODY" \| json_get` 管道传响应正文；Git Bash/MSYS 向 Windows 原生 Python 的 stdin 传递大体量中文（真实规则响应约 44KB）发生字符转码破坏，`JSONDecodeError` 致规则总数/Oracle 分类误判失败（开发机 PASS=10 FAIL=2 exit 1） | `json_get <selector> <json_file>` 改为按 UTF-8 **文件路径**解析（`open(..., encoding="utf-8")`），禁止 stdin/pipe；所有 JSON 响应（health/login/rules/audit/dashboard）先 `curl -o` 落文件再解析；首页/metrics 非 JSON 保留 Bash 字符串匹配 |
 | （跨运行时）`mktemp -d` 在 Git Bash 产出 POSIX 路径 `/tmp/...`，Windows 原生 Python `open()` 无法识别 | `json_get` 内经 `cygpath -w` 把路径转 Windows 形式再交 Python；Linux 无 cygpath 时原样透传，两端一致 |
-| 临时文件曾回退到可预测的共享 `/tmp/_vd_*` 名 | 统一 `mktemp -d` 私有临时目录，`trap cleanup EXIT HUP INT TERM` 保证正常/失败/信号退出均 `rm -rf` 清理；创建失败即 FAIL 中止；目录内不留存登录响应与 token |
+| 临时文件曾回退到可预测的共享 `/tmp/_vd_*` 名 | 统一 `mktemp -d` 私有临时目录（由 `trap cleanup EXIT` 统一清理，见 §3.3）；创建失败即 FAIL 中止；目录内不留存登录响应与 token |
+
+### 3.3 P2（第三轮 UAT-O-1632-R3-01）：信号捕获后只清理不退出
+
+| 原缺陷 | 整改 |
+|---|---|
+| 上一轮 `trap cleanup EXIT HUP INT TERM` 把 HUP/INT/TERM 与 EXIT 合用同一 `cleanup`——`cleanup` 只 `rm -rf` 后正常返回，覆盖了信号的终止语义：实测向运行中脚本发 `TERM`，临时目录被删但脚本继续跑后续 HTTP 检查（`EXITED_AFTER_TERM=false`、curl 调用 7 次、7 秒后仍存活），且工作目录已删致后续 `curl -o` 二次失败 | 拆分：`trap cleanup EXIT`（唯一清理入口）+ `on_signal()` 显式退出。`on_signal` 先 `trap - HUP INT TERM` 复位（避免退出过程重入），再 `exit` 以 128+signo 约定码结束（HUP=129 / INT=130 / TERM=143）；`exit` 触发 EXIT trap 完成清理。上层 CI/systemd/人工取消可据退出码区分「被信号中止」与「验证失败(exit 1)」 |
 
 ## 4. 契约测试
 
-`tests/test_verify_deploy_contract.py`（8 项，随全量 `tests/` 执行；无 bash 的平台自动跳过）：
+`tests/test_verify_deploy_contract.py`（11 项，随全量 `tests/` 执行；无 bash 的平台自动跳过）：
 
 1. 健康服务 + 正确口令：exit 0、`FAIL=0 SKIP=0`，121/42/R080/概览/metrics 全 PASS；
 2. 服务不可达：健康项 FAIL、exit 1、输出不含任何 `[PASS]`；
@@ -74,16 +80,17 @@ JSON 解析解释器按以下顺序选择：`SQLCHECK_VERIFY_PYTHON`（显式指
 5. 畸形 JSON 登录响应（200 但非法 JSON、开头即令牌样式）：不回显、不泄漏；
 6. 30 万字节首页：无 SIGPIPE 假失败；
 7. `bash -n` 语法通过（环境有 shellcheck 时一并跑 `-S warning`）；
-8. **大型中文规则响应（P2）**：契约桩返回 ≥64KB、121 条含中文 `description/spec_source/fix_suggestion` 的真实特征响应，在 Windows Git Bash + Windows CPython 下运行须 `PASS=12 FAIL=0 SKIP=0`、exit 0、无 traceback/JSONDecodeError、无令牌泄漏（`test_large_utf8_rules_payload_on_git_bash`）。
+8. **大型中文规则响应（P2）**：契约桩返回 ≥64KB、121 条含中文 `description/spec_source/fix_suggestion` 的真实特征响应，在 Windows Git Bash + Windows CPython 下运行须 `PASS=12 FAIL=0 SKIP=0`、exit 0、无 traceback/JSONDecodeError、无令牌泄漏（`test_large_utf8_rules_payload_on_git_bash`）；
+9. **信号退出（R3-01）**：参数化 HUP/INT/TERM，用 `export -f` 导出阻塞 4s 的假 curl 使脚本处于请求中，经 bash 内部 `kill` 投递真实信号（规避 Windows Python 对子进程 SIGTERM 退化为 TerminateProcess、无法触发 bash trap），并以 `set -m` 作业控制避免后台脚本预忽略 SIGINT（POSIX 规定非交互 shell 的 `&` 异步命令忽略 INT/QUIT）；断言退出码 **129/130/143**、私有 TMPDIR 无残留、信号后不再发起下一请求（curl 仅 1 次）、输出无 token/口令/Authorization/traceback（`test_signal_exits_and_cleans_private_tmpdir`）。
 
 登录凭据 fixture 刻意包含双引号与反斜杠，验证请求体确由 `json.dumps` 生成（O 第一轮 §6.3 第 6 步）；契约桩规则响应在模块加载时自证 ≥64KB 且 `oracle_compat=42`，防止退化成小型 ASCII 而漏检 P2（O 第二轮 §6.5 第四步）。
 
-## 5. 准出核对（对应 O 第一轮 §6.4 + 第二轮 §6.6 关闭标准）
+## 5. 准出核对（对应 O 第一轮 §6.4 + 第二轮 §6.6 + 第三轮 §6.8 关闭标准）
 
 - [ ] 真实 v1.6.3.2 服务上运行：`FAIL=0 SKIP=0` 且退出码 0；
 - [ ] 停止服务后复跑：健康检查明确 FAIL 且退出码 1，无 `[PASS]`（实测 PASS=0 FAIL=8 SKIP=3 exit 1）；
 - [ ] 正确口令、错误口令、畸形响应三组日志均不出现 token / 登录响应体 / Authorization 值；
 - [ ] 规则总数 121、Oracle 兼容 42、R080、概览、静态资源、metrics 全部由脚本真实验证；
 - [ ] **P2 双运行时**：Windows Git Bash + Windows Python 对真实 121 条中文规则服务 `PASS=12 FAIL=0 SKIP=0` exit 0；Linux Python 3.11 对同一服务保持 12/0/0；
-- [ ] **P2 临时目录**：正常/失败/信号退出后均删除（`trap cleanup EXIT HUP INT TERM`）；
-- [ ] 契约测试 **8/8** 通过；全量 `tests/` 与 `tests_3p/` 无新增失败；离线依赖 dry-run 通过。
+- [ ] **临时目录与信号（R3-01）**：正常/失败退出经 `trap cleanup EXIT` 清理；HUP/INT/TERM 经 `on_signal` 显式以 129/130/143 退出并触发 EXIT 清理，信号后不再发起后续请求（`EXITED_AFTER_TERM=true`）；
+- [ ] 契约测试 **11/11** 通过；全量 `tests/` 与 `tests_3p/` 无新增失败；离线依赖 dry-run 通过。

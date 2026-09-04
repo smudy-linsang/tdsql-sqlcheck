@@ -3,9 +3,9 @@
 | 项目 | 内容 |
 |---|---|
 | 版本 | v1.6.3.0 → **v1.6.3.2** |
-| 报告类型 | 编码开发完成报告（R1：第一轮 SIT 整改 §11；R2：第一轮 UAT P1 整改 §12；R3：第二轮 UAT P2 整改 §13） |
+| 报告类型 | 编码开发完成报告（R1：第一轮 SIT §11；R2：第一轮 UAT P1 §12；R3：第二轮 UAT P2 §13；R4：第三轮 UAT P2 §14） |
 | 开发者 | 开发智能体 Q |
-| 日期 | 2026-09-03（R1/R2/R3 修订：2026-09-04） |
+| 日期 | 2026-09-03（R1~R4 修订：2026-09-04） |
 | 设计依据 | `DESIGN-v1.6.3.2-审核规则调整与扫描历史跨页对比详细设计说明书.md`（Rev.C，经 REVIEW1/REVIEW2 两轮评审 + CONFIRM 定点确认准出） |
 | 锁定依赖 | sqlglot **30.14.0**（`pyproject.toml` 已锁，开工复测字段形态一致） |
 
@@ -271,4 +271,52 @@ O 第二轮 UAT 结论：**通过（有条件）**——第一轮 P1 生产 Linu
 
 O 明确生产发布仍不准出，剩余均为**外部书面门禁与目标主机验证**（非代码可关闭）：GATE-1（目标 TDSQL 实例 DML LIMIT 版本前提，附实例版本 + 只读语法验证证据）、GATE-2（DBA 接受集中式零覆盖）、GATE-3（活动规则集/流水线接受门禁双向变化）三项待责任方回填；且目标麒麟 V10 SP3 主机部署后须运行正式脚本确认 12 项全 PASS。发起单 `docs/GATE-v1.6.3.2-…md` 已备。
 
-至此 v1.6.3.2 **软件侧缺陷全部清零**（P0/P1/P2/P3 = 0），准出仅余外部签字与目标主机部署验证两项非开发职责前置。
+至此第二轮 P2 已关闭。（注：O 第三轮复测在本轮新增的信号处理代码中又发现 1 项 P2 `UAT-O-1632-R3-01`，见 §14，已一并修复。）
+
+---
+
+## 14. 第三轮 UAT 整改（2026-09-04，修订 R4）
+
+O 第三轮复测确认**第二轮 P2（UAT-O-1632-R2-01）已关闭**（契约 8/8、Git Bash 与 Linux 双运行时真实服务均 12/0/0 exit 0、全量 1812、三方 125、离线 dry-run exit 0），并在本轮**新增的信号处理代码**中发现 1 项 P2。
+
+### 14.1 UAT-O-1632-R3-01（P2）：信号捕获后只清理不退出
+
+- **缺陷**：上一轮我写的 `trap cleanup EXIT HUP INT TERM` 让 HUP/INT/TERM 与 EXIT 共用只 `rm -rf` 后正常返回的 `cleanup`，覆盖了信号的终止语义——O 实测发 TERM 后临时目录被删但脚本继续跑完后续 HTTP 检查（`EXITED_AFTER_TERM=false`、curl 调用 7 次、7 秒仍存活），且工作目录已删致后续 `curl -o` 二次失败。
+- **认可理由**：这是我 P2 修复引入的真实缺陷（信号处理是上轮新增代码）；O 定级 P2（不写库、不残留令牌文件，非 P0/P1）合理。**认可，无申诉。**
+
+### 14.2 整改（照 O §6.6）
+
+`deploy/verify_deploy.sh` 拆分信号与清理：
+- `trap cleanup EXIT`：临时目录唯一清理入口；
+- `on_signal()`：先 `trap - HUP INT TERM` 复位（避免退出过程重入），再 `exit` 以 128+signo 约定码退出（HUP=129 / INT=130 / TERM=143）；`exit` 触发 EXIT trap 完成清理；
+- `trap 'on_signal 129' HUP` / `'on_signal 130' INT` / `'on_signal 143' TERM` 分别绑定。
+
+效果：信号后脚本立即终止（不再发起后续请求），退出码可供 CI/systemd/人工区分「被信号中止」与「验证失败(exit 1)」。
+
+### 14.3 新增信号退出契约测试（O §6.7）
+
+`tests/test_verify_deploy_contract.py` 新增参数化 `test_signal_exits_and_cleans_private_tmpdir[HUP/INT/TERM]`，契约测试 8→**11 项**：
+- `export -f` 导出阻塞 4s 的假 curl（无需真实服务）确保脚本处于请求中；
+- 每用例注入独立 `TMPDIR`（隔离，精确判定脚本自身临时目录清理，不受系统 /tmp 噪声干扰）；
+- 经 bash 内部 `kill` 投递真实 POSIX 信号——规避 Windows Python `send_signal(SIGTERM)` 退化为 `TerminateProcess`、无法触发 bash trap 的限制；
+- **关键坑（已记录防复发）**：POSIX 规定非交互 shell 的 `&` 异步命令预置忽略 SIGINT/SIGQUIT，被忽略的信号在子 shell 内无法再 trap；wrapper 加 `set -m` 作业控制后 INT 才被脚本捕获（首测 INT 得 rc=1/calls=7 正是此因，属测试框架问题、非脚本缺陷）；
+- 断言：退出码 129/130/143、`created=1`（信号前私有目录已建）、`leftover=0`（清理无残留）、`calls=1`（信号后不再发起下一请求）、`leak=0`（无 token/口令/Authorization/traceback）。
+
+### 14.4 整改验证（本机 Windows Git Bash + CPython，即真实信号平台）
+
+| O §6.8 关闭标准 | 结果 |
+|---|---|
+| 新增信号契约测试通过 | **11 passed**（HUP=129/INT=130/TERM=143，均 created=1/leftover=0/calls=1/leak=0） |
+| TERM 复现 `EXITED_AFTER_TERM` false→true | 达成：`calls=1`（信号后不再发起下一请求）+ `rc=143`（显式退出而非跑完 exit 1） |
+| 正常/错误口令/不可达三路径不变 | 契约测试 12/0/0 exit 0、SKIP+exit 1、0/8/3 exit 1 全过 |
+| Git Bash 与 Linux 真实服务 12/0/0 | Git Bash 本机契约验证；Linux 由 O 第三轮已实测 12/0/0，trap 拆分不改正常路径逻辑 |
+| 全量 tests/、tests_3p/、离线 dry-run 无新增失败 | 全量 tests/ **1815 passed, 28 skipped**（1812 + 信号 3，零回归） |
+
+### 14.5 生产准出剩余前置（非软件缺陷，O §7/§8）
+
+O 第三轮裁决：业务功能 UAT 通过、第二轮 P2 关闭、第三轮通过（有条件）、新增 P2×1（本轮已修）。生产发布仍不准出，剩余均为**外部职责**，非开发可关闭：
+- **GATE-1/2/3 三项书面门禁须由人类责任方签字**（O §7 明确任何智能体不得代签：GATE-1 由 G 主责内网目标实例只读语法验证、GATE-2 由 A 整理集中式零覆盖决策摘要、GATE-3 由 A 牵头 G 配合跑存量预命中，最终由林桑/DBA/运维/流水线负责人确认；A 已提交 GATE-2/GATE-3 决策材料 `docs/GATE2-…`、`docs/GATE3-…`）；
+- 目标麒麟 V10 SP3 主机部署后运行正式脚本确认 12/0/0 exit 0；
+- O 第四轮定点复测关闭本 P2。
+
+至此 v1.6.3.2 **软件侧 P0/P1/P2/P3 全部清零**（三轮 SIT/UAT 发现的所有代码/脚本/测试/文档缺陷均已修复并回归锁定），准出仅余外部签字与目标主机部署验证两项非开发职责前置。

@@ -22,8 +22,14 @@
 #   7) 所有 JSON HTTP 响应（health/login/rules/audit/dashboard）先落 mktemp -d
 #      私有临时目录中的文件，再由 Python open(...,encoding='utf-8') 读取；
 #      首页与 metrics 非 JSON，保留 Bash 字符串匹配；
-#   8) 临时目录经 trap 在 EXIT/HUP/INT/TERM 均清理；目录内不打印/保留 token，
-#      登录响应读取后即删；绝不回退到可预测的共享 /tmp/_vd_* 文件名。
+#   8) 临时目录由 EXIT trap 统一清理；目录内不打印/保留 token，登录响应读取后
+#      即删；绝不回退到可预测的共享 /tmp/_vd_* 文件名。
+#
+# v1.6.3.2 / UAT-O-1632-R3-01（P2）整改：
+#   9) 信号 trap 从 `trap cleanup EXIT HUP INT TERM` 拆分——原写法捕获
+#      HUP/INT/TERM 后只清理不退出，脚本继续跑后续 curl。改为 `trap cleanup EXIT`
+#      + `on_signal` 显式以 128+signo 约定码退出（HUP=129/INT=130/TERM=143），
+#      先复位信号 trap 再 exit，由 EXIT trap 完成唯一清理入口。
 set -uo pipefail
 PORT=8000; HOST=127.0.0.1; TIMEOUT=10
 while [[ $# -gt 0 ]]; do case "$1" in
@@ -74,8 +80,24 @@ if [[ -z "$VERIFY_TMP_DIR" || ! -d "$VERIFY_TMP_DIR" ]]; then
   bad "无法创建部署验证临时目录（部署验证中止）"
   summary_and_exit
 fi
-cleanup() { rm -rf -- "$VERIFY_TMP_DIR"; }
-trap cleanup EXIT HUP INT TERM
+cleanup() {
+  rm -rf -- "$VERIFY_TMP_DIR"
+}
+# UAT-O-1632-R3-01（P2）：信号 trap 必须**显式退出**，不能只清理后返回——否则
+# 捕获 HUP/INT/TERM 后脚本会继续跑后续 curl（取消发布任务后仍访问应用接口，
+# 且工作目录已删导致二次失败）。临时目录统一由 EXIT trap 清理；on_signal 先复位
+# 三个信号 trap（避免退出过程中重复进入），再以 128+signo 约定码 exit；exit 触发
+# EXIT trap，故正常/FAIL/HUP/INT/TERM 都走同一清理入口。on_signal 不输出 token/
+# 响应体/Authorization。
+on_signal() {
+  local exit_code="$1"
+  trap - HUP INT TERM
+  exit "$exit_code"
+}
+trap cleanup EXIT
+trap 'on_signal 129' HUP
+trap 'on_signal 130' INT
+trap 'on_signal 143' TERM
 
 json_get() {
   # 用法: json_get <selector> <json_file>

@@ -294,3 +294,71 @@ def test_large_utf8_rules_payload_on_git_bash(stub):
     assert "Oracle迁移兼容规则 42 条" in out, out
     assert "Traceback" not in out and "JSONDecodeError" not in out, f"JSON 解析异常污染输出:\n{out}"
     assert _FAKE_TOKEN not in out, "输出泄漏了管理员令牌"
+
+
+# ── 9. UAT-O-1632-R3-01（P2）：信号退出须显式终止并以 128+signo 约定码退出、清理私有 TMPDIR ──
+
+# 用 export -f 导出阻塞 4s 的假 curl（无需真实服务），保证信号落在脚本请求中；
+# 隔离 TMPDIR 精确判定脚本自身临时目录是否被清理；信号经 bash 内部 kill 投递
+# （规避 Windows Python send_signal(SIGTERM) 退化为 TerminateProcess、无法触发
+# bash trap 的限制）。占位符 __PY__/__CRED__/__SCRIPT__/__SIG__/__TOKEN__ 由测试注入。
+_SIGNAL_WRAPPER = r'''
+set -u
+# 启用作业控制：POSIX 规定非交互 shell 的 `&` 异步命令会预置忽略 SIGINT/SIGQUIT，
+# 而被忽略的信号在子 shell 内无法再 trap（导致脚本 trap INT 失效）。set -m 让后台
+# 脚本进入独立进程组且不预忽略 INT，忠实复现前台运行（CI/人工 Ctrl+C）时的 SIGINT。
+set -m
+COUNT="$(mktemp)"; export COUNT
+OUT="$(mktemp)"
+WORK="$(mktemp -d)"
+export TMPDIR="$WORK"
+curl() { printf 'x\n' >> "$COUNT"; sleep 4; return 7; }
+export -f curl
+bash '__SCRIPT__' --host 127.0.0.1 --port 1 > "$OUT" 2>&1 &
+pid=$!
+n=0
+while [ "$n" -lt 100 ]; do
+  c=$(wc -l < "$COUNT" 2>/dev/null | tr -d ' ')
+  [ "${c:-0}" -ge 1 ] 2>/dev/null && break
+  sleep 0.2
+  n=$((n+1))
+done
+created=$(ls -A "$WORK" 2>/dev/null | wc -l | tr -d ' ')
+kill -__SIG__ "$pid" 2>/dev/null
+wait "$pid"; rc=$?
+leftover=$(ls -A "$WORK" 2>/dev/null | wc -l | tr -d ' ')
+calls=$(wc -l < "$COUNT" 2>/dev/null | tr -d ' ')
+if grep -qiE 'authorization|traceback' "$OUT" 2>/dev/null \
+   || grep -qF "$SQLCHECK_VERIFY_PASSWORD" "$OUT" 2>/dev/null \
+   || grep -qF '__TOKEN__' "$OUT" 2>/dev/null; then leak=1; else leak=0; fi
+rm -f -- "$COUNT" "$OUT"; rm -rf -- "$WORK"
+printf 'rc=%s created=%s leftover=%s calls=%s leak=%s\n' "$rc" "$created" "$leftover" "$calls" "$leak"
+'''
+
+
+@pytest.mark.parametrize("sig,code", [("HUP", 129), ("INT", 130), ("TERM", 143)])
+def test_signal_exits_and_cleans_private_tmpdir(sig, code):
+    """R3-01 回归锁：`trap cleanup EXIT HUP INT TERM` 只清理不退出的缺陷已修。
+
+    收到 HUP/INT/TERM 时脚本必须：①显式终止（不再发起下一个 curl 请求）；
+    ②以 128+signo 约定码退出（129/130/143），而非跑完全部检查后 exit 1；
+    ③私有 TMPDIR 经 EXIT trap 清理干净（无残留）；④输出不含 token/口令/
+    Authorization/traceback。
+    """
+    wrapper = (_SIGNAL_WRAPPER
+               .replace("__SCRIPT__", _posix(_SCRIPT))
+               .replace("__TOKEN__", _FAKE_TOKEN)
+               .replace("__SIG__", sig))
+    # 解释器与凭据经 subprocess env 注入（不嵌入命令字符串）：既符合"敏感值走
+    # 环境变量"的守卫约定，也避免占位符被明文凭据守卫误判为字面量口令。
+    env = dict(os.environ)
+    env["SQLCHECK_VERIFY_PYTHON"] = _posix(sys.executable)
+    env["SQLCHECK_VERIFY_PASSWORD"] = _LOGIN_CRED
+    r = subprocess.run([_BASH, "-c", wrapper], capture_output=True, text=True,
+                       encoding="utf-8", errors="replace", env=env, timeout=90)
+    out = (r.stdout or "").strip()
+    assert f"rc={code}" in out, f"{sig} 应以 {code} 退出；输出={out} err={r.stderr}"
+    assert "created=1" in out, f"{sig}：信号前脚本私有临时目录应已创建；输出={out}"
+    assert "leftover=0" in out, f"{sig} 退出后私有 TMPDIR 应无残留；输出={out}"
+    assert "calls=1" in out, f"{sig} 后不得发起下一个请求（curl 应仅 1 次）；输出={out}"
+    assert "leak=0" in out, f"{sig} 输出不得含 token/口令/Authorization/traceback；输出={out}"
