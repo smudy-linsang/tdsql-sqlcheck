@@ -3,9 +3,9 @@
 | 项目 | 内容 |
 |---|---|
 | 版本 | v1.6.3.0 → **v1.6.3.2** |
-| 报告类型 | 编码开发完成报告（R1：含第一轮 SIT 整改，见 §11） |
+| 报告类型 | 编码开发完成报告（R1：第一轮 SIT 整改 §11；R2：第一轮 UAT P1 整改 §12） |
 | 开发者 | 开发智能体 Q |
-| 日期 | 2026-09-03（R1 修订：2026-09-04） |
+| 日期 | 2026-09-03（R1/R2 修订：2026-09-04） |
 | 设计依据 | `DESIGN-v1.6.3.2-审核规则调整与扫描历史跨页对比详细设计说明书.md`（Rev.C，经 REVIEW1/REVIEW2 两轮评审 + CONFIRM 定点确认准出） |
 | 锁定依赖 | sqlglot **30.14.0**（`pyproject.toml` 已锁，开工复测字段形态一致） |
 
@@ -109,10 +109,10 @@
 
 ---
 
-## 7. 遗留与既有观察项
+## 7. 遗留与既有观察项（R2 修订）
 
-- **smoke_test 的 7 项 API 401（既有，非本版引入）**：`smoke_test.py` 以 `AUTH_ENABLED=false` 免认证模式跑 `TestClient`，`/health` 公开端点通过，但 `/api/v1/*` 认证依赖端点返回 401，说明免认证模式对这些端点未放行。`git diff` 证实本版对 `api/rules.py`、`api/rulesets.py` **仅改 docstring 注释（119→121），未碰任何认证逻辑**；`git status` 无 middleware/auth 改动；`models` 的 `FileAuditRequest` 是请求体模型，而 401 发生在认证层（请求体解析之前）。建议作为独立课题核查免认证开关与 API 认证依赖的交互，不在 v1.6.3.2 范围。
-- **§12 三项门禁待回填**：GATE-1/2/3 已发起，书面确认由 DBA/内网运维/流水线负责人回填；任一未确认不阻断开发/测试，但按设计不得发布相关规则行为到生产。
+- **smoke_test 的 7 项 API 401 —— 根因已查明（R2，非产品缺陷）**：`backend/config.py::auth_enabled()` 按设计**优先读 DB `system_config.auth_enabled`、回退环境变量**；本地开发库该值为 `'true'`，因此 `smoke_test.py` 的 `os.environ.setdefault("AUTH_ENABLED","false")` 被 DB 值覆盖，`/api/v1/*` 认证端点返回 401。实测：`AUTH_ENABLED=false` 环境下 `_get_db_config('auth_enabled')='true'`、`auth_enabled()=True`。O 第一轮 UAT §7.1 判断"83/90 是运行环境把认证保持为 true 的证据污染、显式测试配置下 90/90"方向正确——O 使用全新隔离库（无 system_config 记录）故回退环境变量生效；本机为存量开发库。这是 DB 优先设计（管理界面可运行时切换认证并持久化）与环境状态差异，不修改产品与 smoke 脚本；生产准出以认证开启的 `verify_deploy.sh` 为准（O §7.1 同口径）。
+- **§12 三项门禁待回填**：GATE-1/2/3 已发起，O 本轮 UAT 亦确认三项未签字、回填前不得发布生产；书面确认由 DBA/内网运维/流水线负责人回填。
 
 ---
 
@@ -192,3 +192,44 @@ A 第一轮 SIT 结论**不通过**（`SIT-v1.6.3.2-…第一轮SIT测试报告-
 1. **中间态观察必须在最终态复核**（DEF-SIT-02 根因）：守卫立论来自施工中途的探针输出，其后 `accept_maxvalue` 修复改变了 bare CREATE 的解析路径，未在最终代码上重跑探针确认事实仍成立就写入了守卫与注释。
 2. **共享组件的失败语义要按新消费者重估**（DEF-SIT-01 根因）：恢复门禁白名单"认不出=失败关闭"是安全方向，被 R121 策略扫描复用后变成"认不出=漏报"，方向相反。
 3. **grep 清点结果被截断时必须缩小范围重查**（DEF-SIT-04 根因）：25 条上限截断后未对 tests/ 目录单独复查。
+
+---
+
+## 12. 第一轮 UAT 整改（2026-09-04，修订 R2）
+
+O 第一轮 UAT 结论：**功能层通过、发布层不通过（1 项 P1）**。功能层 UAT-01~12 全过、四模块跨页/竞态/跨用户隔离全过、全量 1804 / 三方黑盒 125 / 物料 121=109+7+5 均获 O 独立确认。**P1 认可，无申诉项**，按 O §6.3 九步方案照图施工。
+
+### 12.1 UAT-O-1632-REL-01（P1）：正式部署验证脚本失效 + 令牌泄漏风险
+
+| 原缺陷（O §6.1 实测） | 整改 |
+|---|---|
+| 调用从未定义的 `J` 函数解析 JSON（5 处），登录被误判失败后空令牌连锁 401，PASS=6/FAIL=6/exit 1 | 白名单式 `json_get`（version/token/total/oracle_count/r080_hit/today_count 六 selector；Python 实现、不用 eval、异常收敛为 FAIL 不输出 traceback） |
+| 首页 `echo \| grep -q` + pipefail 对大 HTML 触发 SIGPIPE 假失败 | Bash 字符串匹配 `[[ "$FRONT" == *TDSQL* ]]` |
+| 健康探针无条件 `ok` | 先检查 `curl -fsS` 退出码，失败记「健康探针不可达」 |
+| 登录失败回显响应体前 120 字符——真实成功响应开头即管理员令牌，泄漏进终端/CI 日志 | 响应体写临时文件、解析后即删；失败只输出 HTTP 状态码与固定文案，绝不回显响应体 / Authorization / token 前缀 |
+| 登录失败后认证检查伪装业务故障（连续 401） | token 空时明确记 `[SKIP]（登录前置失败而跳过）`，SKIP>0 时 exit 1 |
+| （工程补充）解释器探测 | `SQLCHECK_VERIFY_PYTHON` 显式覆盖 → venv → python3.11~python3；找不到 FAIL 中止 |
+
+关于"问题早于本期"：`J: command not found` 在 v1.6.3.0 生产部署时已暴露（`PRODUCTION-DEPLOY-ISSUES-v1.6.3.0.md` 实录）但一直未修；**接受 O 的口径**——本期改过该脚本的规则数断言，属"动过的发布代码"，本期正式关闭。
+
+### 12.2 新增契约测试与文档
+
+- `tests/test_verify_deploy_contract.py`（7 项，覆盖 O §6.3 第 8 步全部 6 项锁定）：健康服务 exit 0 且 `FAIL=0 SKIP=0` 全 PASS / 不可达 FAIL+exit 1 且无 PASS / 令牌 canary 不泄漏 / 错误口令不回显+SKIP / 畸形 JSON（200 但非法、开头即令牌样式）不泄漏 / 30 万字节首页无 SIGPIPE 假失败 / `bash -n`（shellcheck 可用时一并跑）。登录凭据构造值含双引号与反斜杠，验证请求体确由 `json.dumps` 生成；测试内该变量命名避开 `*_PASSWORD` 字面量模式（非真实口令，不登记明文凭据守卫白名单）。
+- `docs/DEPLOY-VERIFY-v1.6.3.2-部署验证说明.md`（O §6.3 第 9 步）：用法、`SQLCHECK_VERIFY_PASSWORD` 临时注入与执行后清除、退出码/SKIP 语义、整改对照、准出核对清单；v1.6.3.0 历史手册样例按 OUT-08 未动。
+
+### 12.3 整改验证
+
+| 验证项 | 结果 |
+|---|---|
+| `bash -n`（Git Bash） | exit 0；脚本 LF 行尾、无 BOM |
+| 契约测试 7 项 | **7 passed**（协议桩为真实 HTTP server；脚本真 curl / 真 bash / 真 Python 解析） |
+| 明文凭据守卫 | 2 项过 |
+| 全量回归 `tests/` | **1811 passed, 28 skipped**（1804 + 契约 7，零回归） |
+| 真实服务端到端复跑（O §6.4 前两条） | 本机无 MySQL 8 容器（元数据库仅支持 MySQL 8/TDSQL），留 O 定点复测轮在真实环境执行（O §8 已明确该分工）；脚本侧行为已由契约测试以真实 HTTP 协议桩等价锁定 |
+| `tests_3p/` | 本次整改仅涉及部署脚本与其契约测试、文档，不触及三方套件覆盖的产品 API 行为；O 本轮已在 `525a221` 基线实跑 125 passed / 1 skipped |
+
+### 12.4 O 报告其他结论的回应
+
+- §7.1 smoke 83/90：根因查明为 DB `system_config.auth_enabled='true'` 按设计优先覆盖环境变量（§7 R2 修订），非产品缺陷，与 O "证据污染、非本轮产品故障"定性一致；生产准出以认证开启的 `verify_deploy.sh` 为准。
+- §7.4 GATE-1/2/3：确认仍未回填，回填前不得发布生产（发起单 `GATE-v1.6.3.2` 已备）。
+- UAT-07/GATE-1：目标 TDSQL 实例 DML LIMIT 版本前提待 DBA/运维书面回填（须附实例版本与只读语法验证证据，O §8.4）。
