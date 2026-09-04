@@ -4,8 +4,8 @@
 |---|---|
 | 适用版本 | v1.6.3.2 起（v1.6.3.0 历史部署手册中的实测输出样例按 OUT-08 保留原貌，不适用本说明） |
 | 脚本 | `deploy/verify_deploy.sh` |
-| 整改依据 | UAT-O-1632-REL-01（P1，O 第一轮 UAT §6）；契约测试 `tests/test_verify_deploy_contract.py` |
-| 目标环境 | 麒麟 V10 SP3 / Linux x86_64，应用 venv Python 3.11；开发机可用 Git Bash 复现 |
+| 整改依据 | UAT-O-1632-REL-01（P1，第一轮 §6）+ UAT-O-1632-R2-01（P2，第二轮 §6）；契约测试 `tests/test_verify_deploy_contract.py` |
+| 目标环境 | 麒麟 V10 SP3 / Linux x86_64，应用 venv Python 3.11；**开发机可用 Git Bash 复现**（P2 整改后契约测试在 Windows Git Bash + Windows CPython 实测 8/8 通过，含真实 121 条大型中文规则响应） |
 
 ---
 
@@ -43,7 +43,9 @@ unset SQLCHECK_VERIFY_PASSWORD
 
 JSON 解析解释器按以下顺序选择：`SQLCHECK_VERIFY_PYTHON`（显式指定，契约测试用）→ 应用 `venv/bin/python` → 系统 `python3.11/3.10/3.9/python3/python`。找不到解释器时脚本记 FAIL 并中止（不产出误导性结论）。
 
-## 3. v1.6.3.2 整改内容（UAT-O-1632-REL-01）
+## 3. v1.6.3.2 整改内容（P1: UAT-O-1632-REL-01 + P2: UAT-O-1632-R2-01）
+
+### 3.1 P1（第一轮）
 
 | 原缺陷 | 整改 |
 |---|---|
@@ -53,9 +55,17 @@ JSON 解析解释器按以下顺序选择：`SQLCHECK_VERIFY_PYTHON`（显式指
 | 登录失败分支回显响应体前 120 字符——真实登录成功响应的开头就是管理员令牌，会泄漏进终端/CI 日志 | 登录响应体写入临时文件解析后即删；失败只输出 HTTP 状态码与固定文案，**绝不回显响应体 / Authorization / token 前缀** |
 | 登录失败后规则/审核/概览检查伪装成业务接口故障（连续 401） | token 为空时上述检查明确记 `[SKIP] …（登录前置失败而跳过）`，且 SKIP>0 时 exit 1 |
 
+### 3.2 P2（第二轮）：Git Bash 大型中文 JSON 解析失败
+
+| 原缺陷 | 整改 |
+|---|---|
+| `json_get` 用 `json.load(sys.stdin)`，脚本以 `printf '%s' "$BODY" \| json_get` 管道传响应正文；Git Bash/MSYS 向 Windows 原生 Python 的 stdin 传递大体量中文（真实规则响应约 44KB）发生字符转码破坏，`JSONDecodeError` 致规则总数/Oracle 分类误判失败（开发机 PASS=10 FAIL=2 exit 1） | `json_get <selector> <json_file>` 改为按 UTF-8 **文件路径**解析（`open(..., encoding="utf-8")`），禁止 stdin/pipe；所有 JSON 响应（health/login/rules/audit/dashboard）先 `curl -o` 落文件再解析；首页/metrics 非 JSON 保留 Bash 字符串匹配 |
+| （跨运行时）`mktemp -d` 在 Git Bash 产出 POSIX 路径 `/tmp/...`，Windows 原生 Python `open()` 无法识别 | `json_get` 内经 `cygpath -w` 把路径转 Windows 形式再交 Python；Linux 无 cygpath 时原样透传，两端一致 |
+| 临时文件曾回退到可预测的共享 `/tmp/_vd_*` 名 | 统一 `mktemp -d` 私有临时目录，`trap cleanup EXIT HUP INT TERM` 保证正常/失败/信号退出均 `rm -rf` 清理；创建失败即 FAIL 中止；目录内不留存登录响应与 token |
+
 ## 4. 契约测试
 
-`tests/test_verify_deploy_contract.py`（7 项，随全量 `tests/` 执行；无 bash 的平台自动跳过）：
+`tests/test_verify_deploy_contract.py`（8 项，随全量 `tests/` 执行；无 bash 的平台自动跳过）：
 
 1. 健康服务 + 正确口令：exit 0、`FAIL=0 SKIP=0`，121/42/R080/概览/metrics 全 PASS；
 2. 服务不可达：健康项 FAIL、exit 1、输出不含任何 `[PASS]`；
@@ -63,14 +73,17 @@ JSON 解析解释器按以下顺序选择：`SQLCHECK_VERIFY_PYTHON`（显式指
 4. 错误口令：不回显响应体，后续检查记 SKIP；
 5. 畸形 JSON 登录响应（200 但非法 JSON、开头即令牌样式）：不回显、不泄漏；
 6. 30 万字节首页：无 SIGPIPE 假失败；
-7. `bash -n` 语法通过（环境有 shellcheck 时一并跑 `-S warning`）。
+7. `bash -n` 语法通过（环境有 shellcheck 时一并跑 `-S warning`）；
+8. **大型中文规则响应（P2）**：契约桩返回 ≥64KB、121 条含中文 `description/spec_source/fix_suggestion` 的真实特征响应，在 Windows Git Bash + Windows CPython 下运行须 `PASS=12 FAIL=0 SKIP=0`、exit 0、无 traceback/JSONDecodeError、无令牌泄漏（`test_large_utf8_rules_payload_on_git_bash`）。
 
-登录口令 fixture 刻意包含双引号与反斜杠，验证请求体确由 `json.dumps` 生成（O §6.3 第 6 步）。
+登录凭据 fixture 刻意包含双引号与反斜杠，验证请求体确由 `json.dumps` 生成（O 第一轮 §6.3 第 6 步）；契约桩规则响应在模块加载时自证 ≥64KB 且 `oracle_compat=42`，防止退化成小型 ASCII 而漏检 P2（O 第二轮 §6.5 第四步）。
 
-## 5. 准出核对（对应 O 报告 §6.4 关闭标准）
+## 5. 准出核对（对应 O 第一轮 §6.4 + 第二轮 §6.6 关闭标准）
 
 - [ ] 真实 v1.6.3.2 服务上运行：`FAIL=0 SKIP=0` 且退出码 0；
-- [ ] 停止服务后复跑：健康检查明确 FAIL 且退出码 1，无 `[PASS]`；
+- [ ] 停止服务后复跑：健康检查明确 FAIL 且退出码 1，无 `[PASS]`（实测 PASS=0 FAIL=8 SKIP=3 exit 1）；
 - [ ] 正确口令、错误口令、畸形响应三组日志均不出现 token / 登录响应体 / Authorization 值；
 - [ ] 规则总数 121、Oracle 兼容 42、R080、概览、静态资源、metrics 全部由脚本真实验证；
-- [ ] 契约测试通过；全量 `tests/` 与 `tests_3p/` 无新增失败；离线依赖 dry-run 通过。
+- [ ] **P2 双运行时**：Windows Git Bash + Windows Python 对真实 121 条中文规则服务 `PASS=12 FAIL=0 SKIP=0` exit 0；Linux Python 3.11 对同一服务保持 12/0/0；
+- [ ] **P2 临时目录**：正常/失败/信号退出后均删除（`trap cleanup EXIT HUP INT TERM`）；
+- [ ] 契约测试 **8/8** 通过；全量 `tests/` 与 `tests_3p/` 无新增失败；离线依赖 dry-run 通过。

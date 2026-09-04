@@ -101,6 +101,11 @@ def test_password_literals_are_registered_test_values():
             val = m.group(1)
             if val in _ALLOWED_TEST_DEFAULTS:
                 continue
+            # 尖括号包裹一律视为「待填写」占位符（如文档复现步骤里的
+            # SQLCHECK_VERIFY_PASSWORD='<隔离测试口令>'、'<your-token>'），非真实凭据；
+            # 已知泄漏的生产口令特征由 test_no_known_leaked_production_credentials 兜底。
+            if val.startswith("<") and val.endswith(">"):
+                continue
             # 明显的占位/描述性文本不算
             if val.lower() in ("password", "your_password", "xxx", "changeme",
                                "<password>", "口令", "密码"):

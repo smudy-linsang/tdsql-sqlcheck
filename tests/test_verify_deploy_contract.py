@@ -34,6 +34,45 @@ _FAKE_TOKEN = "TOK-LEAK-CANARY-9f8e7d6c5b4a"
 _LOGIN_CRED = 'pw-with"quote\\back'
 
 
+def _build_rules_payload():
+    """真实 /api/v1/rules 响应特征：121 条规则，含中文 name/description/
+    spec_source/fix_suggestion；ensure_ascii=False 编码后 ≥64KB。用于复现
+    UAT-O-1632-R2-01（P2）——Git Bash 把大体量中文经 stdin 交给 Windows 原生
+    Python 会转码破坏，桩必须是真实体量+中文，否则漏检（小型 ASCII 无法复现）。"""
+    rules = []
+    for i in range(1, 122):
+        rid = f"R{i:03d}"
+        if 78 <= i <= 119:
+            cat = "oracle_compat"
+        elif i < 40:
+            cat = "ddl"
+        else:
+            cat = "distributed"
+        rules.append({
+            "rule_id": rid,
+            "category": cat,
+            "severity": "ERROR",
+            "enabled": True,
+            "name": f"规则{rid}中文名称：分布式建表与字段类型治理示例条目",
+            "description": (f"规则{rid}的详细中文描述：禁止在TDSQL分布式场景下使用不合规的"
+                            "字段类型、分区策略与分片键定义，须遵循数据库开发规范并留存评审记录。" * 2),
+            "spec_source": "《TDSQL数据库开发规范》《Oracle迁移TDSQL改造适配方案》中文条目",
+            "fix_suggestion": (f"规则{rid}修复建议：请调整字段类型或分区定义，补充中文注释说明"
+                               "业务含义与容量评估后重新提交审核，必要时联系DBA复核分片键选择。"),
+        })
+    return {"total": len(rules), "rules": rules}
+
+
+# 契约桩规则响应：模块加载即构建并自证体量（≥64KB 中文 UTF-8、oracle_compat=42），
+# 防止桩退化成小型 ASCII 而漏检 P2（O §6.5 第四步「测试桩在发送前自断言」）。
+_RULES_PAYLOAD = _build_rules_payload()
+_RULES_PAYLOAD_BYTES = json.dumps(_RULES_PAYLOAD, ensure_ascii=False).encode("utf-8")
+assert len(_RULES_PAYLOAD_BYTES) >= 64 * 1024, (
+    f"契约桩规则响应须≥64KB中文以防漏检P2，实际 {len(_RULES_PAYLOAD_BYTES)} bytes")
+assert _RULES_PAYLOAD["total"] == 121
+assert sum(r["category"] == "oracle_compat" for r in _RULES_PAYLOAD["rules"]) == 42
+
+
 def _find_bash():
     # Windows 上 shutil.which("bash") 会先命中 System32 的 WSL bash；WSL 未装
     # 发行版时它无法执行脚本（输出 UTF-16 错误），必须优先 Git Bash。
@@ -99,10 +138,8 @@ class _StubHandler(BaseHTTPRequestHandler):
         if path == "/api/v1/rules":
             if not self._authed():
                 return self._send(401, json.dumps({"code": 401, "message": "未认证"}))
-            rules = [{"rule_id": f"R{i:03d}",
-                      "category": "oracle_compat" if 78 <= i <= 119 else "ddl"}
-                     for i in range(1, 122)]
-            return self._send(200, json.dumps({"total": len(rules), "rules": rules}))
+            # 真实特征：大型中文 UTF-8 响应（≥64KB），复现 P2 的 Git Bash 转码场景
+            return self._send(200, _RULES_PAYLOAD_BYTES, "application/json; charset=utf-8")
         if path == "/api/v1/dashboard/summary":
             if not self._authed():
                 return self._send(401, json.dumps({"code": 401}))
@@ -237,3 +274,23 @@ def test_bash_syntax_and_shellcheck():
         r2 = subprocess.run([sc, "-S", "warning", _posix(_SCRIPT)],
                             capture_output=True, text=True, timeout=120)
         assert r2.returncode == 0, (r2.stdout or "") + (r2.stderr or "")
+
+
+# ── 8. UAT-O-1632-R2-01（P2）：大型中文规则响应在 Git Bash + Windows Python 下须解析成功 ──
+
+def test_large_utf8_rules_payload_on_git_bash(stub):
+    """P2 回归锁：真实 /api/v1/rules 约 44KB 且含中文；Git Bash 把响应经 stdin 交给
+    Windows 原生 Python 会发生字符转码破坏，导致规则总数/Oracle 分类误判失败
+    （PASS=10 FAIL=2 exit 1）。整改后 json_get 按 UTF-8 文件路径解析，须 12/0/0、exit 0。
+
+    本测试运行于本机（Windows Git Bash + Windows CPython，SQLCHECK_VERIFY_PYTHON
+    显式指向 sys.executable），即 P2 的真实复现平台；契约桩返回 ≥64KB 中文响应，
+    比线上 44KB 更严苛。若在 Linux 上运行则同样必须通过（路径经 cygpath 分支透传）。
+    """
+    code, out = _run(stub.server_address[1])
+    assert code == 0, out
+    assert "PASS=12" in out and "FAIL=0" in out and "SKIP=0" in out, out
+    assert "规则总数 121" in out, out
+    assert "Oracle迁移兼容规则 42 条" in out, out
+    assert "Traceback" not in out and "JSONDecodeError" not in out, f"JSON 解析异常污染输出:\n{out}"
+    assert _FAKE_TOKEN not in out, "输出泄漏了管理员令牌"

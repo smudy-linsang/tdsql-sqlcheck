@@ -3,9 +3,9 @@
 | 项目 | 内容 |
 |---|---|
 | 版本 | v1.6.3.0 → **v1.6.3.2** |
-| 报告类型 | 编码开发完成报告（R1：第一轮 SIT 整改 §11；R2：第一轮 UAT P1 整改 §12） |
+| 报告类型 | 编码开发完成报告（R1：第一轮 SIT 整改 §11；R2：第一轮 UAT P1 整改 §12；R3：第二轮 UAT P2 整改 §13） |
 | 开发者 | 开发智能体 Q |
-| 日期 | 2026-09-03（R1/R2 修订：2026-09-04） |
+| 日期 | 2026-09-03（R1/R2/R3 修订：2026-09-04） |
 | 设计依据 | `DESIGN-v1.6.3.2-审核规则调整与扫描历史跨页对比详细设计说明书.md`（Rev.C，经 REVIEW1/REVIEW2 两轮评审 + CONFIRM 定点确认准出） |
 | 锁定依赖 | sqlglot **30.14.0**（`pyproject.toml` 已锁，开工复测字段形态一致） |
 
@@ -233,3 +233,42 @@ O 第一轮 UAT 结论：**功能层通过、发布层不通过（1 项 P1）**�
 - §7.1 smoke 83/90：根因查明为 DB `system_config.auth_enabled='true'` 按设计优先覆盖环境变量（§7 R2 修订），非产品缺陷，与 O "证据污染、非本轮产品故障"定性一致；生产准出以认证开启的 `verify_deploy.sh` 为准。
 - §7.4 GATE-1/2/3：确认仍未回填，回填前不得发布生产（发起单 `GATE-v1.6.3.2` 已备）。
 - UAT-07/GATE-1：目标 TDSQL 实例 DML LIMIT 版本前提待 DBA/运维书面回填（须附实例版本与只读语法验证证据，O §8.4）。
+
+---
+
+## 13. 第二轮 UAT 整改（2026-09-04，修订 R3）
+
+O 第二轮 UAT 结论：**通过（有条件）**——第一轮 P1 生产 Linux 路径已关闭（Linux CPython 3.11 实测 PASS=12/FAIL=0/SKIP=0 exit 0）；新增 1 项 P2。**P2 认可，无申诉项**，按 O §6.5 五步照图施工，目标软件侧零缺陷。
+
+### 13.1 UAT-O-1632-R2-01（P2）：Git Bash 大型中文 JSON 解析失败
+
+- **缺陷**：`json_get` 用 `json.load(sys.stdin)` + `printf|管道` 传响应正文；Git Bash/MSYS 向 Windows 原生 Python 的 stdin 传递真实规则响应（约 44KB 中文）时发生字符转码破坏，`JSONDecodeError` 致规则总数/Oracle 分类误判失败（开发机 PASS=10/FAIL=2/exit 1）。契约桩仅返回小型 ASCII JSON，7 项契约测试全过却漏检该问题。
+- **认可理由**：这是我交付脚本的真实跨运行时缺陷，且直接违背部署说明中"开发机可用 Git Bash 复现"的承诺；O 定级 P2（不影响已验证的 Linux 生产路径、不回退 P1）合理。
+
+### 13.2 整改（照 O §6.5 五步）
+
+1. `mktemp -d` 私有临时目录 + `trap cleanup EXIT HUP INT TERM`，创建失败即 FAIL 中止，不回退可预测共享 `/tmp/_vd_*` 名；
+2. `json_get <selector> <json_file>` 改按 UTF-8 文件路径 `open(...,encoding="utf-8")` 解析，禁 stdin/pipe；Git Bash 下经 `cygpath -w` 转 Windows 路径交原生 Python（Linux 无 cygpath 时原样透传 POSIX 路径）；
+3. health/login/rules/audit/dashboard 全部 `curl -o` 落临时文件、按 HTTP 状态码判定再解析；首页/metrics 非 JSON 保留 Bash 字符串匹配；登录响应读取 token 后即删；
+4. 契约桩升级为真实特征：121 条含中文 `description/spec_source/fix_suggestion`、`ensure_ascii=False` 编码 ≥64KB（模块加载自证体量 + oracle_compat=42），新增 `test_large_utf8_rules_payload_on_git_bash`，契约测试 7→**8 项**；
+5. 同步 `DEPLOY-VERIFY-v1.6.3.2` 说明（§3.2 P2 表、§4 第 8 项、§5 双运行时与临时目录核对）与本开发报告。
+
+### 13.3 整改验证（本机即 P2 复现平台：Windows Git Bash + Windows CPython 3.14）
+
+| O §6.6 关闭标准 | 结果 |
+|---|---|
+| 1. `bash -n` | exit 0；脚本 LF 行尾、无 BOM |
+| 2. 契约测试 8/8 | **8 passed**（含新增大型中文响应项） |
+| 3. Windows Git Bash + Windows Python 真实 121 中文规则 → 12/0/0 exit 0 | **达成**：`test_large_utf8_rules_payload_on_git_bash` 断言 `PASS=12 FAIL=0 SKIP=0`、exit 0、无 JSONDecodeError/traceback、无令牌泄漏；桩响应 ≥64KB（严于线上 44KB） |
+| 4. Linux Python 3.11 同服务 12/0/0 | O 第二轮 §3.2 已在 Linux CPython 3.11 实测 12/0/0；文件路径解析在 Linux 下 cygpath 缺席即原样透传 POSIX 路径，逻辑不变，留 O 第三轮定点复测确认 |
+| 5. 错误口令/畸形 JSON/不可达日志无 token/响应体/口令/Authorization | 契约测试 `test_bad_password_no_body_echo`/`test_malformed_login_json_no_leak`/`test_token_never_echoed_on_success` 全过 |
+| 6. 临时目录正常/失败/信号退出均删除 | `trap cleanup EXIT HUP INT TERM`；失败退出实测 `/tmp/tmp.*` before=0 after=0 无泄漏；正常与各失败路径由 8 项契约测试反复执行覆盖 |
+| 7. 全量 tests/、tests_3p/、离线 dry-run 无新增失败 | 全量 tests/ **1812 passed, 28 skipped**（1804 + 契约 8，零回归）；tests_3p 本次未触及产品 API，O 第二轮已实跑 125 passed/1 skipped |
+
+不可达路径本机实测 `PASS=0 FAIL=8 SKIP=3 exit 1`，与 O 第二轮 §3.4 的 Linux 结果**逐项一致**，跨运行时行为一致。
+
+### 13.4 生产准出剩余前置（非软件缺陷）
+
+O 明确生产发布仍不准出，剩余均为**外部书面门禁与目标主机验证**（非代码可关闭）：GATE-1（目标 TDSQL 实例 DML LIMIT 版本前提，附实例版本 + 只读语法验证证据）、GATE-2（DBA 接受集中式零覆盖）、GATE-3（活动规则集/流水线接受门禁双向变化）三项待责任方回填；且目标麒麟 V10 SP3 主机部署后须运行正式脚本确认 12 项全 PASS。发起单 `docs/GATE-v1.6.3.2-…md` 已备。
+
+至此 v1.6.3.2 **软件侧缺陷全部清零**（P0/P1/P2/P3 = 0），准出仅余外部签字与目标主机部署验证两项非开发职责前置。
