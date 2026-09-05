@@ -24,7 +24,9 @@ cp -a "$ROOT_DIR/frontend" "$STAGE_DIR/"
 cp -a "$ROOT_DIR/deploy" "$STAGE_DIR/"
 
 mkdir -p "$STAGE_DIR/docs"
+cp "$ROOT_DIR/docs/DEPLOY-v${VERSION}-内网生产环境增量更新部署手册.md" "$STAGE_DIR/docs/" 2>/dev/null || true
 cp "$ROOT_DIR/docs/DEPLOY-v${VERSION}-内网测试环境增量更新部署手册.md" "$STAGE_DIR/docs/" 2>/dev/null || true
+cp "$ROOT_DIR/docs/PRODUCTION-DEPLOY-ISSUES-v1.6.3.0.md" "$STAGE_DIR/docs/" 2>/dev/null || true
 cp "$ROOT_DIR/docs/GATE-DECISION-v${VERSION}-生产发布门禁签署决议与整改任务书.md" "$STAGE_DIR/docs/" 2>/dev/null || true
 cp "$ROOT_DIR/docs/GATE-v${VERSION}-生产发布三项书面门禁发起.md" "$STAGE_DIR/docs/" 2>/dev/null || true
 
@@ -50,5 +52,5 @@ rm -rf "$STAGE_DIR"
 echo "══════════════════════════════════════════════════════════════════"
 echo " 增量更新补丁包: dist/${PATCH_NAME}.tar.gz"
 echo " 校验和文件:     dist/${PATCH_NAME}.tar.gz.sha256"
-echo " 包内已包含本次测试环境部署手册: docs/DEPLOY-v${VERSION}-内网测试环境增量更新部署手册.md"
+echo " 包内已包含生产与测试增量部署手册: docs/DEPLOY-v${VERSION}-内网生产环境增量更新部署手册.md"
 echo "══════════════════════════════════════════════════════════════════"
