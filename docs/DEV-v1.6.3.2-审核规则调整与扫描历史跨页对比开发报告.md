@@ -3,9 +3,9 @@
 | 项目 | 内容 |
 |---|---|
 | 版本 | v1.6.3.0 → **v1.6.3.2** |
-| 报告类型 | 编码开发完成报告（R1：第一轮 SIT §11；R2：第一轮 UAT P1 §12；R3：第二轮 UAT P2 §13；R4：第三轮 UAT P2 §14；R5：门禁签署决议整改 §15） |
+| 报告类型 | 编码开发完成报告（R1：第一轮 SIT §11；R2：第一轮 UAT P1 §12；R3：第二轮 UAT P2 §13；R4：第三轮 UAT P2 §14；R5：门禁签署决议整改 §15；R6：第五轮门禁整改 §16） |
 | 开发者 | 开发智能体 Q |
-| 日期 | 2026-09-03（R1~R4：2026-09-04；R5：2026-09-05） |
+| 日期 | 2026-09-03（R1~R4：2026-09-04；R5/R6：2026-09-05） |
 | 设计依据 | `DESIGN-v1.6.3.2-审核规则调整与扫描历史跨页对比详细设计说明书.md`（Rev.C，经 REVIEW1/REVIEW2 两轮评审 + CONFIRM 定点确认准出） |
 | 锁定依赖 | sqlglot **30.14.0**（`pyproject.toml` 已锁，开工复测字段形态一致） |
 
@@ -367,3 +367,47 @@ DESIGN-v1.6.3.2 追加 Rev.E：记录 GATE-2（§4.3 OUT-01 经 DBA 授权推翻
 - **GATE-2**：整改指令已执行（R031 改域，集中式 90/31），待林桑/G 第五轮复测确认后正式签署。
 - **GATE-3**：拒签缺陷已修复（级联假阳性消除、用户原始 SQL 验证归位），待 O 第五轮定点 UAT + 林桑页面终验复测后签署。
 - 生产准出仍需：GATE-2/GATE-3 复签 + 目标麒麟 V10 SP3 主机部署验证 12/0/0 exit 0。
+
+---
+
+## 16. 第五轮门禁整改（2026-09-05，修订 R6）
+
+O 第五轮门禁整改复测结论**不通过**：GATE-1 已由用户签署（本轮不重开）；GATE-2 元数据整改通过（R030/R031/R032 均仅分布式、121/90/31 口径正确）但**业务验收失败**；GATE-3 用户原始 bare MAXVALUE 缺陷已关闭（E999/R003/R004/R005/R118 全消、R121 保留）但**新归一化在注释边界仍有漏洞**。两项新缺陷全部认可、无申诉，已照 O §8/§9 施工。
+
+### 16.1 R5-01（P1，GATE-2 阻断）：集中式合法非 TABLE 对象被建表规则误拦 + 例程被拆 BATCH
+
+**双根因与整改**：
+
+1. **解析器把任意 CREATE 当建表**（`parser_legacy.py`）：`_parse_create` 无条件置 `is_create_table=True`、把对象名塞入 `tables`，导致集中式合法 VIEW/PROCEDURE/FUNCTION 被 R001/R003/R004/R005/R028 建表规则误拦。**整改**：`exp.Create` 分支按 `ast.args["kind"]` 分流——仅 `TABLE` 走 `_parse_create`，其余走新增 `_parse_create_object`（不置 `is_create_table`、不污染 `tables`，`ParsedSQL` 新增 `created_object_kind/created_object_name`）；`_parse_create` 内部加"仅 TABLE 才置位"防御守卫；表名回退提取块对非 TABLE 对象跳过。
+2. **审核入口把例程体拆成 BATCH**（`audit_service.py` 即时审核用 `database.split_sql_statements`，不理解 BEGIN...END）：**整改**——新增 tokenizer-aware 的 `split_sql_statements_for_audit`（`_token_is_create_routine` 识别 CREATE 例程头 + BEGIN/END 深度跟踪，体内分号不拆；事务 `BEGIN;` 不误伤；普通多语句仍按顶层分号拆；词法失败回退原切分器）；即时审核入口改用之。DB 执行/导入路径的 `split_sql_statements` **职责不变、未修改**；文件审核路径 `_split_sql_file` 本已含 BEGIN...END 处理，行为一致。
+
+**验证**：集中式 VIEW/PROCEDURE/FUNCTION/TRIGGER **全部 violations==[]**；分布式 VIEW/PROC/TRIGGER 仅 R030、FUNCTION 仅 R030+R031、无建表规则；例程 `BEGIN...END;` 作为**一条**审核单元（不拆 BATCH）、事务 BEGIN 正常拆分、例程+建表混合正确分两段。
+
+### 16.2 R5-02（P2，GATE-3 阻断）：MAXVALUE 关键字间合法注释绕过归一化
+
+- **根因**：`VALUES LESS THAN /*注释*/ MAXVALUE`（MySQL 官方允许 token 间行内/块注释）被基于"连续代码段"的正则归一化按注释分段打断，E999+级联误报复现。
+- **整改**：`_normalize_bare_partition_maxvalue` 改为 **sqlglot 词法 token + 原文 span**——词法器跳过注释（token 流中关键字连续）、字符串整体成单个 STRING token（天然不误伤），仅在该 MAXVALUE token 的原文 span 两侧插入括号，保留全部空白与注释；`(MAXVALUE)`、非法 `MAXVALUES`、字符串/COMMENT 内短语均不误处理。非 MAXVALUE 文本零额外词法化（守 §5.4）。
+- **验证**：注释穿插每关键字/THAN-MAXVALUE 间块注释/行注释/换行/大小写/括号形态全部 ast=Create、无级联、R121 精确命中；`MAXVALUES` 保留 E999、不伪造 R121。
+
+### 16.3 验收测试（O §9）
+
+`test_rules_v1632.py` 新增 20 项回归锁（65→86）：
+- **GATE-2 全结果锁**：断言**完整违规集合**为空（默认规则集、不挂 rule_overrides 隔离）——集中式 VIEW/PROCEDURE/FUNCTION/TRIGGER 参数化、合规临时表无 ERROR、分布式对象仅 R030(/R031)；
+- **例程切分锁**：例程体不拆 BATCH、事务/普通多语句仍正常拆分、混合语句正确分段；
+- **GATE-3 注释与负例锁**：注释穿插/换行/大小写/括号 7 形态参数化（无级联+R121 命中）、非法 MAXVALUES 保留 E999、字符串/COMMENT 内短语不误归一化。
+
+### 16.4 整改后验证汇总
+
+| 验证项 | 结果 |
+|---|---|
+| 专项 `test_rules_v1632.py` | **86 passed**（65 + R5 回归锁 20 项，含参数化展开） |
+| 全量回归 `tests/` | **1865 passed, 0 failed**（localhost:8000 服务在线，服务端依赖集成测试全运行；1844 + R5 净增 21） |
+| 规则物料 harness | [PASS] 121 = 覆盖 109 + 元数据 7 + 豁免 5 |
+| O §6 集中式五类对象 / §7 注释边界 | 探针逐项复现归位 |
+
+### 16.5 准出状态
+
+- GATE-1：已签署通过。
+- GATE-2：R5-01 已修复（对象分流 + 例程切分），待 O 第六轮复测 + 林桑/G 复签。
+- GATE-3：R5-02 已修复（注释边界 token/span 归一化），原始 bare MAXVALUE 缺陷保持关闭，待复测复签。
+- 生产准出仍需：两项门禁复签 + 目标麒麟主机部署验证 12/0/0 exit 0。

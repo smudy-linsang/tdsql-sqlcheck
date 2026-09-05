@@ -186,8 +186,10 @@ class AuditService:
         Returns:
             (审核结果, 门禁结果或None, 实例类型上下文)
         """
-        from backend.services.database import split_sql_statements
-        statements = [s.strip() for s in split_sql_statements(sql) if s.strip()]
+        # R5-01（GATE-2）：审核入口用 tokenizer-aware 切分，例程 BEGIN...END 体内
+        # 分号不拆，避免合法 CREATE PROCEDURE/FUNCTION 被拆成 BATCH 逐片误报。
+        from backend.engine.parser import split_sql_statements_for_audit
+        statements = [s.strip() for s in split_sql_statements_for_audit(sql) if s.strip()]
 
         rule_set_id, overrides = self._resolve_scale()
         ictx = self._resolve_instance(connection_id, instance_type)

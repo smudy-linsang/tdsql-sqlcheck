@@ -114,30 +114,48 @@ def _strip_index_order_modifiers(sql: str) -> str:
 
 # v1.6.3.2 / GATE-3（林桑签署决议 §5，推翻 §4.7.5 的 bare MAXVALUE 失败关闭口径）：
 # bare `VALUES LESS THAN MAXVALUE` 是 MySQL/TDSQL 官方合法写法，但 sqlglot MySQL
-# 方言严格要求 `VALUES LESS THAN (` 后接左括号，遇 bare 直接 ParseError。仅在
-# 字符串/注释外的代码段匹配，避免误伤 COMMENT '...MAXVALUE...' 文本。
-_BARE_MAXVALUE_RE = re.compile(r"\bVALUES\s+LESS\s+THAN\s+MAXVALUE\b", re.IGNORECASE)
-
-
-def _normalize_bare_partition_maxvalue(sql: str) -> str:
+# 方言严格要求 `VALUES LESS THAN (` 后接左括号，遇 bare 直接 ParseError。
+def _normalize_bare_partition_maxvalue(sql: str, dialect: str = "mysql") -> str:
     """把分区定义里的 bare `VALUES LESS THAN MAXVALUE` 规整为 `VALUES LESS THAN (MAXVALUE)`。
 
     GATE-3 根因：bare MAXVALUE 触发 sqlglot ParseError → parsed.ast=None → 主键/引擎/
     字符集/列约束/表注释全部提取失败 → R003/R004/R005/R028/R118 大面积级联假阳性。
-    DBA 明确否定“用假阳性 E999 兜底业务拦截”。本函数在 parse_one **之前**把 bare 形态
-    规整为语义等价的括号形态（sqlglot 100% 解析为 exp.Create），从根源消除 E999 与
-    级联假阳性；R121 仍由独立的 token 策略扫描命中，不依赖本规整。
+    DBA 明确否定“用假阳性 E999 兜底业务拦截”。
 
-    与 _strip_index_order_modifiers 同制：仅改写字符串字面量与注释之外的普通代码段；
-    调用方对 sql_clean 与 sql_recover 同步调用，保证恢复链 span 与解析输入同源；
-    raw_sql 保持原文（R077/R054 分片键提取、R104 全角括号检测等不受影响）。
+    R5-02（O 第五轮）：MAXVALUE 与前置关键字之间可能有合法行内注释
+    （`VALUES LESS THAN /*c*/ MAXVALUE`，MySQL 官方允许 token 间注释），基于“连续
+    代码段正则”会因注释把关键字分到不同段而漏匹配、令级联假阳性复现。改用
+    **sqlglot 词法 token + 原文 span**：词法器天然跳过注释、把字符串整体成单个
+    STRING token，故 `VALUES→LESS→THAN→MAXVALUE` 在 token 流中连续即命中（注释
+    透明），且绝不误伤字符串/COMMENT 内短语或非法 `MAXVALUES`（token 文本不等）；
+    已带括号的 `(MAXVALUE)`（THAN 后是 L_PAREN 而非 MAXVALUE 裸词）不匹配、不改。
+    仅在 MAXVALUE token 的原文 span 两侧插入括号，保留全部空白与注释。
+
+    性能：仅当文本含 `maxvalue` 才词法化（非 DDL 高频路径零额外开销，守 §5.4）。
+    raw_sql 由调用方保持原文；本函数对 sql_clean/sql_recover 同步应用同一 span 规划。
     """
-    if not _BARE_MAXVALUE_RE.search(sql):
+    if "maxvalue" not in sql.lower():
         return sql
-    parts = _LITERAL_OR_COMMENT_RE.split(sql)
-    for i in range(0, len(parts), 2):
-        parts[i] = _BARE_MAXVALUE_RE.sub("VALUES LESS THAN (MAXVALUE)", parts[i])
-    return "".join(parts)
+    try:
+        toks = sqlglot.Dialect.get_or_raise(dialect).tokenizer_class().tokenize(sql)
+    except Exception:
+        return sql
+    wraps = []                                   # 需加括号的 MAXVALUE token 原文 span
+    n = len(toks)
+    for i in range(n - 3):
+        if toks[i].token_type != TokenType.VALUES:
+            continue
+        # 词法器已跳过注释：VALUES/LESS/THAN/MAXVALUE 在 token 流中相邻即命中，
+        # 中间任意行内/块注释透明；(MAXVALUE) 因 THAN 后是 L_PAREN 不构成该序列。
+        if (_is_bare_kw(toks[i + 1], "LESS") and _is_bare_kw(toks[i + 2], "THAN")
+                and _is_bare_kw(toks[i + 3], "MAXVALUE")):
+            wraps.append((toks[i + 3].start, toks[i + 3].end))
+    if not wraps:
+        return sql
+    out = sql
+    for start, end in reversed(wraps):           # 从后往前插入，避免 span 偏移
+        out = out[:start] + "(" + out[start:end + 1] + ")" + out[end + 1:]
+    return out
 
 
 def _strip_comments_for_fallback(sql: str) -> str:
@@ -189,6 +207,91 @@ def _is_create_routine_head(words) -> bool:
             if i + 1 < len(words) and words[i] == "@":
                 i += 2
     return i < len(words) and words[i] in ("VIEW", "PROCEDURE", "FUNCTION", "TRIGGER")
+
+
+# R5-01（GATE-2）：例程对象关键字与非例程对象关键字（用于 token 级语句头判定）。
+_ROUTINE_OBJECT_KWS = ("PROCEDURE", "FUNCTION", "TRIGGER", "EVENT")
+_NONROUTINE_OBJECT_KWS = ("TABLE", "VIEW", "INDEX", "UNIQUE", "DATABASE", "SCHEMA",
+                          "TEMPORARY", "SEQUENCE", "USER", "ROLE", "TABLESPACE", "FULLTEXT")
+
+
+def _token_is_create_routine(toks, i) -> bool:
+    """toks[i] 为 CREATE 时，判断是否为 CREATE [OR REPLACE][DEFINER=...] 例程
+    （PROCEDURE/FUNCTION/TRIGGER/EVENT）——这类语句 BEGIN...END 体内的分号不是
+    语句边界（R5-01）。从 CREATE 向后扫描到第一个"对象类型关键字"：命中例程关键字
+    返回 True，命中非例程对象关键字或左括号/分号返回 False。DEFINER 值/对象名为
+    STRING/IDENTIFIER（被 _is_bare_kw 排除）或普通 VAR（不在两套关键字集内），
+    不会误判。"""
+    n = len(toks)
+    if i >= n or toks[i].token_type != TokenType.CREATE:
+        return False
+    limit = min(n, i + 16)
+    for j in range(i + 1, limit):
+        tt = toks[j].token_type
+        if tt in (TokenType.L_PAREN, TokenType.SEMICOLON):
+            return False
+        if _is_bare_kw(toks[j]):
+            up = (toks[j].text or "").upper()
+            if up in _ROUTINE_OBJECT_KWS:
+                return True
+            if up in _NONROUTINE_OBJECT_KWS:
+                return False
+    return False
+
+
+def split_sql_statements_for_audit(sql_script: str, dialect: str = "mysql") -> list:
+    """审核入口专用语句切分（R5-01 / GATE-2）。
+
+    与 `database.split_sql_statements`（DB 执行/导入路径，职责不变、不修改）区分：
+    本函数用 sqlglot 词法 token 识别 `CREATE [DEFINER...] PROCEDURE/FUNCTION/
+    TRIGGER/EVENT` 例程，其 `BEGIN...END` 体内的分号**不作语句边界**，避免合法例程
+    被即时审核拆成 BATCH 后逐片误报。普通多语句仍按顶层分号拆分；字符串/反引号/
+    注释内的分号由词法器天然跳过；`BEGIN;`（事务）因非 CREATE 例程上下文不进入
+    BEGIN/END 深度跟踪，仍正常按分号拆分。返回不含尾分号、已 strip 的语句列表
+    （与既有切分器契约一致）。词法失败时回退 database.split_sql_statements，不因
+    新逻辑降低既有健壮性。
+    """
+    s = normalize_newlines(sql_script)
+    if not s.strip():
+        return []
+    try:
+        toks = sqlglot.Dialect.get_or_raise(dialect).tokenizer_class().tokenize(s)
+    except Exception:
+        from backend.services.database import split_sql_statements
+        return split_sql_statements(s)
+
+    cuts = []                 # 原文中语句边界（分号之后的下标）
+    in_routine = False
+    depth = 0
+    at_stmt_start = True
+    for i, t in enumerate(toks):
+        tt = t.token_type
+        if at_stmt_start:
+            in_routine = _token_is_create_routine(toks, i)
+            depth = 0
+            at_stmt_start = False
+        if in_routine:
+            if tt == TokenType.BEGIN:
+                depth += 1
+            elif tt == TokenType.END and depth > 0:
+                depth -= 1
+        if tt == TokenType.SEMICOLON and ((not in_routine) or depth == 0):
+            cuts.append(t.end + 1)
+            in_routine = False
+            depth = 0
+            at_stmt_start = True
+
+    statements = []
+    prev = 0
+    for c in cuts:
+        seg = s[prev:c].strip().rstrip(";").strip()
+        if seg:
+            statements.append(seg)
+        prev = c
+    tail = s[prev:].strip().rstrip(";").strip()
+    if tail:
+        statements.append(tail)
+    return statements
 
 
 def _spans_only_diff(orig: str, new: str, spans) -> bool:
@@ -2375,6 +2478,13 @@ class ParsedSQL:
     # === DDL结构信息 ===
     is_create_table: bool = False
     is_alter_table: bool = False
+    # v1.6.3.2 / R5-01（GATE-2）：非 TABLE 的 CREATE 对象（VIEW/PROCEDURE/FUNCTION/
+    # TRIGGER/EVENT 等）类型与名称。此前任意 exp.Create 都被 _parse_create 置
+    # is_create_table=True 并把对象名塞入 tables，导致集中式合法视图/例程被
+    # R001/R003/R004/R005/R028 等建表规则误拦。非 TABLE 对象只记这两个字段，
+    # 不置 is_create_table、不进 tables。
+    created_object_kind: str = ""
+    created_object_name: str = ""
     has_primary_key: bool = False
     has_foreign_key: bool = False
     engine: Optional[str] = None
@@ -2488,8 +2598,8 @@ class SQLParser:
         # v1.6.3.2 / GATE-3：bare `VALUES LESS THAN MAXVALUE` 规整为括号形态，消除
         # sqlglot ParseError 及 R003/R004/R005/R028/R118 级联假阳性（DBA 签署决议 §5）。
         # 与索引修饰剥离同制：sql_clean 与 sql_recover 同步、raw_sql 保持原文。
-        sql_clean = _normalize_bare_partition_maxvalue(sql_clean)
-        sql_recover = _normalize_bare_partition_maxvalue(sql_recover)
+        sql_clean = _normalize_bare_partition_maxvalue(sql_clean, self.dialect)
+        sql_recover = _normalize_bare_partition_maxvalue(sql_recover, self.dialect)
 
         # 先做正则级别的快速检测（补充sqlglot可能遗漏的信息）
         parsed = self._regex_pre_parse(sql_clean, parsed)
@@ -2622,7 +2732,13 @@ class SQLParser:
         elif isinstance(ast, exp.Delete):
             self._parse_delete(ast, parsed)
         elif isinstance(ast, exp.Create):
-            self._parse_create(ast, parsed)
+            # R5-01（GATE-2）：按对象类型分流——仅 TABLE 走建表解析；VIEW/
+            # PROCEDURE/FUNCTION/TRIGGER/EVENT 等非 TABLE 对象走 _parse_create_object，
+            # 绝不置 is_create_table、不塞 tables，避免被建表规则误拦。
+            if str(ast.args.get("kind") or "").upper() == "TABLE":
+                self._parse_create(ast, parsed)
+            else:
+                self._parse_create_object(ast, parsed)
         elif isinstance(ast, exp.Alter):
             self._parse_alter(ast, parsed)
         elif isinstance(ast, exp.Drop):
@@ -2631,8 +2747,14 @@ class SQLParser:
         # 通用解析
         self._parse_common(ast, parsed)
 
+        # R5-01（GATE-2）：非 TABLE 的 CREATE（VIEW/PROCEDURE/FUNCTION/TRIGGER/EVENT）
+        # 不做表名回退提取——它们是合法数据库对象、不是表，塞入 tables 会触发 R001
+        # 等表名规则；建表属性正则回退同理跳过（否则会重新污染 is_create_table/tables）。
+        _is_nontable_create = (isinstance(ast, exp.Create)
+                               and str(ast.args.get("kind") or "").upper() != "TABLE")
         # 提取表名及 DDL 属性（如果各类型解析未提取到，或为 sqlglot Command 降级节点）
-        if not parsed.tables or isinstance(ast, exp.Command) or parsed.sql_type == "UNKNOWN":
+        if (not parsed.tables or isinstance(ast, exp.Command) or parsed.sql_type == "UNKNOWN") \
+                and not _is_nontable_create:
             if parsed.sql_type == "UNKNOWN":
                 parsed.sql_type = self._detect_sql_type_regex(sql_clean)
             parsed.tables = self._extract_tables(ast)
@@ -2949,8 +3071,34 @@ class SQLParser:
 
     # ── CREATE TABLE 解析 ────────────────────────────────
 
+    def _parse_create_object(self, ast: exp.Create, parsed: ParsedSQL):
+        """解析非 TABLE 的 CREATE 对象（VIEW/PROCEDURE/FUNCTION/TRIGGER/EVENT 等）。
+
+        R5-01（GATE-2）：集中式允许合法视图/存储过程/触发器/自定义函数。此前任意
+        exp.Create 都走 _parse_create 并置 is_create_table=True、把对象名塞入 tables，
+        使这些对象被 R001/R003/R004/R005/R028 等建表规则误拦。本方法**不**置
+        is_create_table、**不**污染 tables；sql_type 已由 _get_sql_type 精确给出
+        （CREATE VIEW/PROCEDURE/...）。分布式对这些对象的治理由 R030/R031（读
+        raw_sql 正则）负责，不依赖本结构。
+        """
+        parsed.is_create_table = False
+        kind = str(ast.args.get("kind") or "").upper()
+        parsed.created_object_kind = kind or "UNKNOWN"
+        obj = ast.this
+        if isinstance(obj, exp.Schema):
+            obj = obj.this
+        if obj is not None:
+            try:
+                parsed.created_object_name = obj.sql(dialect=self.dialect)
+            except Exception:
+                parsed.created_object_name = ""
+
     def _parse_create(self, ast: exp.Create, parsed: ParsedSQL):
         """解析 CREATE TABLE 语句"""
+        # R5-01 防御：仅 TABLE 才置 is_create_table（外层已按 kind 分流，此处双保险，
+        # 防止任何遗漏路径把非 TABLE 对象当建表处理）。
+        if str(ast.args.get("kind") or "").upper() != "TABLE":
+            return self._parse_create_object(ast, parsed)
         parsed.is_create_table = True
 
         schema = ast.args.get("this")

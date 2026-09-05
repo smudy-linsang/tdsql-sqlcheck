@@ -14,7 +14,7 @@
 import pytest
 
 from backend.engine.checker import RuleChecker
-from backend.engine.parser import SQLParser
+from backend.engine.parser import SQLParser, split_sql_statements_for_audit
 
 
 @pytest.fixture()
@@ -556,3 +556,129 @@ def test_dml_limit_does_not_add_tokenization_when_ast_is_sound(parser):
     finally:
         sqlglot.tokens.Tokenizer.tokenize = orig
     assert len(set(counts.values())) == 1, f"各类语句的词法化次数应一致，实测 {counts}"
+
+
+# ════════════════════════════════════════════════════════════
+# 第五轮门禁整改回归锁（R5-01 GATE-2 对象分流 + R5-02 GATE-3 注释边界）
+# ════════════════════════════════════════════════════════════
+# 说明：GATE-2 业务验收要求「集中式合法 VIEW/PROCEDURE/FUNCTION/TRIGGER 审核通过」，
+# 因此这里断言**完整违规集合**（默认规则集、不挂 rule_overrides 隔离），而非只断言
+# R030/R031/R032 不出现——后者无法捕捉 is_create_table 误置导致的建表规则假阳性。
+
+_CENTRALIZED_LEGAL_OBJECTS = [
+    "CREATE VIEW v_order AS SELECT 1 AS id",
+    "CREATE PROCEDURE p_test() SELECT 1",
+    "CREATE FUNCTION fn_calc(a INT,b INT) RETURNS INT RETURN a+b",
+    "CREATE TRIGGER trg BEFORE INSERT ON t FOR EACH ROW SET @x=1",
+]
+
+
+@pytest.mark.parametrize("sql", _CENTRALIZED_LEGAL_OBJECTS)
+def test_gate2_centralized_legal_object_no_violation(checker, sql):
+    """R5-01 / GATE-2：集中式合法非 TABLE 对象（视图/存储过程/自定义函数/触发器）
+    审核通过——完整违规集合为空（消除 is_create_table 误置引发的 R001/R003/R004/
+    R005/R028 建表规则误拦）。"""
+    r = checker.audit_sql(sql, instance_type="centralized")
+    assert r.violations == [], \
+        f"集中式合法对象不应有任何违规: {[v.rule_id for v in r.violations]}"
+
+
+def test_gate2_centralized_temp_table_no_error(checker):
+    """集中式**合规**临时表（带表注释+列注释+逻辑删除列）：无 ERROR，R030/R031/R032
+    不出现（R024/R032 适用域约束）。O §9.1 验收。"""
+    sql = ("CREATE TEMPORARY TABLE tmp_calc ("
+           "id BIGINT NOT NULL COMMENT '主键', "
+           "create_time DATETIME COMMENT '创建时间', "
+           "update_time DATETIME COMMENT '更新时间', "
+           "is_deleted TINYINT DEFAULT 0 COMMENT '逻辑删除', "
+           "PRIMARY KEY (id)"
+           ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='临时计算表'")
+    r = checker.audit_sql(sql, instance_type="centralized")
+    ids = _ids(r)
+    assert not any(v.severity.value == "ERROR" for v in r.violations), sorted(ids)
+    assert not ({"R030", "R031", "R032"} & ids), sorted(ids)
+
+
+@pytest.mark.parametrize("sql,expect", [
+    ("CREATE VIEW v_order AS SELECT 1 AS id", {"R030"}),
+    ("CREATE PROCEDURE p_test() SELECT 1", {"R030"}),
+    ("CREATE TRIGGER trg BEFORE INSERT ON t FOR EACH ROW SET @x=1", {"R030"}),
+    ("CREATE FUNCTION fn_calc(a INT,b INT) RETURNS INT RETURN a+b", {"R030", "R031"}),
+])
+def test_gate2_distributed_object_only_r030_r031(checker, sql, expect):
+    """R5-01 / GATE-2：分布式 VIEW/PROC/TRIGGER→R030、FUNCTION→R030+R031 命中；
+    非 TABLE 对象不得触发 R003/R004/R005/R028 等建表规则。"""
+    ids = _ids(checker.audit_sql(sql, instance_type="distributed"))
+    assert expect <= ids, f"缺少期望规则 {expect}: {sorted(ids)}"
+    assert not ({"R003", "R004", "R005", "R028"} & ids), \
+        f"非 TABLE 对象不应触发建表规则: {sorted(ids)}"
+
+
+# ── R5-01② / GATE-2：例程体分号不得被审核入口拆开（O §9.1）────────────────
+
+def test_routine_body_not_split_into_batch():
+    """带 BEGIN...END 的例程作为**一条**审核单元，内部合法分号不拆为 BATCH。"""
+    routine = "CREATE FUNCTION fn() RETURNS INT BEGIN RETURN 1; END;"
+    assert split_sql_statements_for_audit(routine) == \
+        ["CREATE FUNCTION fn() RETURNS INT BEGIN RETURN 1; END"]
+    multi = "CREATE PROCEDURE p() BEGIN SET @a=1; SET @b=2; END;"
+    assert len(split_sql_statements_for_audit(multi)) == 1
+
+
+def test_normal_and_transaction_still_split():
+    """普通多语句按顶层分号拆分；事务 BEGIN 不被误当例程体（不进入 BEGIN/END 深度跟踪）。"""
+    assert split_sql_statements_for_audit("SELECT 1; SELECT 2;") == ["SELECT 1", "SELECT 2"]
+    assert split_sql_statements_for_audit("BEGIN; SELECT 1; COMMIT;") == ["BEGIN", "SELECT 1", "COMMIT"]
+
+
+def test_routine_then_table_splits_into_two():
+    """例程与其后的建表语句各自成段：例程体内不拆，段间边界仍按顶层分号拆分。"""
+    segs = split_sql_statements_for_audit(
+        "CREATE FUNCTION fn() RETURNS INT BEGIN RETURN 1; END; CREATE TABLE t(id INT);")
+    assert len(segs) == 2, segs
+
+
+# ── R5-02 / GATE-3：MAXVALUE 关键字间合法注释不得绕过归一化（O §9.2）──────
+
+_MAXVALUE_COMMENT_VARIANTS = [
+    "PARTITION pmax VALUES LESS THAN /*c*/ MAXVALUE",          # THAN 与 MAXVALUE 间块注释
+    "PARTITION pmax VALUES /*a*/ LESS /*b*/ THAN /*c*/ MAXVALUE",  # 每关键字间块注释
+    "PARTITION pmax VALUES LESS THAN -- c\n MAXVALUE",          # 行注释
+    "PARTITION pmax VALUES LESS THAN MAXVALUE",                 # bare
+    "PARTITION pmax VALUES LESS THAN (MAXVALUE)",               # 括号
+    "PARTITION pmax values less than maxvalue",                 # 小写
+    "PARTITION pmax VALUES\n  LESS\n  THAN\n  MAXVALUE",        # 换行
+]
+
+
+@pytest.mark.parametrize("part", _MAXVALUE_COMMENT_VARIANTS)
+def test_r121_maxvalue_comment_boundary_no_cascade(checker, part):
+    """O §9.2：注释穿插/大小写/换行/bare/括号形态均须 ast=Create、无 E999/R003/R004/
+    R005/R118 级联假阳性、R121 精确命中（注释不再把归一化打断）。"""
+    sql = ("CREATE TABLE t (id INT NOT NULL, dt DATE NOT NULL, PRIMARY KEY(id,dt)) "
+           "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='x' shardkey=id "
+           f"PARTITION BY RANGE (dt) (PARTITION p0 VALUES LESS THAN (100), {part})")
+    ids = _ids(checker.audit_sql(sql, instance_type="distributed"))
+    for fp in ("E999_SYNTAX_ERROR", "R003", "R004", "R005", "R118"):
+        assert fp not in ids, f"{part} 出现级联假阳性 {fp}: {sorted(ids)}"
+    assert "R121" in ids, f"{part} 漏报 R121"
+
+
+def test_r121_illegal_maxvalues_fails_closed(checker):
+    """非法 `MAXVALUES`：保留 E999 失败关闭，不得伪造成合法 MAXVALUE 命中 R121。"""
+    sql = ("CREATE TABLE t (id INT NOT NULL, dt DATE NOT NULL, PRIMARY KEY(id,dt)) "
+           "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 shardkey=id "
+           "PARTITION BY RANGE (dt) (PARTITION p0 VALUES LESS THAN MAXVALUES)")
+    ids = _ids(checker.audit_sql(sql, instance_type="distributed"))
+    assert "E999_SYNTAX_ERROR" in ids
+    assert "R121" not in ids
+
+
+def test_maxvalue_phrase_in_string_or_comment_not_normalized(checker):
+    """字符串/COMMENT 内的 `VALUES LESS THAN MAXVALUE` 短语不得被归一化、不得命中 R121
+    （词法器把字符串整体成 STRING token，token 序列不含该关键字串）。"""
+    sql = ("CREATE TABLE t (id INT NOT NULL, note VARCHAR(40) "
+           "COMMENT 'VALUES LESS THAN MAXVALUE', PRIMARY KEY(id)) "
+           "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='ok' shardkey=id")
+    ids = _ids(checker.audit_sql(sql, instance_type="distributed"))
+    assert "R121" not in ids, sorted(ids)
