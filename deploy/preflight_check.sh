@@ -11,7 +11,8 @@ ok()   { echo "  [PASS] $*"; PASS=$((PASS+1)); }
 warn() { echo "  [WARN] $*"; WARN=$((WARN+1)); }
 bad()  { echo "  [FAIL] $*"; FAILC=$((FAILC+1)); }
 
-echo "════ TDSQL SQL审核工具 v1.2.0.0 部署预检 ════"
+VERSION="$(tr -d ' \r\n' < "${PKG_ROOT}/VERSION" 2>/dev/null || echo "1.6.3.2")"
+echo "════ TDSQL SQL审核工具 v${VERSION} 部署预检 ════"
 
 # 1. 操作系统
 if grep -qiE "kylin" /etc/os-release 2>/dev/null; then
@@ -21,17 +22,25 @@ else
 fi
 echo "  架构: $(uname -m) | 内核: $(uname -r)"
 
-# 2. Python ≥3.9
+# 2. Python ≥3.9（优先使用麒麟/海光生产环境专用 Python /opt/python311）
 PYOK=""
-for c in python3.11 python3.10 python3.9; do
-  command -v "$c" >/dev/null 2>&1 && { PYOK="$c"; break; }
-done
-if [[ -n "$PYOK" ]]; then ok "Python: $($PYOK --version 2>&1)"
+if [[ -x "/opt/python311/python/bin/python3.11" ]]; then
+  PYOK="/opt/python311/python/bin/python3.11"
+else
+  for c in python3.11 python3.10 python3.9; do
+    command -v "$c" >/dev/null 2>&1 && { PYOK="$c"; break; }
+  done
+fi
+if [[ -n "$PYOK" ]]; then ok "Python: $($PYOK --version 2>&1) [${PYOK}]"
 elif [[ -x "${PKG_ROOT}/python/bin/python3" ]]; then ok "使用发布包内置便携 Python: $(${PKG_ROOT}/python/bin/python3 --version 2>&1)"
 else bad "无 python3.9+，且发布包未内置 Python。处理: 内网源 yum install -y python39，或重新打包加 --with-python"; fi
 
-# 3. 端口占用
-if ss -tlnp 2>/dev/null | grep -q ":${PORT} "; then bad "端口 ${PORT} 已被占用"; else ok "端口 ${PORT} 空闲"; fi
+# 3. 端口占用（覆盖/增量升级场景下现有服务在跑，标记为 WARN 而非 FAIL 阻断）
+if ss -tlnp 2>/dev/null | grep -q ":${PORT} "; then
+  warn "端口 ${PORT} 已被占用（在轨升级/增量部署场景下属于正常现象，部署后重启服务即可）"
+else
+  ok "端口 ${PORT} 空闲"
+fi
 
 # 4. wheels 完整性（架构匹配）
 if [[ -d "${PKG_ROOT}/wheels" ]]; then
@@ -46,6 +55,9 @@ else bad "缺少 wheels/ 目录（离线依赖）"; fi
 
 # 5. TDSQL 集中式元数据库连通性（读取 .env）
 ENVF="${PKG_ROOT}/deploy/.env"
+if [[ ! -f "$ENVF" && -f "/opt/tdsql-sqlcheck/.env" ]]; then
+  ENVF="/opt/tdsql-sqlcheck/.env"
+fi
 if [[ -f "$ENVF" ]]; then
   # shellcheck disable=SC1090
   set -a; source "$ENVF"; set +a
@@ -92,10 +104,14 @@ command -v chronyc >/dev/null 2>&1 && chronyc tracking >/dev/null 2>&1 && ok "ch
 PYIMP="${PYOK:-}"
 [[ -z "$PYIMP" && -x "${PKG_ROOT}/python/bin/python3" ]] && PYIMP="${PKG_ROOT}/python/bin/python3"
 if [[ -n "$PYIMP" ]]; then
+  if [[ -f "$ENVF" ]]; then
+    # shellcheck disable=SC1090
+    set -a; source "$ENVF"; set +a
+  fi
   if (cd "${PKG_ROOT}" && "$PYIMP" -c "import backend.main" >/dev/null 2>&1); then
     ok "backend.main 可导入"
   else
-    bad "backend.main 导入失败，禁止部署（运行 $PYIMP -c 'import backend.main' 查看堆栈）"
+    bad "backend.main 导入失败，禁止部署（运行 cd ${PKG_ROOT} && $PYIMP -c 'import backend.main' 查看堆栈）"
   fi
 else
   warn "无可用 python3，跳过后端导入检查"

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================================
-# TDSQL数据库SQL审核工具 v1.2.0.0 一键部署脚本
+# TDSQL数据库SQL审核工具 v1.6.3.2 一键部署脚本
 # 适用环境: 银河麒麟高级服务器版 V10 SP3 (x86_64 / aarch64)
 # 元数据库: TDSQL 集中式实例 (MySQL 协议)
 #
@@ -36,6 +36,13 @@ VERSION="$(tr -d ' \r\n' < "${PKG_ROOT}/VERSION" 2>/dev/null || true)"
 
 # ── 0. 预检 ─────────────────────────────────────────────────────────────
 log "步骤0: 环境预检"
+
+# 自动处理 .env：若部署包内无 .env 但现网已存在，自动从现网同步（覆盖/增量升级场景）
+if [[ ! -f "${SCRIPT_DIR}/.env" && -f "${INSTALL_DIR}/.env" ]]; then
+  cp "${INSTALL_DIR}/.env" "${SCRIPT_DIR}/.env"
+  log "已自动从现网 ${INSTALL_DIR}/.env 同步配置到部署目录"
+fi
+
 bash "${SCRIPT_DIR}/preflight_check.sh" --port "${PORT}" --pkg-root "${PKG_ROOT}" || fail "预检未通过，请先解决预检报告中的问题"
 
 [[ -f "${SCRIPT_DIR}/.env" ]] || fail "缺少 ${SCRIPT_DIR}/.env，请复制 env.template 为 .env 并填写数据库等配置"
@@ -43,9 +50,15 @@ bash "${SCRIPT_DIR}/preflight_check.sh" --port "${PORT}" --pkg-root "${PKG_ROOT}
 # ── 1. 选择 Python 解释器（≥3.9，优先 3.11）────────────────────────────
 log "步骤1: 定位 Python 解释器"
 PYBIN=""
-for c in python3.11 python3.10 python3.9; do
-  if command -v "$c" >/dev/null 2>&1; then PYBIN="$(command -v $c)"; break; fi
-done
+# 优先使用麒麟/海光生产环境专用 Python（/opt/python311，避免系统损坏的 Python3.11）
+if [[ -x "/opt/python311/python/bin/python3.11" ]]; then
+  PYBIN="/opt/python311/python/bin/python3.11"
+  log "使用生产专用 Python: ${PYBIN}"
+else
+  for c in python3.11 python3.10 python3.9; do
+    if command -v "$c" >/dev/null 2>&1; then PYBIN="$(command -v $c)"; break; fi
+  done
+fi
 if [[ -z "$PYBIN" ]] && [[ -x "${PKG_ROOT}/python/bin/python3" ]]; then
   # 发布包内置便携 Python（make_release.sh --with-python 打包）
   mkdir -p "${INSTALL_DIR}"
@@ -68,8 +81,11 @@ fi
 mkdir -p "${RELEASE_DIR}"
 
 # ── 3. 复制代码 ─────────────────────────────────────────────────────────
-log "步骤3: 部署代码到 ${RELEASE_DIR}"
+log "步骤3: 部署代码与运维脚本到 ${RELEASE_DIR}"
 cp -a "${PKG_ROOT}/backend" "${PKG_ROOT}/frontend" "${PKG_ROOT}/requirements.txt" "${RELEASE_DIR}/"
+if [[ -d "${PKG_ROOT}/deploy" ]]; then
+  cp -a "${PKG_ROOT}/deploy" "${RELEASE_DIR}/"
+fi
 echo "${VERSION}" > "${RELEASE_DIR}/VERSION"
 
 # ── 4. 虚拟环境 + 离线安装依赖 ─────────────────────────────────────────
