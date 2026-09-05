@@ -239,6 +239,261 @@ def _token_is_create_routine(toks, i) -> bool:
     return False
 
 
+def _if_is_statement(toks, i, stop) -> bool:
+    """VAR:IF 是 IF 语句（而非 IF() 函数）当且仅当同括号深度出现 THEN。
+
+    O §8.2：合法存储程序允许 `IF (condition) THEN`，故不能只看下一个 token 是否
+    左括号。`IF(a,b,c)` 函数在同层无 THEN；`IF cond THEN` 与 `IF (cond) THEN` 均在
+    同层出现 THEN。遇分号或括号不配平提前返回 False（函数/表达式形态）。
+    """
+    depth = 0
+    j = i + 1
+    while j < stop:
+        tt = toks[j].token_type
+        if tt == TokenType.L_PAREN:
+            depth += 1
+        elif tt == TokenType.R_PAREN:
+            depth -= 1
+            if depth < 0:
+                return False
+        elif tt == TokenType.THEN and depth == 0:
+            return True
+        elif tt == TokenType.SEMICOLON and depth == 0:
+            return False
+        j += 1
+    return False
+
+
+def _routine_construct_consume(toks, i, n, stack) -> int:
+    """处理一个例程构造 token，就地维护构造栈 stack；返回消耗的 token 数。
+
+    构造开启符（BEGIN/CASE/IF/WHILE/LOOP/REPEAT）消费 1 并压栈（IF 函数不入栈但
+    仍消费该 token）；`END IF/CASE/LOOP/WHILE/REPEAT` 消费 2 并只弹出匹配构造；
+    bare `END` 或 `END + 标签` 只关闭 BEGIN/CASE（标签多消费一个 token）。END 类型
+    与栈顶不匹配时不弹栈（保持失败关闭，结构错误由兼容层/负例检出）。
+    非构造 token 返回 0。
+    """
+    t = toks[i]
+    tt = t.token_type
+    txt = (t.text or "").upper()
+    if tt == TokenType.BEGIN:
+        stack.append("BEGIN"); return 1
+    if tt == TokenType.CASE:
+        stack.append("CASE"); return 1
+    if tt == TokenType.VAR and txt == "IF":
+        if _if_is_statement(toks, i, n):
+            stack.append("IF")
+        return 1                       # IF() 函数不入栈，但仍消费这个 token
+    if tt == TokenType.VAR and txt == "WHILE":
+        stack.append("WHILE"); return 1
+    if tt == TokenType.VAR and txt == "LOOP":
+        stack.append("LOOP"); return 1
+    if tt == TokenType.VAR and txt == "REPEAT":
+        stack.append("REPEAT"); return 1
+    if tt == TokenType.END:
+        nxt = toks[i + 1] if i + 1 < n else None
+        nq = ""
+        if nxt is not None and nxt.token_type not in _NON_KEYWORD_TOKENS:
+            nq = (nxt.text or "").upper()
+        if nq in ("IF", "CASE", "LOOP", "WHILE", "REPEAT"):
+            if stack and stack[-1] == nq:
+                stack.pop()
+            return 2                   # 消费 END + 限定词；类型不匹配则不弹（失败关闭）
+        # bare END / END + 标签：只关闭 BEGIN 或 CASE
+        if stack and stack[-1] in ("BEGIN", "CASE"):
+            stack.pop()
+        if (nxt is not None and nxt.token_type in (TokenType.VAR, TokenType.IDENTIFIER)
+                and nq not in ("IF", "CASE", "LOOP", "WHILE", "REPEAT")):
+            return 2                   # 消费 END + 标签
+        return 1
+    return 0
+
+
+# ── R5-01 / GATE-2 §8.3：例程语法兼容层（受限，不 blanket 放行）────────────────
+#
+# sqlglot 的 MySQL 方言不能完整解析存储程序：参数模式 `IN/OUT/INOUT`、`BEGIN...END`
+# 复合体与 IF/CASE/WHILE/LOOP/REPEAT 控制流都会 ParseError，但它们都是官方合法语法。
+# 本层对“结构校验完整”的例程清除已知假 E999 并置准确对象元数据；结构不完整的负例
+# 一律返回 False（→ 调用方按原失败关闭产生 E999）。raw_sql 保持不变。
+_ROUTINE_KINDS = ("PROCEDURE", "FUNCTION", "TRIGGER", "EVENT")
+
+
+def _find_routine_head(toks):
+    """若 toks 以 CREATE [OR REPLACE][DEFINER=...] 例程头开始，返回 (kind, name, 头后下标)。
+    否则返回 (None, "", -1)。对象类型限 PROCEDURE/FUNCTION/TRIGGER/EVENT。"""
+    if not toks or toks[0].token_type != TokenType.CREATE:
+        return None, "", -1
+    n = len(toks)
+    i = 1
+    if i + 1 < n and _is_bare_kw(toks[i], "OR") and _is_bare_kw(toks[i + 1], "REPLACE"):
+        i += 2
+    if i < n and _is_bare_kw(toks[i], "DEFINER"):
+        i += 1
+        if i < n and toks[i].token_type == TokenType.EQ:
+            i += 1
+        if i < n and toks[i].token_type in _IDENT_TOKENS:
+            i += 1
+        if i < n and (toks[i].text or "") == "@":
+            i += 1
+            if i < n and toks[i].token_type in _IDENT_TOKENS:
+                i += 1
+    if i >= n:
+        return None, "", -1
+    if not _is_bare_kw(toks[i]) or (toks[i].text or "").upper() not in _ROUTINE_KINDS:
+        return None, "", -1
+    kind = (toks[i].text or "").upper()
+    i += 1
+    if i >= n or toks[i].token_type not in _IDENT_TOKENS:
+        return None, "", -1                       # 缺对象名
+    return kind, _ident_text(toks[i]), i + 1
+
+
+def _routine_params_ok(toks, i, n):
+    """toks[i]==L_PAREN 时校验例程参数列表，返回 (右括号下标, 是否合法)。
+
+    每个顶层逗号分隔的参数段：允许可选 `[IN|OUT|INOUT]` 前缀 + 标识符（名字）+ 类型
+    （类型可带括号参数如 DECIMAL(10,2)）。括号必须配平；段内只有模式而无名字/类型为非法。
+    """
+    depth = 0
+    j = i
+    close = -1
+    while j < n:
+        if toks[j].token_type == TokenType.L_PAREN:
+            depth += 1
+        elif toks[j].token_type == TokenType.R_PAREN:
+            depth -= 1
+            if depth == 0:
+                close = j
+                break
+        j += 1
+    if close < 0:
+        return -1, False                           # 参数括号不闭合
+
+    def _seg_ok(a, b):
+        seg = toks[a:b]
+        if not seg:
+            return True                            # 空段（无参数）
+        if (seg[0].text or "").upper() in ("IN", "OUT", "INOUT"):
+            seg = seg[1:]
+        return bool(seg) and seg[0].token_type in _IDENT_TOKENS and len(seg) >= 2
+
+    seg_start = i + 1
+    depth = 0
+    k = i + 1
+    while k < close:
+        if toks[k].token_type == TokenType.L_PAREN:
+            depth += 1
+        elif toks[k].token_type == TokenType.R_PAREN:
+            depth -= 1
+        elif toks[k].token_type == TokenType.COMMA and depth == 0:
+            if not _seg_ok(seg_start, k):
+                return close, False
+            seg_start = k + 1
+        k += 1
+    if not _seg_ok(seg_start, close):
+        return close, False
+    return close, True
+
+
+def _routine_body_complete(toks, i, n):
+    """校验例程体（从头后下标 i）构造闭合：simple 语句或 BEGIN...END 复合体。
+    构造栈非空结束 / END 类型不匹配 / bare END 误闭控制结构 → False。"""
+    stack = []
+    j = i
+    while j < n:
+        t = toks[j]
+        tt = t.token_type
+        txt = (t.text or "").upper()
+        if tt == TokenType.BEGIN:
+            stack.append("BEGIN")
+        elif tt == TokenType.CASE:
+            stack.append("CASE")
+        elif tt == TokenType.VAR and txt == "IF" and _if_is_statement(toks, j, n):
+            stack.append("IF")
+        elif tt == TokenType.VAR and txt == "WHILE":
+            stack.append("WHILE")
+        elif tt == TokenType.VAR and txt == "LOOP":
+            stack.append("LOOP")
+        elif tt == TokenType.VAR and txt == "REPEAT":
+            stack.append("REPEAT")
+        elif tt == TokenType.END:
+            nxt = toks[j + 1] if j + 1 < n else None
+            nq = (nxt.text or "").upper() if (nxt is not None and nxt.token_type not in _NON_KEYWORD_TOKENS) else ""
+            if nq in ("IF", "CASE", "LOOP", "WHILE", "REPEAT"):
+                if not stack or stack[-1] != nq:
+                    return False                   # END 类型与栈顶不匹配
+                stack.pop()
+                j += 1
+            else:
+                if not stack or stack[-1] not in ("BEGIN", "CASE"):
+                    return False                   # 裸 END 误闭控制结构
+                stack.pop()
+                if (nxt is not None and nxt.token_type in (TokenType.VAR, TokenType.IDENTIFIER)
+                        and nq not in ("IF", "CASE", "LOOP", "WHILE", "REPEAT")):
+                    j += 1                           # 消费 END + 标签
+        j += 1
+    return not stack
+
+
+def _routine_structure(sql: str, dialect: str = "mysql"):
+    """校验 CREATE 例程结构完整性，返回 (是否合法, kind, name)。
+
+    合法 = 头（对象类型 PROCEDURE/FUNCTION/TRIGGER/EVENT + 对象名）+ 参数（含
+    IN/OUT/INOUT 模式、括号配平）+ RETURNS（FUNCTION 必备）+ 体（simple 或
+    BEGIN...END 复合体构造闭合）。任何一项不成立即非法（失败关闭）。"""
+    try:
+        toks = sqlglot.Dialect.get_or_raise(dialect).tokenizer_class().tokenize(sql)
+    except Exception:
+        return False, "", ""
+    if not toks:
+        return False, "", ""
+    kind, name, i = _find_routine_head(toks)
+    if kind is None:
+        return False, "", ""
+    n = len(toks)
+    if kind in ("PROCEDURE", "FUNCTION"):
+        if i < n and toks[i].token_type == TokenType.L_PAREN:
+            close, ok = _routine_params_ok(toks, i, n)
+            if not ok:
+                return False, "", ""
+            i = close + 1
+        if kind == "FUNCTION":
+            if not (i < n and _is_bare_kw(toks[i], "RETURNS")):
+                return False, "", ""                # FUNCTION 缺 RETURNS
+            i += 1
+            if i >= n:
+                return False, "", ""                # RETURNS 后无类型
+            i += 1
+            if i < n and toks[i].token_type == TokenType.L_PAREN:   # 类型带括号参数
+                depth = 0
+                while i < n:
+                    if toks[i].token_type == TokenType.L_PAREN:
+                        depth += 1
+                    elif toks[i].token_type == TokenType.R_PAREN:
+                        depth -= 1
+                        if depth == 0:
+                            i += 1
+                            break
+                    i += 1
+    if i >= n or not _routine_body_complete(toks, i, n):
+        return False, "", ""
+    return True, kind, name
+
+
+def _routine_compat_fill(sql: str, parsed, dialect: str = "mysql") -> bool:
+    """例程兼容层（GATE-2 / R5-01 §8.3）：对结构完整但被 sqlglot 能力缺口拒收的
+    CREATE 例程置准确对象元数据、不置 is_create_table、不产生假 E999。结构不完整
+    的负例返回 False（调用方按原失败关闭产生 E999）。raw_sql 保持不变。"""
+    ok, kind, name = _routine_structure(sql, dialect)
+    if not ok or kind not in _ROUTINE_KINDS[:2]:
+        return False
+    parsed.is_create_table = False
+    parsed.created_object_kind = kind
+    parsed.created_object_name = name
+    parsed.sql_type = f"CREATE {kind}"
+    return True
+
+
 def split_sql_statements_for_audit(sql_script: str, dialect: str = "mysql") -> list:
     """审核入口专用语句切分（R5-01 / GATE-2）。
 
@@ -261,25 +516,30 @@ def split_sql_statements_for_audit(sql_script: str, dialect: str = "mysql") -> l
         return split_sql_statements(s)
 
     cuts = []                 # 原文中语句边界（分号之后的下标）
+    stack = []                # 例程构造栈（BEGIN/CASE/IF/WHILE/LOOP/REPEAT）
     in_routine = False
-    depth = 0
     at_stmt_start = True
-    for i, t in enumerate(toks):
+    i = 0
+    n = len(toks)
+    while i < n:
+        t = toks[i]
         tt = t.token_type
         if at_stmt_start:
             in_routine = _token_is_create_routine(toks, i)
-            depth = 0
+            stack = []
             at_stmt_start = False
         if in_routine:
-            if tt == TokenType.BEGIN:
-                depth += 1
-            elif tt == TokenType.END and depth > 0:
-                depth -= 1
-        if tt == TokenType.SEMICOLON and ((not in_routine) or depth == 0):
+            consumed = _routine_construct_consume(toks, i, n, stack)
+            if consumed:
+                i += consumed
+                continue
+        # 顶层分号（构造栈为空）才是语句边界；构造栈非空时体内的分号不拆
+        if tt == TokenType.SEMICOLON and not stack:
             cuts.append(t.end + 1)
             in_routine = False
-            depth = 0
+            stack = []
             at_stmt_start = True
+        i += 1
 
     statements = []
     prev = 0
@@ -2688,6 +2948,12 @@ class SQLParser:
                 ast = _retry_ast
                 parsed.ast = ast
             else:
+                # v1.6.3.2 / GATE-2 R5-01 §8.3：CREATE 例程（PROCEDURE/FUNCTION/TRIGGER/
+                # EVENT）若结构校验完整（参数模式/对象名/RETURNS/体闭合），则 sqlglot 仅因
+                # 例程语法能力缺口失败——置准确对象元数据、不产生假 E999；结构不完整
+                # 的负例仍按原失败关闭。raw_sql 保持不变。
+                if _routine_compat_fill(sql_recover, parsed, self.dialect):
+                    return parsed
                 # v1.6.2.2-UAT-O-01-R2：异常路径同样完成 KFN 消息归一化——
                 # preflight 已把 known_fidelity_failures 写入 parsed（决策真值源），
                 # 但旧实现在此提前 return，parse_error 只有普通异常文本，
@@ -3092,6 +3358,15 @@ class SQLParser:
                 parsed.created_object_name = obj.sql(dialect=self.dialect)
             except Exception:
                 parsed.created_object_name = ""
+        # R5-01 §8.3 负例失败关闭：例程对象（PROCEDURE/FUNCTION/TRIGGER/EVENT）即便被
+        # sqlglot 宽松解析成功，也要做结构校验——缺失 RETURNS / 参数不闭合 / 体未闭合
+        # 或 END 类型错配等不得放行（非 KFN 的 parse_error 经 checker 失败关闭不变量必报
+        # E999）。合法例程校验通过则保持对象语义、不报建表规则。
+        if kind in ("PROCEDURE", "FUNCTION", "TRIGGER", "EVENT"):
+            ok, _, _ = _routine_structure(parsed.raw_sql, self.dialect)
+            if not ok:
+                parsed.parse_error = (
+                    f"CREATE {kind} 结构不完整（缺参数/RETURNS/过程体未闭合或 END 类型错配）")
 
     def _parse_create(self, ast: exp.Create, parsed: ParsedSQL):
         """解析 CREATE TABLE 语句"""
@@ -3651,3 +3926,21 @@ class SQLParser:
         for join in ast.find_all(exp.Join):
             count += 1
         return count
+
+
+def routine_construct_open_count(sql_text, dialect="mysql"):
+    # R5-01 (O section 8.1): count unclosed routine constructs BEGIN/IF/CASE/WHILE/LOOP/REPEAT.
+    # Shares the SAME _routine_construct_consume stack logic as split_sql_statements_for_audit,
+    # so the line-based file splitter (checker._split_sql_file) can tell whether the current
+    # semicolon is still inside a routine body. Returns 0 for non-routines / tokenize failure.
+    try:
+        toks = sqlglot.Dialect.get_or_raise(dialect).tokenizer_class().tokenize(normalize_newlines(sql_text))
+    except Exception:
+        return 0
+    stack = []
+    i = 0
+    while i < len(toks):
+        consumed = _routine_construct_consume(toks, i, len(toks), stack)
+        i += consumed if consumed else 1
+    return len(stack)
+

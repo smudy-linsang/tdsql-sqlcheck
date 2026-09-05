@@ -208,7 +208,7 @@ async def audit_batch_stream(file: UploadFile = File(...),
     V1.5：B类通道，instance_type 由调用方声明（未声明取全局默认）；
     首帧输出 type=meta 元信息帧，不识别的外部消费方可传 ?meta=0 关闭（默认开启）。
     """
-    from backend.services.database import split_sql_statements
+    from backend.engine.parser import split_sql_statements_for_audit
     import json
     content = await file.read()
     try:
@@ -216,7 +216,7 @@ async def audit_batch_stream(file: UploadFile = File(...),
     except UnicodeDecodeError:
         raise HTTPException(status_code=400, detail="文件编码错误，请使用 UTF-8 编码")
 
-    statements = split_sql_statements(text)
+    statements = split_sql_statements_for_audit(text)
 
     # V1.5：解析一次实例类型，随流传递（B类通道，无 connection_id）
     ictx = audit_service._resolve_instance("", instance_type)

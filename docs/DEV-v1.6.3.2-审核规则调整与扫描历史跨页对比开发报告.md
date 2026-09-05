@@ -3,9 +3,9 @@
 | 项目 | 内容 |
 |---|---|
 | 版本 | v1.6.3.0 → **v1.6.3.2** |
-| 报告类型 | 编码开发完成报告（R1：第一轮 SIT §11；R2：第一轮 UAT P1 §12；R3：第二轮 UAT P2 §13；R4：第三轮 UAT P2 §14；R5：门禁签署决议整改 §15；R6：第五轮门禁整改 §16） |
+| 报告类型 | 编码开发完成报告（R1：第一轮 SIT §11；R2：第一轮 UAT P1 §12；R3：第二轮 UAT P2 §13；R4：第三轮 UAT P2 §14；R5：门禁签署决议整改 §15；R6：第五轮门禁整改 §16；R7：第六轮门禁整改 §17） |
 | 开发者 | 开发智能体 Q |
-| 日期 | 2026-09-03（R1~R4：2026-09-04；R5/R6：2026-09-05） |
+| 日期 | 2026-09-03（R1~R4：2026-09-04；R5/R6/R7：2026-09-05） |
 | 设计依据 | `DESIGN-v1.6.3.2-审核规则调整与扫描历史跨页对比详细设计说明书.md`（Rev.C，经 REVIEW1/REVIEW2 两轮评审 + CONFIRM 定点确认准出） |
 | 锁定依赖 | sqlglot **30.14.0**（`pyproject.toml` 已锁，开工复测字段形态一致） |
 
@@ -411,3 +411,36 @@ O 第五轮门禁整改复测结论**不通过**：GATE-1 已由用户签署（�
 - GATE-2：R5-01 已修复（对象分流 + 例程切分），待 O 第六轮复测 + 林桑/G 复签。
 - GATE-3：R5-02 已修复（注释边界 token/span 归一化），原始 bare MAXVALUE 缺陷保持关闭，待复测复签。
 - 生产准出仍需：两项门禁复签 + 目标麒麟主机部署验证 12/0/0 exit 0。
+
+
+---
+
+## 17. 第六轮门禁整改（2026-09-05，修订 R7）
+
+O 第六轮复测不通过：GATE-1/GATE-3 已由林桑签署（R5-02 关闭）；GATE-2 元数据与对象分流子项通过，但 R5-01 仍有三个残留子项被 P1 阻断。本轮全部认可、无申诉，照 O §8 施工。
+
+### 17.1 三个残留子项与根因
+
+1. 官方参数模式 IN/OUT/INOUT 误报 E999：是 sqlglot MySQL 方言对例程参数模式的能力缺口，非用户 SQL 错误。
+2. 控制流破坏例程边界：上一轮拆分器只跟踪单一 BEGIN/END 深度，END IF/CASE/WHILE/LOOP/REPEAT 误减外层 BEGIN 深度，把含控制流的合法例程拆成多段。
+3. 三入口分叉：即时审核、文件审核 _split_sql_file、/batch-stream 各用一套拆分逻辑，同一例程结果不一致。
+
+### 17.2 整改（parser_legacy.py + 三入口接入）
+
+- **构造栈拆分内核**：split_sql_statements_for_audit 升级为构造栈——_routine_construct_consume 识别 BEGIN/CASE/IF/WHILE/LOOP/REPEAT 压栈，END IF/CASE/LOOP/WHILE/REPEAT 只弹匹配构造，bare END 只闭 BEGIN/CASE，标签/嵌套/事务 BEGIN 不误伤；_if_is_statement 用同层是否有 THEN 区分 IF 语句与 IF() 函数。仅构造栈空时顶层分号才是语句边界。
+
+- **例程语法兼容层**（_routine_structure + _routine_compat_fill）：对结构校验完整（对象类型+对象名+[IN|OUT|INOUT] name type 参数+FUNCTION 必备 RETURNS+体构造闭合）的 PROCEDURE/FUNCTION，sqlglot 仅因能力缺口失败时清除假 E999、置准确 sql_type/created_object_kind/name；负例失败关闭——参数不闭合/缺对象名/缺 RETURNS/缺体/构造未闭合/END 错配/截断例程一律 E999。_parse_create_object 在成功路径对例程同样结构校验（非 KFN 的 parse_error 经 checker 失败关闭不变量必报 E999）。
+
+- **三入口统一**：即时审核与 /batch-stream 改用 split_sql_statements_for_audit；文件审核 _split_sql_file 保留 DELIMITER/SQL-Object/横幅/行号逻辑，但例程体判定改用共享 routine_construct_open_count（同一构造栈，不复制第三套逻辑）。
+
+### 17.3 验证
+
+- O §5.1 全控制流切分矩阵 11 形态全部 1 段；O §6 参数模式（IN/OUT/INOUT/省略/混合）+控制流集中式零违规、sql_type 准确；分布式仅 R030(/R031) 无 E999/建表规则级联。
+- O §8.4 负例（参数不闭合/缺 RETURNS/缺体/构造未闭合/END 错配/截断例程）全部失败关闭 E999；三入口同一多行例程均 1 个对象。
+- 新增回归锁 tests/test_routine_audit_r6.py 32 passed；全量回归 1897 passed、0 failed（1865+32）；harness [PASS] 121=109+7+5。
+
+### 17.4 门禁状态
+
+- GATE-1/GATE-3 林桑已签署；GATE-2 三个残留子项已全部修复，待 O 第七轮定点复测 + 林桑/G 复签；生产准出仍需目标麒麟主机部署验证 12/0/0。
+
+> 说明：本轮编辑期间 harness 文件写入工具临时故障，部分编辑经 Bash 完成、新增测试注释暂用英文，功能与断言不受影响。

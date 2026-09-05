@@ -8,7 +8,7 @@ from typing import Optional
 
 from backend.engine.parser import ParsedSQL, SQLParser, normalize_newlines
 from backend.engine.parser.parser_legacy import (
-    _lex_head_words, _is_load_statement_head, _is_create_routine_head,
+    _lex_head_words, _is_load_statement_head, _is_create_routine_head, routine_construct_open_count,
 )
 from backend.engine.rules import ALL_RULE_CLASSES
 from backend.engine.rules.base import BaseRule
@@ -479,10 +479,7 @@ class RuleChecker:
             upper_text = re.sub(r'/\*.*?\*/', '', upper_text, flags=re.DOTALL).upper()
             
             if any(kw in upper_text for kw in ('CREATE PROCEDURE', 'CREATE TRIGGER', 'CREATE FUNCTION', 'CREATE EVENT')):
-                if 'BEGIN' in upper_text and not 'END' in upper_text.split('BEGIN')[-1]:
-                    in_begin_block = True
-                elif 'END' in upper_text:
-                    in_begin_block = False
+                in_begin_block = routine_construct_open_count(check_text) > 0
             else:
                 in_begin_block = False
                 
