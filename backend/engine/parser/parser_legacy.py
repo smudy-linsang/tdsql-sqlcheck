@@ -318,45 +318,173 @@ def _routine_construct_consume(toks, i, n, stack) -> int:
 _ROUTINE_KINDS = ("PROCEDURE", "FUNCTION", "TRIGGER", "EVENT")
 
 
-def _find_routine_head(toks):
-    """若 toks 以 CREATE [OR REPLACE][DEFINER=...] 例程头开始，返回 (kind, name, 头后下标)。
-    否则返回 (None, "", -1)。对象类型限 PROCEDURE/FUNCTION/TRIGGER/EVENT。"""
-    if not toks or toks[0].token_type != TokenType.CREATE:
-        return None, "", -1
-    n = len(toks)
-    i = 1
-    if i + 1 < n and _is_bare_kw(toks[i], "OR") and _is_bare_kw(toks[i + 1], "REPLACE"):
-        i += 2
-    if i < n and _is_bare_kw(toks[i], "DEFINER"):
-        i += 1
-        if i < n and toks[i].token_type == TokenType.EQ:
-            i += 1
-        if i < n and toks[i].token_type in _IDENT_TOKENS:
-            i += 1
-        if i < n and (toks[i].text or "") == "@":
-            i += 1
-            if i < n and toks[i].token_type in _IDENT_TOKENS:
-                i += 1
+def _kwu(tok) -> str:
+    """裸关键字 token 的大写文本；字符串/反引号标识符返回 ""（不当关键字）。"""
+    return (tok.text or "").upper() if _is_bare_kw(tok) else ""
+
+
+# R7-01（O §7.1.B/C）：参数模式、体内简单语句首关键字、构造关键字白名单。
+_PARAM_MODES = ("IN", "OUT", "INOUT")
+# 体内允许的简单语句首关键字：未知首 token（如 GARBAGE/FOO）一律非法（失败关闭）。
+_SIMPLE_STMT_KWS = frozenset({
+    "SELECT", "INSERT", "UPDATE", "DELETE", "REPLACE", "SET", "RETURN", "CALL",
+    "DO", "LEAVE", "ITERATE", "SIGNAL", "RESIGNAL", "DECLARE", "OPEN", "CLOSE",
+    "FETCH", "GET", "HANDLER", "LOCK", "UNLOCK", "TRUNCATE", "RENAME",
+    "PREPARE", "EXECUTE", "DEALLOCATE", "USE", "ANALYZE", "OPTIMIZE",
+    "WITH", "TABLE", "VALUES",
+})
+# END 后的构造限定词（END IF/CASE/LOOP/WHILE/REPEAT）；标签不得与之冲突。
+_END_QUALIFIERS = ("IF", "CASE", "LOOP", "WHILE", "REPEAT")
+# 数据类型尾部修饰白名单。
+_TYPE_MODS = ("UNSIGNED", "ZEROFILL", "ASCII", "BINARY", "UNICODE")
+
+
+def _consume_definer_value(toks, i, n):
+    """消费 DEFINER 值：CURRENT_USER[()] 或 user[@host]（user/host 可为
+    单/双引号 STRING、反引号 IDENTIFIER 或裸名 VAR）。返回 (下标, 是否合法)。"""
     if i >= n:
-        return None, "", -1
-    if not _is_bare_kw(toks[i]) or (toks[i].text or "").upper() not in _ROUTINE_KINDS:
-        return None, "", -1
-    kind = (toks[i].text or "").upper()
-    i += 1
+        return i, False
+    if _is_bare_kw(toks[i], "CURRENT_USER"):
+        i += 1
+        if i < n and toks[i].token_type == TokenType.L_PAREN:
+            i += 1
+            if i < n and toks[i].token_type == TokenType.R_PAREN:
+                i += 1
+            else:
+                return i, False
+        return i, True
+    _NAME_TOKENS = (TokenType.STRING, TokenType.IDENTIFIER, TokenType.VAR)
+    if toks[i].token_type in _NAME_TOKENS:
+        i += 1
+    else:
+        return i, False
+    if i < n and (toks[i].token_type == TokenType.PARAMETER or (toks[i].text or "") == "@"):
+        i += 1
+        if i < n and toks[i].token_type in _NAME_TOKENS:
+            i += 1
+        else:
+            return i, False
+    return i, True
+
+
+def _consume_qualified_name(toks, i, n):
+    """消费 [schema.]object 限定名（仅裸名 VAR / 反引号 IDENTIFIER），返回
+    (完整限定名小写文本, 名下标, 是否合法)。STRING（引号名）一律拒绝。"""
     if i >= n or toks[i].token_type not in _IDENT_TOKENS:
-        return None, "", -1                       # 缺对象名
-    return kind, _ident_text(toks[i]), i + 1
+        return "", i, False
+    parts = [_ident_text(toks[i])]
+    i += 1
+    while (i + 1 < n and toks[i].token_type == TokenType.DOT
+           and toks[i + 1].token_type in _IDENT_TOKENS):
+        parts.append(_ident_text(toks[i + 1]))
+        i += 2
+    return ".".join(parts), i, True
 
 
-def _routine_params_ok(toks, i, n):
-    """toks[i]==L_PAREN 时校验例程参数列表，返回 (右括号下标, 是否合法)。
+def _parse_routine_header(toks):
+    """解析 CREATE [DEFINER=...] [OR REPLACE] <kind> [schema.]name 例程头。
 
-    每个顶层逗号分隔的参数段：允许可选 `[IN|OUT|INOUT]` 前缀 + 标识符（名字）+ 类型
-    （类型可带括号参数如 DECIMAL(10,2)）。括号必须配平；段内只有模式而无名字/类型为非法。
-    """
+    返回 (kind, name, 头后下标, 是否合法)。DEFINER 支持 'user'@'host'/反引号/
+    裸名/CURRENT_USER[CURRENT_USER()]；对象名保留完整限定名。对象类型限
+    PROCEDURE/FUNCTION/TRIGGER/EVENT，其余（VIEW/TABLE 等）返回 False。"""
+    n = len(toks)
+    if n == 0 or toks[0].token_type != TokenType.CREATE:
+        return None, "", -1, False
+    i = 1
+    # DEFINER 与 OR REPLACE 顺序宽松（各至多一次）
+    for _ in range(2):
+        if i + 1 < n and _is_bare_kw(toks[i], "OR") and _is_bare_kw(toks[i + 1], "REPLACE"):
+            i += 2
+            continue
+        if i < n and _is_bare_kw(toks[i], "DEFINER"):
+            i += 1
+            if i < n and toks[i].token_type == TokenType.EQ:
+                i += 1
+            i, ok = _consume_definer_value(toks, i, n)
+            if not ok:
+                return None, "", -1, False
+            continue
+        break
+    if i >= n:
+        return None, "", -1, False
+    kind = _kwu(toks[i])
+    if kind not in _ROUTINE_KINDS:
+        return None, "", -1, False
+    i += 1
+    name, i, ok = _consume_qualified_name(toks, i, n)
+    if not ok:
+        return None, "", -1, False                     # 缺对象名
+    return kind, name, i, True
+
+
+def _consume_param_type(toks, i, end):
+    """消费一个完整数据类型：类型名 + 可选 (n[,m]) + 可选修饰（UNSIGNED/ZEROFILL/
+    ASCII/BINARY/UNICODE/CHARACTER SET x/CHARSET x/COLLATE x）。返回 (下标, 是否合法)。
+    类型名必须是裸关键字（STRING/反引号一律拒绝）。"""
+    if i >= end or not _is_bare_kw(toks[i]):
+        return i, False
+    i += 1
+    # 可选括号参数 DECIMAL(10,2) / ENUM('a','b')
+    if i < end and toks[i].token_type == TokenType.L_PAREN:
+        depth = 0
+        closed = False
+        while i < end:
+            tt = toks[i].token_type
+            if tt == TokenType.L_PAREN:
+                depth += 1
+            elif tt == TokenType.R_PAREN:
+                depth -= 1
+                if depth == 0:
+                    i += 1
+                    closed = True
+                    break
+            i += 1
+        if not closed:
+            return i, False
+    # 可选尾部修饰
+    while i < end:
+        kw = _kwu(toks[i])
+        if kw in _TYPE_MODS:
+            i += 1
+        elif kw in ("CHARACTER", "CHARSET", "COLLATE"):
+            i += 1
+            if kw == "CHARACTER" and i < end and _is_bare_kw(toks[i], "SET"):
+                i += 1
+            if i < end and (toks[i].token_type in _IDENT_TOKENS
+                            or toks[i].token_type == TokenType.STRING):
+                i += 1
+            else:
+                return i, False
+        else:
+            break
+    return i, True
+
+
+def _validate_one_param(toks, a, b, kind):
+    """校验单个参数段 [a,b)：可选模式（仅 PROCEDURE）+ 参数名 + 完整类型，且必须
+    完全消费到 b（缺逗号会留下残余 → 非法）。"""
+    i = a
+    if i < b and _kwu(toks[i]) in _PARAM_MODES:
+        if kind == "FUNCTION":
+            return False                           # FUNCTION 禁止参数模式（O §5.3）
+        i += 1
+    if i >= b or toks[i].token_type not in _IDENT_TOKENS:
+        return False                               # 缺参数名
+    i += 1
+    i, ok = _consume_param_type(toks, i, b)
+    if not ok:
+        return False
+    return i == b                                  # 段必须完全消费
+
+
+def _validate_routine_params(toks, i, n, kind):
+    """强制校验例程参数列表：toks[i] 必须是 L_PAREN（官方规定括号必选，O §5.3）。
+    返回 (右括号后下标, 是否合法)。空列表只允许 ()；一旦出现逗号，每段必须非空且合法。"""
+    if i >= n or toks[i].token_type != TokenType.L_PAREN:
+        return i, False                            # 缺参数括号 → 非法（失败关闭）
     depth = 0
-    j = i
     close = -1
+    j = i
     while j < n:
         if toks[j].token_type == TokenType.L_PAREN:
             depth += 1
@@ -367,32 +495,31 @@ def _routine_params_ok(toks, i, n):
                 break
         j += 1
     if close < 0:
-        return -1, False                           # 参数括号不闭合
-
-    def _seg_ok(a, b):
-        seg = toks[a:b]
-        if not seg:
-            return True                            # 空段（无参数）
-        if (seg[0].text or "").upper() in ("IN", "OUT", "INOUT"):
-            seg = seg[1:]
-        return bool(seg) and seg[0].token_type in _IDENT_TOKENS and len(seg) >= 2
-
-    seg_start = i + 1
+        return i, False                            # 括号不闭合
+    # 按顶层逗号切段
+    segs = []
     depth = 0
+    seg_start = i + 1
     k = i + 1
     while k < close:
-        if toks[k].token_type == TokenType.L_PAREN:
+        tt = toks[k].token_type
+        if tt == TokenType.L_PAREN:
             depth += 1
-        elif toks[k].token_type == TokenType.R_PAREN:
+        elif tt == TokenType.R_PAREN:
             depth -= 1
-        elif toks[k].token_type == TokenType.COMMA and depth == 0:
-            if not _seg_ok(seg_start, k):
-                return close, False
+        elif tt == TokenType.COMMA and depth == 0:
+            segs.append((seg_start, k))
             seg_start = k + 1
         k += 1
-    if not _seg_ok(seg_start, close):
-        return close, False
-    return close, True
+    segs.append((seg_start, close))
+    if len(segs) == 1 and segs[0][0] == segs[0][1]:
+        return close + 1, True                     # () 空参数列表合法
+    for (a, b) in segs:
+        if a == b:
+            return close, False                    # 前置/尾随/连续逗号（空段）非法
+        if not _validate_one_param(toks, a, b, kind):
+            return close, False
+    return close + 1, True
 
 
 def _routine_body_complete(toks, i, n):
@@ -435,49 +562,348 @@ def _routine_body_complete(toks, i, n):
     return not stack
 
 
-def _routine_structure(sql: str, dialect: str = "mysql"):
-    """校验 CREATE 例程结构完整性，返回 (是否合法, kind, name)。
+# ── R7-01（O §7.1.C/D/E）：严格 stored-statement 递归下降 body 校验器 ──────────
+#
+# sqlglot 无法可靠解析存储程序体：垃圾体被当列别名照收、SET 变 None、IF 语句被当
+# IF() 函数、REPEAT/CASE...END CASE 直接 ParseError、空体照收。故不得仅凭构造栈归零
+# 放行；改为语句起点感知的递归下降：每条语句首 token 必须在白名单内（拦截 GARBAGE），
+# 控制流必须有 THEN/DO/UNTIL 与匹配的 END 限定词，块内每条语句必须以分号结束。
 
-    合法 = 头（对象类型 PROCEDURE/FUNCTION/TRIGGER/EVENT + 对象名）+ 参数（含
-    IN/OUT/INOUT 模式、括号配平）+ RETURNS（FUNCTION 必备）+ 体（simple 或
-    BEGIN...END 复合体构造闭合）。任何一项不成立即非法（失败关闭）。"""
+
+def _expect_semi(toks, j, n, required):
+    """消费可选/必需的分号。required=True 时缺分号即非法。"""
+    if j < n and toks[j].token_type == TokenType.SEMICOLON:
+        return j + 1, True
+    return (j, False) if required else (j, True)
+
+
+def _consume_simple_stmt(toks, j, n, require_semi):
+    """消费一条简单语句到顶层分号；require_semi=False 时允许 EOF 结束（顶层单体）。"""
+    depth = 0
+    k = j
+    while k < n:
+        tt = toks[k].token_type
+        if tt == TokenType.L_PAREN:
+            depth += 1
+        elif tt == TokenType.R_PAREN:
+            depth -= 1
+        elif tt == TokenType.SEMICOLON and depth <= 0:
+            return k + 1, True
+        k += 1
+    return n, (not require_semi)
+
+
+def _skip_expr_until(toks, j, n, stops):
+    """从 j 前进到 depth0 处首个 stops 关键字，返回其下标；遇 EOF/括号不配平返回 -1。"""
+    depth = 0
+    k = j
+    while k < n:
+        tt = toks[k].token_type
+        if tt == TokenType.L_PAREN:
+            depth += 1
+        elif tt == TokenType.R_PAREN:
+            depth -= 1
+            if depth < 0:
+                return -1
+        elif depth == 0 and _kwu(toks[k]) in stops:
+            return k
+        k += 1
+    return -1
+
+
+def _parse_stmt_seq(toks, j, n, stops):
+    """解析语句序列，直到 depth0 处遇到 stops 关键字或 EOF。返回 (下标, 是否合法)。
+    序列内每条语句都在块内（要求分号）。stops 为空时允许 EOF 合法结束。"""
+    while j < n:
+        if _kwu(toks[j]) in stops:
+            return j, True
+        j, ok = _parse_one_stmt(toks, j, n, True)
+        if not ok:
+            return j, False
+    return j, (not stops)
+
+
+def _parse_one_stmt(toks, j, n, in_block):
+    """解析一条存储程序语句（可带 label）。返回 (下标, 是否合法)。
+    未知首 token → 非法（失败关闭，拦截 GARBAGE/FOO 等）。"""
+    if j >= n:
+        return j, False
+    # 可选标签 label:（用于 BEGIN / LOOP）
+    if _is_bare_kw(toks[j]) and j + 1 < n and toks[j + 1].token_type == TokenType.COLON:
+        j += 2
+        if j >= n:
+            return j, False
+    kw = _kwu(toks[j])
+    if kw == "BEGIN":
+        j += 1
+        j, ok = _parse_stmt_seq(toks, j, n, {"END"})
+        if not ok or j >= n or _kwu(toks[j]) != "END":
+            return j, False
+        j += 1
+        # 可选结尾标签（非构造限定词）
+        if (j < n and toks[j].token_type in _IDENT_TOKENS
+                and _kwu(toks[j]) not in _END_QUALIFIERS):
+            j += 1
+        return _expect_semi(toks, j, n, in_block)
+    if kw == "IF":
+        return _parse_if_stmt(toks, j + 1, n, in_block)
+    if kw == "CASE":
+        return _parse_case_stmt(toks, j + 1, n, in_block)
+    if kw == "WHILE":
+        return _parse_while_stmt(toks, j + 1, n, in_block)
+    if kw == "LOOP":
+        return _parse_loop_stmt(toks, j + 1, n, in_block)
+    if kw == "REPEAT":
+        return _parse_repeat_stmt(toks, j + 1, n, in_block)
+    if kw in _SIMPLE_STMT_KWS:
+        return _consume_simple_stmt(toks, j, n, in_block)
+    return j, False                                # 未知语句首 token → 非法
+
+
+def _parse_if_stmt(toks, j, n, in_block):
+    """IF cond THEN stmts [ELSEIF cond THEN stmts]... [ELSE stmts] END IF;"""
+    p = _skip_expr_until(toks, j, n, {"THEN"})
+    if p < 0:
+        return n, False
+    j = p + 1
+    while True:
+        j, ok = _parse_stmt_seq(toks, j, n, {"ELSEIF", "ELSE", "END"})
+        if not ok:
+            return j, False
+        kw = _kwu(toks[j]) if j < n else ""
+        if kw == "ELSEIF":
+            p = _skip_expr_until(toks, j + 1, n, {"THEN"})
+            if p < 0:
+                return n, False
+            j = p + 1
+            continue
+        if kw == "ELSE":
+            j += 1
+            continue
+        if kw == "END":
+            j += 1
+            if j < n and _kwu(toks[j]) == "IF":
+                j += 1
+            else:
+                return j, False                    # END 缺 IF 限定词
+            return _expect_semi(toks, j, n, in_block)
+        return j, False
+
+
+def _parse_case_stmt(toks, j, n, in_block):
+    """CASE [operand] WHEN cond THEN stmts... [ELSE stmts] END CASE;"""
+    if j < n and _kwu(toks[j]) != "WHEN":
+        p = _skip_expr_until(toks, j, n, {"WHEN"})
+        if p < 0:
+            return n, False
+        j = p
+    if j >= n or _kwu(toks[j]) != "WHEN":
+        return j, False                            # CASE 语句至少一个 WHEN
+    while j < n and _kwu(toks[j]) == "WHEN":
+        p = _skip_expr_until(toks, j + 1, n, {"THEN"})
+        if p < 0:
+            return n, False
+        j = p + 1
+        j, ok = _parse_stmt_seq(toks, j, n, {"WHEN", "ELSE", "END"})
+        if not ok:
+            return j, False
+    kw = _kwu(toks[j]) if j < n else ""
+    if kw == "ELSE":
+        j += 1
+        j, ok = _parse_stmt_seq(toks, j, n, {"END"})
+        if not ok:
+            return j, False
+        kw = _kwu(toks[j]) if j < n else ""
+    if kw == "END":
+        j += 1
+        if j < n and _kwu(toks[j]) == "CASE":
+            j += 1
+        else:
+            return j, False                        # END 缺 CASE 限定词
+        return _expect_semi(toks, j, n, in_block)
+    return j, False
+
+
+def _parse_while_stmt(toks, j, n, in_block):
+    """WHILE cond DO stmts END WHILE;"""
+    p = _skip_expr_until(toks, j, n, {"DO"})
+    if p < 0:
+        return n, False
+    j = p + 1
+    j, ok = _parse_stmt_seq(toks, j, n, {"END"})
+    if not ok or j >= n or _kwu(toks[j]) != "END":
+        return j, False
+    j += 1
+    if j < n and _kwu(toks[j]) == "WHILE":
+        j += 1
+    else:
+        return j, False
+    return _expect_semi(toks, j, n, in_block)
+
+
+def _parse_loop_stmt(toks, j, n, in_block):
+    """[label:] LOOP stmts END LOOP;"""
+    j, ok = _parse_stmt_seq(toks, j, n, {"END"})
+    if not ok or j >= n or _kwu(toks[j]) != "END":
+        return j, False
+    j += 1
+    if j < n and _kwu(toks[j]) == "LOOP":
+        j += 1
+    else:
+        return j, False
+    return _expect_semi(toks, j, n, in_block)
+
+
+def _parse_repeat_stmt(toks, j, n, in_block):
+    """REPEAT stmts UNTIL cond END REPEAT;"""
+    j, ok = _parse_stmt_seq(toks, j, n, {"UNTIL"})
+    if not ok or j >= n or _kwu(toks[j]) != "UNTIL":
+        return j, False
+    j += 1
+    p = _skip_expr_until(toks, j, n, {"END"})
+    if p < 0:
+        return n, False
+    j = p + 1
+    if j < n and _kwu(toks[j]) == "REPEAT":
+        j += 1
+    else:
+        return j, False
+    return _expect_semi(toks, j, n, in_block)
+
+
+def _validate_routine_body(toks, i, n):
+    """校验例程体：顶层单体（simple 语句或单个构造，分号可选）或 BEGIN...END 复合体，
+    且必须完整消费到结尾。任一语句非法/构造错配/未消费完 → False。"""
+    if i >= n:
+        return False                               # 缺过程体
+    j, ok = _parse_one_stmt(toks, i, n, False)
+    if not ok:
+        return False
+    while j < n and toks[j].token_type == TokenType.SEMICOLON:
+        j += 1                                     # 容忍尾随分号
+    return j >= n
+
+
+def _validate_trigger(toks, i, n):
+    """校验 CREATE TRIGGER 头+体（O §7.1.E）：i 为触发器名之后下标。
+    {BEFORE|AFTER} {INSERT|UPDATE|DELETE} ON tbl FOR EACH ROW [FOLLOWS|PRECEDES o] body。
+    缺时机/事件/ON/表/FOR EACH ROW 或体非法 → False。"""
+    if i >= n or _kwu(toks[i]) not in ("BEFORE", "AFTER"):
+        return False
+    i += 1
+    if i >= n or _kwu(toks[i]) not in ("INSERT", "UPDATE", "DELETE"):
+        return False
+    i += 1
+    if i >= n or not _is_bare_kw(toks[i], "ON"):
+        return False
+    i += 1
+    _tbl, i, ok = _consume_qualified_name(toks, i, n)
+    if not ok:
+        return False
+    for w in ("FOR", "EACH", "ROW"):
+        if i >= n or not _is_bare_kw(toks[i], w):
+            return False                           # 缺 FOR EACH ROW
+        i += 1
+    if i < n and (_is_bare_kw(toks[i], "FOLLOWS") or _is_bare_kw(toks[i], "PRECEDES")):
+        i += 1
+        _o, i, ok = _consume_qualified_name(toks, i, n)
+        if not ok:
+            return False
+    if i >= n:
+        return False                               # 缺触发器体
+    return _validate_routine_body(toks, i, n)
+
+
+def _consume_characteristics(toks, i, n):
+    """按白名单消费 routine characteristics，返回停在 body 起点的下标（O §7.1.A.6）。
+    支持 COMMENT 'x' / LANGUAGE SQL / [NOT] DETERMINISTIC / CONTAINS SQL /
+    NO SQL / READS SQL DATA / MODIFIES SQL DATA / SQL SECURITY DEFINER|INVOKER。
+    遇非白名单 token 即停（交 body 校验器判定，未知头 token 会在 body 处失败关闭）。"""
+    while i < n:
+        kw = _kwu(toks[i])
+        if kw == "COMMENT":
+            i += 1
+            if i < n and toks[i].token_type == TokenType.STRING:
+                i += 1
+            else:
+                break
+        elif kw == "LANGUAGE":
+            i += 1
+            if i < n and _is_bare_kw(toks[i], "SQL"):
+                i += 1
+            else:
+                break
+        elif kw == "NOT":
+            if i + 1 < n and _is_bare_kw(toks[i + 1], "DETERMINISTIC"):
+                i += 2
+            else:
+                break
+        elif kw == "DETERMINISTIC":
+            i += 1
+        elif kw in ("CONTAINS", "NO", "READS", "MODIFIES"):
+            j = i + 1
+            if j < n and _is_bare_kw(toks[j], "SQL"):
+                j += 1
+                if j < n and _is_bare_kw(toks[j], "DATA"):
+                    j += 1
+                i = j
+            else:
+                break
+        elif kw == "SQL" or kw == "SQL SECURITY":
+            # SQL SECURITY DEFINER|INVOKER；sqlglot 可能把 "SQL SECURITY" 并为单 token
+            j = i + 1
+            if kw == "SQL":
+                if j < n and _is_bare_kw(toks[j], "SECURITY"):
+                    j += 1
+                else:
+                    break
+            if j < n and (_is_bare_kw(toks[j], "DEFINER") or _is_bare_kw(toks[j], "INVOKER")):
+                i = j + 1
+            else:
+                break
+        else:
+            break
+    return i
+
+
+def _routine_structure(sql: str, dialect: str = "mysql"):
+    """严格校验 CREATE 例程结构完整性，返回 (是否合法, kind, name)。
+
+    R7-01：PROCEDURE/FUNCTION 头（DEFINER 全形态 + 限定名）+ **强制**参数括号
+    + 按 kind 校验参数（FUNCTION 禁模式、类型完整消费）+ RETURNS（FUNCTION 必备）
+    + characteristics 白名单 + 严格 body 文法；TRIGGER 走独立头/体校验；EVENT 保持
+    既有宽松构造平衡。任一不成立即非法（失败关闭 → E999）。name 保留完整限定名。"""
     try:
         toks = sqlglot.Dialect.get_or_raise(dialect).tokenizer_class().tokenize(sql)
     except Exception:
         return False, "", ""
     if not toks:
         return False, "", ""
-    kind, name, i = _find_routine_head(toks)
-    if kind is None:
+    kind, name, i, ok = _parse_routine_header(toks)
+    if not ok or kind is None:
         return False, "", ""
     n = len(toks)
-    if kind in ("PROCEDURE", "FUNCTION"):
-        if i < n and toks[i].token_type == TokenType.L_PAREN:
-            close, ok = _routine_params_ok(toks, i, n)
-            if not ok:
-                return False, "", ""
-            i = close + 1
-        if kind == "FUNCTION":
-            if not (i < n and _is_bare_kw(toks[i], "RETURNS")):
-                return False, "", ""                # FUNCTION 缺 RETURNS
-            i += 1
-            if i >= n:
-                return False, "", ""                # RETURNS 后无类型
-            i += 1
-            if i < n and toks[i].token_type == TokenType.L_PAREN:   # 类型带括号参数
-                depth = 0
-                while i < n:
-                    if toks[i].token_type == TokenType.L_PAREN:
-                        depth += 1
-                    elif toks[i].token_type == TokenType.R_PAREN:
-                        depth -= 1
-                        if depth == 0:
-                            i += 1
-                            break
-                    i += 1
-    if i >= n or not _routine_body_complete(toks, i, n):
-        return False, "", ""
-    return True, kind, name
+    if kind == "TRIGGER":
+        return (_validate_trigger(toks, i, n), kind, name)
+    if kind == "EVENT":
+        # EVENT 不在本轮 P1 范围：保持既有宽松构造平衡校验，避免误伤。
+        return (_routine_body_complete(toks, i, n), kind, name)
+    # PROCEDURE / FUNCTION：参数括号强制必选
+    if i >= n or toks[i].token_type != TokenType.L_PAREN:
+        return False, kind, name
+    i, ok = _validate_routine_params(toks, i, n, kind)
+    if not ok:
+        return False, kind, name
+    if kind == "FUNCTION":
+        if i >= n or not _is_bare_kw(toks[i], "RETURNS"):
+            return False, kind, name               # FUNCTION 缺 RETURNS
+        i, ok = _consume_param_type(toks, i + 1, n)
+        if not ok:
+            return False, kind, name               # RETURNS 后类型非法
+    i = _consume_characteristics(toks, i, n)
+    if i >= n:
+        return False, kind, name                   # 缺过程体
+    return (_validate_routine_body(toks, i, n), kind, name)
 
 
 def _routine_compat_fill(sql: str, parsed, dialect: str = "mysql") -> bool:
@@ -552,6 +978,133 @@ def split_sql_statements_for_audit(sql_script: str, dialect: str = "mysql") -> l
     if tail:
         statements.append(tail)
     return statements
+
+
+# ── R7-02（O §6/§7.2）：唯一 DELIMITER-aware 审核脚本拆分器 ──────────────────
+#
+# 此前 checker._split_sql_file（行扫描）与 split_sql_statements_for_audit（token 扫描）
+# 各包一层补丁：前者判断 BEGIN 块时把带尾分隔符的 `END$$` 原样交给构造计数，词法器
+# 无法视其为 bare END，in_begin_block 不归零，语句落 EOF 兜底并保留 `$$`；后者不认
+# 客户端 DELIMITER 协议，体内分号被拆成多条。现统一到 split_audit_script：先按
+# DELIMITER 协议扫描出"语句块"（**先剥离尾分隔符再做构造计数**，END$$ → END），再对
+# 每块用 token 级 split_sql_statements_for_audit 二次拆分（同行多语句可分、例程构造块
+# 整体保留）。DELIMITER 指令与尾分隔符均不进入结果。四入口（/file、/upload、
+# /batch-stream、即时多 SQL 适配层）统一调用，返回 (sql, start_line, end_line)。
+
+# CREATE 例程头（含 DEFINER / OR REPLACE）——仅此类文本才做构造块计数，避免把事务
+# BEGIN 误当例程体（routine_construct_open_count 对裸 BEGIN 也计数）。
+_ROUTINE_HEAD_RE = re.compile(
+    r'\bCREATE\s+(?:DEFINER\s*=\s*\S+\s+)?(?:OR\s+REPLACE\s+)?'
+    r'(?:PROCEDURE|FUNCTION|TRIGGER|EVENT)\b', re.IGNORECASE)
+
+
+def _strip_leading_banner(raw_sql: str) -> str:
+    """剥离头部横幅注释（-- ===），保留每条语句真正的紧邻注释（与既有 _split_sql_file 同制）。"""
+    lines_in_sql = raw_sql.splitlines()
+    first_code_idx = 0
+    for idx, sl in enumerate(lines_in_sql):
+        s_tr = sl.strip()
+        if s_tr and not s_tr.startswith('--') and not s_tr.startswith('/*'):
+            if idx > 0:
+                prev_comment = lines_in_sql[idx - 1].strip()
+                if prev_comment.startswith('--') and '====' not in prev_comment:
+                    first_code_idx = idx - 1
+                else:
+                    first_code_idx = idx
+            else:
+                first_code_idx = idx
+            break
+    return '\n'.join(lines_in_sql[first_code_idx:]).strip()
+
+
+def _has_real_code(text: str) -> bool:
+    """剥离行/块注释后是否仍有真实代码。"""
+    cleaned = re.sub(r'--[^\n]*', '', text)
+    cleaned = re.sub(r'/\*.*?\*/', '', cleaned, flags=re.DOTALL).strip()
+    return bool(cleaned)
+
+
+def _scan_delimiter_chunks(sql_script: str, dialect: str = "mysql"):
+    """按客户端 DELIMITER 协议扫描语句块，返回 [(text, start_line, end_line)]。
+
+    - 行首 `DELIMITER <tok>` 为切换指令，指令自身不进入任何结果；
+    - 累积文本 rstrip 后以当前分隔符结尾时：**先剥离尾分隔符**得到 probe，再据其判断
+      是否仍处于未闭合 CREATE 例程构造块，是则继续累积、不断句（R7-02 修复 END$$）；
+    - `-- SQL Object:` 标记行视为隐式语句边界（P2-04：上游截断缺失分隔符时防吞并）。
+    """
+    text = normalize_newlines(sql_script)
+    statements = []
+    current_delimiter = ';'
+    lines = text.splitlines(keepends=True)
+    current_stmt = []
+    line_no = 1
+    stmt_start_line = 1
+    for l in lines:
+        stripped_line = l.strip()
+        # 1. DELIMITER 切换指令
+        delim_match = re.match(r'^DELIMITER\s+(\S+)', stripped_line, re.IGNORECASE)
+        if delim_match:
+            current_delimiter = delim_match.group(1)
+            line_no += 1
+            if not current_stmt:
+                stmt_start_line = line_no   # R7-02：DELIMITER 指令行不计入下条语句起始行
+            continue
+        # 1.5 -- SQL Object: 隐式边界（不在未闭合例程块内时才断）
+        pending_text = "".join(current_stmt)
+        _pending_probe = pending_text.rstrip()
+        _pending_open = (bool(current_stmt)
+                         and _ROUTINE_HEAD_RE.search(_pending_probe)
+                         and routine_construct_open_count(_pending_probe, dialect) > 0)
+        if (re.match(r'^--\s*SQL\s+Object\s*:', stripped_line, re.IGNORECASE)
+                and not _pending_open):
+            pending = pending_text.strip()
+            if _has_real_code(pending):
+                statements.append((pending, stmt_start_line, max(stmt_start_line, line_no - 1)))
+            current_stmt = []
+            stmt_start_line = line_no
+        current_stmt.append(l)
+        check_text = "".join(current_stmt).rstrip()
+        # 2. 先剥离尾分隔符再做构造块判断（END$$ → END，词法器才能识别 bare END）
+        probe = check_text
+        if current_delimiter and probe.endswith(current_delimiter):
+            probe = probe[:-len(current_delimiter)].rstrip()
+        probe_nc = re.sub(r'--[^\n]*', '', probe)
+        probe_nc = re.sub(r'/\*.*?\*/', '', probe_nc, flags=re.DOTALL)
+        if _ROUTINE_HEAD_RE.search(probe_nc):
+            in_begin_block = routine_construct_open_count(probe, dialect) > 0
+        else:
+            in_begin_block = False
+        # 3. 达到当前分隔符（非例程块内）→ 断句
+        if current_delimiter and check_text.endswith(current_delimiter) and not in_begin_block:
+            raw_sql = check_text[:-len(current_delimiter)].strip()
+            if _has_real_code(raw_sql):
+                statements.append((_strip_leading_banner(raw_sql), stmt_start_line, line_no))
+            current_stmt = []
+            stmt_start_line = line_no + 1
+        line_no += 1
+    if current_stmt:
+        raw_sql = "".join(current_stmt).strip()
+        if current_delimiter and raw_sql.endswith(current_delimiter):
+            raw_sql = raw_sql[:-len(current_delimiter)].strip()
+        if _has_real_code(raw_sql):
+            statements.append((_strip_leading_banner(raw_sql), stmt_start_line, len(lines)))
+    return statements
+
+
+def split_audit_script(sql_script: str, dialect: str = "mysql") -> list:
+    """审核入口唯一的脚本拆分器（R7-02）：返回 [(sql, start_line, end_line)]。
+
+    先按 DELIMITER 协议扫描语句块（剥离指令与尾分隔符），再对每块用 token 级
+    split_sql_statements_for_audit 二次拆分：同行多语句可分、例程构造块整体保留。
+    /file、/upload、/batch-stream、即时多 SQL 适配层统一调用本函数，确保四入口一致。
+    """
+    results = []
+    for text, sl, el in _scan_delimiter_chunks(sql_script, dialect):
+        for stmt in split_sql_statements_for_audit(text, dialect):
+            stmt = stmt.strip()
+            if stmt:
+                results.append((stmt, sl, el))
+    return results
 
 
 def _spans_only_diff(orig: str, new: str, spans) -> bool:
@@ -3034,6 +3587,25 @@ class SQLParser:
                         parsed.tables.append(tb_name)
             self._regex_fallback_create_table_props(sql_clean, parsed)
 
+        # R7-01 §7.1.E：sqlglot 把部分 CREATE 例程（TRIGGER 全体、DEFINER=CURRENT_USER()
+        # 等 PROCEDURE/FUNCTION）降级为 Command，绕过 Create 结构校验，正则兜底还会把
+        # sql_type 误判成 SELECT。用 token 级例程头识别，统一补严格校验与准确元数据：
+        # 结构非法 → 失败关闭 E999；合法 → 置准确 sql_type/kind/name、清表名、非建表。
+        if (not isinstance(ast, exp.Create) and not parsed.parse_error
+                and _ROUTINE_HEAD_RE.search(parsed.raw_sql or "")):
+            _ok, _k, _nm = _routine_structure(parsed.raw_sql, self.dialect)
+            if _k in _ROUTINE_KINDS:
+                if not _ok:
+                    parsed.parse_error = (
+                        f"CREATE {_k} 结构不完整（缺参数括号/RETURNS/参数模式非法/"
+                        f"过程体非法/触发器头不全或 END 类型错配）")
+                else:
+                    parsed.is_create_table = False
+                    parsed.created_object_kind = _k
+                    parsed.created_object_name = _nm
+                    parsed.sql_type = f"CREATE {_k}"
+                    parsed.tables = []
+
         if parsed.known_fidelity_failures:
             parsed.parse_error = "KNOWN_FIDELITY_GAP[%s]" % ",".join(
                 parsed.known_fidelity_failures)
@@ -3363,10 +3935,13 @@ class SQLParser:
         # 或 END 类型错配等不得放行（非 KFN 的 parse_error 经 checker 失败关闭不变量必报
         # E999）。合法例程校验通过则保持对象语义、不报建表规则。
         if kind in ("PROCEDURE", "FUNCTION", "TRIGGER", "EVENT"):
-            ok, _, _ = _routine_structure(parsed.raw_sql, self.dialect)
+            ok, _k, _nm = _routine_structure(parsed.raw_sql, self.dialect)
             if not ok:
                 parsed.parse_error = (
-                    f"CREATE {kind} 结构不完整（缺参数/RETURNS/过程体未闭合或 END 类型错配）")
+                    f"CREATE {kind} 结构不完整（缺参数括号/RETURNS/参数模式非法/过程体非法或 END 类型错配）")
+            elif _nm:
+                # R7-01：sqlglot 对 schema.routine 只记录 schema，回填完整限定名（对象身份准确）
+                parsed.created_object_name = _nm
 
     def _parse_create(self, ast: exp.Create, parsed: ParsedSQL):
         """解析 CREATE TABLE 语句"""

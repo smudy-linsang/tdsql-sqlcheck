@@ -267,8 +267,9 @@ class RuleChecker:
             # MyBatis XML 文件
             stmts = self._extract_sql_from_mybatis(content)
         else:
-            # 纯 SQL 文件：按分号分割
-            stmts = self._split_sql_file(content)
+            # 纯 SQL 文件：R7-02 统一 DELIMITER-aware 拆分器（四入口一致）
+            from backend.engine.parser import split_audit_script
+            stmts = [(s, ln) for s, ln, _end in split_audit_script(content)]
 
         # v1.6.3.2 / REQ-05A：整批语句各解析**一次**，构造 R035 批内跨表上下文后
         # 直接复用解析结果执行规则，禁止为索引再解析第二遍。
@@ -479,7 +480,12 @@ class RuleChecker:
             upper_text = re.sub(r'/\*.*?\*/', '', upper_text, flags=re.DOTALL).upper()
             
             if any(kw in upper_text for kw in ('CREATE PROCEDURE', 'CREATE TRIGGER', 'CREATE FUNCTION', 'CREATE EVENT')):
-                in_begin_block = routine_construct_open_count(check_text) > 0
+                # R7-02：先剥离尾分隔符再计数——END$$ 需还原为 bare END 才能被词法器
+                # 识别，否则 in_begin_block 不归零、语句落 EOF 兜底并保留 $$。
+                _probe = check_text
+                if current_delimiter and _probe.endswith(current_delimiter):
+                    _probe = _probe[:-len(current_delimiter)].rstrip()
+                in_begin_block = routine_construct_open_count(_probe) > 0
             else:
                 in_begin_block = False
                 
@@ -516,6 +522,9 @@ class RuleChecker:
             
         if current_stmt:
             raw_sql = "".join(current_stmt).strip()
+            # R7-02：EOF 兜底同样剥离尾分隔符，避免保留 $$/// 等自定义分隔符
+            if current_delimiter and raw_sql.endswith(current_delimiter):
+                raw_sql = raw_sql[:-len(current_delimiter)].strip()
             cleaned = re.sub(r'--[^\n]*', '', raw_sql)
             cleaned = re.sub(r'/\*.*?\*/', '', cleaned, flags=re.DOTALL).strip()
             if cleaned:

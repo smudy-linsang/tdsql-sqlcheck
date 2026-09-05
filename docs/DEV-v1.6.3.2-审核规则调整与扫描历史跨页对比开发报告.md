@@ -444,3 +444,37 @@ O 第六轮复测不通过：GATE-1/GATE-3 已由林桑签署（R5-02 关闭）�
 - GATE-1/GATE-3 林桑已签署；GATE-2 三个残留子项已全部修复，待 O 第七轮定点复测 + 林桑/G 复签；生产准出仍需目标麒麟主机部署验证 12/0/0。
 
 > 说明：本轮编辑期间 harness 文件写入工具临时故障，部分编辑经 Bash 完成、新增测试注释暂用英文，功能与断言不受影响。
+
+
+---
+
+## 18. 第七轮门禁整改（2026-09-05，修订 R8）
+
+O 第七轮复测不通过：GATE-1/GATE-3 林桑已签署保持不重开；GATE-2 新增两个独立 P1 阻断。本轮全部认可、无申诉，照 O §7 施工。被测提交 `995a38b`；O 报告 `UAT-v1.6.3.2-...第七轮门禁整改复测报告-智能体O.md`，证据 `docs/evidence/v1.6.3.2-uat-o-r7/`。
+
+### 18.1 两个 P1 与根因（已独立复现坐实）
+
+1. **R7-01 例程兼容层既误放非法又误拦合法**：`_routine_structure` 把参数括号当可选分支（缺括号照样合法）、`_seg_ok` 空段返回 True（前置/尾随/连续逗号、缺逗号漏检）、参数校验不接收 kind（FUNCTION 的 IN/OUT/INOUT 被放行）、`_routine_body_complete` 只做构造栈平衡（GARBAGE TOKEN 体照过）、`_find_routine_head` 不识别 quoted/CURRENT_USER DEFINER 与限定名（合法例程被正则兜底误判成 SELECT + R051 + E999）；TRIGGER 被 sqlglot 降级 Command，完全绕过校验。
+2. **R7-02 标准 DELIMITER 文件未统一**：`_split_sql_file` 判断 BEGIN 块时把带尾分隔符的 `END$$` 原样交给构造计数，词法器无法视其为 bare END，`in_begin_block` 不归零，落 EOF 兜底保留 `$$` → E999；`/batch-stream` 的 `split_sql_statements_for_audit` 不认 DELIMITER 协议，体内分号被拆成 3 段。
+
+### 18.2 整改（parser_legacy.py 为核心）
+
+- **R7-01 严格失败关闭校验器**：sqlglot 对存储程序体不可靠（实测：垃圾体当列别名照收、SET 变 None、IF 语句当 IF() 函数、REPEAT/CASE...END CASE 直接 ParseError、空体照收、`FUNCTION...BEGIN` 丢 CREATE），故不得仅凭构造栈归零放行，改为 token 级递归下降严格文法：
+  - `_parse_routine_header`：DEFINER 全形态（`'user'@'host'`/反引号/裸名/`CURRENT_USER[()]`）+ OR REPLACE + 限定名（保留完整 `schema.name`）；
+  - `_validate_routine_params(toks,i,n,kind)`：**强制**参数括号；空列表只允许 `()`；每段非空；PROCEDURE 可选 IN/OUT/INOUT，FUNCTION 遇模式即非法；类型经 `_consume_param_type` 完整消费（`DECIMAL(10,2)`/`CHARACTER SET`/`UNSIGNED` 等），段必须完全消费（缺逗号留残余即非法）；
+  - `_consume_returns`/`_consume_characteristics`：FUNCTION 必备 RETURNS + 完整类型；characteristics 白名单（COMMENT/LANGUAGE SQL/[NOT] DETERMINISTIC/CONTAINS|NO|READS|MODIFIES SQL [DATA]/SQL SECURITY DEFINER|INVOKER，含 sqlglot 把 `SQL SECURITY` 并为单 token 的形态）；
+  - body 递归下降（`_validate_routine_body` + `_parse_one_stmt` + IF/CASE/WHILE/LOOP/REPEAT 子解析器）：语句起点感知（`IF()` 函数 vs IF 语句、CASE 表达式 vs CASE 语句天然区分），未知首 token / 缺 THEN|DO|UNTIL / END 类型错配 / 块内缺分号一律失败关闭；
+  - `_validate_trigger`：`{BEFORE|AFTER} {INSERT|UPDATE|DELETE} ON tbl FOR EACH ROW [FOLLOWS|PRECEDES o] body` 全校验；
+  - 三路径统一接入 `_routine_structure` 咽喉：sqlglot 成功 → `_parse_create_object` 反向注入（并回填完整限定名）；sqlglot 异常 → `_routine_compat_fill`；sqlglot 降级 Command（TRIGGER 全体、`DEFINER=CURRENT_USER()` 等）→ parse() 末端 token 级头识别注入（置准确 sql_type/kind/name、清表名，非法则 E999，修正则兜底误判 SELECT+R051）。
+- **R7-02 唯一 DELIMITER-aware 拆分器 `split_audit_script`**：先 `_scan_delimiter_chunks` 按客户端 DELIMITER 协议扫描语句块（**先剥离尾分隔符再做构造计数**，`END$$`→`END`；DELIMITER 指令不入结果；指令行不计入下条语句起始行号；保留 `-- SQL Object:` 隐式边界与横幅剥离），再对每块用 token 级 `split_sql_statements_for_audit` 二次拆分（同行多语句可分、例程构造块整体保留），返回 `(sql, start_line, end_line)`。四入口统一：`/file`+`/upload`（audit_file）、`/batch-stream`、即时多 SQL 适配层。`_split_sql_file` 同步修复（先剥尾分隔符再计数 + EOF 兜底剥离）供 gitlab-hook。流式数据帧新增只读 `sql_type` 字段（向后兼容，§7.2.7）。
+
+### 18.3 验证
+
+- 独立复现脚本逐条命中 O §5.3/§5.4/§6.2：10 类非法例程/触发器全部失败关闭 E999；quoted/CURRENT_USER DEFINER、schema-qualified、`IF()+CASE` 全部合法通过、类型准确、对象名完整；DELIMITER 文件四入口均 1 条干净例程（无 `$$`、无指令）、行号准确（例程=2、SELECT=4、CREATE TABLE=5）。
+- 新增回归锁 `tests/test_routine_audit_r7.py` **72 passed**：对称正反向语法矩阵（每正例配负例）+ 触发器逐项正反向 + 元数据 + 分布式治理不误报 + DELIMITER 合同测试（`$$`/`//`/`##`，断言结果文本/数量/类型/行号，不只 `len==1`）。
+- 全量回归 **1969 passed, 0 failed**（1897 + 72）；规则 harness [PASS] 121 = 覆盖 109 + 元数据 7 + 豁免 5；既有 R6 32 项、O-14 失败关闭不变量全绿。
+- 真实页面/浏览器验收（O §7.3「真实页面关闭标准」）与三方 `tests_3p` 按报告分工留待 O 第八轮定点复测（未重启林桑在线服务，避免干扰其环境）。
+
+### 18.4 门禁状态
+
+- GATE-1/GATE-3 林桑已签署，保持不重开；GATE-2 两个 P1（R7-01/R7-02）已按 §7 全部修复并加锁，待 O 第八轮定点复测关闭 + 林桑/G 复签；生产准出仍需目标麒麟主机部署验证 12/0/0。

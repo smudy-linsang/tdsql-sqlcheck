@@ -208,7 +208,7 @@ async def audit_batch_stream(file: UploadFile = File(...),
     V1.5：B类通道，instance_type 由调用方声明（未声明取全局默认）；
     首帧输出 type=meta 元信息帧，不识别的外部消费方可传 ?meta=0 关闭（默认开启）。
     """
-    from backend.engine.parser import split_sql_statements_for_audit
+    from backend.engine.parser import split_audit_script
     import json
     content = await file.read()
     try:
@@ -216,7 +216,8 @@ async def audit_batch_stream(file: UploadFile = File(...),
     except UnicodeDecodeError:
         raise HTTPException(status_code=400, detail="文件编码错误，请使用 UTF-8 编码")
 
-    statements = split_sql_statements_for_audit(text)
+    # R7-02：统一 DELIMITER-aware 拆分器（四入口一致），返回 (sql, start_line, end_line)
+    statements = [s for s, _ln, _end in split_audit_script(text)]
 
     # V1.5：解析一次实例类型，随流传递（B类通道，无 connection_id）
     ictx = audit_service._resolve_instance("", instance_type)
@@ -239,6 +240,8 @@ async def audit_batch_stream(file: UploadFile = File(...),
             res, _, _ = audit_service.audit_single_sql(stmt_clean, instance_type=it)
             item = {
                 "index": idx,
+                # R7-02 §7.2.7：只读新增字段（向后兼容），便于校验三入口对象类型一致
+                "sql_type": getattr(res, "sql_type", None),
                 "passed": res.passed,
                 "violations_count": len(res.violations),
                 "violations": [{"rule_id": v.rule_id, "message": v.message, "severity": str(v.severity)} for v in res.violations]
