@@ -478,3 +478,32 @@ O 第七轮复测不通过：GATE-1/GATE-3 林桑已签署保持不重开；GATE
 ### 18.4 门禁状态
 
 - GATE-1/GATE-3 林桑已签署，保持不重开；GATE-2 两个 P1（R7-01/R7-02）已按 §7 全部修复并加锁，待 O 第八轮定点复测关闭 + 林桑/G 复签；生产准出仍需目标麒麟主机部署验证 12/0/0。
+
+
+---
+
+## 19. 第八轮定点整改（2026-09-05，修订 R9）
+
+O 第八轮定点复测：`UAT-O-1632-R7-01` **关闭**；`UAT-O-1632-R7-02` 文件/上传/流式入口恢复，但**即时审核 `/api/v1/audit/sql` 仍 E999**，保持 P1 未关闭。本轮认可、无申诉，照 O §7 定点修复，不扩大范围。被测提交 `e5f63d2`；O 报告 `UAT-v1.6.3.2-...第八轮定点复测报告-智能体O.md`，证据 `docs/evidence/v1.6.3.2-uat-o-r8/`。
+
+### 19.1 残留根因（O §6）
+
+`audit_service.audit_single_sql()` 已用 `split_audit_script` 得到清洗后的 `statements`，但 `len(statements) <= 1` 分支仍审核**原始 `sql`**（含 `DELIMITER $$...END$$`），未用 `statements[0]`。普通单语句 `statements[0] == sql.strip()` 故未暴露；标准 DELIMITER 脚本即时入口把客户端指令与尾分隔符送入 parser → E999。文件型入口直接审核清洗分段，故只有即时入口失败。
+
+### 19.2 整改（仅 audit_single_sql 单段分支，不动拆分器/其他模块）
+
+- `len(statements) == 1`：改审核 `statements[0]`（清洗后唯一语句），`_apply_shard_key_check` 同步传清洗语句；`checker.audit_sql` 返回 `AuditResult(sql=sql.strip())`，故 `result.sql` 天然为实际被审核语句，不含 DELIMITER/`$$`（满足 O §7「历史保存 = 实际审核语句」）。
+- `len(statements) == 0`：空输入/纯指令/纯注释保留既有失败关闭口径，审核原文，不扩展定义。
+- `len(statements) > 1`：多段逻辑不变。
+- 核查确认无其他「拆分后仍审核原文」同类隐患：`/sql` 端点走 `audit_single_sql`（已修）；`/batch-stream` 用清洗后的 `stmt_clean`；`audit_file` 用 `split_audit_script` 分段。
+
+### 19.3 验证
+
+- 新增 3 项即时入口回归锁（O §7 必增锁 1/3）：`test_immediate_entry_delimiter_uses_cleaned_statement`（passed=true、CREATE PROCEDURE、0 违规、result.sql 无 DELIMITER/`$$`）、`test_immediate_entry_matches_file_entry`（即时 = 文件入口一致）、`test_immediate_entry_normal_single_statement_unchanged`（普通单语句不回归）。
+- `tests/test_routine_audit_r7.py` **75 passed**（72 + 3）。
+- 全量回归 **1972 passed, 0 failed**（1969 + 3）；规则 harness [PASS] 121 = 109 + 7 + 5。
+- 真实即时审核页面点击验收（O §7「下一轮关闭动作」）留待 O 第九轮；未重启林桑在线服务，避免干扰其环境。
+
+### 19.4 门禁状态
+
+- GATE-1/GATE-3 林桑已签署，保持不重开；R7-01 已由 O 第八轮关闭；R7-02 即时入口残留已修复加锁，待 O 第九轮定点复测关闭 + 林桑/G 复签 GATE-2；生产准出仍需目标麒麟主机部署验证 12/0/0。

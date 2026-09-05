@@ -223,3 +223,52 @@ def test_no_delimiter_multistatement_unchanged(checker):
     """无 DELIMITER 时不得回归：同行多语句、事务 BEGIN 仍按分号拆。"""
     assert [s for s, _, _ in split_audit_script("SELECT 1; SELECT 2;")] == ["SELECT 1", "SELECT 2"]
     assert [s for s, _, _ in split_audit_script("BEGIN; SELECT 1; COMMIT;")] == ["BEGIN", "SELECT 1", "COMMIT"]
+
+
+# ── R7-02 第八轮残留：即时审核单段必须用清洗后语句（O 第八轮 §6/§7）─────────────
+def _delimiter_script():
+    return ("DELIMITER $$\n"
+            "CREATE PROCEDURE p_d(IN x INT)\n"
+            "BEGIN\n"
+            "  SET @a = x;\n"
+            "  SET @b = x;\n"
+            "END$$\n"
+            "DELIMITER ;\n")
+
+
+def test_immediate_entry_delimiter_uses_cleaned_statement():
+    """audit_single_sql 单段分支必须审核 split_audit_script 清洗后的语句，而非原文。
+
+    O 第八轮 §5.3：原文含 DELIMITER/$$ 会被送入 parser 触发 E999。修复后集中式
+    即时入口对该标准脚本 passed=true、类型 CREATE PROCEDURE、0 违规；且 result.sql
+    为实际被审核语句，不含客户端 DELIMITER 指令与尾分隔符 $$。
+    """
+    from backend.services.audit_service import AuditService
+    svc = AuditService()
+    result, _gate, _ictx = svc.audit_single_sql(_delimiter_script(), instance_type="centralized")
+    assert result.sql_type == "CREATE PROCEDURE", result.sql_type
+    assert result.passed is True, [v.rule_id for v in result.violations]
+    assert result.violations == [], [v.rule_id for v in result.violations]
+    assert "DELIMITER" not in result.sql.upper(), result.sql
+    assert "$$" not in result.sql, result.sql
+
+
+def test_immediate_entry_matches_file_entry():
+    """即时入口与文件入口对同一 DELIMITER 脚本结果一致（四入口一致性，O §7 锁 3）。"""
+    from backend.services.audit_service import AuditService
+    svc = AuditService()
+    script = _delimiter_script()
+    imm, _g, _i = svc.audit_single_sql(script, instance_type="centralized")
+    file_res = svc.checker.audit_file(script, file_path="t.sql", instance_type="centralized")
+    assert len(file_res) == 1
+    assert imm.sql_type == file_res[0].sql_type == "CREATE PROCEDURE"
+    assert imm.passed is True and file_res[0].passed is True
+    assert imm.sql.strip() == file_res[0].sql.strip()
+
+
+def test_immediate_entry_normal_single_statement_unchanged(checker):
+    """普通单语句即时审核不得因改审核 statements[0] 而回归。"""
+    from backend.services.audit_service import AuditService
+    svc = AuditService()
+    r, _g, _i = svc.audit_single_sql("CREATE TABLE t(id INT PRIMARY KEY)", instance_type="centralized")
+    assert r.sql_type == "CREATE TABLE", r.sql_type

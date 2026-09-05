@@ -197,10 +197,19 @@ class AuditService:
         ictx = self._resolve_instance(connection_id, instance_type)
         it = ictx.instance_type.value
 
-        if len(statements) <= 1:
-            result = self.checker.audit_sql(sql, rule_overrides=overrides,
+        if len(statements) == 1:
+            # R7-02（O 第八轮 §6/§7）：单段也必须审核 split_audit_script 清洗后的语句，
+            # 而非原始 sql——否则标准 DELIMITER 脚本（$$...END$$）的客户端指令与尾分隔符
+            # 会被送入 parser 触发 E999。result.sql 即实际被审核的清洗语句（不含 DELIMITER/$$）。
+            audit_sql = statements[0]
+            result = self.checker.audit_sql(audit_sql, rule_overrides=overrides,
                                             instance_type=it)
             # V1.5：深度分布式检查（仅分布式实例 + 真实分片键元数据）
+            self._apply_shard_key_check(result, audit_sql, ictx, table_metadata=table_metadata)
+        elif len(statements) == 0:
+            # 空输入/纯 DELIMITER 指令/纯注释：保留既有失败关闭口径，审核原文，不扩展定义。
+            result = self.checker.audit_sql(sql, rule_overrides=overrides,
+                                            instance_type=it)
             self._apply_shard_key_check(result, sql, ictx, table_metadata=table_metadata)
         else:
             results = []
