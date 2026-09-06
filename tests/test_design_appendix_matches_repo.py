@@ -23,6 +23,19 @@ _MAP = {
     "A.4": "tests/test_table_type_stats.py",
 }
 
+# v1.6.3.4 / D03：A.1 与 A.4 已被二级分区主表识别（REQ-02，DETAIL-v1.6.3.4 §4）
+# 合法增量改造——新增独立目录枚举 SHOW FULL TABLES、候选并集 C=L∪P∪B、四层调度
+# C1→C4、逐表 SHOW CREATE + classify_logical_ddl、计数状态机与 8 列契约；测试侧
+# 新增 fake 独立目录连接钩子、5 值解包适配与 141 DDL 建表。
+#
+# DESIGN-v1.6.3.0 附录 A 是 G14 施工阶段的**全量代码快照**。按项目纪律，历史设计
+# 文档是快照、不回溯改写（如同历史署名保持原文），故不能把 v1.6.3.4 的演进代码
+# 回填进 v1.6.3.0 附录。这两个已演进文件的 v1.6.3.0 全量逐字门禁因此退役；其
+# 一致性改由 DETAIL-v1.6.3.4 §4、PAR-01~21 用例与 118 项 G14 回归测试守护。
+# A.2（api/table_type_stats.py，D03 未改）与 A.3（v13/130 DDL，141 为独立新文件）
+# 未经 D03 改造，**保持 v1.6.3.0 附录逐字门禁不变**。
+_V1634_EVOLVED = {"A.1", "A.4"}
+
 
 def _extract_appendix_blocks():
     """抽出附录 A 各小节中最大的代码围栏块（即成品代码）。"""
@@ -51,6 +64,13 @@ def _extract_appendix_blocks():
 @pytest.mark.parametrize("name", sorted(_MAP))
 def test_design_appendix_matches_repo(name):
     """附录 A.N 的最大代码块必须与仓库落盘文件逐字一致。"""
+    # v1.6.3.4 / D03：A.1/A.4 已被二级分区主表识别合法演进，v1.6.3.0 全量代码
+    # 快照门禁对这两个文件退役（原因见 _V1634_EVOLVED 注释）；A.2/A.3 仍逐字校验。
+    if name in _V1634_EVOLVED:
+        pytest.skip(
+            f"附录 {name}（{_MAP[name]}）已被 v1.6.3.4 D03 二级分区主表识别合法演进，"
+            f"v1.6.3.0 全量代码快照门禁对该文件退役；一致性由 DETAIL-v1.6.3.4 §4、"
+            f"PAR-01~21 用例与 118 项 G14 回归守护。历史设计文档不回溯改写。")
     blocks = _extract_appendix_blocks()
     assert name in blocks, f"设计文档附录缺少 {name} 小节或其代码块"
     design = blocks[name]

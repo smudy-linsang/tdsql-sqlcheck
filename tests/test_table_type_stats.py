@@ -672,11 +672,60 @@ class FakeClock:
 
 
 def _patch_tmp_pool(monkeypatch, pool):
-    """让 _collect_distributed 复用同一个 FakePool（ADR-3 的可测性钩子）"""
+    """让 _collect_distributed 复用同一个 FakePool（ADR-3 的可测性钩子）。
+
+    v1.6.3.4 / D03：同时注入独立目录连接工厂的 fake，保持纯离线——
+    SHOW FULL TABLES 默认返回空目录（L=空），SHOW CREATE 经 FakePool 返回空
+    （row=None→UNKNOWN），主表识别据此诚实降级为 PARTIAL/UNKNOWN，不影响原有
+    total/shard/broadcast/single/baseline/subpartition 统计与状态断言。
+    需要验证主表正例的用例可通过 pool.directory_rows / pool.per_db 注入。
+    """
     def _factory(cfg, pool_size=1):
         pool.made_with_read_timeout = cfg.read_timeout
         return pool
     monkeypatch.setattr(svc, "_new_pool", _factory)
+
+    # v1.6.3.4 / D03：fake 独立目录连接（SSDictCursor 语义：execute + fetchmany）
+    class _FakeDirCursor:
+        def __init__(self_i, db):
+            self_i._rows = []
+            self_i._db = db
+
+        def execute(self_i, sql, params=None):
+            pool.seen.append(sql)
+            # 模拟 SHOW FULL TABLES FROM `db`：默认返回该库 info_schema 的 BASE TABLE
+            # （与逻辑基线 B 同源，L⊇P∪B，避免 INVENTORY_MISMATCH 污染既有 warnings
+            # 断言）。测试可注入 pool.directory_rows 覆盖（验证 mismatch/截断/正例）。
+            injected = getattr(pool, "directory_rows", None)
+            if injected is not None:
+                self_i._rows = list(injected)
+            else:
+                base = (pool.info_schema.get(self_i._db) or {}).get("base", [])
+                self_i._rows = [{f"Tables_in_{self_i._db}": n,
+                                 "Table_type": "BASE TABLE"} for n in base]
+
+        def fetchmany(self_i, n=None):
+            rows = self_i._rows
+            self_i._rows = []
+            return rows
+
+        def close(self_i):
+            pass
+
+    class _FakeDirConn:
+        def __init__(self_i, db):
+            self_i._db = db
+
+        def cursor(self_i):
+            return _FakeDirCursor(self_i._db)
+
+        def close(self_i):
+            pass
+
+    def _dir_factory(cfg, db):
+        return _FakeDirConn(db)
+
+    monkeypatch.setattr(svc, "_open_directory_connection", _dir_factory)
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -1320,13 +1369,36 @@ def test_counts_are_consistent():
                         per_db=per_db)
         svc._new_pool_backup = svc._new_pool
         svc._new_pool = lambda cfg, pool_size=1, _p=pool: _p
+        # v1.6.3.4 / D03：mock 独立目录连接工厂，避免真实 pymysql.connect。
+        # 返回空目录即可——本用例只验证 total/shard/broadcast/single 计数守恒，
+        # 主表识别降级为 UNKNOWN/PARTIAL 不影响这些断言。
+        class _DirCur:
+            def execute(self_i, sql, params=None):
+                pass
+
+            def fetchmany(self_i, n=None):
+                return []
+
+            def close(self_i):
+                pass
+
+        class _DirConn:
+            def cursor(self_i):
+                return _DirCur()
+
+            def close(self_i):
+                pass
+
+        svc._open_dir_backup = svc._open_directory_connection
+        svc._open_directory_connection = lambda cfg, db: _DirConn()
         try:
-            items, _w, _s, totals = svc._collect_distributed(
+            items, _w, _s, totals, _sp = svc._collect_distributed(
                 pool, ["db_a"], {"db_a": {"base": set(names), "view": set()}},
                 svc._NameSpace(["db_a"]),
                 time.monotonic() + svc.TOTAL_BUDGET_SECONDS)
         finally:
             svc._new_pool = svc._new_pool_backup
+            svc._open_directory_connection = svc._open_dir_backup
         assert totals["total"] == (totals["shard"] + totals["broadcast"]
                                    + totals["single"])
         assert items[0]["total_tables"] == (items[0]["shard_tables"]
@@ -1475,8 +1547,12 @@ def test_r04_broken_connection_is_rebuilt_before_next_db(monkeypatch):
                     per_db=per_db)
     _patch_tmp_pool(monkeypatch, pool)
     res = svc.analyze(pool, connection_id="c1")
-    # 每库一个连接上下文（Rev.F 是全程一个）
-    assert pool.ctx_count == 2
+    # 每库一个连接上下文（Rev.F 是全程一个）。
+    # v1.6.3.4 / D03：主表识别对 eligible 库 db_b 的唯一候选 s2 执行一次
+    # SHOW CREATE TABLE（复用同一 FakePool 的 get_connection），故
+    # ctx_count = 2（原采集 db_a/db_b 各一次）+ 1（主表识别）= 3。
+    # 目录枚举走独立连接工厂 _open_directory_connection，不计入 pool.ctx_count。
+    assert pool.ctx_count == 3
     # db_a 的异常穿出了 with ⇒ 真实池会关闭并重建线程本地连接
     assert pool.generation == 1, "异常必须穿出 with，否则坏连接不会被重建"
     gens = dict(pool.conn_ids)
@@ -2362,6 +2438,21 @@ def _ddl_path():
     return repo / "backend" / "schema" / "v13" / "130_table_type_stats.sql"
 
 
+def _ddl_path_141():
+    """v1.6.3.4 / D03：二级分区主表 8 列的 ALTER DDL（v14/141 迁移）。
+
+    _ensure_schema 的 _STAT_CONTRACT/_ITEM_CONTRACT 已含这 8 列，测试表结构
+    必须在 130 CREATE 之后再执行 141 ALTER，否则干净安装验收会因缺列失败关闭。
+    """
+    import pathlib
+    import backend
+    here = pathlib.Path(__file__).parent / "141_secondary_partition_main.sql"
+    if here.exists():
+        return here
+    repo = pathlib.Path(backend.__file__).resolve().parent.parent
+    return repo / "backend" / "schema" / "v14" / "141_secondary_partition_main.sql"
+
+
 def _exec_sql(*statements):
     from backend.services.database import _get_connection
     conn = _get_connection()
@@ -2389,6 +2480,10 @@ def _reset_g14_tables():
     _exec_sql("DROP TABLE IF EXISTS table_type_stat_item",
               "DROP TABLE IF EXISTS table_type_stat")
     _exec_sql(*_strip_sql_comments(ddl))
+    # v1.6.3.4 / D03：130 CREATE 之后执行 141 ALTER（二级分区主表 8 列），
+    # 使测试表结构与生产 v14 schema 一致；_ensure_schema 契约含这 8 列。
+    ddl141 = _ddl_path_141().read_text(encoding="utf-8")
+    _exec_sql(*_strip_sql_comments(ddl141))
 
 
 @pytest.fixture()
@@ -2609,6 +2704,9 @@ def test_t3r08b_clean_ddl_passes_verification(g14_schema):
 def test_r12f_ddl_and_service_column_lists_agree(g14_schema):
     """DDL 文件与服务的期望列清单必须逐字一致，防止两边各改各的。"""
     ddl = _ddl_path().read_text(encoding="utf-8").lower()
+    # v1.6.3.4 / D03：二级分区主表 8 列在 141 DDL（v14），合并后一并验证，
+    # 使 _STAT_COLUMNS/_ITEM_COLUMNS 的全部列都能在 DDL 账本中找到。
+    ddl += "\n" + _ddl_path_141().read_text(encoding="utf-8").lower()
     for col in svc._STAT_COLUMNS:
         if col != "id":
             assert col in ddl, f"DDL 缺少 table_type_stat.{col}"

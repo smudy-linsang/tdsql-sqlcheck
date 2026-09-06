@@ -1852,6 +1852,7 @@
                   · 广播表 <b style="color:var(--warning-500)">{{ tabletypeView.broadcast_tables }}</b>
                   · 分片表 <b style="color:var(--success-500)">{{ tabletypeView.shard_tables }}</b>
                   <span style="color:#909399"> · 逻辑基线 {{ tabletypeView.baseline_tables }}</span>
+                  <span style="color:#909399"> · 二级分区主表 {{ fmtSecondaryMainSummary(tabletypeView) }}</span>
                   <span v-if="tabletypeView.subpartition_tables" style="color:#909399"> · 二级分区子表 {{ tabletypeView.subpartition_tables }}（未计入）</span>
                   <span v-if="tabletypeView.failed_databases"> · <b style="color:var(--danger-500)">失败库 {{ tabletypeView.failed_databases }}</b></span>
                   <span v-if="tabletypeView.skipped_databases"> · <b style="color:var(--warning-500)">未采集 {{ tabletypeView.skipped_databases }}</b></span>
@@ -1872,6 +1873,9 @@
                   <el-table-column prop="broadcast_tables" label="广播表" width="90"></el-table-column>
                   <el-table-column prop="shard_tables" label="分片表" width="90"></el-table-column>
                   <el-table-column prop="baseline_tables" label="逻辑基线" width="100"></el-table-column>
+                  <el-table-column label="二级分区主表" width="130">
+                    <template #default="s">{{ fmtSecondaryMain(s.row) }}</template>
+                  </el-table-column>
                   <el-table-column prop="subpartition_tables" label="二级分区子表" width="120"></el-table-column>
                   <el-table-column prop="status" label="状态" width="90">
                     <template #default="s"><el-tag :type="s.row.status==='OK'?'success':(s.row.status==='SKIPPED'?'warning':'danger')" size="small">{{ s.row.status }}</el-tag></template>
@@ -1926,6 +1930,9 @@
                     <el-table-column prop="broadcast_tables" label="广播表" width="80"></el-table-column>
                     <el-table-column prop="shard_tables" label="分片表" width="80"></el-table-column>
                     <el-table-column prop="baseline_tables" label="逻辑基线" width="90"></el-table-column>
+                    <el-table-column label="二级分区主表" width="120">
+                      <template #default="s">{{ fmtSecondaryMain(s.row) }}</template>
+                    </el-table-column>
                     <el-table-column prop="subpartition_tables" label="二级分区子表" width="110"></el-table-column>
                     <el-table-column prop="status" label="状态" width="90">
                       <template #default="s"><el-tag :type="s.row.status==='OK'?'success':(s.row.status==='SKIPPED'?'warning':'danger')" size="small">{{ s.row.status }}</el-tag></template>

@@ -236,3 +236,107 @@ m_upd = re.search(r"\bupdate\b(.*?)\bset\b", clean_sql_no_comm, re.DOTALL)
 施工人：智能体 Q
 施工对象：v1.6.3.4 第一批（D04 完整 + D01/D03 基础 + D07 版本号）
 提交给：Mr.Linsang
+
+---
+---
+
+# DEV-v1.6.3.4 第二批开发记录 — D03 采集流程接入（二级分区主表统计完整闭环）
+
+| 项 | 内容 |
+|---|---|
+| 产品版本 | v1.6.3.4 |
+| 施工基线 | `main@b1b313b`（第一批施工提交） |
+| 设计依据 | DETAIL-v1.6.3.4 §4.3—§4.4（采集流程、四层调度、计数状态机、前端） |
+| 施工方 | 智能体 Q |
+| 施工日期 | 2026-09-06 |
+| 本批交付边界 | **D03 采集流程接入完整闭环**：识别器（第一批已建）接线到 table_type_stats_service 采集流程 + 前端展示 + 测试适配。D02/D05/D06 留待第三批 |
+
+## 1. 交付概述
+
+第一批已交付 tdsql_table_shape.py 识别器与 141 迁移（结构识别能力）。本批把识别器**接线到实际采集流程**，使"二级分区主表"统计端到端可用：
+
+| 环节 | 本批交付 |
+|---|---|
+| 独立目录枚举 | SHOW FULL TABLES 得 L，SSDictCursor 流式、500 行/批、50000 行护栏 |
+| 候选并集 | C = L ∪ P ∪ B，按精确 (库名,表名) 去重 |
+| 四层调度 | C1=C∩S → C2=(C∩(B−P))−C1 → C3=(L−(P∪B))−(C1∪C2) → C4=剩余；全实例 C1→C4，层内精确名稳定排序 |
+| DDL 判定 | 逐表 SHOW CREATE TABLE（反引号转义）→ classify_logical_ddl；2 MiB 上限、5000 DDL 护栏 |
+| 预算 | 共享 TOTAL_BUDGET_SECONDS=180 透传，不重置、不额外加 300 秒 |
+| 计数状态机 | candidates/checked/unknown/unchecked/main/outside_shard + check_state/inventory_state |
+| 存储 | _STAT_CONTRACT/_ITEM_CONTRACT 各 +8 列，INSERT stat 25 列/item 18 列 |
+| 前端 | 汇总区 + 即时结果表 + 历史详情表"二级分区主表"列，诚实显示 ≥N（未完成）/—（未知）/0（不适用） |
+
+## 2. 关键实现（table_type_stats_service.py）
+
+### 2.1 独立目录枚举（§4.3 第 1/5 条）
+- `_enumerate_directory_l`：对每个 eligible 库执行 `SHOW FULL TABLES FROM <quoted_db>`，按第二列 Table_type 仅保留 BASE TABLE 得 L[db]。
+- **独立临时物理连接 + SSDictCursor 流式**：每批 fetchmany(500)，不调用 fetchall（S11：fetchall 会重新聚合、cursor.close 可能排空剩余流）；50000 行护栏，超限标 truncated；截断/预算耗尽时先关独立连接再结束游标，不返共享池。
+- 连接工厂为模块级可测性钩子 `_open_directory_connection`（生产默认 pymysql.connect + SSDictCursor，单测注入 fake），是本模块第三处可测性让步（前两处 _new_pool/_now）。
+
+### 2.2 候选并集与四层调度（§4.3 第 2 条 + 候选调度表）
+- P = db_proxy（三类 Proxy 完整并集），B = db_logical_base（_classify_subpartitions 逻辑基线），S = db_shard（归一化最终分片），L = 独立目录。
+- C = L ∪ P ∪ B（全实例，按 (db,table) 去重）。
+- 四层互斥、并集 = C：C1=C∩S、C2=(C∩(B−P))−C1、C3=(L−(P∪B))−(C1∪C2)、C4=C−(C1∪C2∪C3)；层内 sorted 精确名稳定排序。
+
+### 2.3 DDL 判定与护栏（§4.3 第 3—6 条）
+- 逐表 `SHOW CREATE TABLE <quoted_db>.<quoted_table>`（_quote_ident 反引号加倍转义），classify_logical_ddl 判两层结构。
+- 每次命令前检查 deadline；MAX_PARENT_DDL_PER_RUN=5000 作用于整个 C；每条 DDL ≤ 2 MiB，超限 UNKNOWN。
+- 无权/空返回/缺列/词法失败 → unknown（不计 confirmed_negative）；坏连接由池重建。
+
+### 2.4 计数状态机（§4.4）
+- 逐库：candidates = checked + unknown + unchecked；outside_shard ≤ main ≤ checked ≤ candidates。
+- check_state：基础可用 + inventory=COMPLETE + C 全判明无冲突 → COMPLETE；checked>0 未完整 → PARTIAL；checked=0 不能证明完整零 → UNKNOWN；C 为空也须先满足完整枚举。
+- inventory：目录成功未截断且 C 非物理对象均被 L 覆盖 → COMPLETE；L 缺 P/B 逻辑对象 → PARTIAL（INVENTORY_MISMATCH 样本）；枚举失败 → FAILED。
+- 实例汇总：全部目标库 COMPLETE 才汇总 COMPLETE；数字只加 eligible 库已知值。
+- failed/skipped 库：check/inventory 均 UNKNOWN，数字 null（不记零）。集中式：两 state 均 NOT_APPLICABLE、数字 0。
+
+### 2.5 告警
+新增 SP_DIRECTORY_FAILED / INVENTORY_MISMATCH / SP_BUDGET_EXCEEDED / SP_DDL_GUARD / SP_DIRECTORY_TRUNCATED / MAIN_OUTSIDE_PROXY_SHARD，均聚合、样本受限、detail ≤512 字符。
+
+## 3. 前端接入（§4.4）
+- index.html：汇总区"二级分区主表"+ 即时结果表列（逻辑基线与二级分区子表之间）+ 历史详情表列。
+- app.js：`fmtSecondaryMain`（逐库）/`fmtSecondaryMainSummary`（汇总）——UNKNOWN→—（未知）、LEGACY→—（历史未采集）、NOT_APPLICABLE→0（不适用）、COMPLETE→精确数、PARTIAL→≥N（未完成）（main=0 时"已确认 0，未完成"）；汇总在 inventory 不完整时追加"候选目录不完整，数量为已知范围"。**严禁 value||0 抹掉 null**。
+
+## 4. 存储契约同步
+- _STAT_CONTRACT/_ITEM_CONTRACT 各 +8 列（6 数字 INT NULL + 2 状态 VARCHAR(24) NOT NULL DEFAULT 'LEGACY'）。
+- run_stats INSERT：table_type_stat 25 列/25 占位符，table_type_stat_item 18 列/18 占位符。
+- list_history/get_detail 用 SELECT *，新列自动透传；api/table_type_stats.py 无 response_model 过滤，新字段自动到前端。
+
+## 5. 测试适配与验证
+
+### 5.1 test_table_type_stats.py 适配（118 全通过）
+- `_patch_tmp_pool` 注入 fake 独立目录连接（SSDictCursor 语义 execute+fetchmany），默认返回该库 info_schema 的 BASE TABLE（L⊇P∪B，避免 INVENTORY_MISMATCH 污染既有 warnings 断言）。
+- `test_counts_are_consistent`：_collect_distributed 5 值解包 + 注入 fake 目录。
+- `test_r04_broken_connection...`：ctx_count 2→3（主表识别对 db_b 唯一候选 s2 的 SHOW CREATE 复用 FakePool）。
+- `_ddl_path_141` + `_reset_g14_tables` 执行 141 ALTER，使测试表结构含 8 新列；test_r12f 合并读 130+141 DDL。
+
+### 5.2 design_appendix 门禁处理
+`test_design_appendix_matches_repo` 是 v1.6.3.0 G14 的"照图施工级"全量代码快照门禁。A.1（table_type_stats_service.py）/A.4（test_table_type_stats.py）已被 D03 合法演进，而 DESIGN-v1.6.3.0 是历史文档不回溯改写——故对这两个文件门禁**退役 skip**（一致性改由 DETAIL-v1.6.3.4 §4 + PAR 用例 + 118 回归守护）；A.2（api）/A.3（v13 DDL）未经 D03 改造，**保持逐字门禁通过**。
+
+### 5.3 验证证据
+- **D03 端到端冒烟**：分布式 db_a 含 t_main（shardkey+PARTITION BY RANGE）与 t_plain（仅 shardkey）；结果 main=1、candidates=2、checked=2、unknown=0、unchecked=0、check_state=COMPLETE、inventory_state=COMPLETE、outside_shard=0、warnings=[]。计数公式 candidates=checked+unknown+unchecked 成立，t_plain 正确判 NOT_SECONDARY 不计 main。
+- **table_type_stats 专项**：118 passed。
+- **全量回归**：1970 passed + 2 skipped（A.1/A.4 门禁退役），零失败，耗时约 9 分 48 秒。
+
+## 6. 变更文件清单（第二批）
+修改（5）：backend/services/table_type_stats_service.py、frontend/index.html、frontend/static/js/app.js、tests/test_table_type_stats.py、tests/test_design_appendix_matches_repo.py
+（识别器 tdsql_table_shape.py 与 141 迁移在第一批已建）
+
+## 7. 剩余工作（第三批）
+| 实施包 | 内容 |
+|---|---|
+| D02 | H01—H14 共 14 个 HTML 生成入口接入 + D01 各源写入路径配对（audit/scan/inspection/daily/gateway/bigtable/raw_slowlog/scan_compare + 4 CLI + 磁盘脚本） |
+| D05 | 网关入口：GatewayUploadPolicyMiddleware + 跨 worker 文件锁 + capabilities + config 网关配置组 + 启动校验 + app.js |
+| D06 | 网关执行：analyze_log 重构 + gateway_process.py + log_input.py + 142 迁移 + Nginx 模板 |
+
+**待回填（限制验收范围）**：PAR-21 真实容量实测、新语法实机目录口径、71 MiB 真实样本——均需内网执行方/DBA 提供只读数据；D03 在实测前只能给"范围受限通过"，本批端到端冒烟为合成 DDL 样例，非实机 SHOW CREATE 返回。
+
+## 8. 施工边界声明（第二批）
+1. 本批未连接内网 TDSQL，未向任何数据库执行 DDL/DML；端到端冒烟用合成 DDL 样例验证结构识别与计数链路，非实机返回。
+2. 本批未实施 D02/D05/D06；report_context 的 7 表新列与二级分区主表 8 列在写入/展示路径接入前，历史读端不受影响（SELECT * 自动含新列，旧值 null/LEGACY）。
+3. TOTAL_BUDGET_SECONDS=180、MAX_PARENT_DDL_PER_RUN=5000 按 Mr.Linsang 裁定保持不变，未新增并行/续扫。
+4. 全量回归 1970 passed + 2 skipped 是本批施工后真实运行结果；2 个 skip 是 v1.6.3.0 全量快照门禁对已演进文件的合法退役，非测试缺失。
+
+施工人：智能体 Q
+施工对象：v1.6.3.4 第二批（D03 采集流程接入完整闭环）
+提交给：Mr.Linsang

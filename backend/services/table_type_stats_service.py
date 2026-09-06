@@ -144,6 +144,24 @@ CONNECT_TIMEOUT = 5           # 临时池单次建连超时（秒）
 TOTAL_BUDGET_SECONDS = 180
 ITEM_INSERT_BATCH = 100       # 明细落库批量大小。500 库从 500 次往返降到 5 次
 
+# ══════════════════════════════════════════════════════════════════
+# v1.6.3.4 / D03：二级分区主表识别的护栏与批量（REQ-02，DETAIL §4.3）
+# ══════════════════════════════════════════════════════════════════
+# 按 Mr.Linsang 裁定：TOTAL_BUDGET_SECONDS=180 共享软预算不变，主表识别只能用
+# 基础/目录之后剩余的软预算；MAX_PARENT_DDL_PER_RUN=5000 护栏不变，不新增
+# 并行扫描/后台续扫。达到护栏/预算只停止新指标识别，保留原基础统计。
+MAX_PARENT_DDL_PER_RUN = 5000            # 整个 C 的 SHOW CREATE TABLE 尝试上限
+MAX_PARENT_DIRECTORY_ROWS_PER_RUN = 50000  # 独立目录行护栏（全请求，视图行也占额度）
+DIRECTORY_BATCH_ROWS = 500               # SSDictCursor 每批至多读取行数（不调用 fetchall）
+MAX_DDL_BYTES = 2 * 1024 * 1024          # 每条 DDL 最多处理 2 MiB，超限 UNKNOWN
+# 二级分区主表识别的 check_state / inventory_state 枚举（DETAIL §4.4）
+SP_STATE_COMPLETE = "COMPLETE"
+SP_STATE_PARTIAL = "PARTIAL"
+SP_STATE_UNKNOWN = "UNKNOWN"
+SP_STATE_NOT_APPLICABLE = "NOT_APPLICABLE"
+SP_STATE_LEGACY = "LEGACY"
+SP_STATE_FAILED = "FAILED"               # 仅 inventory_state 使用
+
 # 表名列识别规则（§6.3）。自上而下，命中即停。
 # db_table 为 2026-08-29 内网实测确认的真实列名（附录 B）。
 _EXACT_NAME_COLS = ("db_table", "table", "table_name", "tables", "name")
@@ -440,11 +458,40 @@ def _classify_subpartitions(base: set, proxy_tables: set) -> tuple:
     return base - subp, subp
 
 
+def _quote_ident(name: str) -> str:
+    """反引号转义标识符（反引号加倍）——v1.6.3.4 / D03，DETAIL §4.3 第 4 条。
+
+    库名/表名分别反引号转义，不能值占位符代替标识符，不能拼接未转义名称。
+    用于 SHOW FULL TABLES FROM <quoted_db> 与 SHOW CREATE TABLE <quoted_db>.<quoted_table>。
+    """
+    return "`" + str(name).replace("`", "``") + "`"
+
+
+# v1.6.3.4 / D03：二级分区主表的 8 个新字段默认值（DETAIL §4.4）。
+# 数字字段默认 None（null），状态字段默认 None（表示未填充，由各分支回填）。
+# 计数验收公式：candidates = checked + unknown + unchecked；
+#              outside_shard <= main <= checked <= candidates。
+def _blank_secondary_fields() -> dict:
+    return {
+        "secondary_partition_main_tables": None,
+        "secondary_partition_check_state": None,
+        "secondary_partition_candidates": None,
+        "secondary_partition_checked": None,
+        "secondary_partition_unknown": None,
+        "secondary_partition_unchecked": None,
+        "secondary_partition_inventory_state": None,
+        "secondary_partition_outside_shard": None,
+    }
+
+
 def _blank_item(db: str) -> dict:
-    return {"db_name": db, "total_tables": 0, "shard_tables": 0,
+    item = {"db_name": db, "total_tables": 0, "shard_tables": 0,
             "broadcast_tables": 0, "single_tables": 0,
             "baseline_tables": 0, "subpartition_tables": 0,
             "status": "OK", "detail": ""}
+    # v1.6.3.4 / D03：二级分区主表 8 列（默认 null/未填充，由各分支回填）
+    item.update(_blank_secondary_fields())
+    return item
 
 
 def _collect_centralized(dbs: list, baseline: dict):
@@ -452,10 +499,16 @@ def _collect_centralized(dbs: list, baseline: dict):
 
     Rev.G（P1-03）：**不剔除任何 _tdsql_subp 表**——集中式没有二级分区物理子表
     这一构造，剔除只会把合法业务表静默少算，且此分支没有 Proxy 交叉校验兜底。
+
+    v1.6.3.4 / D03（DETAIL §4.1/§4.4）：集中式按定义不存在"一级 Set 分布＋二级
+    分区"，新增列显示 0（不适用），即使原生 MySQL PARTITION/SUBPARTITION 非空也
+    不计入。两种 state 均为 NOT_APPLICABLE、各数字为 0。
     """
     items = []
     totals = {"shard": 0, "broadcast": 0, "single": 0, "total": 0,
               "baseline": 0, "subp": 0, "overlap": 0, "failed": 0, "skipped": 0}
+    # v1.6.3.4 / D03：二级分区主表实例汇总（集中式恒 NOT_APPLICABLE/0）
+    sp_totals = _blank_sp_totals()
     for db in dbs:
         base = baseline.get(db, {}).get("base", set())
         n = len(base)
@@ -463,11 +516,47 @@ def _collect_centralized(dbs: list, baseline: dict):
         item["total_tables"] = n
         item["single_tables"] = n
         item["baseline_tables"] = n
+        # 集中式：NOT_APPLICABLE，各数字为 0（不是 null）
+        item["secondary_partition_main_tables"] = 0
+        item["secondary_partition_check_state"] = SP_STATE_NOT_APPLICABLE
+        item["secondary_partition_candidates"] = 0
+        item["secondary_partition_checked"] = 0
+        item["secondary_partition_unknown"] = 0
+        item["secondary_partition_unchecked"] = 0
+        item["secondary_partition_inventory_state"] = SP_STATE_NOT_APPLICABLE
+        item["secondary_partition_outside_shard"] = 0
         items.append(item)
         totals["single"] += n
         totals["total"] += n
         totals["baseline"] += n
-    return items, [], {}, totals
+    # 集中式实例汇总：state=NOT_APPLICABLE，数字=0
+    sp_totals["check_state"] = SP_STATE_NOT_APPLICABLE
+    sp_totals["inventory_state"] = SP_STATE_NOT_APPLICABLE
+    sp_totals["main"] = 0
+    sp_totals["candidates"] = 0
+    sp_totals["checked"] = 0
+    sp_totals["unknown"] = 0
+    sp_totals["unchecked"] = 0
+    sp_totals["outside_shard"] = 0
+    return items, [], {}, totals, sp_totals
+
+
+def _blank_sp_totals() -> dict:
+    """二级分区主表实例汇总的空白结构（v1.6.3.4 / D03）。
+
+    数字默认 None（基础全失败时为 null），state 默认 LEGACY（由调用方回填）。
+    实例汇总使用同一旧 eligible 集合，各数字只加其中已知值（DETAIL §4.4）。
+    """
+    return {
+        "main": None,
+        "check_state": SP_STATE_LEGACY,
+        "candidates": None,
+        "checked": None,
+        "unknown": None,
+        "unchecked": None,
+        "inventory_state": SP_STATE_LEGACY,
+        "outside_shard": None,
+    }
 
 
 def _collect_distributed(pool, dbs: list, baseline: dict, known: "_NameSpace",
@@ -494,7 +583,7 @@ def _collect_distributed(pool, dbs: list, baseline: dict, known: "_NameSpace",
     totals = {"shard": 0, "broadcast": 0, "single": 0, "total": 0,
               "baseline": 0, "subp": 0, "overlap": 0, "failed": 0, "skipped": 0}
     if not dbs:
-        return items, warnings, shape, totals
+        return items, warnings, shape, totals, _blank_sp_totals()
 
     target = _NameSpace(dbs)
     kind_map = {}          # (db, table) -> kind
@@ -632,12 +721,26 @@ def _collect_distributed(pool, dbs: list, baseline: dict, known: "_NameSpace",
                         if len(v) > 1 and k[0] in eligible)
     recon = []                 # [(db, 仅Proxy可见数, 仅基线可见数)]
 
+    # v1.6.3.4 / D03：收集每库的 P/B/S，供主表识别（_identify_secondary_
+    # partition_mains）构建候选 C=L∪P∪B 与四层调度使用（DETAIL §4.3 第 2 条）。
+    #   P = 原三类 Proxy 结果的完整并集（每库 proxy_tables）
+    #   B = _classify_subpartitions 返回的逻辑基线
+    #   S = 归一化后的最终分片集合（kind_map 中 kind==shard）
+    db_proxy = {}         # P: db -> Proxy 三类并集
+    db_logical_base = {}  # B: db -> 逻辑基线
+    db_shard = {}         # S: db -> 最终分片集合
+
     for db in dbs:
         item = _blank_item(db)
         proxy_tables = {t for (d, t) in kind_map if d == db}
         raw_base = baseline.get(db, {}).get("base", set())
         # P1-03（首轮）：结合 Proxy 结果做子表判定（父表必须在 Proxy 结果里）
         logical_base, subp = _classify_subpartitions(raw_base, proxy_tables)
+        # v1.6.3.4 / D03：收集 P/B/S（对所有库收集，主表识别只消费 eligible 库）
+        db_proxy[db] = proxy_tables
+        db_logical_base[db] = logical_base
+        db_shard[db] = {t for (d, t), k in kind_map.items()
+                        if d == db and k == KIND_SHARD}
         # 逐库行如实显示基线与子分区（information_schema 那一侧确实查成功了），
         # 但**只有 eligible 库计入实例级汇总**，否则 total 与 baseline 覆盖的
         # 库集合不同，两个数并排放就失去了互相印证的意义。
@@ -739,7 +842,412 @@ def _collect_distributed(pool, dbs: list, baseline: dict, known: "_NameSpace",
             "NOT_DISTRIBUTED_ENDPOINT", "ERROR", "",
             "全部已执行的业务库均因语法错误(1064)失败：该连接可能指向后端 TXSQL "
             "而非 Proxy 端口，或该实例实际并非分布式实例"))
-    return items, warnings, shape, totals
+
+    # ── v1.6.3.4 / D03：二级分区主表识别（原有基线与 Proxy 采集完成后执行）──
+    # 只处理 eligible 库；failed/skipped 库的新列为 UNKNOWN，不记零（§4.3 第 1 条）。
+    # 新增扫描不能抢先耗尽预算而把原来能统计的库变为失败——此时原基础统计已完成，
+    # 主表识别只消费剩余软预算（TOTAL_BUDGET_SECONDS=180 共享，不重置）。
+    eligible_dbs = [d for d in dbs if d not in failed and d not in skipped]
+    db_sp, sp_totals, sp_warnings = _identify_secondary_partition_mains(
+        cfg, eligible_dbs, db_proxy, db_logical_base, db_shard, deadline)
+    warnings.extend(sp_warnings)
+    # 回填每库 item 的 8 个新字段
+    for item in items:
+        db = item["db_name"]
+        if db in db_sp:
+            item.update(db_sp[db])
+        else:
+            # failed/skipped 库：check/inventory 均为 UNKNOWN，数字保持 null（不记零）
+            item["secondary_partition_check_state"] = SP_STATE_UNKNOWN
+            item["secondary_partition_inventory_state"] = SP_STATE_UNKNOWN
+    return items, warnings, shape, totals, sp_totals
+
+
+# ══════════════════════════════════════════════════════════════════
+# v1.6.3.4 / D03：二级分区主表识别（REQ-02，DETAIL §4.3）
+# ══════════════════════════════════════════════════════════════════
+def _default_directory_connection(cfg, db: str):
+    """生产默认：用 pymysql 建独立 SSDictCursor 连接（DETAIL §4.3 第 5 条）。
+
+    独立临时物理连接，不返共享池；SSDictCursor 服务端游标按需读行，避免
+    fetchall 把最多 50000 行目录一次性聚合进内存（S11）。
+    """
+    import pymysql
+    from pymysql.cursors import SSDictCursor
+    return pymysql.connect(
+        host=cfg.host, port=cfg.port, user=cfg.user, password=cfg.password,
+        database=db, charset=cfg.charset,
+        connect_timeout=cfg.connect_timeout, read_timeout=cfg.read_timeout,
+        cursorclass=SSDictCursor)
+
+
+# 可测性钩子：单测用 monkeypatch 注入 fake 连接工厂（保持纯离线，不连真实库）。
+# 生产恒为 _default_directory_connection。这是本模块第三处为可测性做的让步
+# （前两处为 _new_pool / _now）。
+_open_directory_connection = _default_directory_connection
+
+
+def _enumerate_directory_l(cfg, db: str, deadline: float,
+                           remaining_rows: int):
+    """对单库执行 SHOW FULL TABLES 得独立目录 L[db]（DETAIL §4.3 第 1/5 条）。
+
+    使用**独立临时物理连接**的 SSDictCursor 每批至多 500 行读取，不调用 fetchall
+    （S11：fetchall 会重新聚合，cursor.close 可能读完剩余结果）。达到额度后最多
+    多读一行确认是否截断；截断/预算耗尽时关闭该独立连接再结束游标，防止 close
+    隐式排空所有剩余行，不把未读完的连接返共享池。
+
+    返回 (L_db:set, state:str, rows_consumed:int, truncated:bool)。
+    state ∈ {COMPLETE, PARTIAL, FAILED}。
+    """
+    L_db = set()
+    conn = None
+    cur = None
+    rows_consumed = 0
+    truncated = False
+    try:
+        # 独立临时物理连接（SSDictCursor 流式，不返共享池）。连接工厂为模块级
+        # 可测性钩子 _open_directory_connection——生产默认 pymysql.connect，
+        # 单测注入 fake，保持纯离线用例不连真实数据库。
+        conn = _open_directory_connection(cfg, db)
+        cur = conn.cursor()
+        # 库名反引号转义（§4.3 第 4 条）；SHOW FULL TABLES 返回
+        # 第一列 Tables_in_<db>（表名）、第二列 Table_type。
+        cur.execute(f"SHOW FULL TABLES FROM {_quote_ident(db)}")
+        while True:
+            if _now() >= deadline:
+                truncated = True
+                break
+            rows = cur.fetchmany(DIRECTORY_BATCH_ROWS)
+            if not rows:
+                break
+            for row in rows:
+                rows_consumed += 1
+                if rows_consumed > remaining_rows:
+                    truncated = True
+                    break
+                # 按列语义取值：第二列 Table_type 仅保留 BASE TABLE（§4.3 第 1 条）。
+                # 不硬编码随库名变化的第一列名——用位置取值（SHOW FULL TABLES
+                # 固定两列：名称、类型）。
+                vals = list(row.values()) if isinstance(row, dict) else list(row)
+                if len(vals) < 2:
+                    continue
+                tname = str(vals[0] or "").strip()
+                ttype = str(vals[1] or "").strip().upper()
+                if tname and ttype == "BASE TABLE":
+                    L_db.add(tname)
+            if truncated:
+                break
+        # 截断时先关闭独立连接再结束游标（S11），防止 close 排空剩余流
+        try:
+            cur.close()
+        except Exception:
+            pass
+        cur = None
+    except Exception as e:                                    # noqa: BLE001
+        return set(), SP_STATE_FAILED, rows_consumed, True
+    finally:
+        if cur is not None:
+            try:
+                cur.close()
+            except Exception:
+                pass
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
+    state = SP_STATE_PARTIAL if truncated else SP_STATE_COMPLETE
+    return L_db, state, rows_consumed, truncated
+
+
+def _identify_secondary_partition_mains(
+        cfg, eligible_dbs, db_proxy, db_logical_base, db_shard,
+        deadline):
+    """二级分区主表识别（v1.6.3.4 / D03，DETAIL §4.3—§4.4）。
+
+    在原有基线与 Proxy 采集**完成后**执行；新增扫描不能抢先耗尽预算而把原来
+    能统计的库变为失败。只处理原有 eligible 库；failed/skipped 库的新列为
+    UNKNOWN，不记零（由调用方处理）。
+
+    Args:
+        cfg: TDSQLConnectionConfig（临时连接配置，database 字段会被逐库覆盖）
+        eligible_dbs: 既未失败也未跳过的库列表
+        db_proxy: {db: set(tables)} — P，原三类 Proxy 结果的完整并集
+        db_logical_base: {db: set(tables)} — B，_classify_subpartitions 的逻辑基线
+        db_shard: {db: set(tables)} — S，归一化后的最终分片集合
+        deadline: 共享软预算截止点（TOTAL_BUDGET_SECONDS=180，不重置）
+
+    Returns:
+        (db_sp, sp_totals, sp_warnings)
+        db_sp: {db: {8 个新字段}}
+        sp_totals: 实例汇总（_blank_sp_totals 结构）
+        sp_warnings: 告警列表
+    """
+    import dataclasses as _dc
+    from backend.services.tdsql_table_shape import (
+        classify_logical_ddl, STATE_SECONDARY, STATE_NOT_SECONDARY)
+
+    db_sp = {}
+    sp_warnings = []
+    sp_totals = _blank_sp_totals()
+
+    if not eligible_dbs:
+        # 没有目标库：若库枚举完整可 COMPLETE/0（§4.4），但此处无法证明枚举完整，
+        # 保守给 UNKNOWN/FAILED，不伪造 COMPLETE/0。
+        sp_totals["check_state"] = SP_STATE_UNKNOWN
+        sp_totals["inventory_state"] = SP_STATE_FAILED
+        return db_sp, sp_totals, sp_warnings
+
+    # ── 步骤 1：独立目录枚举，得 L[db] 与逐库 inventory 状态 ──────────
+    L = {}
+    inv_state = {}
+    remaining_rows = MAX_PARENT_DIRECTORY_ROWS_PER_RUN
+    dir_global_truncated = False
+    for db in eligible_dbs:
+        if _now() >= deadline:
+            # 预算耗尽：目录未取得，inventory=PARTIAL，L 用已知 P∪B 下界
+            L[db] = set()
+            inv_state[db] = SP_STATE_PARTIAL
+            dir_global_truncated = True
+            continue
+        # 每库用独立连接，database 切到该库
+        db_cfg = _dc.replace(cfg, database=db)
+        L_db, state, consumed, truncated = _enumerate_directory_l(
+            db_cfg, db, deadline, remaining_rows)
+        remaining_rows -= consumed
+        L[db] = L_db
+        inv_state[db] = state
+        if truncated:
+            dir_global_truncated = True
+        if state == SP_STATE_FAILED:
+            sp_warnings.append(_warn(
+                "SP_DIRECTORY_FAILED", "WARNING", db,
+                "SHOW FULL TABLES 独立目录枚举失败（无权/不支持/连接错误）；"
+                "该库候选退化为 P∪B 下界，inventory 非 COMPLETE"))
+
+    # ── 步骤 2：构建候选 C = L ∪ P ∪ B，四层调度（§4.3 第 2 条 + 候选调度表）──
+    # 每库候选（用于逐库计数）
+    C_by_db = {}
+    for db in eligible_dbs:
+        P_db = db_proxy.get(db, set())
+        B_db = db_logical_base.get(db, set())
+        L_db = L.get(db, set())
+        C_by_db[db] = L_db | P_db | B_db
+
+    # 全实例集合（用于四层调度，按精确 (库名,表名)）
+    all_S, all_P, all_B, all_L, all_C = set(), set(), set(), set(), set()
+    for db in eligible_dbs:
+        for t in db_shard.get(db, set()):
+            all_S.add((db, t))
+        for t in db_proxy.get(db, set()):
+            all_P.add((db, t))
+        for t in db_logical_base.get(db, set()):
+            all_B.add((db, t))
+        for t in L.get(db, set()):
+            all_L.add((db, t))
+        for t in C_by_db[db]:
+            all_C.add((db, t))
+
+    # 四层互斥且并集必须等于 C（§4.3 候选调度表）：
+    #   C1 = C ∩ S                       先检查旧最终分片集合
+    #   C2 = (C ∩ (B − P)) − C1          再检查仅逻辑基线可见的候选
+    #   C3 = (L − (P ∪ B)) − (C1 ∪ C2)   再检查仅独立目录可见的候选
+    #   C4 = C − (C1 ∪ C2 ∪ C3)          最后检查剩余旧单表/广播候选
+    C1 = all_C & all_S
+    C2 = (all_C & (all_B - all_P)) - C1
+    C3 = (all_L - (all_P | all_B)) - (C1 | C2)
+    C4 = all_C - (C1 | C2 | C3)
+    # 层内按精确 (库名,表名) 稳定排序，全实例 C1→C2→C3→C4 调度
+    layers = [sorted(C1), sorted(C2), sorted(C3), sorted(C4)]
+
+    # inventory 完整性精判（§4.3 第 7 条）：C 中的非物理对象均被 L 覆盖才 COMPLETE。
+    # L 缺少 P/B 的已知逻辑对象 → PARTIAL，保留 INVENTORY_MISMATCH 样本。
+    mismatch_samples = []
+    for db in eligible_dbs:
+        if inv_state[db] != SP_STATE_COMPLETE:
+            continue  # 已 FAILED/PARTIAL 的库不再判 mismatch
+        # 该库 P∪B 中的逻辑对象是否都在 L 中
+        logical_objs = db_proxy.get(db, set()) | db_logical_base.get(db, set())
+        missing = logical_objs - L.get(db, set())
+        if missing:
+            inv_state[db] = SP_STATE_PARTIAL
+            mismatch_samples.append((db, len(missing)))
+    if mismatch_samples:
+        names = ", ".join(f"{d}({n})" for d, n in mismatch_samples[:5])
+        if len(mismatch_samples) > 5:
+            names += f" …等 {len(mismatch_samples)} 个库"
+        sp_warnings.append(_warn(
+            "INVENTORY_MISMATCH", "WARNING", "",
+            f"{len(mismatch_samples)} 个库的独立目录 L 缺少 P/B 已知逻辑对象"
+            f"（{names}）；这些库 inventory 降为 PARTIAL，主表数为已知范围下界"))
+
+    # ── 步骤 3：逐表 SHOW CREATE TABLE + classify_logical_ddl（§4.3 第 3—6 条）──
+    counters = {db: {"candidates": len(C_by_db[db]), "checked": 0, "unknown": 0,
+                     "unchecked": 0, "main": 0, "outside_shard": 0}
+                for db in eligible_dbs}
+    judged = {}                      # (db,table) -> STATE_*
+    ddl_attempts = 0
+    ddl_stopped = False
+    stop_reason = "completed"
+
+    tmp2 = _new_pool(cfg, pool_size=1)
+    try:
+        for layer in layers:
+            if ddl_stopped:
+                break
+            for (db, table) in layer:
+                # 预算检查（每次命令之前，§4.3 第 4 条）
+                if _now() >= deadline:
+                    ddl_stopped = True
+                    stop_reason = "budget"
+                    break
+                # DDL 护栏（§4.3 第 5 条：MAX_PARENT_DDL_PER_RUN 作用于整个 C）
+                if ddl_attempts >= MAX_PARENT_DDL_PER_RUN:
+                    ddl_stopped = True
+                    stop_reason = "ddl_guard"
+                    break
+                ddl_attempts += 1
+                # 每候选最多一次 SHOW CREATE，反引号转义库名/表名
+                sql = (f"SHOW CREATE TABLE {_quote_ident(db)}.{_quote_ident(table)}")
+                try:
+                    with tmp2.get_connection() as conn:
+                        with conn.cursor() as cur:
+                            cur.execute(sql)
+                            # SHOW CREATE TABLE 只返回一行；用 fetchall()[0] 而非
+                            # fetchone()，兼容测试替身 FakePool 的 _Cursor（仅 fetchall）。
+                            _rows = cur.fetchall()
+                            row = _rows[0] if _rows else None
+                except Exception as e:                        # noqa: BLE001
+                    # 无权/空返回/缺列/扫描中删除/改名/词法失败 → unknown，
+                    # 不计 confirmed_negative（§4.3 第 6 条）。坏连接由池重建。
+                    judged[(db, table)] = "UNKNOWN"
+                    counters[db]["unknown"] += 1
+                    continue
+                if not row:
+                    judged[(db, table)] = "UNKNOWN"
+                    counters[db]["unknown"] += 1
+                    continue
+                vals = list(row.values()) if isinstance(row, dict) else list(row)
+                ddl = str(vals[1]) if len(vals) > 1 else ""
+                # 每条 DDL 最多处理 2 MiB，超限 UNKNOWN（§4.3 第 5 条）
+                if not ddl or len(ddl.encode("utf-8")) > MAX_DDL_BYTES:
+                    judged[(db, table)] = "UNKNOWN"
+                    counters[db]["unknown"] += 1
+                    continue
+                ev = classify_logical_ddl(ddl, db, table)
+                if ev.state == STATE_SECONDARY:
+                    judged[(db, table)] = STATE_SECONDARY
+                    counters[db]["checked"] += 1
+                    counters[db]["main"] += 1
+                    # outside_shard：main 中不在旧最终分片集合 S 的已确认数
+                    if (db, table) not in all_S:
+                        counters[db]["outside_shard"] += 1
+                elif ev.state == STATE_NOT_SECONDARY:
+                    judged[(db, table)] = STATE_NOT_SECONDARY
+                    counters[db]["checked"] += 1
+                else:
+                    judged[(db, table)] = "UNKNOWN"
+                    counters[db]["unknown"] += 1
+    finally:
+        try:
+            tmp2.close_all()
+        except Exception:                                    # noqa: BLE001
+            logger.debug("主表识别临时池关闭失败（忽略）", exc_info=True)
+
+    # 未尝试的候选计 unchecked（§4.4：candidates = checked + unknown + unchecked）
+    for db in eligible_dbs:
+        judged_db = sum(1 for (d, _t) in judged if d == db)
+        counters[db]["unchecked"] = counters[db]["candidates"] - judged_db
+
+    # ── 步骤 4：逐库 check_state 与字段回填（§4.4）──────────────────
+    for db in eligible_dbs:
+        c = counters[db]
+        inv = inv_state[db]
+        # check_state：只有基础可用、inventory=COMPLETE、C 全判明且无相关元数据
+        # 冲突才 COMPLETE；C 为空时也必须先满足完整枚举。
+        if c["candidates"] == 0:
+            check = SP_STATE_COMPLETE if inv == SP_STATE_COMPLETE else SP_STATE_UNKNOWN
+        elif inv == SP_STATE_COMPLETE and c["unchecked"] == 0 and c["unknown"] == 0:
+            check = SP_STATE_COMPLETE
+        elif c["checked"] > 0:
+            check = SP_STATE_PARTIAL
+        else:
+            check = SP_STATE_UNKNOWN
+        db_sp[db] = {
+            "secondary_partition_main_tables": c["main"],
+            "secondary_partition_check_state": check,
+            "secondary_partition_candidates": c["candidates"],
+            "secondary_partition_checked": c["checked"],
+            "secondary_partition_unknown": c["unknown"],
+            "secondary_partition_unchecked": c["unchecked"],
+            "secondary_partition_inventory_state": inv,
+            "secondary_partition_outside_shard": c["outside_shard"],
+        }
+
+    # ── 步骤 5：实例汇总（§4.4）────────────────────────────────────
+    # 各数字只加 eligible 库中的已知值
+    sum_main = sum(counters[db]["main"] for db in eligible_dbs)
+    sum_cand = sum(counters[db]["candidates"] for db in eligible_dbs)
+    sum_checked = sum(counters[db]["checked"] for db in eligible_dbs)
+    sum_unknown = sum(counters[db]["unknown"] for db in eligible_dbs)
+    sum_unchecked = sum(counters[db]["unchecked"] for db in eligible_dbs)
+    sum_outside = sum(counters[db]["outside_shard"] for db in eligible_dbs)
+    sp_totals["main"] = sum_main
+    sp_totals["candidates"] = sum_cand
+    sp_totals["checked"] = sum_checked
+    sp_totals["unknown"] = sum_unknown
+    sp_totals["unchecked"] = sum_unchecked
+    sp_totals["outside_shard"] = sum_outside
+
+    # check_state 汇总：全部目标库 COMPLETE 才能汇总 COMPLETE；存在已判明结果
+    # 但有失败/跳过/缺库/未判明则 PARTIAL，否则 UNKNOWN。
+    db_checks = [db_sp[db]["secondary_partition_check_state"] for db in eligible_dbs]
+    if db_checks and all(x == SP_STATE_COMPLETE for x in db_checks):
+        sp_totals["check_state"] = SP_STATE_COMPLETE
+    elif sum_checked > 0:
+        sp_totals["check_state"] = SP_STATE_PARTIAL
+    else:
+        sp_totals["check_state"] = SP_STATE_UNKNOWN
+
+    # inventory 汇总：全部目标库目录完整才 COMPLETE，部分目录可用或枚举截断为
+    # PARTIAL，全部不可用为 FAILED。
+    db_invs = [inv_state[db] for db in eligible_dbs]
+    if db_invs and all(x == SP_STATE_COMPLETE for x in db_invs):
+        sp_totals["inventory_state"] = SP_STATE_COMPLETE
+    elif any(x in (SP_STATE_COMPLETE, SP_STATE_PARTIAL) for x in db_invs):
+        sp_totals["inventory_state"] = SP_STATE_PARTIAL
+    else:
+        sp_totals["inventory_state"] = SP_STATE_FAILED
+
+    # 停止原因告警（预算/护栏）
+    if ddl_stopped:
+        if stop_reason == "budget":
+            sp_warnings.append(_warn(
+                "SP_BUDGET_EXCEEDED", "WARNING", "",
+                f"二级分区主表识别在共享 {TOTAL_BUDGET_SECONDS}s 预算内未全量判明："
+                f"已尝试 {ddl_attempts} 张，判明 {sum_checked}、未知 {sum_unknown}、"
+                f"未检查 {sum_unchecked}；主表数为下界 ≥{sum_main}，"
+                f"页面显示「≥N（未完成）」，不自动续扫拼接历史"))
+        elif stop_reason == "ddl_guard":
+            sp_warnings.append(_warn(
+                "SP_DDL_GUARD", "WARNING", "",
+                f"二级分区主表识别达到 {MAX_PARENT_DDL_PER_RUN} 次 DDL 护栏："
+                f"判明 {sum_checked}、未知 {sum_unknown}、未检查 {sum_unchecked}；"
+                f"主表数为下界 ≥{sum_main}"))
+    if dir_global_truncated:
+        sp_warnings.append(_warn(
+            "SP_DIRECTORY_TRUNCATED", "WARNING", "",
+            f"独立目录枚举触发 {MAX_PARENT_DIRECTORY_ROWS_PER_RUN} 行护栏或预算截断；"
+            f"候选目录不完整，主表数为已知范围下界"))
+    # MAIN_OUTSIDE_PROXY_SHARD 告警（§4.1：现代语法主表可能不在旧分片集合）
+    if sum_outside > 0:
+        sp_warnings.append(_warn(
+            "MAIN_OUTSIDE_PROXY_SHARD", "INFO", "",
+            f"已确认 {sum_outside} 张二级分区主表不在旧 /*proxy*/show table with "
+            f"shardkey 结果中（现代语法主表可能落入旧单表/仅基线/仅独立目录）；"
+            f"原 single/broadcast/shard/total 三类统计未调整"))
+
+    return db_sp, sp_totals, sp_warnings
 
 
 
@@ -829,10 +1337,10 @@ def analyze(pool, connection_id: str = "", database: str = "",
             f"采集总时长预算 {TOTAL_BUDGET_SECONDS}s 在查询 information_schema 前即已耗尽")
     baseline = _collect_baseline(pool, dbs, known)
     if is_dist:
-        items, warns, shape, totals = _collect_distributed(
+        items, warns, shape, totals, sp_totals = _collect_distributed(
             pool, dbs, baseline, known, deadline)
     else:
-        items, warns, shape, totals = _collect_centralized(dbs, baseline)
+        items, warns, shape, totals, sp_totals = _collect_centralized(dbs, baseline)
     warnings.extend(warns)
 
     return {
@@ -849,6 +1357,17 @@ def analyze(pool, connection_id: str = "", database: str = "",
         "failed_databases": totals["failed"],
         "skipped_databases": totals["skipped"],
         "overlap_count": totals["overlap"],
+        # v1.6.3.4 / D03：二级分区主表实例汇总（REQ-02，DETAIL §4.4）。
+        # 数字为 null 表示基础不可用；state=LEGACY 仅历史记录，新采集为实际状态。
+        # 0 必须结合状态解读，只有 COMPLETE/0 才表示范围内确认无主表。
+        "secondary_partition_main_tables": sp_totals["main"],
+        "secondary_partition_check_state": sp_totals["check_state"],
+        "secondary_partition_candidates": sp_totals["candidates"],
+        "secondary_partition_checked": sp_totals["checked"],
+        "secondary_partition_unknown": sp_totals["unknown"],
+        "secondary_partition_unchecked": sp_totals["unchecked"],
+        "secondary_partition_inventory_state": sp_totals["inventory_state"],
+        "secondary_partition_outside_shard": sp_totals["outside_shard"],
         "items": items,
         "warnings": warnings,
         "shape": shape,
@@ -900,6 +1419,17 @@ _STAT_CONTRACT = {
     "warnings_json":       _COL("mediumtext", None, True, None),
     "created_by":          _COL("varchar", 64, True, ""),
     "created_at":          _COL("datetime", None, True, "CURRENT_TIMESTAMP"),
+    # v1.6.3.4 / D03：二级分区主表 8 列（141 迁移追加，DETAIL §4.4）。
+    # 数字列 INT NULL DEFAULT NULL（基础不可用为 null）；状态列 VARCHAR(24)
+    # NOT NULL DEFAULT 'LEGACY'（历史记录默认，新采集写实际状态）。
+    "secondary_partition_main_tables":     _COL("int", None, True, None),
+    "secondary_partition_check_state":     _COL("varchar", 24, False, "LEGACY"),
+    "secondary_partition_candidates":      _COL("int", None, True, None),
+    "secondary_partition_checked":         _COL("int", None, True, None),
+    "secondary_partition_unknown":         _COL("int", None, True, None),
+    "secondary_partition_unchecked":       _COL("int", None, True, None),
+    "secondary_partition_inventory_state": _COL("varchar", 24, False, "LEGACY"),
+    "secondary_partition_outside_shard":   _COL("int", None, True, None),
 }
 _ITEM_CONTRACT = {
     "id":                  _COL("int", None, False, None, True),
@@ -914,6 +1444,15 @@ _ITEM_CONTRACT = {
     "status":              _COL("varchar", 16, True, "OK"),
     "detail":              _COL("varchar", 512, True, ""),
     "created_at":          _COL("datetime", None, True, "CURRENT_TIMESTAMP"),
+    # v1.6.3.4 / D03：二级分区主表 8 列（141 迁移追加，DETAIL §4.4）。
+    "secondary_partition_main_tables":     _COL("int", None, True, None),
+    "secondary_partition_check_state":     _COL("varchar", 24, False, "LEGACY"),
+    "secondary_partition_candidates":      _COL("int", None, True, None),
+    "secondary_partition_checked":         _COL("int", None, True, None),
+    "secondary_partition_unknown":         _COL("int", None, True, None),
+    "secondary_partition_unchecked":       _COL("int", None, True, None),
+    "secondary_partition_inventory_state": _COL("varchar", 24, False, "LEGACY"),
+    "secondary_partition_outside_shard":   _COL("int", None, True, None),
 }
 # INSERT 用的列清单（顺序即 SQL 里的书写顺序，单测钉住二者一致）
 _STAT_COLUMNS = tuple(_STAT_CONTRACT)
@@ -1121,8 +1660,13 @@ def run_stats(pool, connection_id: str = "", database: str = "",
             "instance_type, type_source, database_count, total_tables, "
             "shard_tables, broadcast_tables, single_tables, baseline_tables, "
             "subpartition_tables, failed_databases, skipped_databases, "
-            "overlap_count, warnings_json, created_by, created_at) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "overlap_count, warnings_json, created_by, created_at, "
+            # v1.6.3.4 / D03：二级分区主表 8 列（141 迁移）
+            "secondary_partition_main_tables, secondary_partition_check_state, "
+            "secondary_partition_candidates, secondary_partition_checked, "
+            "secondary_partition_unknown, secondary_partition_unchecked, "
+            "secondary_partition_inventory_state, secondary_partition_outside_shard) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (connection_id, database, res["instance_type"], res["type_source"],
              res["database_count"], res["total_tables"], res["shard_tables"],
              res["broadcast_tables"], res["single_tables"],
@@ -1130,18 +1674,41 @@ def run_stats(pool, connection_id: str = "", database: str = "",
              res["failed_databases"], res["skipped_databases"],
              res["overlap_count"],
              json.dumps(res["warnings"], ensure_ascii=False), operator,
-             captured_at))
+             captured_at,
+             # v1.6.3.4 / D03：二级分区主表实例汇总
+             res["secondary_partition_main_tables"],
+             res["secondary_partition_check_state"],
+             res["secondary_partition_candidates"],
+             res["secondary_partition_checked"],
+             res["secondary_partition_unknown"],
+             res["secondary_partition_unchecked"],
+             res["secondary_partition_inventory_state"],
+             res["secondary_partition_outside_shard"]))
         stat_id = cur.lastrowid
         # Rev.K / P1-02：明细【批量】落库。Rev.J 是逐行 INSERT——500 个业务库就是
         # 500 次往返，全部发生在扫描槽已释放、deadline 已不再约束的阶段，
         # 会继续占用 API 工作线程。批量后 500 库只需 5 次往返。
+        # v1.6.3.4 / D03：明细增加二级分区主表 8 列。
         rows = [(stat_id, it["db_name"], it["total_tables"], it["shard_tables"],
                  it["broadcast_tables"], it["single_tables"],
                  it["baseline_tables"], it["subpartition_tables"],
-                 it["status"], it["detail"]) for it in res["items"]]
+                 it["status"], it["detail"],
+                 it["secondary_partition_main_tables"],
+                 it["secondary_partition_check_state"],
+                 it["secondary_partition_candidates"],
+                 it["secondary_partition_checked"],
+                 it["secondary_partition_unknown"],
+                 it["secondary_partition_unchecked"],
+                 it["secondary_partition_inventory_state"],
+                 it["secondary_partition_outside_shard"]) for it in res["items"]]
         item_sql = ("INSERT INTO table_type_stat_item (stat_id, db_name, total_tables, "
                     "shard_tables, broadcast_tables, single_tables, baseline_tables, "
-                    "subpartition_tables, status, detail) VALUES (?,?,?,?,?,?,?,?,?,?)")
+                    "subpartition_tables, status, detail, "
+                    "secondary_partition_main_tables, secondary_partition_check_state, "
+                    "secondary_partition_candidates, secondary_partition_checked, "
+                    "secondary_partition_unknown, secondary_partition_unchecked, "
+                    "secondary_partition_inventory_state, secondary_partition_outside_shard) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
         for i in range(0, len(rows), ITEM_INSERT_BATCH):
             conn.cursor().executemany(item_sql, rows[i:i + ITEM_INSERT_BATCH])
         conn.commit()
