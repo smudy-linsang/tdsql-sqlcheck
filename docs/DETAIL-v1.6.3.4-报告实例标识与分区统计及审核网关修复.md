@@ -1,6 +1,6 @@
 # v1.6.3.4 详细开发设计说明书
 
-版本：Rev.A（研究完成，提交评审；不是开发完成或测试通过声明）
+版本：Rev.B（第一轮评审后修订，提交 A 二轮复核；不是评审通过、开发完成或测试通过声明）
 
 需求提出与验收方：Mr.Linsang
 
@@ -8,13 +8,15 @@
 
 研究基线：`main@88954b3`，业务功能版本 v1.6.3.2；依赖基线 `sqlglot==30.14.0`。
 
-本次交付边界：只新增本设计文档；未修改业务代码、测试代码、配置、数据库或内网环境。
+本轮复核基线：`main@dc7181b`；从上述研究基线到该提交仅有文档变更。评审输入为 [A 第一轮评审报告](./REVIEW1-v1.6.3.4-报告实例标识与分区统计及审核网关修复设计第一轮评审报告-ClaudeA.md)，逐项处理见 [Rev.B 修订答复](./RESPONSE1-v1.6.3.4-第一轮设计评审逐项答复与RevB修订说明-O.md)。保留 A 原报告不改写。
+
+本次交付边界：只修订设计和新增评审答复文档；未修改业务代码、测试代码、配置、数据库或内网环境。
 
 ## 1. 结论与范围
 
 |编号|本版交付|明确不做|
 |---|---|---|
-|REQ-01|所有实际生成的 HTML 报告显示实例连接名称；扫描时固化名称，历史/离线/多实例来源可辨认|不把连接 ID、端口、数据库名冒充连接名称；不回写历史检查结论|
+|REQ-01|所有实际生成的 HTML 报告显示实例来源；已绑定连接显示扫描时固化的真实名称，未绑定显示未关联，历史/多实例来源可辨认|不把连接 ID、端口、数据库名冒充连接名称；不回写历史检查结论；不为纯离线文件审核新增实例选择器|
 |REQ-02|表类型统计增加“二级分区主表”；识别逻辑表的一级分布与二级分区两层结构|不把物理子表数当主表数，不改变原有三类表及总表数口径，不新建导出功能|
 |REQ-03|修复 R043 的语句作用域识别，保留真实联表 UPDATE/DELETE 的拦截|不关闭/降级 R043，不豁免整条 CREATE 的其他审核，不调整已签署的 R121 策略|
 |REQ-04|打通约 71 MiB 网关日志的受控上传、分析、持久化与错误展示|不以放开全站限额或无限超时为方案；本版不引入 Celery/Redis、断点续传或新的任务平台|
@@ -23,8 +25,9 @@
 
 1. R043 已在本地使用附件原文复现。根因不是 TDSQL 建表语法不合法，而是通用预解析正则跨越了语句内部的字段定义。
 2. 内网诊断报告漏掉应用默认 **50 MiB 请求体限制**。本地已证明相同大小声明的请求会在上传处理函数前返回 413；但没有内网请求状态码/生效配置/异常栈，不能据此宣称已还原那一次事故的唯一原因。
-3. 二级分区主表是分片逻辑表的子集。新增列不参与“总表数＝单表＋广播表＋分片表”的加法。
+3. 二级分区主表在结构语义上属于分布式逻辑表，但不能假设旧 Proxy 分片命令覆盖所有新语法主表。候选需独立枚举并与三类 Proxy/逻辑基线求并集，DDL 确认数允许大于旧“分片表”计数并明确差异；新增列不参与“总表数＝单表＋广播表＋分片表”的加法，不重分类原三类统计。
 4. 采用“统一报告来源上下文＋各生成器适配”，而非导出时读取页面当前选择。网关采用“路由专属限额＋流式落盘＋非事件循环执行＋受控子进程”，保持现有同步响应契约。
+5. 按 A 报告 §7 转录的 Mr.Linsang 裁定落文：报告生成时已指定连接的显示其冻结名称；网关分析同一时刻只允许一个任务，不排队。429 附带建议重试间隔是 A 的实现建议，不冒充 Mr.Linsang 原话；本版单应用主机、多 worker，不能以多主机各一槽宣称全局单槽。
 
 ## 2. 研究证据与官方核对
 
@@ -65,6 +68,8 @@ tdsql_二级分区表识别逻辑.md
 |S07|[NGINX：proxy_read_timeout](https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_read_timeout)|这是相邻读取之间的空闲超时，不是整个请求的总时限|
 |S08|[FastAPI：文件上传](https://fastapi.tiangolo.com/tutorial/request-files/)|UploadFile 自带内存/磁盘暂存机制；调用无界 read() 会重新把完整文件读进内存|
 |S09|[MySQL：存储空间要求](https://dev.mysql.com/doc/refman/8.4/en/storage-requirements.html)、[Packet Too Large](https://dev.mysql.com/doc/refman/8.0/en/packet-too-large.html)|MEDIUMTEXT 是小于 2^24 字节，LONGTEXT 是小于 2^32 字节；报文限制独立于列容量|
+|S10|[MySQL：SHOW TABLES](https://dev.mysql.com/doc/refman/8.0/en/show-tables.html)|`SHOW FULL TABLES FROM db` 可返回名称与 Table_type，需过滤视图；账号无权限的对象可能不可见。这只核实 SQL 语法，不证明所有 TDSQL 内核的逻辑目录口径，后者须用实际返回验收|
+|S11|[PyMySQL：Cursor Objects](https://pymysql.readthedocs.io/en/latest/modules/cursors.html)|SSCursor/SSDictCursor 按需读行；fetchall 会重新聚合，cursor.close 可能读完剩余结果。因此新增目录流式读取不可只把 fetchall 改名为 fetchmany，也不能以关闭游标冒充立即取消|
 
 采纳工程师材料的“先识别广播，再判断两层结构”语义，但不直接使用原始文本 grep：注释、字符串、反引号标识符、换行、可执行注释及分区表达式中的关键词都会影响命中。S03 不足以证明所有新语法变体可在所有内核上执行；本版只识别目标实际返回的 DDL，不扩展核心 SQL 审核器的新方言恢复白名单。S02 中自动维护分区的能力说明，也不替代 Mr.Linsang 已确定的业务自行维护、禁止 MAXVALUE 的治理政策。
 
@@ -86,16 +91,20 @@ tdsql_二级分区表识别逻辑.md
 
 另对当前 `BodySizeLimitMiddleware.dispatch` 隔离调用：屏蔽数据库配置覆盖和环境变量覆盖，仅注入 `Content-Length=74560116`，有效默认值为 `52428800`，返回 HTTP 413，上传处理函数没有执行。此实验验证当前代码默认路径，不代表已经检查内网配置或分析过原始 71 MiB 日志。
 
+Rev.B 补充复现：调用仓库真实 `SQLParser.parse()`，分别正常解析、注入 `sqlglot.errors.ParseError`、注入 `exp.Command`，没有复制函数替代实测，也没有执行 SQL。`ALTER TABLE t ADD COLUMN a DATETIME ON UPDATE CURRENT_TIMESTAMP, ADD COLUMN b VARCHAR(20) CHARACTER SET utf8mb4` 的正常结果为 `ALTER/multi=true`，两条回退路径均为 `UPDATE/multi=true`；只有 ParseError 路径的 parse_error 非空。真实 JOIN UPDATE 与多表形式 DELETE 在三路径均为对应 DML/multi=true。因此 Rev.A 的 `parsed.sql_type` 防线不成立；新增事实提取器与 R043 必须完全脱离这个旧分类字段。完整输入/结果在修订答复中留档；这是未修复基线证据，不是 Rev.B 实现测试通过。
+
 ## 3. REQ-01：所有 HTML 报告添加连接名称
 
 ### 3.1 全量生成入口清单
 
 开发和测试须按本清单逐行销项，不能用“公共方法单测通过”代替实际报告校验。
 
+实例名称显示通则：报告生成时已指定实例连接的出口，显示提取/扫描开始时冻结的真实连接名称；未指定的显示“未关联实例（场景）”。当前离线文件审核前端不指定连接，本版不增加选择器；但现有 `/audit/file` API 允许显式 connection_id，不能把该路由的所有调用都误判成离线。人工 CLI 名称按 manual 标明，历史记录按 §3.2 降级，不伪造扫描时名称。
+
 |ID|入口/生成位置|来源与改动|
 |---|---|---|
-|H01|`backend/api/sql_audit.py::export_file_report_html`，`/api/v1/audit/file-reports/{id}/html`|audit_history；目前页眉只有文件、审核人、架构等，补上下文。当前文件审核前端未绑定连接，按离线语义处理|
-|H02|同文件 `export_extracted_report_html`，`/api/v1/audit/report/{id}/html`|audit_history；在线提取开始时冻结连接名称，不从生成的 SQL 文件名推断|
+|H01|`backend/api/sql_audit.py::export_file_report_html`，`/api/v1/audit/file-reports/{id}/html`|audit_history；前端未绑定连接时显示未关联；已有 API 显式绑定调用按冻结名称处理，不新增选择器、不改变其既有门禁语义|
+|H02|同文件 `export_extracted_report_html`，`/api/v1/audit/report/{id}/html`|audit_history；extract_and_audit 在元数据提取前、与 scan_started_at 同一开始阶段，从 conn_info 冻结名称；新报告导出只读快照，不反查现名、不从文件名/SQL 注释推断；保持 evaluate_gate=False|
 |H03|`backend/api/slow_query.py::export_scan_task_html`|scan_tasks；已有 connection_name，但 `scan_service._do_scan` 当前写入 host:port，须修正写入源|
 |H04|`backend/api/inspection.py::export_schema_check_report`|该入口会重新检查；在本次检查开始时按 request.connection_id 取名，不按 host+port 反查第一条同端点连接|
 |H05a-d|`scan_compare_report.py::render_single_snapshot_html`|schema_audit、slow_scan、launch_check、bigtable 四种快照分别验收；继承源任务的上下文|
@@ -178,6 +187,10 @@ ALTER TABLE gateway_log_reports ADD COLUMN report_context_json TEXT NULL DEFAULT
 7. `raw_slowlog_service` 的采集运行开始冻结，通过事件现有 `extra_json.report_context` 持久化，不为高容量事件表新增列；老事件经 source 关联仅作现名降级。导出结果必须带逐事件上下文，避免 N+1 查询，按 source_id 批量取旧来源。
 8. 网关调用使用受理时上下文生成 HTML，同时与统计结果一次事务入 `gateway_log_reports`；历史报告 GET 不写库。
 
+H02 的连接本就必填：复用 `extract_and_audit` 提取前取得的 `conn_info`，不在生成 HTML 时再次查连接。调用 `audit_file_content` 保持不传 `evaluate_gate`（默认 False），第三返回值 `gate_result=None`；`audit_history` 实际对应列为 `gate_passed`，本路径仍为 NULL，报告不新增门禁结论。不要把不存在的 `gate_result` 数据库列写进迁移或测试。
+
+H01 API 已有 `evaluate_gate=bool(request.connection_id)`，名称接入不得更改这一行为；未绑定前端仍离线、无门禁，既有显式绑定 API 仍有原本的门禁评估。未来若另增“仅用于报告标识”的离线关联能力，应单独评审并使用独立字段（如 report_connection_id），不得复用审核身份字段而静默启用门禁；本版不实施该扩展。新报告禁止现名反查与旧记录显式标注 current_lookup 的降级是两条不同契约。
+
 新装基表、数据库访问显式 SELECT 列、INSERT 参数数、返回模型、快照大小统计和保留/清理代码须同步核对。旧 `results_json`/`snapshot_json` 的主体类型不变，不能把原数组改成对象导致旧读端失效。
 
 ### 3.4 HTML 与安全约束
@@ -188,6 +201,8 @@ ALTER TABLE gateway_log_reports ADD COLUMN report_context_json TEXT NULL DEFAULT
 
 新网关模板预留唯一 `data-report-context-version="1"` 来源区。旧 report_html 在 `<body>` 开始处或旧模板明确的 container 锚点补块一次；无 body 的历史片段用安全外层文档容纳，不能全局 replace 任意文本。仍由既有 `_strip_inline_handlers` 和 nonce 逻辑处理响应，保留 90 秒一次性共享票据及不透明源 sandbox。不得为显示名称放松 CSP。
 
+H07 与 H08 分别保护，不合并安全链：H07 的 `daily_inspect.py::_REPORT_CSP`/`compare_html` 生成每响应 nonce，传入 `generate_comparison_html_report(script_nonce=nonce)`；它没有 H08 的网关票据、处理内联事件的函数或不透明源 iframe。保留 H07 原策略项、响应头和脚本 nonce 传递；原策略已有 unsafe-inline/unsafe-eval 文本，不以本次名称改动新增或扩大这些权限，也不借机改写既有安全策略。H08 则继续自己的票据、nonce、清理及 iframe 链。验收先将 CSP 中随机 nonce 归一为占位符再逐项/逐字比较策略，另断言每次响应 nonce 更新、与文档受授权脚本一致及危险名称不执行；不能要求两次真实 CSP 字节相等，更不能为满足这种断言复用 nonce。
+
 ## 4. REQ-02：“二级分区主表”统计
 
 ### 4.1 定义与不变量
@@ -196,10 +211,12 @@ ALTER TABLE gateway_log_reports ADD COLUMN report_context_json TEXT NULL DEFAULT
 
 ```text
 总表数 = 单表 + 广播表 + 分片表                         （维持原值）
-0 <= 二级分区主表已确认数 <= 分片表数                   （同一可用库范围）
+0 <= 二级分区主表已确认数 <= 判明候选数 <= 已知候选数   （同一可用库范围）
 二级分区主表不再加到总表数，也不从分片表数中扣除
 二级分区子表 = 现有 information_schema + 命名/父表/Proxy 三条件口径（不变）
 ```
+
+“结构上属于分布表”不等于“必然被旧 with shardkey 命令列出”。新语法主表可能落入旧单表结果，也可能仅在逻辑目录/基线可见；DDL 确认的主表不能被旧分片数封顶。此类正例照计，并显示 `MAIN_OUTSIDE_PROXY_SHARD` 与数量；不调整原 single/broadcast/shard/total/baseline/subpartition 数值，不暗示旧三分类也已完成新内核适配。
 
 集中式按此定义不存在“一级 Set 分布＋二级分区”，新增列显示 `0（不适用）`，即使原生 MySQL PARTITION/SUBPARTITION 非空也不计入。新字段不是原生 MySQL 的 SUBPARTITION_NAME 计数。
 
@@ -242,13 +259,14 @@ reason_code: 固定枚举；不得携带完整 DDL
 
 在 `table_type_stats_service._collect_distributed/analyze` 保留现有 Proxy 三命令、名称归属、大小写歧义、重叠优先级、子表剔除和 reconciliation。先完成原有基线与 Proxy 采集，之后再执行主表识别；新增扫描不能抢先耗尽预算而把原来能统计的库变为失败。
 
-1. 从当前请求最终归一化的分片逻辑表集合产生候选 `(库名,表名)`，保留其归属、原始 kinds_seen。只处理原有 eligible 库；failed/skipped 库的新列为 UNKNOWN，不记零。
-2. 对候选执行 `SHOW CREATE TABLE <quoted_db>.<quoted_table>`，通过现有只读临时连接访问 Proxy，不直连 Set。不再遍历 information_schema 的物理子表。库名/表名分别反引号转义（反引号加倍），不能值占位符代替标识符，不能字符串拼接未转义名称。
-3. 同请求去重后每候选最多一次 SHOW CREATE，不做持久缓存，避免 DDL 变化后陈旧结果。单实例串行 DDL 读取，沿用 registry.scan_slot，不创建每表线程。每次连接/命令前检查原 `deadline`，沿用 180 秒**软预算**，新增不定义假的硬墙钟承诺。
-4. 新护栏 `MAX_PARENT_DDL_PER_RUN=5000`，按库/表精确名稳定排序。超过护栏/预算只停止主表识别，保留已完成基础统计。每条 DDL 最多接收处理 2 MiB；超出返回 UNKNOWN，不能截断后当普通表。连接 read_timeout 取不大于原 30 秒与剩余软预算的值，并明确它仍是 socket 空闲超时。
-5. SHOW CREATE 权限不足、表在扫描中删除/改名、Proxy 与 DDL 的分片/广播事实冲突、缺少 DDL 列、词法不支持，均记 unknown，不计 confirmed_negative。可继续的错误继续下一表；连接已不可用则关闭重建，禁止在坏会话上循环重试。
-6. 原有 KIND_OVERLAP 不改优先级。若候选同时被 Proxy 返回为广播，或者 DDL 表明不是分布表，新增 METADATA_CONFLICT 告警并标 UNKNOWN，不能用“广播优先”改动原来总数。
-7. 参数含全部库且枚举截断、名字归属歧义或 Proxy 失败时，实例级完整性不为 COMPLETE。无权看到的库不可能自动推算；报告说明“账号可见范围”，不能宣称物理集群全量。
+1. 只处理原有 eligible 库；failed/skipped 库的新列为 UNKNOWN，不记零。在原基础采集完成后，对每个可用库通过同一 Proxy 只读连接执行一次 `SHOW FULL TABLES FROM <quoted_db>`，按第二列 Table_type 仅保留 BASE TABLE 得集合 L；按列语义取值，不硬编码随库名变化的第一列名。视图不进入 L。这个独立枚举用于补齐旧命令可能未覆盖的新语法逻辑表；S10 验证语法，TDSQL 的版本/返回行为必须按 §8.2 实机核验，不能假定所有版本都支持。
+2. P 为原三类 Proxy 结果的完整并集（保留 kinds_seen，不只是最终分片集合 S），B 为现有 `_classify_subpartitions` 返回的逻辑基线，X 为该方法原来确认的物理子表集合。候选 `C = L ∪ P ∪ B`，等价于补入 only_base=B−P 且覆盖旧单表/广播结果；按精确 `(库名,表名)` 去重，记录 L/P/B 来源。L 不可用时仍可处理 P∪B 得到下界，但独立枚举状态为 FAILED，绝不因此宣称 COMPLETE。不能只补 only_base：在 P 的单表集合中的新主表不属于 only_base。
+3. 对 C 逐表执行 `SHOW CREATE TABLE <quoted_db>.<quoted_table>`，从 Proxy 返回 DDL 判两层结构，不直连 Set、不从物理子表数量反推。不得将原始 information_schema 物理子表全集重新加入候选；若 L 意外列出 X 中的对象，它仍进入 C 核验：DDL 为明确无一级分布的物理表可判 NOT_SECONDARY，DDL 却带完整分布结构则记 `LOGICAL_PHYSICAL_CONFLICT/UNKNOWN`，不能重复计主表，也不能单凭后缀认定正例/负例。命名像物理子表但实际被 P 作为逻辑表返回的，不在 X 中，按正常 DDL 判断。
+4. 库名/表名分别反引号转义（反引号加倍），不能值占位符代替标识符，不能拼接未转义名称。同请求每候选最多一次 SHOW CREATE，不做持久缓存。单实例串行，沿用 registry.scan_slot，不创建每表线程。独立目录枚举和每次连接/命令之前均检查原 deadline；沿用 180 秒**软预算**，不定义假的硬墙钟承诺。
+5. `MAX_PARENT_DDL_PER_RUN=5000` 作用于整个 C 的 DDL 尝试，不只分片表；按库/表精确名稳定排序。达到护栏/预算只停止新指标识别，保留原基础统计；未尝试项计 unchecked。新增目录行护栏 `MAX_PARENT_DIRECTORY_ROWS_PER_RUN=50000`（全请求、视图行也占额度），使用独立临时物理连接的 SSDictCursor 每批至多 500 行读取，不调用 fetchall；原基础统计没有该行数护栏，不假称复用已有能力。达到额度后最多多读一行确认是否截断；截断/预算耗尽时关闭该独立连接再结束游标，防止 close 隐式排空所有剩余行（S11），不把未读完的连接返共享池。inventory=PARTIAL，未见部分不伪造进 candidates；新枚举内存护栏不代表改造了原基础全量读取。每条 DDL 最多处理 2 MiB，超限 UNKNOWN，不能截断后当普通表；read_timeout 不大于原 30 秒与剩余软预算，仍只是 socket 空闲超时。
+6. SHOW CREATE 无权、空返回/缺列、扫描中删除/改名、词法失败或结构不支持均记 unknown，不计 confirmed_negative。可继续的错误继续下一表，坏连接关闭重建而非循环重试。原 KIND_OVERLAP、命名归属歧义保留并使相关对象 UNKNOWN；DDL 的广播事实与 Proxy 分片事实矛盾、Proxy 广播标记与 DDL 正例矛盾也如此。唯有“完整两层 DDL，但旧 Proxy 未列入 S”本身不否定正例（尤其仅在旧单表/only_base/L 中的现代语法），照计 main/outside_shard 并告警。
+7. 独立目录成功、结构有效且未截断，原相关枚举未失败/截断/归属不清，且 C 中的非物理对象均被 L 覆盖时，inventory=COMPLETE。L 与 P/B 仅分类不同不算漏枚举；L 缺少 P/B 的已知逻辑对象则 inventory=PARTIAL，保留 `INVENTORY_MISMATCH` 样本。库枚举截断、失败库、物理/逻辑冲突均禁止实例级 COMPLETE。原 baseline 与 Proxy 的数量差异告警原样保留，但经独立目录和完整 DDL 明确解释的 only_base 正例不必永久禁止新指标 COMPLETE；新指标完整不等于旧总数已校正。
+8. 所有计数描述“当前账号可见业务库范围、多条只读查询采集”，不是事务级一致性快照。账号不可见对象不能自动推算；不宣称物理集群全量。独立枚举不支持时不回退为“零主表”，而是下界/未知并列明不支持原因。
 
 ### 4.4 API、持久化、前端
 
@@ -256,33 +274,39 @@ reason_code: 固定枚举；不得携带完整 DDL
 
 |字段|类型/存储|语义|
 |---|---|---|
-|secondary_partition_main_tables|INT NULL DEFAULT NULL|已确认主表数；旧记录/基础采集失败为 null；完成且无主表才是 0|
+|secondary_partition_main_tables|INT NULL DEFAULT NULL|已确认主表数；旧记录/基础不可用为 null；0 必须结合状态解读，只有 COMPLETE/0 才表示范围内确认无主表|
 |secondary_partition_check_state|VARCHAR(24) NOT NULL DEFAULT 'LEGACY'|COMPLETE、PARTIAL、UNKNOWN、NOT_APPLICABLE、LEGACY|
-|secondary_partition_candidates|INT NULL DEFAULT NULL|可用 Proxy 分片候选数|
+|secondary_partition_candidates|INT NULL DEFAULT NULL|已知 C 的去重候选数；枚举不完整时只是已知范围，不等于分片数|
 |secondary_partition_checked|INT NULL DEFAULT NULL|已经得到 SECONDARY/NOT_SECONDARY 确定结论的候选数|
 |secondary_partition_unknown|INT NULL DEFAULT NULL|已尝试但无法判断的数|
 |secondary_partition_unchecked|INT NULL DEFAULT NULL|预算/护栏停止后未尝试的数|
+|secondary_partition_inventory_state|VARCHAR(24) NOT NULL DEFAULT 'LEGACY'|COMPLETE、PARTIAL、FAILED、NOT_APPLICABLE、LEGACY；独立目录覆盖状态，与 DDL 判明状态分开|
+|secondary_partition_outside_shard|INT NULL DEFAULT NULL|main 中不在旧最终分片集合 S 的已确认数；不是额外主表，不能再次相加|
 
-新增 `backend/schema/v14/141_secondary_partition_main.sql`，对 `table_type_stat` 和 `table_type_stat_item` 分别按上表执行六条独立 ADD COLUMN；不修改 v13 历史迁移及校验和。同步 `_STAT_CONTRACT/_ITEM_CONTRACT`、派生 `_STAT_COLUMNS/_ITEM_COLUMNS`、INSERT、history/detail SELECT 和启动结构校验。
+新增 `backend/schema/v14/141_secondary_partition_main.sql`，对 `table_type_stat` 和 `table_type_stat_item` 分别按上表执行八条独立 ADD COLUMN（共十六条）；不修改 v13 历史迁移及校验和。同步 `_STAT_CONTRACT/_ITEM_CONTRACT`、派生 `_STAT_COLUMNS/_ITEM_COLUMNS`、INSERT、history/detail SELECT 和启动结构校验。Rev.A 尚未实施迁移，本次是待开发文件规格修订，不改动已发布账本。
 
-计数验收公式：`candidates = checked + unknown + unchecked`，`main <= checked`；confirmed negative = checked-main。该公式只针对已知候选集合，未成功枚举的库不伪造候选数。
+计数验收公式：`candidates = checked + unknown + unchecked`，`outside_shard <= main <= checked <= candidates`；confirmed negative = checked-main。该公式只针对已知 C，未成功枚举的部分不伪造候选数。原基础不可用的新数字为 null；有已知候选但尚未确认正例的内部已确认数可为 0，前端仍必须连状态显示，不能当作全量零。
 
-状态：基础成功且所有候选判明为 COMPLETE（零候选也完整）；至少有一项判明但仍有 unknown/unchecked 为 PARTIAL；无一项判明或基础不可用为 UNKNOWN；集中式为 NOT_APPLICABLE（数值 0）；老记录为 LEGACY（null）。实例汇总主表数只加 eligible 库的已确认值，缺库时状态降级；基础全失败为 null。
+逐库 check_state：只有基础可用、inventory=COMPLETE、C 全判明且无相关元数据冲突才 COMPLETE；C 为空时也必须先满足完整枚举，不能以“零分片”直接判 COMPLETE/0。未达完整但 checked>0 则 PARTIAL；checked=0 且不能证明完整零则 UNKNOWN。集中式两种 state 均为 NOT_APPLICABLE、各数字为 0；历史两种 state 均为 LEGACY、各数字为 null。
 
-示例：分片表 99，确认 4 张主表；查明 90，错误 2，未查 7：
+实例汇总使用同一旧 eligible 集合，各数字只加其中已知值；基础全失败为 null。全部目标库 COMPLETE 才能汇总 COMPLETE；存在已判明结果但有失败/跳过/缺库/未判明则 PARTIAL，否则 UNKNOWN。inventory 汇总：全部目标库目录完整才 COMPLETE，部分目录可用或枚举截断为 PARTIAL，全部不可用为 FAILED；没有目标库且库枚举完整可 COMPLETE/0。缺库要告警，不能以 null 被 SUM 忽略就冒充全量。
+
+示例：旧分片 99，全来源候选 216，确认 4 张主表（其中 1 张不在旧分片集合）；查明 207，错误 2，未查 7：
 
 ```json
 {
   "secondary_partition_main_tables": 4,
   "secondary_partition_check_state": "PARTIAL",
-  "secondary_partition_candidates": 99,
-  "secondary_partition_checked": 90,
+  "secondary_partition_candidates": 216,
+  "secondary_partition_checked": 207,
   "secondary_partition_unknown": 2,
-  "secondary_partition_unchecked": 7
+  "secondary_partition_unchecked": 7,
+  "secondary_partition_inventory_state": "COMPLETE",
+  "secondary_partition_outside_shard": 1
 }
 ```
 
-页面显示 `≥4（未完成）`，说明显示“判明 90/99，失败 2，未检查 7”。UNKNOWN 显示 `—（未知）`；LEGACY 显示 `—（历史未采集）`；不能通过 `value || 0` 抹掉 null。partial 已确认数为 0 时显示“已确认 0，未完成”，不能只显示 0。
+页面显示 `≥4（未完成）`，说明显示“目录完整；判明 207/216，失败 2，未检查 7；其中 1 张未列入旧 Proxy 分片结果，原三类统计未调整”。inventory 不完整时显式加“候选目录不完整，数量为已知范围”。UNKNOWN 显示 `—（未知）`；LEGACY 显示 `—（历史未采集）`；不能通过 `value || 0` 抹掉 null。partial 已确认数为 0 时显示“已确认 0，未完成”，不能只显示 0；基础原状态 OK 与主表 UNKNOWN 必须分开显示。
 
 `frontend/index.html` 中即时结果、汇总、历史列表/历史详情同步增加“二级分区主表”列，放在“二级分区子表”之前。前端仍使用 app.js 现有请求归属/序号防护，切实例/切页签/加载历史后的迟到响应不能覆盖当前上下文。告警仍聚合、样本最多 20 个、detail 不超过 512 字符，不能输出全部 DDL 或 5000 条横幅。
 
@@ -315,7 +339,7 @@ CREATE TABLE t (
 
 ### 5.2 事实模型及落点
 
-保留 `ParsedSQL.is_multi_table_update` 兼容老调用者（其历史语义也包含 DELETE）；新增内部结构 `dml_target`，不新增规则编号：
+新增内部结构 `dml_target` 作为唯一事实源，不新增规则编号。`ParsedSQL.is_multi_table_update` 改为只读派生属性（其历史语义也包含 DELETE），不保留第二个可写布尔状态：
 
 ```text
 statement_kind: UPDATE | DELETE | NOT_DML | UNKNOWN
@@ -328,11 +352,27 @@ reason: stable code
 落点与执行顺序：
 
 1. 删除 `_regex_pre_parse` 对联表 UPDATE/DELETE 的两段事实赋值。其他已有规则预解析不借机重构。
-2. 在顶层 AST 得到并确定 sql_type 后，调用新增 `_extract_dml_target(ast, original_sql)`。正常解析只利用 AST，不再为每条正常 DML 重复 tokenize；保持 v1.6.3.2 已建立的解析次数性能约束。
-3. `_parse_update/_parse_delete` 使用该结构同步兼容布尔值；任何非 UPDATE/DELETE 顶层节点都使其为 false，不能复用上条 SQL 的状态。
-4. ParseError/Command 回退出口在返回前也要处理：只有能以可靠词法头确认 UPDATE/DELETE 才进入有限回退；无法可靠判断则 dml_target.status=UNKNOWN。原有解析错误、KFN、E999 不能因提取出 multi 而被清除。
-5. R043 防御式检查 `parsed.sql_type in ('UPDATE','DELETE')` 且已确认 multi 才报规则。UNKNOWN 不伪造联表违规，但必须由审核完整性路径输出 E999/不可完成审核，不能以“R043 不命中”冒充审核通过。新增 DML 事实失败原因并入 checker 已有完整性门禁，不覆盖既有 parse_error 文本。
+2. 每条语句新建事实对象。正常路径在取得可靠 AST 后调用 `_extract_dml_target(ast, original_sql)`，直接由顶层 AST 类型分流，**不以 parsed.sql_type 决定是否调用或判断结果**。正常解析只利用 AST，不重复 parse/tokenize；保持 v1.6.3.2 的解析次数性能约束。Command 不是可靠的结构 AST，必须走独立词法回退。
+3. `_parse_update/_parse_delete` 不再写兼容布尔值。只读属性完整派生于 `status == RESOLVED and statement_kind in (UPDATE, DELETE) and is_multi_table is True`，无 setter；字段初始化、预解析、提前返回均不能留下旧值。R043 直接读事实对象而不是该兼容属性。
+4. ParseError/Command 的每个返回出口必须填充 dml_target：用独立可靠词法头定位顶层语句，不使用 `_detect_sql_type_regex` 的结果。已确定非本规则对象返回 NOT_DML/NOT_APPLICABLE；真实 UPDATE/DELETE 才进入有限目标解析；真正无法确认的语句头/目标返回 UNKNOWN，详见下表。已有 parse_error/KFN/E999 绝不因新事实成功或 NOT_APPLICABLE 被清除。
+5. R043 唯一触发条件为 `dml_target.status == RESOLVED` 且 `dml_target.statement_kind in ('UPDATE','DELETE')` 且 `dml_target.is_multi_table is True`；文案类型也从 statement_kind 取值，**不再检查 parsed.sql_type**。UNKNOWN 不编造 R043，但并入 checker 原有审核完整性失败路径（已有 E999 则合并原因，不覆盖错误文本/重复制造同因条目），不能伪装为审核通过。NOT_APPLICABLE 则不因 R043 新增 E999；其他真实解析错误照常保留。
 6. R043 保持仅分布式、ERROR、启停及规则集覆盖能力；文案按真实类型显示 UPDATE 或 DELETE。其他架构的审核不得因 R043 本身新增 error；真实解析不完整的既有门禁仍照常生效。
+
+事实状态与审核行为（以下“无新增”不等于豁免其他规则）：
+
+|可靠证据|statement_kind/status/is_multi_table|R043 与完整性行为|
+|---|---|---|
+|可靠顶层 AST，或独立词法可确定 CREATE/ALTER/INSERT/SELECT 等非 UPDATE/DELETE 语句头|NOT_DML / NOT_APPLICABLE / false|无 R043；本事实不新增 E999，保留原解析/完整性结果|
+|可靠 AST 或有限回退完整确认顶层单表 UPDATE/常规 DELETE|UPDATE 或 DELETE / RESOLVED / false|无 R043；不清除已有错误|
+|可靠 AST 或有限回退完整确认多表 DML 形式|UPDATE 或 DELETE / RESOLVED / true|按原架构/规则启停机制报 R043；ParseError 原错误仍保留|
+|可确认 UPDATE/DELETE 头但目标结构不完整或不支持|对应 DML / UNKNOWN / null|无虚构 R043；明确审核不完整|
+|词法失败、可执行注释条件不明，或无法完整定位 WITH 后外层语句头|UNKNOWN / UNKNOWN / null|无虚构 R043；明确审核不完整|
+
+WITH 不是自动 UNKNOWN，也不是见到 CTE 内 UPDATE 就确认 DML：只在有限回退能够配对完整 CTE 定义、定位外层头时按该外层分类；外层 SELECT 为 NOT_APPLICABLE，外层 UPDATE/DELETE 才判目标。普通注释可屏蔽，可执行版本注释只能在条件和边界可证明时解释，不能“去掉所有注释后取第一个词”。对未知/未覆盖的非 DML 头也不硬猜 NOT_APPLICABLE。
+
+本版不顺带重写 `_detect_sql_type_regex`，因为它还服务于其他既有流程；该字段可能保留历史类型误标，已从 R043 的事实提取、触发和文案链剥离。若记录 `DML_TYPE_DISAGREE`，只作内部诊断，不以差异本身增加用户违规。
+
+兼容范围：当前运行时代码搜索显示旧布尔值唯一规则消费者为 R043，未发现 ParsedSQL 的 asdict 序列化出口；但“字段改 property”不保证 dataclass 构造参数/asdict 字段兼容，不宣称零影响。开发时核对全部 ParsedSQL 构造/反射/序列化和测试 fixture，移除旧字段赋值；public AuditResult 结构不变。仍须有属性真值表、连续解析隔离和消费者检索证据，只是不再需要双写同步测试。
 
 ### 5.3 AST 识别边界
 
@@ -412,7 +452,10 @@ reason: stable code
 |GATEWAY_UPLOAD_RECEIVE_TIMEOUT_SECONDS|300|应用接收请求体总时限；不含 Nginx 已缓冲在前面的时间|
 |GATEWAY_ANALYSIS_TIMEOUT_SECONDS|540|子进程从启动至分析和报告输出完毕的墙钟限制|
 |GATEWAY_PROCESSING_BUDGET_SECONDS|600|文件落盘开始至持久化的协调软预算，每阶段启动前检查；不是数据库 I/O 硬上界|
-|GATEWAY_MAX_CONCURRENT|1|单机所有应用 worker 共用槽；默认无排队，忙时 429|
+|GATEWAY_MAX_CONCURRENT|1（本版仅允许此值）|单应用主机所有 worker 共用槽；已批准单任务、无排队，忙时 429；其他值启动校验失败|
+|GATEWAY_BROWSER_WAIT_SECONDS|990|capabilities 下发，前端总等待保护使用同一配置，计时包含浏览器上传；不得另写魔数|
+|GATEWAY_DEPLOYMENT_MODE|direct|direct 为直连；经反向代理部署须显式配置 proxy 并提交实际链路核验|
+|GATEWAY_DECLARED_PROXY_READ_TIMEOUT_SECONDS|660|仅 proxy 模式校验的部署声明值；不代表应用自动读到了外部 Nginx 生效配置|
 |GATEWAY_MIN_FREE_BYTES|2147483648（2 GiB）|应用暂存卷受理前可用空间；Nginx 暂存卷运维独立检查|
 |GATEWAY_MAX_LINE_BYTES|1048576（1 MiB）|逐物理行硬上限；超长输入明确 422，不静默截断|
 |GATEWAY_REPORT_MAX_BYTES|25165824（24 MiB UTF-8）|子进程输出/服务读取前及入库前校验|
@@ -423,6 +466,27 @@ reason: stable code
 
 临时目录仅运行账号可访问，文件名由服务生成而非用户路径；保留原文件名仅供安全显示。每请求最多同时存在 UploadFile spool、受控输入文件、报告/小摘要；不能生成第三份完整日志。记录实际磁盘峰值，不以“有 2 GiB 空闲”冒充并发无限。
 
+并发策略已按 A 报告 §7.2 转录的 Mr.Linsang 裁定落实，不再待拍板：同时只能一个网关任务，拒绝者不入队、不分析其文件。2 GiB 是受理前空闲空间护栏，不是“每个任务实测必耗 2 GiB”的结论。本版支持单应用主机多 worker；若部署多应用主机，必须先提出共享协调方案及设计评审，不能每台各开一槽违反单任务约束。
+
+非阻塞锁在应用完成认证并到达取锁处时立即尝试，忙则直接 429，不等待持槽任务结束再返回。Nginx 默认缓冲时，请求可能先完成代理收体才到应用，所以不承诺用户点击后立刻 429，也不声称文件未到达代理；但不存在“在应用排队约十分钟才返回 429”的设计。
+
+### 6.3.1 超时链与启动校验
+
+统一时钟说明与默认值：
+
+|阶段|值|性质/起算点|
+|---|---|---|
+|应用 receive|300 秒|应用开始接收请求体后的总接收时限，不含代理预缓冲|
+|子进程 analysis|540 秒|进程启动至分析/报告完成的硬截止；超时后仍需退出与回收|
+|processing|600 秒|落盘、分析到持久化的软预算；阶段 checkpoint 不等于可打断任意 DB I/O|
+|TERM/KILL 回收预留|10 秒|TERM 等待最多 5 秒，KILL 后正常回收另预留 5 秒；若无法确认退出，不宣称已清理/可复用资源，转故障处置|
+|Nginx read/send|660 秒|相邻上游读/写的空闲超时，不是整个请求硬墙钟；client_body_timeout=60 秒同样为空闲超时|
+|浏览器等待保护|990 秒|从浏览器发起上传计时，包含代理前上传；触发后结果待确认，不自动重传|
+
+后端启动必须校验：所有时限为正，`analysis+10 < processing`，`receive+processing+10 <= browser_wait`；proxy 模式另校验 `processing+10 < declared_proxy_read < browser_wait`。默认满足 `540+10<600`、`300+600+10<=990`、`600+10<660<990`。失败记录具体配置名、值和违反的约束，拒绝启动，不能只打印 warning。capabilities 返回 browser_wait/config_version，前端必须使用返回值；读取失败时禁大日志提交并提示获取配置失败，不能悄悄沿用较短超时。
+
+上述数值约束是配置防错及预算余量检查，不是完整链路成功的数学保证：代理计时为空闲时钟，浏览器包含代理预缓冲，DB 仍是软预算；不能把相加式当作无条件 SLA。后端只校验自身与部署声明，无法单凭 config.py 验证真正生效的 Nginx/LB/浏览器。发布必须检查 `nginx -T` 和所有中间代理的实际值、request buffering/上游传输条件、capabilities 与浏览器实际保护时长，演练临界超时。改为不缓冲或慢速上游等部署形态时须重算可静默等待包络并实测，不能直接套用本表声称已安全。
+
 ### 6.4 请求限制与前端
 
 新增 `GatewayUploadPolicyMiddleware`（纯 ASGI）只匹配规范路径和 POST 方法。`BodySizeLimitMiddleware` 对该精确路由让专属策略决定，其他路由继续使用原 max_body_bytes（默认 50 MiB），不因新增网关参数放开全站。
@@ -431,12 +495,16 @@ reason: stable code
 
 1. 请求上下文最外侧保证 413/429 也有 X-Request-ID；Auth 在表单解析和重工作之前执行。调整注册顺序时须验证实际执行顺序，不能仅修改注释。跨域/安全头行为保持。
 2. 对可信与不可信 Content-Length 都先作格式/上限检查，再包装 ASGI receive 累计所有 http.request body 字节；无头/分块/伪造偏小值同样不能越界。超限停止后续读取和表单解析，不返回 500、不创建报告。
-3. 收体期间共用跨 worker 非阻塞槽；Linux 使用同一临时根的 advisory file lock，Windows 使用等价文件锁；进程退出由 OS 释放。锁文件不删除再重建，避免 inode 变化制造两个锁；不是进程内 Semaphore。多主机部署为每主机一槽并标明总容量，不宣称全局只有一槽。
-4. 将取消/超限信号贯通 receive、multipart parser 与路由；部分暂存文件必须 close，不能只清理进入 analyze_log 后的文件。前导过滤拒绝请求也要释放槽。运行中不得用线程超时退出代替实际取消子进程。
-5. capabilities 返回文件上限、请求上限、支持类型、处理中可能耗时和配置版本；前端只作友好预检，后端仍是权威。
+3. 收体期间共用跨 worker 非阻塞槽；Linux 使用同一私有临时根的 advisory file lock，Windows 使用等价文件锁；进程退出由 OS 释放。锁文件不删除再重建，避免 inode 变化制造两个锁；不是进程内 Semaphore。所有 worker 必须共享同一锁路径，部署前验证；多应用主机不属于本版已批准的单槽实现范围。
+4. 将取消/超限信号贯通 receive、multipart parser 与路由；部分暂存文件必须 close，不能只清理进入 analyze_log 后的文件。使用本请求 acquired 标志/持锁句柄，在 finally 仅释放本请求实际取得的槽：已取槽后超限/取消要释放，取槽前被 Content-Length 拒绝或取锁失败的请求不得释放他人的槽。运行中不得用线程超时退出代替实际取消子进程。
+5. capabilities 返回文件上限、请求上限、支持类型、单任务/不排队提示、browser_wait_seconds、处理中可能耗时和配置版本；前端只作友好预检，后端仍是权威。
 6. `app.js::onGatewayUpload` 把上传选定的 connection_id 固定在局部上下文；结果归属该实例。分析期间禁重复上传；切实例不能把 A 的成功提示/历史列表覆盖到 B。与加载历史分开维护上传 loading，finally 检查请求序号。
 7. 前端按 status 和 content-type 解析：复用已有 `responseMessage`，兼容 `{detail:string}`、`{detail:{message}}`、`{message}`、新结构；HTML 413/504 用固定中文提示，不把整个 HTML 渲染到页面。现有 `apiFetch` 会对所有 5xx 先弹通用通知，须增加调用级 `handledHttpError` 选项（默认 false，传给 fetch 前从 options 删除）；仅网关上传设置 true 并自己展示一次精确提示，不能关闭全局 401 处理或其他模块错误提示。显示请求编号；网络断开提示“结果尚未确认，请查历史”，不能断言服务没有处理。
-8. 不展示虚假的分析百分比。fetch 不能准确报告文件进度时显示“正在上传并分析，请勿重复提交”；完成后刷新**原实例**历史，成功/partial 文案保持区分。若增加浏览器总等待保护，默认 990 秒，并明确计时含上传；中止后先查询历史，不自动重传。
+8. 不展示虚假的分析百分比。fetch 不能准确报告文件进度时显示“正在上传并分析，请勿重复提交”；完成后刷新**原实例**历史，成功/partial 文案保持区分。浏览器总等待保护取 capabilities 的 990 秒默认值，明确含上传；中止后先查询历史，不自动重传。忙时不自动重试文件，提示必须明确本次未分析/未入队。
+
+429 定稿：响应同时有 `Retry-After`（整数秒）、`X-Request-ID` 头及 `detail.code=GATEWAY_BUSY`、message、stage=admission、request_id、retryable=true。正文为“当前已有一个网关日志任务正在上传或分析，同一时刻仅允许一个任务。您的文件未被处理（未进入分析、未排队），请约 N 分钟后重新上传；此间隔仅供参考，不保证届时空闲。”N=ceil(Retry-After/60)，不使用“已提交/排队中/自动处理”。上传可能已在代理暂存，不把“未被处理”解释为从未接收过字节。
+
+重试间隔为建议值：持槽者在私有锁目录的独立状态文件中原子更新 owner_nonce、阶段、该阶段 monotonic deadline；receiving 用收体剩余预算，processing 用协调剩余预算，向上取整并限制为 5—600 秒；缺失/过期/不可解析/任务在收尾时回退 600。该元信息只供提示，文件锁才是准入权威，不能根据倒计时强行偷锁/杀任务；任务可能转入下一阶段或超出软预算，故不承诺预计完成时间。只在仍为同一 owner 时清理本任务状态，重启残留不作为忙闲判断依据。
 
 ### 6.5 解析、子进程与产物
 
@@ -502,7 +570,7 @@ analysis_meta_json 保存解析质量、分析/图形截断、文件 hash/字节
 |---|---|---|
 |413 GATEWAY_UPLOAD_TOO_LARGE|文件或 multipart 总体超限|显示各自上限/实际已知字节数；不启动分析|
 |408 GATEWAY_UPLOAD_TIMEOUT|应用收体超时|提示上传未完成；关闭部分文件|
-|429 GATEWAY_BUSY|共享槽被占用|Retry-After，稍后重试；不排队无界存文件|
+|429 GATEWAY_BUSY|共享槽被占用|按 §6.4 返回两响应头及“未被处理/未排队、需重新上传”的单次提示；建议间隔不是完成承诺|
 |422 GATEWAY_INVALID_LOG / SOURCE_MISMATCH|零有效行、覆盖率过低、长行、来源端口冲突|展示脱敏原因/覆盖率；不写成功报告|
 |504 GATEWAY_ANALYSIS_TIMEOUT|子进程时限|先回收进程，再返回可读错误；不将残留 HTML 当成功|
 |507 GATEWAY_TEMP_SPACE_LOW|磁盘不足/写入 ENOSPC|提示暂存空间；清理本次目录，不动其他任务|
@@ -517,7 +585,7 @@ analysis_meta_json 保存解析质量、分析/图形截断、文件 hash/字节
 
 保留默认 request buffering；这会使用 Nginx 自身暂存空间，必须和应用卷分别核查。client_body_timeout 是相邻读间隔，不能说它保证完整上传 60 秒结束。应用的 300 秒收体时限不包含 Nginx 预先缓冲的时间，660 秒代理等待也不是全链路 SLA。负载均衡/安全网关存在更短超时的，要在部署路径清单中同步核验；不允许验收时只走直连逃过正式入口。
 
-直接 8000 部署仍由应用专属字节限额保护，不能依赖 Nginx。先 `nginx -T` 检查生效 server/location 与上游路径，再 `nginx -t`，批准后 reload；`curl -I` 的响应 Content-Length 不能证明上传限额已修改。
+直接 8000 部署仍由应用专属字节限额保护，不能依赖 Nginx。代理部署显式设 deployment_mode=proxy 并核对声明值；先 `nginx -T` 检查生效 server/location 与上游路径，再 `nginx -t`，批准后 reload。实际超时/声明漂移按发布门禁阻断，不声称应用启动可自动发现全部漂移；`curl -I` 的响应 Content-Length 不能证明上传限额已修改。
 
 内网事故最终归因回填表至少包含：请求时间、入口 URL、浏览器 HTTP 状态/响应摘要、X-Request-ID、有效 max_body_bytes/网关新限额、是否到达 upload/analyze 阶段、代理 upstream_status/request_time、异常类型、子进程退出信息、元数据库 max_allowed_packet/报文字节数、RSS/磁盘数据。无原日志与原事故请求证据时，结论只写“已消除默认路径阻断及确认的实现缺陷”，不写“已证实原事故就是 Nginx/超时”。
 
@@ -529,7 +597,7 @@ analysis_meta_json 保存解析质量、分析/图形截断、文件 hash/字节
 |---|---|---|
 |D01 报告上下文基础|新增 report_context.py、140 迁移；audit/scan/inspection/daily/gateway 源记录写入与查询|冻结、继承、历史降级契约通过；不改变老 JSON 主体|
 |D02 全部 HTML 接入|§3.1 H01—H14；scan_snapshot_service、scan_compare_service、raw_slowlog_service、bigtable_service；四个 CLI 和磁盘脚本|生成器逐项截图/解析断言；多实例可映射，无遗漏|
-|D03 主表识别|新增 tdsql_table_shape.py；table_type_stats_service；141 迁移；前端即时/汇总/历史|新旧语法、未知态、原统计不变量、预算和请求归属全部通过|
+|D03 主表识别|新增 tdsql_table_shape.py；table_type_stats_service 的独立目录/候选并集/DDL 判断；141 迁移两表各八列；前端即时/汇总/历史|覆盖独立目录、旧单表和 only_base 正例；新旧语法、未知态、原统计不变量、预算和请求归属通过；实机覆盖限制单列|
 |D04 R043|parser_legacy.py 的预解析/AST/回退出口；dml.py R043；checker.py 完整性兜底|附件及同源反例消误报；真实 multi 不漏报；R121 保留|
 |D05 网关入口|config.py、middleware.py、main.py、gateway_log.py、app.js；新增专属策略/跨 worker 文件锁封装|直连/代理大文件可受理；实际字节保护；其他接口限额不变|
 |D06 网关执行|gateway_log_service.py；新增 gateway_process.py、gateway_log_analysis/log_input.py；analyze_gateway_log.py；142 迁移|单次流式解析、质量一致、进程回收、持久化与可诊断错误|
@@ -547,7 +615,7 @@ analysis_meta_json 保存解析质量、分析/图形截断、文件 hash/字节
 
 1. 备份元数据库并记录基线 VERSION、提交、迁移账本、表行数、现有结构。检查新列不存在或完全匹配；若同名异型、null/default 不符，失败关闭，交由明确的整改迁移处理。
 2. 先在 v1.6.3.2 数据副本测试三份 ADD COLUMN；MySQL 5.7/8.0/MariaDB 实际元数据库类型分别验证。不能假设 ADD COLUMN 都是瞬时无锁操作；生产执行前测锁等待和表规模，安排维护窗口。
-3. 无破坏性数据迁移：所有旧 report_context_json/analysis_meta_json/request_id 为 null；主表统计新数字为 null、state=LEGACY，不将未知值补零，不更新历史审核 violations。
+3. 无破坏性数据迁移：所有旧 report_context_json/analysis_meta_json/request_id 为 null；主表统计六个新数字为 null、check_state/inventory_state 均为 LEGACY，不将未知值补零，不更新历史审核 violations。
 4. 上线前检验新装、旧库升级、同版本重复启动、半途断电后重入、列漂移/缺列阻断及多 worker 同时启动。服务开始采集前完成必要结构验证，避免目标扫描 180 秒后才 INSERT 报缺列。
 5. 仅新增列使旧版业务读写原则上可继续；但项目 `_ensure_schema` 的旧版字段集合验收及启动迁移行为必须在实际回退演练中验证。保留新增列和迁移账本，不 DROP COLUMN、不修改既有历史 checksum。
 6. 回退应用到 v1.6.3.2 后新增主表指标不展示，新功能停止；带新字段的已生成 HTML 可保留。配置同步回退，不能让旧版无界读路径承受新 200 MiB 上限。若回退库备份会丢失上线后新数据，必须另行批准，不能当默认步骤。
@@ -579,6 +647,10 @@ Q 交付必须包含三份 schema/v14 SQL、新增模块、变更生成器/脚�
 |REP-09|扫描快照重建和重复 upsert；日常巡检缓存|不以重建/缓存读取的现名覆盖原来源；上下文与指标批次一致|
 |REP-10|旧/新网关报告签发一次性票据，跨 worker 读取、重复使用|首次有效，重放被拒；nonce/iframe 图表交互正常，添加来源不改变安全边界|
 |REP-11|原始慢日志零行、超过 10000 行、多实例筛选|零行不假称无慢 SQL；展示导出覆盖范围/截断；来源名称与真实输出对应|
+|REP-12|H02 对连接 X（名 NX）做在线元数据审核并导出；提取中/之后改名 NY、再删连接，重导原 report_id|新报告始终为 NX；capture 发生在提取前，新报告导出不访问现名；对应 A 的 RPT-01|
+|REP-13|H02 正常审核，观察服务参数、第三返回值、数据库和 HTML|保持 evaluate_gate 默认 False，gate_result=None，audit_history.gate_passed=NULL；HTML 无新增门禁结论；对应 A 的 RPT-02（按实际持久化列断言）|
+|REP-14|H01 前端无绑定；另通过现有 API 显式传 connection_id 后改名导出|前者未关联/原架构行为不变，后者冻结真名/原门禁评估不变；本版无新增选择器或 report_connection_id|
+|REP-15|H07 日常巡检对比与 H08 新旧网关报告分别带恶意名称、连续打开两次|分别核对各自归一 nonce 后的 CSP、实际每响应 nonce 更新且匹配脚本、原安全响应头及图表；H08 再验票据/清理/sandbox，H07 不虚构同一机制；危险名称无执行|
 
 ### 8.2 二级分区主表
 
@@ -593,11 +665,17 @@ Q 交付必须包含三份 schema/v14 SQL、新增模块、变更生成器/脚�
 |PAR-07|SHOW CREATE 无权/空返回/缺列/2 MiB 超限/中途删表/冲突/未知语法|数量、checked/unknown 状态正确；不显示 OK+0 掩盖失败|
 |PAR-08|0/1/5000/5001 候选，180 秒预算边界，多库先后|原有基础统计先完成；护栏/预算不足新字段显式 partial/unknown；不新增 I/O 越过 checkpoint|
 |PAR-09|仅大小写不同库表、反引号及点号、含 SQL 片段的名称|精确归属、正确引用，无注入、串库或统一 lower() 合并|
-|PAR-10|Proxy 三命令失败、库枚举截断、kinds overlap、基线不一致|原状态/告警/总数保持；主表不宣称全量，汇总同 eligible 集合|
-|PAR-11|旧 v13 数据、集中式空库、分布式零分片|分别为 LEGACY/null、N/A/0、COMPLETE/0，不混淆|
+|PAR-10|Proxy 三命令失败、库枚举截断、kinds overlap、基线不一致|原状态/告警/总数保持，汇总同 eligible；失败/歧义不宣称全量；纯 only_base 差异经独立目录和 DDL 完整解释按 PAR-13，不永久降级新指标|
+|PAR-11|旧 v13 数据、集中式空库、分布式零分片|前二者为 LEGACY/null、N/A/0；零分片不能直接推零主表，须目录完整且 C 全判明无主表才 COMPLETE/0|
 |PAR-12|浏览器扫描 A→切 B→A 迟到；开历史→即时结果迟到|字段/标题/告警属于当前上下文；即时、汇总、历史列一致|
+|PAR-13|MODERN 两层主表仅在 only_base 与完整 L 中，P 无该表；其他候选均判明|main=1、outside_shard=1、check/inventory=COMPLETE；旧 total/shard 不变，保留 reconciliation 和新增差异告警；对应 A 的非分片集合正例|
+|PAR-14|MODERN 主表在旧 single 结果与 L 中，不在 S、也不在 only_base|仍计 1 且 outside_shard=1；证明只补 only_base 不足；不把原 single 重归类|
+|PAR-15|MODERN 主表仅在独立 L 中；或同时在 L/P/B 三处|前者不漏，后者去重只查一次计一次；可出现 main>旧 shard，不截断主表数或破坏原总数公式|
+|PAR-16|SHOW FULL TABLES 不支持/无权/缺列/50000 行护栏（−1/等于/+1）/预算截断/与 P/B 目录冲突，含零已知候选及部分判明两类|inventory 正确 COMPLETE/FAILED/PARTIAL；未全枚举时 check 为 UNKNOWN/PARTIAL，绝不 COMPLETE/0；公式成立，不捏造未枚举数量；截断后独立连接关闭，不排空剩余流或污染共享池|
+|PAR-17|L 带视图或旧 X 物理子表；X 的 DDL 明确物理或反而带两层结构|视图不进 C；明确物理判负不计主表；物理/逻辑证据矛盾 UNKNOWN，不重复计数、不改旧子表列|
+|PAR-18|141 新装/升级/重复启动/半途重入、八列默认值/类型漂移、所有读写端及实例聚合|两表各八列契约一致；旧六数字 NULL/两状态 LEGACY；未知/不适用/完整零不混淆，INSERT 参数数正确|
 
-至少在内网实际使用的旧分区集群执行 PAR-01/04，并由 DBA 提供 SHOW CREATE 及人工清单对账；新内核若内网没有实例，则保留官方语法单测/模拟返回证据，不能标“真实新内核验收通过”。目标测试只发枚举及 SHOW 类只读 SQL，不在生产创建测试表。
+至少在内网实际使用的旧分区集群执行 PAR-01/04，并由 DBA 提供 SHOW CREATE 及人工清单对账。新旧样本证据均同时记录内核/Proxy 版本、三个 Proxy 命令、SHOW FULL TABLES、基线与目标 SHOW CREATE 返回（脱敏），证明“能发现表”与“能识别 DDL”两段都成立；不能只交识别器正则单测。新内核若内网没有实例，则保留官方语法单测/模拟返回证据，单列“新语法真实目录/实机未验证”，D03 不得给无范围限定的全适用 PASS；发布支持范围/限制由责任方明确验收，不由 Q 自行豁免。目标测试只发枚举及 SHOW 类只读 SQL，不在生产创建测试表。
 
 ### 8.3 R043
 
@@ -613,6 +691,15 @@ Q 交付必须包含三份 schema/v14 SQL、新增模块、变更生成器/脚�
 |DML-08|AST ParseError/Command 强制降级、token 失败、未支持目标结构|保留解析/完整性错误；不能静默给通过，也不编造联表事实|
 |DML-09|同一 parser 连续解析 multi→CREATE→single→DELETE|无状态串扰；正常 DML 解析次数不增加|
 |DML-10|分布式/集中式，规则启停和 override，R035/R058/R121 回归|规则范围与已签署策略不变；不是过滤导出结果“修误报”|
+|DML-11|`ALTER TABLE t MODIFY ts DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP` 及仅含 ON UPDATE 的简化版，正常/强制 ParseError/强制 Command 三路径|三路径事实均 NOT_DML/NOT_APPLICABLE，无 R043；旧 sql_type 的 UPDATE 误标不能影响判定；原 ParseError 保留|
+|DML-12|`ALTER TABLE t ADD COLUMN a DATETIME ON UPDATE CURRENT_TIMESTAMP, ADD COLUMN b INT` 及把 b 改为 `VARCHAR(20) CHARACTER SET utf8mb4` 的强触发版，同上三路径|同上，兼容属性 false；尤其 Command 的旧 sql_type=UPDATE 不能制造 R043 或本事实新增 E999|
+|DML-13|`CREATE TABLE t (id INT, ts DATETIME ON UPDATE CURRENT_TIMESTAMP, c VARCHAR(20) CHARACTER SET utf8mb4)`，并给 11—13 加合法前导注释/空白/混合大小写，同上三路径|独立头定位一致，可靠非 DML 为 NOT_APPLICABLE，无 R043；非 R043 的真实完整性错误不被清除|
+|DML-14|`UPDATE a JOIN b ON a.id=b.id SET a.v=1`，同上三路径|三路径均 UPDATE/RESOLVED/true，分布式规则开启时 R043；强制 ParseError 路径同时保留原错误|
+|DML-15|`DELETE a FROM a JOIN b ON a.id=b.id`，同上三路径|三路径均 DELETE/RESOLVED/true，报 R043 且显示 DELETE；不由被 mock 的 Command.this 决定事实|
+|DML-16|各 status/kind/multi 真值表、ParsedSQL 构造与属性赋值检索、public AuditResult 序列化|只有 RESOLVED+DML+true 的只读兼容属性为 true；无旧 setter/双写/状态残留；原公开结构不变|
+|DML-17|Command/ParseError 回退的完整 WITH→SELECT/单表 UPDATE/联表 DELETE，未闭合 WITH、可执行注释条件未知|外层 SELECT 为 NOT_APPLICABLE，外层 DML 按目标，无法证明者 UNKNOWN/完整性失败；不能一律 UNKNOWN 或简单取第一个词|
+
+Rev.A 的 DML-06—10 编号保留；A 报告建议中同名的新增 DML-06—10 在本修订分别映射 DML-11—15，避免覆盖旧验收项。三个解析出口的“无 R043”必须同时验证事实状态与是否新增完整性错误，不能仅断言 R043 不在列表中。
 
 ### 8.4 网关上传与分析
 
@@ -634,6 +721,12 @@ Q 交付必须包含三份 schema/v14 SQL、新增模块、变更生成器/脚�
 |GW-14|日志含SQL敏感值/HTML载荷，新旧报告脱敏、一次性票据、多worker|原有脱敏/CSP/nonce/sandbox保护不退化|
 |GW-15|普通SQL文件、logo等非网关接口的大小边界|仍受既有上限保护；200 MiB特权不泄漏到其他路由|
 |GW-16|导出超过distinct pattern上限、火焰图采样、旧报告重新查看|全量KPI与分析维度截断区分；历史null不冒充完整新质量数据|
+|GW-C1|两个不同用户在不同 worker 同时上传；第一任务持续运行，第二请求到达应用取锁点|第二非阻塞 429，不等待第一完成；两响应头正确、正文说明未分析/未入队需重传，首任务正常；经代理另计预缓冲耗时，不能误称应用排队|
+|GW-C2|Content-Length 取槽前拒绝、实际字节取槽后 413、取消和 429 三类路径|本请求已取槽则清理释放，未取槽绝不释放他人锁；第一任务活跃时连续拒绝不能让第三请求偷跑；退出后下一请求可受理|
+|GW-C3|持槽阶段切换、提示元信息缺失/损坏/过期/残留，Retry-After 达边界|提示 5—600 秒有界、无法估计回退 600，绝不以元信息判忙闲；无自动重传/队列承诺，前端只提示一次|
+|GW-C4|配置并发为 0/2、不同 worker 锁路径不一致、多应用主机部署审查|非法并发启动失败；实际共享锁路径与单应用主机是发布检查项，部署不满足则阻断，不宣称每主机一槽等于全局一槽|
+|GW-T1|分别破坏 analysis/processing、receive/browser、proxy 声明余量不等式及值类型；direct 模式|启动失败指出具体配置；direct 只豁免 proxy 声明约束，不豁免自身预算；capabilities 与浏览器实际值一致|
+|GW-T2|代理实际值短于声明、LB 更短、慢上传/不缓冲、子进程超时后 TERM/KILL、DB 迟滞|实际链路漂移门禁阻断，展示真实 408/504/待确认状态；区分空闲/墙钟/软预算，不以数值表宣称完整时限保证；异常回收未确认不报告清理成功|
 
 容量门禁：以部署同等级硬件、Python/依赖版本、worker 数和脱敏配置测量。71 MiB真实样本及200 MiB边界样本（标明合成）须在540秒子进程限时内完成；否则此需求不能记通过，应先定位 normalization/解析/渲染瓶颈或提出有证据的容量调整评审，不能只把 timeout 改无限。
 
@@ -677,7 +770,21 @@ tests/test_v1634_browser_uat.py                  # 测试依赖，不进入生�
 |---|---|---|
 |原网关事故最终归因|原请求HTTP/响应、有效应用/代理配置、阶段异常|没有则只能判定代码默认路径和实现风险，不能断言那次事故唯一原因|
 |71 MiB真实文件容量验证|原文件或内网可执行测试、hash、有效/丢弃行统计、硬件/RSS/时间|属于REQ-04准出证据，不是凭设计可豁免的测试|
-|目标二级分区能力清单|实际内核/Proxy版本、旧/新SHOW CREATE样本、人工主表数|新语法实机不可用时单列兼容证据限制；不影响已证实旧语法实现|
+|目标二级分区能力清单|实际内核/Proxy版本、旧/新三命令及独立目录/SHOW CREATE样本、人工主表数|新语法实机不可用时单列兼容证据限制；不得用候选全集未经证实的识别器 PASS 代替 D03 全链路验收|
 |元数据库与代理发布参数|实际版本、packet、暂存空间、超时链、进程清理配置|决定迁移窗口及容量验收，不由应用自动修改生产参数|
 
-本设计已经完成材料核对、官方资料校验、R043原文及同源用例复现、应用默认上传限额的隔离复现。尚未开发v1.6.3.4，未执行本版SIT/UAT/性能或内网变更。提交本Rev.A供A评审、Q据此实施；若评审改变统计口径、支持容量或同步/异步接口，必须修订本设计并重新核对相关验收矩阵，不能由实现自行偏离。
+本设计已经完成材料核对、官方资料校验、R043 原文及三解析出口同源用例复现、应用默认上传限额的隔离复现，并按 A 第一轮七项意见修订。尚未开发 v1.6.3.4，未执行本版 SIT/UAT/性能或内网变更。提交本 Rev.B 供 A 二轮复核，P1-01 的设计整改待 A 确认后方可按门禁进入开发；O 不自行宣布评审通过。若评审改变统计口径、支持容量或同步/异步接口，必须修订相关契约和验收矩阵，不能由实现自行偏离。
+
+## 10. 第一轮评审修订索引
+
+|A 问题|处理结论|本设计落点/新增验收|
+|---|---|---|
+|P1-01：旧 sql_type 回退不可靠|认可；事实源与规则均脱离旧分类；可靠非 DML 用 NOT_APPLICABLE，不照搬一律 UNKNOWN|§2.3、§5.2—5.4；DML-11—17|
+|P2-01：新语法主表可能不在分片候选|认可；独立目录＋三类并集＋逻辑基线，补齐 A 的 only_base 建议仍未覆盖的旧单表分支；修正原分片上界|§4 全节、§7.1—7.2；PAR-10—18|
+|P2-02：文件来源判据/门禁耦合|按 §7.1 转录裁定落文；保留已有 H01 API 显式绑定，不新增选择器；H02 不引入门禁|§1、§3.1—3.3；REP-12—14|
+|P2-03：单槽需明确裁定与提示|按 §7.2 转录裁定采用单任务；采纳说明性 429，纠正等待时长/空间和锁释放表述|§6.2—6.4、§6.6；GW-C1—C4|
+|P3-01：超时链集中校验|认可；增加启动数值约束与外部真实配置发布校验，区分不同计时性质|§6.3.1、§6.7；GW-T1—T2|
+|P3-02：H07 CSP 需覆盖|认可；分别保护 H07/H08，归一随机 nonce 后比策略，不照搬两安全链混同或动态头字节全等|§3.4；REP-15（联动 REP-10/GW-14）|
+|P3-03：旧布尔字段兼容方式|认可简化；只读派生属性，补构造/序列化边界，不宣称零影响|§5.2；DML-09/16|
+
+以上为“已修订、待复核”，不是缺陷已由评审方关闭或代码已经修复。A 原报告和其中两项裁定的转录来源保留可追溯；不认可直接照搬的具体建议、依据与替代方案见独立修订答复。
