@@ -152,6 +152,129 @@ def max_body_bytes() -> int:
         return 50 * 1024 * 1024
 
 
+# ══════════════════════════════════════════════════════════════════
+# v1.6.3.4 / D05：网关大日志上传专属配置（REQ-04，DETAIL §6.3—§6.3.1）
+# ══════════════════════════════════════════════════════════════════
+# 这些配置**仅**作用于 POST /api/v1/gateway-log/upload 专属策略，不放开全站
+# max_body_bytes（默认 50 MiB）。前端通过只读 GET /api/v1/gateway-log/capabilities
+# 获取；数值启动时校验，非法值失败并指明配置名，网关限额不允许用 0 关闭。
+#
+# GATEWAY_MAX_CONCURRENT 是**固定常量 1（非调优项）**，仅保留配置名用于日志/
+# capabilities 自证与后续扩展；任何其他值（含 0/2）均拒绝启动，运维不得用它
+# 提升吞吐（§6.3/§6.7 P3-04）。
+_GATEWAY_INT_DEFAULTS = {
+    "GATEWAY_UPLOAD_MAX_BYTES": 209715200,           # 200 MiB 文件净字节
+    "GATEWAY_REQUEST_MAX_BYTES": 210763776,          # 201 MiB 含 multipart
+    "GATEWAY_UPLOAD_RECEIVE_TIMEOUT_SECONDS": 300,   # 应用收体总时限
+    "GATEWAY_ANALYSIS_TIMEOUT_SECONDS": 540,         # 子进程墙钟硬截止
+    "GATEWAY_PROCESSING_BUDGET_SECONDS": 600,        # 落盘→持久化软预算
+    "GATEWAY_MAX_CONCURRENT": 1,                     # 固定常量，非调优项
+    "GATEWAY_BROWSER_WAIT_SECONDS": 990,             # 浏览器总等待保护
+    "GATEWAY_MIN_FREE_BYTES": 2147483648,            # 2 GiB 受理前空闲门槛
+    "GATEWAY_MAX_LINE_BYTES": 1048576,               # 1 MiB 逐物理行硬上限
+    "GATEWAY_REPORT_MAX_BYTES": 25165824,            # 24 MiB 报告 UTF-8 上限
+    "GATEWAY_FLAME_POINTS": 10000,                   # Web 火焰图最多保留点数
+    "GATEWAY_DECLARED_PROXY_READ_TIMEOUT_SECONDS": 660,  # proxy 模式声明值
+}
+
+
+def gateway_upload_config() -> dict:
+    """网关大日志上传配置（动态读取环境变量，回退默认值）。
+
+    每次调用实时读取，支持测试期覆盖。GATEWAY_DEPLOYMENT_MODE=direct|proxy
+    （非法值回退 direct）；GATEWAY_TMP_DIR 为独立应用可写临时目录
+    （空则由服务用系统临时目录下的独立子目录，绝不放 Web 静态目录）。
+    """
+    cfg = {k: _env_int(k, v) for k, v in _GATEWAY_INT_DEFAULTS.items()}
+    mode = os.getenv("GATEWAY_DEPLOYMENT_MODE", "direct").strip().lower() or "direct"
+    cfg["GATEWAY_DEPLOYMENT_MODE"] = mode if mode in ("direct", "proxy") else "direct"
+    cfg["GATEWAY_TMP_DIR"] = os.getenv("GATEWAY_TMP_DIR", "").strip()
+    return cfg
+
+
+def validate_gateway_config(cfg: dict) -> list:
+    """网关配置启动校验（§6.3.1）。返回违反约束的清单（空=通过）。
+
+    统一时钟说明与默认值：
+      receive(300)    应用开始接收请求体后的总接收时限，不含代理预缓冲；
+      analysis(540)   子进程启动至分析/报告完成的墙钟硬截止；
+      processing(600) 落盘→持久化的协调软预算；
+      browser_wait(990) 从浏览器发起上传计时（含代理前上传）。
+    约束（默认满足 540+10<600、300+600+10<=990、600+10<660<990）：
+      1. 所有时限/限额为正（网关限额不允许用 0 关闭）；
+      2. analysis + 10 < processing（TERM/KILL 回收预留 10 秒）；
+      3. receive + processing + 10 <= browser_wait；
+      4. proxy 模式另校验 processing + 10 < declared_proxy_read < browser_wait；
+      5. GATEWAY_MAX_CONCURRENT 固定为 1，任何其他值（含 0/2）拒绝；
+      6. GATEWAY_REQUEST_MAX_BYTES >= GATEWAY_UPLOAD_MAX_BYTES（multipart 含净文件）。
+    这些是配置防错及预算余量检查，不是完整链路成功的数学保证（代理计时为空闲
+    时钟、浏览器含代理预缓冲、DB 仍是软预算）；发布仍须核实真实 Nginx/LB 生效值。
+    """
+    problems = []
+
+    def _pos(name):
+        v = cfg.get(name)
+        if not isinstance(v, int) or v <= 0:
+            problems.append(
+                f"{name} 必须为正整数（网关限额不允许用 0 关闭），实际={v!r}")
+        return v
+
+    # 1. 正整数校验
+    upload_max = _pos("GATEWAY_UPLOAD_MAX_BYTES")
+    request_max = _pos("GATEWAY_REQUEST_MAX_BYTES")
+    receive = _pos("GATEWAY_UPLOAD_RECEIVE_TIMEOUT_SECONDS")
+    analysis = _pos("GATEWAY_ANALYSIS_TIMEOUT_SECONDS")
+    processing = _pos("GATEWAY_PROCESSING_BUDGET_SECONDS")
+    browser_wait = _pos("GATEWAY_BROWSER_WAIT_SECONDS")
+    _pos("GATEWAY_MIN_FREE_BYTES")
+    _pos("GATEWAY_MAX_LINE_BYTES")
+    _pos("GATEWAY_REPORT_MAX_BYTES")
+    _pos("GATEWAY_FLAME_POINTS")
+
+    # 5. GATEWAY_MAX_CONCURRENT 固定 1（非调优项，P3-04）
+    conc = cfg.get("GATEWAY_MAX_CONCURRENT")
+    if conc != 1:
+        problems.append(
+            f"GATEWAY_MAX_CONCURRENT 是固定常量 1（非调优项），任何其他值均拒绝启动，"
+            f"实际={conc!r}；确需并发大于 1 必须先取得 Mr.Linsang 新裁定并评审"
+            f"内存/磁盘/超时及协调方案")
+
+    # 6. multipart 总限额 >= 净文件限额
+    if (isinstance(request_max, int) and isinstance(upload_max, int)
+            and request_max < upload_max):
+        problems.append(
+            f"GATEWAY_REQUEST_MAX_BYTES({request_max}) 必须 >= "
+            f"GATEWAY_UPLOAD_MAX_BYTES({upload_max})（multipart 总限额含净文件）")
+
+    # 2. analysis + 10 < processing（TERM/KILL 回收预留 10 秒）
+    if all(isinstance(x, int) for x in (analysis, processing)):
+        if analysis + 10 >= processing:
+            problems.append(
+                f"GATEWAY_ANALYSIS_TIMEOUT_SECONDS({analysis})+10 必须 < "
+                f"GATEWAY_PROCESSING_BUDGET_SECONDS({processing})"
+                f"（TERM/KILL 回收预留 10 秒）")
+
+    # 3. receive + processing + 10 <= browser_wait
+    if all(isinstance(x, int) for x in (receive, processing, browser_wait)):
+        if receive + processing + 10 > browser_wait:
+            problems.append(
+                f"GATEWAY_UPLOAD_RECEIVE_TIMEOUT_SECONDS({receive})+"
+                f"GATEWAY_PROCESSING_BUDGET_SECONDS({processing})+10 必须 <= "
+                f"GATEWAY_BROWSER_WAIT_SECONDS({browser_wait})")
+
+    # 4. proxy 模式：processing + 10 < declared_proxy_read < browser_wait
+    if cfg.get("GATEWAY_DEPLOYMENT_MODE") == "proxy":
+        declared = _pos("GATEWAY_DECLARED_PROXY_READ_TIMEOUT_SECONDS")
+        if all(isinstance(x, int) for x in (processing, declared, browser_wait)):
+            if not (processing + 10 < declared < browser_wait):
+                problems.append(
+                    f"proxy 模式要求 GATEWAY_PROCESSING_BUDGET_SECONDS({processing})+10"
+                    f" < GATEWAY_DECLARED_PROXY_READ_TIMEOUT_SECONDS({declared})"
+                    f" < GATEWAY_BROWSER_WAIT_SECONDS({browser_wait})")
+
+    return problems
+
+
 def docs_public() -> bool:
     """API文档(/docs, /openapi.json)是否免认证开放。
 

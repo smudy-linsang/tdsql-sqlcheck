@@ -113,6 +113,41 @@ async def upload_log(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/capabilities")
+def get_capabilities():
+    """网关上传能力与限额（只读，v1.6.3.4 / D05，DETAIL §6.3/§6.4 第 5 条）。
+
+    前端只作友好预检，后端（GatewayUploadPolicyMiddleware）仍是权威。
+    鉴权/RBAC 与网关列表读取一致：本端点非 public，由 AuthMiddleware 处理。
+    capabilities 返回 browser_wait/config_version，前端必须使用返回值；读取失败
+    时禁大日志提交并提示获取配置失败，不能悄悄沿用较短超时（§6.3.1）。
+    """
+    from backend import config
+    cfg = config.gateway_upload_config()
+    return {
+        "upload_max_bytes": cfg["GATEWAY_UPLOAD_MAX_BYTES"],
+        "request_max_bytes": cfg["GATEWAY_REQUEST_MAX_BYTES"],
+        "supported_log_types": ["interf", "sql"],
+        # GATEWAY_MAX_CONCURRENT 是固定常量 1（非调优项，P3-04）：配置清单/
+        # 运维说明/capabilities 三处同标"固定、不可调"。
+        "max_concurrent": cfg["GATEWAY_MAX_CONCURRENT"],
+        "concurrency_fixed": True,
+        "concurrency_note": (
+            "固定常量 1（非调优项）：同一时刻仅允许一个网关日志任务，忙时返回 429，"
+            "您的文件未被处理（未进入分析、未排队），需约 N 分钟后重新上传"),
+        "browser_wait_seconds": cfg["GATEWAY_BROWSER_WAIT_SECONDS"],
+        "receive_timeout_seconds": cfg["GATEWAY_UPLOAD_RECEIVE_TIMEOUT_SECONDS"],
+        "analysis_timeout_seconds": cfg["GATEWAY_ANALYSIS_TIMEOUT_SECONDS"],
+        "processing_budget_seconds": cfg["GATEWAY_PROCESSING_BUDGET_SECONDS"],
+        "min_free_bytes": cfg["GATEWAY_MIN_FREE_BYTES"],
+        "max_line_bytes": cfg["GATEWAY_MAX_LINE_BYTES"],
+        "report_max_bytes": cfg["GATEWAY_REPORT_MAX_BYTES"],
+        "flame_points": cfg["GATEWAY_FLAME_POINTS"],
+        "deployment_mode": cfg["GATEWAY_DEPLOYMENT_MODE"],
+        "config_version": config.APP_VERSION,
+    }
+
+
 @router.get("/reports", response_model=List[ReportItem])
 def get_reports(connection_id: Optional[str] = None):
     """获取历史网关日志分析列表"""

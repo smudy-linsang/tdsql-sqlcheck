@@ -9,7 +9,9 @@ TDSQL SQL审核工具 - 中间件 (V2.0)
 - 免认证路径见 auth_service.PUBLIC_PATHS / PUBLIC_PREFIXES
 - AUTH_ENABLED=false 时跳过认证（仅限开发/测试环境，生产必须开启）
 """
+import json
 import logging
+import math
 import re
 import time
 import uuid
@@ -24,6 +26,10 @@ from backend.services.auth_service import (
     auth_service, check_permission, is_public_path, verify_token,
 )
 from backend.services.database import log_operation
+# v1.6.3.4 / D05：网关上传跨 worker 非阻塞槽（文件锁 + 状态文件）
+from backend.services.gateway_upload_lock import (
+    GatewayUploadSlot, new_owner_nonce, STAGE_RECEIVING, STAGE_PROCESSING,
+)
 
 logger = logging.getLogger("tdsql.access")
 
@@ -57,15 +63,28 @@ _SECURITY_HEADERS = {
 }
 
 
+# v1.6.3.4 / D05：网关大日志上传专属路由（§6.4）
+_GATEWAY_UPLOAD_PATH = "/api/v1/gateway-log/upload"
+
+
 class BodySizeLimitMiddleware(BaseHTTPMiddleware):
     """限制请求体大小，超限返回 413。
 
     此前无任何限制，单个超大报文即可把内存打满。上限取 config.max_body_bytes()，
     默认 8MB——需容纳大 SQL 文件与元数据审核报文，故不宜过小。
     文件上传走 UploadFile 流式读取，同样受此限制保护。
+
+    v1.6.3.4 / D05：网关上传专属路由 POST /api/v1/gateway-log/upload 让
+    GatewayUploadPolicyMiddleware 决定限额（200 MiB 净文件 / 201 MiB multipart），
+    本中间件跳过该精确路由；**其他路由继续使用原 max_body_bytes（默认 50 MiB），
+    不因新增网关参数放开全站**（§6.4）。
     """
 
     async def dispatch(self, request: Request, call_next):
+        # 网关上传专属路由让专属策略决定（§6.4），本中间件不重复限额
+        if (request.url.path == _GATEWAY_UPLOAD_PATH
+                and request.method == "POST"):
+            return await call_next(request)
         limit = config.max_body_bytes()
         if limit > 0:
             declared = request.headers.get("content-length")
@@ -75,6 +94,169 @@ class BodySizeLimitMiddleware(BaseHTTPMiddleware):
                     content={"code": 413,
                              "message": f"请求体过大，上限 {limit // 1024 // 1024}MB"})
         return await call_next(request)
+
+
+class _GatewayBodyTooLarge(Exception):
+    """ASGI receive 累计 body 字节超过网关请求上限（内部信号，非 500）。"""
+
+    def __init__(self, received: int, limit: int):
+        self.received = received
+        self.limit = limit
+
+
+class GatewayUploadPolicyMiddleware:
+    """网关大日志上传专属策略（纯 ASGI，v1.6.3.4 / D05，DETAIL §6.4）。
+
+    只匹配 POST /api/v1/gateway-log/upload；其他路由直接透传。职责：
+      1. 请求上下文最外侧保证 413/429 也有 X-Request-ID；
+      2. Content-Length 预检（可信/不可信都先作格式/上限检查）；
+      3. 包装 ASGI receive 累计所有 http.request body 字节，超限停止后续读取
+         和表单解析，不返回 500、不创建报告；无头/分块/伪造偏小值同样不能越界；
+      4. 收体期间共用跨 worker 非阻塞槽，忙则直接 429（不入队、不分析其文件）；
+      5. finally 仅释放本请求实际取得的槽（取槽前被拒的请求不释放他人锁）。
+
+    注册顺序：本中间件在 AuthMiddleware 之后（认证通过才取锁）、路由之前
+    （表单解析前限额）。见 main.py 的 add_middleware 顺序。
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    @staticmethod
+    def _get_request_id(scope) -> str:
+        for k, v in scope.get("headers") or []:
+            if k == b"x-request-id" and v:
+                return v.decode("latin-1")[:64]
+        return uuid.uuid4().hex[:16]
+
+    async def _send_json(self, send, status: int, detail: dict,
+                         request_id: str, extra_headers=None):
+        """发送结构化 JSON 响应，始终带 X-Request-ID（§6.4 第 1 条）。"""
+        body = json.dumps({"detail": detail}, ensure_ascii=False).encode("utf-8")
+        headers = [
+            (b"content-type", b"application/json; charset=utf-8"),
+            (b"content-length", str(len(body)).encode("latin-1")),
+            (b"x-request-id", request_id.encode("latin-1")),
+        ]
+        for k, v in (extra_headers or []):
+            headers.append((k, v))
+        await send({"type": "http.response.start", "status": status,
+                    "headers": headers})
+        await send({"type": "http.response.body", "body": body})
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") != "http":
+            await self.app(scope, receive, send)
+            return
+        if (scope.get("path") != _GATEWAY_UPLOAD_PATH
+                or scope.get("method") != "POST"):
+            await self.app(scope, receive, send)
+            return
+
+        cfg = config.gateway_upload_config()
+        request_id = self._get_request_id(scope)
+        request_limit = cfg["GATEWAY_REQUEST_MAX_BYTES"]
+        upload_limit = cfg["GATEWAY_UPLOAD_MAX_BYTES"]
+
+        # ── 1. Content-Length 预检（可信/不可信都先作格式/上限检查）──
+        cl_raw = None
+        for k, v in scope.get("headers") or []:
+            if k == b"content-length":
+                cl_raw = v
+                break
+        if cl_raw is not None:
+            try:
+                cl = int(cl_raw)
+            except (ValueError, TypeError):
+                cl = None
+            if cl is None or cl < 0:
+                await self._send_json(send, 400, {
+                    "code": "GATEWAY_INVALID_CONTENT_LENGTH",
+                    "message": "Content-Length 非法，无法受理网关日志上传",
+                    "stage": "admission", "request_id": request_id,
+                    "retryable": False,
+                }, request_id)
+                return
+            if cl > request_limit:
+                await self._send_json(send, 413, {
+                    "code": "GATEWAY_UPLOAD_TOO_LARGE",
+                    "message": (
+                        f"请求体过大：声明 {cl} 字节，网关 multipart 总上限 "
+                        f"{request_limit} 字节（约 {request_limit // 1024 // 1024} MiB，"
+                        f"净文件上限约 {upload_limit // 1024 // 1024} MiB）；未启动分析"),
+                    "stage": "admission", "request_id": request_id,
+                    "retryable": False,
+                }, request_id)
+                return
+
+        # ── 2. 取跨 worker 非阻塞槽（忙则 429，不入队、不分析其文件）──
+        slot = GatewayUploadSlot(cfg.get("GATEWAY_TMP_DIR", ""))
+        nonce = new_owner_nonce()
+        if not slot.try_acquire(nonce):
+            retry_after = slot.peek_retry_after()
+            minutes = max(1, int(math.ceil(retry_after / 60)))
+            await self._send_json(send, 429, {
+                "code": "GATEWAY_BUSY",
+                "message": (
+                    f"当前已有一个网关日志任务正在上传或分析，同一时刻仅允许一个任务。"
+                    f"您的文件未被处理（未进入分析、未排队），请约 {minutes} 分钟后"
+                    f"重新上传；此间隔仅供参考，不保证届时空闲。"),
+                "stage": "admission", "request_id": request_id, "retryable": True,
+            }, request_id, extra_headers=[
+                (b"retry-after", str(retry_after).encode("latin-1")),
+            ])
+            return
+
+        # 取槽成功：进入收体阶段，deadline 用收体剩余预算（§6.4）
+        receive_budget = cfg["GATEWAY_UPLOAD_RECEIVE_TIMEOUT_SECONDS"]
+        processing_budget = cfg["GATEWAY_PROCESSING_BUDGET_SECONDS"]
+        slot.update_stage(STAGE_RECEIVING, time.monotonic() + receive_budget)
+
+        body_bytes = 0
+        response_started = False
+        stage_switched = False
+
+        async def wrapped_receive():
+            nonlocal body_bytes, stage_switched
+            message = await receive()
+            if message.get("type") == "http.request":
+                chunk = message.get("body", b"") or b""
+                body_bytes += len(chunk)
+                if body_bytes > request_limit:
+                    # 超限：停止后续读取和表单解析（抛信号，外层拦截为 413）
+                    raise _GatewayBodyTooLarge(body_bytes, request_limit)
+                # 收体完成（more_body=False）→ 切换 processing 阶段协调预算
+                if not message.get("more_body", False) and not stage_switched:
+                    stage_switched = True
+                    slot.update_stage(STAGE_PROCESSING,
+                                      time.monotonic() + processing_budget)
+            return message
+
+        async def wrapped_send(message):
+            nonlocal response_started
+            if message.get("type") == "http.response.start":
+                response_started = True
+            await send(message)
+
+        try:
+            await self.app(scope, wrapped_receive, wrapped_send)
+        except _GatewayBodyTooLarge as e:
+            # 累计字节超限（无 Content-Length / 分块 / 伪造偏小值）→ 413，非 500
+            if not response_started:
+                await self._send_json(send, 413, {
+                    "code": "GATEWAY_UPLOAD_TOO_LARGE",
+                    "message": (
+                        f"请求体过大：已接收 {e.received} 字节，超过网关 multipart "
+                        f"总上限 {e.limit} 字节；已停止接收，未创建报告"),
+                    "stage": "receive", "request_id": request_id,
+                    "retryable": False,
+                }, request_id)
+            else:
+                logger.warning(
+                    "网关上传超限但响应已开始，无法改写为 413 (req=%s)", request_id)
+        finally:
+            # §6.4 第 4 条：仅释放本请求实际取得的槽（取槽前被拒的不释放他人锁）
+            slot.release()
 
 
 class RequestContextMiddleware(BaseHTTPMiddleware):

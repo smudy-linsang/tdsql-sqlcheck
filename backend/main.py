@@ -50,6 +50,7 @@ from backend.api.admin import router as admin_router
 from backend.api.scan_compare import router as scan_compare_router
 from backend.api.raw_slowlog import router as raw_slowlog_router
 from backend.middleware import (AuthMiddleware, BodySizeLimitMiddleware,
+                                GatewayUploadPolicyMiddleware,
                                 RequestContextMiddleware)
 
 # G10-G13 新增路由
@@ -86,6 +87,29 @@ async def lifespan(app: FastAPI):
         logger.info("数据库初始化完成 (V2.0, 27张表)")
     except Exception as e:
         logger.warning(f"数据库初始化失败（非致命）: {e}")
+    # v1.6.3.4 / D05：网关大日志上传配置启动校验（§6.3.1）——失败关闭，拒绝启动。
+    # 不能只打印 warning：GATEWAY_MAX_CONCURRENT≠1、超时链余量不足等非法配置若放行，
+    # 要到生产停服或大日志上传时才暴露。切生产前用拟发布配置跑本校验即可阻断。
+    try:
+        _gw_cfg = config.gateway_upload_config()
+        _gw_problems = config.validate_gateway_config(_gw_cfg)
+        if _gw_problems:
+            for _p in _gw_problems:
+                logger.error("网关上传配置校验失败: %s", _p)
+            raise RuntimeError(
+                "网关大日志上传配置校验失败，拒绝启动（详见上方 ERROR 日志）："
+                + "；".join(_gw_problems))
+        logger.info(
+            "网关上传配置校验通过 (mode=%s, upload_max=%d MiB, request_max=%d MiB, "
+            "concurrent=%d 固定不可调)",
+            _gw_cfg["GATEWAY_DEPLOYMENT_MODE"],
+            _gw_cfg["GATEWAY_UPLOAD_MAX_BYTES"] // 1024 // 1024,
+            _gw_cfg["GATEWAY_REQUEST_MAX_BYTES"] // 1024 // 1024,
+            _gw_cfg["GATEWAY_MAX_CONCURRENT"])
+    except Exception as e:
+        # 校验失败或异常一律拒绝启动（失败关闭），不降级为 warning
+        logger.error("网关上传配置校验未通过，应用拒绝启动: %s", e)
+        raise
     # V2.0: 初始管理员引导
     try:
         if config.auth_enabled():
@@ -126,6 +150,12 @@ app = FastAPI(
 )
 
 # ── 中间件（注册顺序与执行顺序相反：请求先过RequestContext再过Auth） ──
+# v1.6.3.4 / D05：GatewayUploadPolicyMiddleware 最先 add → 位于最内层，在 Auth
+# 之后、路由之前执行（认证通过才取跨 worker 槽；表单解析前做网关专属字节限额）。
+# 请求实际执行顺序：GZip → BodySizeLimit → RequestContext → Auth →
+#                   GatewayUploadPolicy → 路由。
+# BodySizeLimitMiddleware 对网关上传精确路由让专属策略决定，其他路由仍用原 50 MiB。
+app.add_middleware(GatewayUploadPolicyMiddleware)
 app.add_middleware(AuthMiddleware)
 app.add_middleware(RequestContextMiddleware)
 

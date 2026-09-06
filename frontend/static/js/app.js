@@ -29,6 +29,11 @@ function responseMessage(data,fallback){
 let onUnauthorized=null;
 async function apiFetch(url,options={}){
   const opts=Object.assign({},options);
+  // v1.6.3.4 / D05：调用级 handledHttpError 选项（默认 false）。为 true 时本函数
+  // 不对 5xx 弹通用通知，由调用方（仅网关上传）自己展示一次精确提示；不影响全局
+  // 401 处理与其他模块错误提示。必须在传给 fetch 前从 opts 删除（非标准字段）。
+  const handledHttpError=opts.handledHttpError===true;
+  delete opts.handledHttpError;
   opts.headers=Object.assign({},options.headers||{});
   const token=getToken();
   if(token)opts.headers['Authorization']='Bearer '+token;
@@ -39,7 +44,7 @@ async function apiFetch(url,options={}){
   }
   const resp=await fetch(finalUrl,opts);
   if(resp.status===401&&onUnauthorized){clearToken();onUnauthorized()}
-  else if(resp.status>=500){try{const d=await resp.clone().json();ElementPlus.ElNotification.error({title:'服务异常',message:responseMessage(d,'服务暂时不可用，请稍后重试')})}catch(e){ElementPlus.ElNotification.error({title:'服务异常',message:'服务暂时不可用，请稍后重试'})}}
+  else if(resp.status>=500&&!handledHttpError){try{const d=await resp.clone().json();ElementPlus.ElNotification.error({title:'服务异常',message:responseMessage(d,'服务暂时不可用，请稍后重试')})}catch(e){ElementPlus.ElNotification.error({title:'服务异常',message:'服务暂时不可用，请稍后重试'})}}
   return resp;
 }
 const app=createApp({
@@ -1269,26 +1274,96 @@ const app=createApp({
         ElementPlus.ElMessage.error('报告访问票据签发失败，请重试');
       }
     };
+    // v1.6.3.4 / D05：网关上传能力缓存 + 请求序号防护（切实例后迟到响应不覆盖当前上下文）
+    const gatewayCaps=ref(null);
+    const gatewayUploadSeq=ref(0);
+    const loadGatewayCaps=async()=>{
+      if(gatewayCaps.value)return gatewayCaps.value;
+      try{
+        const resp=await apiFetch(`${API_BASE}/api/v1/gateway-log/capabilities`);
+        if(resp.ok)gatewayCaps.value=await resp.json();
+      }catch(e){}
+      return gatewayCaps.value;
+    };
+    // 网关上传错误展示（§6.4 第 7 条 + §6.6）：按 status 和 content-type 解析；
+    // HTML 413/504 用固定中文提示，不把整个 HTML 渲染到页面；JSON 复用 responseMessage
+    // 兼容 {detail:string}/{detail:{message}}/{message}/新结构；429 忙时单次精确提示。
+    const showGatewayUploadError=async(resp,reqId)=>{
+      const rid=reqId?`（请求编号 ${reqId}）`:'';
+      const ctype=(resp.headers.get('content-type')||'').toLowerCase();
+      if(ctype.includes('application/json')){
+        let d=null;
+        try{d=await resp.json()}catch(e){d=null}
+        const det=d&&d.detail;
+        if(det&&typeof det==='object'){
+          const msg=det.message||responseMessage(d,'分析失败');
+          if(det.code==='GATEWAY_BUSY'){
+            ElementPlus.ElMessage({type:'warning',duration:10000,showClose:true,message:msg+rid});
+          }else{
+            ElementPlus.ElMessage.error(msg+rid);
+          }
+          return;
+        }
+        ElementPlus.ElMessage.error(responseMessage(d,'分析失败')+rid);
+        return;
+      }
+      // 非 JSON（代理 HTML 413/504 等）：固定中文提示，绝不把 HTML 渲染到页面
+      let text;
+      if(resp.status===413)text='请求体过大，已被网关或代理拒绝（413）；请压缩或拆分日志后重试';
+      else if(resp.status===504)text='网关分析超时（504）；结果尚未确认，请到历史列表查看，勿自动重传';
+      else if(resp.status===502||resp.status===503)text=`网关或代理暂时不可用（${resp.status}）；请稍后重试`;
+      else text=`分析失败（HTTP ${resp.status}）`;
+      ElementPlus.ElMessage.error(text+rid);
+    };
     const onGatewayUpload=async(file)=>{
       if(!file||!file.raw)return;
       if(!deepConnId.value){
         ElementPlus.ElMessage.warning('请先选择左上角的实例');
         return;
       }
+      // §6.4 第 6 条：固定本次上传的 connection_id 到局部上下文，结果归属该实例；
+      // 分析期间禁重复上传；切实例不能把 A 的成功提示/历史列表覆盖到 B。
+      const uploadConnId=deepConnId.value;
+      if(gatewayLoading.value){
+        ElementPlus.ElMessage.warning('已有网关日志任务正在上传或分析，请勿重复提交');
+        return;
+      }
+      gatewayUploadSeq.value+=1;
+      const mySeq=gatewayUploadSeq.value;
+      // capabilities 预检（友好提示，后端仍权威）；读取失败时禁大日志提交（§6.3.1）
+      const caps=await loadGatewayCaps();
+      if(!caps){
+        ElementPlus.ElMessage.error('获取网关上传配置失败，为避免超出限额已暂停提交；请刷新页面重试');
+        return;
+      }
+      if(caps.upload_max_bytes&&file.raw.size>caps.upload_max_bytes){
+        ElementPlus.ElMessage.error(`文件 ${(file.raw.size/1024/1024).toFixed(1)} MiB 超过网关上限 ${(caps.upload_max_bytes/1024/1024).toFixed(0)} MiB，未提交`);
+        return;
+      }
       gatewayLoading.value=true;
       const fd=new FormData();
-      fd.append('connection_id',deepConnId.value);
+      fd.append('connection_id',uploadConnId);
       fd.append('log_type','interf');
       fd.append('file',file.raw);
+      // 浏览器总等待保护（capabilities 的 browser_wait_seconds，默认 990，含上传）
+      const waitSec=caps.browser_wait_seconds||990;
+      // §6.4 第 8 条：不展示虚假百分比，显示"正在上传并分析，请勿重复提交"
+      const loadingMsg=ElementPlus.ElMessage({type:'info',duration:0,showClose:false,
+        message:'正在上传并分析，请勿重复提交（大日志可能需要数分钟）'});
+      const controller=new AbortController();
+      const timer=setTimeout(()=>controller.abort(),waitSec*1000);
       try{
         const resp=await apiFetch(`${API_BASE}/api/v1/gateway-log/upload`,{
-          method:'POST',
-          body:fd
+          method:'POST',body:fd,handledHttpError:true,signal:controller.signal
         });
-        const d=await resp.json();
+        clearTimeout(timer);
+        // 迟到响应防护：切页签/切实例后不覆盖当前上下文
+        if(mySeq!==gatewayUploadSeq.value)return;
+        const reqId=resp.headers.get('x-request-id')||'';
         if(resp.ok){
-          // v1.6.2.2-UAT-O-17：混合输入（部分行被跳过）必须以醒目告警告知覆盖率，
-          // 不得静默按完整报告展示。
+          const d=await resp.json();
+          if(uploadConnId!==deepConnId.value)return; // 已切实例，丢弃迟到结果
+          // v1.6.2.2-UAT-O-17：混合输入必须以醒目告警告知覆盖率，不得静默按完整报告展示
           if(d.status==='partial'&&d.parse_quality){
             const q=d.parse_quality;
             const cov=(q.coverage_ratio*100).toFixed(1);
@@ -1297,12 +1372,23 @@ const app=createApp({
           }else{
             ElementPlus.ElMessage.success('日志分析完成');
           }
-          loadGatewayReports();
+          // 刷新**原实例**历史（切实例后不覆盖 B 的列表）
+          if(uploadConnId===deepConnId.value)loadGatewayReports();
         }else{
-          ElementPlus.ElMessage.error(d.detail||'分析失败');
+          await showGatewayUploadError(resp,reqId);
         }
-      }catch(e){ElementPlus.ElMessage.error('上传分析失败: '+e.message)}
-      finally{gatewayLoading.value=false}
+      }catch(e){
+        clearTimeout(timer);
+        if(mySeq!==gatewayUploadSeq.value)return;
+        if(e&&e.name==='AbortError'){
+          ElementPlus.ElMessage.warning(`上传/分析超过浏览器等待保护（${waitSec}秒）；结果尚未确认，请到历史列表查看，勿自动重传`);
+        }else{
+          ElementPlus.ElMessage.error('上传分析失败（网络中断？）：结果尚未确认，请到历史列表查看。'+(e&&e.message?e.message:''));
+        }
+      }finally{
+        try{loadingMsg.close()}catch(e){}
+        if(mySeq===gatewayUploadSeq.value)gatewayLoading.value=false;
+      }
     };
 
     // G12: PPT Report & Dashboard

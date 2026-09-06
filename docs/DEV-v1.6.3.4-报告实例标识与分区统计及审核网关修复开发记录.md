@@ -340,3 +340,87 @@ m_upd = re.search(r"\bupdate\b(.*?)\bset\b", clean_sql_no_comm, re.DOTALL)
 施工人：智能体 Q
 施工对象：v1.6.3.4 第二批（D03 采集流程接入完整闭环）
 提交给：Mr.Linsang
+
+---
+---
+
+# DEV-v1.6.3.4 第三批开发记录 — D05 网关大日志上传入口防护层（REQ-04）
+
+| 项 | 内容 |
+|---|---|
+| 产品版本 | v1.6.3.4 |
+| 施工基线 | `main@2068a9b`（第二批施工提交） |
+| 设计依据 | DETAIL-v1.6.3.4 §6.3—§6.4、§6.6—§6.7（网关入口防护、超时链、错误约定、Nginx） |
+| 施工方 | 智能体 Q |
+| 施工日期 | 2026-09-06 |
+| 本批交付边界 | **D05 网关入口防护层完整闭环** + 142 迁移。D06 执行层深度重构（受控子进程/流式解析/事务落库）与 D02（14 HTML 入口）留待第四批 |
+
+## 1. 交付概述
+
+针对内网 71 MiB 网关日志上传失败事故，本批交付**入口防护层**，解决设计 §6.1 指出的入口侧确定缺陷：应用默认 50 MiB 限额拦截（问题 1）、无并发控制、错误展示不友好（问题 5）。执行层深度重构（async 路由阻塞问题 2、全量 read 问题 3、子进程管理问题 4、落库报文问题 6）留待第四批 D06。
+
+| 组件 | 交付 |
+|---|---|
+| 配置组 | config.py 新增 13 项 GATEWAY_* 配置（动态读环境变量）+ validate_gateway_config 启动校验 |
+| 启动校验 | main.py lifespan 校验失败拒绝启动（非 warning）；GATEWAY_MAX_CONCURRENT≠1、超时链余量不足即阻断 |
+| 跨 worker 锁 | gateway_upload_lock.py：advisory 文件锁（Linux fcntl / Windows msvcrt）+ 状态文件（Retry-After 估算） |
+| 专属中间件 | GatewayUploadPolicyMiddleware（纯 ASGI）：Content-Length 预检 + receive 累计字节 + 非阻塞槽 + 429/413 结构化响应 |
+| 全站限额隔离 | BodySizeLimitMiddleware 对网关精确路由让专属策略，其他路由仍 50 MiB（不放开全站） |
+| capabilities | GET /api/v1/gateway-log/capabilities：下发限额/超时/单任务提示/config_version |
+| 前端 | apiFetch 增 handledHttpError 选项；onGatewayUpload 改造（connection_id 局部固定 + 序号防护 + capabilities 预检 + 结构化错误 + 990s 浏览器等待保护） |
+| Nginx | 网关专属 location = /api/v1/gateway-log/upload（201m/660s/60s），保留其他 location 20m/120s |
+| 迁移 | 142_gateway_analysis_meta.sql：gateway_log_reports 增 analysis_meta_json + request_id |
+
+## 2. 关键实现
+
+### 2.1 配置组与启动校验（§6.3/§6.3.1）
+- 13 项 GATEWAY_* 配置，默认值逐项对应设计配置表（200 MiB 净文件 / 201 MiB multipart / 300s 收体 / 540s 分析 / 600s 处理 / 990s 浏览器等待 / 2 GiB 空闲 / 1 MiB 行长 / 24 MiB 报告 / 10000 火焰点 / 660s proxy 声明）。
+- GATEWAY_MAX_CONCURRENT **固定常量 1（非调优项）**：validate 对任何非 1 值（含 0/2）报错，启动拒绝（P3-04）。
+- 超时链约束：analysis+10<processing、receive+processing+10<=browser_wait、proxy 模式 processing+10<declared_proxy_read<browser_wait。本机复算默认值 540+10<600 ✓、300+600+10<=990 ✓、600+10<660<990 ✓。
+- main.py lifespan 校验失败 raise（拒绝启动），不降级 warning——切生产前用拟发布配置跑本校验即可阻断非法值。
+
+### 2.2 跨 worker 非阻塞槽（§6.4 第 3 条）
+- GatewayUploadSlot：Linux fcntl.flock(LOCK_EX|LOCK_NB) / Windows msvcrt.locking(LK_NBLCK)。
+- 锁文件持久存在（O_CREAT 不 O_EXCL/O_TRUNC，不删除再重建，避免 inode 变化制造两个锁）；进程退出由 OS 释放。
+- 非进程内 Semaphore；所有 worker 共享同一锁路径（GATEWAY_TMP_DIR 或系统临时目录独立子目录，0o700）。
+- 状态文件原子更新（owner_nonce/阶段/monotonic deadline）供 429 的 Retry-After 估算（5—600 秒，缺失/过期回退 600）；**文件锁才是准入权威，元信息只供提示**，不据此偷锁/杀任务。
+- release 仅当 _acquired=True（取槽前被拒的请求不释放他人锁，§6.4 第 4 条）；只在同一 owner 时清理状态文件。
+
+### 2.3 专属中间件（§6.4）
+- 纯 ASGI，只匹配 POST /api/v1/gateway-log/upload，其他路由透传。
+- Content-Length 预检（可信/不可信都先作格式/上限检查）：非法→400，超限→413。
+- 包装 receive 累计所有 http.request body 字节，超限抛 _GatewayBodyTooLarge→413（无头/分块/伪造偏小值同样不能越界，不返回 500、不创建报告）。
+- 收体期间持锁，忙则 429（Retry-After + X-Request-ID + detail.code=GATEWAY_BUSY + "未被处理/未排队"文案 + N=ceil(retry/60) 分钟）。
+- 收体完成（more_body=False）刷新阶段到 processing 预算；finally 仅释放本请求取得的槽。
+- 注册顺序：GatewayUploadPolicy 最先 add → 最内层，在 Auth 之后（认证通过才取锁）、路由之前（表单解析前限额）。
+
+### 2.4 前端（§6.4 第 6/7/8 条）
+- apiFetch 增 handledHttpError 选项（默认 false，传 fetch 前从 opts 删除）：仅网关上传设 true 自己展示精确提示，不关闭全局 401 处理或其他模块 5xx 通知。
+- onGatewayUpload：connection_id 固定局部上下文 + gatewayUploadSeq 请求序号防护（切实例后迟到响应不覆盖 B）；capabilities 预检（文件超限友好提示，读取失败禁提交）；禁重复上传；结构化错误解析（JSON 兼容 {detail:string}/{detail:{message}}/新结构，HTML 413/504 固定中文提示不渲染 HTML）；显示请求编号；990s AbortController 浏览器等待保护（超时提示"结果尚未确认，请查历史"，不自动重传）；"正在上传并分析，请勿重复提交"（不展示虚假百分比）。
+
+## 3. 验证证据
+- **D05 入口防护冒烟 19 项全通过**：capabilities（200/200MiB/concurrent=1固定/browser_wait=990/direct/config_version=1.6.3.4）；Content-Length 超限 413（code=GATEWAY_UPLOAD_TOO_LARGE + X-Request-ID + stage=admission）；锁忙 429（code=GATEWAY_BUSY + Retry-After=600 + retryable=true + "未被处理"文案 + stage=admission）；释放锁后放行（200 进入 analyze_log）；非网关路由不受网关限额影响（200）。
+- **网关/安全/中间件测试 34 passed**（test_gateway_log / sql_masking / o15_gateway_report_security / security_headers 等）。
+- **全量回归 1970 passed + 2 skipped，零失败**（约 9 分 49 秒，与第二批一致；2 skipped 为 A.1/A.4 门禁退役）。D05 新增中间件/配置/前端不改既有测试逻辑，TestClient 类用例经 lifespan 网关配置启动校验（默认配置通过）正常运行。
+
+## 4. 变更文件清单（第三批）
+修改（6）：backend/config.py、backend/main.py、backend/middleware.py、backend/api/gateway_log.py、frontend/static/js/app.js、deploy/nginx-sqlcheck.conf
+新增（2）：backend/services/gateway_upload_lock.py、backend/schema/v14/142_gateway_analysis_meta.sql
+
+## 5. 剩余工作（第四批）
+| 实施包 | 内容 |
+|---|---|
+| D06 执行层 | gateway_process.py（子进程 TERM/KILL/Windows Job Object 生命周期）+ log_input.py（共享逐行输入 + 有界 reservoir sampling 火焰图）+ analyze_log 重构（受控文件路径 + 线程池非阻塞 + 单次流式解析 + 事务落库 + max_allowed_packet 预检 + analysis_meta_json）+ analyze_gateway_log.py 的 --summary-output/--context-file |
+| D02 | H01—H14 共 14 个 HTML 生成入口接入 + D01 各源写入路径配对 |
+
+**说明**：本批 D05 入口防护层与现有 analyze_log（全量 read + 同步子进程）兼容——中间件在路由之前完成限额/锁/429/413，路由内 analyze_log 保持现状；D06 再把执行层重构为受控文件路径 + 流式 + 事务落库。这样 D05 可独立交付并立即消除"50 MiB 默认限额拦截 71 MiB 文件"与"无并发控制"两个入口侧确定缺陷。
+
+## 6. 施工边界声明（第三批）
+1. 本批未连接内网 TDSQL，未上传真实 71 MiB 日志；入口防护冒烟用 TestClient + 降低限额/占用锁的方式验证 413/429/放行路径，非真实大文件性能验收（GW-01/02/08 容量门禁待内网真实样本，属 D06 准出证据）。
+2. 本批未实施 D06 执行层重构：analyze_log 仍是全量 read + 同步子进程 + 120s 超时（设计 §6.1 问题 2/3/4），async 路由阻塞事件循环与全量读内存的风险**尚未消除**，须待第四批 D06。
+3. 142 迁移的 analysis_meta_json/request_id 列已建，但写入路径随 D06 的 analyze_log 重构接入；本批列恒为 null，不影响现有读端。
+4. Nginx 网关专属 location 已落模板，但真实部署须 `nginx -T` 核对生效值、核查 Nginx 暂存卷与应用卷分别的空间，deployment_mode=proxy 时核对声明值 660s。
+
+施工人：智能体 Q
+施工对象：v1.6.3.4 第三批（D05 网关入口防护层 + 142 迁移）
+提交给：Mr.Linsang
