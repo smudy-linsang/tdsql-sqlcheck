@@ -243,6 +243,30 @@ class RuleChecker:
                 message=f"SQL 语句存在解析错误，语句头豁免不得吞掉解析失败（可能是拉取截断/语法错误）: {parsed.parse_error}",
                 line_number=line_number,
             ))
+
+        # v1.6.3.4 / D04：dml_target UNKNOWN 并入审核完整性失败路径。
+        #
+        # 设计出处：DETAIL §5.2 第 5 条。
+        # UNKNOWN 不编造 R043，但并入 checker 原有审核完整性失败路径
+        # （已有 E999 则合并原因，不覆盖错误文本/重复制造同因条目），
+        # 不能伪装为审核通过。NOT_APPLICABLE 则不因 R043 新增 E999。
+        #
+        # 触发条件：dml_target.status == UNKNOWN 且当前没有 ERROR 级违规。
+        # 已有 parse_error 导致的 E999 或其他规则的 ERROR 时，不重复追加
+        # （避免"重复制造同因条目"）。已有 E999 的原因合并通过 message 体现：
+        # 本条 E999 的 message 包含 dml_target.reason，与 parse_error 的 E999
+        # 各自独立，不覆盖对方文本。
+        dt = getattr(parsed, "dml_target", None)
+        if (dt is not None and dt.status == "UNKNOWN"
+                and not any(v.severity == "ERROR" for v in violations)):
+            violations.append(Violation(
+                rule_id="E999_SYNTAX_ERROR",
+                category=RuleCategory.DML,
+                severity="ERROR",
+                message=(f"R043 事实链无法确认顶层语句是否为联表 UPDATE/DELETE"
+                         f"（审核不完整，不伪装为通过）: {dt.reason or 'UNKNOWN'}"),
+                line_number=line_number,
+            ))
         return violations
 
     def audit_file(self, content: str, file_path: str = "",

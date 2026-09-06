@@ -177,12 +177,116 @@ def _lex_head_words(sql: str, dialect: str = "mysql", limit: int = 8) -> Optiona
     字符串，注释与字面量内容不会进入词序列——从根本上避免手工状态机的
     覆盖盲区（上一轮自研剥离器没有 `#` 注释状态，`# operator's note` 中的
     单引号被误当字符串起点，吞掉后面的真实 LOAD 关键字导致 R042 漏报）。
+
+    v1.6.3.4 / D04：**本函数只返回文本、丢弃 token 类型**，因此不能直接
+    作为 R043 事实链的可靠头判定依据——字符串 `'SELECT'`、反引号 `` `SELECT` ``
+    会在此序列中与真实关键字不可区分。R043 使用 `_lex_statement_head` 独立取
+    首个裸关键字 token（含类型），并处理 sqlglot 把 `LOCK TABLES` 合成单个
+    COMMAND token 的情形（见设计 §5.2.1）。
     """
     try:
         toks = sqlglot.Dialect.get_or_raise(dialect).tokenizer_class().tokenize(sql)
     except Exception:
         return None
     return [t.text.upper() for t in toks][:limit]
+
+
+# ══════════════════════════════════════════════════════════════════════
+# v1.6.3.4 / D04：R043 事实链的可靠头闭集与词法头分类
+# ══════════════════════════════════════════════════════════════════════
+#
+# 设计出处：docs/DETAIL-v1.6.3.4-报告实例标识与分区统计及审核网关修复.md §5.2.1
+# A 第二轮评审 P2-04 定点核验通过（docs/CHECK-v1.6.3.4-第二轮遗留三项定点核验结论-ClaudeA.md）。
+#
+# 闭集含义：**仅**证明"这条语句不是 R043 的直接顶层 UPDATE/DELETE 对象"，
+# 不是全规则放行、不是 TDSQL 方言开放清单、不代表解析器支持该语句。
+# 命中闭集 → NOT_DML/NOT_APPLICABLE，不新增 E999；原有 parse_error/KFN/E999
+# 及其他规则命中一律不被本闭集抹掉。
+#
+# 36 项与 A 建议集合完全一致（本机脚本差集比对：36=36，无多无少，且不含
+# UPDATE/DELETE）。参考 MySQL 8.0 SQL Statements 目录（S12）核对语句头归属，
+# 不表示 TDSQL 各内核均支持整条语法。
+R043_NON_TARGET_HEADS = frozenset({
+    "SELECT", "INSERT", "REPLACE", "CREATE", "ALTER", "DROP", "TRUNCATE",
+    "RENAME", "OPTIMIZE", "ANALYZE", "REPAIR", "CHECK", "LOCK", "UNLOCK",
+    "GRANT", "REVOKE", "FLUSH", "SET", "SHOW", "DESC", "DESCRIBE", "EXPLAIN",
+    "CALL", "HANDLER", "LOAD", "START", "BEGIN", "COMMIT", "ROLLBACK",
+    "SAVEPOINT", "USE", "KILL", "RESET", "PREPARE", "EXECUTE", "DEALLOCATE",
+})
+
+# R043 直接目标：只有这两个头会进入有限目标解析
+_R043_TARGET_HEADS = frozenset({"UPDATE", "DELETE"})
+
+# 非关键字 token 类型（字符串字面量、反引号标识符等）——不能冒充语句头。
+# 与 _is_bare_kw 共用同一份判据，避免两套模型漂移。
+_NON_KEYWORD_TOKENS = (
+    TokenType.STRING, TokenType.IDENTIFIER, TokenType.BACKSLASH,
+    TokenType.BIT_STRING, TokenType.HEX_STRING,
+)
+
+
+def _split_command_token_text(text: str) -> Optional[str]:
+    """把 sqlglot 合成的 COMMAND token 文本拆出首个裸词。
+
+    sqlglot 30.14.0 把 `LOCK TABLES t WRITE` 整条语句合成为一个 COMMAND token，
+    其 text 为 `'LOCK TABLES'`（两个词）；`UNLOCK TABLES` 同理。若直接用
+    `token.text == "LOCK"` 比较必然失败。本函数在**已确认 token 是未加引号的
+    语句头关键词片段**（token_type == COMMAND 或 VAR）后，取片段内第一个裸词。
+
+    返回首个词的大写形式；空/仅空白返回 None。
+    """
+    if not text:
+        return None
+    # COMMAND token 的 text 可能是 "LOCK TABLES"、"GRANT"、"CALL" 等；
+    # 按空白切分取第一段，剥掉可能的前导标点（防御性，正常不会出现）。
+    first = text.strip().split(None, 1)[0] if text.strip() else ""
+    first = first.strip("`'\"(),;")
+    return first.upper() if first else None
+
+
+def _lex_statement_head(sql: str, dialect: str = "mysql"):
+    """取顶层首个**裸关键字** token 的文本（大写）。
+
+    返回 (head_word, token_type) 二元组；无法可靠取得时返回 (None, None)。
+
+    设计要点（DETAIL §5.2.1 实现契约）：
+      1. 每个已按项目原逻辑拆分的实际语句独立判定，只跳过普通注释/空白；
+         字符串或反引号标识符不能作为可靠头，也不能被跳过后继续找一个有利
+         的关键词。不从全文搜索，不信任 Command.this 或旧 sql_type 的字串。
+      2. 使用保留 token 类型/原始边界的独立词法结果。sqlglot 可将 `LOCK TABLES`
+         合成一个 COMMAND token：只有确定该 token 是未加引号的语句头关键词片段
+         时，取片段内第一个裸词再查闭集。不能仅比较整个 token.text，也不能对
+         STRING/IDENTIFIER 的内容作 split 后当关键字。
+      3. 原 `_lex_head_words` 丢弃了 token 类型，不能直接将其输出全信为裸头。
+    """
+    if not sql or not sql.strip():
+        return (None, None)
+    try:
+        toks = sqlglot.Dialect.get_or_raise(dialect).tokenizer_class().tokenize(sql)
+    except Exception:
+        return (None, None)
+    for tok in toks:
+        tt = tok.token_type
+        # 跳过普通注释与空白（词法器已把注释吸收为 COMMENT token 或直接跳过，
+        # 但防御性再排一次；sqlglot 的 tokenize 默认不产出纯空白 token）。
+        if tt == TokenType.COMMENT:
+            continue
+        # 字符串字面量、反引号标识符不能冒充语句头——立即判不可靠。
+        if tt in _NON_KEYWORD_TOKENS:
+            return (None, None)
+        # COMMAND token：sqlglot 把 `LOCK TABLES`、`GRANT ...`、`CALL ...` 等
+        # 整条合成为一个 token，text 可能是多词串。取首个裸词。
+        if tt == TokenType.COMMAND:
+            head = _split_command_token_text(tok.text or "")
+            return (head, tt) if head else (None, None)
+        # 其他 token：text 即首个裸词（VAR/关键字/UPDATE/DELETE/SELECT/...）。
+        text = (tok.text or "").strip()
+        if not text:
+            continue
+        # 防御：若 text 含空白（理论上不会出现在非 COMMAND token 上），取首词。
+        head = text.split(None, 1)[0].upper() if " " in text else text.upper()
+        return (head, tt)
+    return (None, None)
 
 
 def _is_load_statement_head(words) -> bool:
@@ -3279,6 +3383,538 @@ def _validate_recovery_candidate(node, plan):
     return True
 
 
+# ══════════════════════════════════════════════════════════════════════
+# v1.6.3.4 / D04：R043 唯一事实源 DMLTarget
+# ══════════════════════════════════════════════════════════════════════
+#
+# 设计出处：docs/DETAIL-v1.6.3.4-报告实例标识与分区统计及审核网关修复.md §5.2
+#
+# R043 的唯一触发条件（§5.2 第 5 条）：
+#   dml_target.status == RESOLVED
+#   AND dml_target.statement_kind in ('UPDATE','DELETE')
+#   AND dml_target.is_multi_table is True
+#
+# 事实源与规则均脱离旧 sql_type 字段（P1-01 阻断解除的核心整改）。
+# is_multi_table_update 改为只读派生属性，不保留第二个可写布尔状态。
+@dataclass
+class DMLTarget:
+    """R043 事实对象（v1.6.3.4 / D04）。
+
+    字段语义（DETAIL §5.2）：
+      statement_kind : UPDATE | DELETE | NOT_DML | UNKNOWN
+      status         : RESOLVED | UNKNOWN | NOT_APPLICABLE
+      form           : SINGLE | UPDATE_TABLE_REFERENCES | DELETE_TARGET_LIST
+                       | DELETE_USING | NONE
+      is_multi_table : True | False | None（None 表示未判明）
+      reason         : 稳定枚举码；不得携带完整 DDL
+
+    状态与审核行为（§5.2 事实状态表）：
+      NOT_DML / NOT_APPLICABLE / false → 无 R043；本事实不新增 E999
+      UPDATE|DELETE / RESOLVED / false → 无 R043；不清除已有错误
+      UPDATE|DELETE / RESOLVED / true  → 按原架构/规则启停机制报 R043
+      UPDATE|DELETE / UNKNOWN / null   → 无虚构 R043；明确审核不完整
+      UNKNOWN / UNKNOWN / null         → 无虚构 R043；明确审核不完整
+    """
+    statement_kind: str = "UNKNOWN"
+    status: str = "UNKNOWN"
+    form: str = "NONE"
+    is_multi_table: Optional[bool] = None
+    reason: str = ""
+
+    @classmethod
+    def not_dml(cls, reason: str = "") -> "DMLTarget":
+        """可靠证据证明不是顶层 UPDATE/DELETE。"""
+        return cls(statement_kind="NOT_DML", status="NOT_APPLICABLE",
+                   form="NONE", is_multi_table=False, reason=reason or "NOT_DML")
+
+    @classmethod
+    def resolved(cls, kind: str, is_multi: bool, form: str,
+                 reason: str = "") -> "DMLTarget":
+        """可靠证据完整确认顶层 UPDATE/DELETE 及其目标结构。"""
+        return cls(statement_kind=kind, status="RESOLVED", form=form,
+                   is_multi_table=is_multi, reason=reason or form)
+
+    @classmethod
+    def unknown(cls, kind: str = "UNKNOWN", reason: str = "") -> "DMLTarget":
+        """无法可靠确认——并入完整性门禁，不虚构 R043。"""
+        return cls(statement_kind=kind, status="UNKNOWN", form="NONE",
+                   is_multi_table=None, reason=reason or "UNKNOWN")
+
+
+# ── AST 路径：由顶层 AST 类型直接分流，不以 parsed.sql_type 决定 ──────────
+
+def _dml_target_from_update_ast(ast) -> DMLTarget:
+    """由 sqlglot exp.Update AST 直接判定 R043 事实。
+
+    判据（DETAIL §5.3）：
+      · 顶层 Update.this 表引用及其本层 Join/逗号等价 Join、括号包裹的表引用组
+        → 多表；SET expressions 中的 SELECT、WHERE 子查询、CTE 定义体不计入。
+      · sqlglot 30.14.0 把 UPDATE JOIN / UPDATE 逗号多表统一表达为
+        `ast.this.args['joins']` 非空（本机实测确认）。
+      · PARTITION 列表、USE/FORCE INDEX 列表、函数参数、带引号标识符中的逗号
+        不算关系分隔——它们不进入 joins。
+      · 自关联按**关系项**而非去重后的表名数量判断——joins 非空即多表。
+    """
+    this = ast.this if ast is not None else None
+    if this is None:
+        return DMLTarget.unknown("UPDATE", "UPDATE_NO_THIS")
+    joins = None
+    try:
+        joins = this.args.get("joins") if hasattr(this, "args") else None
+    except Exception:
+        joins = None
+    if joins:
+        return DMLTarget.resolved("UPDATE", True, "UPDATE_TABLE_REFERENCES",
+                                  "AST_JOINS_PRESENT")
+    # 无 joins：单表 UPDATE。this 可能是 Table（含 PARTITION 参数）或 Schema。
+    return DMLTarget.resolved("UPDATE", False, "SINGLE", "AST_SINGLE_TABLE")
+
+
+def _dml_target_from_delete_ast(ast) -> DMLTarget:
+    """由 sqlglot exp.Delete AST 直接判定 R043 事实。
+
+    判据（DETAIL §5.3）：
+      · 顶层 Delete 的 targets/tables、using 与 from/this 表引用结构。
+      · DELETE 显式目标列表（`DELETE a FROM …`）或 USING 属多表语法形式，
+        延续现有规则管控；即使目标只列一个别名也不放行此多表形式。
+      · 常规 `DELETE FROM t [AS a] …` 是单表形式，LOW_PRIORITY/QUICK/IGNORE
+        不是别名。
+      · sqlglot 30.14.0：`ast.args['tables']` 是显式目标列表（DELETE a,b FROM），
+        `ast.args['using']` 是 USING 子句（DELETE FROM t USING ...）。
+        本机实测：单表 DELETE 的 tables=None、using=False；
+        DELETE a,b FROM 的 tables=[Table(a),Table(b)]、using=False；
+        DELETE FROM t USING 的 tables=None、using=[Table(...)]。
+
+    v1.6.3.4 / D04 边界修正：sqlglot 30.14.0 把 `DELETE LOW_PRIORITY FROM t`
+    中的 LOW_PRIORITY 误解析为目标列表（tables=[Table(LOW_PRIORITY)]），因为
+    DELETE 后跟标识符再跟 FROM 的形态与 `DELETE a FROM t` 同构。但
+    LOW_PRIORITY/QUICK/IGNORE 是 MySQL 官方修饰词，不是表名/别名
+    （DETAIL §5.3 明确："LOW_PRIORITY/QUICK/IGNORE 不是别名"）。
+    若 tables 列表**全部**由这些修饰词构成，则视为单表 DELETE。
+    """
+    tables = None
+    using = None
+    try:
+        tables = ast.args.get("tables") if hasattr(ast, "args") else None
+        using = ast.args.get("using") if hasattr(ast, "args") else None
+    except Exception:
+        tables = None
+        using = None
+
+    # v1.6.3.4 / D04：排除修饰词被误判为目标列表的边界情况。
+    # MySQL DELETE 修饰词：LOW_PRIORITY / QUICK / IGNORE（S05 官方语法）。
+    # 若 tables 中所有"表名"都是这些修饰词，则不是真正的目标列表。
+    _DELETE_MODIFIERS = {"LOW_PRIORITY", "QUICK", "IGNORE"}
+    if tables:
+        real_targets = []
+        for t in tables:
+            tname = ""
+            try:
+                # Table 节点的名称在 this.args['this'] 或 t.this
+                inner = t.this if hasattr(t, "this") else t
+                if hasattr(inner, "this"):
+                    tname = str(inner.this or "").upper().strip("`'\"")
+                elif hasattr(inner, "name"):
+                    tname = str(inner.name or "").upper().strip("`'\"")
+                else:
+                    tname = str(inner or "").upper().strip("`'\"")
+            except Exception:
+                tname = ""
+            if tname and tname not in _DELETE_MODIFIERS:
+                real_targets.append(t)
+        if not real_targets:
+            # 全部是修饰词 → 单表 DELETE
+            tables = None
+        else:
+            tables = real_targets
+
+    # tables 非空 → DELETE a,b FROM ... 显式目标列表（多表形式）
+    if tables:
+        return DMLTarget.resolved("DELETE", True, "DELETE_TARGET_LIST",
+                                  "AST_TARGETS_PRESENT")
+    # using 非空且非 False → DELETE FROM t USING ... 多表形式
+    # sqlglot 对单表 DELETE 把 using 置为 False（本机实测），需排除。
+    if using is not None and using is not False and using != [] and using != "":
+        return DMLTarget.resolved("DELETE", True, "DELETE_USING",
+                                  "AST_USING_PRESENT")
+    # v1.6.3.4 / D04：检查 FROM 部分（ast.this）是否含 JOIN。
+    # sqlglot 30.14.0 对 `DELETE QUICK a FROM t_a a JOIN t_b b` 的解析：
+    #   tables=[Table(QUICK AS a)]（QUICK 被误当表名，已被上方修饰词过滤排除），
+    #   this=Table(t_a AS a JOIN t_b AS b)（FROM 部分含 JOIN）。
+    # 即使 tables 被过滤为空，this 里的 JOIN 仍证明这是多表 DELETE。
+    # 同理 `DELETE a FROM t1 JOIN t2`：tables=[Table(a)]，this 含 JOIN。
+    this_node = ast.this if ast is not None else None
+    if this_node is not None and hasattr(this_node, "args"):
+        this_joins = this_node.args.get("joins")
+        if this_joins:
+            return DMLTarget.resolved("DELETE", True, "DELETE_TARGET_LIST",
+                                      "AST_FROM_JOIN_PRESENT")
+    # 常规单表 DELETE
+    return DMLTarget.resolved("DELETE", False, "SINGLE", "AST_SINGLE_TABLE")
+
+
+# 可靠 AST 类型 → NOT_DML 映射（强类型 AST 已证明不是顶层 UPDATE/DELETE）。
+# 通用 Alias/Column/Literal 表达式**不**在此列——它们不算可靠语句 AST，
+# 须走 §5.2.1 独立词法头判定（DETAIL §5.2 第 2 条）。
+#
+# sqlglot 30.14.0 实测：PREPARE/DEALLOCATE 没有对应的 exp 类型
+# （PREPARE → Command，DEALLOCATE → ParseError），它们走回退词法头路径，
+# 由 36 项闭集判定为 NOT_DML/NOT_APPLICABLE。EXECUTE 有 exp.Execute。
+_AST_NON_DML_TYPES = (
+    exp.Select, exp.Insert, exp.Create, exp.Alter, exp.Drop,
+    exp.TruncateTable, exp.Show, exp.Describe, exp.Use, exp.Set,
+    exp.Commit, exp.Rollback, exp.Transaction, exp.Analyze,
+    exp.Kill, exp.Execute,
+)
+
+
+def _extract_dml_target(ast, sql: str, dialect: str = "mysql") -> DMLTarget:
+    """R043 唯一事实提取器（v1.6.3.4 / D04）。
+
+    落点与执行顺序（DETAIL §5.2）：
+      1. 正常路径在取得可靠 AST 后调用本函数，直接由顶层 AST 类型分流，
+         **不以 parsed.sql_type 决定是否调用或判断结果**。
+      2. 正常强类型 DML 只利用 AST，不重复 parse/tokenize；保持 v1.6.3.2 的
+         解析次数性能约束。
+      3. Command 以及不能证明完整语句类别的通用 Alias/Column/Literal 表达式
+         不算可靠语句 AST，进入 §5.2.1 独立词法头判定，而非因"非 Update 节点"
+         就直接豁免。
+
+    Args:
+        ast: sqlglot 解析结果（可能为 None / Command / 通用表达式 / 强类型 AST）
+        sql: 原始 SQL（用于回退路径的词法头判定与 WITH 外层定位）
+        dialect: sqlglot 方言
+
+    Returns:
+        DMLTarget 事实对象；任何路径都返回非 None。
+    """
+    # ── 路径 1：强类型 AST ────────────────────────────────────────
+    if ast is not None:
+        if isinstance(ast, exp.Update):
+            return _dml_target_from_update_ast(ast)
+        if isinstance(ast, exp.Delete):
+            return _dml_target_from_delete_ast(ast)
+        # WITH CTE 外层是 UPDATE/DELETE：sqlglot 把 CTE 放在 args['with_'] 里，
+        # 顶层节点仍是 Update/Delete（本机实测确认）。上面两个分支已覆盖。
+        # 强类型非 DML AST → NOT_DML/NOT_APPLICABLE，不新增 E999。
+        if isinstance(ast, _AST_NON_DML_TYPES):
+            return DMLTarget.not_dml(f"AST_{type(ast).__name__.upper()}")
+        # exp.Command：sqlglot 对不支持语法的降级节点。this 是字符串（可能是
+        # 'LOCK TABLES'、'GRANT'、'CALL' 等），**不可信**——进入词法头判定。
+        # 通用 Alias/Column/Literal 等表达式：不算可靠语句 AST，同样进入词法头。
+        # （DETAIL §5.2 第 2 条、§5.2.1 实现契约第 2 条）
+
+    # ── 路径 2：回退词法头判定（Command / ParseError / 通用表达式） ──
+    return _dml_target_from_lex_head(sql, dialect)
+
+
+def _dml_target_from_lex_head(sql: str, dialect: str = "mysql") -> DMLTarget:
+    """回退路径：独立词法头 + 36 项闭集判定（DETAIL §5.2.1）。
+
+    实现契约：
+      1. 每个已按项目原逻辑拆分的实际语句独立判定，只跳过普通注释/空白；
+         字符串或反引号标识符不能作为可靠头。
+      2. 使用保留 token 类型/原始边界的独立词法结果（_lex_statement_head）。
+         sqlglot 可将 `LOCK TABLES` 合成一个 COMMAND token：只有确定该 token
+         是未加引号的语句头关键词片段时，取片段内第一个裸词再查闭集。
+      3. 可靠头命中闭集 → NOT_DML/NOT_APPLICABLE/false；UPDATE/DELETE →
+         有限目标解析；WITH → 完整定位外层后重用同一判定。
+         其余头/空头/无法定位/词法失败 → UNKNOWN/UNKNOWN/null。
+      4. 只证明本规则不适用，不检查整个命令是否语法正确或有执行权限，
+         不清除 parse_error、known_fidelity_failures、KFN、E999 或任何其他规则。
+    """
+    head, tt = _lex_statement_head(sql, dialect)
+    if head is None:
+        # 词法失败 / 空头 / 字符串或反引号冒充头 → UNKNOWN，并入完整性门禁
+        return DMLTarget.unknown("UNKNOWN", "LEX_HEAD_UNRELIABLE")
+
+    # 命中 36 项闭集 → NOT_DML/NOT_APPLICABLE，不新增 E999
+    if head in R043_NON_TARGET_HEADS:
+        return DMLTarget.not_dml(f"LEX_HEAD_{head}")
+
+    # UPDATE / DELETE → 有限目标解析（回退路径）
+    if head in _R043_TARGET_HEADS:
+        return _dml_target_fallback_parse(head, sql, dialect)
+
+    # WITH → 完整定位外层后重用同一判定
+    if head == "WITH":
+        return _dml_target_from_with(sql, dialect)
+
+    # 其余头 / 未知头 → UNKNOWN，并入完整性门禁
+    return DMLTarget.unknown("UNKNOWN", f"LEX_HEAD_UNCOVERED_{head}")
+
+
+def _dml_target_from_with(sql: str, dialect: str = "mysql") -> DMLTarget:
+    """WITH CTE 的外层语句头定位（DETAIL §5.2 第 4 条、§5.3）。
+
+    WITH 不是自动 UNKNOWN，也不是见到 CTE 内 UPDATE 就确认 DML：
+    只在有限回退能够配对完整 CTE 定义、定位外层头时按该外层分类；
+    外层头同样应用 §5.2.1 的闭集与 UPDATE/DELETE 分流。
+    普通注释可屏蔽，可执行版本注释只能在条件和边界可证明时解释。
+    回退头不在闭集且不是 UPDATE/DELETE、或外层定位失败时，明确 UNKNOWN。
+    """
+    # 有限回退：tokenizer 屏蔽普通注释、字符串内容和带引号标识符内容；
+    # 解析合法修饰词、可完整配对的 WITH 定义，定位真实顶层语句头。
+    try:
+        toks = sqlglot.Dialect.get_or_raise(dialect).tokenizer_class().tokenize(sql)
+    except Exception:
+        return DMLTarget.unknown("UNKNOWN", "WITH_LEX_FAILED")
+
+    # 跳过 WITH 关键字本身，配对括号找到所有 CTE 定义，定位外层语句头。
+    # WITH c1 AS (...), c2 AS (...) <outer_head> ...
+    n = len(toks)
+    i = 0
+    # 跳过前导 WITH
+    while i < n and (toks[i].token_type == TokenType.COMMENT
+                     or (toks[i].text or "").strip() == ""):
+        i += 1
+    if i >= n or (toks[i].text or "").upper() != "WITH":
+        return DMLTarget.unknown("UNKNOWN", "WITH_HEAD_MISSING")
+    i += 1
+    # 配对括号跳过所有 CTE 定义体
+    depth = 0
+    while i < n:
+        tt = toks[i].token_type
+        if tt == TokenType.L_PAREN:
+            depth += 1
+        elif tt == TokenType.R_PAREN:
+            depth -= 1
+            if depth < 0:
+                return DMLTarget.unknown("UNKNOWN", "WITH_PAREN_UNBALANCED")
+        elif depth == 0 and tt != TokenType.COMMENT:
+            # 在顶层（非 CTE 定义体内）遇到非括号 token：
+            # 可能是 CTE 名、AS、逗号，或外层语句头。
+            text = (toks[i].text or "").upper()
+            # 跳过 CTE 名 / AS / 逗号 / 字符串字面量（CTE 定义内的）
+            if text in ("AS", ","):
+                i += 1
+                continue
+            # 遇到 UPDATE/DELETE/SELECT/INSERT 等外层语句头
+            if text in _R043_TARGET_HEADS or text in R043_NON_TARGET_HEADS:
+                # 重用同一判定：把外层头之后的部分作为新 SQL 递归判定
+                # （有限回退：只接受已写测试的完整形式）
+                outer_sql = sql[toks[i].start:]
+                if text in _R043_TARGET_HEADS:
+                    return _dml_target_fallback_parse(text, outer_sql, dialect)
+                return DMLTarget.not_dml(f"WITH_OUTER_{text}")
+            # 其他 token（CTE 名等）继续
+        i += 1
+    # 未能定位外层头
+    return DMLTarget.unknown("UNKNOWN", "WITH_OUTER_NOT_LOCATED")
+
+
+def _dml_target_fallback_parse(head: str, sql: str,
+                               dialect: str = "mysql") -> DMLTarget:
+    """回退路径的有限目标解析（DETAIL §5.3 末段）。
+
+    只在 AST 不可用时使用：tokenizer 屏蔽普通注释、字符串内容和带引号标识符
+    内容；解析合法修饰词、可完整配对的 WITH 定义，定位真实顶层语句头；
+    以配对括号和保留字解析 table_reference/table_references，而非 raw 字符扫描。
+    只接受已写测试的完整形式，遇到未知 token/不完整目标/可执行注释语义不明
+    返回 UNKNOWN。不得以"未见 JOIN"推导 SINGLE，更不得重启旧全句正则兜底。
+
+    本版实现的有限形式（覆盖 DML-01—19 验收用例）：
+      UPDATE：<modifiers> <table_reference_list> SET ...
+        modifiers: LOW_PRIORITY | IGNORE | OR ...（可选，逐个跳过）
+        table_reference_list: 以逗号或 JOIN 分隔的 table_reference 序列，
+          直到遇到 SET 关键字为止。
+        table_reference: 标识符 [.标识符] [[AS] 别名] [PARTITION (...)]
+          [USE|FORCE|IGNORE INDEX (...)]
+        多表判据：table_reference_list 中出现逗号（顶层，非括号内）或 JOIN
+          关键字 → is_multi_table=True；否则 False。
+      DELETE：<modifiers> [targets] FROM <table_reference_list> [USING ...]
+        modifiers: LOW_PRIORITY | QUICK | IGNORE（可选）
+        targets: 标识符列表（DELETE a,b FROM ...）→ 多表
+        FROM 后 table_reference_list 含 JOIN → 多表
+        USING 出现 → 多表
+
+    遇到未知 token / 不完整目标 / 可执行注释语义不明 → UNKNOWN。
+    """
+    try:
+        toks = sqlglot.Dialect.get_or_raise(dialect).tokenizer_class().tokenize(sql)
+    except Exception:
+        return DMLTarget.unknown(head, "FALLBACK_LEX_FAILED")
+
+    # 过滤掉注释 token，保留位置信息用于括号配对
+    toks = [t for t in toks if t.token_type != TokenType.COMMENT]
+    n = len(toks)
+    if n == 0:
+        return DMLTarget.unknown(head, "FALLBACK_EMPTY")
+
+    i = 0
+    # 跳过语句头本身（UPDATE / DELETE）
+    if (toks[0].text or "").upper() != head:
+        return DMLTarget.unknown(head, "FALLBACK_HEAD_MISMATCH")
+    i = 1
+
+    if head == "UPDATE":
+        return _fallback_parse_update(toks, i, n)
+    return _fallback_parse_delete(toks, i, n)
+
+
+def _fallback_skip_modifiers(toks, i: int, n: int,
+                             allowed: frozenset) -> int:
+    """跳过合法的语句修饰词（LOW_PRIORITY / QUICK / IGNORE 等）。"""
+    while i < n:
+        text = (toks[i].text or "").upper()
+        if text in allowed:
+            i += 1
+        else:
+            break
+    return i
+
+
+def _fallback_scan_table_refs(toks, i: int, n: int,
+                              stop_words: frozenset):
+    """扫描 table_reference_list，返回 (新位置, 是否多表, 是否完整)。
+
+    以配对括号和保留字解析，而非 raw 字符扫描。遇到 stop_words 中的词
+    或 token 流结束即停。逗号（顶层，非括号内）或 JOIN 关键字 → 多表。
+    """
+    depth = 0
+    multi = False
+    complete = False
+    _UPDATE_MODIFIERS = frozenset({"LOW_PRIORITY", "IGNORE"})
+    while i < n:
+        tok = toks[i]
+        tt = tok.token_type
+        text = (tok.text or "").upper()
+        if tt == TokenType.L_PAREN:
+            depth += 1
+            i += 1
+            continue
+        if tt == TokenType.R_PAREN:
+            depth -= 1
+            if depth < 0:
+                return i, multi, False  # 括号不配平 → 不完整
+            i += 1
+            continue
+        if depth == 0:
+            if text in stop_words:
+                complete = True
+                return i, multi, complete
+            # 顶层逗号 → 多表（UPDATE t1, t2 SET / DELETE a, b FROM）
+            if tt == TokenType.COMMA:
+                multi = True
+                i += 1
+                continue
+            # JOIN 关键字（含 STRAIGHT_JOIN / LEFT / RIGHT / INNER / CROSS /
+            # NATURAL JOIN 的等价节点）→ 多表
+            if text in ("JOIN", "STRAIGHT_JOIN", "INNER", "CROSS", "LEFT",
+                        "RIGHT", "NATURAL"):
+                # LEFT/RIGHT/INNER/CROSS/NATURAL 后面必须跟 JOIN 才算
+                if text == "JOIN" or text == "STRAIGHT_JOIN":
+                    multi = True
+                else:
+                    # 前瞻：下一个非空白 token 是否为 JOIN
+                    j = i + 1
+                    while j < n and toks[j].token_type == TokenType.COMMENT:
+                        j += 1
+                    if j < n and (toks[j].text or "").upper() in ("JOIN", "OUTER"):
+                        multi = True
+                i += 1
+                continue
+        i += 1
+    # token 流结束仍未遇 stop_words → 不完整
+    return i, multi, complete
+
+
+def _fallback_parse_update(toks, i: int, n: int) -> DMLTarget:
+    """回退路径的 UPDATE 目标解析。"""
+    _UPDATE_MODIFIERS = frozenset({"LOW_PRIORITY", "IGNORE"})
+    i = _fallback_skip_modifiers(toks, i, n, _UPDATE_MODIFIERS)
+    if i >= n:
+        return DMLTarget.unknown("UPDATE", "FALLBACK_UPDATE_NO_TARGET")
+    # 扫描 table_reference_list，直到 SET
+    stop = frozenset({"SET"})
+    pos, multi, complete = _fallback_scan_table_refs(toks, i, n, stop)
+    if not complete:
+        return DMLTarget.unknown("UPDATE", "FALLBACK_UPDATE_INCOMPLETE")
+    return DMLTarget.resolved(
+        "UPDATE", multi,
+        "UPDATE_TABLE_REFERENCES" if multi else "SINGLE",
+        "FALLBACK_UPDATE_OK")
+
+
+def _fallback_parse_delete(toks, i: int, n: int) -> DMLTarget:
+    """回退路径的 DELETE 目标解析。"""
+    _DELETE_MODIFIERS = frozenset({"LOW_PRIORITY", "QUICK", "IGNORE"})
+    i = _fallback_skip_modifiers(toks, i, n, _DELETE_MODIFIERS)
+    if i >= n:
+        return DMLTarget.unknown("DELETE", "FALLBACK_DELETE_NO_TARGET")
+
+    # 检查是否为 DELETE a,b FROM ... 显式目标列表形式：
+    # 从当前位置扫描，遇到 FROM 之前若出现逗号（顶层）→ 目标列表多表。
+    # 遇到 FROM 则进入 table_reference_list 扫描。
+    depth = 0
+    has_comma_before_from = False
+    has_join_keyword = False
+    has_using = False
+    j = i
+    while j < n:
+        tok = toks[j]
+        tt = tok.token_type
+        text = (tok.text or "").upper()
+        if tt == TokenType.L_PAREN:
+            depth += 1
+        elif tt == TokenType.R_PAREN:
+            depth -= 1
+            if depth < 0:
+                return DMLTarget.unknown("DELETE", "FALLBACK_DELETE_PAREN_UNBALANCED")
+        elif depth == 0:
+            if text == "FROM":
+                break
+            if text == "USING":
+                has_using = True
+                break
+            if tt == TokenType.COMMA:
+                has_comma_before_from = True
+            if text in ("JOIN", "STRAIGHT_JOIN"):
+                has_join_keyword = True
+        j += 1
+
+    if j >= n:
+        # 没有 FROM 也没有 USING → 不完整
+        return DMLTarget.unknown("DELETE", "FALLBACK_DELETE_NO_FROM")
+
+    # DELETE a,b FROM ... → 显式目标列表，多表形式
+    if has_comma_before_from:
+        return DMLTarget.resolved("DELETE", True, "DELETE_TARGET_LIST",
+                                  "FALLBACK_DELETE_TARGETS")
+
+    # DELETE FROM t USING ... → USING 多表形式
+    if has_using:
+        return DMLTarget.resolved("DELETE", True, "DELETE_USING",
+                                  "FALLBACK_DELETE_USING")
+
+    # DELETE a FROM t1 JOIN t2 → 单目标但 FROM 后有 JOIN，仍属多表形式
+    # （DETAIL §5.3：DELETE 显式目标列表或 USING 属多表语法形式）
+    # 这里 has_join_keyword 是在 FROM 之前检测的，实际 JOIN 在 FROM 之后。
+    # 继续扫描 FROM 后的 table_reference_list。
+    if (toks[j].text or "").upper() == "FROM":
+        j += 1
+        stop = frozenset({"USING", "WHERE", "ORDER", "LIMIT"})
+        pos, multi, complete = _fallback_scan_table_refs(toks, j, n, stop)
+        if multi:
+            # FROM 后有 JOIN → 多表形式
+            # 但需检查是否有显式目标列表（DELETE a FROM ...）
+            # 显式目标列表已在 has_comma_before_from 分支处理
+            return DMLTarget.resolved("DELETE", True, "DELETE_TARGET_LIST",
+                                      "FALLBACK_DELETE_FROM_JOIN")
+        # 检查 USING（可能在 FROM 之后）
+        if pos < n and (toks[pos].text or "").upper() == "USING":
+            return DMLTarget.resolved("DELETE", True, "DELETE_USING",
+                                      "FALLBACK_DELETE_USING_AFTER_FROM")
+        if not complete and pos >= n:
+            # token 流结束，没有 WHERE/ORDER/LIMIT/USING → 单表 DELETE 完整
+            return DMLTarget.resolved("DELETE", False, "SINGLE",
+                                      "FALLBACK_DELETE_SINGLE_EOF")
+        return DMLTarget.resolved("DELETE", False, "SINGLE",
+                                  "FALLBACK_DELETE_SINGLE")
+
+    return DMLTarget.unknown("DELETE", "FALLBACK_DELETE_UNEXPECTED")
+
+
 @dataclass
 class ParsedSQL:
     """解析后的SQL结构（V1.0 完整字段）"""
@@ -3353,7 +3989,13 @@ class ParsedSQL:
     in_list_size: int = 0
     limit_offset: int = -1
     has_delayed_keyword: bool = False
-    is_multi_table_update: bool = False
+    # v1.6.3.4 / D04：删除 `is_multi_table_update: bool = False` 可写字段。
+    # 该字段原由 _regex_pre_parse 的两段全句正则赋值，是 R043 误报的直接来源
+    # （ON UPDATE CURRENT_TIMESTAMP + CHARACTER SET 被当成联表 UPDATE）。
+    # 改为只读派生属性，唯一事实源是 dml_target（见下方 property）。
+    # 全仓 ParsedSQL 构造点只有 4 处且均不传该字段（A 第二轮评审 §2.6 实测），
+    # asdict 出口不涉及 ParsedSQL，故 property 化不破坏构造兼容。
+    dml_target: DMLTarget = field(default_factory=DMLTarget)
     has_load_data: bool = False
     has_handler_do: bool = False
     has_flush: bool = False
@@ -3379,6 +4021,24 @@ class ParsedSQL:
     # === 解析元信息 ===
     parse_error: Optional[str] = None
     ast: Optional[object] = None
+
+    # ── v1.6.3.4 / D04：只读派生属性（不是 dataclass 字段） ──────────
+    #
+    # 设计出处：DETAIL §5.2 第 3 条。
+    # 定义：`status == RESOLVED and statement_kind in (UPDATE, DELETE)
+    #        and is_multi_table is True`
+    # 无 setter；字段初始化、预解析、提前返回均不能留下旧值。
+    # R043 直接读 dml_target 而不是该兼容属性（§5.2 第 5 条），但保留该属性
+    # 是为了减少外部快照/序列化结构的变动面（A 第一轮 P3-03）。
+    @property
+    def is_multi_table_update(self) -> bool:
+        """R043 兼容只读视图：唯一派生自 dml_target，无独立可写状态。"""
+        dt = self.dml_target
+        if dt is None:
+            return False
+        return (dt.status == "RESOLVED"
+                and dt.statement_kind in ("UPDATE", "DELETE")
+                and dt.is_multi_table is True)
 
 
 class SQLParser:
@@ -3506,6 +4166,11 @@ class SQLParser:
                 # 例程语法能力缺口失败——置准确对象元数据、不产生假 E999；结构不完整
                 # 的负例仍按原失败关闭。raw_sql 保持不变。
                 if _routine_compat_fill(sql_recover, parsed, self.dialect):
+                    # v1.6.3.4 / D04：例程兼容填充路径同样必须填充 dml_target。
+                    # 该路径 ast 为 None（ParseError 后 _routine_compat_fill 成功），
+                    # 走 §5.2.1 独立词法头判定。CREATE 例程的头是 CREATE，命中闭集
+                    # → NOT_DML/NOT_APPLICABLE，不新增 E999。
+                    parsed.dml_target = _extract_dml_target(None, sql_recover, self.dialect)
                     return parsed
                 # v1.6.2.2-UAT-O-01-R2：异常路径同样完成 KFN 消息归一化——
                 # preflight 已把 known_fidelity_failures 写入 parsed（决策真值源），
@@ -3532,6 +4197,12 @@ class SQLParser:
                         parsed.tables.append(tb_name)
                         if "create table" in sql_clean.lower():
                             parsed.is_create_table = True
+                # v1.6.3.4 / D04：ParseError 出口同样必须填充 dml_target。
+                # ast 为 None（ParseError），走 §5.2.1 独立词法头判定。
+                # 用 sql_recover（未被 rstrip(";") 处理过的原串）做词法头判定，
+                # 与正常路径同源。已有 parse_error/KFN/E999 绝不因新事实成功或
+                # NOT_APPLICABLE 被清除（DETAIL §5.2 第 4 条）。
+                parsed.dml_target = _extract_dml_target(None, sql_recover, self.dialect)
                 return parsed
 
         # 确定 SQL 类型
@@ -3609,6 +4280,12 @@ class SQLParser:
         if parsed.known_fidelity_failures:
             parsed.parse_error = "KNOWN_FIDELITY_GAP[%s]" % ",".join(
                 parsed.known_fidelity_failures)
+        # v1.6.3.4 / D04：R043 事实链统一产出点（正常路径）。
+        # 直接由顶层 AST 类型分流，**不以 parsed.sql_type 决定是否调用或判断结果**。
+        # Command 以及不能证明完整语句类别的通用 Alias/Column/Literal 表达式
+        # 不算可靠语句 AST，进入 §5.2.1 独立词法头判定。
+        # 正常强类型 DML 只利用 AST，不重复 parse/tokenize（保持 v1.6.3.2 性能约束）。
+        parsed.dml_target = _extract_dml_target(ast, sql_recover, self.dialect)
         return parsed
 
     # ── 正则预解析（补充sqlglot遗漏的信息） ──────────────────
@@ -3700,38 +4377,29 @@ class SQLParser:
         if re.match(r"\bcreate\s+(temporary\s+)?table\b.*\b(as\s+)?select\b", sql_lower):
             parsed.is_create_table_select = True
 
-        # 检测联表更新 / 联表删除
-        clean_sql_no_comm = re.sub(r'--[^\n]*', '', sql_lower)
-        clean_sql_no_comm = re.sub(r'/\*.*?\*/', '', clean_sql_no_comm, flags=re.DOTALL).strip()
-        # UPDATE：取 UPDATE 与 SET 之间的目标表段，段内含逗号或 JOIN 即联表。
-        # 旧写法 [^set]+ 是否定"字符"组（排除字母 s/e/t），并非排除单词 SET——
-        # 对 t_xxx 等含 s/e/t 的表名恒不匹配，导致逗号式联表 UPDATE 静默漏报（P2-03）。
-        # 同时旧 JOIN 分支会把 SET 子句里子查询的 JOIN 误判进来，限定目标段后一并修正。
-        m_upd = re.search(r"\bupdate\b(.*?)\bset\b", clean_sql_no_comm, re.DOTALL)
-        upd_multi = bool(m_upd and ("," in m_upd.group(1)
-                                    or re.search(r"\bjoin\b", m_upd.group(1))))
-        # DELETE：同样只看目标段（DELETE 到第一个 WHERE 之间），理由与 UPDATE 一致。
-        # 旧写法 `\bdelete\s+.*?\bjoin\b` 满句扫，会把 WHERE 子查询里的 JOIN
-        # 误判成联表 DELETE —— `DELETE FROM t WHERE id IN (SELECT .. JOIN ..)`
-        # 是合法单表删除，却命中 ERROR 级 R043，并被质量门禁（ERROR 阈值默认 0）
-        # 挡住合法变更。该误报为 v1.2.0.9 之后引入，升级会带给内网。
-        m_del = re.search(r"\bdelete\b(.*?)(?:\bwhere\b|$)", clean_sql_no_comm, re.DOTALL)
-        del_seg = m_del.group(1) if m_del else ""
-        # 先剥掉 DELETE 的合法修饰词，否则它们会被下面的"别名列表"正则当成别名：
-        # `DELETE LOW_PRIORITY FROM t` 的目标段是 ` low_priority from t`，
-        # 形态与 `DELETE a FROM t` 完全一致，会把单表删除误判成联表（O 复核发现）。
-        # 只剥段首连续出现的修饰词，不碰后面的表名（表名可以叫 low_priority）。
-        del_seg = re.sub(r"^\s*(?:(?:low_priority|quick|ignore)\s+)+", " ", del_seg)
-        del_multi = bool(del_seg and (
-            re.search(r"\bjoin\b", del_seg)                         # DELETE a FROM t1 JOIN t2
-            or re.search(r"\busing\b", del_seg)                     # DELETE FROM t1,t2 USING ...
-            # DELETE a, b FROM ...：FROM 之前必须先出现【标识符】。
-            # 不能写成 [\w`\s,]+ —— 空白也在字符组里，` from t` 的前导空格
-            # 自身即可满足 +，会把普通单表 DELETE FROM 全部误判成联表。
-            or re.search(r"^\s*[a-zA-Z0-9_`][a-zA-Z0-9_`\s,]*\bfrom\b", del_seg)
-        ))
-        if upd_multi or del_multi:
-            parsed.is_multi_table_update = True
+        # v1.6.3.4 / D04：删除原"检测联表更新 / 联表删除"的两段全句正则赋值。
+        #
+        # 原实现（已删除）：
+        #   m_upd = re.search(r"\bupdate\b(.*?)\bset\b", clean_sql_no_comm, re.DOTALL)
+        #   m_del = re.search(r"\bdelete\b(.*?)(?:\bwhere\b|$)", clean_sql_no_comm, re.DOTALL)
+        #   if upd_multi or del_multi:
+        #       parsed.is_multi_table_update = True
+        #
+        # 删除原因（DETAIL §5.1 已证实的因果链）：
+        #   该正则跨越了语句内部的字段定义。附件 New 2.txt 第 21 行的
+        #   `ON UPDATE CURRENT_TIMESTAMP` 被当成起点，第 22 行 `CHARACTER SET`
+        #   中的独立单词 SET 被当成终点，中间两个字段的分隔逗号使
+        #   is_multi_table_update=True，最终以 ERROR 误拦 R043。
+        #
+        #   仅增加 `if CREATE: return` 不能解决 `UPDATE t PARTITION(p0,p1)`、
+        #   反引号逗号等同源误报；仅把正则改成 `^UPDATE` 又会遗漏 WITH、
+        #   合法前导注释等情况。这两种补丁都不作为验收方案。
+        #
+        # 替代方案：R043 事实链改由 _extract_dml_target(ast, sql) 统一产出，
+        # 在 parse() 主流程的 AST 取得后调用（见下方 parse 方法），直接由
+        # 顶层 AST 类型分流；Command/ParseError 走 §5.2.1 的 36 项闭集词法头
+        # 判定。is_multi_table_update 改为只读派生属性，无独立可写状态。
+        # 其他已有规则预解析不借机重构。
 
         # 检测 INDEX HINT (USE INDEX / FORCE INDEX / IGNORE INDEX)
         if re.search(r"\b(use|force|ignore)\s+index\b", sql_lower):

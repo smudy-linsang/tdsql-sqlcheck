@@ -264,8 +264,23 @@ class R043NoMultiTableUpdate(BaseRule):
     fix_suggestion = "请拆分为单表操作，在应用层维护数据一致性"
 
     def check(self, parsed: ParsedSQL, table_metadata: Optional[dict] = None) -> Optional[Violation]:
-        if parsed.is_multi_table_update:
-            return self._make_violation("禁止使用多表联表UPDATE，分布式环境下可能导致跨SET操作")
+        # v1.6.3.4 / D04：R043 唯一触发条件（DETAIL §5.2 第 5 条）：
+        #   dml_target.status == RESOLVED
+        #   AND dml_target.statement_kind in ('UPDATE','DELETE')
+        #   AND dml_target.is_multi_table is True
+        # 文案类型也从 statement_kind 取值，**不再检查 parsed.sql_type**。
+        # UNKNOWN 不编造 R043，但并入 checker 原有审核完整性失败路径
+        # （已有 E999 则合并原因，不覆盖错误文本/重复制造同因条目）。
+        # NOT_APPLICABLE 则不因 R043 新增 E999；其他真实解析错误照常保留。
+        dt = getattr(parsed, "dml_target", None)
+        if dt is None:
+            return None
+        if (dt.status == "RESOLVED"
+                and dt.statement_kind in ("UPDATE", "DELETE")
+                and dt.is_multi_table is True):
+            action = dt.statement_kind  # UPDATE 或 DELETE，按真实类型显示
+            return self._make_violation(
+                f"禁止使用多表联表{action}，分布式环境下可能导致跨SET操作")
         return None
 
 
