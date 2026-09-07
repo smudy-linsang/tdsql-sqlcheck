@@ -424,3 +424,92 @@ m_upd = re.search(r"\bupdate\b(.*?)\bset\b", clean_sql_no_comm, re.DOTALL)
 施工人：智能体 Q
 施工对象：v1.6.3.4 第三批（D05 网关入口防护层 + 142 迁移）
 提交给：Mr.Linsang
+
+---
+---
+
+# DEV-v1.6.3.4 第四批开发记录 — D06 网关大日志分析执行层重构（REQ-04 闭环）
+
+| 项 | 内容 |
+|---|---|
+| 产品版本 | v1.6.3.4 |
+| 施工基线 | `main@3e04000`（第三批施工提交） |
+| 设计依据 | DETAIL-v1.6.3.4 §6.1（问题 2/3/4/6）、§6.5（解析/子进程/产物）、§6.6（数据库/错误/诊断） |
+| 施工方 | 智能体 Q |
+| 施工日期 | 2026-09-07 |
+| 本批交付边界 | **D06 执行层重构**：与第三批 D05 入口防护配对，消除 §6.1 问题 2（async 路由阻塞事件循环）、问题 3（全量 read 进内存）、问题 4（裸 python/120s/仅凭 HTML 判成功）、问题 6（落库无报文预检/非事务）。D02（14 HTML 入口）留第五批 |
+
+## 1. 交付概述
+
+第三批 D05 交付了入口防护层（限额/锁/429/413），但 `analyze_log` 仍是全量 `await file.read()` + async 路由内同步子进程 + 120s 固定超时。本批重构执行层，使 REQ-04 端到端闭环：
+
+| 组件 | 交付 |
+|---|---|
+| gateway_process.py（新增） | run_analysis_process 子进程生命周期：sys.executable + 受控 argv（不用 shell）、stdout/stderr 独立线程有界排空（各 64 KiB 尾部）、Linux 进程组 TERM→5s→KILL→reap、Windows ctypes Job Object（KILL_ON_JOB_CLOSE）约束子树、记录 pid/returncode/timed_out/exit_after_term/forced_kill/cleanup_ok |
+| log_input.py（新增） | 共享逐行输入层：UTF-8（可选 BOM）/LF/CRLF、最后一行无换行也计一行、非法编码显式 encoding_error（不 errors='ignore' 静默丢字节）、超长行缓冲超限立即拒绝（不先 read 整行）、count_file_bytes_and_sha256 流式 |
+| analyze_log 重构 | 签名 bytes→受控文件路径；流式统计（log_input，不全量进内存）；SHA-256+净字节；gateway_process 子进程（analysis_timeout=540s）；校验退出码/报告存在/字节上限/文档完整性；NaN/Infinity/负耗时排除 |
+| 事务落库 | _save_report：report_html + report_context_json + analysis_meta_json + request_id **同一事务**，失败 rollback；max_allowed_packet 预检（按 UTF-8 字节×2 转义上界估算，不足报 503 不 SET GLOBAL） |
+| 结构化异常 | GatewayAnalysisError 及子类（InvalidLog 422 / Timeout 504 / OutputInvalid 500 / ReportStorage 503 / TempSpace 507），携带 code/stage/retryable |
+| upload 路由重构 | Request 取 request_id；report_context capture（D01）；受控临时目录 + 受控文件名；1 MiB 块转交 + 净字节校验（upload_max 200 MiB）+ SHA-256；asyncio.to_thread 线程池（不阻塞事件循环）；结构化错误映射；finally 清理受控目录 |
+
+## 2. 关键实现
+
+### 2.1 子进程生命周期（gateway_process.py，§6.5）
+- **不用 shell**：`subprocess.Popen([sys.executable, script, ...], shell=False)`，保留 repo PYTHONPATH（分析器延迟导入 backend.services.sql_masking）。
+- **有界排空**：stdout/stderr 各用独立 daemon 线程 `read(64KiB)` 循环，deque 只保留尾部 64 KiB——不用 `capture_output`（会把全部输出累积进内存）。独立线程避免管道塞满死锁。
+- **Linux**：`start_new_session=True` 独立进程组；超时按 `killpg(SIGTERM)`→等候 5s→仍存活 `killpg(SIGKILL)`→`wait` reap。
+- **Windows**：ctypes 创建 Job Object（JOBOBJECT_EXTENDED_LIMIT_INFORMATION + KILL_ON_JOB_CLOSE），AssignProcessToJobObject 约束子树，关闭句柄即终止残留；**没有 POSIX TERM 等价证据时记录 term_not_applicable，不伪造 exit_after_term=true**。
+- **cleanup_ok**：只有 `proc.returncode is not None`（确认退出）才 True；无法确认退出转故障处置，不宣称已清理/可复用资源。
+
+### 2.2 流式输入层（log_input.py，§6.5）
+- `iter_log_lines(file_path, max_line_bytes)` 二进制分块读（64 KiB），yield (text, status)：LINE_OK / LINE_ENCODING_ERROR / LINE_TOO_LONG。
+- 首行剥 UTF-8 BOM；LF/CRLF 均剥行尾 \r；最后一行无换行也计一行。
+- 超长行：缓冲无 \n 且超 max_line_bytes 立即 yield TOO_LONG 并置 too_long_pending，丢弃该行剩余直到下一个 \n（不先 read 整行再检查）。
+- 非法 UTF-8 显式标注 ENCODING_ERROR（不 errors='ignore' 静默丢字节）。
+
+### 2.3 analyze_log 重构（§6.5—§6.6）
+- 平台侧质量统计改用 log_input 流式逐行（消除 `file_content.decode().splitlines()` 同时保留多份内容的内存风险）；interf/sql 的 timecost 提取口径不变，新增 NaN/Infinity/负耗时排除（§6.5）。
+- 子进程经 gateway_process.run_analysis_process（analysis_timeout=540s），校验：timed_out→504、!cleanup_ok→故障、returncode!=0→500（非零退出但留有 HTML 不记成功）、报告缺失/空/无 `</html>`→500、报告字节>24 MiB→500。
+- analysis_meta_json（限 128 KiB）：input_sha256/input_bytes/parse_quality/visualization/process/stage_duration_ms，不存原始日志。
+- _save_report 事务：4 个新字段同事务 INSERT，任何失败 rollback（不留"成功但无正文"）；max_allowed_packet 预检按 UTF-8 字节×2 转义上界 + 4096 余量估算，不足报 503。
+
+### 2.4 upload 路由（§6.5）
+- 1 MiB 块 `await file.read(1MiB)` 转交受控目录，累计净字节超 upload_max（200 MiB）→413（与中间件 multipart 总限额 201 MiB 分别判断，§6.3）；SHA-256 同步计算。
+- 受控文件名 `{type}_instance_{port}.{date}.0` 符合 analyze_gateway_log.py 识别规则；目录 tempfile.mkdtemp（GATEWAY_TMP_DIR 或系统临时目录），finally rmtree 清理本请求目录。
+- `asyncio.to_thread(analyze_log, ...)`：同步文件/子进程/DB 移出事件循环，主循环可继续处理登录/列表（§6.1 问题 2）。
+- report_context capture（D01）冻结连接名称，随事务落库。
+
+## 3. 验证证据
+- **gateway_process 冒烟 18 项全通过**：正常退出（rc=0/cleanup_ok/stdout+stderr 排空/pid/duration）、超时回收（timed_out/cleanup_ok/回收<15s/Windows term_not_applicable 且不伪造 exit_after_term/rc!=0）、启动失败（cleanup_ok）、大量输出（尾部有界 ≤64 KiB 且非空）。
+- **test_gateway_log.py 6 passed**：端到端（upload API → 受控文件转交 → 流式统计 → gateway_process 子进程 → 事务落库含 report_context_json/analysis_meta_json/request_id 三新列 → 结构化错误 detail dict）。test_gateway_log_service 适配 file_path 签名；test_over_threshold/test_all_invalid 适配结构化 detail（code=GATEWAY_INVALID_LOG + message）。
+- **全量回归 1970 passed + 2 skipped，零失败**（约 9 分 45 秒，与前三批一致；2 skipped 为 A.1/A.4 门禁退役）。analyze_log 签名变更仅影响 test_gateway_log.py（已适配），其余测试经 upload API 或不经网关执行层，无回归。
+
+## 4. 变更文件清单（第四批）
+修改（3）：backend/services/gateway_log_service.py（analyze_log/_save_report 重构 + 异常体系）、backend/api/gateway_log.py（upload 路由重构 + import）、tests/test_gateway_log.py（file_path 签名 + 结构化 detail 适配）
+新增（2）：backend/services/gateway_process.py、backend/services/gateway_log_analysis/log_input.py
+（142 迁移在第三批已建，本批 analyze_log 开始写入 analysis_meta_json/request_id）
+
+## 5. D06 范围决策与边界
+**决策：不重构成熟的 analyze_gateway_log.py（154 KB / 3308 行）。** 理由：
+1. 该分析器已是流式逐行解析（`for line in f`）+ 单实例锁 + 资源限制（内存 1GB/CPU 降优先级）+ heapq 有界 Top-N，本身不是内存/阻塞风险源；
+2. §6.1 问题 3 的"重复解析"根因在**平台侧** `analyze_log` 的全量 read + decode().splitlines()，本批已用 log_input 流式统计消除其内存风险；
+3. 完整重构 analyzer 输入层（log_input 下沉进 analyzer + --summary-output 取代平台统计 + 火焰图实时 reservoir）风险高、收益边际，作为后续独立优化项。
+
+因此本批：平台侧流式统计提供 parse_quality/metrics（写入 analysis_meta_json 与响应），子进程仍用现有参数（--files/-o/--log-types/-f html）经 gateway_process 管理。**--summary-output/--context-file、analyzer 内部统一 log_input、火焰图实时 reservoir sampling（§6.1 问题 3 后半）列为后续优化**，不阻断 REQ-04 核心闭环（受控文件/非阻塞/子进程回收/事务落库/报文预检均已交付）。
+
+## 6. 剩余工作
+| 项 | 内容 |
+|---|---|
+| D02（第五批） | H01—H14 共 14 个 HTML 生成入口接入 + D01 各源写入路径配对（audit/scan/inspection/daily/bigtable/raw_slowlog/scan_compare + 4 CLI + 磁盘脚本）。网关 H08 的 report_context 已随本批 upload capture 落库，报告渲染接入随 D02 |
+| D06 后续优化 | analyze_gateway_log.py 的 --summary-output/--context-file、内部统一 log_input、火焰图实时 reservoir sampling、analysis_truncated 精确标识 |
+| 待回填 | 71 MiB 真实样本容量验证（GW-01/02/08）、元数据库 max_allowed_packet 实测、部署 Nginx `nginx -T` 核对 |
+
+## 7. 施工边界声明（第四批）
+1. 本批未连接内网 TDSQL，未上传真实 71 MiB 日志；端到端验证用 SAMPLE_INTERF_LOG 小样本经完整链路（受控文件→流式统计→子进程→事务落库→结构化错误），非真实大文件性能/内存验收（GW-08 容量门禁待内网样本）。
+2. gateway_process 的 Windows Job Object 在本机（Windows）冒烟验证 term_not_applicable 语义；Linux 进程组 TERM/KILL 路径经代码审查与超时回收冒烟（<15s）验证，生产 Linux 实机的子孙进程回收须部署时复核。
+3. max_allowed_packet 预检按 UTF-8 字节×2 转义上界估算（保守），非驱动 mogrify 精确长度；真实元数据库 packet 能力须发布前实测（§6.6）。
+4. analyze_log 改为同步阻塞由 upload 路由 asyncio.to_thread 调用；GatewayUploadPolicyMiddleware（第三批）的锁在收体+分析全程持有，与本批线程池分析协同（锁在中间件 finally 释放，覆盖 to_thread 执行期）。
+
+施工人：智能体 Q
+施工对象：v1.6.3.4 第四批（D06 网关执行层重构，REQ-04 闭环）
+提交给：Mr.Linsang

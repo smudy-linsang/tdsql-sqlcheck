@@ -1,12 +1,26 @@
 """G11 网关日志分析 API 路由"""
+import asyncio
+import hashlib
+import logging
+import os
 import re
 import secrets
+import shutil
+import tempfile
+from datetime import datetime
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request, UploadFile, File, Form
 from fastapi.responses import HTMLResponse
 from typing import List, Optional
 from pydantic import BaseModel
-from backend.services.gateway_log_service import gateway_log_service
+
+from backend import config
+from backend.services.gateway_log_service import (
+    gateway_log_service, GatewayAnalysisError,
+)
+
+logger = logging.getLogger("tdsql.gateway_log.api")
 
 router = APIRouter(prefix="/api/v1/gateway-log", tags=["Gateway Log"])
 
@@ -79,18 +93,87 @@ class ReportItem(BaseModel):
 
 @router.post("/upload")
 async def upload_log(
+    request: Request,
     connection_id: str = Form(...),
     log_type: str = Form("interf"),
-    file: UploadFile = File(...)
+    file: UploadFile = File(...),
 ):
-    """上传网关日志并进行深度分析"""
+    """上传网关日志并分析（v1.6.3.4 / D06 重构，§6.5—§6.6）。
+
+    入口防护（multipart 总限额/跨 worker 锁/429/413）由 GatewayUploadPolicyMiddleware
+    在路由之前完成；本路由负责：1 MiB 块转交受控目录（不全量 read 进内存）+ 净文件
+    字节校验 + SHA-256 + 线程池分析（不阻塞事件循环）+ 结构化错误 + 受控目录清理。
+    """
+    cfg = config.gateway_upload_config()
+    upload_max = cfg["GATEWAY_UPLOAD_MAX_BYTES"]
+    tmp_root = cfg.get("GATEWAY_TMP_DIR") or None
+    request_id = getattr(request.state, "request_id", "") or ""
+
+    # report_context capture（D01）：受理时冻结连接名称（不是 host:port，不是库名）
+    report_context = None
     try:
-        content = await file.read()
-        res = gateway_log_service.analyze_log(
+        from backend.services.report_context import capture_report_context, ORIGIN_BOUND
+        report_context = capture_report_context(connection_id, "", ORIGIN_BOUND)
+    except Exception:                                        # noqa: BLE001
+        report_context = None
+
+    # 受控临时目录（仅运行账号可访问；文件名由服务生成，非用户路径）
+    try:
+        work_dir = Path(tempfile.mkdtemp(prefix="gw_upload_", dir=tmp_root))
+    except OSError as e:
+        logger.error("网关上传临时目录创建失败: %s", e)
+        raise HTTPException(status_code=507, detail={
+            "code": "GATEWAY_TEMP_SPACE_LOW",
+            "message": "无法创建上传暂存目录（磁盘不足或权限问题）",
+            "stage": "admission", "request_id": request_id, "retryable": True})
+
+    net_bytes = 0
+    try:
+        # 受控文件名：符合 analyze_gateway_log.py 的 <type>_instance_<port>.<date>.<seq>
+        port = 0
+        try:
+            from backend.services.connection_registry import registry
+            saved = registry.get_saved(connection_id) or {}
+            port = int(saved.get("port") or 0)
+        except Exception:                                    # noqa: BLE001
+            port = 0
+        safe_type = re.sub(r"[^a-z_]", "", (log_type or "interf").lower()) or "interf"
+        date_str = datetime.now().strftime("%Y-%m-%d")
+        dest = work_dir / f"{safe_type}_instance_{port}.{date_str}.0"
+
+        # 1 MiB 块转交（不全量 read 进内存），累计净字节 + SHA-256
+        sha = hashlib.sha256()
+        with open(dest, "wb") as out:
+            while True:
+                chunk = await file.read(1024 * 1024)
+                if not chunk:
+                    break
+                net_bytes += len(chunk)
+                if net_bytes > upload_max:
+                    # 净文件超限（与中间件的 multipart 总限额分别判断，§6.3）
+                    raise HTTPException(status_code=413, detail={
+                        "code": "GATEWAY_UPLOAD_TOO_LARGE",
+                        "message": (f"文件净字节超过网关上限 {upload_max} 字节"
+                                    f"（约 {upload_max // 1024 // 1024} MiB）；"
+                                    f"已停止接收，未启动分析"),
+                        "stage": "receive", "request_id": request_id,
+                        "retryable": False})
+                sha.update(chunk)
+                out.write(chunk)
+        try:
+            await file.close()
+        except Exception:                                    # noqa: BLE001
+            pass
+
+        # 线程池执行分析（同步文件/子进程/DB 移出事件循环，§6.1 问题 2）
+        res = await asyncio.to_thread(
+            gateway_log_service.analyze_log,
             connection_id=connection_id,
-            file_name=file.filename,
-            file_content=content,
-            log_type=log_type
+            file_path=str(dest),
+            file_name=file.filename or dest.name,
+            log_type=log_type,
+            report_context=report_context,
+            request_id=request_id,
         )
         return {
             "status": res.get("status", "success"),
@@ -99,18 +182,34 @@ async def upload_log(
             "slow_queries": res["slow_queries"],
             "max_time_ms": res["max_time_ms"],
             "avg_time_ms": res["avg_time_ms"],
-            # v1.6.2.2-UAT-O-17：混合输入不得静默丢行——响应携带解析覆盖率、
-            # 跳过数与样例，前端据此提示用户报告仅覆盖部分输入。
+            "request_id": request_id,
+            # v1.6.2.2-UAT-O-17：混合输入不得静默丢行——响应携带解析覆盖率
             "parse_quality": res.get("parse_quality"),
         }
-    except ValueError as e:
-        # v1.6.2.2-UAT-O-11：零有效记录等业务输入错误返回 422（可读的失败语义），
-        # 不得落入 500 让人误以为是系统故障，也不得返回 200 冒充成功
-        raise HTTPException(status_code=422, detail=str(e))
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except GatewayAnalysisError as e:
+        # 结构化错误（§6.6）：code/message/stage/request_id/retryable
+        raise HTTPException(status_code=e.http_status, detail={
+            "code": e.code, "message": e.message, "stage": e.stage,
+            "request_id": request_id, "retryable": e.retryable})
+    except ValueError as e:
+        # v1.6.2.2-UAT-O-11：业务输入错误返回 422（可读失败语义），不落 500
+        raise HTTPException(status_code=422, detail={
+            "code": "GATEWAY_INVALID_LOG", "message": str(e), "stage": "analyze",
+            "request_id": request_id, "retryable": False})
+    except Exception:
+        logger.exception("网关日志分析未预期异常 (req=%s)", request_id)
+        raise HTTPException(status_code=500, detail={
+            "code": "GATEWAY_ANALYZER_FAILED",
+            "message": "网关日志分析内部错误，请携带请求编号联系管理员排查",
+            "stage": "analyze", "request_id": request_id, "retryable": False})
+    finally:
+        # 清理本请求受控目录（输入/报告/summary）；不动其他任务目录
+        try:
+            shutil.rmtree(work_dir, ignore_errors=True)
+        except Exception:                                    # noqa: BLE001
+            pass
 
 
 @router.get("/capabilities")

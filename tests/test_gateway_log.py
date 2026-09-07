@@ -13,12 +13,16 @@ SAMPLE_INTERF_LOG = (
 )
 
 
-def test_gateway_log_service():
-    """测试网关日志服务分析与解析统计功能"""
+def test_gateway_log_service(tmp_path):
+    """测试网关日志服务分析与解析统计功能（v1.6.3.4 / D06：受控文件路径）"""
+    # D06 重构：analyze_log 接受受控文件路径（不再接受 bytes）。文件名须符合
+    # analyze_gateway_log.py 的 <type>_instance_<port>.<date>.<seq> 识别规则。
+    log_file = tmp_path / "interf_instance_0.2026-02-26.0"
+    log_file.write_text(SAMPLE_INTERF_LOG, encoding="utf-8")
     res = gateway_log_service.analyze_log(
         connection_id="test_conn",
+        file_path=str(log_file),
         file_name="interf_test.log",
-        file_content=SAMPLE_INTERF_LOG.encode("utf-8")
     )
     assert res["total_queries"] == 2
     assert res["slow_queries"] == 1
@@ -135,7 +139,10 @@ def test_over_threshold_input_rejected():
     data = {"connection_id": "test_conn_lowcov", "log_type": "interf"}
     resp = client.post("/api/v1/gateway-log/upload", data=data, files=files)
     assert resp.status_code == 422, "覆盖率 10% 低于 50% 阈值，必须拒绝"
-    assert "覆盖率" in resp.json()["detail"]
+    # v1.6.3.4 / D06：结构化错误（§6.6），detail={code,message,stage,request_id,retryable}
+    det = resp.json()["detail"]
+    assert det["code"] == "GATEWAY_INVALID_LOG"
+    assert "覆盖率" in det["message"]
 
 
 def test_all_invalid_input_rejected_with_breakdown():
@@ -145,5 +152,7 @@ def test_all_invalid_input_rejected_with_breakdown():
     data = {"connection_id": "test_conn_allbad", "log_type": "interf"}
     resp = client.post("/api/v1/gateway-log/upload", data=data, files=files)
     assert resp.status_code == 422
+    # v1.6.3.4 / D06：结构化错误，detail 为 dict（§6.6）
     detail = resp.json()["detail"]
-    assert "格式不匹配" in detail
+    assert detail["code"] == "GATEWAY_INVALID_LOG"
+    assert "格式不匹配" in detail["message"]
