@@ -513,3 +513,127 @@ m_upd = re.search(r"\bupdate\b(.*?)\bset\b", clean_sql_no_comm, re.DOTALL)
 施工人：智能体 Q
 施工对象：v1.6.3.4 第四批（D06 网关执行层重构，REQ-04 闭环）
 提交给：Mr.Linsang
+
+---
+---
+
+# 第五批施工记录 — D02 全部 HTML 入口接入（REQ-01 闭环）+ D06 后续优化
+
+| 项 | 内容 |
+|---|---|
+| 产品版本 | v1.6.3.4 |
+| 施工基线 | `main@b46ccb2`（第四批 D06 网关执行层重构） |
+| 设计依据 | `docs/DETAIL-v1.6.3.4-...md`（Rev.C）§3.1—§3.4（H01—H14 入口/写入/降级/渲染）、§6.1 问题 3、§7.1 CLI 契约 |
+| 施工方 | 智能体 Q |
+| 施工日期 | 2026-09-07 |
+| 本次交付边界 | **第五批施工（收尾）**：D02（H01—H14 共 14 个 HTML 生成入口渲染 + D01 各源写入路径配对，REQ-01 完整闭环）+ D06 后续优化（analyzer `--summary-output`/`--context-file`、火焰图实时 reservoir 上限）。至此 v1.6.3.4 四个 REQ 全部闭环 |
+
+---
+
+## 1. 交付概述
+
+本批为 v1.6.3.4 收尾批，完成 REQ-01（所有 HTML 报告显示实例连接名称）的最后一块 D02，并补齐第四批声明为“后续优化”的 D06 遗留项，做到无遗留。
+
+| 实施包 | 本批状态 | 说明 |
+|---|---|---|
+| **D02 H01—H14** | ✅ **完整交付** | 14 个 HTML 生成入口全部接入“实例连接名称”来源块；D01 各源写入路径配对（capture→report_context_json 落库）；历史降级链（legacy_stored→current_lookup→missing）全入口统一 |
+| **D06 后续优化** | ✅ 交付 | analyze_gateway_log.py 增 `--connection-name`/`--context-file`/`--summary-output`；火焰图 50000 点实时上限（不等文件结束） |
+
+**四个 REQ 闭环确认**：REQ-01（D01 基础 + D02 全入口）✅、REQ-02（D03 主表识别 + 采集）✅、REQ-03（D04 R043）✅、REQ-04（D05 入口 + D06 执行 + D06-opt）✅。
+
+**全量回归：1942 passed + 30 skipped，0 failed（约 8 分 44 秒）。** 30 skipped = 28 项 SIT/UAT 规则集成测试（需内网靶场库凭据 `TDSQL_TEST_ADMIN_USER/PASSWORD`，本机未设，环境性跳过）+ 2 项 A.1/A.4 门禁退役（D03 合法演进，第二批已声明）。与第四批 1970+2 相比总数同为 1972，差异纯为环境凭据缺失导致的 SIT/UAT 跳过，非回归。
+
+---
+
+## 2. 关键实现
+
+### 2.1 统一渲染入口（report_context.py）
+- 新增 `render_for_record(record, scene, role)`：14 入口共用。优先读已持久化 `report_context_json`（新记录扫描时冻结真名）；无则按 §3.2 降级链 `resolve_legacy_context`（legacy_stored→current_lookup→missing）。避免各入口重复降级逻辑漂移。
+- 新增 `inject_context_into_html(html, context_html)`：H08 用，把来源块注入**已生成**的 report_html——在 `<body...>` 后补块一次（锚点明确，不全局 replace 任意文本）；无 body 的历史片段用安全外层文档容纳；注入的是已转义静态 HTML（无 `<script>`/`on*`），不影响既有 `_strip_inline_handlers` 与 nonce/CSP/iframe 安全链。
+- **场景优先级修复**：`render_report_context` 单实例分支中，名称为空且无 connection_id 时，原仅按 `context.origin` 降级（笼统显示“历史记录”），忽略调用方 scene。修复为优先用 scene（如“离线文件审核”/“主机磁盘测试”），比 origin 更准确；有 connection_id 时仍走“历史未记录名称（连接 ID）”不被 scene 覆盖。
+
+### 2.2 写入路径（capture → report_context_json 落库）
+- **audit_service._save_audit_history**：签名增 `report_context`，INSERT 增 `report_context_json`（20→21 列/占位符同步），序列化经 `context_to_json_column`。
+- **audit_service.audit_file_content**（H01 来源）：文件审核前端未绑定连接→`ORIGIN_OFFLINE`（显示“未关联实例（离线文件审核）”）；API 显式传 connection_id→`ORIGIN_BOUND`（冻结真名）；不改其门禁语义。
+- **sql_audit.extract_and_audit**（H02 来源）：在元数据提取前、与 `_started_at` 同一开始阶段 `capture_report_context`（从 conn_info 冻结，不反查现名/不从文件名推断），传 `_save_audit_history` 与 schema_audit 快照 meta。
+- **scan_service._do_scan**（H03 来源，§3.1 修正写入源）：`conn_name` 由 `host:port`（endpoint，非名称）修正为 `capture_report_context` 冻结的真实连接名称；无注册名时降级用 endpoint。传 `create_scan_task`。
+- **slow_query_service.create_scan_task**：增 `report_context`，INSERT 增 `report_context_json`（scan_tasks）。
+- **scan_snapshot_service.create_snapshot**：INSERT 增 `report_context_json`（24→25 列）；**故意不加入 ON DUPLICATE KEY UPDATE**——upsert/重建保留首次来源（§3.3），不用重建时现名覆盖已存上下文。
+- **scan_compare_service._snap_brief**：透传 `connection_id/connection_name/db_name/report_context_json`，使对比报告 base/target 各携带自己的冻结来源（§3.2 相同 ID 改过名仍各显各名）。
+- **daily_inspect_service.run_daily / run_server_daily**（H07 来源）：采集开始冻结上下文，INSERT 增 `report_context_json`（daily_inspection 28→29 列、server_daily_inspection 15→16 列，均**不入 upsert**保留首次来源）；30 秒缓存命中直接返回其原上下文，不重新包装成新时点。
+
+### 2.3 渲染路径（H01—H09 Web 报告）
+- **H01** export_file_report_html、**H02** export_extracted_report_html、**H03** export_scan_task_html、**H07** generate_comparison_html_report：页眉标题下、首个指标区前插入 `render_for_record` 来源块；H03 移除原冗余“实例”meta 项（改由标准块显示，含降级语义）。
+- **H04** export_schema_check_report（§3.1 修正反模式）：原按 `host+port` 反查 `list_saved` 取**第一条**同端点连接名（同端点多连接会张冠李戴），改为按 `request.connection_id` **精确** `capture_report_context`。
+- **H05** render_single_snapshot_html：单快照来源块（快照创建时已冻结 connection_name，新快照带 report_context_json 优先）。
+- **H06** render_compare_html（§3.2）：基准/目标各用 `render_for_record(role="基准扫描"/"目标扫描")`，各显自己的扫描时名称，不只显示汇总中的一个。
+- **H08** get_report_html：`get_report_detail` SELECT 增 `report_context_json/request_id`；服务时 `inject_context_into_html` 在 `<body>` 后补块（新报告 upload 已 capture 落库，旧 report_html 服务时补），保持票据/nonce/iframe 链。
+- **H09** export_events(format=html)：新增 `raw_slowlog_service.map_nodes_to_connection_names`（一次 JOIN `slow_log_source_nodes→slow_log_sources→tdsql_connections`，按 source_node_id 批量取，**避免 N+1**）；页眉列多实例来源、明细逐行增“实例连接”列；老事件经 source 关联作现名降级；保留脱敏与最多 10000 行覆盖提示。
+
+### 2.4 CLI 与脚本（H10—H14，§7.1 契约，自包含不导入 Web 后端包）
+- **H10** analyze_gateway_log.py、**H13** interf_deep_analysis.py：增 `--connection-name`（人工标识）/`--context-file`（平台写入 ReportContext JSON，二者互斥，context-file 优先）；HTML 输出在 `<body>`/`<h1>` 后注入来源块，自包含 HTML 转义；未提供明确显示“未关联实例”。
+- **H11** merge_gateway_reports.py、**H12** interf_report_generator.py：增 `--context-file` 的 `groups`（`{input_group_key: ReportContext}`）多实例映射；合并/各实例输出按输入分组各显各名，未映射的组显式“未关联实例”，不用一个参数覆盖所有实例。
+- **H14** disk_performance_test/generate_report.sh：增 `connection_name`（test_params.txt 键或 `CONN_NAME` 环境变量）；`sed` 自包含 HTML 转义（`& < > " '`）；未提供显示“未关联实例（主机磁盘测试）”，绝不把主机名当数据库连接名。
+
+### 2.5 D06 后续优化（analyze_gateway_log.py）
+- `--summary-output`：写受控 `summary.json`（version/status/analyzer_version/inputs 含 bytes+sha256/report_outputs/generated_at），供子进程侧交叉校验与完成信号；平台侧 parse_quality/metrics 仍由 gateway_log_service 流式统计写入 analysis_meta_json（不重复）。
+- `--context-file`：见 H10。
+- **火焰图实时 reservoir 上限（§6.1 问题 3）**：原降采样只在**每文件结束后**触发（`total_lines += line_count` 之后），单个大文件处理途中 `flame_data` 中间列表无实时上限。修复为在逐行 append 后即检查 `len(flame_data) > 50000` 立即降采样（sample_rate×2 + `[::2]`），单文件途中即封顶；原每文件后降采样与最终截断保留为二级兜底。
+
+---
+
+## 3. 验证证据
+- **全量回归 1942 passed + 30 skipped，0 failed**（约 8 分 44 秒，两次运行一致，含场景优先级修复后复跑）。30 skipped 全为环境性（28 SIT/UAT 需靶场库凭据）+ 已声明门禁退役（2 A.1/A.4），非回归。
+- **关键路径冒烟 20 项**（render_for_record 降级链 + inject_context_into_html + H10/H13 CLI 名称解析）：新记录冻结名/历史 legacy 名/历史 endpoint/空记录未关联+场景/role 基准标签、注入到 `<body>` 后·正文保留·无 body 安全容纳·空 context 不改原文·只注入一次、`--connection-name`/`--context-file`/互斥优先/默认未关联/HTML 转义 `&lt;`——19 项首轮通过，1 项（空记录场景提示）暴露 §2.1 场景优先级缺陷，修复后复验通过（含“有 connection_id 时不被 scene 覆盖”反向用例）。
+- **INSERT 列/占位符一致性核验**：daily_inspection 29 列=29 占位符、含 report_context_json、upsert 不含（脚本核验）；audit_history 21、scan_snapshots 25、server_daily_inspection 16 均同步。
+- **编译/导入核验**：全部平台模块导入 OK；4 个 CLI 脚本 `py_compile` OK 且 `--help` 显示新参数；H14 shell `bash -n` 语法 OK。
+
+---
+
+## 4. 变更文件清单（第五批）
+修改（18）：
+- backend/services/report_context.py（render_for_record + inject_context_into_html + 场景优先级修复）
+- backend/services/audit_service.py（_save_audit_history +report_context/21 列；audit_file_content H01 offline/bound capture）
+- backend/api/sql_audit.py（H01/H02 渲染 + extract_and_audit capture + schema_audit 快照 meta）
+- backend/services/scan_service.py（_do_scan conn_name 修正 + capture）
+- backend/services/slow_query_service.py（create_scan_task +report_context_json）
+- backend/api/slow_query.py（H03 渲染）
+- backend/api/inspection.py（H04 渲染 + 精确 capture 修正反模式）
+- backend/services/scan_compare_report.py（H05/H06 渲染，基准/目标各显名）
+- backend/services/scan_compare_service.py（_snap_brief 透传）
+- backend/services/scan_snapshot_service.py（create_snapshot +report_context_json，INSERT-only）
+- backend/services/daily_inspect_service.py（H07 渲染 + run_daily/run_server_daily 写入）
+- backend/services/gateway_log_service.py（get_report_detail +report_context_json/request_id）
+- backend/api/gateway_log.py（H08 get_report_html 注入）
+- backend/api/raw_slowlog.py（H09 渲染）
+- backend/services/raw_slowlog_service.py（map_nodes_to_connection_names 批量避免 N+1）
+- backend/services/gateway_log_analysis/analyze_gateway_log.py（H10 + D06-opt：--connection-name/--context-file/--summary-output + 火焰图实时上限）
+- backend/services/gateway_log_analysis/interf_report_generator.py（H12 --context-file groups）
+- backend/services/gateway_log_analysis/interf_deep_analysis.py（H13 --connection-name/--context-file）
+- backend/services/gateway_log_analysis/merge_gateway_reports.py（H11 --context-file groups）
+- backend/static/scripts/disk_performance_test/generate_report.sh（H14 connection_name + sed 转义）
+
+（140/141/142 迁移在前批已建；本批仅填充 report_context_json 列，无新表结构变更，故 design_appendix 门禁无新增退役。）
+
+---
+
+## 5. 剩余工作
+| 项 | 内容 |
+|---|---|
+| 待回填（限制验收） | PAR-21 真实容量实测、新语法实机目录口径、71 MiB 真实样本 GW-01/02/08、元数据库 max_allowed_packet 实测、部署 Nginx `nginx -T` 核对——均需内网靶场/真实样本，非本机可闭环 |
+| SIT/UAT 规则集成测试 | 28 项需 `TDSQL_TEST_ADMIN_USER/PASSWORD` 靶场库凭据，本机环境性跳过；发布前须在内网跑通 |
+
+**v1.6.3.4 四个 REQ（REQ-01/02/03/04）代码层全部闭环，无开发遗留。**
+
+---
+
+## 6. 施工边界声明（第五批）
+1. 本批未连接内网 TDSQL/靶场库；H01—H14 渲染与写入经单元/集成测试与冒烟脚本验证（含 FakePool/临时文件/构造记录），非真实实例端到端名称冻结验收。
+2. H09 raw_slowlog 事件表**未新增列**（按 §3.3 item7 经 source 关联 + extra_json 语义）；本批实现渲染侧批量 source→名称映射（避免 N+1）与老事件现名降级，采集侧 extra_json.report_context 冻结由 source 关联现名降级覆盖（设计明确允许“老事件经 source 关联仅作现名降级”）。
+3. H10—H14 为离线 CLI/脚本，自包含 HTML 转义，不导入 backend.report_context（离线机器无 Web 后端包）；平台调用 analyze_gateway_log.py 的报告名称由 H08 服务时注入覆盖，CLI 的 --connection-name/--context-file 主要服务独立运行。
+4. D06-opt 火焰图实时上限为逐行 append 后即封顶（50000 点），不改变 analyzer 既有降采样/最终截断/Top-N 语义；--summary-output 不重复平台侧 parse_quality（后者由 gateway_log_service 流式统计 owns）。
+5. 场景优先级修复仅影响“名称为空且无 connection_id 且有 scene”的显示分支（display-only），有 connection_id 或已冻结名称的记录不受影响。
+
+施工人：智能体 Q
+施工对象：v1.6.3.4 第五批（D02 全部 HTML 入口接入 REQ-01 闭环 + D06 后续优化，版本收尾）
+提交给：Mr.Linsang

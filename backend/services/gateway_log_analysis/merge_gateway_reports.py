@@ -1309,6 +1309,10 @@ def main():
                         help="Top N 排行数量（默认: 20）")
     parser.add_argument("-v", "--version", action="version",
                         version=f"TDSQL Gateway Merge Report Tool v{VERSION}")
+    # v1.6.3.4 / D02（H11，§7.1）：多实例合并保留来源映射。--context-file 的 groups
+    # {input_group_key: ReportContext}；未映射的组显式未知，不用一个参数覆盖所有实例。
+    parser.add_argument("--context-file", default=None,
+                        help="平台写入的 groups 映射 JSON: {group_key: ReportContext}")
 
     if len(sys.argv) < 2:
         parser.print_help()
@@ -1347,10 +1351,51 @@ def main():
                 return fmt
         return None
 
+    # v1.6.3.4 / D02（H11）：构建多实例来源映射块（从 --context-file groups 继承，
+    # 未映射的组显式未知）；合并保留多实例映射，不用一个参数覆盖所有实例。
+    def _esc(s):
+        return (str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                .replace('"', "&quot;").replace("'", "&#39;"))
+    _src_map = {}
+    if getattr(args, "context_file", None):
+        try:
+            import json as _json
+            with open(args.context_file, "r", encoding="utf-8") as _f:
+                _cf = _json.load(_f)
+            for _k, _ctx in ((_cf or {}).get("groups") or {}).items():
+                _conns = (_ctx or {}).get("connections") or []
+                if _conns:
+                    _nm = (_conns[0] or {}).get("connection_name") or ""
+                    if _nm:
+                        _src_map[str(_k)] = _nm
+        except Exception as _e:                                # noqa: BLE001
+            print(f"  {c(YELLOW, '[警告]')} --context-file 读取失败: {_e}", file=sys.stderr)
+    if _src_map:
+        _items = "".join(f"<li>{_esc(k)}：<strong>{_esc(v)}</strong></li>"
+                         for k, v in _src_map.items())
+        _source_block = ('<div class="report-context" data-report-context-version="1" '
+                         'style="margin:8px 0;padding:8px 12px;background:#f8f9fa;'
+                         'border-left:3px solid #0d6efd;font-size:0.9em;">'
+                         '实例连接名称（按输入分组继承）：<ul style="margin:4px 0 0 18px;">'
+                         + _items + '</ul></div>')
+    else:
+        _source_block = ('<div class="report-context" data-report-context-version="1" '
+                         'style="margin:8px 0;padding:8px 12px;background:#f8f9fa;'
+                         'border-left:3px solid #0d6efd;font-size:0.9em;">'
+                         '实例连接名称：<strong>未关联实例（合并报告，未提供 --context-file）</strong></div>')
+
     outputs = args.output or []
     for out_path in outputs:
         fmt = _detect_fmt(out_path) or args.format or "terminal"
         report = generator.generate_report(fmt=fmt)
+        # v1.6.3.4 / D02（H11）：HTML 报告在 <body> 后注入来源映射块（一次）
+        if fmt == "html":
+            import re as _re
+            _m = _re.search(r"<body\b[^>]*>", report, _re.IGNORECASE)
+            if _m:
+                report = report[:_m.end()] + _source_block + report[_m.end():]
+            else:
+                report = _source_block + report
         os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
         with open(out_path, "w", encoding="utf-8") as f:
             f.write(report)

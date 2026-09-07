@@ -152,6 +152,41 @@ class RawSlowLogService:
         ensure_db()
         return self._public_source(self._load_source(source_id), role, detail=True)
 
+    def map_nodes_to_connection_names(self, node_ids: list) -> dict:
+        """批量把 source_node_id 映射到实例连接名称（v1.6.3.4 / D02 H09，§3.3 item7）。
+
+        一次 JOIN 查询避免 N+1：slow_log_source_nodes → slow_log_sources
+        （connection_id / display_name）→ tdsql_connections（现名）。
+        老事件无冻结上下文，按设计“老事件经 source 关联仅作现名降级”。
+
+        返回 {node_id: {connection_id, connection_name, source_display_name}}。
+        """
+        ids = sorted({int(i) for i in node_ids if i is not None})
+        if not ids:
+            return {}
+        ensure_db()
+        conn = _get_connection()
+        try:
+            ph = ",".join("?" * len(ids))
+            rows = conn.execute(
+                f"SELECT n.id AS node_id, s.connection_id AS connection_id, "
+                f"s.display_name AS source_display_name, c.name AS connection_name "
+                f"FROM slow_log_source_nodes n "
+                f"JOIN slow_log_sources s ON s.id = n.source_id "
+                f"LEFT JOIN tdsql_connections c ON c.id = s.connection_id "
+                f"WHERE n.id IN ({ph})", tuple(ids)).fetchall()
+            out = {}
+            for r in rows:
+                d = dict(r)
+                out[d.get("node_id")] = {
+                    "connection_id": d.get("connection_id") or "",
+                    "connection_name": d.get("connection_name") or "",
+                    "source_display_name": d.get("source_display_name") or "",
+                }
+            return out
+        finally:
+            conn.close()
+
     # ── 配置校验与写入 ────────────────────────────────────────────────
     @staticmethod
     def _validate_source_payload(payload: dict, updating: bool = False) -> None:

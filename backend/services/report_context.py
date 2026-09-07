@@ -505,6 +505,10 @@ def render_report_context(
             # name_source=missing 时的降级文案
             if c.connection_id:
                 name = f"历史未记录名称（连接 ID：{_esc(c.connection_id)}）"
+            elif scene:
+                # 无连接 ID 且无名称：优先用调用方 scene 场景提示（如“离线文件审核”/
+                # “主机磁盘测试”），比笼统的 origin 降级更准确（name 稍后统一 _esc）
+                name = _OFFLINE_HINTS.get(scene) or f"未关联实例（{scene}）"
             else:
                 name = _OFFLINE_HINTS.get(context.origin, "未关联实例")
         name_display = _esc(name)
@@ -585,3 +589,55 @@ def context_to_json_column(context: Optional[ReportContext]) -> Optional[str]:
 def context_from_json_column(s: Optional[str]) -> Optional[ReportContext]:
     """从 report_context_json 列值反序列化 ReportContext。"""
     return ReportContext.from_json(s)
+
+
+def render_for_record(record: dict, scene: str = "",
+                      role: Optional[str] = None) -> str:
+    """从一条历史记录渲染"实例连接名称"来源块 HTML（v1.6.3.4 / D02 统一入口）。
+
+    优先读已持久化的 report_context_json（新记录，扫描时冻结的真实名称）；
+    无则按 §3.2 历史降级链解析（legacy_stored → current_lookup → missing）。
+    14 个 HTML 生成入口（H01—H14）共用本函数，避免各处重复降级逻辑漂移。
+
+    Args:
+        record: 记录 dict（含 report_context_json 及可能的 connection_id/name/host/port）
+        scene: 未关联时的场景提示（如"离线文件审核"/"在线元数据审核"）
+        role: 角色标签（对比报告的"基准扫描"/"目标扫描"等）
+
+    Returns:
+        escaped HTML fragment（<div class="report-context" ...>）
+    """
+    ctx = None
+    if isinstance(record, dict):
+        ctx = ReportContext.from_json(record.get("report_context_json"))
+    if ctx is None:
+        ctx = resolve_legacy_context(record if isinstance(record, dict) else {})
+    return render_report_context(ctx, role=role, scene=scene)
+
+
+import re as _re
+
+# <body ...> 开始标签（H08 注入锚点，§3.4）
+_BODY_OPEN_RE = _re.compile(r"<body\b[^>]*>", _re.IGNORECASE)
+
+
+def inject_context_into_html(html: str, context_html: str) -> str:
+    """把来源块注入**已生成**的报告 HTML（v1.6.3.4 / D02 H08，§3.4）。
+
+    网关报告的 report_html 由分析器生成后存库，服务时补来源块：
+      · 在 <body...> 开始处补块一次（锚点明确，不全局 replace 任意文本）；
+      · 无 body 的历史片段用安全外层文档容纳；
+      · 注入的是已转义静态 HTML（无 <script>/on* 属性），不影响既有
+        _strip_inline_handlers 与 nonce/CSP/iframe 安全链。
+    """
+    if not context_html:
+        return html or ""
+    if not html:
+        return context_html
+    m = _BODY_OPEN_RE.search(html)
+    if m:
+        idx = m.end()
+        return html[:idx] + context_html + html[idx:]
+    # 无 body 的历史片段：用安全外层文档容纳（不全局替换）
+    return ('<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">'
+            '</head><body>' + context_html + html + '</body></html>')

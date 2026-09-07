@@ -374,16 +374,17 @@ def export_schema_check_report(request: SchemaCheckRequest):
     results = inspector.inspect(pool, request.database_filter)
     summary = inspector.get_summary(results)
 
-    # 获取实例名称
-    conn_name = _esc(f"{pool.config.host}:{pool.config.port}")
-    try:
-        saved = registry.list_saved()
-        for c in saved:
-            if c.get("host") == pool.config.host and c.get("port") == pool.config.port:
-                conn_name = _esc(c.get("name", conn_name))
-                break
-    except Exception:
-        pass
+    # v1.6.3.4 / D02（H04，§3.1）：该入口会重新检查，在本次检查开始时按
+    # request.connection_id **精确**取名（registry.get_saved(id)），不按 host+port
+    # 反查第一条同端点连接——同端点可能存在多个连接，反查会张冠李戴。
+    from backend.services.report_context import (
+        capture_report_context, render_report_context, ORIGIN_BOUND)
+    _ctx = capture_report_context(request.connection_id,
+                                  request.database_filter or "", ORIGIN_BOUND)
+    _c0 = _ctx.connections[0] if _ctx.connections else None
+    conn_name = _esc(_c0.connection_name) if (_c0 and _c0.connection_name) \
+        else _esc(f"{pool.config.host}:{pool.config.port}")
+    context_html = render_report_context(_ctx, scene="上线检查")
 
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -451,8 +452,9 @@ footer{{text-align:center;color:#909399;font-size:12px;padding:20px 0;border-top
 <div class="container">
   <div class="header">
     <h1>TDSQL数据库上线检查报告</h1>
-    <div class="meta">实例：{conn_name} &nbsp;|&nbsp; 检查时间：{now} &nbsp;|&nbsp; 检查项：12项</div>
+    <div class="meta">检查时间：{now} &nbsp;|&nbsp; 检查项：12项</div>
   </div>
+  {context_html}
   <div class="summary">
     <div class="card"><div class="num">{summary['total']}</div><div class="label">问题总数</div></div>
     <div class="card"><div class="num" style="color:#f56c6c">{summary['error']}</div><div class="label">ERROR</div></div>

@@ -363,6 +363,12 @@ def _snap_brief(snap: dict) -> dict:
         "issue_total": snap.get("issue_total"),
         "truncated": snap.get("truncated"),
         "truncated_count": snap.get("truncated_count", 0),
+        # v1.6.3.4 / D02（H06，§3.2）：保留各自快照的冻结来源，使对比报告的
+        # 基准/目标各显各名（相同 ID 改过名也各显各名），不只显示汇总中的一个。
+        "connection_id": snap.get("connection_id"),
+        "connection_name": snap.get("connection_name"),
+        "db_name": snap.get("db_name"),
+        "report_context_json": snap.get("report_context_json"),
     }
 
 

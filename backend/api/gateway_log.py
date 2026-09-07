@@ -303,6 +303,18 @@ def get_report_html(report_id: int, http_request: Request):
         if not res or not res.get("report_html"):
             raise HTTPException(status_code=404, detail="报告或HTML内容不存在")
         html_content = res["report_html"]
+        # v1.6.3.4 / D02（H08，§3.4）：服务时补实例连接名称来源块。新报告在 upload
+        # 受理时已冻结名称（report_context_json 落库），旧 report_html 在 <body> 开始处
+        # 补块一次；注入的是已转义静态 HTML（无 <script>/on* 属性），不影响既有
+        # _strip_inline_handlers 与 nonce/CSP/iframe 安全链，也不为显示名称放松 CSP。
+        try:
+            from backend.services.report_context import (
+                render_for_record, inject_context_into_html)
+            _res_dict = dict(res) if not isinstance(res, dict) else res
+            _ctx_html = render_for_record(_res_dict, scene="网关日志分析")
+            html_content = inject_context_into_html(html_content, _ctx_html)
+        except Exception:                                    # noqa: BLE001
+            pass
         # 服务时加固：剥离脚本块之外的残留内联事件处理器（旧版报告），
         # 再给裸 <script> 注入本次响应的 nonce；
         # 带属性的 script 标签拿不到 nonce，会被 CSP 直接拦截（失败关闭）。

@@ -87,7 +87,15 @@ def _do_scan(pool, connection_id: str, source: str, limit: int, min_time: float,
 
     service = SlowQueryService()
     db_name = pool.config.database or ""
-    conn_name = f"{pool.config.host}:{pool.config.port}"
+    # v1.6.3.4 / D02（H03，§3.1）：connection_name 修正为扫描时冻结的真实连接名称，
+    # 不再是 host:port（那是 endpoint，不是名称）。从 registry 按 connection_id 精确查找。
+    from backend.services.report_context import capture_report_context, ORIGIN_BOUND
+    _report_ctx = capture_report_context(connection_id, db_name, ORIGIN_BOUND)
+    conn_name = ""
+    if _report_ctx.connections:
+        conn_name = _report_ctx.connections[0].connection_name or ""
+    if not conn_name:
+        conn_name = f"{pool.config.host}:{pool.config.port}"   # 无注册名称时降级用 endpoint
     scan_started_at = datetime.now().isoformat()   # V1.3: 快照 scan_started_at
 
     # 创建扫描任务（仅 monitordb 的任务名包含采集时间段）
@@ -104,7 +112,7 @@ def _do_scan(pool, connection_id: str, source: str, limit: int, min_time: float,
         task_name=final_task_name, source=source, db_name=db_name,
         connection_id=connection_id, connection_name=conn_name,
         time_window_start=time_window_start, time_window_end=time_window_end,
-        created_by=operator,
+        created_by=operator, report_context=_report_ctx,
     )
 
     results = []

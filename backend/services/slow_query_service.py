@@ -538,19 +538,28 @@ class SlowQueryService:
         time_window_start: str = "",
         time_window_end: str = "",
         created_by: str = "",
+        report_context=None,
     ) -> int:
         """创建扫描任务记录，返回任务ID"""
+        # v1.6.3.4 / D02（H03）：序列化 report_context → report_context_json（140 迁移列）
+        report_context_json = None
+        if report_context is not None:
+            try:
+                from backend.services.report_context import context_to_json_column
+                report_context_json = context_to_json_column(report_context)
+            except Exception:                                # noqa: BLE001
+                report_context_json = None
         conn = _get_connection()
         try:
             cursor = conn.execute(
                 """INSERT INTO scan_tasks
                    (task_name, source, db_name, connection_id, connection_name,
                     time_window_start, time_window_end, created_by,
-                    total_fetched, total_analyzed, status, created_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 'running', ?)""",
+                    total_fetched, total_analyzed, status, report_context_json, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 'running', ?, ?)""",
                 (task_name, source, db_name, connection_id, connection_name,
                  time_window_start, time_window_end, created_by,
-                 datetime.now().isoformat()),
+                 report_context_json, datetime.now().isoformat()),
             )
             conn.commit()
             return cursor.lastrowid

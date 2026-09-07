@@ -328,6 +328,11 @@ async def export_scan_task_html(task_id: int):
             if not task:
                 raise HTTPException(status_code=404, detail="扫描任务不存在")
             task = dict(task)
+            # v1.6.3.4 / D02（H03，§3.4）：实例连接名称来源块。scan_tasks 已有
+            # connection_name（_do_scan 已修正为扫描时冻结的真实名称，非 host:port）；
+            # 新记录优先用 report_context_json，历史记录按 §3.2 降级。
+            from backend.services.report_context import render_for_record
+            context_html = render_for_record(task, scene="慢SQL扫描")
             # 获取该任务下的慢SQL记录
             rows = conn.execute(
                 "SELECT * FROM slow_queries WHERE scan_task_id = %s ORDER BY avg_time_ms DESC",
@@ -421,10 +426,10 @@ body {{ font-family:"Microsoft YaHei","Segoe UI",Arial,sans-serif; background:#f
 <div class="meta-item"><span class="label">数据源:</span><span class="value">{source_label}</span></div>
 <div class="meta-item"><span class="label">操作人:</span><span class="value">{task.get('created_by', '匿名')}</span></div>
 <div class="meta-item"><span class="label">{time_label}:</span><span class="value">{time_display}</span></div>
-<div class="meta-item"><span class="label">实例:</span><span class="value">{task.get('connection_name', '-')}</span></div>
 {scope_meta}
 <div class="meta-item"><span class="label">报告ID:</span><span class="value">#{task.get('id')}</span></div>
 </div>
+{context_html}
 <div class="summary">
 <div class="sc total"><div class="num">{len(slow_queries)}</div><div class="lbl">{result_label}</div></div>
 <div class="sc crit"><div class="num" style="color:#f56c6c">{sev_stats.get('ERROR', 0) + sev_stats.get('CRITICAL', 0)}</div><div class="lbl">ERROR</div></div>

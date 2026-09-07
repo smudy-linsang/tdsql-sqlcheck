@@ -513,7 +513,8 @@ class GatewayLogService:
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT id, connection_id, log_file_name, log_type, total_queries, 
-                       slow_queries, max_time_ms, avg_time_ms, report_html, created_at 
+                       slow_queries, max_time_ms, avg_time_ms, report_html, created_at,
+                       report_context_json, request_id
                 FROM gateway_log_reports
                 WHERE id = %s
             """, (report_id,))

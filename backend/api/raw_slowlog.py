@@ -183,18 +183,38 @@ def export_events(
     result = raw_slowlog_service.list_events(_event_filters(
         source_id, source_node_id, db_name, start_time, end_time, fingerprint, min_query_time_us, 10000, 0))
     if format == "html":
+        # v1.6.3.4 / D02（H09，§3.1/§3.3 item7）：多实例时页眉列来源，明细逐行增加
+        # 连接名称；按 source_node_id 批量取来源（一次 JOIN，避免 N+1）。老事件经
+        # source 关联作现名降级；保留脱敏与最多 10000 行覆盖提示。
+        node_ids = [e.get("source_node_id") for e in result["items"]]
+        node_map = raw_slowlog_service.map_nodes_to_connection_names(node_ids)
+
+        def _conn_name_of(ev):
+            info = node_map.get(ev.get("source_node_id")) or {}
+            return (info.get("connection_name") or info.get("source_display_name")
+                    or "未关联实例")
+
+        src_seen = []
+        for ev in result["items"]:
+            nm = _conn_name_of(ev)
+            if nm not in src_seen:
+                src_seen.append(nm)
+        src_line = "、".join(html.escape(s) for s in src_seen) if src_seen else "无（零行）"
+
         cells = []
         for event in result["items"]:
             cells.append("<tr>" + "".join(f"<td>{html.escape(str(value or ''))}</td>" for value in (
-                event["event_time"], event["db_name"], event["source_node_id"], event["query_time_us"],
-                event["lock_time_us"], event["sql_fingerprint"], event["sql_template"], event["collected_at"],
+                event["event_time"], event["db_name"], _conn_name_of(event), event["source_node_id"],
+                event["query_time_us"], event["lock_time_us"], event["sql_fingerprint"],
+                event["sql_template"], event["collected_at"],
             )) + "</tr>")
         page = """<!doctype html><meta charset='utf-8'><title>TDSQL 原始慢日志事件报告</title>
-        <style>body{font:14px sans-serif;margin:28px;color:#1f2937}table{border-collapse:collapse;width:100%}th,td{border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top}th{background:#e2e8f0}.notice{padding:10px;background:#fff7ed;border-left:4px solid #f97316}</style>
+        <style>body{font:14px sans-serif;margin:28px;color:#1f2937}table{border-collapse:collapse;width:100%}th,td{border:1px solid #cbd5e1;padding:7px;text-align:left;vertical-align:top}th{background:#e2e8f0}.notice{padding:10px;background:#fff7ed;border-left:4px solid #f97316}.ctx{padding:10px;background:#f8f9fa;border-left:3px solid #0d6efd;margin:8px 0}</style>
         <h1>TDSQL 原始慢日志事件报告</h1>
+        <div class='ctx'>实例连接名称（来源）：""" + src_line + """</div>
         <p>时间范围：Proxy 慢日志记录时间（不是 SQL 开始时间，也不是采集时间）。</p>
-        <p class='notice'>本报告仅列出已成功采集的脱敏事件。零行不代表目标时间范围内不存在慢 SQL；请同时核验采集运行状态、节点覆盖和错误摘要。</p>
-        <table><thead><tr><th>日志记录时间</th><th>库</th><th>节点</th><th>耗时(微秒)</th><th>锁等待(微秒)</th><th>指纹</th><th>脱敏SQL模板</th><th>采集时间</th></tr></thead><tbody>""" + "".join(cells) + "</tbody></table>"
+        <p class='notice'>本报告仅列出已成功采集的脱敏事件（最多 10000 行）。零行不代表目标时间范围内不存在慢 SQL；请同时核验采集运行状态、节点覆盖和错误摘要。</p>
+        <table><thead><tr><th>日志记录时间</th><th>库</th><th>实例连接</th><th>节点</th><th>耗时(微秒)</th><th>锁等待(微秒)</th><th>指纹</th><th>脱敏SQL模板</th><th>采集时间</th></tr></thead><tbody>""" + "".join(cells) + "</tbody></table>"
         from backend.services.database import log_operation
         log_operation(_operator(request), "raw_slowlog_events_export", "raw_slowlog", "", f"format=html rows={len(result['items'])}")
         return HTMLResponse(page)

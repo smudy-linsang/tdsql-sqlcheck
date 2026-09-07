@@ -31,13 +31,16 @@ def _save_audit_history(audit_type: str, source: str, results: list[AuditResult]
                         gate_result: Optional[GateResult] = None,
                         connection_id: str = "", db_name: str = "",
                         rule_set_id: str = "",
-                        instance_ctx=None, skipped_rules_count: int = 0):
+                        instance_ctx=None, skipped_rules_count: int = 0,
+                        report_context=None):
     """保存审核历史到数据库
 
     V1.3(D1): 新增 connection_id / db_name，支撑扫描结果对比按实例筛选。
     V1.4: 新增 rule_set_id，记录本次审核实际生效的规则集（尺度可追溯）。
     V1.5: 新增 instance_type / instance_type_source / skipped_rules_count。
           instance_ctx 为 None 时三列写入 NULL/''/0，语义与 V1.5 前记录一致。
+    v1.6.3.4 / D02: 新增 report_context（ReportContext），冻结扫描时的实例连接
+          名称写入 report_context_json（140 迁移）；None 时写 NULL（历史降级）。
     均有默认值，既有调用方无需改动。
     """
     try:
@@ -59,15 +62,24 @@ def _save_audit_history(audit_type: str, source: str, results: list[AuditResult]
                 } for v in r.violations],
             } for r in results], ensure_ascii=False)
             cursor = conn.cursor()
-            # V1.5：占位符从 17 个增加到 20 个。三处 ? 与三个新值必须同步添加，
-            # 漏改会静默错列（不报错但数据全错位）——本次改造最易翻车的一处。
+            # v1.6.3.4 / D02：序列化 report_context（D01）→ report_context_json（140 迁移列）
+            report_context_json = None
+            if report_context is not None:
+                try:
+                    from backend.services.report_context import context_to_json_column
+                    report_context_json = context_to_json_column(report_context)
+                except Exception:                            # noqa: BLE001
+                    report_context_json = None
+            # V1.5：占位符 17→20；v1.6.3.4 / D02 再增 report_context_json → 21 个。
+            # 三处 ? 与新值必须同步添加，漏改会静默错列（不报错但数据全错位）。
             cursor.execute("""
                 INSERT INTO audit_history (audit_type, source, total_sql, passed, failed,
                     error_count, warning_count, pass_rate, results_json,
                     created_by, project_id, gate_passed, gate_detail, created_at,
                     connection_id, db_name, rule_set_id,
-                    instance_type, instance_type_source, skipped_rules_count)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    instance_type, instance_type_source, skipped_rules_count,
+                    report_context_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 audit_type, source,
                 summary.total_sql, summary.passed, summary.failed,
@@ -83,6 +95,8 @@ def _save_audit_history(audit_type: str, source: str, results: list[AuditResult]
                 instance_ctx.instance_type.value if instance_ctx else None,
                 instance_ctx.source.value if instance_ctx else "",
                 int(skipped_rules_count or 0),
+                # v1.6.3.4 / D02：冻结的实例连接名称上下文；None=历史记录降级
+                report_context_json,
             ))
             conn.commit()
             return getattr(cursor, "lastrowid", None)
@@ -298,12 +312,20 @@ class AuditService:
 
         source = file_path if file_path else "file_upload"
         if save_history:
+            # v1.6.3.4 / D02（H01，§3.1）：文件审核前端未绑定连接 → offline（显示
+            # "未关联实例（离线文件审核）"）；已有 API 显式传 connection_id → bound
+            # （冻结真名）。不改变其既有门禁语义（evaluate_gate 仍按原逻辑）。
+            from backend.services.report_context import (
+                capture_report_context, ORIGIN_BOUND, ORIGIN_OFFLINE)
+            _origin = ORIGIN_BOUND if (connection_id or "").strip() else ORIGIN_OFFLINE
+            _ctx = capture_report_context(connection_id, "", _origin)
             _save_audit_history("file", source, results, summary,
                                 created_by=created_by, project_id=project_id,
                                 gate_result=gate_result, connection_id=connection_id,
                                 rule_set_id=rule_set_id,
                                 instance_ctx=ictx,
-                                skipped_rules_count=self.checker.count_skipped_by_scope(it))
+                                skipped_rules_count=self.checker.count_skipped_by_scope(it),
+                                report_context=_ctx)
         return results, summary, gate_result, ictx
 
     def _evaluate_gate(self, violations, connection_id: str = "") -> Optional[GateResult]:

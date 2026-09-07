@@ -449,8 +449,14 @@ def render_instance_report(group, explain_rows, timecost_rows, col_types, risks,
     return "".join(buf)
 
 
-def generate_html_report(groups_data, title, output_path):
-    """生成 HTML 报告"""
+def generate_html_report(groups_data, title, output_path, conn_names=None):
+    """生成 HTML 报告
+
+    v1.6.3.4 / D02（H12）：conn_names 为 {group_prefix: 实例连接名称} 映射（来自
+    --context-file 的 groups）；未映射的组显示“未关联实例”。原分组名/IP 不是
+    必然的平台注册名称，故单列来源映射（combined/各实例两种输出均适用）。
+    """
+    conn_names = conn_names or {}
     buf = [HTML_HEAD.format(title=_h(title))]
 
     # 顶部导航栏
@@ -474,6 +480,19 @@ def generate_html_report(groups_data, title, output_path):
     buf.append('<div class="container">\n')
     buf.append(f'<p class="meta">生成时间: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")} | '
                f'实例数: {len(groups_data)}</p>\n')
+    # v1.6.3.4 / D02（H12）：多实例来源映射块（各组各显其名，未映射显式未知）
+    _src_items = []
+    for _prefix, _data in groups_data.items():
+        _g = _data.get("group", {}) or {}
+        _nm = conn_names.get(_prefix) or "未关联实例"
+        _src_items.append(
+            f'<li>{_h(str(_g.get("name", _prefix)))} ({_h(str(_g.get("port", "")))})：'
+            f'<strong>{_h(str(_nm))}</strong></li>')
+    buf.append('<div class="report-context" data-report-context-version="1" '
+               'style="margin:8px 0;padding:8px 12px;background:#f8f9fa;'
+               'border-left:3px solid #0d6efd;font-size:0.9em;">'
+               '实例连接名称（按输入分组映射）：<ul style="margin:4px 0 0 18px;">'
+               + "".join(_src_items) + '</ul></div>\n')
 
     for i, (prefix, data) in enumerate(groups_data.items()):
         iid = f"inst-{i}"
@@ -506,7 +525,28 @@ def main():
     parser.add_argument("-o", "--output-dir", default=None,
                         help="输出目录（默认: 与 data-dir 相同）")
     parser.add_argument("-v", "--version", action="version", version=f"%(prog)s {VERSION}")
+    # v1.6.3.4 / D02（H12，§7.1）：多实例 --context-file 的 groups 映射
+    # {input_group_key: ReportContext}；未映射的组显式未知。
+    parser.add_argument("--context-file", default=None,
+                        help="平台写入的 groups 映射 JSON: {group_key: ReportContext}")
     args = parser.parse_args()
+
+    # 解析 --context-file 的 groups 映射 → {prefix: connection_name}
+    conn_names = {}
+    if args.context_file:
+        try:
+            import json as _json
+            with open(args.context_file, "r", encoding="utf-8") as f:
+                _cf = _json.load(f)
+            _groups = (_cf or {}).get("groups") or {}
+            for _k, _ctx in _groups.items():
+                _conns = (_ctx or {}).get("connections") or []
+                if _conns:
+                    _nm = (_conns[0] or {}).get("connection_name") or ""
+                    if _nm:
+                        conn_names[_k] = _nm
+        except Exception as e:                                # noqa: BLE001
+            print(f"  [警告] --context-file 读取失败: {e}", file=sys.stderr)
 
     data_dir = os.path.abspath(args.data_dir)
     if not os.path.isdir(data_dir):
@@ -564,14 +604,14 @@ def main():
         date_str = first_group["date"]
         title = f"interf SQL 性能风险分析报告 — {date_str}"
         output_path = os.path.join(output_dir, f"interf_risk_report_{date_str}.html")
-        generate_html_report(groups_data, title, output_path)
+        generate_html_report(groups_data, title, output_path, conn_names)
     else:
         for prefix, data in groups_data.items():
             g = data["group"]
             title = f"interf SQL 性能风险分析 — {g['name']} ({g['ip']}:{g['port']})"
             output_path = os.path.join(output_dir,
                 f"{g['name']}_{g['ip']}_{g['port']}_{g['date']}_risk_report.html")
-            generate_html_report({prefix: data}, title, output_path)
+            generate_html_report({prefix: data}, title, output_path, conn_names)
 
     print(f"\n  [完成] 报告已生成到: {output_dir}", file=sys.stderr)
 

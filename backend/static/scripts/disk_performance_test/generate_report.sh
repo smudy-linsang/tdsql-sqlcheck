@@ -43,11 +43,16 @@ HOST_COUNT=""
 TOTAL_TIME=""
 SUCCESS_COUNT=""
 FAIL_COUNT=""
+# v1.6.3.4 / D02（H14）：可选人工实例连接名称（test_params.txt 的 connection_name=
+# 或环境变量 CONN_NAME）；未提供时显示“未关联实例（主机磁盘测试）”，绝不把主机名
+# 当数据库连接名。离线脚本自包含 HTML 转义，不导入 Web 后端包。
+CONN_NAME="${CONN_NAME:-}"
 
 if [ -f "${RESULT_DIR}/test_params.txt" ]; then
     while IFS='=' read -r key value; do
         case "$key" in
             timestamp) TIMESTAMP="$value" ;;
+            connection_name) CONN_NAME="$value" ;;
             test_date) TEST_DATE="$value" ;;
             test_paths) TEST_PATHS="$value" ;;
             test_type) TEST_TYPE="$value" ;;
@@ -928,12 +933,24 @@ cat >> "$REPORT_FILE" <<HTML_TOPBAR
 </div>
 HTML_TOPBAR
 
+# v1.6.3.4 / D02（H14）：构建实例连接名称来源块（自包含 HTML 转义，未提供则明确未关联）
+_esc_html_h14() {
+    printf '%s' "$1" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' -e 's/"/\&quot;/g' -e "s/'/\&#39;/g"
+}
+if [ -n "$CONN_NAME" ]; then
+    _CN_ESC=$(_esc_html_h14 "$CONN_NAME")
+else
+    _CN_ESC="未关联实例（主机磁盘测试）"
+fi
+CONN_NAME_BLOCK="<div class=\"report-context\" data-report-context-version=\"1\" style=\"margin:10px 0;padding:8px 12px;background:rgba(255,255,255,0.08);border-left:3px solid var(--primary-light);font-size:0.9em;border-radius:6px;\">实例连接名称：<strong>${_CN_ESC}</strong></div>"
+
 # 写入英雄区域
 cat >> "$REPORT_FILE" <<HTML_HERO
 <div class="hero">
     <div class="hero-content">
         <h1>🔬 TDSQL 磁盘性能测试报告</h1>
         <p class="hero-subtitle">批量磁盘I/O性能基准测试 · dd 顺序写入 / fio 随机读 / fio 随机写 · 含延迟分析与磁盘类型参考</p>
+        ${CONN_NAME_BLOCK}
         <div class="stats-grid">
             <div class="stat-card">
                 <div class="stat-icon" style="background:rgba(99,102,241,0.15);color:var(--primary-light);">🖥️</div>

@@ -1039,6 +1039,12 @@ class GatewayLogAnalyzer:
                                     fields.get("sql", "")[:300],
                                     fields.get("db", ""),
                                 ))
+                                # v1.6.3.4 / D06-opt（§6.1 问题3）：实时上限——单个大文件
+                                # 处理途中即达 50000 点立即降采样，不等文件结束（原逻辑
+                                # 只在每文件结束后降采样，单文件中间列表无实时上限）。
+                                if len(flame_data) > 50000:
+                                    flame_sample_rate = max(flame_sample_rate * 2, 2)
+                                    flame_data = flame_data[::2]
                         except ValueError:
                             pass
                     # 每小时/分钟
@@ -2947,6 +2953,83 @@ def expand_ports_to_dirs(ports, template):
 # ============================================================
 
 
+def _resolve_conn_name_display(args) -> str:
+    """解析实例连接名称显示文本（v1.6.3.4 / D02 H10，§7.1 CLI 契约）。
+
+    自包含，不依赖 Web 后端包（离线机器可运行）。--connection-name 与
+    --context-file 互斥；都未提供时明确“未关联实例”。
+    """
+    import json as _json
+    cn = getattr(args, "connection_name", None)
+    cf = getattr(args, "context_file", None)
+    if cn and cf:
+        print("  [警告] --connection-name 与 --context-file 互斥，优先使用 --context-file",
+              file=sys.stderr)
+    if cf:
+        try:
+            with open(cf, "r", encoding="utf-8") as f:
+                ctx = _json.load(f)
+            conns = ctx.get("connections") or []
+            if conns and isinstance(conns, list):
+                nm = (conns[0] or {}).get("connection_name") or ""
+                if nm:
+                    return str(nm)
+        except Exception as e:                                # noqa: BLE001
+            print(f"  [警告] --context-file 读取失败: {e}", file=sys.stderr)
+    if cn:
+        return str(cn)
+    return "未关联实例（网关日志分析）"
+
+
+def _inject_conn_name_block(html_text: str, name: str) -> str:
+    """把实例连接名称来源块注入 HTML（<body> 后一次）。自包含 HTML 转义（H10）。"""
+    import re as _re
+    esc = (str(name).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+           .replace('"', "&quot;").replace("'", "&#39;"))
+    block = ('<div class="report-context" data-report-context-version="1" '
+             'style="margin:8px 0;padding:8px 12px;background:#f8f9fa;'
+             'border-left:3px solid #0d6efd;font-size:0.9em;">'
+             f'实例连接名称：<strong>{esc}</strong></div>')
+    m = _re.search(r"<body\b[^>]*>", html_text, _re.IGNORECASE)
+    if m:
+        idx = m.end()
+        return html_text[:idx] + block + html_text[idx:]
+    return block + html_text
+
+
+def _write_summary_output(path: str, analyzer, files_analyzed, report_paths):
+    """写受控摘要 summary.json（v1.6.3.4 / D06-opt，§6.5）。
+
+    平台侧 parse_quality/metrics 已由 gateway_log_service 流式统计并写入
+    analysis_meta_json；本摘要供子进程侧交叉校验与完成信号（版本/输入/产物）。
+    """
+    import json as _json
+    import hashlib as _hashlib
+    inputs = []
+    for fp in (files_analyzed or []):
+        try:
+            with open(fp, "rb") as f:
+                data = f.read()
+            inputs.append({"path": fp, "bytes": len(data),
+                           "sha256": _hashlib.sha256(data).hexdigest()})
+        except Exception:                                    # noqa: BLE001
+            inputs.append({"path": fp, "bytes": None, "sha256": None})
+    summary = {
+        "version": 1,
+        "status": "success",
+        "analyzer_version": VERSION,
+        "inputs": inputs,
+        "report_outputs": report_paths,
+        "generated_at": datetime.now().isoformat(),
+        "note": "parse_quality/metrics 由平台侧流式统计写入 analysis_meta_json",
+    }
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            _json.dump(summary, f, ensure_ascii=False)
+    except Exception as e:                                    # noqa: BLE001
+        print(f"  [警告] --summary-output 写入失败: {e}", file=sys.stderr)
+
+
 def main():
     print_banner()
 
@@ -3147,6 +3230,14 @@ def main():
         default=None,
         help="指定要分析的具体日志文件路径，可指定多个"
     )
+    # v1.6.3.4 / D02（H10）+ D06-opt：实例连接名称上下文与受控摘要输出。
+    # 独立 CLI 用 --connection-name（人工标识）或 --context-file（平台写入的结构化
+    # JSON，二者互斥）；本脚本为离线工具，自包含 HTML 转义，不导入 Web 后端包。
+    parser.add_argument("--connection-name", default=None,
+                        help="人工指定的实例连接名称（独立 CLI 用；与 --context-file 互斥）")
+    parser.add_argument("--context-file", default=None,
+                        help="平台写入的 ReportContext JSON 文件路径（与 --connection-name 互斥）")
+    parser.add_argument("--summary-output", default=None, help=argparse.SUPPRESS)
 
     args = parser.parse_args()
 
@@ -3268,6 +3359,9 @@ def main():
     # 替换文件名中的 {date} 和 {host} 占位符
     outputs = [p.replace("{date}", date_tag).replace("{host}", host_tag) for p in outputs]
     has_report_output = False
+    # v1.6.3.4 / D02（H10）+ D06-opt：实例连接名称显示文本与已生成报告路径
+    conn_name_display = _resolve_conn_name_display(args)
+    _report_paths = []
 
     for out_path in outputs:
         fmt = _detect_fmt(out_path)
@@ -3291,6 +3385,10 @@ def main():
             # 报告输出
             has_report_output = True
             report = analyzer.generate_report(fmt=fmt)
+            # v1.6.3.4 / D02（H10）：HTML 报告注入实例连接名称来源块
+            if fmt == "html":
+                report = _inject_conn_name_block(report, conn_name_display)
+                _report_paths.append(out_path)
             os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
             with open(out_path, "w", encoding="utf-8") as f:
                 f.write(report)
@@ -3301,6 +3399,12 @@ def main():
         fmt = args.format or "terminal"
         report = analyzer.generate_report(fmt=fmt)
         print(report)
+
+    # v1.6.3.4 / D06-opt：--summary-output 写受控摘要（供平台交叉校验/完成信号）
+    if getattr(args, "summary_output", None):
+        _write_summary_output(args.summary_output, analyzer,
+                              getattr(analyzer, "specific_files", None) or [],
+                              _report_paths)
 
 
 if __name__ == "__main__":

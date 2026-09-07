@@ -1248,6 +1248,13 @@ footer {{ margin-top: 30px; padding: 15px 0; border-top: 1px solid var(--border)
 """.format(**meta))
 
     buf.append(f'<h1>interf 日志深度分析 - {_h(meta["name"])} ({_h(meta["proxy_ip"])}:{_h(meta["port"])})</h1>\n')
+    # v1.6.3.4 / D02（H13）：实例连接名称来源块（可选名称上下文经 meta 传入，
+    # 不改变已有分析/数据库操作）；未提供时明确“未关联实例”。
+    _cn = meta.get("connection_name") or "未关联实例（interf 深度分析）"
+    buf.append('<div class="report-context" data-report-context-version="1" '
+               'style="margin:8px 0;padding:8px 12px;background:#fff;'
+               'border-left:3px solid #0d6efd;font-size:0.9em;">'
+               f'实例连接名称：<strong>{_h(_cn)}</strong></div>\n')
     buf.append(f'<p class="meta">分析时间: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")} | '
                f'日期范围: {_h(result["date_str"])} | '
                f'总行数: {result["total_lines"]:,} | '
@@ -1633,6 +1640,32 @@ def load_all_proxy_configs(config_path):
 # 主函数
 # ============================================================
 
+# v1.6.3.4 / D02（H13）：模块级实例连接名称显示（离线 CLI 单次运行由 main 设置）
+_CONN_NAME_DISPLAY = ""
+
+
+def _resolve_conn_name_display_h13(args) -> str:
+    """--connection-name / --context-file（互斥）→ 显示名称；都无则空（generate_html
+    回退“未关联实例”）。自包含，不依赖 Web 后端包。"""
+    import json as _json
+    cf = getattr(args, "context_file", None)
+    cn = getattr(args, "connection_name", None)
+    if cf:
+        try:
+            with open(cf, "r", encoding="utf-8") as f:
+                ctx = _json.load(f)
+            conns = (ctx or {}).get("connections") or []
+            if conns:
+                nm = (conns[0] or {}).get("connection_name") or ""
+                if nm:
+                    return str(nm)
+        except Exception:                                    # noqa: BLE001
+            pass
+    if cn:
+        return str(cn)
+    return ""
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="TDSQL Gateway interf 日志深度分析工具",
@@ -1663,7 +1696,17 @@ def main():
     parser.add_argument("-o", "--output-dir", default=None,
                         help="输出目录（默认: 脚本同级 output/{日期} 目录）")
     parser.add_argument("-v", "--version", action="version", version=f"%(prog)s {VERSION}")
+    # v1.6.3.4 / D02（H13，§7.1）：可选实例连接名称上下文（--connection-name 人工标识
+    # 或 --context-file 平台写入的 ReportContext JSON，二者互斥）；传给 meta 供报告显示。
+    parser.add_argument("--connection-name", default=None,
+                        help="人工指定的实例连接名称（与 --context-file 互斥）")
+    parser.add_argument("--context-file", default=None,
+                        help="平台写入的 ReportContext JSON 文件路径（与 --connection-name 互斥）")
     args = parser.parse_args()
+
+    # v1.6.3.4 / D02（H13）：解析可选名称上下文→模块级显示变量（供 meta 使用）
+    global _CONN_NAME_DISPLAY
+    _CONN_NAME_DISPLAY = _resolve_conn_name_display_h13(args)
 
     # 解析 --time-range
     time_range = None
@@ -1859,7 +1902,8 @@ def run_single_analysis(dates, files, log_dir, name, proxy_ip, port,
     prefix = f"{name}_{proxy_ip}_{port}_{result['date_str']}_{exec_time}"
     prefix = re.sub(r'[<>:"/\\|?*]', '_', prefix)
 
-    meta = {"name": name, "proxy_ip": proxy_ip, "port": port}
+    meta = {"name": name, "proxy_ip": proxy_ip, "port": port,
+            "connection_name": _CONN_NAME_DISPLAY}
 
     # 输出 CSV 1: 耗时细分
     csv1_path = os.path.join(_output_dir, f"{prefix}_sql_timecost_detail.csv")

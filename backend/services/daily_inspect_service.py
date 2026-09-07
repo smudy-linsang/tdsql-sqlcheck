@@ -318,6 +318,13 @@ def run_daily(pool, connection_id: str = "", inspect_date: str = "", nodes: list
     if not node_list:
         node_list = ["set_mock_shard1", "set_mock_shard2"]
 
+    # v1.6.3.4 / D02（H07，§3.3）：采集开始时冻结实例连接名称上下文，写入每条指标行。
+    # 30 秒缓存命中已在上方直接返回其原上下文（cached_data），不重新包装成新时点。
+    from backend.services.report_context import (
+        capture_report_context, context_to_json_column, ORIGIN_BOUND)
+    _report_ctx_json = context_to_json_column(
+        capture_report_context(connection_id, "", ORIGIN_BOUND))
+
     # 检测 monitordb 历史分区表是否存在
     clean_date = inspect_date.replace("-", "")
     hist_table = f"m_data_{clean_date}"
@@ -462,8 +469,8 @@ def run_daily(pool, connection_id: str = "", inspect_date: str = "", nodes: list
                     "cpu_cores, mem_gb, data_disk_gb, log_disk_gb, cpu_avg_daily, mem_avg_daily, "
                     "proxy_req_total, proxy_t_l, proxy_t_m, proxy_t_p, proxy_t_n, "
                     "proxy_req_l, proxy_req_m, proxy_req_p, proxy_req_n, "
-                    "proxy_active_conn_peak, proxy_conn_peak, proxy_err_sql_sum) "
-                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
+                    "proxy_active_conn_peak, proxy_conn_peak, proxy_err_sql_sum, report_context_json) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
                     "ON DUPLICATE KEY UPDATE cpu_peak=VALUES(cpu_peak), cpu_avg=VALUES(cpu_avg), "
                     "mem_peak=VALUES(mem_peak), conn_peak=VALUES(conn_peak), "
                     "slow_query=VALUES(slow_query), delay_peak=VALUES(delay_peak), disk_peak=VALUES(disk_peak), "
@@ -479,7 +486,8 @@ def run_daily(pool, connection_id: str = "", inspect_date: str = "", nodes: list
                      vals["cpu_avg_daily"], vals["mem_avg_daily"],
                      vals["proxy_req_total"], vals["proxy_t_l"], vals["proxy_t_m"], vals["proxy_t_p"], vals["proxy_t_n"],
                      vals["proxy_req_l"], vals["proxy_req_m"], vals["proxy_req_p"], vals["proxy_req_n"],
-                     vals["proxy_active_conn_peak"], vals["proxy_conn_peak"], vals["proxy_err_sql_sum"]))
+                     vals["proxy_active_conn_peak"], vals["proxy_conn_peak"], vals["proxy_err_sql_sum"],
+                     _report_ctx_json))
             rows.append({"node": mid, **vals})
 
         # 触发物理主机巡检收集并统一提交事务 (每次 run_daily 仅收集1次服务器巡检)
@@ -526,6 +534,13 @@ def run_server_daily(conn, connection_id: str, inspect_date: str, pool=None, nod
         else:
             real_ips = [f"host-{connection_id}"]
 
+    # v1.6.3.4 / D02（H07，§3.3）：server_daily_inspection 同样在采集时冻结实例
+    # 连接名称上下文（与 daily_inspection 同源），供对比报告按行显示各来源名称。
+    from backend.services.report_context import (
+        capture_report_context, context_to_json_column, ORIGIN_BOUND)
+    _report_ctx_json = context_to_json_column(
+        capture_report_context(connection_id, "", ORIGIN_BOUND))
+
     for idx, ip in enumerate(real_ips):
         seed = f"srv_{connection_id}_{ip}_{inspect_date}"
         hostname = f"tdsql-host-{ip.replace('.', '-')}" if "." in ip else f"tdsql-host-{ip}"
@@ -544,15 +559,16 @@ def run_server_daily(conn, connection_id: str, inspect_date: str, pool=None, nod
         conn.execute(
             "INSERT INTO server_daily_inspection (inspect_date, connection_id, ip, hostname, "
             "cpu_peak, cpu_avg, mem_used_str, mem_pct, disk_root_pct, disk_data_str, disk_backup_pct, "
-            "read_await_max, read_await_dev, write_await_max, write_await_dev) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
+            "read_await_max, read_await_dev, write_await_max, write_await_dev, report_context_json) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
             "ON DUPLICATE KEY UPDATE hostname=VALUES(hostname), cpu_peak=VALUES(cpu_peak), cpu_avg=VALUES(cpu_avg), "
             "mem_used_str=VALUES(mem_used_str), mem_pct=VALUES(mem_pct), disk_root_pct=VALUES(disk_root_pct), "
             "disk_data_str=VALUES(disk_data_str), disk_backup_pct=VALUES(disk_backup_pct), "
             "read_await_max=VALUES(read_await_max), read_await_dev=VALUES(read_await_dev), "
             "write_await_max=VALUES(write_await_max), write_await_dev=VALUES(write_await_dev)",
             (inspect_date, connection_id, ip, hostname, cpu_peak, cpu_avg, mem_used_str, mem_pct,
-             disk_root, disk_data_str, disk_backup_pct, r_await, r_dev, w_await, w_dev)
+             disk_root, disk_data_str, disk_backup_pct, r_await, r_dev, w_await, w_dev,
+             _report_ctx_json)
         )
 
 
@@ -846,6 +862,27 @@ def generate_comparison_html_report(connection_id: str, dates: list, threshold_m
     # CSP nonce 属性：有 nonce 时注入 <script nonce="...">，配套 CSP 放行内联脚本
     _nonce_attr = f' nonce="{script_nonce}"' if script_nonce else ""
 
+    # v1.6.3.4 / D02（H07，§3.1/§3.4）：实例连接名称来源块。取该 connection_id
+    # 最近一条 daily_inspection 的**冻结**上下文（run_daily 采集时写入），不用现名
+    # 冒充扫描时名称；连接名称与 Set/节点 instance_names 区分（后者是节点名，不是连接名）。
+    from backend.services.report_context import render_for_record
+    _ctx_record = {"connection_id": connection_id}
+    try:
+        from backend.services.database import _get_connection as _gc
+        _c = _gc()
+        try:
+            _row = _c.execute(
+                "SELECT connection_id, report_context_json FROM daily_inspection "
+                "WHERE connection_id = ? ORDER BY id DESC LIMIT 1", (connection_id,)
+            ).fetchone()
+            if _row:
+                _ctx_record = dict(_row)
+        finally:
+            _c.close()
+    except Exception:                                        # noqa: BLE001
+        pass
+    context_html = render_for_record(_ctx_record, scene="日常巡检对比")
+
     html_content = f"""<!DOCTYPE html>
 <html>
 <head>
@@ -981,6 +1018,7 @@ def generate_comparison_html_report(connection_id: str, dates: list, threshold_m
     <div>
       <h1>TDSQL 巡检深度对比分析报告</h1>
       <div class="meta">实例连接 ID: {connection_id} | 对比日期清单: {', '.join(dates)}</div>
+      {context_html}
     </div>
     <div>
       <button id="printBtn" style="background-color:#3b82f6; color:#fff; border:none; padding:8px 16px; border-radius:4px; cursor:pointer">打印或另存PDF</button>

@@ -176,6 +176,13 @@ def render_compare_html(result: dict) -> str:
         _e(result.get("db_name") or ""),
     ]))
 
+    # v1.6.3.4 / D02（H06，§3.2）：基准和目标各显示自己的扫描时名称，相同 ID
+    # 改过名仍各显各名，不只显示汇总中的一个名称。base/target 为各自快照的 brief，
+    # 携带各自的 connection_name / report_context_json（由 scan_compare_service 透传）。
+    from backend.services.report_context import render_for_record
+    base_ctx_html = render_for_record(base, role="基准扫描", scene="扫描对比")
+    target_ctx_html = render_for_record(target, role="目标扫描", scene="扫描对比")
+
     # V1.4：报告自解释——脱离尺度的问题数没有意义，页眉必须标注用的哪把尺
     rs_id = result.get("rule_set_id") or ""
     rs_name = result.get("rule_set_name") or ""
@@ -235,11 +242,12 @@ def render_compare_html(result: dict) -> str:
 <div class="wrap">
   <h1>TDSQL 扫描结果对比报告 · {_e(module_label)}</h1>
   <div class="meta">
-    实例：<b>{conn_line}</b><br>
     基准：<b>{_e(_fmt_time(base.get('scan_finished_at')))}</b>
     <span class="arrow">&nbsp;→&nbsp;</span>
     目标：<b>{_e(_fmt_time(target.get('scan_finished_at')))}</b>
   </div>
+  {base_ctx_html}
+  {target_ctx_html}
   {''.join(banners)}
   <div class="kpis">{kpi_html}</div>
   <h2>严重级别分布对比</h2>
@@ -263,6 +271,10 @@ def render_single_snapshot_html(snap: dict) -> str:
     db_name = snap.get("db_name") or "全部数据库"
     created_by = snap.get("created_by") or "system"
     finished_at = _fmt_time(snap.get("scan_finished_at") or snap.get("created_at"))
+    # v1.6.3.4 / D02（H05，§3.4）：实例连接名称来源块。快照创建时已冻结
+    # connection_name；新快照带 report_context_json 优先，历史快照按 §3.2 降级。
+    from backend.services.report_context import render_for_record
+    context_html = render_for_record(snap, scene="扫描快照")
     
     stats = snap.get("stats") or {}
     object_total = snap.get("object_total", 0)
@@ -314,11 +326,11 @@ def render_single_snapshot_html(snap: dict) -> str:
 <div class="wrap">
   <h1>TDSQL 扫描快照报告 · {_e(module_label)}</h1>
   <div class="meta">
-    实例：<b>{_e(conn_name)}</b> &nbsp;|&nbsp; 
     检查范围：<b>{_e(db_name)}</b> &nbsp;|&nbsp; 
     执行人：<b>{_e(created_by)}</b> &nbsp;|&nbsp; 
     完成时间：<b>{_e(finished_at)}</b>
   </div>
+  {context_html}
   <div class="kpis">{kpi_html}</div>
   <h2>问题明细列表 <span class="cnt">（共 {len(issues)} 项）</span></h2>
   {issues_table}

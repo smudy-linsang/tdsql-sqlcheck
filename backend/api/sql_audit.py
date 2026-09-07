@@ -273,6 +273,11 @@ async def extract_and_audit(http_request: Request, payload: dict):
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"无法连接选定的数据库实例: {str(e)}")
 
+    # v1.6.3.4 / D02（H02，§3.1）：在元数据提取前、与 _started_at 同一开始阶段，
+    # 从 conn_info 冻结实例连接名称（不反查现名、不从文件名/SQL 注释推断）。
+    from backend.services.report_context import capture_report_context, ORIGIN_BOUND
+    _report_ctx = capture_report_context(connection_id, database_name, ORIGIN_BOUND)
+
     try:
         from backend.connectors.metadata_fetcher import MetadataFetcher
         fetcher = MetadataFetcher(pool)
@@ -376,6 +381,7 @@ async def extract_and_audit(http_request: Request, payload: dict):
             rule_set_id=_rule_set_id,
             instance_ctx=ictx,
             skipped_rules_count=_skipped,
+            report_context=_report_ctx,   # v1.6.3.4 / D02：冻结的实例连接名称
         )
 
         # V1.3: 旁路生成对比快照（失败仅告警，不影响审核主流程）
@@ -383,6 +389,7 @@ async def extract_and_audit(http_request: Request, payload: dict):
         try:
             from backend.services.snapshot_extractors.schema_audit import extract as _extract
             from backend.services import scan_snapshot_service as _snap
+            from backend.services.report_context import context_to_json_column
             _items, _obj_total = _extract(results, target_db, node="")
             snapshot_id = _snap.safe_create_snapshot("schema_audit", {
                 "biz_ref_id": str(report_id),
@@ -396,6 +403,8 @@ async def extract_and_audit(http_request: Request, payload: dict):
                 "created_by": _operator(http_request),
                 "rule_set_id": _rule_set_id,
                 "instance_type": ictx.instance_type.value,
+                # v1.6.3.4 / D02（H05a）：继承 extract_and_audit 冻结的来源上下文
+                "report_context_json": context_to_json_column(_report_ctx),
             }, _items, _obj_total)
         except Exception as e:
             logger.warning(f"生成元数据审核快照失败: {e}")
@@ -588,6 +597,10 @@ async def export_extracted_report_html(report_id: int):
         except Exception:
             results_data = []
 
+        # v1.6.3.4 / D02（H02，§3.4）：实例连接名称来源块（页眉，标题下、指标区前）
+        from backend.services.report_context import render_for_record
+        context_html = render_for_record(r_dict, scene="在线元数据审核")
+
         html_content = f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -614,6 +627,7 @@ async def export_extracted_report_html(report_id: int):
         <div class="header">
             <h1>TDSQL 在线元数据规则审核报告</h1>
             <div class="meta">提取文件: <b>{r_dict.get('source')}</b> | 审核人: {r_dict.get('created_by') or 'System'} | 审计时间: {r_dict.get('created_at')}</div>
+            {context_html}
         </div>
         <div class="kpi-grid">
             <div class="kpi-card"><div class="kpi-num">{r_dict.get('total_sql')}</div><div>对象总数</div></div>
@@ -859,6 +873,10 @@ async def export_file_report_html(report_id: int):
             conn.close()
 
         results = json.loads(report.get("results_json") or "[]")
+        # v1.6.3.4 / D02（H01，§3.4）：实例连接名称来源块（页眉，标题下、指标区前）。
+        # 前端未绑定连接时显示未关联（离线文件审核）；已有 API 显式绑定按冻结名称。
+        from backend.services.report_context import render_for_record
+        context_html = render_for_record(report, scene="离线文件审核")
         created_at = report.get("created_at", "")
         time_display = created_at[:19].replace("T", " ") if isinstance(created_at, str) else str(created_at)[:19]
         pass_rate = float(report.get("pass_rate") or 0)
@@ -915,6 +933,7 @@ body {{ font-family:"Microsoft YaHei","Segoe UI",Arial,sans-serif; background:#f
 <div class="meta-item"><span class="label">审核时间:</span><span class="value">{time_display}</span></div>
 <div class="meta-item"><span class="label">报告ID:</span><span class="value">#{report.get('id')}</span></div>
 </div>
+{context_html}
 <div class="summary">
 <div class="sc total"><div class="num">{report.get('total_sql', 0)}</div><div class="lbl">SQL总数</div></div>
 <div class="sc pass"><div class="num">{report.get('passed', 0)}</div><div class="lbl">通过</div></div>
