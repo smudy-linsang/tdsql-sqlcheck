@@ -637,3 +637,51 @@ m_upd = re.search(r"\bupdate\b(.*?)\bset\b", clean_sql_no_comm, re.DOTALL)
 施工人：智能体 Q
 施工对象：v1.6.3.4 第五批（D02 全部 HTML 入口接入 REQ-01 闭环 + D06 后续优化，版本收尾）
 提交给：Mr.Linsang
+
+---
+---
+
+# SIT 第一轮整改记录（A 第一轮 SIT 报告 @329ef47）
+
+| 项 | 内容 |
+|---|---|
+| 被测版本 | v1.6.3.4 `main@6a339df`（第五批后） |
+| SIT 报告 | `docs/SIT-v1.6.3.4-...第一轮SIT测试报告-ClaudeA.md`（结论：不通过-有条件，2 BLOCK + 2 MINOR） |
+| 整改方 | 智能体 Q |
+| 整改日期 | 2026-09-07 |
+
+## SIT-1 问题确认与整改结论
+
+| 编号 | 级别 | Q 确认 | 整改 |
+|---|---|---|---|
+| **B-01** | BLOCK | **认可** | 28 个设计 §8 用例编号补齐：新建 4 个测试文件共 53 个测试函数（可定位/可运行/可失败）；A.1/A.4 退役理由改写为指向真实用例文件（先有替代守卫再退役） |
+| **B-02** | BLOCK | **认可** | `middleware.py::_get_request_id` 优先复用外层 `scope["state"]["request_id"]`——429/413 响应头与响应体的请求编号从此一致；GW-C1/C2 写入头体一致性断言作回归锁 |
+| **M-01** | MINOR | **认可** | `_enumerate_directory_l` 异常分支 `truncated=True→False`——失败已由 `SP_DIRECTORY_FAILED` 如实报告，不再叠加“触发 50000 行护栏/预算截断”的假告警；PAR-16 断言失败路径不出现该告警 |
+| **M-02** | 观察项 | **认可并修** | 确认该分支**可达**（即席连接：活跃但未入注册表，`get_saved` 查不到）。改为 `conn_name`（connection_name 名称字段）绝不写 host:port 冒充名称，capture 未得名时保持空串；任务名 `final_task_name` 单独用 `_task_inst_token = conn_name or host:port`（endpoint 仅作任务名标识 token，不占名称位；报告名称显示走 report_context_json 降级链） |
+
+## SIT-1 关键实现
+- **B-02（请求编号串台）**：`GatewayUploadPolicyMiddleware._get_request_id` 原只扫入站头 `x-request-id`，外层 `RequestContextMiddleware` 生成的 ID 未回写进请求头，内层于是另生成一个进响应体。修复：优先取 `scope["state"]["request_id"]`（外层写入的同一值），再扫入站头，最后才新生成。**不**移动 RequestContextMiddleware 到内层（设计 §6.4 要求上下文在最外侧，否则 413/429 反失 X-Request-ID）。
+- **B-01（回归锁补齐）**：四个新建测试文件，复用既有 FakePool/`_open_directory_connection`/`_new_pool`/`_now` 可测性钩子与 conftest 的 AUTH_ENABLED=false：
+  - `tests/test_v1634_r043_dml_target.py`（22 个，DML-11—19）：每条用例在 正常AST/强制ParseError/强制Command 三路径分别断言；DML-16 真值表 + 只读 property（无 setter/构造参数已移除 TypeError）；DML-18 闭集 36 项完整性 + 净效果（误报消失、真联表仍命中、不新增 E999）；DML-19 LOCK TABLES 复合 token / 字符串·反引号伪造 / 通用 Alias 根 / 未知头失败关闭 / 批文件首条 SELECT 不免后续 DML。
+  - `tests/test_v1634_secondary_partition.py`（10 个，PAR-13—20）：直接驱动 `_identify_secondary_partition_mains`；PAR-13/14/15 三层覆盖（only_base/旧 single/仅 L/三处去重）、PAR-16 目录失败（含 M-01 锁）、PAR-17 视图排除、PAR-18 141 迁移八列契约、PAR-19 四层互斥+并集=C+层序+每候选一次、PAR-20 共享 180s deadline 不重置不越点。PAR-21 真实容量需内网实测，不属本离线套件（已在设计 §8.2.1 列明）。
+  - `tests/test_v1634_report_context.py`（8 个，REP-12—15）：冻结（改名/删除后重导仍显示旧名、新名 0 次）、门禁不被顺带打开（gate_passed=NULL）、离线/显式绑定分流、恶意连接名转义（无可执行 on* 属性）。
+  - `tests/test_v1634_gateway.py`（13 个，GW-C1—C4/T1—T2）：**GW-C1/C2 写入 B-02 头体编号一致性断言**；锁归属（未取槽绝不释放他人锁）、Retry-After 5—600 有界、并发固定 1、超时链不等式逐项违例指名、capabilities 与配置一致。
+- **B-01 连带**：`test_design_appendix_matches_repo.py` 的 A.1/A.4 skip 理由由引用“不存在的 PAR-01~21 用例”改写为指向真实存在的 `tests/test_v1634_secondary_partition.py`（PAR-13—20）+ 既有 118 项 G14 回归——先有替代守卫再退役，顺序纠正。
+
+## SIT-1 验证证据
+- **变异测试（自证锁有牴，均变异后红、恢复后绿）**：
+  - 反转 B-02（去掉 scope.state 复用）→ GW-C1/GW-C2 编号一致性用例**失败**，恢复后通过；
+  - 反转 M-01（truncated 回 True）→ 两条 PAR-16 **失败**，恢复后通过；
+  - 反转 R043 联表检测（multi 恒 False）→ DML-14 **失败**，恢复后通过；
+  - 反转 REP-12 冻结（两层同时绕过快照）→ REP-12 改名/删除**失败**，恢复后通过。
+- **全量回归 1995 passed + 30 skipped，0 failed**（约 8 分 45 秒）。较第五批 1942 多 53 个 = 本批新增测试函数；30 skipped 不变（28 SIT/UAT 需靶场凭据 + 2 A.1/A.4 退役）。
+- 变异测试教训：首轮 REP-12 变异（单层）未能打红，因 `render_for_record` 与 `resolve_legacy_context` **双层**都读 report_context_json（冗余防护）；据此把 REP-12 记录补上顶层 `connection_id`，使“冻结失效退化现名查询”真正可被变异捕获。
+
+## SIT-1 整改边界声明
+1. 新增 53 个测试均为离线/内存级（FakePool/mock/TestClient+AUTH_ENABLED=false），未连内网真实 TDSQL 或靶场库；PAR-21 容量核算、71 MiB 真实网关样本、200 MiB 边界、504 回收路径仍待内网实测（设计 §8 容量门禁，非本轮可闭环）。
+2. GW-T2 的真实代理/LB 漂移门禁需部署实测（设计明确“发布仍须核实真实 Nginx/LB 生效值”）；本轮仅覆盖可离线的配置校验与 capabilities 一致性侧。
+3. 变异测试为手工定点变异（非变异框架全量），已覆盖本轮 4 个缺陷的回归锁。
+
+施工人：智能体 Q
+施工对象：v1.6.3.4 SIT 第一轮整改（B-01/B-02/M-01/M-02 全闭环）
+提交给：Mr.Linsang

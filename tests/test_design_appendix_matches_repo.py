@@ -31,7 +31,9 @@ _MAP = {
 # DESIGN-v1.6.3.0 附录 A 是 G14 施工阶段的**全量代码快照**。按项目纪律，历史设计
 # 文档是快照、不回溯改写（如同历史署名保持原文），故不能把 v1.6.3.4 的演进代码
 # 回填进 v1.6.3.0 附录。这两个已演进文件的 v1.6.3.0 全量逐字门禁因此退役；其
-# 一致性改由 DETAIL-v1.6.3.4 §4、PAR-01~21 用例与 118 项 G14 回归测试守护。
+# 一致性改由 DETAIL-v1.6.3.4 §4 与**真实存在**的新增回归守护（SIT B-01 整改后补齐）：
+#   · tests/test_v1634_secondary_partition.py（PAR-13—20，直接驱动四层识别）
+#   · 既有 118 项 G14 回归（tests/test_table_type_stats.py）
 # A.2（api/table_type_stats.py，D03 未改）与 A.3（v13/130 DDL，141 为独立新文件）
 # 未经 D03 改造，**保持 v1.6.3.0 附录逐字门禁不变**。
 _V1634_EVOLVED = {"A.1", "A.4"}
@@ -70,7 +72,8 @@ def test_design_appendix_matches_repo(name):
         pytest.skip(
             f"附录 {name}（{_MAP[name]}）已被 v1.6.3.4 D03 二级分区主表识别合法演进，"
             f"v1.6.3.0 全量代码快照门禁对该文件退役；一致性由 DETAIL-v1.6.3.4 §4、"
-            f"PAR-01~21 用例与 118 项 G14 回归守护。历史设计文档不回溯改写。")
+            f"tests/test_v1634_secondary_partition.py（PAR-13—20）与既有 118 项 "
+            f"G14 回归守护。历史设计文档不回溯改写。")
     blocks = _extract_appendix_blocks()
     assert name in blocks, f"设计文档附录缺少 {name} 小节或其代码块"
     design = blocks[name]

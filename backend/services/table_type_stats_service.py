@@ -944,7 +944,11 @@ def _enumerate_directory_l(cfg, db: str, deadline: float,
             pass
         cur = None
     except Exception as e:                                    # noqa: BLE001
-        return set(), SP_STATE_FAILED, rows_consumed, True
+        # v1.6.3.4 SIT M-01：失败（无权/不支持/连接错误）时 truncated=False。
+        # 该分支一行都没读到，既没触发行护栏也没耗尽预算；失败已由 SP_DIRECTORY_FAILED
+        # 如实报告，不应再叠加一条断言“触发 50000 行护栏或预算截断”的假告警（会把
+        # DBA 引向错误的排查方向）。候选目录不完整由 inventory_state=FAILED 表达。
+        return set(), SP_STATE_FAILED, rows_consumed, False
     finally:
         if cur is not None:
             try:

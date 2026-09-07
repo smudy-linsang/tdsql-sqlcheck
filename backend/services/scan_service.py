@@ -94,8 +94,12 @@ def _do_scan(pool, connection_id: str, source: str, limit: int, min_time: float,
     conn_name = ""
     if _report_ctx.connections:
         conn_name = _report_ctx.connections[0].connection_name or ""
-    if not conn_name:
-        conn_name = f"{pool.config.host}:{pool.config.port}"   # 无注册名称时降级用 endpoint
+    # v1.6.3.4 / SIT M-02：conn_name（connection_name 名称字段）绝不写 host:port 冒充名称
+    # （设计 §3.2）。capture 未取到名称（如即席连接：活跃但未入注册表，该分支可达）时保持
+    # 空串——报告实例名称显示走 report_context_json（H03 render_for_record 降级为
+    # “未命名即席连接”）；任务名 final_task_name 是独立的命名格式，允许用 endpoint 作
+    # 标识 token（不占用名称位）。
+    _task_inst_token = conn_name or f"{pool.config.host}:{pool.config.port}"
     scan_started_at = datetime.now().isoformat()   # V1.3: 快照 scan_started_at
 
     # 创建扫描任务（仅 monitordb 的任务名包含采集时间段）
@@ -107,7 +111,7 @@ def _do_scan(pool, connection_id: str, source: str, limit: int, min_time: float,
         end_short = time_window_end[5:16]
         time_range_str = f" [{start_short} ~ {end_short}]"
     final_task_name = (task_name or
-                       f"{source_labels.get(source, source)} - {conn_name}") + time_range_str
+                       f"{source_labels.get(source, source)} - {_task_inst_token}") + time_range_str
     task_id = service.create_scan_task(
         task_name=final_task_name, source=source, db_name=db_name,
         connection_id=connection_id, connection_name=conn_name,

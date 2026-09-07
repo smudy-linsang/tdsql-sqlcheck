@@ -124,6 +124,12 @@ class GatewayUploadPolicyMiddleware:
 
     @staticmethod
     def _get_request_id(scope) -> str:
+        # v1.6.3.4 SIT B-02：外层 RequestContextMiddleware 已建立请求上下文时，必须复用
+        # 同一个 ID（scope["state"]["request_id"]）。否则响应头/访问日志与响应体里的
+        # request_id 是两个不同的值，用户报障的编号在日志里永远查不到。
+        rid = (scope.get("state") or {}).get("request_id")
+        if rid:
+            return str(rid)[:64]
         for k, v in scope.get("headers") or []:
             if k == b"x-request-id" and v:
                 return v.decode("latin-1")[:64]
