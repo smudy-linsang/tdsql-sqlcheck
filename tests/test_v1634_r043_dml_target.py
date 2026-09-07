@@ -158,6 +158,11 @@ def test_dml16_truth_table():
     assert _mk("UPDATE", "UNKNOWN", None) is False
     assert _mk("NOT_DML", "NOT_APPLICABLE", False) is False
     assert _mk("SELECT", "RESOLVED", True) is False      # 非 DML kind
+    # ★ SIT2 S2-01：隔离 status 条件的行——kind 与 multi 都满足，仅 status 非
+    # RESOLVED，必须为 False。缺这两行，删掉属性里的 status==RESOLVED 条件不会有
+    # 任何用例变红（SIT2 变异 M11b 已实证）。
+    assert _mk("UPDATE", "UNKNOWN", True) is False
+    assert _mk("DELETE", "UNKNOWN", True) is False
     assert _mk("UNKNOWN", "UNKNOWN", None) is False
 
 

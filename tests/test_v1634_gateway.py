@@ -16,6 +16,23 @@ from backend.services import gateway_upload_lock as gul
 
 client = TestClient(app)
 
+
+@pytest.fixture(autouse=True)
+def _pin_auth(monkeypatch):
+    """不依赖套件运行顺序：显式钉住鉴权关闭，避免被其他用例的环境/DB 泄漏影响。
+
+    SIT2 S2-03：本文件用例单独跑全绿，但全量套件里若有既有用例
+    `os.environ["AUTH_ENABLED"]="true"` 后不还原，本文件的 TestClient 请求会被
+    401 打挂。config.auth_enabled() 优先读 DB system_config 再回退环境变量，故
+    双管齐下：钉环境变量 + 直接钉住配置读取函数（middleware.AuthMiddleware 在请求时
+    调用 config.auth_enabled()，此处按模块属性钉住在请求时生效）。monkeypatch 在
+    用例结束时自动还原，不把污染传给下一个用例。
+    """
+    monkeypatch.setenv("AUTH_ENABLED", "false")
+    import backend.config as _cfg
+    monkeypatch.setattr(_cfg, "auth_enabled", lambda: False)
+
+
 UPLOAD_PATH = "/api/v1/gateway-log/upload"
 SAMPLE = (b"[2026-02-26 00:00:01 1] INFO topic=test&timecost=12.5&"
           b"sql=select 1&db=b&user=root&host=127.0.0.1\n")

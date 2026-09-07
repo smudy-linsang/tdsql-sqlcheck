@@ -16,6 +16,8 @@ import pytest
 
 from backend.services import table_type_stats_service as svc
 from backend.services.tdsql_connector import TDSQLConnectionConfig
+from backend.services.tdsql_table_shape import (
+    classify_logical_ddl, STATE_SECONDARY, STATE_NOT_SECONDARY)
 
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -415,3 +417,45 @@ def test_par20_shared_deadline_stops_new_io(monkeypatch):
     # deadline 是 now+TOTAL_BUDGET_SECONDS（共享 180s），未被重置为更大值：
     # 通过"越过 180 即停"间接证明（若被重置 +300，则越过 180 不会停）
     assert len(log) < 5
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# PAR（补）：广播表优先——shardkey=noshardkey_allset + PARTITION BY 不得计为
+#            二级分区主表（SIT2 S2-02；工程师附件 §4.2 点名警告；M12b 证明此前无锁）
+# ════════════════════════════════════════════════════════════════════════════
+def test_par_broadcast_precedence_not_counted_as_main():
+    """识别器级：广播+分区 → NOT_SECONDARY / BROADCAST，不计主表。"""
+    ddl = ("CREATE TABLE `t` (`id` int) ENGINE=InnoDB shardkey=noshardkey_allset\n"
+           "PARTITION BY RANGE (id) (PARTITION p0 VALUES LESS THAN (2))")
+    e = classify_logical_ddl(ddl, "db", "t")
+    assert e.state == STATE_NOT_SECONDARY
+    assert e.distribution == "BROADCAST"
+
+
+def test_par_broadcast_no_partition_also_not_main():
+    """识别器级：广播无分区同样不计主表（对照组）。"""
+    e = classify_logical_ddl(
+        "CREATE TABLE `t2` (`id` int) ENGINE=InnoDB shardkey=noshardkey_allset",
+        "db", "t2")
+    assert e.state == STATE_NOT_SECONDARY
+    assert e.distribution == "BROADCAST"
+
+
+def test_par_broadcast_not_counted_in_collection(monkeypatch):
+    """采集级：库内含广播分区表时 main 不把它算进去（与 Mr.Linsang 要的数字直接相关）。"""
+    db = "db1"
+    bc_ddl = ("CREATE TABLE `t_bc` (`id` int) ENGINE=InnoDB shardkey=noshardkey_allset\n"
+              "PARTITION BY RANGE (id) (PARTITION p0 VALUES LESS THAN (2))")
+    db_sp, sp, warns = _run_identify(
+        monkeypatch,
+        eligible_dbs=[db],
+        db_proxy={db: set()},
+        db_logical_base={db: {"t_bc"}},       # 广播表在逻辑基线 B
+        db_shard={db: set()},
+        dir_rows_by_db={db: ["t_bc"]},        # 目录 L 也含
+        ddl_by_key={(db, "t_bc"): bc_ddl},
+    )
+    assert sp["main"] == 0                    # 广播分区表不得计为二级分区主表
+    assert sp["checked"] == 1                 # 已判明（判负）
+    assert sp["unknown"] == 0
+    assert sp["outside_shard"] == 0

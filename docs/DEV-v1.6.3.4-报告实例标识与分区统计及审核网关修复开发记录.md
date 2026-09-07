@@ -685,3 +685,37 @@ m_upd = re.search(r"\bupdate\b(.*?)\bset\b", clean_sql_no_comm, re.DOTALL)
 施工人：智能体 Q
 施工对象：v1.6.3.4 SIT 第一轮整改（B-01/B-02/M-01/M-02 全闭环）
 提交给：Mr.Linsang
+
+---
+---
+
+# SIT 第二轮整改记录（A 第二轮 SIT 报告 @9283134）
+
+| 项 | 内容 |
+|---|---|
+| 被测版本 | v1.6.3.4 `main@a1092d3`（第一轮整改后） |
+| SIT2 报告 | `docs/SIT2-v1.6.3.4-...第二轮SIT测试报告-ClaudeA.md`（结论：通过-有条件；上轮 2 BLOCK+2 MINOR 全部关闭，新发现 3 项 MINOR 均为用例完备性） |
+| 整改方 | 智能体 Q |
+| 整改日期 | 2026-09-07 |
+
+## SIT-2 问题确认与整改结论（3 项全部认可）
+
+| 编号 | 级别 | 问题本质 | 整改 |
+|---|---|---|---|
+| **S2-01** | MINOR | DML-16 真值表缺唯一能隔离 `status==RESOLVED` 的行（删掉该条件 22 个用例全绿） | `test_dml16_truth_table` 补 `_mk("UPDATE","UNKNOWN",True) is False` 与 `_mk("DELETE","UNKNOWN",True) is False` 两行——kind 与 multi 均满足、仅 status 非 RESOLVED，必须为 False |
+| **S2-02** | MINOR | 二级分区用例集无任何广播表用例（广播标记失效 10 个用例全绿，而这是会把 main 数字偏大的误判路径） | 补 3 条广播用例：识别器级（广播+分区/广播无分区 → NOT_SECONDARY + BROADCAST）+ 采集级（库内含广播分区表时 main=0 不计） |
+| **S2-03** | MINOR | 5 个新增网关 API 用例顺序相关（全量套件被既有 AUTH_ENABLED 泄漏打 401） | `test_v1634_gateway.py` 加 `autouse` fixture：钉 `AUTH_ENABLED=false` 环境变量 + 直接钉 `backend.config.auth_enabled`（因 auth_enabled 优先读 DB system_config，双保险）；monkeypatch 用例结束自动还原，不污染下一个用例 |
+
+## SIT-2 验证证据
+- **自证变异会红**（先于 A 的复验）：删掉派生属性里的 `status==RESOLVED` → `test_dml16_truth_table` 变红；把 `_BROADCAST_MARKER` 改为永不匹配 → 3 条广播用例全线变红；恢复后均转绿。
+- **S2-03 实证**：把 `AUTH_ENABLED=true` 注入进程环境模拟泄漏，`test_v1634_gateway.py` 13 个用例仍全绿（fixture 钉住生效）。
+- **全量回归 1998 passed + 30 skipped + 0 failed**（约 8 分 43 秒）：较第一轮整改后 1995 多 3 个 = 3 条新广播用例；30 skipped 不变（环境性）。
+
+## SIT-2 整改边界声明
+1. 本轮三项均为**测试用例完备性**修补，未改任何生产逻辑；功能正确性 A 已两轮实测无缺陷。
+2. S2-03 顺带说明：既有用例文件（test_fix_user_issues.py / test_v2_rbac_matrix.py / test_v2_sit.py 等）的 `AUTH_ENABLED` 泄漏是全量套件 400+ 历史失败的根源之一，**按 A 的建议不塞入 v1.6.3.4**（避免扩大爆炸半径），应单独立项治理。
+3. 变异测试改用手工 SearchReplace 正向/反向（不再用 .bak 备份恢复，避免恢复静默失败残留变异——第一轮整改已踩此坑并记入记忆）。
+
+施工人：智能体 Q
+施工对象：v1.6.3.4 SIT 第二轮整改（S2-01/S2-02/S2-03 全闭环）
+提交给：Mr.Linsang
