@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>UAT 注入</title>
+<style>body{font:14px/1.5 -apple-system,Segoe UI,sans-serif;padding:24px;background:#0b1220;color:#cfd8ec}</style>
+</head><body>
+<h2>UAT 临时 token 注入</h2>
+<p>此页是 UAT 智能体临时构造的本地桥接页面，不修改产品代码。它会从后端获取一个 token，写入 localStorage，然后跳转到主页。</p>
+<div id="log" style="background:#0e1a30;padding:12px;border-radius:6px;margin-top:12px;white-space:pre-wrap"></div>
+<script>
+const log = (m) => { document.getElementById('log').textContent += m + '\n'; };
+async function go(){
+  try{
+    const r = await fetch('/api/v1/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:'admin',password:'Uat@2026M!'})});
+    const data = await r.json();
+    if(!r.ok){ log('login failed: '+JSON.stringify(data)); return; }
+    localStorage.setItem('tdsql_token', data.token);
+    log('token saved len='+data.token.length);
+    setTimeout(()=>{ location.replace('/'); }, 500);
+  }catch(e){ log('error: '+e.message); }
+}
+go();
+</script>
+</body></html>

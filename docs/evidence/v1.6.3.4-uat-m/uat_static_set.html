@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>UAT 注入</title>
+<script>
+(async()=>{
+  const r = await fetch('/api/v1/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:'admin',password:'Uat@2026M!'})});
+  const data = await r.json();
+  if(r.ok){
+    localStorage.setItem('tdsql_token', data.token);
+    document.body.innerText = 'token saved, jump in 1s';
+    setTimeout(()=>location.replace('/'), 800);
+  } else {
+    document.body.innerText = 'login failed: '+JSON.stringify(data);
+  }
+})();
+</script>
+</head><body>loading...</body></html>
