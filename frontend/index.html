@@ -1873,8 +1873,13 @@
                   <el-table-column prop="broadcast_tables" label="广播表" width="90"></el-table-column>
                   <el-table-column prop="shard_tables" label="分片表" width="90"></el-table-column>
                   <el-table-column prop="baseline_tables" label="逻辑基线" width="100"></el-table-column>
-                  <el-table-column label="二级分区主表" width="130">
-                    <template #default="s">{{ fmtSecondaryMain(s.row) }}</template>
+                  <el-table-column label="二级分区主表" width="140">
+                    <template #default="s">
+                      <el-tooltip v-if="fmtSecondaryMainTooltip(s.row)" :content="fmtSecondaryMainTooltip(s.row)" placement="top">
+                        <span>{{ fmtSecondaryMain(s.row) }} <span style="color:#909399;font-size:12px;cursor:help;">ⓘ</span></span>
+                      </el-tooltip>
+                      <span v-else>{{ fmtSecondaryMain(s.row) }}</span>
+                    </template>
                   </el-table-column>
                   <el-table-column prop="subpartition_tables" label="二级分区子表" width="120"></el-table-column>
                   <el-table-column prop="status" label="状态" width="90">
@@ -1908,6 +1913,9 @@
                     <el-table-column prop="single_tables" label="单表" width="80"></el-table-column>
                     <el-table-column prop="broadcast_tables" label="广播表" width="80"></el-table-column>
                     <el-table-column prop="shard_tables" label="分片表" width="80"></el-table-column>
+                    <el-table-column label="二级分区主表" width="120">
+                      <template #default="s">{{ fmtSecondaryMain(s.row) }}</template>
+                    </el-table-column>
                     <el-table-column prop="failed_databases" label="失败库" width="80"></el-table-column>
                   </el-table>
                   <div style="color:#909399;font-size:12px;margin:8px 0">点击上表任意一行，查看该次统计的逐库明细。</div>

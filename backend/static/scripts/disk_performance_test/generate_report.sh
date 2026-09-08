@@ -939,10 +939,13 @@ _esc_html_h14() {
 }
 if [ -n "$CONN_NAME" ]; then
     _CN_ESC=$(_esc_html_h14 "$CONN_NAME")
+    _CN_HTML="<strong>${_CN_ESC}</strong>"
 else
     _CN_ESC="未关联实例（主机磁盘测试）"
+    # QC-DEFECT-06：离线/未关联用浅黄徽标，与平台 UAT-M02（#fff3cd/#856404）统一
+    _CN_HTML="<span style=\"background:#fff3cd;color:#856404;padding:1px 6px;border-radius:3px;font-weight:600;\">${_CN_ESC}</span>"
 fi
-CONN_NAME_BLOCK="<div class=\"report-context\" data-report-context-version=\"1\" style=\"margin:10px 0;padding:8px 12px;background:rgba(255,255,255,0.08);border-left:3px solid var(--primary-light);font-size:0.9em;border-radius:6px;\">实例连接名称：<strong>${_CN_ESC}</strong></div>"
+CONN_NAME_BLOCK="<div class=\"report-context\" data-report-context-version=\"1\" style=\"margin:10px 0;padding:8px 12px;background:rgba(255,255,255,0.08);border-left:3px solid var(--primary-light);font-size:0.9em;border-radius:6px;\">实例连接名称：${_CN_HTML}</div>"
 
 # 写入英雄区域
 cat >> "$REPORT_FILE" <<HTML_HERO

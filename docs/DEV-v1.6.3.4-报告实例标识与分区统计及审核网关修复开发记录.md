@@ -769,3 +769,44 @@ m_upd = re.search(r"\bupdate\b(.*?)\bset\b", clean_sql_no_comm, re.DOTALL)
 施工人：智能体 Q
 施工对象：v1.6.3.4 UAT 第一轮整改（UAT-M01/M02/M03）
 提交给：Mr.Linsang
+
+---
+---
+
+# 独立质检验收整改记录（G 第一轮质检报告 REPORT-v1.6.3.4-独立质检验收报告.md）
+
+| 项 | 内容 |
+|---|---|
+| 被测版本 | v1.6.3.4 `main@dbb16cb`（UAT 第二轮准出后） |
+| 质检依据 | `docs/REPORT-v1.6.3.4-独立质检验收报告.md`（结论：有条件通过/整改后准出；DEFECT-01~07） |
+| 整改方 | 智能体 Q |
+| 整改日期 | 2026-09-08 |
+
+## QC-1 问题确认与整改结论（7 项全部认可）
+
+> 注：G 报告 §2.1.2 的 H01—H14 文件映射表引用了本仓库**不存在**的文件/类（如 api/scan.py、ReportContextService、cluster_inspection.py 等），属臆测；但 7 项 DEFECT 本体经我逐项对照**真实代码**核实均成立，故全部认可，按真实代码位置修复（不盲从 G 的 diff 行号）。
+
+| 编号 | 级别 | Q 确认 | 整改 |
+|---|---|---|---|
+| **DEFECT-01** | MAJOR | **认可** | `_identify_secondary_partition_mains` 新增 `has_incomplete_dbs` 参数；调用方传 `bool(failed or skipped)`；eligible 全 COMPLETE 但有失败/跳过库时，check_state/inventory_state 降级 PARTIAL（设计 §4.4）。G 的 diff 位置错（`_identify` 内无 `res`/`failed_databases`），按真实作用域修 |
+| **DEFECT-02** | MEDIUM | **认可** | frontend/index.html `tabletypeHistory` 历史批次表补“二级分区主表”列（list_history 用 SELECT * 已含该字段） |
+| **DEFECT-03** | MINOR | **认可** | app.js 新增 `fmtSecondaryMainTooltip`（候选/已判明/未判明/未检查/非Proxy分片）+ setup 导出；即时统计表该列包 `el-tooltip` |
+| **DEFECT-04** | MINOR | **认可** | inspection.py H04 页脚硬编码 `V1.0.3` → `V{APP_VERSION}`（导入 backend.config.APP_VERSION） |
+| **DEFECT-05** | MINOR | **认可** | report_context.py 去除 connection_id 降级文案的内层 `_esc`（519/550），避免被外层 `_esc(name)` 二次转义为 `&amp;lt;` 乱码 |
+| **DEFECT-06** | TRIVIAL | **认可** | H14 generate_report.sh 离线/未关联占位改用浅黄徽标（#fff3cd/#856404），与平台 UAT-M02 统一；绑定真名仍 strong |
+| **DEFECT-07** | MEDIUM | **认可** | migrator.py `_structure_state` 补 CREATE TABLE 缺失自愈：新增 `_CREATE_TABLE_RE` + `_table_exists`（查 information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE()），目标表丢失返回 missing 触发幂等重建，避免后续 ALTER 撞 1146 |
+
+## QC-1 验证证据
+- **新增回归锁 4 个**：`test_qc_defect01_summary_not_complete_when_incomplete_dbs` + 对照（无失败库时仍 COMPLETE）、`test_qc_defect05_connection_id_single_escape` + 多实例分支。
+- **变异自证**：去掉 DEFECT-01 的 `has_incomplete_dbs` 守卫 → `test_qc_defect01_summary_not_complete...` 变红（对照用例仍绿），恢复后转绿。
+- **全量回归 2006 passed + 30 skipped + 0 failed**（约 8 分 50 秒；较 UAT 第一轮 2002 多 4 个 = 本批新增 QC 锁）。
+- **静态校验**：全部后端模块导入 OK；APP_VERSION=1.6.3.4；_CREATE_TABLE_RE 匹配验证；H14 `bash -n` 语法 OK；app.js `node --check` 语法 OK。
+
+## QC-1 整改边界声明
+1. DEFECT-02/03/06 为前端/脚本显示层改动，pytest 不覆盖；已经 `node --check`（app.js）与 `bash -n`（H14）语法校验，浏览器真实渲染复验由 G/M 的 UAT 负责。
+2. DEFECT-07 的 CREATE TABLE 自愈为防御性增强（表被外部删除的罕见场景）；现有迁移均幂等（CREATE TABLE IF NOT EXISTS），重建安全。
+3. G 报告 §4.3 的 SIT/UAT 闭环表对 B-01/B-02/M-01/M-02/S2-* 的描述与实际整改内容有出入（如把 B-02 归为“二级分区状态聚合”），但那些项已在对应轮次真实闭环，本轮不重复处理；仅针对 G 新提的 DEFECT-01~07 整改。
+
+施工人：智能体 Q
+施工对象：v1.6.3.4 独立质检验收整改（DEFECT-01~07 全闭环）
+提交给：Mr.Linsang

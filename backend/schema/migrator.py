@@ -47,6 +47,12 @@ _ADD_COLUMN_RE = re.compile(
     re.IGNORECASE | re.DOTALL,
 )
 
+# QC-DEFECT-07：识别迁移脚本里的 CREATE TABLE，用于“整表丢失”自愈判定。
+_CREATE_TABLE_RE = re.compile(
+    r"^\s*CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?`?(\w+)`?",
+    re.IGNORECASE,
+)
+
 
 class SchemaMigrator:
     def ensure_migration_table(self, conn):
@@ -74,6 +80,15 @@ class SchemaMigrator:
         if isinstance(row, dict):
             return {k.lower(): v for k, v in row.items()}
         return {"column_type": row[0], "is_nullable": row[1], "column_default": row[2]}
+
+    @staticmethod
+    def _table_exists(cursor, table: str) -> bool:
+        """QC-DEFECT-07：查 information_schema.TABLES 判断表是否存在（当前库 DATABASE()）。"""
+        cursor.execute(
+            "SELECT 1 FROM information_schema.TABLES "
+            "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s LIMIT 1",
+            (table,))
+        return cursor.fetchone() is not None
 
     @staticmethod
     def _expected_column_spec(definition: str) -> dict:
@@ -211,14 +226,22 @@ class SchemaMigrator:
             raise MigrationError(f"迁移版本键写入失败 [{key}]: {e}") from e
 
     def _structure_state(self, cursor, key: str, statements: list) -> str:
-        """结构状态机（v1.6.2.2-UAT-O-26）：
+        """结构状态机（v1.6.2.2-UAT-O-26；QC-DEFECT-07 补 CREATE TABLE 自愈）：
 
         - 任一声明列缺失 → 'missing'（可进入幂等补齐）；
+        - 任一 CREATE TABLE 的目标表整表丢失 → 'missing'（触发幂等重建，避免后续
+          ALTER 迁移撞 Error 1146 不可自愈崩溃）；
         - 声明列存在但类型/可空/默认值不符 → 抛 MigrationError（mismatch，失败关闭）；
         - 全部声明列存在且结构相符 → 'valid'（允许跳过）。
         """
         missing = False
         for stmt in statements:
+            # QC-DEFECT-07：CREATE TABLE 迁移若目标表丢失，也判 missing 触发自愈重建
+            ct = _CREATE_TABLE_RE.match(stmt)
+            if ct:
+                if not self._table_exists(cursor, ct.group(1)):
+                    missing = True
+                continue
             m = _ADD_COLUMN_RE.match(stmt)
             if not m:
                 continue

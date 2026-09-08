@@ -9,6 +9,7 @@ from datetime import datetime
 
 from backend.models import InspectionResultInfo, ApiResponse, SchemaCheckRequest
 from backend.services.inspection_service import InspectionService
+from backend.config import APP_VERSION   # QC-DEFECT-04：报告页脚版本号动态化
 
 # V1.5.2：必须先于快照旁路存在——v1.3 在 sql_audit.py 栽过一次：
 # 快照失败时 logger 未定义抛 NameError，把已完成的审核结果整个吞掉返回 500。
@@ -463,7 +464,7 @@ footer{{text-align:center;color:#909399;font-size:12px;padding:20px 0;border-top
     <div class="card"><div class="num" style="color:#67c23a">{summary['checks_passed']}</div><div class="label">通过项</div></div>
   </div>
   {rows_html}
-  <footer>TDSQL数据库SQL审核工具 V1.0.3 &nbsp;|&nbsp; 报告生成时间：{now}</footer>
+  <footer>TDSQL数据库SQL审核工具 V{APP_VERSION} &nbsp;|&nbsp; 报告生成时间：{now}</footer>
 </div>
 </body>
 </html>"""

@@ -211,3 +211,32 @@ def test_uat_m02_legacy_missing_name_badged():
     out = render_report_context(ctx)
     assert "#fff3cd" in out
     assert "历史未记录名称" in out
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# QC-DEFECT-05：connection_id 降级渲染只转义一次（不得 &amp;lt; 二次转义乱码）
+# ════════════════════════════════════════════════════════════════════════════
+def test_qc_defect05_connection_id_single_escape():
+    """QC-DEFECT-05：connection_id 含特殊字符时只转义一次。
+    修复前内层 _esc(connection_id) + 外层 _esc(name) 会产出 &amp;lt; 乱码实体。"""
+    from backend.services.report_context import (
+        render_report_context, ReportContext, ConnectionContext)
+    ctx = ReportContext(connections=[ConnectionContext(
+        connection_id="TDSQL<TEST>&DEV", connection_name="",
+        name_source=rc.NAME_SOURCE_MISSING)])
+    html = render_report_context(ctx)
+    assert "&amp;lt;" not in html, "connection_id 被二次转义为 &amp;lt;"
+    assert "&amp;amp;" not in html, "& 被二次转义"
+    assert "&lt;" in html           # 单次转义仍须存在
+
+
+def test_qc_defect05_multi_instance_single_escape():
+    """QC-DEFECT-05：多实例分支的 connection_id 同样只转义一次。"""
+    from backend.services.report_context import (
+        render_report_context, ReportContext, ConnectionContext)
+    ctx = ReportContext(connections=[
+        ConnectionContext(connection_id="a<b", connection_name="", name_source=rc.NAME_SOURCE_MISSING),
+        ConnectionContext(connection_id="c>d", connection_name="库B", name_source=rc.NAME_SOURCE_SNAPSHOT),
+    ])
+    html = render_report_context(ctx)
+    assert "&amp;lt;" not in html, "多实例分支 connection_id 被二次转义"

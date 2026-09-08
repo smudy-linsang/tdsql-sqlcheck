@@ -849,7 +849,8 @@ def _collect_distributed(pool, dbs: list, baseline: dict, known: "_NameSpace",
     # 主表识别只消费剩余软预算（TOTAL_BUDGET_SECONDS=180 共享，不重置）。
     eligible_dbs = [d for d in dbs if d not in failed and d not in skipped]
     db_sp, sp_totals, sp_warnings = _identify_secondary_partition_mains(
-        cfg, eligible_dbs, db_proxy, db_logical_base, db_shard, deadline)
+        cfg, eligible_dbs, db_proxy, db_logical_base, db_shard, deadline,
+        has_incomplete_dbs=bool(failed or skipped))   # QC-DEFECT-01：失败/跳过库使实例汇总不得 COMPLETE
     warnings.extend(sp_warnings)
     # 回填每库 item 的 8 个新字段
     for item in items:
@@ -966,7 +967,7 @@ def _enumerate_directory_l(cfg, db: str, deadline: float,
 
 def _identify_secondary_partition_mains(
         cfg, eligible_dbs, db_proxy, db_logical_base, db_shard,
-        deadline):
+        deadline, has_incomplete_dbs: bool = False):
     """二级分区主表识别（v1.6.3.4 / D03，DETAIL §4.3—§4.4）。
 
     在原有基线与 Proxy 采集**完成后**执行；新增扫描不能抢先耗尽预算而把原来
@@ -1205,20 +1206,25 @@ def _identify_secondary_partition_mains(
 
     # check_state 汇总：全部目标库 COMPLETE 才能汇总 COMPLETE；存在已判明结果
     # 但有失败/跳过/缺库/未判明则 PARTIAL，否则 UNKNOWN。
+    # QC-DEFECT-01：eligible_dbs 已剔除 failed/skipped，故必须额外用 has_incomplete_dbs
+    # 判断——若存在失败/跳过库，即使 eligible 全 COMPLETE，实例汇总也绝不能是 COMPLETE
+    # （设计 §4.4：全部目标库均完成才 COMPLETE），否则顶部卡片 COMPLETE 与明细失败行自相矛盾。
     db_checks = [db_sp[db]["secondary_partition_check_state"] for db in eligible_dbs]
-    if db_checks and all(x == SP_STATE_COMPLETE for x in db_checks):
+    _all_check_complete = bool(db_checks) and all(x == SP_STATE_COMPLETE for x in db_checks)
+    if _all_check_complete and not has_incomplete_dbs:
         sp_totals["check_state"] = SP_STATE_COMPLETE
-    elif sum_checked > 0:
+    elif _all_check_complete or sum_checked > 0:
         sp_totals["check_state"] = SP_STATE_PARTIAL
     else:
         sp_totals["check_state"] = SP_STATE_UNKNOWN
 
     # inventory 汇总：全部目标库目录完整才 COMPLETE，部分目录可用或枚举截断为
-    # PARTIAL，全部不可用为 FAILED。
+    # PARTIAL，全部不可用为 FAILED。QC-DEFECT-01：同样受 has_incomplete_dbs 约束。
     db_invs = [inv_state[db] for db in eligible_dbs]
-    if db_invs and all(x == SP_STATE_COMPLETE for x in db_invs):
+    _all_inv_complete = bool(db_invs) and all(x == SP_STATE_COMPLETE for x in db_invs)
+    if _all_inv_complete and not has_incomplete_dbs:
         sp_totals["inventory_state"] = SP_STATE_COMPLETE
-    elif any(x in (SP_STATE_COMPLETE, SP_STATE_PARTIAL) for x in db_invs):
+    elif _all_inv_complete or any(x in (SP_STATE_COMPLETE, SP_STATE_PARTIAL) for x in db_invs):
         sp_totals["inventory_state"] = SP_STATE_PARTIAL
     else:
         sp_totals["inventory_state"] = SP_STATE_FAILED

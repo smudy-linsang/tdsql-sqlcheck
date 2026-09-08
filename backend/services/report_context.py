@@ -516,7 +516,9 @@ def render_report_context(
         if not name:
             # name_source=missing 时的降级文案
             if c.connection_id:
-                name = f"历史未记录名称（连接 ID：{_esc(c.connection_id)}）"
+                # QC-DEFECT-05：内层不再 _esc（下方 name_display=_esc(name) 统一转义一次），
+                # 避免 connection_id 含特殊字符时被二次转义为 &amp;lt; 乱码实体
+                name = f"历史未记录名称（连接 ID：{c.connection_id}）"
             elif scene:
                 # 无连接 ID 且无名称：优先用调用方 scene 场景提示（如“离线文件审核”/
                 # “主机磁盘测试”），比笼统的 origin 降级更准确（name 稍后统一 _esc）
@@ -547,7 +549,7 @@ def render_report_context(
                      '</tr></thead><tbody>')
         for c in conns:
             name = c.connection_name or (
-                f"历史未记录名称（连接 ID：{_esc(c.connection_id)}）"
+                f"历史未记录名称（连接 ID：{c.connection_id}）"
                 if c.connection_id else "未关联实例")
             c_role = _esc(role or "")
             parts.append('<tr>'

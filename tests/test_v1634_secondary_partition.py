@@ -63,7 +63,7 @@ def _ddl_plain(tname):
 # ────────────────────────────────────────────────────────────────────────────
 def _run_identify(monkeypatch, eligible_dbs, db_proxy, db_logical_base, db_shard,
                   dir_rows_by_db=None, dir_error_by_db=None, ddl_by_key=None,
-                  clock=None, ddl_query_log=None):
+                  clock=None, ddl_query_log=None, has_incomplete_dbs=False):
     """返回 (db_sp, sp_totals, sp_warnings)。
 
     dir_rows_by_db: {db: [表名 或 (表名, 类型)]}，默认空目录。
@@ -161,7 +161,8 @@ def _run_identify(monkeypatch, eligible_dbs, db_proxy, db_logical_base, db_shard
 
     deadline = clock() + svc.TOTAL_BUDGET_SECONDS
     return svc._identify_secondary_partition_mains(
-        cfg, eligible_dbs, db_proxy, db_logical_base, db_shard, deadline)
+        cfg, eligible_dbs, db_proxy, db_logical_base, db_shard, deadline,
+        has_incomplete_dbs=has_incomplete_dbs)
 
 
 def _warn_codes(sp_warnings):
@@ -459,3 +460,46 @@ def test_par_broadcast_not_counted_in_collection(monkeypatch):
     assert sp["checked"] == 1                 # 已判明（判负）
     assert sp["unknown"] == 0
     assert sp["outside_shard"] == 0
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# QC-DEFECT-01：存在失败/跳过库时，实例汇总状态绝不能误判 COMPLETE
+# ════════════════════════════════════════════════════════════════════════════
+def test_qc_defect01_summary_not_complete_when_incomplete_dbs(monkeypatch):
+    """QC-DEFECT-01：eligible 库全 COMPLETE，但存在失败/跳过库时，实例汇总必须
+    降级为 PARTIAL，绝不能 COMPLETE（设计 §4.4：全部目标库均完成才 COMPLETE）。
+    否则顶部卡片 COMPLETE 与明细失败行自相矛盾，掩盖分区遗漏风险。"""
+    db = "db1"
+    db_sp, sp, warns = _run_identify(
+        monkeypatch,
+        eligible_dbs=[db],
+        db_proxy={db: {"t_mod"}},
+        db_logical_base={db: set()},
+        db_shard={db: set()},
+        dir_rows_by_db={db: ["t_mod"]},
+        ddl_by_key={(db, "t_mod"): _ddl_modern("t_mod")},
+        has_incomplete_dbs=True,            # 模拟另有 1 个库 failed/skipped
+    )
+    # eligible 库本身判明为主表（main=1），但因存在失败/跳过库，实例汇总降级
+    assert sp["main"] == 1
+    assert sp["check_state"] == svc.SP_STATE_PARTIAL
+    assert sp["check_state"] != svc.SP_STATE_COMPLETE
+    assert sp["inventory_state"] == svc.SP_STATE_PARTIAL
+    assert sp["inventory_state"] != svc.SP_STATE_COMPLETE
+
+
+def test_qc_defect01_summary_complete_when_no_incomplete_dbs(monkeypatch):
+    """QC-DEFECT-01 对照：无失败/跳过库时，eligible 全 COMPLETE → 实例汇总 COMPLETE（不误降级）。"""
+    db = "db1"
+    db_sp, sp, warns = _run_identify(
+        monkeypatch,
+        eligible_dbs=[db],
+        db_proxy={db: {"t_mod"}},
+        db_logical_base={db: set()},
+        db_shard={db: set()},
+        dir_rows_by_db={db: ["t_mod"]},
+        ddl_by_key={(db, "t_mod"): _ddl_modern("t_mod")},
+        has_incomplete_dbs=False,
+    )
+    assert sp["check_state"] == svc.SP_STATE_COMPLETE
+    assert sp["inventory_state"] == svc.SP_STATE_COMPLETE
