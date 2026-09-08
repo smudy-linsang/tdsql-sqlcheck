@@ -10,6 +10,8 @@
 | 未执行 | 未连接内网目标库，未运行真实 6000+ 表全链路，未调整规则、进程、数据库、部署配置或业务代码 |
 | 报告性质 | 故障诊断与整改建议；不是修复完成证明、UAT 通过结论或生产变更指令 |
 
+**2026-09-08 补证更新：** Mr.Linsang 提供的 `wde.txt` 已核对。当前内网 checker 文件哈希与本报告基线一致，实际 Uvicorn 为 0.52.1，主机采用 cgroup v1。§13 给出新增事实、归因优先级调整及适配 v1 的只读检查；§1—12 保留首轮结论形成时的证据边界，涉及“内网版本/控制器待确认”的事项以 §13 为准。
+
 ## 1. 先给结论
 
 **已确认的产品缺陷是：v1.6.3.2 为 R035 新增的批内上下文构造，会为每条语句保留一份此前全部字段索引的快照，产生平方级引用复制；同时，全部语句的解析结果及 AST 被保留到审核结束。v1.6.3.4 仍保留这一实现。** 这足以解释版本升级后大批量审核资源需求显著升高，是本次应优先整改的代码问题。
@@ -397,3 +399,126 @@ v2 `memory.events` 的 oom_kill 是计数，需比较同次复测前后变化并
 - 把截图、连接 ID/库名、请求时间、worker PID 和业务阶段关联成同一次事件，消除 15063/15064 两种样本混用。
 
 以上整改均为建议；**本轮仅产出本报告及实验复现附件，未修改业务代码、配置或数据库。**
+
+## 13. 补证更新：wde.txt 内网检查结果
+
+### 13.1 新证据已确认什么
+
+附件：`C:\Users\linsa\OneDrive\Desktop\wde.txt`，检查时刻为 `2026-09-08T23:30:13+08:00`；这是故障约五小时后的基础检查及历史日志回查，不是一次新的失败复测。
+
+```text
+wde.txt SHA-256:
+6B52E1A7BD46D45661777855FAA03848DA6F74DDD63144E9B00207FA97A4C31D
+
+内网与本机当前 backend/engine/checker.py SHA-256 均为:
+864FB18D0004703A3B729CA6837391348C2BD5AA08113651E8FB471966B729EE
+```
+
+| 新证据 | 可以确认 | 仍需保留的边界 |
+|---|---|---|
+| 第 44—49 行：current 指向 v1.6.3.4，VERSION 一致，checker 哈希一致 | 当前磁盘上的核心算法文件正是本报告分析的实现；不是仅凭页面版本号推断 | 单文件哈希不证明整包一致，也不是故障瞬间进程已加载代码的完整指纹 |
+| 第 63—67 行：Python 3.11.11、Uvicorn 0.52.1、sqlglot 30.14.0、PyMySQL 1.2.0、FastAPI 0.141.1 | 内网实际运行时版本已由服务 venv 读取；不可继续套用本机 Python 3.14.6 的绝对耗时 | 本机小样本实验仍只作结构性验证，不是内网容量数据 |
+| 第 68—103 行：实际安装包的方法源码 | 内网 supervisor 确有健康检查失败后 kill/join/restart 并打印 died 的路径 | 该代码分支存在，不证明本次已经进入；进程本来已死亡也会走存活检查失败分支 |
+| 第 105—112 行：MemTotal 约 61.6 GiB，MemAvailable 约 57.2 GiB；Swap 使用为 0 | 推翻“该主机只有 4/8 GB”的假设；检查时并无明显主机内存紧张 | 不是 18:10 故障瞬间可用量或峰值，不能据此彻底排除 OOM |
+| 第 6—13 行：MainPID 846885，NRestarts=0，MemoryCurrent=158613504，MemoryMax/High=infinity | 父进程持续存在；检查时服务内存约 151.3 MiB；没有显示有限的这两个 systemd 配置值 | cgroup v1 下还须读实际 memory 控制器及上级限制；未返回的 EffectiveMemoryMax 不作无限解释；主进程状态不代表旧 worker |
+| 第 161—175 行：独立 memory 控制器挂在 /sys/fs/cgroup/memory | **确认 cgroup v1**，而非 v2 | service 在 memory 控制器中的准确相对路径还须从 /proc/MainPID/cgroup 读取 |
+| 第 176—178 行：8000 监听归属 Python 父进程及两个 worker | 与截图直达应用 8000 端口的判断一致，未见该端口由 Nginx 监听 | 不由此断言客户端至服务器之间不存在任何网络设备/透明代理 |
+| 第 203—204 行：18:10:09.552963 等待，18:10:09.625359 died | worker 850881 的替换事件与前份记录一致 | 两条日志的毫秒间隔不是信号发送者证据；不能用它认定 OOM 或 watchdog |
+| 第 233—239 行：故障时间窗内 kernel 为 No entries，No coredumps found | 没有检索到该窗 OOM/崩溃内核日志或登记的 core | 缺少 core 可能与收集配置有关；“无记录”不是“所有崩溃机制已排除” |
+| 第 245—270 行：v2 采样条件不满足后停止 | 原 §10.3 脚本**没有开始采样**，并未取得内存曲线 | 不是内存一直为零，也不是 Mr.Linsang 操作错误；应按下节使用 v1 文件 |
+
+粘贴记录含少量命令回显交错，但版本行、后续独立执行的日志命令及结果可以辨认；未执行部分不作为成功采证。
+
+### 13.2 更新后的归因与下一步优先级
+
+**代码容量缺陷的结论不变，部署文件的一致性证据更强；对于本次 worker 为什么退出，优先核查 Uvicorn 健康检查未响应后的主动 kill。** 当前没有直接 OOM 证据，主机也不是此前假设的小内存机器。这个优先级调整不等于已经排除 OOM 或确认 GC 超过 5 秒。
+
+新核对了 Uvicorn 0.52.1 的完整源码：pong 仍由独立后台线程执行；`ping()` 通过 `_healthcheck()` 判定，后者不只在等待超时后返回失败，也会处理管道的部分异常。单纯“async 路由被同步工作占用”不能直接证明 pong 线程失去响应。后续应区分长停顿、管道异常、原有进程死亡及外部信号。[Uvicorn 0.52.1 官方源码](https://raw.githubusercontent.com/encode/uvicorn/0.52.1/uvicorn/supervisors/multiprocess.py)
+
+默认健康检查窗口为 5 秒；服务启动命令没有显式覆盖。但 0.52.1 的 CLI 支持 `UVICORN_` 环境变量前缀，service 又加载 `.env`，故**只凭方法签名默认值，尚不能把故障时生效值锁定为 5 秒**。下面仅白名单读取父进程对应的单个变量，避免泄漏整份环境或凭据。
+
+§6.2 的“大批量对象导致 GC/GIL/调度压力，使 pong 未及时响应”仍是待验证机制。不要把本轮结论改写为“已确认 GC 导致 watchdog 杀进程”。约 250 秒也仍不是已发现的本接口超时常量。
+
+### 13.3 先做这一组 v1 只读检查，不必立即重跑大库
+
+由于主 service 未重启，v1 的 `memory.max_usage_in_bytes` 可能还保留故障期间的服务组高水位。它是**该 cgroup 自创建或上次计数重置以来**的高水位，可能包含别的任务，不能直接称为这次请求的 RSS 峰值；仍比故障后的单点内存有价值。不要为了读取它重启服务或清零计数。
+
+以下命令根据本次已确认的 `/sys/fs/cgroup/memory` 挂载点编写，从 MainPID 实际 memory 控制器路径出发，读取自身和祖先组。只读、不改配置、不发 SQL 请求、不安装工具；O 尚未在内网执行。复制代码块内部即可，不要复制 Markdown 围栏。
+
+```bash
+bash <<'SH'
+diag_main=$(systemctl show tdsql-sqlcheck.service -p MainPID --value)
+case "$diag_main" in
+  ''|0|*[!0-9]*) echo '停止：未找到运行中的 MainPID'; exit 1 ;;
+esac
+if [ ! -r "/proc/$diag_main/cgroup" ]; then
+  echo '停止：MainPID 已退出或不可读取'; exit 1
+fi
+date --iso-8601=seconds
+cat "/proc/$diag_main/cgroup"
+diag_rel=$(awk -F: '$2 ~ /(^|,)memory(,|$)/ {print $3; exit}' "/proc/$diag_main/cgroup")
+case "$diag_rel" in
+  /*) ;;
+  *) echo '停止：未找到 v1 memory 控制器路径'; exit 1 ;;
+esac
+diag_mount=/sys/fs/cgroup/memory
+diag_service="${diag_mount}${diag_rel}"
+diag_service=${diag_service%/}
+if [ ! -r "$diag_service/memory.usage_in_bytes" ]; then
+  echo '停止：memory 路径与已知挂载不匹配，请保留上面 cgroup 输出'; exit 1
+fi
+diag_dir="$diag_service"
+while :; do
+  printf '\nCGROUP %s\n' "$diag_dir"
+  for diag_file in memory.usage_in_bytes memory.max_usage_in_bytes \
+      memory.limit_in_bytes memory.failcnt memory.oom_control \
+      memory.memsw.usage_in_bytes memory.memsw.max_usage_in_bytes \
+      memory.memsw.limit_in_bytes memory.memsw.failcnt memory.use_hierarchy; do
+    if [ -r "$diag_dir/$diag_file" ]; then
+      printf '%s\n' "$diag_file"
+      cat "$diag_dir/$diag_file"
+    fi
+  done
+  if [ -r "$diag_dir/memory.stat" ]; then
+    awk '/^hierarchical_memory_limit / || /^hierarchical_memsw_limit /' "$diag_dir/memory.stat"
+  fi
+  [ "$diag_dir" = "$diag_mount" ] && break
+  diag_dir=${diag_dir%/*}
+  case "$diag_dir" in
+    "$diag_mount"|"$diag_mount"/*) ;;
+    *) echo '停止：已到挂载边界'; break ;;
+  esac
+done
+printf '\nCURRENT_SERVICE_PROCESSES\n'
+if [ -r "$diag_service/cgroup.procs" ]; then
+  for diag_pid in $(cat "$diag_service/cgroup.procs"); do
+    ps -p "$diag_pid" -o pid,ppid,rss,pcpu,etime,comm
+  done
+fi
+/opt/tdsql-sqlcheck/current/venv/bin/python -B - "$diag_main" <<'PY'
+import pathlib, sys
+pid = sys.argv[1]
+key = b'UVICORN_TIMEOUT_WORKER_HEALTHCHECK'
+found = []
+try:
+    for item in pathlib.Path('/proc', pid, 'environ').read_bytes().split(b'\0'):
+        name, sep, value = item.partition(b'=')
+        if sep and name == key:
+            found.append(value.decode('utf-8', 'replace'))
+    print(key.decode(), '=', repr(found) if found else '<not set in parent process>')
+except OSError as error:
+    print('HEALTHCHECK_ENV_READ_FAILED', type(error).__name__)
+PY
+SH
+```
+
+字段不存在或不可读应记“未取得”，不要补零。`memory.failcnt` 表示限制命中计数，不等价于杀进程次数；`memory.oom_control` 是否有 oom_kill 字段依内核实现而定；根组/祖先组也不能代替服务组。本机只核对了命令逻辑，未伪造其内网输出。上述文件的基本定义可参考 [Linux v1 memory 控制器文档](https://docs.kernel.org/admin-guide/cgroup-v1/memory.html)；该文档自述部分内容较旧，最终以本机内核实际暴露的文件和行为为准。
+
+### 13.4 收到 v1 输出后如何判定
+
+- **若高水位远低于所有有效限制、相关失败/杀进程记录也无支持**：进一步下调内存耗尽杀进程假设，重点取得父进程发信号证据及故障阶段栈/停顿；仍不把历史计数自动等同于单次请求测量。
+- **若服务或祖先存在有限配额，且计数/日志与故障关联**：重新评估 memcg OOM；即使主机有几十 GiB 空闲，小 cgroup 也可能先耗尽。
+- **若计数已重置、记录无法关联或高水位可能来自其他任务**：再安排一次批准的测试环境复测，按实际 v1 service cgroup 逐秒重新枚举 worker PID 采 RSS/组内存，并配合阶段日志及限定 PID 的信号跟踪。
+- **若确认是父进程 kill**：还须区分健康探测超时、管道异常与其他管理动作；要确认 GC，则另需 GC 停顿/线程栈证据。不要仅靠增大健康检查窗口测试一次成功，就关闭算法容量缺陷。
+
+本轮补证没有增加代码改动。G/Q/A 可以依据哈希一致性继续评审保真增量索引整改；故障死亡机制则按上述证据逐步收口，不应继续沿用“已确认 OOM”或“必然 250 秒”的表述。
