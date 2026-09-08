@@ -26,6 +26,9 @@ cp -a "$ROOT_DIR/deploy" "$STAGE_DIR/"
 mkdir -p "$STAGE_DIR/docs"
 cp "$ROOT_DIR/docs/DEPLOY-v${VERSION}-内网生产环境增量更新部署手册.md" "$STAGE_DIR/docs/" 2>/dev/null || true
 cp "$ROOT_DIR/docs/DEPLOY-v${VERSION}-内网测试环境增量更新部署手册.md" "$STAGE_DIR/docs/" 2>/dev/null || true
+cp "$ROOT_DIR/docs/CONFIRM-v${VERSION}-内网测试环境验证确认报告.md" "$STAGE_DIR/docs/" 2>/dev/null || true
+cp "$ROOT_DIR/docs/REPORT-v${VERSION}-第二轮独立质检验收报告.md" "$STAGE_DIR/docs/" 2>/dev/null || true
+cp "$ROOT_DIR/docs/REPORT-v${VERSION}-独立质检验收报告.md" "$STAGE_DIR/docs/" 2>/dev/null || true
 cp "$ROOT_DIR/docs/PRODUCTION-DEPLOY-ISSUES-v1.6.3.0.md" "$STAGE_DIR/docs/" 2>/dev/null || true
 cp "$ROOT_DIR/docs/GATE-DECISION-v${VERSION}-生产发布门禁签署决议与整改任务书.md" "$STAGE_DIR/docs/" 2>/dev/null || true
 cp "$ROOT_DIR/docs/GATE-v${VERSION}-生产发布三项书面门禁发起.md" "$STAGE_DIR/docs/" 2>/dev/null || true

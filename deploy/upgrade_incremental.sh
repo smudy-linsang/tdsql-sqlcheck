@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # ============================================================================
-# TDSQL-SQLCheck v1.6.3.2 增量更新部署脚本
+# TDSQL-SQLCheck v1.6.3.4 增量更新部署脚本
 # 适用目标: 内网测试环境 (10.243.16.252) / 生产环境 (10.243.16.238)
-# 基线版本: v1.6.3.0 ➔ 目标版本: v1.6.3.2
+# 基线版本: v1.6.3.2 ➔ 目标版本: v1.6.3.4
 #
 # 特点与安全防呆:
-#   1. 零依赖安装风险: 复用 v1.6.3.0 既有健全的 venv，避开麒麟系统 Python encodings 损坏问题；
-#   2. 规范 Releases 隔离: 创建 releases/v1.6.3.2 目录，支持软链接原子切换与秒级回滚；
-#   3. 密钥绝对延续: 自动从 v1.6.3.0 继承 data/encryption.key 与现网 .env，连接零中断；
+#   1. 零依赖安装风险: 复用 v1.6.3.2 既有健全的 venv，避开麒麟系统 Python encodings 损坏问题；
+#   2. 规范 Releases 隔离: 创建 releases/v1.6.3.4 目录，支持软链接原子切换与秒级回滚；
+#   3. 密钥绝对延续: 自动从 v1.6.3.2 继承 data/encryption.key 与现网 .env，连接零中断；
 #   4. 完整保留 deploy/: 将运维与验证脚本一同部署到 release 目录；
 #   5. 自动化在轨验证: 升级完成后自动调用 verify_deploy.sh 执行 12 项合规检验。
 # ============================================================================
@@ -23,7 +23,7 @@ log()  { echo -e "\033[32m[UPGRADE]\033[0m $*"; }
 warn() { echo -e "\033[33m[WARN]\033[0m $*"; }
 fail() { echo -e "\033[31m[FAILED]\033[0m $*"; exit 1; }
 
-VERSION="$(tr -d ' \r\n' < "${PKG_ROOT}/VERSION" 2>/dev/null || echo "1.6.3.2")"
+VERSION="$(tr -d ' \r\n' < "${PKG_ROOT}/VERSION" 2>/dev/null || echo "1.6.3.4")"
 log "════════ TDSQL-SQLCheck v${VERSION} 增量升级 ════════"
 log "目标安装根目录: ${INSTALL_DIR}"
 log "发布介质根目录: ${PKG_ROOT}"
