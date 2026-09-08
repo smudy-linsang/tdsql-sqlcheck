@@ -240,6 +240,22 @@ class GatewayLogService:
                "-o", str(report_path),
                "--log-types", log_type,
                "-f", "html"]
+        # v1.6.3.4 / UAT-M01：把冻结的实例来源经 --context-file 传给分析器，让它在
+        # **生成时**嵌入真实连接名（设计 §3.4 H08“新报告生成时嵌入冻结名称”），而不是
+        # 落一个“未关联实例（网关日志分析）”占位再靠服务时 inject 替换。report_context
+        # 为 None 时不传（分析器落未关联占位，服务时由 get_report_html 去重/降级处理）。
+        if report_context is not None:
+            try:
+                _ctx_json = (report_context.to_json()
+                             if hasattr(report_context, "to_json")
+                             else (report_context if isinstance(report_context, str) else None))
+                if _ctx_json:
+                    _ctx_path = work_dir / f"report_context_{os.getpid()}.json"
+                    _ctx_path.write_text(_ctx_json, encoding="utf-8")
+                    cmd += ["--context-file", str(_ctx_path)]
+            except Exception:                                # noqa: BLE001
+                logger.warning("写 report_context 上下文文件失败，分析器将落未关联占位",
+                               exc_info=True)
         env = dict(os.environ)
         _repo_root = str(Path(__file__).resolve().parents[2])
         env["PYTHONPATH"] = _repo_root + os.pathsep + env.get("PYTHONPATH", "")

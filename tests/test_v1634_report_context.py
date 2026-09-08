@@ -146,3 +146,68 @@ def test_rep15_inject_block_is_static_escaped():
     out = inject_context_into_html("<html><body><p>正文</p></body></html>", blk)
     assert out.count('class="report-context"') == 1
     assert "<p>正文</p>" in out
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# UAT 第一轮 TKT-M01：H08 报告头部“双块”去重（服务时注入遇已有块应替换，不叠加）
+# ════════════════════════════════════════════════════════════════════════════
+def test_uat_m01_h08_header_no_duplicate():
+    """TKT-M01：inject_context_into_html 遇已有 report-context 块应**替换**为冻结名，
+    不再并存两块（“实例连接名称”唯一权威展示位）。UAT-M01 曾实测新报告头部双块。"""
+    from backend.services.report_context import (
+        inject_context_into_html, render_report_context, ReportContext,
+        ConnectionContext)
+    # 模拟分析器生成时已嵌入“未关联实例”占位的 report_html
+    analyzer_html = (
+        '<html><body>'
+        '<div class="report-context" data-report-context-version="1" '
+        'style="margin:8px;">实例连接名称：<strong>未关联实例（网关日志分析）</strong></div>'
+        '<h1>报告</h1><p>正文</p></body></html>')
+    frozen = render_report_context(ReportContext(connections=[ConnectionContext(
+        connection_id="c1", connection_name="SIT-分布式实例A",
+        name_source=rc.NAME_SOURCE_SNAPSHOT, db_name="tdsql_check")]))
+    out = inject_context_into_html(analyzer_html, frozen)
+    assert out.count('实例连接名称') == 1, "应只剩一个来源块"
+    assert "SIT-分布式实例A" in out
+    assert "未关联实例（网关日志分析）" not in out, "占位块应被替换掉"
+    assert "<h1>报告</h1>" in out and "<p>正文</p>" in out   # 正文保留
+
+
+def test_uat_m01_inject_when_no_existing_block():
+    """TKT-M01 对照：报告无既有来源块时（旧 report_html），仍在 <body> 后注入一次。"""
+    from backend.services.report_context import inject_context_into_html
+    blk = rc.render_report_context(rc.ReportContext(connections=[rc.ConnectionContext(
+        connection_id="c1", connection_name="实例A",
+        name_source=rc.NAME_SOURCE_SNAPSHOT)]))
+    out = inject_context_into_html("<html><body><h1>旧报告</h1></body></html>", blk)
+    assert out.count('实例连接名称') == 1
+    assert "实例A" in out
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# UAT 第一轮 TKT-M02：离线/降级占位名带徽标，已绑定真名保持 strong
+# ════════════════════════════════════════════════════════════════════════════
+def test_uat_m02_offline_badge_render():
+    from backend.services.report_context import (
+        render_report_context, ReportContext, ConnectionContext)
+    # 离线（未绑定）→ 占位名带徽标内联样式
+    off = render_report_context(ReportContext(origin="offline", connections=[]),
+                                scene="离线文件审核")
+    assert "#fff3cd" in off, "离线占位应带浅黄徽标内联样式"
+    assert "未关联实例（离线文件审核）" in off
+    # 已绑定真名 → 保持 <strong>，不加徽标
+    on = render_report_context(ReportContext(origin="bound", connections=[ConnectionContext(
+        connection_id="c1", connection_name="SIT-分布式实例A",
+        name_source=rc.NAME_SOURCE_SNAPSHOT)]))
+    assert "#fff3cd" not in on, "已绑定真名不应加徽标"
+    assert "<strong>SIT-分布式实例A</strong>" in on
+
+
+def test_uat_m02_legacy_missing_name_badged():
+    """TKT-M02：历史未记录名称（连接已删）的降级占位也应带徽标。"""
+    from backend.services.report_context import render_report_context, ReportContext, ConnectionContext
+    ctx = ReportContext(connections=[ConnectionContext(
+        connection_id="c1", connection_name="", name_source=rc.NAME_SOURCE_MISSING)])
+    out = render_report_context(ctx)
+    assert "#fff3cd" in out
+    assert "历史未记录名称" in out

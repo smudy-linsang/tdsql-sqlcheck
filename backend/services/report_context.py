@@ -461,6 +461,17 @@ _OFFLINE_HINTS = {
 }
 
 
+def _badge_offline(escaped_text: str) -> str:
+    """对“未关联实例/历史未记录名称”等占位名加浅黄徽标（v1.6.3.4 / TKT-M02）。
+
+    用**内联样式**而非新增 CSS 类：导出的独立 HTML 报告不加载 app.css，内联样式
+    保证离线/降级徽标在脱离平台单独打开时也生效；display-only，不破坏结构与
+    CSP/nonce 安全链。已关联的真实名称仍用 <strong>（不走本函数）。
+    """
+    return ('<span style="background:#fff3cd;color:#856404;padding:1px 6px;'
+            'border-radius:3px;font-weight:600;">' + escaped_text + '</span>')
+
+
 def render_report_context(
     context: Optional[ReportContext],
     role: Optional[str] = None,
@@ -488,11 +499,11 @@ def render_report_context(
         parts.append(f'<span style="font-weight:600;color:#0d6efd;">{_esc(role)}</span> ')
 
     if context is None or context.is_empty():
-        # 未关联实例
+        # 未关联实例（TKT-M02：加浅黄徽标，便于一眼区分未绑定/降级报告）
         hint = _OFFLINE_HINTS.get(scene, _OFFLINE_HINTS.get("", "未关联实例"))
         if scene and scene not in _OFFLINE_HINTS:
             hint = f"未关联实例（{_esc(scene)}）"
-        parts.append(f'<span>实例连接名称：<strong>{hint}</strong></span>')
+        parts.append(f'<span>实例连接名称：{_badge_offline(hint)}</span>')
         parts.append('</div>')
         return "".join(parts)
 
@@ -501,6 +512,7 @@ def render_report_context(
         # 单实例：直接显示名称
         c = conns[0]
         name = c.connection_name
+        is_placeholder = not name          # 未冻结到名称 → 占位（未关联/历史未记录）
         if not name:
             # name_source=missing 时的降级文案
             if c.connection_id:
@@ -512,13 +524,15 @@ def render_report_context(
             else:
                 name = _OFFLINE_HINTS.get(context.origin, "未关联实例")
         name_display = _esc(name)
+        # TKT-M02：占位名（未关联/历史未记录）加浅黄徽标，真实绑定名称保持 <strong>
+        name_html = _badge_offline(name_display) if is_placeholder else f"<strong>{name_display}</strong>"
         # current_lookup 需标注"非扫描时快照"
         suffix = ""
         if c.name_source == NAME_SOURCE_CURRENT_LOOKUP:
             suffix = ' <span style="color:#6c757d;">（扫描时名称未记录；当前连接名称，非扫描时快照）</span>'
         elif c.name_source == NAME_SOURCE_MISSING and c.connection_id:
             suffix = ' <span style="color:#6c757d;">（历史未记录名称）</span>'
-        parts.append(f'<span>实例连接名称：<strong>{name_display}</strong>{suffix}</span>')
+        parts.append(f'<span>实例连接名称：{name_html}{suffix}</span>')
         if c.db_name:
             parts.append(f' <span style="color:#6c757d;">库：{_esc(c.db_name)}</span>')
     else:
@@ -620,20 +634,34 @@ import re as _re
 # <body ...> 开始标签（H08 注入锚点，§3.4）
 _BODY_OPEN_RE = _re.compile(r"<body\b[^>]*>", _re.IGNORECASE)
 
+# 已有“实例连接名称”来源块（UAT-M01：去重锚点）。网关来源块为单实例、内容无嵌套
+# <div>（render_report_context 单实例分支 / 分析器 _inject_conn_name_block 均是单层），
+# 故 .*?</div> 非贪婪能准确匹配整块。
+_CONTEXT_BLOCK_RE = _re.compile(
+    r'<div\s+class="report-context"[^>]*>.*?</div>', _re.IGNORECASE | _re.DOTALL)
+
 
 def inject_context_into_html(html: str, context_html: str) -> str:
     """把来源块注入**已生成**的报告 HTML（v1.6.3.4 / D02 H08，§3.4）。
 
     网关报告的 report_html 由分析器生成后存库，服务时补来源块：
-      · 在 <body...> 开始处补块一次（锚点明确，不全局 replace 任意文本）；
+      · **UAT-M01 去重**：若报告已含 `report-context` 来源块（分析器生成时嵌入的
+        占位/冻结名），用本次平台冻结上下文**替换**它，保证“实例连接名称”是唯一
+        权威展示位，不再头部并存两块；
+      · 无既有来源块（旧 report_html）→ 在 <body...> 开始处补块一次（锚点明确，
+        不全局 replace 任意文本）；
       · 无 body 的历史片段用安全外层文档容纳；
-      · 注入的是已转义静态 HTML（无 <script>/on* 属性），不影响既有
+      · 注入/替换的是已转义静态 HTML（无 <script>/on* 属性），不影响既有
         _strip_inline_handlers 与 nonce/CSP/iframe 安全链。
     """
     if not context_html:
         return html or ""
     if not html:
         return context_html
+    # 已存在来源块 → 替换（UAT-M01：去重，冻结上下文为唯一权威）
+    if _CONTEXT_BLOCK_RE.search(html):
+        return _CONTEXT_BLOCK_RE.sub(lambda _m: context_html, html, count=1)
+    # 无既有来源块 → 在 <body> 后注入一次
     m = _BODY_OPEN_RE.search(html)
     if m:
         idx = m.end()

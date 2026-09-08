@@ -719,3 +719,53 @@ m_upd = re.search(r"\bupdate\b(.*?)\bset\b", clean_sql_no_comm, re.DOTALL)
 施工人：智能体 Q
 施工对象：v1.6.3.4 SIT 第二轮整改（S2-01/S2-02/S2-03 全闭环）
 提交给：Mr.Linsang
+
+---
+---
+
+# UAT 第一轮整改记录（智能体 M 的 UAT 报告 @f4c00a9 + 整改工单 WORKTICKET）
+
+| 项 | 内容 |
+|---|---|
+| 被测版本 | v1.6.3.4 `main@607b61a`（SIT 第二轮整改后） |
+| UAT 依据 | `docs/UAT-v1.6.3.4-用户验收测试报告-智能体M.md`（结论：通过-有条件）+ `docs/WORKTICKET-v1.6.3.4-报告头部去重与离线徽标-智能体M.md`（3 项 M 级） |
+| 整改方 | 智能体 Q |
+| 整改日期 | 2026-09-08 |
+
+## UAT-1 问题确认与整改结论
+
+| 编号 | 级别 | Q 确认 | 整改 |
+|---|---|---|---|
+| **UAT-M01** H08 报告头部“双块” | MINOR | **认可**（真实缺陷，且是我第五批引入） | 见下 |
+| **UAT-M02** 离线报告无徽标 | MINOR | **认可**（合理 UX 改进，低风险） | 见下 |
+| **UAT-M03** 登录页自动化 | MINOR | **部分认可** | 前端 autocomplete/data-testid 认可并修；UAT 工具 ref 失效属工具约束，非产品缺陷（见下说明） |
+
+## UAT-1 关键实现
+
+### UAT-M01（H08 双块去重）
+- **根因**：是我第五批两处注入叠加——analyzer 经 `_inject_conn_name_block` 在生成时嵌入默认“未关联实例（网关日志分析）”（平台调用未传 --context-file，走独立 CLI 默认），平台 `get_report_html` 又经 `inject_context_into_html` 注入冻结名 → 头部两块并存。工单 M1.4.1 说的“静态模板占位 div”不准确（实际是动态注入）。
+- **修复（两处）**：
+  1. `report_context.inject_context_into_html`：命中已有 `report-context` 来源块时**替换**为平台冻结上下文（唯一权威展示位），不再叠加第二块；无既有块（旧 report_html）仍在 `<body>` 后注入一次。
+  2. `gateway_log_service.analyze_log`：把冻结的 `report_context` 写入受控临时目录并经 `--context-file` 传给分析器，让分析器在**生成时**就嵌入真实冻结名（设计 §3.4 H08“新报告生成时嵌入冻结名称”），从源头避免占位。report_context 为 None 时不传（服务时 inject 降级处理）。
+
+### UAT-M02（离线/降级占位名加徽标）
+- `report_context.render_report_context`：未冻结到名称的占位（未关联/历史未记录）用 `_badge_offline` 加浅黄**内联样式**徽标；已绑定真名保持 `<strong>` 不变。
+- **与工单的两点偏离（更优，已记录）**：① 用内联样式而非新增 CSS 类——导出的独立 HTML 报告不加载 app.css，内联保证徽标在脱离平台单独打开时也生效；② 不加 badge 参数、不改 14 个调用点——占位徽标是普遍期望的 UX，直接在 render_report_context 默认生效，14 个 Web 入口 + H04 全部自动受益，零调用点改动。
+
+### UAT-M03（登录页 automation-friendly，部分认可）
+- **认可并修**：`frontend/index.html` 登录表单加 `id="login-form"`、`autocomplete="username"/"current-password"`、`data-testid="login-username/login-password/login-submit"`（标准 autocomplete 属性 + 稳定 selector，同时利好无障碍与自动化工具）。
+- **说明（不完全认可的部分）**：M 遇到的“ref inspect 后失效/headless fetch 时序”是 **UAT 自动化工具链自身的约束**，不是产品缺陷——生产用户路径（人类键入）完全正常。我加的稳定 selector 能帮标准工具（Playwright/Selenium 按 data-testid/autocomplete 定位），但无法根治 M 那个特定 agent 的 ref 失效问题（那是工具行为）。
+
+## UAT-1 验证证据
+- **新增回归锁 4 个**（tests/test_v1634_report_context.py）：`test_uat_m01_h08_header_no_duplicate`（替换不叠加+冻结名覆盖占位+正文保留）、`test_uat_m01_inject_when_no_existing_block`（无块仍注入）、`test_uat_m02_offline_badge_render`（离线徽标+真名strong）、`test_uat_m02_legacy_missing_name_badged`（历史未记录徽标）。
+- **变异自证会红**：禁用 inject 的替换分支 → M01 用例红（count==2）；去掉徽标 → M02 用例红；恢复后均转绿。
+- **全量回归 2002 passed + 30 skipped + 0 failed**（约 8 分 41 秒；较 SIT 第二轮 1998 多 4 个 = 本批新增 UAT 锁）。
+
+## UAT-1 整改边界声明
+1. 本轮 M01/M02 动 `report_context.py` 与 `gateway_log_service.py`，M03 仅动前端 index.html；未改任何审核规则、解析路径、网关超时链或既有变异锁（规则总数仍 121 条）。
+2. H08 双块的端到端复验（上传真实日志→浏览器渲染头部单块）须由 M 用真实应用复跑确认；本轮我用 report_context 层单元测试 + 变异锁定该契约。
+3. UAT-M03 的 UAT 工具 ref 失效是工具链约束，本批只交付前端稳定 selector 这一可控增量；工具侧时序问题超出产品代码范围。
+
+施工人：智能体 Q
+施工对象：v1.6.3.4 UAT 第一轮整改（UAT-M01/M02/M03）
+提交给：Mr.Linsang
