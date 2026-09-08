@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TDSQL SQL审核报告 - file_upload</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:"Microsoft YaHei","Segoe UI",Arial,sans-serif; background:#f0f2f5; color:#303030; padding:20px; }
+.container { max-width:900px; margin:0 auto; background:#fff; border-radius:8px; box-shadow:0 2px 12px rgba(0,0,0,0.08); overflow:hidden; }
+.header { background:#1a1a2e; color:#fff; padding:24px 32px; }
+.header h1 { font-size:22px; margin-bottom:6px; }
+.header .sub { font-size:13px; color:#a0aec0; }
+.meta { display:flex; flex-wrap:wrap; gap:24px; padding:20px 32px; background:#f7f8fa; border-bottom:1px solid #ebeef5; }
+.meta-item { font-size:14px; }
+.meta-item .label { color:#909399; margin-right:6px; }
+.meta-item .value { font-weight:600; }
+.summary { display:flex; gap:16px; padding:24px 32px; flex-wrap:wrap; }
+.sc { flex:1; min-width:100px; text-align:center; padding:16px; border-radius:6px; }
+.sc.total { background:#e8f4fd; } .sc.pass { background:#e8f7e8; } .sc.fail { background:#fde8e8; }
+.sc.rate.pass { background:#e8f7e8; } .sc.rate.warn { background:#fdf6e8; } .sc.rate.fail { background:#fde8e8; }
+.sc .num { font-size:28px; font-weight:700; } .sc .lbl { font-size:12px; color:#606266; margin-top:4px; }
+.stitle { padding:16px 32px 8px; font-size:16px; font-weight:600; border-top:1px solid #ebeef5; }
+.sql-item { margin:0 32px 16px; padding:16px; border:1px solid #ebeef5; border-radius:6px; }
+.sql-item .sh { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+.sql-text { font-family:Consolas,Courier New,monospace; font-size:13px; background:#f5f7fa; padding:8px 12px; border-radius:4px; margin:8px 0; white-space:pre-wrap; word-break:break-all; }
+.badge { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600; }
+.badge.ERROR { background:#fde8e8; color:#f56c6c; } .badge.WARNING { background:#fdf6e8; color:#e6a23c; } .badge.INFO { background:#f4f4f5; color:#909399; } .badge.PASS { background:#e8f7e8; color:#67c23a; }
+.viol { margin:6px 0; padding:8px 12px; border-left:3px solid #909399; background:#f4f4f5; border-radius:0 4px 4px 0; font-size:13px; }
+.viol.error { border-left-color:#f56c6c; background:#fef0f0; }
+.viol.warn { border-left-color:#e6a23c; background:#fdf6ec; }
+.viol.info { border-left-color:#909399; background:#f4f4f5; }
+.viol .vr { font-weight:600; color:#303133; }
+.viol.error .vr { color:#f56c6c; }
+.viol.warn .vr { color:#e6a23c; }
+.viol.info .vr { color:#606266; }
+.viol .vm { color:#606266; margin:2px 0; } .viol .vs { color:#67c23a; font-size:12px; }
+.footer { padding:16px 32px; text-align:center; font-size:12px; color:#909399; border-top:1px solid #ebeef5; }
+.no-data { padding:32px; text-align:center; color:#909399; }
+</style></head><body>
+<div class="container">
+<div class="header"><h1>TDSQL SQL审核平台 - 文件审核报告</h1><div class="sub">TDSQL SQL Audit Platform / File Audit Report</div></div>
+<div class="meta">
+<div class="meta-item"><span class="label">审核人:</span><span class="value">admin</span></div>
+<div class="meta-item"><span class="label">文件名:</span><span class="value">file_upload</span></div>
+<div class="meta-item"><span class="label">规则架构:</span><span class="value" style="color:#2563eb">分布式规则</span></div>
+<div class="meta-item"><span class="label">审核时间:</span><span class="value">2026-09-08 11:11:43</span></div>
+<div class="meta-item"><span class="label">报告ID:</span><span class="value">#6627</span></div>
+</div>
+<div class="report-context" data-report-context-version="1" style="margin:8px 0;padding:8px 12px;background:#f8f9fa;border-left:3px solid #0d6efd;font-size:0.9em;"><span>实例连接名称：<span style="background:#fff3cd;color:#856404;padding:1px 6px;border-radius:3px;font-weight:600;">未关联实例（离线文件审核）</span></span></div>
+<div class="summary">
+<div class="sc total"><div class="num">1</div><div class="lbl">SQL总数</div></div>
+<div class="sc pass"><div class="num">0</div><div class="lbl">通过</div></div>
+<div class="sc fail"><div class="num">1</div><div class="lbl">未通过</div></div>
+<div class="sc rate fail"><div class="num">0.0%</div><div class="lbl">通过率</div></div>
+<div class="sc total"><div class="num" style="color:#f56c6c">2</div><div class="lbl">ERROR</div></div>
+<div class="sc total"><div class="num" style="color:#e6a23c">1</div><div class="lbl">WARNING</div></div>
+</div>
+<div class="stitle">逐条审核结果（共 1 条）</div>
+<div class="sql-item"><div class="sh"><span><strong>#1</strong> CREATE TABLE | 行号: 1</span><span class="badge ERROR">5项违规</span></div><div class="sql-text">CREATE TABLE t_uat_m02 (
+  id BIGINT NOT NULL,
+  ts DATETIME ON UPDATE CURRENT_TIMESTAMP,
+  c VARCHAR(20) CHARACTER SET utf8mb4,
+  PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4</div>
+<div class="viol error"><div class="vr">[R028] ERROR</div><div class="vm">表 t_uat_m02 缺少表级别COMMENT</div><div class="vs">建议: 请添加 COMMENT '表用途说明' 到CREATE TABLE语句中</div></div>
+<div class="viol warn"><div class="vr">[R029] WARNING</div><div class="vm">字段 'id', 'ts', 'c' 缺少COMMENT注释</div><div class="vs">建议: 请为每个字段添加COMMENT，如: col_name INT COMMENT '字段说明'</div></div>
+<div class="viol info"><div class="vr">[R036] INFO</div><div class="vm">建议表包含 create_time 和 update_time 字段用于数据追踪</div><div class="vs">建议: 建议添加: create_time DATETIME DEFAULT CURRENT_TIMESTAMP, update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP</div></div>
+<div class="viol info"><div class="vr">[R037] INFO</div><div class="vm">建议添加逻辑删除字段(如 is_deleted)替代物理删除</div><div class="vs">建议: 建议添加: is_deleted TINYINT DEFAULT 0 COMMENT '逻辑删除标记'</div></div>
+<div class="viol error"><div class="vr">[R077] ERROR</div><div class="vm">建表语句未声明分片键(SHARDKEY)或广播表标记(BROADCAST)，TDSQL分布式实例上不允许创建单表（表 t_uat_m02）。分片表必须通过 SHARDKEY=列名 声明分片键，广播表必须通过 BROADCAST 声明</div><div class="vs">建议: 请按目标实例支持的形态声明分片键或广播表。示例:
+  CREATE TABLE t1 (...) ENGINE=InnoDB SHARDKEY=user_id
+  CREATE TABLE t1 (...) ENGINE=InnoDB TDSQL_DISTRIBUTED BY HASH(`user_id`)
+  CREATE TABLE t1 (...) ENGINE=InnoDB BROADCAST
+  CREATE TABLE t1 (...) ENGINE=InnoDB shardkey=noshardkey_allset
+分片表的分片键必须是主键(或主键的一部分)，且必须包含在每一个唯一索引中。</div></div>
+</div>
+<div class="footer">TDSQL SQL审核平台 V2.0 | 报告生成时间: 2026-09-08 11:11:43 | 报告ID: #6627</div></div></body></html>
