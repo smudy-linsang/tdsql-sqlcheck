@@ -34,13 +34,21 @@ def test_script_references_runner(script):
 
 @pytest.mark.parametrize("script", ["install.sh", "upgrade_incremental.sh", "apply_patch.sh"])
 def test_runner_starts_before_web(script):
-    """先 runner 后 Web：runner 的安装/启动段必须出现在 Web restart 之前。"""
+    """先 runner 后 Web（SIT-R3-01 强化）：比对**真正的启动动作**位置，而非 unit 安装段。
+
+    runner 启动动作 = `systemctl restart tdsql-metadata-runner` 或非 systemd 分支的
+    `backend.workers.metadata_runner`（nohup 拉起）；Web 启动 = `systemctl restart tdsql-sqlcheck`。
+    这样即使 runner 的 unit 安装段在前、但启动被删掉/挪到 Web 之后，也能被本断言抓住。
+    """
     content = (DEPLOY / script).read_text(encoding="utf-8")
-    runner_pos = content.find("tdsql-metadata-runner")
-    web_restart_pos = content.find("systemctl restart tdsql-sqlcheck")
-    assert runner_pos != -1 and web_restart_pos != -1
-    assert runner_pos < web_restart_pos, \
-        f"{script} 中 runner 应先于 Web 启动（设计要求 runner 先就绪）"
+    runner_start = content.find("systemctl restart tdsql-metadata-runner")
+    if runner_start == -1:
+        runner_start = content.find("backend.workers.metadata_runner")  # 非 systemd nohup 分支
+    web_restart = content.find("systemctl restart tdsql-sqlcheck")
+    assert runner_start != -1, f"{script} 未找到 metadata-runner 的启动动作"
+    assert web_restart != -1, f"{script} 未找到 Web 的启动动作"
+    assert runner_start < web_restart, \
+        f"{script} 中 runner 必须先于 Web 启动（设计要求 runner 先就绪）"
 
 
 @pytest.mark.parametrize("script", ["install.sh", "upgrade_incremental.sh", "apply_patch.sh"])

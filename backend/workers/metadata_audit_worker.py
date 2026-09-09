@@ -249,8 +249,10 @@ def run(job_id: str, attempt_token: str) -> int:
     except Exception as e:
         logger.error("元数据审核任务执行失败 job=%s: %s", job_id, e, exc_info=True)
         try:
+            # v1.6.3.5 / UAT-M3：PyMySQL 原始错误码语义化为可读中文提示
+            from backend.services.metadata_job_process import humanize_db_error
             repo.fail(job_id, attempt_token, error_code="WORKER_ERROR",
-                      error_message=f"审核执行失败: {str(e)[:500]}")
+                      error_message=humanize_db_error(f"审核执行失败: {str(e)[:500]}"))
         except Exception:
             pass
         return 1

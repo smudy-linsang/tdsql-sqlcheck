@@ -236,6 +236,37 @@ VERSION / APP_VERSION / 前端 5 处版本标记统一 1.6.3.5（version_consist
 
 ---
 
+---
+
+# 第五批：UAT 第一轮整改（M 报告 + A 复验 R3-01，均非阻断项）
+
+| 项 | 内容 |
+|---|---|
+| 整改日期 | 2026-09-09 |
+| M 结论 | **通过**（核心修复 + 加固完整，端到端 63 表 6 秒 SUCCEEDED）；3 项 M 级细节（均非产品缺陷）|
+| A 复验 | SIT 三项定点复验**通过**；新发现 1 项 MINOR（R3-01 断言强度）|
+
+## 逐项整改（4 项）
+
+| 编号 | 级别 | 问题 | 整改 |
+|---|---|---|---|
+| R3-01 | MINOR（A 复验） | 部署契约顺序断言比对的是字符串首次出现（unit 安装段），挡不住"runner 启动被删/挪后" | `test_v1635_deploy_contract.py` 顺序断言改为比对**真正的启动动作**：`systemctl restart tdsql-metadata-runner`（或 nohup 分支 `backend.workers.metadata_runner`）先于 `systemctl restart tdsql-sqlcheck`。**变异自证**：删掉 runner 启动行 → install.sh 断言变红，恢复后绿 |
+| UAT-M1 | M（dev UX，非产品缺陷） | runner 未启动时新受理任务停在 WAITING 无即时提示 | ① `_check_runner_ready` 的 503 EXECUTOR_UNAVAILABLE 功能锁测试已有并保留；② `main.py` lifespan 启动后探测 runner 心跳，缺失则打印明显 warning（dev/单机提示需另起 `python -m backend.workers.metadata_runner`） |
+| UAT-M2 | M（脚本侧，非产品缺陷） | progress 字段在终态被清空为 None → M 脚本 NoneType | 核实：API `_job_summary` **始终返回 progress 为 dict**（终态保留 final 计数），前端用可选链 `d.progress?.x` 已防御。新增 `test_job_summary_progress_always_dict` 锁定 progress 恒为 dict。M 脚本自身 bug 由 M 修 |
+| UAT-M3 | M（可读性增强） | 错误信息透传 PyMySQL 原始码（如 `(2013,...)`）不直观 | `metadata_job_process.py` 新增 `humanize_db_error()`：常见错误码（2013/2003/1045/1049/1146/1205/1213 等）映射为可读中文提示 + 保留原始错误；worker 异常分支写 error_message 前调用 |
+
+## 验证
+
+- 新增 `test_v1635_uat_r1.py` 6 用例（错误码语义化 4 + progress 恒 dict 1 + runner 缺失 503 1）全过。
+- R3-01 变异自证：删 runner 启动行 → 断言变红，恢复后绿，无残留。
+- 全量回归 **2082 passed + 30 skipped + 0 failed**。
+
+## 边界声明
+1. M 报告已声明的"待内网验收"项（真实 6000 表容量 §11.4、CORE_SAFE 回退、RSS 真实越界、浏览器真实点击 UI-10）不在本轮范围。
+2. UAT-M1/M2 经 M 本人确认**均非产品缺陷**（dev 部署需 Web+runner 两服务；M 脚本 bug）；本轮按 M 的建议做了增强而非缺陷修复。
+
+---
+
 施工人：智能体 Q
-施工对象：v1.6.3.5（DU-1 + DU-2 + SIT 第一/二轮整改）
+施工对象：v1.6.3.5（DU-1 + DU-2 + SIT 两轮整改 + UAT 第一轮整改）
 提交给：Mr.Linsang
