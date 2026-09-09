@@ -67,8 +67,25 @@ cp "$SCRIPT_DIR/frontend/static/js/app.js" "$TARGET_DIR/frontend/static/js/app.j
 mkdir -p "$TARGET_DIR/docs"
 cp -r "$SCRIPT_DIR/docs/"* "$TARGET_DIR/docs/" 2>/dev/null || true
 
-# 3. 重启服务
+# 3. 重启服务（v1.6.3.5 / DU-2 / SIT-R2-01：先 runner 后 Web；runner 起不来即失败）
 echo "[3/4] 重启 TDSQL-SQLCheck 后台服务..."
+# 3a. 元数据审核执行器 runner（若补丁包含其 unit 模板则安装；systemd 环境下强制启动校验）
+if [[ -d /run/systemd/system ]] && [ -f "$SCRIPT_DIR/deploy/tdsql-metadata-runner.service" ]; then
+    echo "安装/启动元数据审核执行器 tdsql-metadata-runner..."
+    INSTALL_DIR_GUESS="$(cd "$TARGET_DIR" && pwd)"
+    sed -e "s|__INSTALL_DIR__|${INSTALL_DIR_GUESS}|g" -e "s|__USER__|$(stat -c '%U' "$TARGET_DIR" 2>/dev/null || echo sqlcheck)|g" \
+        "$SCRIPT_DIR/deploy/tdsql-metadata-runner.service" > /etc/systemd/system/tdsql-metadata-runner.service
+    systemctl daemon-reload
+    systemctl enable tdsql-metadata-runner >/dev/null 2>&1 || true
+    systemctl restart tdsql-metadata-runner
+    sleep 2
+    if ! systemctl is-active --quiet tdsql-metadata-runner; then
+        echo "❌ 错误: metadata-runner 未能启动（查 journalctl -u tdsql-metadata-runner），补丁应用中止"
+        exit 1
+    fi
+    echo "metadata-runner 已启动"
+fi
+# 3b. Web 服务
 if systemctl is-active --quiet tdsql-sqlcheck 2>/dev/null; then
     echo "检测到 systemd 托管服务 tdsql-sqlcheck，执行 systemctl restart..."
     systemctl restart tdsql-sqlcheck

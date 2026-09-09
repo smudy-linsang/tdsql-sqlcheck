@@ -41,13 +41,19 @@ TARGET_DIR="${RELEASES_DIR}/${TARGET_VERSION}"
 
 log "开始回滚至版本: ${TARGET_VERSION}"
 
-# 1. 停止当前服务
+# 1. 停止当前服务（含元数据审核执行器 runner，避免跨版本混跑）
+systemctl stop tdsql-metadata-runner 2>/dev/null || true
 systemctl stop tdsql-sqlcheck || true
 
 # 2. 切换 current 软链接
 ln -sfn "${TARGET_DIR}" "${INSTALL_DIR}/current"
 
-# 3. 启动回滚后的服务
+# 3. 启动回滚后的服务（先 runner 后 Web；runner unit 若存在则重启以匹配回滚后代码）
+if [[ -d /run/systemd/system ]] && systemctl list-unit-files tdsql-metadata-runner.service >/dev/null 2>&1 \
+   && systemctl cat tdsql-metadata-runner.service >/dev/null 2>&1; then
+  systemctl start tdsql-metadata-runner || fail "回滚后 metadata-runner 启动失败"
+  log "metadata-runner 已随回滚重启"
+fi
 systemctl start tdsql-sqlcheck || fail "回滚服务启动失败"
 
 log "✅ 已成功回滚至 ${TARGET_VERSION}！"

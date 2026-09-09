@@ -199,6 +199,43 @@ VERSION / APP_VERSION / 前端 5 处版本标记统一 1.6.3.5（version_consist
 
 ---
 
+---
+
+# 第四批：SIT 第二轮整改（A 报告 @f1e649a，结论不通过 → 全部整改）
+
+| 项 | 内容 |
+|---|---|
+| 整改日期 | 2026-09-09 |
+| A 结论 | 不通过：上轮 6 项中 5 项已关闭且经变异验证是真锁；**M-02 只修了一半（R2-01 升级为 BLOCK）** + 新增回归 R2-02 + NIT R2-03 |
+
+## 逐项确认与整改（3 项全部认可）
+
+| 编号 | 级别 | 问题 | 整改 |
+|---|---|---|---|
+| R2-01 | BLOCK | **M-02 只修了全量安装脚本**：`install.sh`/`verify_deploy.sh` 已接 runner，但内网实际使用的 `upgrade_incremental.sh`/`apply_patch.sh`/`rollback.sh` 0 引用 runner → 按内网增量流程升级，runner 不装不起，**修复到不了生产**。另 install.sh 先 Web 后 runner、runner 起不来只告警不失败 | ① 三个脚本（upgrade_incremental/apply_patch/rollback）按 install.sh 同等协议接 runner（渲染/安装 unit/daemon-reload/启停/校验）；② install.sh 调整为**先 runner 后 Web**；③ runner 起不来即 `fail`/`exit 1` 返回非零，不再仅告警；④ 新增 `test_v1635_deploy_contract.py` 静态断言锁定（防再只改一个脚本）。make_release/make_patch 经 `cp -a backend`+`deploy/*.service` 已自动打包 runner unit 与 workers 包 |
+| R2-02 | MAJOR（新增回归） | verify_deploy.sh 的 runner 检查用 `command -v systemctl` 作门，但 A 的环境**有 systemctl 二进制却非 systemd init**，检查仍执行并 FAIL，打挂 3 条既有契约用例 | 门改为 `[[ -d /run/systemd/system ]]`（systemd 是否真为 PID1 init）；非 systemd 环境输出纯提示 `[SKIP]`（**不计 SKIP 计数、不影响退出码、不产生 [PASS]/[FAIL]**），兼容"服务不可达零 PASS"契约。3 条用例恢复绿 |
+| R2-03 | NIT | `METADATA_TMP_DIR` 未实现（产物实走 `REPORT_OUTPUT_DIR/metadata-audit`） | 取"注明复用"方案：产物根目录固定复用 `REPORT_OUTPUT_DIR/metadata-audit`（`metadata_artifacts.py`），不新增 `METADATA_TMP_DIR` 参数；设计文档建议 A/O 侧对齐删除该参数。功能无影响 |
+
+## R2-01 的关键认知（A 指出"只修了一半"）
+
+我第一轮把 runner 接进了 `install.sh`（全量安装）和 `verify_deploy.sh`，就以为部署接线完成了。但 A 查了四份内网部署手册：**内网测试/生产全用 `upgrade_incremental.sh` 增量升级，从不用 `install.sh`**。所以"全量安装脚本接了 runner"对内网等于没接——本次修复根本到不了生产。
+
+**教训**：部署接线要覆盖**内网实际使用的全部路径**（增量/补丁/回滚），不是只接"看起来最正式"的全量安装脚本。已用静态断言用例把"五脚本都必须引用 runner"钉成回归锁。
+
+## 整改后验证
+
+- **新增 `test_v1635_deploy_contract.py` 13 项**：runner unit 存在、五脚本都引用 runner、先 runner 后 Web 顺序、runner 失败返回非零、verify_deploy 以 systemd-init 为门。
+- **verify_deploy 契约测试 11 项全过**（R2-02 的 3 条回归用例恢复绿）。
+- **5 个 bash 脚本 `bash -n` 语法全过**。
+- **全量回归 2076 passed + 30 skipped + 0 failed**。
+
+## 边界声明
+1. runner 的 systemd 启停/校验在 Linux systemd 生产环境生效；非 systemd 环境（容器/CI/沙箱）各脚本走 nohup/跳过分支，部署契约用例锁定该行为。
+2. CORE_SAFE 回退制品、断电重入、RSS 真实越界触发、浏览器端真实点击（UI-10）仍属后续内网验收活动（A 报告 §7 已声明未覆盖）。
+3. DU-1 核心算法两轮 SIT 均判通过（等价性 1800 语料 0 差异、内存 20 倍/GC 45 倍收益），本轮未触及。
+
+---
+
 施工人：智能体 Q
-施工对象：v1.6.3.5（DU-1 核心修复 + DU-2 在线任务加固 + SIT 第一轮整改）
+施工对象：v1.6.3.5（DU-1 + DU-2 + SIT 第一/二轮整改）
 提交给：Mr.Linsang

@@ -148,15 +148,18 @@ else
   bad "版本号异常: ${VER:-<解析失败>}（期望 ${EXPECTED_VER}）"
 fi
 
-# 1b. v1.6.3.5 / DU-2 / SIT-M-02：校验元数据审核执行器 runner 服务在线（在线元数据审核依赖）
-# 仅在 systemd 可用时强制（生产双服务）；无 systemd 的环境静默跳过（不产生 PASS/FAIL，
-# 以免污染"服务不可达时零 PASS"的既有契约判定）。
-if command -v systemctl >/dev/null 2>&1; then
+# 1b. v1.6.3.5 / DU-2 / SIT-M-02+R2-02：校验元数据审核执行器 runner 服务在线（在线元数据审核依赖）
+# 仅在 systemd 真正作为 PID 1 init（/run/systemd/system 存在）时强制检查。
+# 仅有 systemctl 二进制但 systemd 非 init（容器/WSL/CI/部分沙箱）时输出纯提示 [SKIP]——
+# 不计入 SKIP 计数、不影响退出码，也不产生 [PASS]/[FAIL]（兼容"服务不可达零 PASS"既有契约）。
+if [[ -d /run/systemd/system ]]; then
   if systemctl is-active --quiet tdsql-metadata-runner 2>/dev/null; then
     ok "metadata-runner 服务运行中"
   else
     bad "metadata-runner 服务未运行（在线元数据审核不可用；查 journalctl -u tdsql-metadata-runner）"
   fi
+else
+  echo "  [SKIP] metadata-runner 服务检查（当前非 systemd 运行环境，跳过）"
 fi
 
 # 2. 前端资产（非 JSON，Bash 字符串匹配；不用 echo|grep -q 管道，规避大 HTML SIGPIPE 假失败）

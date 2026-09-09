@@ -90,7 +90,30 @@ echo "${CURRENT_LINK}" > "${INSTALL_DIR}/.previous_release"
 ln -sfn "${TARGET_RELEASE}" "${INSTALL_DIR}/current"
 id "${RUN_USER}" >/dev/null 2>&1 && chown -R "${RUN_USER}:${RUN_USER}" "${INSTALL_DIR}"
 
-# 7. 重启 systemd 服务
+# 7a. v1.6.3.5 / DU-2 / SIT-R2-01：安装并先启动元数据审核执行器 runner（先 runner 后 Web）
+# 设计要求：先起 runner 并通过校验 → 再起 Web；runner 起不来 → 整个升级返回非零，不打印成功。
+if [[ -d /run/systemd/system ]]; then
+  log "[5a/6] 安装/启动元数据审核执行器 tdsql-metadata-runner..."
+  RUNNER_UNIT_SRC="${TARGET_RELEASE}/deploy/tdsql-metadata-runner.service"
+  [[ -f "${RUNNER_UNIT_SRC}" ]] || fail "缺少 runner unit 模板 ${RUNNER_UNIT_SRC}（发布包不完整）"
+  sed -e "s|__INSTALL_DIR__|${INSTALL_DIR}|g" -e "s|__USER__|${RUN_USER}|g" \
+      "${RUNNER_UNIT_SRC}" > /etc/systemd/system/tdsql-metadata-runner.service
+  systemctl daemon-reload
+  systemctl enable tdsql-metadata-runner >/dev/null 2>&1 || true
+  systemctl restart tdsql-metadata-runner
+  sleep 2
+  if ! systemctl is-active --quiet tdsql-metadata-runner; then
+    fail "metadata-runner 未能启动（查 journalctl -u tdsql-metadata-runner）"
+  fi
+  log "metadata-runner 已启动并就绪"
+else
+  warn "非 systemd 环境：以 nohup 方式拉起 metadata-runner"
+  pkill -f "backend.workers.metadata_runner" 2>/dev/null || true
+  sleep 1
+  nohup "${TARGET_RELEASE}/venv/bin/python" -m backend.workers.metadata_runner >> "${INSTALL_DIR}/logs/metadata_runner.log" 2>&1 &
+fi
+
+# 7. 重启 systemd 服务（先 runner 后 Web）
 log "[5/6] 重启 systemd 服务 tdsql-sqlcheck..."
 if systemctl is-active tdsql-sqlcheck >/dev/null 2>&1; then
   systemctl restart tdsql-sqlcheck
