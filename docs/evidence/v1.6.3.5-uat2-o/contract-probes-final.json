@@ -1,0 +1,275 @@
+{
+  "db_version": {
+    "version": "8.0.45"
+  },
+  "jobs": [
+    {
+      "job_id": "79e476ed4e1c43bbadae9736b3b0d919",
+      "state": "SUCCEEDED",
+      "phase": "DONE",
+      "connection_name": "O-UAT2-63表-本机模拟目标",
+      "database": "uat_o_1635_r2_target",
+      "elapsed_seconds": null,
+      "progress": {
+        "enumerated_objects": 63,
+        "selected_objects": 63,
+        "extracted_objects": 63,
+        "total_statements": null,
+        "audited_statements": 51
+      },
+      "report_id": 1,
+      "snapshot_id": 1,
+      "cleanup_ok": 1,
+      "error_code": null,
+      "error_message": null,
+      "exit_code": 0,
+      "error": null,
+      "created_at": "2026-09-09T13:57:10.117324",
+      "finished_at": "2026-09-09T13:57:14.025798"
+    },
+    {
+      "job_id": "a939f06c371b4c79b25ca4d3adc3e13f",
+      "state": "SUCCEEDED",
+      "phase": "DONE",
+      "connection_name": "O-UAT2-63表-本机模拟目标",
+      "database": "uat_o_1635_r2_target",
+      "elapsed_seconds": null,
+      "progress": {
+        "enumerated_objects": 63,
+        "selected_objects": 63,
+        "extracted_objects": 63,
+        "total_statements": null,
+        "audited_statements": 51
+      },
+      "report_id": 2,
+      "snapshot_id": 2,
+      "cleanup_ok": 1,
+      "error_code": null,
+      "error_message": null,
+      "exit_code": 0,
+      "error": null,
+      "created_at": "2026-09-09T13:58:42.382027",
+      "finished_at": "2026-09-09T14:00:58.074580"
+    },
+    {
+      "job_id": "278d3fb5fc6f4df7924625e8fa726e8f",
+      "state": "FAILED",
+      "phase": "CLEANUP",
+      "connection_name": "O-UAT2-不可连接-本机",
+      "database": "uat_o_1635_r2_target",
+      "elapsed_seconds": null,
+      "progress": {
+        "enumerated_objects": null,
+        "selected_objects": null,
+        "extracted_objects": null,
+        "total_statements": null,
+        "audited_statements": null
+      },
+      "report_id": null,
+      "snapshot_id": null,
+      "cleanup_ok": 1,
+      "error_code": "WORKER_ERROR",
+      "error_message": "无法连接目标数据库（请检查实例地址、端口与网络连通性）。原始错误: 审核执行失败: (2003, \"Can't connect to MySQL server on '127.0.0.1' ([WinError 10061] 由于目标计算机积极拒绝，无法连接。)\")",
+      "exit_code": 1,
+      "error": {
+        "code": "WORKER_ERROR",
+        "message": "无法连接目标数据库（请检查实例地址、端口与网络连通性）。原始错误: 审核执行失败: (2003, \"Can't connect to MySQL server on '127.0.0.1' ([WinError 10061] 由于目标计算机积极拒绝，无法连接。)\")"
+      },
+      "created_at": "2026-09-09T14:01:23.298260",
+      "finished_at": "2026-09-09T14:01:27.369005"
+    },
+    {
+      "job_id": "beb603c103cc41afa3253ecd20da4344",
+      "state": "FAILED",
+      "phase": "CLEANUP",
+      "connection_name": "O-UAT2-不存在库-本机",
+      "database": "uat_o_1635_r2_missing",
+      "elapsed_seconds": null,
+      "progress": {
+        "enumerated_objects": null,
+        "selected_objects": null,
+        "extracted_objects": null,
+        "total_statements": null,
+        "audited_statements": null
+      },
+      "report_id": null,
+      "snapshot_id": null,
+      "cleanup_ok": 1,
+      "error_code": "WORKER_ERROR",
+      "error_message": "目标数据库不存在（请检查 database/库名配置）。原始错误: 审核执行失败: (1049, \"Unknown database 'uat_o_1635_r2_missing'\")",
+      "exit_code": 1,
+      "error": {
+        "code": "WORKER_ERROR",
+        "message": "目标数据库不存在（请检查 database/库名配置）。原始错误: 审核执行失败: (1049, \"Unknown database 'uat_o_1635_r2_missing'\")"
+      },
+      "created_at": "2026-09-09T14:03:55.488536",
+      "finished_at": "2026-09-09T14:03:57.559563"
+    },
+    {
+      "job_id": "c1613af22164446e8d8e541b69171085",
+      "state": "SUCCEEDED",
+      "phase": "DONE",
+      "connection_name": "O-UAT2-63表-本机模拟目标",
+      "database": "uat_o_1635_r2_target",
+      "elapsed_seconds": null,
+      "progress": {
+        "enumerated_objects": 63,
+        "selected_objects": 63,
+        "extracted_objects": 63,
+        "total_statements": null,
+        "audited_statements": 51
+      },
+      "report_id": 3,
+      "snapshot_id": 3,
+      "cleanup_ok": 1,
+      "error_code": null,
+      "error_message": null,
+      "exit_code": 0,
+      "error": null,
+      "created_at": "2026-09-09T23:15:01.980213",
+      "finished_at": "2026-09-09T23:15:05.828309"
+    }
+  ],
+  "slot": {
+    "id": 1,
+    "active_job_id": null,
+    "runner_id": "SMUDY-36580-6fcc79ea",
+    "runner_heartbeat_at": "2026-09-09T23:17:55.525992",
+    "accepting": 1,
+    "storage_instance_id": null,
+    "updated_at": "2026-09-09T23:17:55.526019",
+    "artifact_used_bytes": 0,
+    "storage_checked_at": null
+  },
+  "timestamp_utc": "2026-09-09T23:17:56.536030+00:00",
+  "heartbeat_cases": [
+    {
+      "case": "expired-real-iso",
+      "actual": "ACCEPTS"
+    },
+    {
+      "case": "expired-datetime",
+      "actual": "503/EXECUTOR_UNAVAILABLE"
+    },
+    {
+      "case": "missing",
+      "actual": "ACCEPTS"
+    },
+    {
+      "case": "malformed",
+      "actual": "ACCEPTS"
+    },
+    {
+      "case": "fresh-real-iso",
+      "actual": "ACCEPTS"
+    }
+  ],
+  "deployment_mutations": [
+    {
+      "script": "install.sh",
+      "mutation": "delete-runner-restart",
+      "actual": "RED_MUTATION_CAUGHT"
+    },
+    {
+      "script": "install.sh",
+      "mutation": "comment-runner-restart",
+      "actual": "GREEN_MUTATION_SURVIVED"
+    },
+    {
+      "script": "upgrade_incremental.sh",
+      "mutation": "delete-runner-restart",
+      "actual": "GREEN_MUTATION_SURVIVED"
+    },
+    {
+      "script": "upgrade_incremental.sh",
+      "mutation": "comment-runner-restart",
+      "actual": "GREEN_MUTATION_SURVIVED"
+    },
+    {
+      "script": "apply_patch.sh",
+      "mutation": "delete-runner-restart",
+      "actual": "RED_MUTATION_CAUGHT"
+    },
+    {
+      "script": "apply_patch.sh",
+      "mutation": "comment-runner-restart",
+      "actual": "GREEN_MUTATION_SURVIVED"
+    }
+  ],
+  "humanize_worker_branches": [
+    {
+      "case": "connect-2013",
+      "exit": 1,
+      "error_code": "WORKER_ERROR",
+      "error_message": "目标数据库连接中断（请检查网络、防火墙、目标 TDSQL 实例是否存活）。原始错误: 审核执行失败: (2013, 'Lost connection')"
+    },
+    {
+      "case": "show-create-2013-wrapped",
+      "exit": 1,
+      "error_code": "EXTRACT_OBJECT_FAILED",
+      "error_message": "对象 synthetic_db.t_demo（TABLE）DDL 读取失败: (2013, 'Lost connection to MySQL server during query')"
+    }
+  ],
+  "http_read_checks": {
+    "": {
+      "status": 200,
+      "bytes": 589,
+      "sha256": "cd91f6e62fd4d812edb45acd90a8de792629de781a2e301e9a608e198c8991fd",
+      "summary": {
+        "job_id": "79e476ed4e1c43bbadae9736b3b0d919",
+        "state": "SUCCEEDED",
+        "phase": "DONE",
+        "connection_name": "O-UAT2-63表-本机模拟目标",
+        "database": "uat_o_1635_r2_target",
+        "elapsed_seconds": null,
+        "progress": {
+          "enumerated_objects": 63,
+          "selected_objects": 63,
+          "extracted_objects": 63,
+          "total_statements": null,
+          "audited_statements": 51
+        },
+        "report_id": 1,
+        "snapshot_id": 1,
+        "cleanup_ok": 1,
+        "error_code": null,
+        "error_message": null,
+        "exit_code": 0,
+        "error": null,
+        "created_at": "2026-09-09T13:57:10.117324",
+        "finished_at": "2026-09-09T13:57:14.025798",
+        "request_id": "b7a1191f99fe4ca4"
+      }
+    },
+    "/results?offset=50&limit=50": {
+      "status": 200,
+      "bytes": 26547,
+      "sha256": "e9bb8774b9496d62e38ef5bb323a1b683829076fccbb698a51a81bf16db2e6c2",
+      "total": 63,
+      "items": 13,
+      "next_offset": null
+    },
+    "/sql": {
+      "status": 200,
+      "bytes": 18804,
+      "sha256": "6d2ab53d76f73d5a29d9f8a893a4861b50d767d244e46a5fa5203800f0baf611",
+      "connection_name_present": true
+    },
+    "/html": {
+      "status": 200,
+      "bytes": 59373,
+      "sha256": "59eb5fe8d273365fb244c38ad7b41eda65132276462a361305469a400edf35c7",
+      "connection_name_present": true
+    }
+  },
+  "retired_http": {
+    "status": 410,
+    "body": {
+      "code": "ENDPOINT_RETIRED",
+      "detail": "本接口已于 v1.6.3.5 退役，请刷新页面使用新的在线元数据审核流程。",
+      "message": "本接口已于 v1.6.3.5 退役，请刷新页面使用新的在线元数据审核流程。",
+      "docs": "/api/v1/audit/metadata-jobs",
+      "request_id": "4d9efb447dd241f2"
+    }
+  }
+}

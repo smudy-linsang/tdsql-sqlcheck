@@ -1,0 +1,13 @@
+{
+  "target_tables": 64,
+  "latest_job": {
+    "id": "c1613af22164446e8d8e541b69171085",
+    "state": "SUCCEEDED",
+    "created_at": "2026-09-09T23:15:01.980213",
+    "report_id": 3
+  },
+  "total_jobs": 5,
+  "report": {
+    "total_sql": 63
+  }
+}
