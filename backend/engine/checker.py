@@ -272,18 +272,37 @@ class RuleChecker:
     def audit_file(self, content: str, file_path: str = "",
                    rule_overrides: Optional[dict] = None,
                    instance_type: Optional[str] = None) -> list[AuditResult]:
-        """
-        审核文件内容（支持 MyBatis XML、纯 SQL 文件）。
+        """审核文件内容（支持 MyBatis XML、纯 SQL 文件）。
+
+        v1.6.3.5 / FIX-01 / D01：恢复**流式**——逐条解析→审核→释放，R035 改用
+        有界见证索引（`backend/engine/r035_context.py`），消除 v1.6.3.2 引入的
+        “全量 AST 常驻 + 全历史 O(N²) 浅拷贝”（大库 worker 内存猝死根因）。
+        公共签名与返回结构不变（`list[AuditResult]`）。
 
         Args:
             content: 文件内容
             file_path: 文件路径
             rule_overrides: 规则集覆盖（V2.0多租户，可选）
+            instance_type: 实例类型（可选）
 
         Returns:
             审核结果列表
         """
-        results: list[AuditResult] = []
+        # 内部委托给流式迭代器；返回列表保持所有既有调用方兼容。
+        return list(self.iter_audit_file(content, file_path=file_path,
+                                         rule_overrides=rule_overrides,
+                                         instance_type=instance_type))
+
+    def iter_audit_file(self, content: str, file_path: str = "",
+                        rule_overrides: Optional[dict] = None,
+                        instance_type: Optional[str] = None):
+        """流式逐条审核（v1.6.3.5 / FIX-01 / D01）。
+
+        每个逻辑语句恰好解析一次，审核后即刻解除本语句 AST/meta 引用（不存入
+        任何容器/闭包）。R035 跨表字段类型用有界见证索引投影（O(U) 空间），
+        不再全量保留 parsed_items / 全历史 metas。审核后才把本语句的成功
+        CREATE 列加入历史（先与此前历史比）。
+        """
         # v1.6.2.2-UAT-O-14：文件入口同样先做换行规范化，保证拆句与后续审核同源。
         content = normalize_newlines(content)
 
@@ -295,24 +314,35 @@ class RuleChecker:
             from backend.engine.parser import split_audit_script
             stmts = [(s, ln) for s, ln, _end in split_audit_script(content)]
 
-        # v1.6.3.2 / REQ-05A：整批语句各解析**一次**，构造 R035 批内跨表上下文后
-        # 直接复用解析结果执行规则，禁止为索引再解析第二遍。
-        parsed_items = [(sql_text, line_no, self.parser.parse(sql_text))
-                        for sql_text, line_no in stmts]
-        metas = self._build_r035_cross_table_context(
-            parsed_items, rule_overrides, instance_type)
-        for (sql_text, line_no, parsed), meta in zip(parsed_items, metas):
+        # R035 仅在实际启用时创建有界见证索引（过滤先于构造）。
+        from backend.engine.r035_context import R035PriorIndex
+        prior_index = R035PriorIndex() if self._r035_enabled(
+            rule_overrides, instance_type) else None
+
+        for statement_index, (sql_text, line_no) in enumerate(stmts):
+            parsed = self.parser.parse(sql_text)
+            meta: dict = {}
+            if prior_index is not None and parsed.is_create_table \
+                    and not parsed.parse_error:
+                proj = prior_index.project_for_columns(parsed.columns)
+                if proj:
+                    meta[self._R035_CROSS_KEY] = proj
             violations = self._audit_parsed(parsed, sql_text, meta, line_no,
                                             rule_overrides, instance_type)
-            results.append(AuditResult(
+            # 审核之后再更新历史：先与此前历史比，再把本语句的成功 CREATE 列加入。
+            if prior_index is not None and parsed.is_create_table \
+                    and not parsed.parse_error and parsed.tables:
+                prior_index.add_columns(parsed.tables[0], parsed.columns,
+                                        statement_index)
+            # 释放 parsed/meta 的本次引用（不存入容器/闭包）
+            yield AuditResult(
                 sql=sql_text.strip(),
                 sql_type=parsed.sql_type,
                 passed=len(violations) == 0,
                 violations=violations,
                 file_path=file_path,
                 line_number=line_no,
-            ))
-        return results
+            )
 
     _R035_CROSS_KEY = "__r035_cross_table_columns__"
 
