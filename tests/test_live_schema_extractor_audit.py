@@ -9,23 +9,26 @@ client = TestClient(app)
 
 
 def test_extract_and_audit_unauthorized():
-    """未登录或无 Token 时响应状态非 200"""
+    """未登录或无 Token 时响应状态非 200（401 鉴权 或 410 退役）"""
     resp = client.post("/api/v1/audit/extract-and-audit", json={"connection_id": "test"})
-    assert resp.status_code in (400, 401, 403, 404)
+    assert resp.status_code in (400, 401, 403, 404, 410)
 
 
 def test_extract_and_audit_invalid_conn():
-    """选择未建连的 ID 姿态时应返回 400"""
+    """v1.6.3.5 / DU-2：旧 extract-and-audit 路径已退役，已认证请求返回 410 ENDPOINT_RETIRED。"""
     login_resp = client.post("/api/v1/auth/login", json={"username": "admin", "password": "adminpassword"})
     token = login_resp.json().get("token", "")
-    
+
     resp = client.post(
         "/api/v1/audit/extract-and-audit",
         headers={"Authorization": f"Bearer {token}"},
         json={"connection_id": "non_existent_conn_9999"}
     )
-    assert resp.status_code == 400
-    assert "未激活" in resp.json()["detail"] or "请在" in resp.json()["detail"]
+    # 退役路径：410 ENDPOINT_RETIRED，零副作用（不建任务/不占槽/不连目标库）
+    assert resp.status_code == 410
+    body = resp.json()
+    assert body["code"] == "ENDPOINT_RETIRED"
+    assert isinstance(body["detail"], str)
 
 
 def test_audit_partitioned_ddl_file_content():

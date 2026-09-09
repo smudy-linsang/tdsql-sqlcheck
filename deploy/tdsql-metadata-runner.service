@@ -1,0 +1,30 @@
+[Unit]
+Description=TDSQL SQLCheck Metadata Audit Runner
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__USER__
+Group=__USER__
+WorkingDirectory=__INSTALL_DIR__/current
+EnvironmentFile=__INSTALL_DIR__/.env
+Environment=REPORT_OUTPUT_DIR=__INSTALL_DIR__/reports
+ExecStart=__INSTALL_DIR__/current/venv/bin/python -m backend.workers.metadata_runner
+Restart=on-failure
+RestartSec=5
+KillMode=control-group
+KillSignal=SIGTERM
+SendSIGKILL=yes
+TimeoutStopSec=20
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=__INSTALL_DIR__
+UMask=0077
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=tdsql-metadata-runner
+
+[Install]
+WantedBy=multi-user.target

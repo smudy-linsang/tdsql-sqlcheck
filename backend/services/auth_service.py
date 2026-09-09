@@ -340,6 +340,8 @@ _PATH_TO_MENU = {
     "/api/v1/audit/file": "file-audit",
     "/api/v1/audit/upload": "file-audit",
     "/api/v1/audit/extract-and-audit": "schema-extractor-audit",
+    # v1.6.3.5 / DU-2：在线元数据审核任务（新任务接口），映射同一菜单 schema-extractor-audit
+    "/api/v1/audit/metadata-jobs": "schema-extractor-audit",
     # V1.5：审核历史列表/删除。batch-delete 为 admin 独占（处理函数 _require_admin 兜底）
     "/api/v1/audit/extracted-reports": "schema-extractor-audit",
     "/api/v1/audit/file-reports": "file-audit",

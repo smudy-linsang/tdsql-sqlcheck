@@ -251,178 +251,30 @@ async def audit_batch_stream(file: UploadFile = File(...),
     return StreamingResponse(stream_generator(), media_type="application/x-ndjson")
 
 
-@router.post("/extract-and-audit", summary="反向拉取元数据生成SQL文件并审核")
-async def extract_and_audit(http_request: Request, payload: dict):
+@router.post("/extract-and-audit", summary="（已退役）反向拉取元数据并审核")
+async def extract_and_audit(http_request: Request):
+    """v1.6.3.5 / DU-2：旧在线元数据审核路径已退役（410 ENDPOINT_RETIRED）。
+
+    Mr.Linsang 已裁决砍掉旧兼容包装（DETAIL §8.2）：本路径仅保留退役提示，
+    不做同步计算、不转接异步受理、不返回 job_id。handler 仅接收 Request，
+    不解析业务参数、不创建任务、不读写执行槽、不连接目标库。
+    认证 / RBAC / 请求体大小限制由中间件先行把关（401/403 优先）。
     """
-    拉取指定 TDSQL 实例与数据库的元数据（表/索引/视图），
-    反向生成完整 .sql 文件并提交文件审核引擎进行规则化审核。
-    """
-    connection_id = payload.get("connection_id")
-    database_name = payload.get("database") or payload.get("database_name") or ""
-    scopes = payload.get("scopes") or ["TABLE", "INDEX", "VIEW", "SHARDKEY"]
-    if not connection_id:
-        raise HTTPException(status_code=400, detail="请选择目标数据库实例")
-    _started_at = datetime.now().isoformat()   # V1.3: 快照 scan_started_at
-
-    from backend.services.connection_registry import registry, ConnectionNotFoundError
-    try:
-        pool = registry.get(connection_id)
-        conn_info = registry.get_saved(connection_id) or {}
-    except ConnectionNotFoundError:
-        raise HTTPException(status_code=400, detail="选定的数据库实例未激活，请在「实例管理」中连接或重试")
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"无法连接选定的数据库实例: {str(e)}")
-
-    # v1.6.3.4 / D02（H02，§3.1）：在元数据提取前、与 _started_at 同一开始阶段，
-    # 从 conn_info 冻结实例连接名称（不反查现名、不从文件名/SQL 注释推断）。
-    from backend.services.report_context import capture_report_context, ORIGIN_BOUND
-    _report_ctx = capture_report_context(connection_id, database_name, ORIGIN_BOUND)
-
-    try:
-        from backend.connectors.metadata_fetcher import MetadataFetcher
-        fetcher = MetadataFetcher(pool)
-        
-        # 1. 抓取该库下的表清单与 VIEW 列表
-        target_db = database_name or conn_info.get("database", "mysql")
-        
-        extracted_sqls = []
-        extracted_sqls.append(f"-- ============================================================================")
-        extracted_sqls.append(f"-- TDSQL 自动拉取的最新在线元数据描述文件")
-        host_str = conn_info.get('host', 'TDSQL')
-        port_str = conn_info.get('port', 3306)
-        extracted_sqls.append(f"-- 目标实例: {conn_info.get('name', 'TDSQL')} ({host_str}:{port_str})")
-        extracted_sqls.append(f"-- 目标数据库: {target_db}")
-        extracted_sqls.append(f"-- 提取日期: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        extracted_sqls.append(f"-- ============================================================================\n")
-
-        with pool.get_connection() as conn:
-            cursor = conn.cursor()
-            # 获取数据库下所有的 TABLES 与 VIEWS
-            cursor.execute("""
-                SELECT TABLE_NAME, TABLE_TYPE 
-                FROM information_schema.TABLES 
-                WHERE TABLE_SCHEMA = %s
-            """, (target_db,))
-            db_objects = cursor.fetchall()
-            
-            for obj in db_objects:
-                obj_name = obj.get("TABLE_NAME") or obj.get("table_name")
-                obj_type = obj.get("TABLE_TYPE") or obj.get("table_type")
-                if not obj_name:
-                    continue
-                
-                if "TABLE" in scopes and "VIEW" not in obj_type.upper():
-                    try:
-                        cursor.execute(f"SHOW CREATE TABLE `{target_db}`.`{obj_name}`")
-                        res = cursor.fetchone()
-                        create_sql = ""
-                        if res and isinstance(res, dict):
-                            create_sql = res.get("Create Table") or res.get("CREATE TABLE") or ""
-                            if not create_sql:
-                                for v in res.values():
-                                    val_str = str(v or "").strip()
-                                    if "CREATE" in val_str.upper():
-                                        create_sql = val_str
-                                        break
-                        if create_sql:
-                            extracted_sqls.append(f"-- SQL Object: CREATE TABLE")
-                            extracted_sqls.append(f"-- Table: {obj_name}")
-                            extracted_sqls.append(f"{create_sql.rstrip(';')};\n")
-                    except Exception as e:
-                        logger.warning(f"拉取表 {obj_name} DDL 失败: {e}")
-                        
-                elif "VIEW" in scopes and "VIEW" in obj_type.upper():
-                    try:
-                        cursor.execute(f"SHOW CREATE VIEW `{target_db}`.`{obj_name}`")
-                        res = cursor.fetchone()
-                        create_sql = ""
-                        if res and isinstance(res, dict):
-                            create_sql = res.get("Create View") or res.get("CREATE VIEW") or ""
-                            if not create_sql:
-                                for v in res.values():
-                                    val_str = str(v or "").strip()
-                                    if "CREATE" in val_str.upper():
-                                        create_sql = val_str
-                                        break
-                        if create_sql:
-                            extracted_sqls.append(f"-- SQL Object: CREATE VIEW")
-                            extracted_sqls.append(f"-- View: {obj_name}")
-                            extracted_sqls.append(f"{create_sql.rstrip(';')};\n")
-                    except Exception as e:
-                        logger.warning(f"拉取视图 {obj_name} DDL 失败: {e}")
-
-        full_extracted_sql = "\n".join(extracted_sqls)
-        filename = f"extracted_{target_db}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.sql"
-
-        # 2. 调用文件审核引擎进行规则化全面评估
-        # V1.4：尺度取自全局生效规则集；V1.5：传 connection_id（A类通道，自动解析实例类型）
-        from backend.services.ruleset_service import ruleset_service as _rs_svc
-        _rule_set_id = _rs_svc.get_active_rule_set_id()
-        results, summary, _, ictx = audit_service.audit_file_content(
-            full_extracted_sql,
-            file_path=filename,
-            created_by=_operator(http_request),
-            connection_id=connection_id,
-            save_history=False
-        )
-        _skipped = audit_service.checker.count_skipped_by_scope(ictx.instance_type.value)
-
-        # 显式持久化落盘至 audit_history 表 (audit_type = 'extracted_schema')
-        # V1.3(D1): 补落 connection_id / db_name；V1.4: rule_set_id；V1.5: 实例类型口径
-        from backend.services.audit_service import _save_audit_history
-        report_id = _save_audit_history(
-            audit_type="extracted_schema",
-            source=filename,
-            results=results,
-            summary=summary,
-            created_by=_operator(http_request),
-            connection_id=connection_id,
-            db_name=target_db,
-            rule_set_id=_rule_set_id,
-            instance_ctx=ictx,
-            skipped_rules_count=_skipped,
-            report_context=_report_ctx,   # v1.6.3.4 / D02：冻结的实例连接名称
-        )
-
-        # V1.3: 旁路生成对比快照（失败仅告警，不影响审核主流程）
-        snapshot_id = None
-        try:
-            from backend.services.snapshot_extractors.schema_audit import extract as _extract
-            from backend.services import scan_snapshot_service as _snap
-            from backend.services.report_context import context_to_json_column
-            _items, _obj_total = _extract(results, target_db, node="")
-            snapshot_id = _snap.safe_create_snapshot("schema_audit", {
-                "biz_ref_id": str(report_id),
-                "connection_id": connection_id,
-                "connection_name": conn_info.get("name", ""),
-                "db_name": target_db,
-                "node": "",
-                "scan_label": filename,
-                "scan_started_at": _started_at,
-                "scan_finished_at": datetime.now().isoformat(),
-                "created_by": _operator(http_request),
-                "rule_set_id": _rule_set_id,
-                "instance_type": ictx.instance_type.value,
-                # v1.6.3.4 / D02（H05a）：继承 extract_and_audit 冻结的来源上下文
-                "report_context_json": context_to_json_column(_report_ctx),
-            }, _items, _obj_total)
-        except Exception as e:
-            logger.warning(f"生成元数据审核快照失败: {e}")
-
-        return {
-            "status": "SUCCESS",
-            "report_id": report_id,
-            "snapshot_id": snapshot_id,
-            "filename": filename,
-            "extracted_sql": full_extracted_sql,
-            "results": results,
-            "summary": summary,
-            # V1.5：响应自证口径（改完这一处，用户报告的 R077 误报即消失）
-            **_scope_fields(ictx, _skipped),
-        }
-    except Exception as e:
-        logger.error(f"反向拉取元数据失败: {e}")
-        raise HTTPException(status_code=400, detail=f"拉取目标库元数据失败: {str(e)}")
+    request_id = getattr(http_request.state, "request_id", "") or ""
+    username = getattr(http_request.state, "username", "anonymous")
+    ua = (http_request.headers.get("user-agent", "") or "")
+    ua = ua.replace("\r", " ").replace("\n", " ")[:200]
+    logger.info("ENDPOINT_RETIRED extract-and-audit request_id=%s user=%s ua=%s",
+                request_id, username, ua)
+    detail = "本接口已于 v1.6.3.5 退役，请刷新页面使用新的在线元数据审核流程。"
+    return Response(
+        status_code=410,
+        content=json.dumps({"code": "ENDPOINT_RETIRED", "detail": detail,
+                            "message": detail,
+                            "docs": "/api/v1/audit/metadata-jobs",
+                            "request_id": request_id}, ensure_ascii=False),
+        media_type="application/json",
+        headers={"Cache-Control": "no-store"})
 
 
 @router.get("/extracted-reports", summary="在线元数据审核历史记录列表")

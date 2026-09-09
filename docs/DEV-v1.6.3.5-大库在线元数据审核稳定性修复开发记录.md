@@ -95,6 +95,76 @@ DU-2（FIX-02~05，D02—D14）是在线任务加固大子系统：MySQL v15 迁
 
 ---
 
+---
+
+# 第二批：DU-2 在线任务加固（FIX-02~05，D02—D13）
+
+| 项 | 内容 |
+|---|---|
+| 施工日期 | 2026-09-09 |
+| 交付边界 | DU-2 在线任务加固：MySQL 任务表 + 独立执行器（runner+worker）+ 原子发布 + 产物分页 + 新 API + 旧路径 410 退役 + 前端任务卡 + 版本 1.6.3.5 |
+
+## A. 交付清单（D02—D13）
+
+| 顺序 | 文件 | 内容 |
+|---|---|---|
+| D02 | `backend/schema/v15/150_metadata_audit_jobs.sql`（新） | `metadata_audit_jobs` + `metadata_audit_slot` 两表（唯一受理槽、幂等键、fencing token、状态/阶段、产物状态），幂等插入 slot=1 |
+| D03 | `backend/services/metadata_audit_repository.py`（新） | 受理事务（slot→job 锁序、幂等重放、busy 拒绝）、认领 CAS、fencing 状态迁移、原子发布（max_allowed_packet 预检 + audit_history 严格落库 + report_id 关联）、取消/完成/失败 |
+| D04 | `backend/services/metadata_audit_pipeline.py`（新） | 只读提取（information_schema 枚举 + 逐对象 SHOW CREATE，失败即终止不 warning 继续）+ 流式审核复用 `iter_audit_file`；`quote_identifier`/`sanitize_comment` 防注入 |
+| D05 | `backend/workers/metadata_runner.py` + `metadata_audit_worker.py`（新） | 独立监督服务（认领/派生/监督/回收/释放槽）+ 单任务子进程（提取→流式审核→产物→原子发布→快照）；不 import Web 应用 |
+| D06 | `backend/services/metadata_artifacts.py`（新） | 产物原子写入（.part→fsync→rename）、manifest、结果分页读取（sql_preview 截断）、sql-preview（前 64KiB）、安全清理（job_id hex + 越界/symlink 拒绝） |
+| D07 | `backend/api/metadata_audit.py`（新）+ main.py 注册 + auth_service 菜单映射 | `/api/v1/audit/metadata-jobs` 受理/状态/分页结果/sql/sql-preview/单条 detail/html/cancel；冻结上下文（规则集+实例口径+报告来源+连接指纹）；所有权校验（创建者/admin）；runner 存活校验 |
+| D08 | `backend/api/sql_audit.py` | 旧 `POST /extract-and-audit` 退役为 410 ENDPOINT_RETIRED（零副作用：不建任务/不占槽/不连目标库；detail 为字符串供旧 JS 显示） |
+| D10 | `frontend/index.html` + `app.js` | 任务状态卡（state/phase/进度/取消）、结果分页表（不全量渲染）、SQL/HTML Blob 下载、幂等键持久化重放、410 识别提示刷新 |
+| D11 | `deploy/tdsql-metadata-runner.service`（新） | 独立 runner systemd unit（KillMode=control-group、PrivateTmp、ReadWritePaths 等） |
+| D12 | `VERSION` / `config.py` / 前端版本标记 | 统一 1.6.3.5（页面 title/登录页/css/js ?v= 同步，兼作缓存更新） |
+| D13 | `tests/test_v1635_metadata_artifacts.py` + `test_v1635_metadata_jobs.py`（新） | 产物 8 用例 + 任务 7 用例（幂等/busy/CAS fencing/原子发布/终态不可逆/410 零副作用） |
+
+## B. 状态机与关键不变量
+
+```
+ACCEPTED → RUNNING → PUBLISHING → PUBLISHED → SUCCEEDED
+    └──────────┴──────────┴→ FAILED / CANCELLED / RECOVERY_REQUIRED
+```
+
+- **唯一受理槽**：`metadata_audit_slot(id=1)` 原子受理，全主机同时最多 1 个任务，其余 409 METADATA_BUSY。
+- **幂等**：`(created_by, idempotency_key)` 唯一；同 key 同 hash 重放返回同 job，不同 hash 409 IDEMPOTENCY_CONFLICT。
+- **fencing**：所有状态更新带 `attempt_token`，旧 token 不能覆盖；终态不被 forward 迁移命中。
+- **原子发布**：PUBLISHING→PUBLISHED 单事务写 audit_history + 关联 report_id；max_allowed_packet 预检，超限 PERSIST_PAYLOAD_TOO_LARGE 明确失败（不截断成成功）。
+- **失败关闭**：提取/审核/发布任一失败 → FAILED 并记录定位，不产"全库完成"假报告。
+- **回收**：runner 监督子进程退出 + cleanup_ok 确认后才置 SUCCEEDED；无法确认退出 → RECOVERY_REQUIRED 继续占槽阻止新任务。
+
+## C. 验证证据
+
+### C.1 单元/集成测试
+- `test_v1635_metadata_artifacts.py`：8 用例（原子写入/manifest hash/分页/total 计数/sql-preview 截断/单条 detail/越界+symlink 清理拒绝/产物字节统计）。
+- `test_v1635_metadata_jobs.py`：7 用例（受理幂等/同 key 异 hash 冲突/busy 拒绝/CAS fencing 防错 token/原子发布幂等 report_id/终态不可被 forward 命中 + 旧 token 不覆盖/旧路径 410 零副作用）。
+
+### C.2 端到端冒烟（本地元数据库作目标库）
+```
+建任务 ACCEPTED → runner 认领 RUNNING → worker 提取 tdsql_sqlcheck 63 对象
+→ 流式审核 → 产物 5 件齐全(schema.sql/results.ndjson/results.json/report.html/manifest.json)
+→ 原子发布 audit_history report_id=6630 → 对比快照 snapshot_id=116 → PUBLISHED → SUCCEEDED
+结果分页 total=63；SMOKE_RESULT: PASS
+```
+失败路径冒烟（目标库不可达）：任务正确 FAILED + 记录定位、不崩溃、不产假成功报告。
+
+### C.3 全量回归
+**2035 passed + 30 skipped + 0 failed**（DU-1 的 2020 + DU-2 新增 15 用例；30 skipped 为既定环境性跳过）。
+
+### C.4 版本
+VERSION / APP_VERSION / 前端 5 处版本标记统一 1.6.3.5（version_consistency 测试通过）。
+
+## D. 本批边界与已知取舍
+1. **真实 6000+ 表内网容量验收**（§11.4 三层门禁）属开发完成后的验收活动，需内网实测：本机已实现核心缺陷修复与架构加固，但未在真实 6000 表 TDSQL 上跑 3 次容量验证。
+2. **D03a 冻结上下文**：在 API 的 `_freeze_context` 用现有服务一次读取（ruleset/report_context/instance_type/连接指纹），未新增这些服务的独立冻结构造入口；效果等价（受理时一次冻结、执行不重查）。
+3. **D06 job_process**：子进程生命周期复用既有 `gateway_process.run_analysis_process`（TERM/KILL/回收，设计允许"参考 gateway_process"），未新建独立 metadata_job_process 模块。
+4. **D11 部署脚本**：新建了 runner systemd unit 模板；install.sh/upgrade_incremental/apply_patch/rollback/verify_deploy 的双服务编排接线属部署集成步骤，需在内网部署时按 §12.2 顺序接入。
+5. **D14 worker 可观测性**（事件循环/线程 lag 采样）未在本批实现——它属§12.4 的诊断增强，非核心修复路径。
+6. 本批未动其他模块（网关/慢 SQL/大表/表类型统计的预算与逻辑不变）。
+
+---
+
 施工人：智能体 Q
-施工对象：v1.6.3.5 第一批（DU-1 核心修复 FIX-01/D01）
+施工对象：v1.6.3.5（DU-1 核心修复 + DU-2 在线任务加固）
 提交给：Mr.Linsang

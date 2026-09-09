@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <!-- 主题预置：首帧前置 data-theme，避免深/浅切换闪烁；默认深色，localStorage 记忆 -->
   <script>(function(){try{var t=localStorage.getItem('tdsql-theme');if(t!=='light'&&t!=='dark')t='dark';document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','dark');}})();</script>
-  <title>TDSQL数据库SQL审核工具 V1.6.3.4</title>
+  <title>TDSQL数据库SQL审核工具 V1.6.3.5</title>
   <link rel="icon" href="/favicon.ico">
   <script src="/static/vendor/vue.global.prod.js"></script>
   <link rel="stylesheet" href="/static/vendor/element-plus.css">
@@ -13,9 +13,9 @@
   <script src="/static/vendor/element-plus-locale-zh-cn.min.js"></script>
   <script src="/static/vendor/element-plus-icons.iife.min.js"></script>
   <script src="/static/vendor/echarts.min.js"></script>
-  <link rel="stylesheet" href="/static/css/app.css?v=1.6.3.4">
+  <link rel="stylesheet" href="/static/css/app.css?v=1.6.3.5">
   <!-- 深蓝高密度主题：视觉重构层，最后加载以覆盖 Element Plus 与 app.css -->
-  <link rel="stylesheet" href="/static/css/theme-dark-blue.css?v=1.6.3.4">
+  <link rel="stylesheet" href="/static/css/theme-dark-blue.css?v=1.6.3.5">
 </head>
 <body>
 <div id="app">
@@ -27,7 +27,7 @@
     </div>
     <div class="login-brand">
       <h1>TDSQL数据库SQL审核工具</h1>
-      <div class="version">V1.6.3.4 · Design by Linsang</div>
+      <div class="version">V1.6.3.5 · Design by Linsang</div>
     </div>
     <div class="login-form">
       <el-card>
@@ -369,59 +369,51 @@
                   <div style="color:#909399;font-size:13px;margin:8px 0">自动从选择的 SIT/UAT 测试库中提取当前最新表、索引、视图 DDL 元数据，拼接生成完整的 .sql 描述文件，并自动提交文件审核引擎进行规则评价。</div>
                 </div>
 
-                <!-- 提取与审核结果双栏视图 -->
-                <div v-if="extractedResult && extractedResult.filename" class="mt-16">
-                  <!-- V1.5：报告口径横幅（自证按哪种实例类型评估、跳过多少条） -->
-                  <el-alert v-if="extractedResult.scope_notice" :title="extractedResult.scope_notice"
-                    :type="extractedResult.instance_type_conflict?'warning':'info'" show-icon :closable="false" class="mb-16">
-                    <template #default>
-                      <div>{{ extractedResult.scope_notice }}</div>
-                      <div v-if="extractedResult.instance_type_source==='default'" style="font-size:12px;margin-top:4px">口径由系统默认推定，请确认实例类型配置。</div>
-                      <div v-if="extractedResult.instance_type_conflict" style="font-size:12px;margin-top:4px;color:#dc2626">各判定源结论不一致，已按保守原则取「{{ (extractedResult.instance_type||'distributed')==='distributed'?'分布式':'集中式' }}」，请点「探测类型」查看多源明细并核实实例配置。</div>
-                    </template>
-                  </el-alert>
-                  <el-row :gutter="16">
-                    <!-- 左栏：导出的元数据 .sql 文件内容 -->
-                    <el-col :span="12">
-                      <div class="page-card" style="height:100%">
-                        <div class="card-head">
-                          <div class="page-card-title mb0" style="font-size:14px">📄 生成的元数据 SQL 文件 ({{ extractedResult.filename }})</div>
-                          <el-button type="success" size="small" @click="downloadExtractedSql"><el-icon><Download /></el-icon>下载 .sql 文件</el-button>
-                        </div>
-                        <div class="sql-block" style="max-height:500px;overflow-y:auto;margin-top:12px">{{ extractedResult.extracted_sql }}</div>
+                <!-- v1.6.3.5 / DU-2：在线元数据审核任务视图（异步任务 + 分页结果） -->
+                <div v-if="metadataJob" class="mt-16">
+                  <div class="page-card mb-16">
+                    <div class="card-head">
+                      <div class="page-card-title mb0" style="font-size:14px">元数据审核任务 #{{ (metadataJob.job_id||'').slice(0,8) }}</div>
+                      <div class="flex-gap8">
+                        <el-button v-if="['ACCEPTED','RUNNING','PUBLISHING','STOPPING'].includes(metadataJob.state)" type="danger" size="small" :loading="metadataCancelling" @click="cancelMetadataJob">取消任务</el-button>
+                        <template v-if="metadataJob.state==='SUCCEEDED'">
+                          <el-button type="success" size="small" @click="downloadMetadataSql"><el-icon><Download /></el-icon>下载 .sql 文件</el-button>
+                          <el-button type="primary" size="small" @click="downloadMetadataHtml"><el-icon><Download /></el-icon>导出 HTML 报告</el-button>
+                        </template>
                       </div>
-                    </el-col>
+                    </div>
+                    <el-descriptions :column="3" border size="small">
+                      <el-descriptions-item label="状态"><el-tag :type="metadataJob.state==='SUCCEEDED'?'success':(metadataJob.state==='FAILED'||metadataJob.state==='CANCELLED')?'danger':'primary'" size="small">{{ metadataJob.state }}</el-tag></el-descriptions-item>
+                      <el-descriptions-item label="阶段">{{ metadataJob.phase }}</el-descriptions-item>
+                      <el-descriptions-item label="实例连接">{{ metadataJob.connection_name || '-' }}</el-descriptions-item>
+                      <el-descriptions-item label="库">{{ metadataJob.database }}</el-descriptions-item>
+                      <el-descriptions-item label="已用时长">{{ metadataJob.elapsed_seconds!=null ? metadataJob.elapsed_seconds+'s' : '-' }}</el-descriptions-item>
+                      <el-descriptions-item label="进度">枚举 {{ metadataJob.progress?.enumerated_objects ?? '-' }} / 提取 {{ metadataJob.progress?.extracted_objects ?? '-' }} / 审核 {{ metadataJob.progress?.audited_statements ?? '-' }}</el-descriptions-item>
+                    </el-descriptions>
+                    <el-alert v-if="metadataJob.error" type="error" :title="metadataJob.error.message" :closable="false" class="mt-16" show-icon></el-alert>
+                    <div v-if="['ACCEPTED','RUNNING','PUBLISHING'].includes(metadataJob.state)" style="color:#909399;font-size:13px;margin-top:10px">任务正在后台执行，页面可离开，完成后可回来查看（进度每 2 秒刷新）。</div>
+                  </div>
 
-                    <!-- 右栏：类“文件审核”标准的审核报告与违规项 -->
-                    <el-col :span="12">
-                      <div class="page-card" style="height:100%">
-                        <div class="card-head mb-12">
-                          <div class="page-card-title mb0" style="font-size:14px">📊 元数据文件规则审核报告</div>
-                          <el-button v-if="extractedResult.report_id" type="primary" size="small" @click="downloadExtractedHtmlReport(extractedResult.report_id)"><el-icon><Download /></el-icon>导出 HTML 报告</el-button>
-                        </div>
-                        <el-descriptions :column="2" border class="mb-16" size="small">
-                          <el-descriptions-item label="对象的总数">{{ extractedResult.summary?.total_sql }}</el-descriptions-item>
-                          <el-descriptions-item label="通过数">{{ extractedResult.summary?.passed }}</el-descriptions-item>
-                          <el-descriptions-item label="未通过数">{{ extractedResult.summary?.failed }}</el-descriptions-item>
-                          <el-descriptions-item label="整体通过率">{{ extractedResult.summary?.pass_rate?.toFixed(1) }}%</el-descriptions-item>
-                        </el-descriptions>
-                        <el-collapse style="max-height:420px;overflow-y:auto">
-                          <el-collapse-item v-for="(r,idx) in extractedResult.results" :key="idx" :name="idx">
-                            <template #title>
-                              <span class="mr-8"><strong>#{{ idx+1 }}</strong> {{ r.sql_type }}</span>
-                              <el-tag v-if="r.passed" type="success" size="small">通过</el-tag>
-                              <el-tag v-else type="danger" size="small">{{ r.violations?.length }}项违规</el-tag>
-                            </template>
-                            <div class="sql-block my-8" style="font-size:12px">{{ r.sql }}</div>
-                            <div v-for="v in r.violations" :key="v.rule_id+v.message" :class="'violation-card ' + (v.severity==='ERROR'?'error':'warning')">
-                              <div class="v-rule">[{{ v.rule_id }}] <el-tag :type="sevTagType(v.severity)" size="small">{{ v.severity }}</el-tag> {{ v.message }}</div>
-                              <div class="v-sug" v-if="v.suggestion">💡 {{ v.suggestion }}</div>
-                            </div>
-                          </el-collapse-item>
-                        </el-collapse>
-                      </div>
-                    </el-col>
-                  </el-row>
+                  <!-- 审核结果（分页加载，不全量渲染大库） -->
+                  <div v-if="metadataJob.state==='SUCCEEDED'" class="page-card">
+                    <div class="page-card-title mb-12" style="font-size:14px">📊 审核结果（共 {{ metadataResultsTotal }} 条，分页加载）</div>
+                    <el-table :data="metadataItems" stripe size="small" class="w-full">
+                      <el-table-column type="expand">
+                        <template #default="props">
+                          <div class="sql-block my-8" style="font-size:12px">{{ props.row.sql_preview }}<span v-if="props.row.sql_truncated" style="color:#f59e0b"> …（已截断，下载完整文件查看）</span></div>
+                          <div v-for="v in props.row.violations" :key="v.rule_id+v.message" :class="'violation-card ' + (String(v.severity).toUpperCase()==='ERROR'?'error':'warning')">
+                            <div class="v-rule">[{{ v.rule_id }}] <el-tag :type="sevTagType(v.severity)" size="small">{{ v.severity }}</el-tag> {{ v.message }}</div>
+                            <div class="v-sug" v-if="v.suggestion">💡 {{ v.suggestion }}</div>
+                          </div>
+                        </template>
+                      </el-table-column>
+                      <el-table-column label="#" width="70"><template #default="s">{{ (s.row.statement_index ?? 0) + 1 }}</template></el-table-column>
+                      <el-table-column prop="sql_type" label="类型" width="90"></el-table-column>
+                      <el-table-column label="状态" width="110"><template #default="s"><el-tag :type="s.row.passed?'success':'danger'" size="small">{{ s.row.passed?'通过':((s.row.violations||[]).length+'项违规') }}</el-tag></template></el-table-column>
+                      <el-table-column label="SQL 预览" show-overflow-tooltip><template #default="s"><span style="font-family:monospace;font-size:12px">{{ s.row.sql_preview }}</span></template></el-table-column>
+                    </el-table>
+                    <el-pagination class="mt-16" layout="total,prev,pager,next" :total="metadataResultsTotal" :page-size="metadataResultsPageSize" :current-page="metadataResultsPage" @current-change="onMetadataResultsPage"></el-pagination>
+                  </div>
                 </div>
               </el-tab-pane>
 
@@ -2886,6 +2878,6 @@
     </div>
   </el-dialog>
 </div>
-<script src="/static/js/app.js?v=1.6.3.4"></script>
+<script src="/static/js/app.js?v=1.6.3.5"></script>
 </body>
 </html>

@@ -49,6 +49,7 @@ from backend.api.system_config import router as system_config_router
 from backend.api.admin import router as admin_router
 from backend.api.scan_compare import router as scan_compare_router
 from backend.api.raw_slowlog import router as raw_slowlog_router
+from backend.api.metadata_audit import router as metadata_audit_router  # v1.6.3.5 在线元数据任务
 from backend.middleware import (AuthMiddleware, BodySizeLimitMiddleware,
                                 GatewayUploadPolicyMiddleware,
                                 RequestContextMiddleware)
@@ -205,6 +206,7 @@ app.include_router(toolkit_router)          # G13 运维工具箱
 app.include_router(table_type_stats_router)  # G14 表类型统计
 app.include_router(scan_compare_router)     # V1.3 扫描结果纵向对比
 app.include_router(raw_slowlog_router)      # V1.5.3 原始慢日志采集（独立模块）
+app.include_router(metadata_audit_router)   # v1.6.3.5 在线元数据审核任务
 
 # 前端静态资源（V2.0: 本地化vendor资产，纯内网可用）
 STATIC_DIR = FRONTEND_DIR / "static"

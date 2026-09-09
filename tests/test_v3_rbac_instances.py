@@ -433,10 +433,10 @@ def test_frontend_security_contract():
     # 契约 5: clearRoleScopedState 中 extractedResult 必须保持对象契约 {}
     assert "extractedResult.value={};" in content
 
-    # 契约 6: index.html 中对 extractedResult 访问具备空值保护
+    # 契约 6: index.html 中对在线元数据任务视图的访问具备空值保护（v1.6.3.5 改为 metadataJob）
     index_html_path = Path("frontend/index.html")
     assert index_html_path.exists(), "index.html must exist"
     html_content = index_html_path.read_text(encoding="utf-8")
-    assert "extractedResult && extractedResult.filename" in html_content
+    assert 'v-if="metadataJob"' in html_content
 
 
