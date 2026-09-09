@@ -2,12 +2,14 @@
 
 | 项目 | 内容 |
 |---|---|
-| 文档版本 | Rev.A，2026-09-09 |
+| 文档版本 | Rev.B，2026-09-09；按 A 第一轮评审修订 |
 | 产品修复版本 | v1.6.3.5 |
 | 提交对象 | Mr.Linsang；供 Q 实施、A 评审/SIT、O UAT、G 发布编排使用，不代表已向上述责任方派单 |
-| 设计基线 | `main` / `ff4fd03`，业务代码版本 v1.6.3.4 |
+| 设计基线 | 业务基线 `ff4fd03` / v1.6.3.4；Rev.A=`168c0f4`；评审与裁决材料截至 `8232915` |
 | 当前交付性质 | **仅设计文档；未修改业务代码、测试代码、数据库、配置或部署环境** |
-| 状态 | 待设计评审；实现、真实 TDSQL 容量验收及发布门禁均未完成 |
+| 状态 | Rev.A 获 A 有条件通过；Rev.B 已落文整改，待定点复核；实现、真实 TDSQL 容量验收及发布门禁均未完成 |
+
+Rev.B 逐项答复见 [第一轮评审答复](RESPONSE1-v1.6.3.5-设计评审逐项答复与RevB修订说明-O.md)。本轮采纳 1024 MiB 默认 RSS 护栏、资源预检、旧路径退役、分单元验收/局部回退；不采纳“历史使用峰值等于整机容量”“合成 tracemalloc 外推就是完整子进程 RSS”及“单次算法修复后通过即可唯一证明终止机制”的推断。健康检查显式配置仅作用于实际运行 Uvicorn 的 Web 服务。
 
 ## 1. 结论与范围
 
@@ -185,10 +187,12 @@ return results
 | `METADATA_MAX_CONCURRENT` | 固定 1，其他值启动拒绝 | 包含受理待启动、执行、发布、回收；不排长队 |
 | `METADATA_JOB_TIMEOUT_SECONDS` | 1800，允许 300—7200 | 从 child 启动至发布的总墙钟预算；超时终止并明确 TIMEOUT，不保证任意 6000 表必在此内完成 |
 | `METADATA_START_TIMEOUT_SECONDS` | 30，固定 | ACCEPTED 未被 runner 启动，记 START_TIMEOUT 后释放未启动槽位 |
-| `METADATA_CHILD_RSS_LIMIT_MIB` | 8192，允许 512—32768 | runner 每秒读 child RSS，越界请求回收；采样保护非瞬时硬内存隔离承诺 |
+| `METADATA_CHILD_RSS_LIMIT_MIB` | **1024**，允许 **512—4096** | runner 每秒读 child RSS，越界进入 RESOURCE_LIMIT 回收；另受 §5.4 的实际容量 25% 启动硬校验约束；不是瞬时硬内存隔离 |
 | `METADATA_SQL_MAX_MIB` | 256，允许 16—1024 | 完整提取 SQL 的 UTF-8 字节上限；不是表数截断 |
 | `METADATA_RESULTS_MAX_MIB` | 256，允许 16—1024 | 完整 results_json UTF-8 字节上限；超出 FAILED/RESULT_TOO_LARGE，不截断成成功 |
 | `METADATA_ARTIFACT_MAX_MIB` | 1024，允许 64—4096 | 单任务所有产物实际总字节上限；同样明确失败 |
+| `METADATA_MIN_FREE_BYTES` | 2147483648（2 GiB），正整数 | 产物所在文件系统的实际可用空间门槛；有效门槛取 max(此值, 单任务产物上限+1 GiB 保留空间) |
+| `METADATA_ARTIFACT_TOTAL_MAX_MIB` | 10240，允许 1024—1048576 | 本模块所有任务目录的总量预算；必须≥单任务上限，受理前为新任务预留一个完整单任务上限 |
 | 目标连接 connect/read/write timeout | 10/60/30 秒 | 仅元数据子进程的新连接；整体 deadline 优先，不改其他连接池全局值 |
 | 监督周期 / runner 心跳 | 1 秒 / 2 秒 | 心跳含 PID、启动身份、版本；10 秒未更新判“执行器状态暂不可确认”，禁止新受理 |
 | 进度持久化 | 每 1 秒或 50 个对象触发，最多每秒 1 次 | 收尾必须写最终计数；防每表写一次 MySQL |
@@ -199,7 +203,7 @@ return results
 
 启动校验参数为严格正整数、上下界和路径可读写。`METADATA_ARTIFACT_MAX_MIB` 不足以容纳两个配置上限与 HTML 的极端组合时，仍按实际总量限额失败，不能承诺两个最大值同时可达。资源预算不得通过截取前 2000/5000 表绕过。
 
-1800 秒和 8192 MiB 是有明确定义的初始保护预算，不是完成性能承诺；后续用真实容量验收决定是否需配置评审。Mr.Linsang 已定的**表类型统计 180 秒不变**，无需重新向其询问。
+1800 秒和 **1024 MiB** 是有明确定义的初始保护预算，不是完成性能承诺。A 的合成负载显示逐句审核有明显节省，支持收紧默认保护线；但 1600 表 18.9 MB 是其 tracemalloc 分配测量，6000 表 63 MB 是外推，不能认作完整提取、序列化、mogrify、报告制备后的 child RSS，更不能声称已有“15 倍实际余量”。真实容量测试须测完整 child 峰值；若 1024 MiB 不足，明确失败并提交配置复核，禁止静默升限。Mr.Linsang 已定的**表类型统计 180 秒不变**。
 
 ### 5.3 元数据提取行为
 
@@ -223,6 +227,32 @@ def quote_identifier(value: str) -> str:
 不宣称 SHOW CREATE 多次读取是数据库级一致性快照。报告标注“按扫描期间逐对象读取的结构”；遇到并发删表导致读取失败按失败处理，不重试后悄悄改换一套结构。目标事务不得长时间锁业务元数据以追求全库原子快照。
 
 TDSQL 特有 shardkey/分区条款原样保留，仍由现有 parser 处理；本版没有新增 TDSQL 语法或正则。[TDSQL 官方建表说明](https://cloud.tencent.com/document/product/557/8767)、[二级分区说明](https://cloud.tencent.com/document/product/557/58907)、[MySQL 标识符转义](https://dev.mysql.com/doc/refman/8.0/en/identifiers.html)
+
+### 5.4 内存启动硬校验与磁盘受理护栏（Rev.B）
+
+**事实口径**：`wde.txt:110` 的 `MemTotal=64578408 kB`，按 Linux 此字段的 1024 字节单位换算约 **61.59 GiB**；`memory.max_usage_in_bytes=11465011200` 只是约 10.68 GiB 的历史使用峰值。不能将峰值当总容量，不能据此断言 8 GiB 将占该主机 75% 或必然触发 swap。MemAvailable 和当时 swap 用量也不是故障瞬间记录。[Linux /proc 文档](https://docs.kernel.org/filesystems/proc.html)、[cgroup v1 memory 文档](https://docs.kernel.org/admin-guide/cgroup-v1/memory.html)
+
+启动/安装/升级预检共用一个只读实现，字段以**整数 bytes**比较：
+
+```text
+rss_limit_bytes = METADATA_CHILD_RSS_LIMIT_MIB * 1024 * 1024
+host_total_bytes = /proc/meminfo.MemTotal * 1024
+先检查 512 <= METADATA_CHILD_RSS_LIMIT_MIB <= 4096
+若 rss_limit_bytes * 4 > host_total_bytes：拒绝 runner 启动/拒绝升级就绪
+若实际 runner cgroup/祖先存在有限 memory limit：
+    effective_capacity = min(host_total_bytes, 所有适用的有限内存上限)
+    若 rss_limit_bytes * 4 > effective_capacity：同样拒绝
+```
+
+等于 25% 允许，超过一个字节即拒绝，不向下静默修改用户配置。v1 的超大无限制哨兵值、v2 的 `max` 不作为容量，也不使用 current/peak 代替 limit；按实际 runner 所属层级检查，不把另一独立 Web service 的限制冒充 runner 限制。内存数据缺失/不可解析不得套用“默认 16 GB”，元数据执行器 fail-closed 并在错误中列参数、MemTotal、有效限制路径/值。Windows 本机开发验证通过系统 API 读取物理总量和可识别 Job Object 限制，不能假装有 `/proc`。
+
+安装脚本的预检不能代替 **runner 每次启动时**校验（含改 .env 后重启）；启动失败后新任务 503，禁止退回 Web 重计算。25% 是保守静态预算而非动态空闲量保证：即使通过也不证明未来不会有全机内存压力。RSS 1 Hz 采样存在越界到回收的窗口，不宣称能绝对避免峰值超调。容量验收回填完整 child RSS、主机/元数据库/Web 观测后，由配置评审决定是否保留 1024 或在 512—4096 且 25% 以内调整；本轮不自动修改现场。
+
+**磁盘规则**：安装/runner 启动核验目录并统计本模块全部有效任务目录、失败残留和 `.part` 实际字节；记录 `artifact_used_bytes`、`storage_checked_at` 到 slot。每次任务释放槽位前以及空闲期至少每 5 秒复核；需要全量扫描时 accepting=0，完成后才开放。历史删除/清理更新计数；不将其他模块产物算成本模块已用量，但它们会共同消耗文件系统空闲量。
+
+新任务受理在 slot 锁内核验计数≤10秒新鲜、`used_bytes + 单任务上限 <= total_limit`，并在实际产物根路径以服务用户可用空间（Linux statvfs 的 f_bavail）检查 `free_bytes >= max(METADATA_MIN_FREE_BYTES, 单任务上限+1 GiB)`。有 inode 计数的文件系统同时检查可用 inode；数据不可读、空间不足或总预算不足分别 503/STORAGE_CHECK_UNAVAILABLE、507/INSUFFICIENT_STORAGE、507/ARTIFACT_QUOTA_EXCEEDED；**不新增 job、不占槽、不连接目标库**。现有 active_job 占有完整预留额度，不能因进度文件较小而再受理一个任务。
+
+磁盘预检不是操作系统配额锁，不能保证其他进程随后不占空间；runner 执行期间每秒复核文件系统空闲量，**发布前**低于 1 GiB 保留线即 STOPPING/DISK_PRESSURE，回收后失败；已经PUBLISHED则按 §6.3/§7.3核验已提交成果、促使回收并附告警，不能撤销已提交报告或改成“未执行”。所有写仍捕获 ENOSPC、权限错误和限额，保持既有发布前失败关闭。成功产物总预算达到上限时要求按原授权历史保留/删除流程释放空间，不自动删除成功报告来“让新任务通过”。
 
 ## 6. 数据模型、幂等与状态机
 
@@ -253,6 +283,7 @@ TDSQL 特有 shardkey/分区条款原样保留，仍由现有 parser 处理；�
 | `active_job_id` / `runner_id` | CHAR(32) NULL / VARCHAR(128) NULL | 唯一占用、当前服务身份 |
 | `runner_heartbeat_at` / `accepting` | DATETIME(6) NULL / TINYINT NOT NULL DEFAULT 0 | 初始不接受；服务完成恢复检查后开放 |
 | `storage_instance_id` / `updated_at` | CHAR(32) NULL / DATETIME(6) NOT NULL | 持久目录安装标识、最近状态 |
+| `artifact_used_bytes` / `storage_checked_at` | BIGINT NOT NULL DEFAULT 0 / DATETIME(6) NULL | slot 的已核验产物总量；NULL/过期拒绝新受理，不能误当零用量 |
 
 jobs 加索引 `(created_by,created_at,id)`、`(state,updated_at)`。迁移幂等插入 slot=1（不得覆盖原 active_job_id）。既有 `audit_history` 结构和完整 `results_json` 格式不变，job 行承担唯一发布关系，避免更改历史消费者。
 
@@ -263,7 +294,7 @@ DDL 使用显式 `CREATE TABLE IF NOT EXISTS`；由于现有 migrator 的强校�
 1. 完成既有认证/RBAC，验证 JSON 长度/字段/标识符/项目参数。新路由在 `_PATH_TO_MENU` 明确映射 `schema-extractor-audit`，不走未登记写接口的 fail-open。
 2. 开启短 MySQL 事务，先 `SELECT ... FROM metadata_audit_slot WHERE id=1 FOR UPDATE`。统一所有代码锁顺序为 **slot → job**，避免取消/提交交叉死锁。
 3. 查 `(created_by,idempotency_key)`：相同 request_hash 返回已有 job（不受忙碌检查影响，不重新取新尺度）；不同 hash 返回 409/IDEMPOTENCY_CONFLICT。客户端改变条件必须使用新 key。
-4. 无已有 job 时验证 accepting=1、runner 心跳新鲜、版本/存储标识匹配、active_job_id=NULL，否则 503/EXECUTOR_UNAVAILABLE 或 409/METADATA_BUSY。忙碌不泄露其他用户的连接名/任务详情，不产生候补任务。
+4. 无已有 job 时验证 accepting=1、runner 心跳新鲜、版本/存储标识匹配、active_job_id=NULL，否则 503/EXECUTOR_UNAVAILABLE 或 409/METADATA_BUSY；再执行 §5.4 磁盘总量与空闲量检查。busy/空间不足不产生候补任务，不泄露其他用户任务详情。同 key 已有 job 的查询重放不受新建空间准入限制。
 5. 在一致性读取上下文内获取实际连接配置、默认库、实例类型及来源/冲突提示、全局有效规则集 ID/overrides，复用现有 report_context 数据结构冻结名称。新增专用 snapshot 方法接受同一数据库连接，report_context 构造函数接受本次已读连接行和最终库名，不再次反查连接、不使用 30 秒缓存后二次读取另一规则集。采用 InnoDB REPEATABLE READ 一致性快照，冻结查询是同连接非锁定一致性读取；slot/job 准入锁仍按第 2 步。获取失败返回明确失败，不无提示降回 default。
 6. context 固定 `engine_version,engine_build,rule_set_id,overrides,effective_rule_ids,instance_context,report_context,scope_flags,context_hash`。有效规则仍通过 `get_enabled_rules` 唯一过滤入口计算；没有修改规则对象全局 enabled/severity 的操作。
 7. 插入 ACCEPTED，更新 slot.active_job_id，commit 后返回 job_id。事务内不连接目标 TDSQL、不提取 DDL、不启动子进程。数据库提交结果不确定时返回 request_id 并允许同 key 重试，不宣称任务未创建。
@@ -342,7 +373,7 @@ stdout/stderr 仅允许结构化进度或有界脱敏日志：单行最多 8 KiB
 3. 使用新增 `metadata_audit_repository.publish()` 严格保存 audit_history；返回有效 report_id。**不调用吞错返回 None 的旧 `_save_audit_history`**，不改变其他调用者的默认容错契约。
 4. 对比快照计算在事务外完成；现有快照服务增加“调用者提供 conn、由调用者 commit”的内部入口，默认入口行为不变。插入快照前建 savepoint；仅可恢复的快照语句错误回滚到 savepoint 并加 warning；连接丢失/事务失效必须整笔失败，不能假装旁路已隔离。
 5. 更新 job 为 PUBLISHED，写 report_id/snapshot_id、摘要、artifact_state=READY，commit。commit 结果不确定时重新按 job_id 查，禁止无条件重做 INSERT。
-6. 若为旧同步客户端，child 在同一进程内做 §8.2 的兼容包装收尾，然后退出；新 API 任务直接退出。runner 等进程树退出、验证 PUBLISHED 后，事务置 SUCCEEDED 并释放 slot。PUBLISHED 后总 deadline 只用于促使回收，不能撤销已完整提交报告。
+6. child 退出，不再有旧客户端兼容包装收尾。runner 等进程树退出、验证 PUBLISHED 后，事务置 SUCCEEDED 并释放 slot。PUBLISHED 后总 deadline 只用于促使回收，不能撤销已完整提交报告。
 
 发布事务最长数据库操作由连接 timeout 控制；超时不能抢先释放槽位。取消与提交竞争由上述相同行锁顺序串行：先落取消则无发布；先 PUBLISHED 则取消返回“结果已提交”。
 
@@ -413,17 +444,31 @@ stdout/stderr 仅允许结构化进度或有界脱敏日志：单行最多 8 KiB
 
 total_statements 未拆句前为 null，不用 0 或对象数代替；百分比仅展示本阶段 `done/total`，总体只显示阶段和已用时间，不预估虚假的 ETA。
 
-### 8.2 旧接口不做隐式破坏
+### 8.2 旧接口显式退役，不创建后台任务（Mr.Linsang 已裁决）
 
-`POST /api/v1/audit/extract-and-audit` 保留为兼容 façade：复用同一任务受理/执行器，**不保留旧同步重计算分支**。显式 `Prefer: respond-async` 返回新任务 202；未带 Prefer 的旧客户端仍等待旧 SUCCESS 响应（字段名称、results、summary、scope_fields 不变），等待代码必须异步查询小状态，不占 Web 的同步计算线程执行审核。
+A 评审报告 §6 记录 Mr.Linsang 已确认当前无外部调用方，同意砍掉旧兼容包装；本版前端已迁移到 §8.1 新任务接口。按该裁决，旧 `POST /api/v1/audit/extract-and-audit` **仅保留退役提示路由**，不保留同步计算、不转接异步受理、不返回 202/job_id，也不因 Prefer 或 Idempotency-Key 恢复执行。
 
-旧同步等待上限为 `METADATA_JOB_TIMEOUT_SECONDS + 60`；连接断开只停止等待，不取消 job。若等待上限到但后台状态尚未收口，返回 504/JOB_STATUS_UNCERTAIN、job_id 和查询链接，不能改后台终态。提供 Idempotency-Key 的旧客户端享受同样幂等；未提供则服务端生成，明确不保证断线后再次 POST 不会形成新的完成后重跑。
+认证、RBAC 和全局请求体大小限制仍先执行；认证失败/无权分别 401/403。已认证有权且通过全局限制的 POST 直接 410，handler 仅接收 Request，不声明必填 payload/Pydantic 业务模型，**不解析业务参数、不调用连接注册器或任务 repository、不创建 job、不读写执行槽**。空 body/不合法业务 JSON 也不得由旧业务参数校验抢先变成 422。
 
-旧大结果组装用 child 制备 `legacy-response.json`，Web 流式发送。受理上下文另存 transport_mode=LEGACY_WAIT（不作为规则尺度），同一 child 在 PUBLISHED commit 后、退出前生成包装：使用已提交 report_id/snapshot_id、summary/scope_fields、schema.sql 与 results.json 流式组成原 SUCCESS JSON。SQL 字符串须用正确 JSON 编码器分块转义，不手拼未转义文本。该文件计入 artifact 上限，成功写独立 `legacy-manifest.json` 和兼容产物状态；**不改动已校验的核心 manifest**。
+返回 `X-Request-ID`、`Cache-Control: no-store`，JSON 如下：
 
-包装收尾失败或提交后进程已退出，核心结果仍按 PUBLISHED 恢复规则收口；旧 façade 返回 503/LEGACY_RESPONSE_UNAVAILABLE（含 job_id、report_id、查询链接），不宣称目标库提取失败、不再启动重任务。新 API 不依赖兼容包装，收到同 key 的旧同步重放但原任务没有包装时也按此明确响应。实现时不得为旧接口重新将全量结果加载进 Web 内存。
+```json
+{
+  "code": "ENDPOINT_RETIRED",
+  "detail": "本接口已于 v1.6.3.5 退役，请刷新页面使用新的在线元数据审核流程。",
+  "message": "本接口已于 v1.6.3.5 退役，请刷新页面使用新的在线元数据审核流程。",
+  "docs": "/api/v1/audit/metadata-jobs",
+  "request_id": "与响应头一致的请求关联号"
+}
+```
 
-旧 façade 仍可能受外部长期 HTTP 连接设备限制，不能声称“旧页面长请求永不超时”；本版前端必须更新为新短请求流程。网络失败时可凭 key/job_id 查询成果，不重复盲点按钮。新 UI+新 API 是内网容量验收主路径，旧 façade 另列兼容测试。
+有意将 `detail` 保留为**字符串**，code/docs 放顶层，而不是照搬 A 示例的 detail 对象：现存 v1.6.3.4 前端正是 `msg=d.detail||msg` 后交给消息组件，没有显式读取detail.message。部分消息组件版本可以把对象当options接收，因此**不认定A示例必然显示乱码**；这里选择字符串以保持既有错误契约，避免依赖组件对额外字段的处理。旧缓存页面不能由新JS补丁改变，必须做UI-10真实旧脚本验证。`docs` 只给新资源路径供迁移定位，不自动发起请求。
+
+记录 INFO：request_id、ENDPOINT_RETIRED、已认证用户名、脱敏/去 CRLF且截断至200字符的 UA；不记录请求体或令牌，不因日志写失败变成审核执行。该日志用于发现预期外调用者，不据此自动恢复旧接口。
+
+Rev.B **取消设计、不要求 Q 实现**以下 Rev.A 内容：legacy-response.json、legacy-manifest.json、LEGACY_WAIT、旧同步等待预算、JOB_STATUS_UNCERTAIN 和 LEGACY_RESPONSE_UNAVAILABLE 两个专属分支、旧同步重放/自动生成 key、兼容包装的磁盘计费及恢复逻辑。新 API 自身幂等、状态不确定提示、核心产物和 PUBLISHED 回收保留。
+
+本版不提供面向外部系统的同步在线元数据审核接口。未来系统对接另行设计和评审，覆盖鉴权/配额、受理/查询、分页下载、幂等重放、超时取消；不得以兼容为名复活本次删除的包装层。§11 仅验旧路径“410 且零副作用”，不再存在同步兼容容量门禁。
 
 ### 8.3 错误分类
 
@@ -434,7 +479,10 @@ total_statements 未拆句前为 null，不用 0 或对象数代替；百分比�
 | 409 METADATA_BUSY | 当前已有元数据审核任务，请稍后重试；不自动排队 |
 | 409 IDEMPOTENCY_CONFLICT | 本次提交标识与原参数不一致，请重新发起 |
 | 422 INVALID_SCOPE/INVALID_ARGUMENT | 指出具体参数，不进入执行器 |
+| 410 ENDPOINT_RETIRED | 旧审核路径已退役，请刷新页面；不创建任务、不自动转新路径 |
 | 503 EXECUTOR_UNAVAILABLE | 元数据执行服务未就绪；保留输入，不退回 Web 执行 |
+| 503 ONLINE_METADATA_DISABLED | CORE_SAFE 回退模式暂停在线元数据任务；不启动 runner、不切回旧接口 |
+| 503 STORAGE_CHECK_UNAVAILABLE / 507 INSUFFICIENT_STORAGE / ARTIFACT_QUOTA_EXCEEDED | 产物目录核验不可用、空间不足或总量预算不足；本次未创建任务，按运维授权流程处理 |
 | CONNECTION_CHANGED / AUTHORIZATION_REVOKED | 受理后目标配置或发起权限已变化；本次未执行，重新确认后发起 |
 | EXTRACT_OBJECT_FAILED / DB_READ_TIMEOUT / NO_AUDITABLE_OBJECTS | 展示库、对象、阶段和已完成数；本次审核不完整，没有全库成功报告 |
 | JOB_TIMEOUT / RESOURCE_LIMIT / RESULT_TOO_LARGE | 已达到任务保护预算，明确完成范围与取消/回收结果，不能提示全部通过 |
@@ -458,6 +506,7 @@ total_statements 未拆句前为 null，不用 0 或对象数代替；百分比�
 8. 取消弹确认说明“会停止本次后台任务，尚未发布的结果不会作为完整报告”；提交后显示“取消及资源回收中”，后台确认才 CANCELLED。完成与取消竞争按服务端结果展示。
 9. 新增本人最近任务小列表或状态卡“查看最近任务”入口，区分运行、失败和成功历史；失败任务不混入原“历史元数据审核记录”的完整结果列表。成功后刷新原历史，行数只增加一次，沿用既有跨页选中与对比实现。
 10. 有违规仍显示完成摘要和完整问题，不把作业 SUCCEEDED 翻译为“SQL 审核通过”。快照失败、缺产物分别提示，不用一个成功绿色条遮住警告。
+11. 新前端识别 410/ENDPOINT_RETIRED 并提示刷新页面，不将其当可重试创建错误。升级时 index.html 与 app.js 采用同版本资源标识/缓存更新策略；旧缓存 JS 依靠 §8.2 的字符串 detail 也能显示同样提示。不得假设修改新 JS 能改变已加载旧页面的异常处理。
 
 ## 10. 施工文件与实施顺序
 
@@ -473,14 +522,24 @@ total_statements 未拆句前为 null，不用 0 或对象数代替；百分比�
 | D05 | 新 `backend/workers/{metadata_runner,metadata_audit_worker}.py`、包初始化 | 独立服务、子进程入口、恢复、状态/进度/回收；不得 import Web app |
 | D06 | 新 `backend/services/{metadata_job_process,metadata_artifacts}.py` | OS 身份/锁/进程树管理，预算、产物 hash、分页索引、限额和安全清理 |
 | D07 | 新 `backend/api/metadata_audit.py`；`main.py`、`auth_service.py` | 新 API 注册、菜单映射、认证/所有权、只读 readiness；Web 不自动启动 runner |
-| D08 | `backend/api/sql_audit.py` | 旧 façade、历史报告新产物分支、历史删除联动；重逻辑离开路由 |
+| D08 | `backend/api/sql_audit.py` | 旧路径无副作用 410 退役、历史报告新产物分支、历史删除联动；重逻辑离开路由 |
 | D09 | `scan_snapshot_service.py`、`snapshot_extractors/schema_audit.py` | 调用者事务入口、有界快照问题保留；旧调用/归档保护不变 |
 | D10 | `frontend/static/js/app.js`、`frontend/index.html` | 新任务卡/短轮询/恢复/分页/错误归因/取消；保持已有菜单和对比选择 |
-| D11 | `deploy/tdsql-metadata-runner.service`（新）、env.template、install/upgrade_incremental/apply_patch/rollback/verify_deploy | 双服务交付、持久目录、恢复/停止顺序、版本与运行检查 |
+| D11 | `deploy/tdsql-metadata-runner.service`（新）、`tdsql-sqlcheck.service`、env.template、install/upgrade_incremental/apply_patch/rollback/verify_deploy | 双服务交付、内存/磁盘预检、Web 5 秒窗口显式固定、持久目录、CORE_SAFE 回退 |
 | D12 | make_release.sh/.ps1、make_patch.sh/.py、部署 README、VERSION 和版本展示来源 | 打包新包/迁移/unit，无漏文件；实现阶段统一产品版本 v1.6.3.5 |
 | D13 | 新 `tests/test_v1635_*` + 浏览器 UAT 证据 | 见下节；测试依赖不进入生产 requirements/offline wheels |
+| D14 | 新 `backend/services/worker_observability.py`、main lifespan、只读诊断入口；测试侧心跳取证脚本 | 各 Web worker 的事件循环/线程调度延迟及启动参数白名单观测；actual ping 仅测试侧观测，不修改发行版 Uvicorn |
 
-先 D01+语义回归，再 D02—D06 进程/持久化故障测试，随后 D07—D10 浏览器联调，最后 D11—D13 全新安装/升级/回滚。不能只交 D01 并把异步/UI/部署标为“后续优化”，也不能先上后台队列而保留旧 R035 缺陷。
+### 10.1 两个独立交付单元（Rev.B，采纳 P2-02）
+
+| 单元 | 内容 | 独立验收/回滚界限 |
+|---|---|---|
+| DU-1 核心修复 | FIX-01 / D01 和对应测试 | 独立 commit、算法等价+完整规则回归、CPU/内存实测；不依赖 runner/新表/新 UI；可独立回退到既有引擎基线，但回退后须停止大库审核 |
+| DU-2 在线任务加固 | FIX-02—05，D02—D14（不含 D01），包括退役旧路径 | 独立 commit 序列与集成验收；可按 §12.3 回退在线任务能力，保留 DU-1 和必要历史数据适配；不能用新任务架构掩盖未修复核心 |
+
+先完成 DU-1 独立证据，再完成 DU-2 状态/进程/持久化/浏览器/发布证据；最终同一 v1.6.3.5 完整发行包须通过两者及集成门禁。**DU-1 可独立交付评审，不要求等待 DU-2 就绪；但 DU-1 单独通过不能被记成整个 v1.6.3.5 需求已完成。**当前请求只修设计，不表示已授权把中间构建部署生产。
+
+如内网测试资源允许，可在仅 DU-1 的非生产构建先完整跑一次原 6000+ 表库，记录冻结输入/规则、时间、RSS、Web PID、心跳；此对照是可选实验，非设计/开发前置条件，不抵扣完整版 3 次容量验收。通过仅支持“消除核心缺陷有助于稳定性”，因为 DU-1 同时改变分配、CPU和停顿，**不唯一证明是 OOM/内存耗尽或 watchdog 强杀**；失败也不能排除 DU-1 已修复了独立缺陷。
 
 ## 11. SIT、容量与 UAT 验收矩阵
 
@@ -522,6 +581,11 @@ total_statements 未拆句前为 null，不用 0 或对象数代替；百分比�
 | JOB-14 | .part 孤儿、manifest损坏、磁盘满、目录链接/路径穿越 | 不读任意文件、不产生空报告、不越界删文件；失败可追踪 |
 | JOB-15 | 成功历史手工删除/保留清理，保留或清理快照 | 对应产物不可再绕路下载；运行中不可删；归档引用快照保护不变 |
 | JOB-16 | 新建/已迁移/半迁移/错唯一索引/无 DDL 权限 | 幂等或明确失败关闭；不误判 schema ready |
+| JOB-17 | 安全限额沙箱内逐步申请并实际触碰超过 RSS 阈值的内存；正常处理 TERM/忽略 TERM 两分支 | 不是只改配置或只预留虚拟地址；分别真实 TERM 退出、升级 KILL 并 wait；FAILED/RESOURCE_LIMIT、cleanup_ok=true 后才释放槽；两 Web worker PID不变，健康/查询响应符合 §11.4；保护不可控则不在共享主机硬造 OOM |
+| JOB-18 | 默认1024、范围边界511/512/4096/4097；host与cgroup25%边界；MemTotal缺失/峰值很小但物理内存大 | 非法值拒绝；等于25%允许、超过拒绝；不拿历史峰值作容量。小内存场景可注入读数验证，另在真实Linux执行读数对表 |
+| JOB-19 | 已认证旧POST：正常JSON/空body/坏业务JSON、带Prefer/带key；活动槽空闲/已有新任务 | 均410/ENDPOINT_RETIRED，job表无新增、旧路由对slot读写调用0、active_job_id占用不变、目标连接调用0；独立runner心跳不算旧路由修改；401/403仍优先；字符串detail可被旧JS显示；新路径仍可受理 |
+| JOB-20 | 磁盘free与目录总量不足、核验过期、运行中其他进程耗盘、inode不足 | 未受理者503/507且无job/占槽；运行中明确停止回收，不静默删成功产物；参数判定含阈值等于/差1字节 |
+| JOB-21 | 完整版→CORE_SAFE回退→完整版恢复 | 保留DU-1；旧路径410、新建/取消任务503不执行；历史只读/下载所有权和冻结名称保持；无runner残留、不删除新表/产物 |
 
 ### 11.3 浏览器真实点击验收
 
@@ -536,6 +600,7 @@ total_statements 未拆句前为 null，不用 0 或对象数代替；百分比�
 | UI-07 | 审核完成但有 ERROR/INFO；快照失败 | 完成≠通过；规则完整；快照缺失不允许比对 |
 | UI-08 | 点取消并确认、观察 TERM/KILL 后结果、再次启动 | 回收完成才可再次启动；需要 KILL 的分支不冒充 TERM 正常退出 |
 | UI-09 | 两份成功结果跨页选择并对比、旧 v1.6.3.4 历史下载 | 原四模块跨页选择不回归；旧数据兼容；新结果只落一次 |
+| UI-10 | 保留真实v1.6.3.4旧HTML/JS缓存跨升级，再点旧按钮；新页面处理410 | 旧客户端从detail字符串显示“请刷新页面”，不生成任务；刷新加载新资源后可走新流程；不以只测新错误处理器替代旧缓存场景 |
 
 ### 11.4 容量与发布硬门禁
 
@@ -550,8 +615,9 @@ total_statements 未拆句前为 null，不用 0 或对象数代替；百分比�
 - 三次均得到完整 SUCCEEDED 作业且结果合法持久化；`selected=extracted`，所有拆句均审核，report_id 非空且恰好一条；没有无告警漏对象。业务规则命中不等于作业失败。
 - 基准容量集以 6000 表×20 列，分别同名/异名列及混合类型构造；记录实际数据，不只有“6000”标签。真实库保留真实列宽/索引/视图/分区特征，不通过裁剪 DDL 过门禁。
 - 新建受理请求在健康测试网络下 p95≤2 秒；运行期间状态/健康探针 p95≤2 秒、单次≤5秒（各至少 100 次）；无与该审核有关的 Web worker 重启或空响应。
-- 子进程 RSS 峰值低于配置保护阈值且不触发资源错误；原 6000+ 表在默认 1800 秒内完整完成才算默认配置容量通过。预算耗尽是可解释失败，不是容量通过，也不自动要求把 180 秒改大。
+- 子进程完整生命周期 RSS 峰值低于本轮默认 **1024 MiB** 且不触发资源错误；原 6000+ 表在默认 1800 秒内完整完成才算默认配置容量通过。必须回填并复核阈值：记录提取/审核/JSON编码/mogrify/报告制备各阶段峰值及观测最大值，是否仍需1024、建议调整值和批准记录；未经批准不改默认。预算耗尽是可解释失败，不是容量通过，也不自动要求把 180 秒改大。
 - 通过延迟注入使一个合法任务持续超过 300 秒，验证跨越旧 250/本轮279秒观察点仍正常可查并完成；这是故障路径验证，不可写成真实 TDSQL 查询性能。
+- 容量记录附Web实际启动参数、生效healthcheck=5秒、每worker事件循环/线程调度延迟的样本数/p95/max、PID及退出事件；这些延迟不是Uvicorn实际ping应答。测试环境可追加 §12.4 的 actual ping 采样，单独标“有观测插桩”，未采到则写 UNKNOWN，不据普通HTTP健康检查无超时就断言杀进程原因已证实。
 - 无 6000 份 ParsedSQL/AST 同时驻留，无全历史 metas，R035 见证计数≤5U；全规则语义差异为 0。
 - 进程退出/取消/重启/断网/包大小/磁盘故障的定位可闭环；没有残留进程、重复报告或永久假成功。故障注入不在生产环境执行。
 - 全量既有回归套件通过；上线检查、大表、慢 SQL、网关、深度诊断、鉴权、报告/快照至少完成冒烟。新/改代码按本矩阵严格测试，未改模块不扩展功能测试范围。
@@ -597,12 +663,20 @@ SyslogIdentifier=tdsql-metadata-runner
 WantedBy=multi-user.target
 ```
 
-unit 不设置仅新 systemd 才支持的硬资源选项来冒充麒麟 4.19 兼容性；RSS 保护由本版 runner 实现并在该环境验证。Web 保留 `--workers 2` 及既有启动参数，不调大健康检查来掩盖问题。生产只有服务管理器启动 runner，Web startup 不自建第二个。
+unit 不设置仅新 systemd 才支持的硬资源选项来冒充麒麟 4.19 兼容性；RSS 保护由本版 runner 实现并在该环境验证。Web 保留 `--workers 2`，并在现有 Web unit 的 ExecStart **显式追加固定5秒**；全新安装、增量升级、补丁和 CORE_SAFE 产物共用该模板：
+
+```ini
+ExecStart=__INSTALL_DIR__/current/venv/bin/python -m uvicorn backend.main:app --host 0.0.0.0 --port __PORT__ --workers 2 --no-access-log --timeout-worker-healthcheck 5
+```
+
+这里采用 CLI 固定值，避免默认版本或 .env 改变窗口，CLI 优先于 `UVICORN_TIMEOUT_WORKER_HEALTHCHECK` 环境变量。诊断须同时列env（可未设）、argv和实际生效来源，不把env未设判成配置未固定。metadata-runner 并不启动 Uvicorn，**不给其添加没有实际作用的 UVICORN_* 参数**。这是对 A 建议的实现校正，不是把窗口调大。[Uvicorn 配置优先级与参数](https://uvicorn.dev/settings/)
+
+生产只有服务管理器启动 runner，Web startup 不自建第二个。
 
 ### 12.2 全新安装/增量升级的顺序
 
 1. 发布包包含 v15 迁移、workers Python 包、新 unit、新前端和 schema 检查；源码版本/包 VERSION/页面版本一致为 v1.6.3.5。原依赖锁定不因本设计自动升级；新实现优先标准库。
-2. 升级前备份 MySQL 元数据库、旧 .env/unit、当前 release 指向与持久 reports；检查磁盘/目录权限/元数据库包大小，包过小给出预检提示，禁止自动变更服务器参数。
+2. 升级前备份 MySQL 元数据库、旧 .env/unit、当前 release 指向与持久 reports；执行 §5.4 的 RSS范围/MemTotal25%/有效cgroup限额、磁盘free/总量/目录权限预检；不满足则拒绝升级就绪且列出实测值，禁止仅warning后启动。元数据库包过小给出预检提示，禁止自动变更服务器参数；runner每次启动再核验自身实际cgroup，不只信安装脚本所在shell。
 3. 将 metadata slot.accepting 关闭，由维护命令走 repository，而不是运维手改状态。等待活动任务完成；确需停止时走受控取消，**确认进程树回收**，无法确认则升级中止。首次从 .4 升级无 runner，但仍需等待原在线长请求结束后停 Web，不能把正在运行的旧进程带进新版本。
 4. 停止旧 Web 和旧 runner（若存在），确认 runner cgroup 无子进程；在固定目标 release 安装代码/依赖并执行数据库迁移、结构校验，成功后切换 current。不要边跑旧 worker 边覆盖其代码。
 5. 渲染/安装两个 unit，daemon-reload；启动 runner 并通过版本/存储/恢复校验后 accepting=1，再启动 Web。失败时整体安装/升级返回非零，不打印“升级圆满完成”。
@@ -610,11 +684,17 @@ unit 不设置仅新 systemd 才支持的硬资源选项来冒充麒麟 4.19 兼
 7. `apply_patch.sh` 与增量升级、make_patch 产物遵循相同双服务协议；不能只有全量安装脚本支持新 runner。
 8. 执行离线 `dist/wheels_tmp` 干净安装门禁；测试/浏览器框架不进入根 `requirements.txt` 的生产依赖。没有新增第三方依赖不等于免掉离线发布验证。
 
-### 12.3 回滚
+### 12.3 回滚：优先只退在线任务单元、保留核心修复
 
-回滚先关闭受理，受控结束活动任务并确认整个 runner 进程树退出，再 stop/disable 新 runner，切回旧 release 后启动旧 Web。v15 两张表作为加法迁移**保留不删**，audit_history 仍是旧 JSON 格式，旧版本可读已保存审核历史；新原始 SQL 产物保留供重新升级恢复。
+Q 在发行时同时提供不可变 `FULL` 与 `CORE_SAFE` 两个制品清单（产品版本均v1.6.3.5，build_flavor及独立hash明确标识，不能冒充同一包）。`CORE_SAFE` 是**预先构建和测试的降级制品**，不是现场随意拼文件、回滚main提交或一个可绕过的环境开关：
 
-回滚到 v1.6.3.4 会重新暴露大库长请求和 R035 平方级缺陷，必须明确暂停此类大库在线审核，不能把回滚当成已经修复。其他已验收模块可按原发布流程运行。禁止为回滚 DROP 新表、删除全部 reports、手工清空 active_job_id 或复活未回收 child。
+- 保留 DU-1 五见证索引/逐句审核及所有未受影响模块；不装载 runner/child/新任务提交与执行逻辑，停用在线任务页面发起能力。
+- 保留薄的旧410路由、新任务写入口503/ONLINE_METADATA_DISABLED路由，以及既有成功任务/历史产物的只读适配和所有权校验。必要只读适配是数据兼容保护，不是重新启动DU-2执行路径；其依赖不得导入pipeline/worker。
+- 新任务创建、取消不得触及执行槽/目标库；旧页面无论是否刷新都不能回到同步重计算。runner不就绪或模式禁用的提示明确“在线元数据功能暂停”，不把其他模块一起宣告不可用。
+
+部分回退步骤：关闭受理 → 走原管理流程完成/取消活动job → 证实进程树退出（不能证实则中止切换）→ stop/disable runner → 切换已验CORE_SAFE → 启动Web并验证DU-1、旧410、新写入口503、原报告读取/下载/权限 → 留存回退manifest与未启用功能说明。只关runner而留下可能损坏的提交模块继续装载，不算完成该回退路径；CORE_SAFE制品缺失时也不能声称“支持只退FIX-02”。恢复FULL时照常做schema/产物/旧job状态核验，无自动重跑。
+
+若DU-1本身也必须撤回，才执行完全回滚至上一已验版本：同样先停受理和回收，再切旧release。v15两张表作为加法迁移**保留不删**，audit_history旧JSON格式保留，新原始SQL产物继续保存。完全回滚至v1.6.3.4会重现核心资源缺陷，必须暂停大库审核，不能把回滚当修复。禁止DROP新表、删除全部reports、手清active_job_id或复活未回收child。
 
 ### 12.4 最小日志字段与一键诊断
 
@@ -622,9 +702,19 @@ unit 不设置仅新 systemd 才支持的硬资源选项来冒充麒麟 4.19 兼
 
 新增只读诊断命令汇集两个 service 的 PID/启动身份、job 状态、对应时间窗日志、产物 manifest/hash 与当前 cgroup 控制器类型。先判 cgroup v1/v2 再读对应计数，不以不存在的 memory.events 路径中止整个诊断。诊断不得发送信号/重启服务/清理文件。
 
+Rev.B 增加：只读输出物理MemTotal、RSS配置/有效容量比例、产物used/free/预算/核验时间、Web父进程argv及白名单环境变量 `UVICORN_TIMEOUT_WORKER_HEALTHCHECK`、实际生效窗口与来源、Uvicorn版本和supervisor源码hash。禁止为了看一个变量而整份导出environ（会泄漏凭据）。未设env但argv明确5秒属于有效固化。
+
+观测分三类，不混命名：
+
+1. Web各worker随lifespan启动1秒事件循环定时回调与独立1秒守护线程计时，使用monotonic计算 `web_event_loop_lag_ms` / `web_thread_tick_lag_ms`；维护有界直方图或固定窗口，60秒汇总count/p95/max及PID，停服清理timer/thread。不保存无限样本、不增加业务SQL、不自发HTTP请求；这是调度延迟，**不是** supervisor ping应答。
+2. 保留父/子进程起止、实际退出码/信号、同窗kernel/cgroup OOM计数与系统日志；这些与线程lag共同作为间接证据。没有直接监督决策记录就保持终止原因 UNKNOWN。
+3. A建议的“实际ping应答延迟”在测试环境由版本/hash锁定的只读记录式测试harness采集：包装**原本就会执行的一次** `Process.ping`/监督决策调用，委托原实现、用monotonic记录elapsed/result/PID/5秒配置，观察原有kill决策（不另发ping、不改返回值/顺序/超时、不补杀）。脚本仅在tests/取证工具，不改site-packages、不进生产默认启动。对照无插桩运行，记录插桩边界/开销；私有API不匹配则停止这项测试，不能猜数。未采集时报告actual_ping_latency=UNKNOWN，不能用普通线程0.5秒打点代替。
+
+因此本版提升可观测性，但不承诺仅一个延迟最大值就能唯一归因；不以“为了确定原故障”增加生产心跳通道竞争或修改Uvicorn杀进程逻辑。
+
 ## 13. 设计交付检查与责任门禁
 
-本轮完成：读取新增 console、核对 279 秒计时、归并既有证据边界、复核基线源码和部署结构、查询相关官方文档、运行独立见证模型、形成本文。**本轮未实施修复，也未执行新版 SIT/UAT、内网容量测试、生产迁移或部署。**
+Rev.A 完成：读取新增console、核对279秒计时、归并既有证据边界、复核源码、查询官方文档、运行独立见证模型。Rev.B 完成：阅读A评审/裁决记录，复核原始MemTotal与前端错误处理，修订参数/资源护栏、旧路径退役、分单元交付/回退及观测边界。**两轮都未实施修复，也未执行新版SIT/UAT、内网容量测试、生产迁移或部署。**
 
 | 门禁 | 后续责任输出 | 不能替代的事实 |
 |---|---|---|
