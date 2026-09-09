@@ -144,6 +144,18 @@ systemctl daemon-reload
 systemctl enable tdsql-sqlcheck >/dev/null 2>&1
 systemctl restart tdsql-sqlcheck
 
+# v1.6.3.5 / DU-2 / SIT-M-02：安装独立元数据审核执行器 tdsql-metadata-runner.service
+# 双服务：先起 runner（承担重任务），再起/已起 Web（受理与查询）。runner 启动含资源预检（§5.4）。
+log "步骤7b: 安装并启动元数据审核执行器 tdsql-metadata-runner.service"
+sed -e "s|__INSTALL_DIR__|${INSTALL_DIR}|g" -e "s|__USER__|${RUN_USER}|g" \
+    "${SCRIPT_DIR}/tdsql-metadata-runner.service" > /etc/systemd/system/tdsql-metadata-runner.service
+systemctl daemon-reload
+systemctl enable tdsql-metadata-runner >/dev/null 2>&1
+systemctl restart tdsql-metadata-runner
+systemctl is-active --quiet tdsql-metadata-runner \
+    && log "  metadata-runner 已启动" \
+    || log "  警告: metadata-runner 未处于活动状态，在线元数据审核暂不可用（请查 journalctl -u tdsql-metadata-runner）"
+
 # ── 8. 防火墙（如启用 firewalld）────────────────────────────────────────
 if systemctl is-active firewalld >/dev/null 2>&1; then
   log "步骤8: firewalld 放通 ${PORT}/tcp"

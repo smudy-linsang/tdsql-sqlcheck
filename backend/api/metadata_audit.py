@@ -203,6 +203,10 @@ def _job_summary(job: dict) -> dict:
         },
         "report_id": job.get("report_id"), "snapshot_id": job.get("snapshot_id"),
         "cleanup_ok": job.get("cleanup_ok"),
+        # v1.6.3.5 / SIT-N-01：失败原因/退出码顶层暴露（用户能看到真实原因，不只"失败"）
+        "error_code": job.get("error_code"),
+        "error_message": job.get("error_message"),
+        "exit_code": job.get("exit_code"),
         "error": ({"code": job.get("error_code"), "message": job.get("error_message")}
                   if job.get("error_code") else None),
         "created_at": str(job.get("created_at") or ""),
@@ -241,6 +245,12 @@ async def create_metadata_job(request: Request):
                             detail="缺少幂等键（Idempotency-Key 头或 client_submission_key）")
 
     _check_runner_ready()
+    # 磁盘受理前置检查（设计 §5.4/§8.3）：空间不足/核验不可用 → 507/503，不建任务
+    from backend.services import metadata_job_process as jp
+    ok_disk, disk_code, disk_msg = jp.check_disk_before_accept(str(art.artifact_root()))
+    if not ok_disk:
+        raise MetadataJobError(disk_code, disk_msg,
+                               503 if disk_code == "STORAGE_CHECK_UNAVAILABLE" else 507)
     ctx, final_db, conn_info = _freeze_context(connection_id, db_name, scopes)
     norm = _norm_request(connection_id, final_db, scopes)
     req_hash = _request_hash(norm)

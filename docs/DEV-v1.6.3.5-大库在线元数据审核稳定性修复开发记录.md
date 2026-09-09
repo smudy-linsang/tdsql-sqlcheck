@@ -165,6 +165,40 @@ VERSION / APP_VERSION / 前端 5 处版本标记统一 1.6.3.5（version_consist
 
 ---
 
+---
+
+# 第三批：SIT 第一轮整改（A 报告 @a2995e7，结论不通过 → 全部整改）
+
+| 项 | 内容 |
+|---|---|
+| 整改日期 | 2026-09-09 |
+| A 结论 | 不通过：3 BLOCK + 2 MAJOR + 1 MINOR。DU-1 核心算法定性高质量（等价性/收益 A 已实证），问题全在 DU-2 外围 |
+
+## 逐项确认与整改（6 项全部认可）
+
+| 编号 | 级别 | 问题 | 整改 |
+|---|---|---|---|
+| B-01 | BLOCK | `metadata_artifacts.py` 用 `Optional` 未 import，Python≤3.13 下应用起不来 | 补 `from typing import Optional`；新增 `tests/test_v1635_delivery_gate.py`（逐模块 import + `get_type_hints` 强制解析注解抓未导入类型名 + `from backend.main import app` 门禁）。**根因：本机 Python 3.14 的 PEP 649 惰性注解掩盖了它** |
+| B-02 | BLOCK | 设计 §5.2/§5.4 整层资源护栏未实现（8 参数缺、零 RSS 采样、零磁盘检查、25% MemTotal 预检缺失、START_TIMEOUT 缺失） | 新建 `backend/services/metadata_job_process.py`：`MetadataLimits` 全 10 参数 + 范围校验；`read_rss_bytes`(Linux /proc/pid/status VmRSS)；`disk_free_bytes`/`check_disk_before_accept`；`effective_capacity_bytes`(cgroup v1/v2)；`precheck_runner_start`(25% MemTotal，fail-closed)；`run_metadata_worker` 受管子进程（每秒 RSS 采样超限→RESOURCE_LIMIT、取消、monotonic 超时→TERM/KILL/reap） |
+| B-03 | BLOCK | `MetadataJobError` 无异常处理器，业务错误全退化为裸 500 | `main.py` 注册 `@app.exception_handler(MetadataJobError)` → 返回 `code/message/http_status/request_id`；runner 未就绪现返回 **503 EXECUTOR_UNAVAILABLE**（非 500） |
+| M-01 | MAJOR | runner 丢弃子进程 stderr，失败无诊断线索 | `run_metadata_worker` 用排空线程捕获 stdout/stderr 尾部（各 64 KiB）；child 异常退出时 runner 把 stderr 尾部（脱敏）写入日志与任务 error_message |
+| M-02 | MAJOR | runner unit 无部署脚本引用；Web unit 未固定 5s 健康窗口 | `install.sh` 增加 runner unit 安装/启动（步骤7b）；`verify_deploy.sh` 增加 runner 服务校验（仅 systemd 可用时强制，无 systemd 静默跳过不污染"零 PASS"契约）；`tdsql-sqlcheck.service` ExecStart 追加 `--timeout-worker-healthcheck 5` |
+| N-01 | MINOR | 失败原因/退出码不经 API 暴露 | 任务详情 `_job_summary` 顶层补 `error_code/error_message/exit_code`；runner 落库 exit_code |
+
+## 整改后验证
+
+- **新增回归锁**：`test_v1635_delivery_gate.py`（15 项：7 模块 import + 注解解析 + main 门禁）+ `test_v1635_sit_r1.py`（13 项：参数校验/25%预检拒绝/磁盘检查三态/run_metadata_worker stderr 捕获+超时终止+成功/503 异常处理器/错误字段暴露）。
+- **runner 真实集成路径冒烟 PASS**：`runner._run_job` 经 `run_metadata_worker` 派生真实 worker 子进程，提取本地库 63 对象 → SUCCEEDED + report_id + snapshot_id + **exit_code=0 落库**。
+- **全量回归 2063 passed + 30 skipped + 0 failed**（较 DU-2 交付 2035 新增 28 个整改锁）。
+- 交付门禁：`python -c "from backend.main import app"` 成功（B-01 类问题今后被门禁拦截）。
+
+## 边界声明
+1. 资源护栏的 **RSS 采样在 Linux 经 /proc/<pid>/status 实测**；Windows 本机开发 `read_rss_bytes` 返回 None（跳过而非误判），生产 systemd 部署在 Linux 生效。
+2. 真实 6000+ 表内网容量验收（§11.4）与 CORE_SAFE 回退制品、断电重入等故障注入仍属后续内网验收活动。
+3. 整改已消除 A 报告的全部 6 项；DU-2 返工完成，等待 A 第二轮 SIT（含变异复验）。
+
+---
+
 施工人：智能体 Q
-施工对象：v1.6.3.5（DU-1 核心修复 + DU-2 在线任务加固）
+施工对象：v1.6.3.5（DU-1 核心修复 + DU-2 在线任务加固 + SIT 第一轮整改）
 提交给：Mr.Linsang

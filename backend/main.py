@@ -50,6 +50,7 @@ from backend.api.admin import router as admin_router
 from backend.api.scan_compare import router as scan_compare_router
 from backend.api.raw_slowlog import router as raw_slowlog_router
 from backend.api.metadata_audit import router as metadata_audit_router  # v1.6.3.5 在线元数据任务
+from backend.services.metadata_audit_repository import MetadataJobError  # v1.6.3.5 DU-2 异常处理器
 from backend.middleware import (AuthMiddleware, BodySizeLimitMiddleware,
                                 GatewayUploadPolicyMiddleware,
                                 RequestContextMiddleware)
@@ -149,6 +150,19 @@ app = FastAPI(
     description=config.APP_DESCRIPTION,
     lifespan=lifespan,
 )
+
+
+# v1.6.3.5 / DU-2 / SIT-B-03：MetadataJobError → 稳定 HTTP 错误（code+中文 message+request_id）
+# 业务错误不再退化为裸 500；http_status 字段生效（如 runner 未就绪 503）。
+@app.exception_handler(MetadataJobError)
+async def _metadata_job_error_handler(request, exc):  # noqa: ANN001
+    from fastapi.responses import JSONResponse
+    return JSONResponse(
+        status_code=exc.http_status,
+        content={"code": exc.code, "detail": exc.message, "message": exc.message,
+                 "request_id": getattr(request.state, "request_id", "") or ""},
+        headers={"Cache-Control": "no-store"},
+    )
 
 # ── 中间件（注册顺序与执行顺序相反：请求先过RequestContext再过Auth） ──
 # v1.6.3.4 / D05：GatewayUploadPolicyMiddleware 最先 add → 位于最内层，在 Auth
