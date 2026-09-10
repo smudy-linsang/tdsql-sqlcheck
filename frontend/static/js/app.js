@@ -458,6 +458,7 @@ const app=createApp({
       fileAuditResult.value=null;
       extractedResult.value={};
       metadataJob.value=null;metadataItems.value=[];metadataResultsTotal.value=0;  // v1.6.3.5/DU-2：登出清理运行视图
+      try{sessionStorage.removeItem('meta_active_job');sessionStorage.removeItem('meta_submission');}catch(e){}  // R2-05/06：登出清理恢复线索
       explainResult.value=null;
       bigtableData.value=null;
       connTestResult.value=null;
@@ -1713,20 +1714,48 @@ const app=createApp({
       window.open(`${API_BASE}/api/v1/toolkit/download?file_path=${encodeURIComponent(scriptPath)}&access_token=${t}`,'_blank');
     };
     // v1.6.3.5 / DU-2：在线元数据审核改为异步任务接口（创建→轮询→分页结果）。
-    // 幂等键按"实例+库+范围"稳定生成并持久化，受理响应丢失时用原 key 重放不重复建任务。
+    // v1.6.3.5 / UAT-O-1635-R2-05：每次确认的新扫描生成**新**幂等键；终态后不复用旧键，
+    // 避免"改完目标库再扫描却重放旧报告"。仅同一次提交的响应丢失重试才复用同一 key。
     let _metaPollGen=0;
-    const _metaJobKey=()=>{
-      const input=`${extractedAuditConnId.value}|${extractedDbName.value}|${[...extractedScope.value].sort().join(',')}`;
-      let k=sessionStorage.getItem('meta_job_key:'+input);
-      if(!k){k=(crypto.randomUUID?crypto.randomUUID().replace(/-/g,''):(Date.now().toString(16)+Math.random().toString(16).slice(2))).slice(0,32);sessionStorage.setItem('meta_job_key:'+input,k);}
-      return k;
+    const _newMetaKey=()=>{
+      return (crypto.randomUUID?crypto.randomUUID().replace(/-/g,''):(Date.now().toString(16)+Math.random().toString(16).slice(2))).slice(0,32);
+    };
+    // 恢复当前用户的活动任务（R2-06：刷新/重进页面恢复任务卡与轮询，不为恢复而新建）
+    const _recoverActiveJob=async()=>{
+      let jobId=sessionStorage.getItem('meta_active_job');
+      try{
+        if(!jobId){
+          // 本地无缓存：查服务端该用户最新未决任务
+          const lr=await apiFetch(`${API_BASE}/api/v1/audit/metadata-jobs?limit=20`);
+          if(lr.ok){
+            const ld=await lr.json().catch(()=>({}));
+            const active=(ld.items||[]).find(j=>!['SUCCEEDED','FAILED','CANCELLED'].includes(j.state));
+            if(active)jobId=active.job_id;
+          }
+        }
+        if(!jobId)return;
+        const resp=await apiFetch(`${API_BASE}/api/v1/audit/metadata-jobs/${jobId}`);
+        if(resp.status===401||resp.status===403||resp.status===404){sessionStorage.removeItem('meta_active_job');return}
+        if(!resp.ok)return;
+        const d=await resp.json();
+        if(['SUCCEEDED','FAILED','CANCELLED'].includes(d.state)){
+          // 终态：保留可查看，但不占"活动"位
+          metadataJob.value=d;
+          if(d.state==='SUCCEEDED')await loadMetadataResults(d.job_id,1);
+          return;
+        }
+        // 活动任务：恢复任务卡并续上轮询
+        metadataJob.value=d;extractAuditing.value=true;
+        _pollMetadataJob(d.job_id);
+      }catch(e){/* 网络断开仅保持现状，不清除恢复线索 */}
     };
     const runExtractAndAudit=async()=>{
       if(!extractedAuditConnId.value){ElementPlus.ElMessage.warning('请先选择目标实例');return}
       if(extractAuditing.value)return;  // 本地 single-flight
       extractAuditing.value=true;
       metadataJob.value=null;metadataItems.value=[];metadataResultsTotal.value=0;
-      const key=_metaJobKey();
+      const key=_newMetaKey();  // 新扫描 = 新幂等键
+      sessionStorage.setItem('meta_submission', JSON.stringify({key:key,ts:Date.now()}));
       try{
         const resp=await apiFetch(`${API_BASE}/api/v1/audit/metadata-jobs`,{
           method:'POST',
@@ -1746,9 +1775,10 @@ const app=createApp({
           ElementPlus.ElMessage.error(d.message||`任务受理失败 (HTTP ${resp.status})`);extractAuditing.value=false;
         }
       }catch(e){
-        // 受理响应丢失：状态不确定，不自动重发（避免重复任务），提示后可查询恢复
-        ElementPlus.ElMessage.error('提交结果待确认，任务可能已在后台受理：'+e.message);
+        // 受理响应丢失：保留恢复线索，尝试恢复（不盲目新建，避免重复任务）
+        ElementPlus.ElMessage.warning('提交结果待确认，正在尝试恢复任务状态…');
         extractAuditing.value=false;
+        await _recoverActiveJob();
       }
     };
     const _pollMetadataJob=async(job_id)=>{
@@ -2376,6 +2406,7 @@ const app=createApp({
       if(v==='rules'&&rulesList.value.length===0)loadRules();
       if(v==='file-audit'&&fileAuditTab.value==='reports')loadFileReports();
       if(v==='schema-extractor-audit'&&extractedTab.value==='history')loadExtractedReports();
+      if(v==='schema-extractor-audit'&&extractedTab.value==='audit')_recoverActiveJob();  // v1.6.3.5/R2-06：刷新/重进恢复活动任务
       if(v==='slow-tasks')onSlowTasksTabChange(slowTasksTab.value);
       if(v==='bigtable')onBigtableTabChange(bigtableTab.value);
       if(v==='slow-records')loadSlowList();

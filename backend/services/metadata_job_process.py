@@ -17,9 +17,62 @@ import ctypes
 import logging
 import os
 import shutil
+from datetime import datetime, timezone
 from pathlib import Path
 
 logger = logging.getLogger("tdsql.metadata_job_process")
+
+
+def parse_utc(value) -> "datetime | None":
+    """把数据库心跳/时间字段解析为 UTC datetime；解析失败返回 None（调用方 fail-closed）。
+
+    兼容：DB 返回的 datetime 对象、ISO 格式（含 `T` 分隔，database.py 兼容层
+    `v.isoformat()` 的产物）、空格分隔、可选小数秒、可选时区；无时区按本模块
+    UTC 契约解释（与 repository 的 UTC_TIMESTAMP(6) 写入一致）。
+
+    设计出处：UAT-O-1635-R2-01——database.py 把 datetime 转 ISO（带 T），而旧
+    解析用空格格式导致解析失败被 `except: pass` 放行，过期心跳被误判为新鲜。
+    """
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        dt = value
+    else:
+        s = str(value).strip()
+        if not s:
+            return None
+        # 兼容 T 与空格两种分隔
+        s2 = s.replace("T", " ")
+        dt = None
+        for fmt in ("%Y-%m-%d %H:%M:%S.%f", "%Y-%m-%d %H:%M:%S"):
+            try:
+                dt = datetime.strptime(s2, fmt)
+                break
+            except ValueError:
+                continue
+        if dt is None:
+            # 兜底：fromisoformat（处理带时区的标准 ISO）
+            try:
+                dt = datetime.fromisoformat(s)
+            except ValueError:
+                return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
+def is_fresh_heartbeat(value, *, window_seconds: float, now: "datetime | None" = None) -> bool:
+    """心跳是否新鲜：缺失/解析失败/过期/明显未来时间一律 False（fail-closed）。
+
+    now 缺省取当前 UTC。允许 ≤5 秒的微小未来漂移（时钟偏差），超出视为异常。
+    """
+    dt = parse_utc(value)
+    if dt is None:
+        return False
+    now = now or datetime.now(timezone.utc)
+    delta = (now - dt).total_seconds()
+    # 过期（delta > window）或明显未来（delta < -5s 时钟异常）都不新鲜
+    return -5.0 <= delta <= window_seconds
 
 
 def _env_int(name: str, default: int) -> int:
@@ -44,12 +97,23 @@ _DB_ERR_HINTS = [
 ]
 
 
-def humanize_db_error(text: str) -> str:
+def humanize_db_error(text) -> str:
     """把 PyMySQL 原始错误（如 `(2013, 'Lost connection...')`）映射为可读中文提示。
 
+    优先从异常的 args[0]（整数错误码）提取；否则从文本中的 `(NNNN,` 提取。
     命中已知错误码则在原文前补一句中文诊断；未命中原样返回（不丢信息）。
+    UAT-O-1635-R2-03：兼容异常对象与文本两种入参。
     """
     import re
+    # 优先从异常对象的 args[0] 提取整数错误码
+    if not isinstance(text, str):
+        args = getattr(text, "args", None)
+        if args and isinstance(args[0], int):
+            code = str(args[0])
+            for c, hint in _DB_ERR_HINTS:
+                if c == code:
+                    return f"{hint}。原始错误: {text}"
+        text = str(text)
     s = str(text or "")
     m = re.search(r"\((\d{4})\s*,", s)
     if m:

@@ -179,6 +179,16 @@ def run(job_id: str, attempt_token: str) -> int:
         nd_part.flush() if hasattr(nd_part, "flush") else None
         os.replace(nd_part, nd_path)
 
+        # ── 收尾强制写最终计数（UAT-O-1635-R2-02）──
+        # total_statements 用实际拆句数（len(records)），audited_statements 同步；
+        # 不能用表数冒充，不再依赖 idx%50 的稀疏采样（否则终态停在 51 而非 63）。
+        _final_count = len(records)
+        repo.update_progress(job_id, attempt_token, R.PHASE_SERIALIZING,
+                             json.dumps({**stats,
+                                         "total_statements": _final_count,
+                                         "audited_statements": _final_count},
+                                        ensure_ascii=False))
+
         # ── 序列化（SERIALIZING）──
         repo.cas_state(job_id, attempt_token, (R.STATE_RUNNING,), R.STATE_RUNNING,
                        phase=R.PHASE_SERIALIZING)
@@ -244,7 +254,10 @@ def run(job_id: str, attempt_token: str) -> int:
         # publish 已把 job 置 PUBLISHED；runner 负责回收确认后置 SUCCEEDED
         return 0
     except MetadataExtractError as e:
-        repo.fail(job_id, attempt_token, error_code=e.code, error_message=e.message)
+        # v1.6.3.5 / UAT-O-1635-R2-03：提取边界的目标库错误也语义化（保留定位 + 原始码）
+        from backend.services.metadata_job_process import humanize_db_error
+        repo.fail(job_id, attempt_token, error_code=e.code,
+                  error_message=humanize_db_error(e.message))
         return 1
     except Exception as e:
         logger.error("元数据审核任务执行失败 job=%s: %s", job_id, e, exc_info=True)

@@ -89,10 +89,27 @@ class MetadataRunner:
 
         self._log("启动子进程", job_id=job_id, pid_budget_mib=jp.MetadataLimits.CHILD_RSS_LIMIT_MIB)
         started = time.monotonic()
-        # 受管子进程：RSS 采样 + 取消意图复核 + 总时限
-        res = jp.run_metadata_worker(
-            cmd, timeout=self.job_timeout, env=env, cwd=repo_root,
-            cancel_check=lambda: self.repo.is_cancel_requested(job_id))
+        # 任务执行期间持续上报 runner 心跳（R2-01：否则长任务期间 runner 看似离线）
+        import threading
+        hb_stop = threading.Event()
+
+        def _hb_loop():
+            while not hb_stop.is_set():
+                try:
+                    self.repo.slot_heartbeat(self.runner_id)
+                except Exception:
+                    pass
+                hb_stop.wait(2.0)
+        hb_thread = threading.Thread(target=_hb_loop, daemon=True)
+        hb_thread.start()
+        try:
+            # 受管子进程：RSS 采样 + 取消意图复核 + 总时限
+            res = jp.run_metadata_worker(
+                cmd, timeout=self.job_timeout, env=env, cwd=repo_root,
+                cancel_check=lambda: self.repo.is_cancel_requested(job_id))
+        finally:
+            hb_stop.set()
+            hb_thread.join(timeout=3)
 
         final = self.repo.get_job(job_id)
         elapsed = int(time.monotonic() - started)

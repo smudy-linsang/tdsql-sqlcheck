@@ -129,29 +129,21 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"定时任务调度器启动失败（非致命）: {e}")
     # v1.6.3.5 / UAT-M1：启动后探测元数据执行器 runner 心跳，缺失则打印明显提示
-    # （dev/UAT 单机若只起 Web 未起 runner，新提交的元数据任务会一直停在 WAITING）。
+    # （dev/UAT 单机若只起 Web 未起 runner，新提交的元数据任务会被拒绝受理/503）。
     try:
         from backend.services.metadata_audit_repository import repository as _meta_repo
+        from backend.services import metadata_job_process as _jp
         from backend.services.database import ensure_db as _ensure_meta
-        from datetime import datetime, timezone
         _ensure_meta()
         _slot = _meta_repo.slot_state()
-        _hb = (_slot or {}).get("runner_heartbeat_at")
-        _fresh = False
-        if _hb:
-            try:
-                _hdt = _hb if isinstance(_hb, datetime) else datetime.strptime(
-                    str(_hb), "%Y-%m-%d %H:%M:%S.%f").replace(tzinfo=timezone.utc)
-                if _hdt.tzinfo is None:
-                    _hdt = _hdt.replace(tzinfo=timezone.utc)
-                _fresh = (datetime.now(timezone.utc) - _hdt).total_seconds() < 15
-            except Exception:
-                _fresh = False
-        if not (_slot and _slot.get("accepting") and _fresh):
+        _alive = bool(_slot and _slot.get("accepting") and
+                      _jp.is_fresh_heartbeat(_slot.get("runner_heartbeat_at"),
+                                             window_seconds=15))
+        if not _alive:
             logger.warning(
-                "⚠️ 未检测到元数据审核执行器 metadata-runner 心跳：在线元数据审核任务将停在"
-                " WAITING。dev/单机请另行启动：python -m backend.workers.metadata_runner"
-                "（生产由 systemd 服务 tdsql-metadata-runner 提供）")
+                "⚠️ 未检测到元数据审核执行器 metadata-runner 心跳：在线元数据审核新任务将被"
+                "拒绝受理（503 EXECUTOR_UNAVAILABLE）。dev/单机请另行启动："
+                "python -m backend.workers.metadata_runner（生产由 systemd tdsql-metadata-runner 提供）")
     except Exception as e:
         logger.warning(f"runner 心跳探测失败（非致命）: {e}")
     logger.info("TDSQL SQL审核平台已就绪 (V%s)", config.APP_VERSION)

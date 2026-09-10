@@ -83,27 +83,22 @@ def _validate_scopes(scopes) -> list:
 
 
 def _check_runner_ready():
-    """受理前置：runner 必须存活（accepting=1 且心跳新鲜）。否则 503。"""
+    """受理前置：runner 必须存活（accepting=1 且心跳新鲜）。否则 503（fail-closed）。
+
+    UAT-O-1635-R2-01：心跳缺失/解析失败/过期/明显未来时间一律拒绝受理，
+    不得因解析异常被放行。用共享 is_fresh_heartbeat（兼容 DB datetime 与 ISO 格式）。
+    """
+    from backend.services import metadata_job_process as jp
     slot = repo.slot_state()
     if not slot or not slot.get("accepting"):
         raise MetadataJobError(
             "EXECUTOR_UNAVAILABLE",
             "元数据执行服务未就绪（runner 未启动），请稍后重试或联系管理员。", 503)
-    hb = slot.get("runner_heartbeat_at")
-    if hb:
-        try:
-            hb_dt = hb if isinstance(hb, datetime) else datetime.strptime(
-                str(hb), "%Y-%m-%d %H:%M:%S.%f").replace(tzinfo=timezone.utc)
-            if hb_dt.tzinfo is None:
-                hb_dt = hb_dt.replace(tzinfo=timezone.utc)
-            if (_now_utc() - hb_dt) > timedelta(seconds=_RUNNER_STALE_SECONDS):
-                raise MetadataJobError(
-                    "EXECUTOR_UNAVAILABLE",
-                    "元数据执行服务心跳已过期（runner 可能已停止），请稍后重试。", 503)
-        except MetadataJobError:
-            raise
-        except Exception:
-            pass
+    if not jp.is_fresh_heartbeat(slot.get("runner_heartbeat_at"),
+                                 window_seconds=_RUNNER_STALE_SECONDS):
+        raise MetadataJobError(
+            "EXECUTOR_UNAVAILABLE",
+            "元数据执行服务心跳已过期或不可读（runner 可能已停止），请稍后重试。", 503)
 
 
 def _freeze_context(connection_id: str, db_name: str, scopes: list) -> dict:
@@ -169,25 +164,18 @@ def _job_summary(job: dict) -> dict:
             progress = json.loads(job["progress_json"])
         except (json.JSONDecodeError, TypeError):
             progress = {}
+    # 耗时用共享 UTC 解析（UAT-O-1635-R2-02：database 兼容层转 ISO 带 T，
+    # 旧 strptime 空格格式解析失败导致 elapsed 恒为 None）。已完成按 started→finished，
+    # 运行中按 started→now；未开始（无 started_at）才是 None。
+    from backend.services import metadata_job_process as _jp
     elapsed = None
-    if job.get("started_at"):
-        try:
-            st = job["started_at"]
-            st_dt = st if isinstance(st, datetime) else datetime.strptime(
-                str(st), "%Y-%m-%d %H:%M:%S.%f").replace(tzinfo=timezone.utc)
-            if st_dt.tzinfo is None:
-                st_dt = st_dt.replace(tzinfo=timezone.utc)
-            end = job.get("finished_at")
-            if job["state"] in TERMINAL_STATES and end:
-                end_dt = end if isinstance(end, datetime) else datetime.strptime(
-                    str(end), "%Y-%m-%d %H:%M:%S.%f").replace(tzinfo=timezone.utc)
-            else:
-                end_dt = _now_utc()
-            if end_dt.tzinfo is None:
-                end_dt = end_dt.replace(tzinfo=timezone.utc)
-            elapsed = int((end_dt - st_dt).total_seconds())
-        except Exception:
-            elapsed = None
+    st_dt = _jp.parse_utc(job.get("started_at"))
+    if st_dt is not None:
+        if job["state"] in TERMINAL_STATES and job.get("finished_at"):
+            end_dt = _jp.parse_utc(job.get("finished_at")) or _now_utc()
+        else:
+            end_dt = _now_utc()
+        elapsed = max(0, int((end_dt - st_dt).total_seconds()))
     return {
         "job_id": job["id"], "state": job["state"], "phase": job["phase"],
         "connection_name": (json.loads(job["execution_context_json"] or "{}")

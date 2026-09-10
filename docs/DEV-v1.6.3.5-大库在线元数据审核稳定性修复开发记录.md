@@ -267,6 +267,39 @@ VERSION / APP_VERSION / 前端 5 处版本标记统一 1.6.3.5（version_consist
 
 ---
 
+---
+
+# 第六批：UAT 第二轮整改（O 报告，结论不通过 → 6 项全部整改）
+
+| 项 | 内容 |
+|---|---|
+| 整改日期 | 2026-09-10 |
+| O 结论 | 不通过：3 P1 + 3 P2（浏览器真实点击 + DB 反证） |
+
+## 逐项整改（6 项全部认可）
+
+| 编号 | 级别 | 问题（O 实测） | 整改 |
+|---|---|---|---|
+| R2-01 | P1 | runner 过期心跳被放行仍受理：`database.py:89` 把 datetime 转 ISO（带 `T`），而 `_check_runner_ready` 用空格格式解析 → 失败被 `except: pass` 放行 | `metadata_job_process.py` 新增共享 `parse_utc()`（兼容 datetime 对象/ISO带T/空格/可选时区）+ `is_fresh_heartbeat()`（缺失/解析失败/过期/明显未来一律 fail-closed）；`_check_runner_ready` 与 `main.py` lifespan 告警改用共享判定；runner 执行任务期间加心跳线程持续上报（防长任务误判离线） |
+| R2-02 | P2 | 终态计数停在 51、耗时为空：worker 仅每 50 条写进度，发布前不写最终值；elapsed 又踩同一 ISO 解析问题 | worker 审核循环结束后、发布前强制写最终 `{total_statements, audited_statements}=实际拆句数`；`_job_summary` 的 elapsed 改用共享 `parse_utc`，按 started_at→finished_at 算实际秒数 |
+| R2-03 | P2 | 逐对象 DDL 异常（`MetadataExtractError` 分支）未接中文诊断 | `humanize_db_error` 增强支持从异常 `args[0]` 提取整数错误码；worker 的 `MetadataExtractError` 与通用 Exception **两个分支都接入**语义化 |
+| R2-04 | P2 | 部署契约顺序断言用全文 find，upgrade 删 systemd 启动行会退而命中更早的 `pkill`（停止动作误判为启动） | 契约断言改为逐行剥离注释/排除 pkill、echo/log，严格只认可执行的 `systemctl restart tdsql-metadata-runner` 先于 Web；upgrade 的 nohup 分支单独校验。**变异自证**：注释 runner 启动行 → upgrade 断言变红，恢复后绿 |
+| R2-05 | P1 | 相同条件再次扫描永远重放旧任务：`_metaJobKey()` 按"实例\|库\|范围"永久复用 sessionStorage 键，终态不轮换 | 前端改为**每次新扫描生成新幂等键**（`_newMetaKey`），终态后不复用；仅同一次提交的响应丢失重试才复用同一 key；登出清理恢复线索（用户隔离） |
+| R2-06 | P1 | 刷新后活动任务无恢复入口：只写 `meta_active_job` 从不读取 | 新增 `_recoverActiveJob()`：进入在线审核页/响应丢失时，读 sessionStorage job_id（或查服务端该用户最新未决任务），恢复任务卡并续轮询；终态保留可查看；401/403/404 停止 |
+
+## 验证
+
+- 新增 `test_v1635_uat2.py` 13 用例（parse_utc 各格式 / is_fresh_heartbeat fail-closed / 过期ISO心跳503 / 缺失心跳503 / elapsed 真实秒数 / 错误码语义化异常+文本两路）全过。
+- 部署契约 14 项全过（R2-04 强化 + 变异自证红/绿）。
+- **runner 真实集成路径冒烟 PASS**：SUCCEEDED + report_id + exit_code=0，**终态计数 total=63/audited=63 与 results 一致**（R2-02 修复生效，不再停在 51）。
+- 全量回归 **2096 passed + 30 skipped + 0 failed**。
+
+## 边界声明
+- R2-05/R2-06 是前端逻辑改动，本轮经 `node --check` 语法校验 + 逻辑审查；浏览器端真实点击复测由 O 下轮进行（O 报告 §5 已声明本轮的浏览器证据边界）。
+- O 报告 §5 声明的待内网验收项（真实 6000 表容量 §11.4、CORE_SAFE 回退、RSS 真实越界、断电重入）不在本轮范围。
+
+---
+
 施工人：智能体 Q
-施工对象：v1.6.3.5（DU-1 + DU-2 + SIT 两轮整改 + UAT 第一轮整改）
+施工对象：v1.6.3.5（DU-1 + DU-2 + SIT 两轮 + UAT 两轮整改）
 提交给：Mr.Linsang
