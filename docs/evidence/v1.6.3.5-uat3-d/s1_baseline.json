@@ -1,0 +1,52 @@
+{
+  "scenario": "s1_baseline",
+  "started_utc": "2026-09-10T06:43:27.554848+00:00",
+  "base": "direct",
+  "steps": [
+    "真实输入账号口令并点击登录",
+    "进入 SQL审核→在线元数据审核"
+  ],
+  "scopes_default": [
+    "表结构",
+    "索引/主键",
+    "视图定义",
+    "分片键"
+  ],
+  "ui_after_submit": "元数据审核任务 #b39374ac\n取消任务\n状态\t\nACCEPTED\n\t阶段\tWAITING\t实例连接\tD-UAT3-63表-本机模拟目标\n库\tuat_d_1635_r3_target\t已用时长\t-\t进度\t枚举 - / 提取 - / 审核 -\n任务正在后台执行，页面可离开，完成后可回来查看（进度每 2 秒刷新）。",
+  "messages_after_submit": [
+    "元数据审核任务已受理，正在后台执行…"
+  ],
+  "job_id": "b39374acfc3d4c14984819ab380381da",
+  "job_api": {
+    "job_id": "b39374acfc3d4c14984819ab380381da",
+    "state": "SUCCEEDED",
+    "phase": "DONE",
+    "connection_name": "D-UAT3-63表-本机模拟目标",
+    "database": "uat_d_1635_r3_target",
+    "elapsed_seconds": 3,
+    "progress": {
+      "enumerated_objects": 63,
+      "selected_objects": 63,
+      "extracted_objects": 63,
+      "total_statements": 63,
+      "audited_statements": 63
+    },
+    "report_id": 1,
+    "snapshot_id": 1,
+    "cleanup_ok": 1,
+    "error_code": null,
+    "error_message": null,
+    "exit_code": 0,
+    "error": null,
+    "created_at": "2026-09-10T06:43:31.279042",
+    "finished_at": "2026-09-10T06:43:35.267702",
+    "request_id": "71db0e8b5f944a7d"
+  },
+  "ui_final_state": "SUCCEEDED",
+  "ui_final_card": "元数据审核任务 #b39374ac\n下载 .sql 文件\n导出 HTML 报告\n状态\t\nSUCCEEDED\n\t阶段\tDONE\t实例连接\tD-UAT3-63表-本机模拟目标\n库\tuat_d_1635_r3_target\t已用时长\t3s\t进度\t枚举 63 / 提取 63 / 审核 63",
+  "ui_results_total": null,
+  "page2_row_count": 14,
+  "jobs_before": 0,
+  "jobs_after": 1,
+  "saved_utc": "2026-09-10T06:43:39.771727+00:00"
+}

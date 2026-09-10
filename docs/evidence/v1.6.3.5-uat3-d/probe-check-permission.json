@@ -1,0 +1,34 @@
+{
+  "path": "/api/v1/audit/metadata-jobs",
+  "per_role": {
+    "admin": {
+      "visible_menus_has_schema_extractor_audit": true,
+      "visible_menu_count": 29,
+      "check_permission_GET": true,
+      "check_permission_POST": true
+    },
+    "dba": {
+      "visible_menus_has_schema_extractor_audit": true,
+      "visible_menu_count": 28,
+      "check_permission_GET": true,
+      "check_permission_POST": true
+    },
+    "developer": {
+      "visible_menus_has_schema_extractor_audit": true,
+      "visible_menu_count": 23,
+      "check_permission_GET": true,
+      "check_permission_POST": true
+    },
+    "auditor": {
+      "visible_menus_has_schema_extractor_audit": true,
+      "visible_menu_count": 24,
+      "check_permission_GET": true,
+      "check_permission_POST": false
+    }
+  },
+  "matched_prefix": "/api/v1/audit/metadata-jobs",
+  "matched_menu": "schema-extractor-audit",
+  "developer_denied_prefixes": [
+    "/api/v1/admin/operation-logs"
+  ]
+}

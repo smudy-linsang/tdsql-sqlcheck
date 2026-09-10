@@ -1,0 +1,41 @@
+{
+  "scenario": "s14_concurrency",
+  "started_utc": "2026-09-10T06:52:47.931601+00:00",
+  "base": "direct",
+  "userA_job": "3e941b8ac25c4f06827e58d7724c1133",
+  "userA_card": "元数据审核任务 #3e941b8a\n取消任务\n状态\t\nACCEPTED\n\t阶段\tWAITING\t实例连接\tD-UAT3-63表-本机模拟目标\n库\tuat_d_1635_r3_target\t已用时长\t-\t进度\t枚举 - / 提取 - / 审核 -\n任务正在后台执行，页面可离开，完成后可回来查看（进度每 2 秒刷新）。",
+  "userB_messages": [
+    "当前已有一个元数据审核任务正在执行，请稍后重试。"
+  ],
+  "userB_job": null,
+  "userB_card": "",
+  "jobs_before": 12,
+  "jobs_after": 14,
+  "exactly_one_new_job": false,
+  "job_final": {
+    "job_id": "3e941b8ac25c4f06827e58d7724c1133",
+    "state": "SUCCEEDED",
+    "phase": "DONE",
+    "connection_name": "D-UAT3-63表-本机模拟目标",
+    "database": "uat_d_1635_r3_target",
+    "elapsed_seconds": 27,
+    "progress": {
+      "enumerated_objects": 64,
+      "selected_objects": 64,
+      "extracted_objects": 64,
+      "total_statements": 64,
+      "audited_statements": 64
+    },
+    "report_id": 8,
+    "snapshot_id": 8,
+    "cleanup_ok": 1,
+    "error_code": null,
+    "error_message": null,
+    "exit_code": 0,
+    "error": null,
+    "created_at": "2026-09-10T06:53:19.657680",
+    "finished_at": "2026-09-10T06:53:47.044367",
+    "request_id": "82a12da9162e46b8"
+  },
+  "saved_utc": "2026-09-10T06:53:49.321839+00:00"
+}

@@ -1,0 +1,36 @@
+{
+  "developer": {
+    "login": 200,
+    "menus_status": 403,
+    "menus": "{\"code\":403,\"message\":\"首次登录必须修改口令后才能访问业务接口\"}",
+    "/api/v1/audit/metadata-jobs": {
+      "status": 403,
+      "body": "{\"code\":403,\"message\":\"首次登录必须修改口令后才能访问业务接口\"}"
+    },
+    "/api/v1/audit/metadata-jobs?limit=5": {
+      "status": 403,
+      "body": "{\"code\":403,\"message\":\"首次登录必须修改口令后才能访问业务接口\"}"
+    },
+    "/api/v1/audit/extracted-reports": {
+      "status": 403,
+      "body": "{\"code\":403,\"message\":\"首次登录必须修改口令后才能访问业务接口\"}"
+    }
+  },
+  "dba": {
+    "login": 200,
+    "menus_status": 403,
+    "menus": "{\"code\":403,\"message\":\"首次登录必须修改口令后才能访问业务接口\"}",
+    "/api/v1/audit/metadata-jobs": {
+      "status": 403,
+      "body": "{\"code\":403,\"message\":\"首次登录必须修改口令后才能访问业务接口\"}"
+    },
+    "/api/v1/audit/metadata-jobs?limit=5": {
+      "status": 403,
+      "body": "{\"code\":403,\"message\":\"首次登录必须修改口令后才能访问业务接口\"}"
+    },
+    "/api/v1/audit/extracted-reports": {
+      "status": 403,
+      "body": "{\"code\":403,\"message\":\"首次登录必须修改口令后才能访问业务接口\"}"
+    }
+  }
+}

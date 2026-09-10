@@ -1,0 +1,15 @@
+{
+  "scenario": "s7_runner_offline",
+  "started_utc": "2026-09-10T06:47:32.467950+00:00",
+  "base": "direct",
+  "messages": [
+    "元数据执行服务心跳已过期或不可读（runner 可能已停止），请稍后重试。"
+  ],
+  "card_present": false,
+  "card_text": "",
+  "jobs_before": 8,
+  "jobs_after": 8,
+  "new_job_created": false,
+  "slot_snapshot_before": 8,
+  "saved_utc": "2026-09-10T06:47:37.877935+00:00"
+}

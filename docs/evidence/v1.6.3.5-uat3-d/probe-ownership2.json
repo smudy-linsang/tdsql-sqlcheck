@@ -1,0 +1,73 @@
+{
+  "web": "http://127.0.0.1:8015",
+  "new_password_used": "见 RUNTIME/owner.password（不入库）",
+  "target_job": "5a667fe6332e4acab67a2a68dca7feca",
+  "developer": {
+    "create": [
+      200,
+      "{\"message\":\"用户创建成功（首次登录需修改口令）\",\"user\":{\"id\":4,\"username\":\"uat_d_dev2\",\"display_name\":\"D-UAT3-developer\",\"role\":\"developer\",\"status\":\"active\",\"must_change_passwo"
+    ],
+    "login_status": 200,
+    "change_password": 200,
+    "relogin": 200,
+    "menus": {
+      "status": 200,
+      "has_online_metadata": true
+    },
+    "list_own": 200,
+    "get_others_job": {
+      "status": 404,
+      "body": "{\"detail\":\"任务不存在\"}"
+    },
+    "get_others_results": {
+      "status": 404,
+      "body": "{\"detail\":\"任务不存在\"}"
+    },
+    "get_others_sql": {
+      "status": 404,
+      "body": "{\"detail\":\"任务不存在\"}"
+    },
+    "get_others_html": {
+      "status": 404,
+      "body": "{\"detail\":\"任务不存在\"}"
+    },
+    "cancel_others_job": {
+      "status": 404,
+      "body": "{\"detail\":\"任务不存在\"}"
+    }
+  },
+  "dba": {
+    "create": [
+      200,
+      "{\"message\":\"用户创建成功（首次登录需修改口令）\",\"user\":{\"id\":5,\"username\":\"uat_d_dba2\",\"display_name\":\"D-UAT3-dba\",\"role\":\"dba\",\"status\":\"active\",\"must_change_password\":1,\"token"
+    ],
+    "login_status": 200,
+    "change_password": 200,
+    "relogin": 200,
+    "menus": {
+      "status": 200,
+      "has_online_metadata": true
+    },
+    "list_own": 200,
+    "get_others_job": {
+      "status": 404,
+      "body": "{\"detail\":\"任务不存在\"}"
+    },
+    "get_others_results": {
+      "status": 404,
+      "body": "{\"detail\":\"任务不存在\"}"
+    },
+    "get_others_sql": {
+      "status": 404,
+      "body": "{\"detail\":\"任务不存在\"}"
+    },
+    "get_others_html": {
+      "status": 404,
+      "body": "{\"detail\":\"任务不存在\"}"
+    },
+    "cancel_others_job": {
+      "status": 404,
+      "body": "{\"detail\":\"任务不存在\"}"
+    }
+  }
+}

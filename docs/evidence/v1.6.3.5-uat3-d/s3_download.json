@@ -1,0 +1,51 @@
+{
+  "scenario": "s3_download",
+  "started_utc": "2026-09-10T06:43:50.076203+00:00",
+  "base": "direct",
+  "job_id": "bc27af99f70b41b2a91e559b6f88bd4a",
+  "ui_results_total": 63,
+  "下载 .sql 文件": {
+    "file": "dl.sql",
+    "bytes": 18552,
+    "sha256": "23db7d64bbdd85ed95ae8593ff3433f3dd6a1019570be564b03a6cd8053947dc"
+  },
+  "导出 HTML 报告": {
+    "file": "dl.html",
+    "bytes": 58995,
+    "sha256": "bd52e50ba52654c44eb0d7e3e97c15e669d80fe2e4dc71f8b6af94fddd126c13"
+  },
+  "manifest_path": "C:\\TDSQL_SQLCHECK\\TDSQL-SQLCheck\\data\\reports\\uat_d_1635_r3\\reports\\metadata-audit\\bc27af99f70b41b2a91e559b6f88bd4a\\manifest.json",
+  "manifest": {
+    "version": 1,
+    "job_id": "bc27af99f70b41b2a91e559b6f88bd4a",
+    "context_hash": "e0f1f272021137a4f79bc7bb197cb86ddecb4097957c1525dad9fcfdb5fa28cb",
+    "files": {
+      "schema.sql": {
+        "bytes": 18552,
+        "sha256": "23db7d64bbdd85ed95ae8593ff3433f3dd6a1019570be564b03a6cd8053947dc"
+      },
+      "results.json": {
+        "bytes": 106859,
+        "sha256": "8c979c455fea4be830dc69ccef02651fbf555fb1bdc414b219faf0da0df4b250"
+      },
+      "results.ndjson": {
+        "bytes": 106859,
+        "sha256": "e2109186c025a921dcc2f0c01028ebf80e05c918e15ddfe5ddbe15758e1ecd2c"
+      },
+      "report.html": {
+        "bytes": 58995,
+        "sha256": "bd52e50ba52654c44eb0d7e3e97c15e669d80fe2e4dc71f8b6af94fddd126c13"
+      }
+    },
+    "counts": {
+      "enumerated_objects": 63,
+      "selected_objects": 63,
+      "extracted_objects": 63,
+      "total_statements": 63,
+      "violations": 63
+    }
+  },
+  "frozen_name_in_sql": true,
+  "frozen_name_in_html": true,
+  "saved_utc": "2026-09-10T06:43:58.006680+00:00"
+}

@@ -1,0 +1,19 @@
+{
+  "utc": "2026-09-10T06:42:28.732397+00:00",
+  "label": "env-ready",
+  "target_tables": 63,
+  "readiness": "ACCEPTS",
+  "slot": {
+    "id": 1,
+    "active_job_id": null,
+    "runner_id": "SMUDY-51700-04ef22b2",
+    "runner_heartbeat_at": "2026-09-10T06:42:28.445134",
+    "accepting": 1,
+    "storage_instance_id": null,
+    "updated_at": "2026-09-10T06:42:28.445155",
+    "artifact_used_bytes": 0,
+    "storage_checked_at": null
+  },
+  "jobs": [],
+  "history": []
+}

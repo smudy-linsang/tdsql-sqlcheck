@@ -1,0 +1,14 @@
+{
+  "scenario": "s11_legacy410",
+  "started_utc": "2026-09-10T06:46:55.576791+00:00",
+  "base": "direct",
+  "token_found": true,
+  "legacy_response": {
+    "status": 410,
+    "text": "{\"code\": \"ENDPOINT_RETIRED\", \"detail\": \"本接口已于 v1.6.3.5 退役，请刷新页面使用新的在线元数据审核流程。\", \"message\": \"本接口已于 v1.6.3.5 退役，请刷新页面使用新的在线元数据审核流程。\", \"docs\": \"/api/v1/audit/metadata-jobs\", \"request_id\": \"2ae1111fe1ff49ef\"}"
+  },
+  "jobs_before": 8,
+  "jobs_after": 8,
+  "new_job_created": false,
+  "saved_utc": "2026-09-10T06:47:00.586974+00:00"
+}

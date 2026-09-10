@@ -1,0 +1,34 @@
+{
+  "scenario": "s5_rescan",
+  "started_utc": "2026-09-10T06:44:11.717521+00:00",
+  "base": "direct",
+  "first_job": {
+    "id": "bc27af99f70b41b2a91e559b6f88bd4a",
+    "state": "SUCCEEDED",
+    "progress": {
+      "enumerated_objects": 63,
+      "selected_objects": 63,
+      "extracted_objects": 63,
+      "total_statements": 63,
+      "audited_statements": 63
+    },
+    "results_total_expected": 63
+  },
+  "second_job": {
+    "id": "b332bc3c94314a86931f978da91fdc12",
+    "state": "SUCCEEDED",
+    "progress": {
+      "enumerated_objects": 64,
+      "selected_objects": 64,
+      "extracted_objects": 64,
+      "total_statements": 64,
+      "audited_statements": 64
+    },
+    "report_id": 3
+  },
+  "new_job_created": true,
+  "ui_results_total": 64,
+  "contains_added_table": true,
+  "results_total_api": 64,
+  "saved_utc": "2026-09-10T06:44:19.788504+00:00"
+}

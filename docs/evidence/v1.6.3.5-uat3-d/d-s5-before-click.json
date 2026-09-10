@@ -1,0 +1,85 @@
+{
+  "utc": "2026-09-10T06:44:08.640571+00:00",
+  "label": "d-s5-before-click",
+  "target_tables": 64,
+  "readiness": "ACCEPTS",
+  "slot": {
+    "id": 1,
+    "active_job_id": null,
+    "runner_id": "SMUDY-51700-04ef22b2",
+    "runner_heartbeat_at": "2026-09-10T06:44:08.137439",
+    "accepting": 1,
+    "storage_instance_id": null,
+    "updated_at": "2026-09-10T06:44:08.137468",
+    "artifact_used_bytes": 0,
+    "storage_checked_at": null
+  },
+  "jobs": [
+    {
+      "job_id": "b39374acfc3d4c14984819ab380381da",
+      "state": "SUCCEEDED",
+      "phase": "DONE",
+      "connection_name": "D-UAT3-63表-本机模拟目标",
+      "database": "uat_d_1635_r3_target",
+      "elapsed_seconds": 3,
+      "progress": {
+        "enumerated_objects": 63,
+        "selected_objects": 63,
+        "extracted_objects": 63,
+        "total_statements": 63,
+        "audited_statements": 63
+      },
+      "report_id": 1,
+      "snapshot_id": 1,
+      "cleanup_ok": 1,
+      "error_code": null,
+      "error_message": null,
+      "exit_code": 0,
+      "error": null,
+      "created_at": "2026-09-10T06:43:31.279042",
+      "finished_at": "2026-09-10T06:43:35.267702"
+    },
+    {
+      "job_id": "bc27af99f70b41b2a91e559b6f88bd4a",
+      "state": "SUCCEEDED",
+      "phase": "DONE",
+      "connection_name": "D-UAT3-63表-本机模拟目标",
+      "database": "uat_d_1635_r3_target",
+      "elapsed_seconds": 3,
+      "progress": {
+        "enumerated_objects": 63,
+        "selected_objects": 63,
+        "extracted_objects": 63,
+        "total_statements": 63,
+        "audited_statements": 63
+      },
+      "report_id": 2,
+      "snapshot_id": 2,
+      "cleanup_ok": 1,
+      "error_code": null,
+      "error_message": null,
+      "exit_code": 0,
+      "error": null,
+      "created_at": "2026-09-10T06:43:53.211177",
+      "finished_at": "2026-09-10T06:43:56.819679"
+    }
+  ],
+  "history": [
+    {
+      "id": 2,
+      "total_sql": 63,
+      "passed": 0,
+      "failed": 63,
+      "connection_id": "d-r3-local",
+      "db_name": "uat_d_1635_r3_target"
+    },
+    {
+      "id": 1,
+      "total_sql": 63,
+      "passed": 0,
+      "failed": 63,
+      "connection_id": "d-r3-local",
+      "db_name": "uat_d_1635_r3_target"
+    }
+  ]
+}

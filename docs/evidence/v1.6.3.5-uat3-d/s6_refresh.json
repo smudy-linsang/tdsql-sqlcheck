@@ -1,0 +1,38 @@
+{
+  "scenario": "s6_refresh",
+  "started_utc": "2026-09-10T06:44:27.868686+00:00",
+  "base": "direct",
+  "job_id": "93f7ae92ff564701bd9a2a6ef83588d8",
+  "card_before_refresh": "元数据审核任务 #93f7ae92\n取消任务\n状态\t\nACCEPTED\n\t阶段\tWAITING\t实例连接\tD-UAT3-63表-本机模拟目标\n库\tuat_d_1635_r3_target\t已用时长\t-\t进度\t枚举 - / 提取 - / 审核 -\n任务正在后台执行，页面可离开，完成后可回来查看（进度每 2 秒刷新）。",
+  "card_after_reload_dashboard": "",
+  "card_after_reenter": "元数据审核任务 #93f7ae92\n取消任务\n状态\t\nRUNNING\n\t阶段\tENUMERATING\t实例连接\tD-UAT3-63表-本机模拟目标\n库\tuat_d_1635_r3_target\t已用时长\t9s\t进度\t枚举 - / 提取 - / 审核 -\n任务正在后台执行，页面可离开，完成后可回来查看（进度每 2 秒刷新）。",
+  "recovered_job_id_session": "93f7ae92ff564701bd9a2a6ef83588d8",
+  "recovered_visible": true,
+  "job_final": {
+    "job_id": "93f7ae92ff564701bd9a2a6ef83588d8",
+    "state": "SUCCEEDED",
+    "phase": "DONE",
+    "connection_name": "D-UAT3-63表-本机模拟目标",
+    "database": "uat_d_1635_r3_target",
+    "elapsed_seconds": 28,
+    "progress": {
+      "enumerated_objects": 64,
+      "selected_objects": 64,
+      "extracted_objects": 64,
+      "total_statements": 64,
+      "audited_statements": 64
+    },
+    "report_id": 4,
+    "snapshot_id": 4,
+    "cleanup_ok": 1,
+    "error_code": null,
+    "error_message": null,
+    "exit_code": 0,
+    "error": null,
+    "created_at": "2026-09-10T06:44:31.136609",
+    "finished_at": "2026-09-10T06:44:59.999397",
+    "request_id": "43b32d0c129f4161"
+  },
+  "ui_final_state": "SUCCEEDED",
+  "saved_utc": "2026-09-10T06:45:02.377225+00:00"
+}

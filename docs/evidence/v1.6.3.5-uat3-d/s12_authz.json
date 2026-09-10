@@ -1,0 +1,22 @@
+{
+  "scenario": "s12_authz",
+  "started_utc": "2026-09-10T06:47:00.898713+00:00",
+  "base": "direct",
+  "target_job": "ad92ff5ad5f54649b164b4f1f74c5367",
+  "anon_list": 401,
+  "anon_job": 401,
+  "viewer_create": {
+    "status": 200,
+    "body": "created"
+  },
+  "viewer_login": {
+    "status": 200,
+    "note": "401 表示口令与创建时不一致（用户名或口令错误）"
+  },
+  "viewer_get_others_job": 403,
+  "viewer_list": 403,
+  "viewer_list_items": 0,
+  "viewer_menus_has_online": false,
+  "viewer_menu_texts": [],
+  "saved_utc": "2026-09-10T06:47:03.945877+00:00"
+}

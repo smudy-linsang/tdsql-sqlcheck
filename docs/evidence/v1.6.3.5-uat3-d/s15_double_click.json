@@ -1,0 +1,37 @@
+{
+  "scenario": "s15_double_click",
+  "started_utc": "2026-09-10T06:54:12.852243+00:00",
+  "base": "direct",
+  "js_clicks": "clicked-x3",
+  "jobs_before": 14,
+  "jobs_after": 15,
+  "jobs_added": 1,
+  "job_id": "10d509cc89b7426d9c9e7b8303f60c73",
+  "card_after_clicks": "元数据审核任务 #10d509cc\n取消任务\n状态\t\nRUNNING\n\t阶段\tENUMERATING\t实例连接\tD-UAT3-63表-本机模拟目标\n库\tuat_d_1635_r3_target\t已用时长\t4s\t进度\t枚举 - / 提取 - / 审核 -\n任务正在后台执行，页面可离开，完成后可回来查看（进度每 2 秒刷新）。",
+  "job_final": {
+    "job_id": "10d509cc89b7426d9c9e7b8303f60c73",
+    "state": "SUCCEEDED",
+    "phase": "DONE",
+    "connection_name": "D-UAT3-63表-本机模拟目标",
+    "database": "uat_d_1635_r3_target",
+    "elapsed_seconds": 27,
+    "progress": {
+      "enumerated_objects": 64,
+      "selected_objects": 64,
+      "extracted_objects": 64,
+      "total_statements": 64,
+      "audited_statements": 64
+    },
+    "report_id": 9,
+    "snapshot_id": 9,
+    "cleanup_ok": 1,
+    "error_code": null,
+    "error_message": null,
+    "exit_code": 0,
+    "error": null,
+    "created_at": "2026-09-10T06:54:15.729125",
+    "finished_at": "2026-09-10T06:54:42.952314",
+    "request_id": "97ddfffe833e48ed"
+  },
+  "saved_utc": "2026-09-10T06:54:45.144227+00:00"
+}

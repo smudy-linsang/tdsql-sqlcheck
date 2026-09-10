@@ -1,0 +1,76 @@
+{
+  "scenario": "s10_errors",
+  "started_utc": "2026-09-10T06:46:40.485938+00:00",
+  "base": "direct",
+  "offline": {
+    "job_id": "5c59a24f8f6a40d7aa46b9d3ecc6176d",
+    "ui": "元数据审核任务 #5c59a24f\n取消任务\n状态\t\nACCEPTED\n\t阶段\tWAITING\t实例连接\tD-UAT3-不可连接-本机\n库\tuat_d_1635_r3_target\t已用时长\t-\t进度\t枚举 - / 提取 - / 审核 -\n任务正在后台执行，页面可离开，完成后可回来查看（进度每 2 秒刷新）。",
+    "messages": [
+      "元数据审核任务已受理，正在后台执行…"
+    ],
+    "job": {
+      "job_id": "5c59a24f8f6a40d7aa46b9d3ecc6176d",
+      "state": "FAILED",
+      "phase": "CLEANUP",
+      "connection_name": "D-UAT3-不可连接-本机",
+      "database": "uat_d_1635_r3_target",
+      "elapsed_seconds": 3,
+      "progress": {
+        "enumerated_objects": null,
+        "selected_objects": null,
+        "extracted_objects": null,
+        "total_statements": null,
+        "audited_statements": null
+      },
+      "report_id": null,
+      "snapshot_id": null,
+      "cleanup_ok": 1,
+      "error_code": "WORKER_ERROR",
+      "error_message": "无法连接目标数据库（请检查实例地址、端口与网络连通性）。原始错误: 审核执行失败: (2003, \"Can't connect to MySQL server on '127.0.0.1' ([WinError 10061] 由于目标计算机积极拒绝，无法连接。)\")",
+      "exit_code": 1,
+      "error": {
+        "code": "WORKER_ERROR",
+        "message": "无法连接目标数据库（请检查实例地址、端口与网络连通性）。原始错误: 审核执行失败: (2003, \"Can't connect to MySQL server on '127.0.0.1' ([WinError 10061] 由于目标计算机积极拒绝，无法连接。)\")"
+      },
+      "created_at": "2026-09-10T06:46:43.295678",
+      "finished_at": "2026-09-10T06:46:47.150319",
+      "request_id": "9e87918f5a684097"
+    }
+  },
+  "missing_db": {
+    "job_id": "ad92ff5ad5f54649b164b4f1f74c5367",
+    "ui": "元数据审核任务 #ad92ff5a\n取消任务\n状态\t\nACCEPTED\n\t阶段\tWAITING\t实例连接\tD-UAT3-不存在库-本机\n库\tuat_d_1635_r3_missing\t已用时长\t-\t进度\t枚举 - / 提取 - / 审核 -\n任务正在后台执行，页面可离开，完成后可回来查看（进度每 2 秒刷新）。",
+    "messages": [
+      "元数据审核任务已受理，正在后台执行…"
+    ],
+    "job": {
+      "job_id": "ad92ff5ad5f54649b164b4f1f74c5367",
+      "state": "FAILED",
+      "phase": "CLEANUP",
+      "connection_name": "D-UAT3-不存在库-本机",
+      "database": "uat_d_1635_r3_missing",
+      "elapsed_seconds": 1,
+      "progress": {
+        "enumerated_objects": null,
+        "selected_objects": null,
+        "extracted_objects": null,
+        "total_statements": null,
+        "audited_statements": null
+      },
+      "report_id": null,
+      "snapshot_id": null,
+      "cleanup_ok": 1,
+      "error_code": "WORKER_ERROR",
+      "error_message": "目标数据库不存在（请检查 database/库名配置）。原始错误: 审核执行失败: (1049, \"Unknown database 'uat_d_1635_r3_missing'\")",
+      "exit_code": 1,
+      "error": {
+        "code": "WORKER_ERROR",
+        "message": "目标数据库不存在（请检查 database/库名配置）。原始错误: 审核执行失败: (1049, \"Unknown database 'uat_d_1635_r3_missing'\")"
+      },
+      "created_at": "2026-09-10T06:46:51.721220",
+      "finished_at": "2026-09-10T06:46:53.297978",
+      "request_id": "f70d6795d1a64b69"
+    }
+  },
+  "saved_utc": "2026-09-10T06:46:55.272241+00:00"
+}

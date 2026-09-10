@@ -1,0 +1,63 @@
+{
+  "scenario": "s13_failed_card",
+  "started_utc": "2026-09-10T06:52:23.742193+00:00",
+  "base": "direct",
+  "card_state_sequence": [
+    {
+      "t_plus_s": 2,
+      "state": null,
+      "has_error_alert": false,
+      "elapsed": null
+    },
+    {
+      "t_plus_s": 4,
+      "state": "ACCEPTED",
+      "has_error_alert": false,
+      "elapsed": "-"
+    },
+    {
+      "t_plus_s": 6,
+      "state": "RUNNING",
+      "has_error_alert": false,
+      "elapsed": "1s"
+    },
+    {
+      "t_plus_s": 8,
+      "state": "FAILED",
+      "has_error_alert": true,
+      "elapsed": "3s"
+    }
+  ],
+  "final_state": "FAILED",
+  "final_card_text": "元数据审核任务 #8fdce873\n状态\t\nFAILED\n\t阶段\tCLEANUP\t实例连接\tD-UAT3-不可连接-本机\n库\tuat_d_1635_r3_target\t已用时长\t3s\t进度\t枚举 - / 提取 - / 审核 -\n无法连接目标数据库（请检查实例地址、端口与网络连通性）。原始错误: 审核执行失败: (2003, \"Can't connect to MySQL server on '127.0.0.1' ([WinError 10061] 由于目标计算机积极拒绝，无法连接。)\")",
+  "job_id": "8fdce87394934d15b086a055d7b7f166",
+  "job_api": {
+    "job_id": "8fdce87394934d15b086a055d7b7f166",
+    "state": "FAILED",
+    "phase": "CLEANUP",
+    "connection_name": "D-UAT3-不可连接-本机",
+    "database": "uat_d_1635_r3_target",
+    "elapsed_seconds": 3,
+    "progress": {
+      "enumerated_objects": null,
+      "selected_objects": null,
+      "extracted_objects": null,
+      "total_statements": null,
+      "audited_statements": null
+    },
+    "report_id": null,
+    "snapshot_id": null,
+    "cleanup_ok": 1,
+    "error_code": "WORKER_ERROR",
+    "error_message": "无法连接目标数据库（请检查实例地址、端口与网络连通性）。原始错误: 审核执行失败: (2003, \"Can't connect to MySQL server on '127.0.0.1' ([WinError 10061] 由于目标计算机积极拒绝，无法连接。)\")",
+    "exit_code": 1,
+    "error": {
+      "code": "WORKER_ERROR",
+      "message": "无法连接目标数据库（请检查实例地址、端口与网络连通性）。原始错误: 审核执行失败: (2003, \"Can't connect to MySQL server on '127.0.0.1' ([WinError 10061] 由于目标计算机积极拒绝，无法连接。)\")"
+    },
+    "created_at": "2026-09-10T06:52:29.025423",
+    "finished_at": "2026-09-10T06:52:32.768038",
+    "request_id": "86b3287154de4c1e"
+  },
+  "saved_utc": "2026-09-10T06:52:35.350214+00:00"
+}

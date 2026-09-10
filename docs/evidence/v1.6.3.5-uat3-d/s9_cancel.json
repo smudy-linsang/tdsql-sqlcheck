@@ -1,0 +1,40 @@
+{
+  "scenario": "s9_cancel",
+  "started_utc": "2026-09-10T06:49:12.248872+00:00",
+  "base": "direct",
+  "job_id": "5a667fe6332e4acab67a2a68dca7feca",
+  "messages_after_cancel": [
+    "取消及资源回收中…",
+    "任务已被用户取消。"
+  ],
+  "job_final": {
+    "job_id": "5a667fe6332e4acab67a2a68dca7feca",
+    "state": "CANCELLED",
+    "phase": "CLEANUP",
+    "connection_name": "D-UAT3-63表-本机模拟目标",
+    "database": "uat_d_1635_r3_target",
+    "elapsed_seconds": 4,
+    "progress": {
+      "enumerated_objects": null,
+      "selected_objects": null,
+      "extracted_objects": null,
+      "total_statements": null,
+      "audited_statements": null
+    },
+    "report_id": null,
+    "snapshot_id": null,
+    "cleanup_ok": 1,
+    "error_code": "CANCELLED",
+    "error_message": "任务已被用户取消。",
+    "exit_code": 1,
+    "error": {
+      "code": "CANCELLED",
+      "message": "任务已被用户取消。"
+    },
+    "created_at": "2026-09-10T06:49:15.618897",
+    "finished_at": "",
+    "request_id": "ab1a643c9b3e4516"
+  },
+  "card_text": "元数据审核任务 #5a667fe6\n状态\t\nCANCELLED\n\t阶段\tCLEANUP\t实例连接\tD-UAT3-63表-本机模拟目标\n库\tuat_d_1635_r3_target\t已用时长\t3s\t进度\t枚举 - / 提取 - / 审核 -\n任务已被用户取消。",
+  "saved_utc": "2026-09-10T06:49:22.300038+00:00"
+}

@@ -1,0 +1,40 @@
+{
+  "scenario": "s8_drop_post",
+  "started_utc": "2026-09-10T06:47:53.626042+00:00",
+  "base": "proxy",
+  "messages": [
+    "元数据审核任务已受理，正在后台执行…"
+  ],
+  "card_text": "元数据审核任务 #986a1c15\n状态\t\nPUBLISHED\n\t阶段\tSNAPSHOTTING\t实例连接\tD-UAT3-63表-本机模拟目标\n库\tuat_d_1635_r3_target\t已用时长\t1s\t进度\t枚举 64 / 提取 64 / 审核 64",
+  "recovered_job_id": "986a1c154c8c4e0ab998e46c00ad0cfb",
+  "card_text_later": "元数据审核任务 #986a1c15\n下载 .sql 文件\n导出 HTML 报告\n状态\t\nSUCCEEDED\n\t阶段\tDONE\t实例连接\tD-UAT3-63表-本机模拟目标\n库\tuat_d_1635_r3_target\t已用时长\t2s\t进度\t枚举 64 / 提取 64 / 审核 64",
+  "jobs_before": 8,
+  "jobs_after": 9,
+  "duplicate_created": false,
+  "job_final": {
+    "job_id": "986a1c154c8c4e0ab998e46c00ad0cfb",
+    "state": "SUCCEEDED",
+    "phase": "DONE",
+    "connection_name": "D-UAT3-63表-本机模拟目标",
+    "database": "uat_d_1635_r3_target",
+    "elapsed_seconds": 2,
+    "progress": {
+      "enumerated_objects": 64,
+      "selected_objects": 64,
+      "extracted_objects": 64,
+      "total_statements": 64,
+      "audited_statements": 64
+    },
+    "report_id": 5,
+    "snapshot_id": 5,
+    "cleanup_ok": 1,
+    "error_code": null,
+    "error_message": null,
+    "exit_code": 0,
+    "error": null,
+    "created_at": "2026-09-10T06:47:57.262367",
+    "finished_at": "2026-09-10T06:47:59.515755",
+    "request_id": "e428be0a70634a7b"
+  },
+  "saved_utc": "2026-09-10T06:48:05.948125+00:00"
+}

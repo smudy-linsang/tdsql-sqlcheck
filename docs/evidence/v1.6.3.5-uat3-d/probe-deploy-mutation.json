@@ -1,0 +1,94 @@
+{
+  "cases": [
+    {
+      "script": "install.sh",
+      "mutation": "delete",
+      "assertion_caught": true
+    },
+    {
+      "script": "install.sh",
+      "mutation": "comment",
+      "assertion_caught": true
+    },
+    {
+      "script": "install.sh",
+      "mutation": "move_after_web",
+      "assertion_caught": true
+    },
+    {
+      "script": "install.sh",
+      "mutation": "strip_to_install_and_pkill",
+      "assertion_caught": true
+    },
+    {
+      "script": "install.sh",
+      "mutation": "clean",
+      "assertion_caught": false,
+      "note": "clean 应为 False（未捕获=通过）"
+    },
+    {
+      "script": "upgrade_incremental.sh",
+      "mutation": "delete",
+      "assertion_caught": true
+    },
+    {
+      "script": "upgrade_incremental.sh",
+      "mutation": "comment",
+      "assertion_caught": true
+    },
+    {
+      "script": "upgrade_incremental.sh",
+      "mutation": "move_after_web",
+      "assertion_caught": true
+    },
+    {
+      "script": "upgrade_incremental.sh",
+      "mutation": "strip_to_install_and_pkill",
+      "assertion_caught": true
+    },
+    {
+      "script": "upgrade_incremental.sh",
+      "mutation": "clean",
+      "assertion_caught": false,
+      "note": "clean 应为 False（未捕获=通过）"
+    },
+    {
+      "script": "apply_patch.sh",
+      "mutation": "delete",
+      "assertion_caught": true
+    },
+    {
+      "script": "apply_patch.sh",
+      "mutation": "comment",
+      "assertion_caught": true
+    },
+    {
+      "script": "apply_patch.sh",
+      "mutation": "move_after_web",
+      "assertion_caught": true
+    },
+    {
+      "script": "apply_patch.sh",
+      "mutation": "strip_to_install_and_pkill",
+      "assertion_caught": true
+    },
+    {
+      "script": "apply_patch.sh",
+      "mutation": "clean",
+      "assertion_caught": false,
+      "note": "clean 应为 False（未捕获=通过）"
+    },
+    {
+      "script": "upgrade_incremental.sh",
+      "mutation": "nohup_delete",
+      "assertion_caught": true
+    },
+    {
+      "script": "upgrade_incremental.sh",
+      "mutation": "nohup_comment",
+      "assertion_caught": true
+    }
+  ],
+  "bad_mutations_caught": 0,
+  "bad_list": []
+}

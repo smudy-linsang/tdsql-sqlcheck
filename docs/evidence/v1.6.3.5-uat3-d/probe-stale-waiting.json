@@ -1,0 +1,82 @@
+{
+  "probe": "stale_waiting_recovery",
+  "created_new": true,
+  "job_id": "fec0cb494460493fad2209d0418a40c4",
+  "deadline_at": "2026-09-10T07:25:50.033706",
+  "samples": [
+    {
+      "t_plus_s": 5,
+      "state": "ACCEPTED",
+      "phase": "WAITING",
+      "slot_active_job": "fec0cb494460493fad2209d0418a40c4",
+      "start_deadline_s": 30
+    },
+    {
+      "t_plus_s": 10,
+      "state": "ACCEPTED",
+      "phase": "WAITING",
+      "slot_active_job": "fec0cb494460493fad2209d0418a40c4",
+      "start_deadline_s": 30
+    },
+    {
+      "t_plus_s": 15,
+      "state": "ACCEPTED",
+      "phase": "WAITING",
+      "slot_active_job": "fec0cb494460493fad2209d0418a40c4",
+      "start_deadline_s": 30
+    },
+    {
+      "t_plus_s": 20,
+      "state": "ACCEPTED",
+      "phase": "WAITING",
+      "slot_active_job": "fec0cb494460493fad2209d0418a40c4",
+      "start_deadline_s": 30
+    },
+    {
+      "t_plus_s": 25,
+      "state": "ACCEPTED",
+      "phase": "WAITING",
+      "slot_active_job": "fec0cb494460493fad2209d0418a40c4",
+      "start_deadline_s": 30
+    },
+    {
+      "t_plus_s": 30,
+      "state": "ACCEPTED",
+      "phase": "WAITING",
+      "slot_active_job": "fec0cb494460493fad2209d0418a40c4",
+      "start_deadline_s": 30
+    },
+    {
+      "t_plus_s": 35,
+      "state": "ACCEPTED",
+      "phase": "WAITING",
+      "slot_active_job": "fec0cb494460493fad2209d0418a40c4",
+      "start_deadline_s": 30
+    },
+    {
+      "t_plus_s": 40,
+      "state": "ACCEPTED",
+      "phase": "WAITING",
+      "slot_active_job": "fec0cb494460493fad2209d0418a40c4",
+      "start_deadline_s": 30
+    },
+    {
+      "t_plus_s": 45,
+      "state": "ACCEPTED",
+      "phase": "WAITING",
+      "slot_active_job": "fec0cb494460493fad2209d0418a40c4",
+      "start_deadline_s": 30
+    },
+    {
+      "t_plus_s": 50,
+      "state": "ACCEPTED",
+      "phase": "WAITING",
+      "slot_active_job": "fec0cb494460493fad2209d0418a40c4",
+      "start_deadline_s": 30
+    }
+  ],
+  "still_waiting_after_50s": true,
+  "slot_still_occupied": true,
+  "verdict": "过期未认领任务未被回收，唯一槽持续被占用",
+  "cleanup": "已置 FAILED 并释放槽"
+}

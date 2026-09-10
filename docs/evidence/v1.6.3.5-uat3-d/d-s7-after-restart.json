@@ -1,0 +1,257 @@
+{
+  "utc": "2026-09-10T06:47:49.106572+00:00",
+  "label": "d-s7-after-restart",
+  "target_tables": 64,
+  "readiness": "ACCEPTS",
+  "slot": {
+    "id": 1,
+    "active_job_id": null,
+    "runner_id": "SMUDY-47468-476a3c26",
+    "runner_heartbeat_at": "2026-09-10T06:47:48.187139",
+    "accepting": 1,
+    "storage_instance_id": null,
+    "updated_at": "2026-09-10T06:47:48.187165",
+    "artifact_used_bytes": 0,
+    "storage_checked_at": null
+  },
+  "jobs": [
+    {
+      "job_id": "b39374acfc3d4c14984819ab380381da",
+      "state": "SUCCEEDED",
+      "phase": "DONE",
+      "connection_name": "D-UAT3-63表-本机模拟目标",
+      "database": "uat_d_1635_r3_target",
+      "elapsed_seconds": 3,
+      "progress": {
+        "enumerated_objects": 63,
+        "selected_objects": 63,
+        "extracted_objects": 63,
+        "total_statements": 63,
+        "audited_statements": 63
+      },
+      "report_id": 1,
+      "snapshot_id": 1,
+      "cleanup_ok": 1,
+      "error_code": null,
+      "error_message": null,
+      "exit_code": 0,
+      "error": null,
+      "created_at": "2026-09-10T06:43:31.279042",
+      "finished_at": "2026-09-10T06:43:35.267702"
+    },
+    {
+      "job_id": "bc27af99f70b41b2a91e559b6f88bd4a",
+      "state": "SUCCEEDED",
+      "phase": "DONE",
+      "connection_name": "D-UAT3-63表-本机模拟目标",
+      "database": "uat_d_1635_r3_target",
+      "elapsed_seconds": 3,
+      "progress": {
+        "enumerated_objects": 63,
+        "selected_objects": 63,
+        "extracted_objects": 63,
+        "total_statements": 63,
+        "audited_statements": 63
+      },
+      "report_id": 2,
+      "snapshot_id": 2,
+      "cleanup_ok": 1,
+      "error_code": null,
+      "error_message": null,
+      "exit_code": 0,
+      "error": null,
+      "created_at": "2026-09-10T06:43:53.211177",
+      "finished_at": "2026-09-10T06:43:56.819679"
+    },
+    {
+      "job_id": "b332bc3c94314a86931f978da91fdc12",
+      "state": "SUCCEEDED",
+      "phase": "DONE",
+      "connection_name": "D-UAT3-63表-本机模拟目标",
+      "database": "uat_d_1635_r3_target",
+      "elapsed_seconds": 2,
+      "progress": {
+        "enumerated_objects": 64,
+        "selected_objects": 64,
+        "extracted_objects": 64,
+        "total_statements": 64,
+        "audited_statements": 64
+      },
+      "report_id": 3,
+      "snapshot_id": 3,
+      "cleanup_ok": 1,
+      "error_code": null,
+      "error_message": null,
+      "exit_code": 0,
+      "error": null,
+      "created_at": "2026-09-10T06:44:15.212260",
+      "finished_at": "2026-09-10T06:44:17.386580"
+    },
+    {
+      "job_id": "93f7ae92ff564701bd9a2a6ef83588d8",
+      "state": "SUCCEEDED",
+      "phase": "DONE",
+      "connection_name": "D-UAT3-63表-本机模拟目标",
+      "database": "uat_d_1635_r3_target",
+      "elapsed_seconds": 28,
+      "progress": {
+        "enumerated_objects": 64,
+        "selected_objects": 64,
+        "extracted_objects": 64,
+        "total_statements": 64,
+        "audited_statements": 64
+      },
+      "report_id": 4,
+      "snapshot_id": 4,
+      "cleanup_ok": 1,
+      "error_code": null,
+      "error_message": null,
+      "exit_code": 0,
+      "error": null,
+      "created_at": "2026-09-10T06:44:31.136609",
+      "finished_at": "2026-09-10T06:44:59.999397"
+    },
+    {
+      "job_id": "662a20a14c954d66af3813c8e72da202",
+      "state": "FAILED",
+      "phase": "CLEANUP",
+      "connection_name": "D-UAT3-不可连接-本机",
+      "database": "uat_d_1635_r3_target",
+      "elapsed_seconds": 3,
+      "progress": {
+        "enumerated_objects": null,
+        "selected_objects": null,
+        "extracted_objects": null,
+        "total_statements": null,
+        "audited_statements": null
+      },
+      "report_id": null,
+      "snapshot_id": null,
+      "cleanup_ok": 1,
+      "error_code": "WORKER_ERROR",
+      "error_message": "无法连接目标数据库（请检查实例地址、端口与网络连通性）。原始错误: 审核执行失败: (2003, \"Can't connect to MySQL server on '127.0.0.1' ([WinError 10061] 由于目标计算机积极拒绝，无法连接。)\")",
+      "exit_code": 1,
+      "error": {
+        "code": "WORKER_ERROR",
+        "message": "无法连接目标数据库（请检查实例地址、端口与网络连通性）。原始错误: 审核执行失败: (2003, \"Can't connect to MySQL server on '127.0.0.1' ([WinError 10061] 由于目标计算机积极拒绝，无法连接。)\")"
+      },
+      "created_at": "2026-09-10T06:45:12.451212",
+      "finished_at": "2026-09-10T06:45:17.107927"
+    },
+    {
+      "job_id": "3a05d968062940358351b24ab7b22ff8",
+      "state": "FAILED",
+      "phase": "CLEANUP",
+      "connection_name": "D-UAT3-不存在库-本机",
+      "database": "uat_d_1635_r3_missing",
+      "elapsed_seconds": 1,
+      "progress": {
+        "enumerated_objects": null,
+        "selected_objects": null,
+        "extracted_objects": null,
+        "total_statements": null,
+        "audited_statements": null
+      },
+      "report_id": null,
+      "snapshot_id": null,
+      "cleanup_ok": 1,
+      "error_code": "WORKER_ERROR",
+      "error_message": "目标数据库不存在（请检查 database/库名配置）。原始错误: 审核执行失败: (1049, \"Unknown database 'uat_d_1635_r3_missing'\")",
+      "exit_code": 1,
+      "error": {
+        "code": "WORKER_ERROR",
+        "message": "目标数据库不存在（请检查 database/库名配置）。原始错误: 审核执行失败: (1049, \"Unknown database 'uat_d_1635_r3_missing'\")"
+      },
+      "created_at": "2026-09-10T06:45:18.233800",
+      "finished_at": "2026-09-10T06:45:19.915377"
+    },
+    {
+      "job_id": "5c59a24f8f6a40d7aa46b9d3ecc6176d",
+      "state": "FAILED",
+      "phase": "CLEANUP",
+      "connection_name": "D-UAT3-不可连接-本机",
+      "database": "uat_d_1635_r3_target",
+      "elapsed_seconds": 3,
+      "progress": {
+        "enumerated_objects": null,
+        "selected_objects": null,
+        "extracted_objects": null,
+        "total_statements": null,
+        "audited_statements": null
+      },
+      "report_id": null,
+      "snapshot_id": null,
+      "cleanup_ok": 1,
+      "error_code": "WORKER_ERROR",
+      "error_message": "无法连接目标数据库（请检查实例地址、端口与网络连通性）。原始错误: 审核执行失败: (2003, \"Can't connect to MySQL server on '127.0.0.1' ([WinError 10061] 由于目标计算机积极拒绝，无法连接。)\")",
+      "exit_code": 1,
+      "error": {
+        "code": "WORKER_ERROR",
+        "message": "无法连接目标数据库（请检查实例地址、端口与网络连通性）。原始错误: 审核执行失败: (2003, \"Can't connect to MySQL server on '127.0.0.1' ([WinError 10061] 由于目标计算机积极拒绝，无法连接。)\")"
+      },
+      "created_at": "2026-09-10T06:46:43.295678",
+      "finished_at": "2026-09-10T06:46:47.150319"
+    },
+    {
+      "job_id": "ad92ff5ad5f54649b164b4f1f74c5367",
+      "state": "FAILED",
+      "phase": "CLEANUP",
+      "connection_name": "D-UAT3-不存在库-本机",
+      "database": "uat_d_1635_r3_missing",
+      "elapsed_seconds": 1,
+      "progress": {
+        "enumerated_objects": null,
+        "selected_objects": null,
+        "extracted_objects": null,
+        "total_statements": null,
+        "audited_statements": null
+      },
+      "report_id": null,
+      "snapshot_id": null,
+      "cleanup_ok": 1,
+      "error_code": "WORKER_ERROR",
+      "error_message": "目标数据库不存在（请检查 database/库名配置）。原始错误: 审核执行失败: (1049, \"Unknown database 'uat_d_1635_r3_missing'\")",
+      "exit_code": 1,
+      "error": {
+        "code": "WORKER_ERROR",
+        "message": "目标数据库不存在（请检查 database/库名配置）。原始错误: 审核执行失败: (1049, \"Unknown database 'uat_d_1635_r3_missing'\")"
+      },
+      "created_at": "2026-09-10T06:46:51.721220",
+      "finished_at": "2026-09-10T06:46:53.297978"
+    }
+  ],
+  "history": [
+    {
+      "id": 4,
+      "total_sql": 64,
+      "passed": 0,
+      "failed": 64,
+      "connection_id": "d-r3-local",
+      "db_name": "uat_d_1635_r3_target"
+    },
+    {
+      "id": 3,
+      "total_sql": 64,
+      "passed": 0,
+      "failed": 64,
+      "connection_id": "d-r3-local",
+      "db_name": "uat_d_1635_r3_target"
+    },
+    {
+      "id": 2,
+      "total_sql": 63,
+      "passed": 0,
+      "failed": 63,
+      "connection_id": "d-r3-local",
+      "db_name": "uat_d_1635_r3_target"
+    },
+    {
+      "id": 1,
+      "total_sql": 63,
+      "passed": 0,
+      "failed": 63,
+      "connection_id": "d-r3-local",
+      "db_name": "uat_d_1635_r3_target"
+    }
+  ]
+}

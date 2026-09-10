@@ -1,0 +1,37 @@
+{
+  "role_permissions_rows": 132,
+  "schema_extractor_audit_rows": [
+    {
+      "role_id": "admin",
+      "menu_key": "schema-extractor-audit",
+      "visible": 1
+    },
+    {
+      "role_id": "auditor",
+      "menu_key": "schema-extractor-audit",
+      "visible": 1
+    },
+    {
+      "role_id": "dba",
+      "menu_key": "schema-extractor-audit",
+      "visible": 1
+    },
+    {
+      "role_id": "developer",
+      "menu_key": "schema-extractor-audit",
+      "visible": 1
+    }
+  ],
+  "visible_menu_count_per_role": {
+    "admin": 33,
+    "auditor": 27,
+    "dba": 32,
+    "developer": 23
+  },
+  "service_visible_menus": {
+    "admin": "ERR 'AuthService' object has no attribute 'get_visible_menus'",
+    "dba": "ERR 'AuthService' object has no attribute 'get_visible_menus'",
+    "developer": "ERR 'AuthService' object has no attribute 'get_visible_menus'",
+    "auditor": "ERR 'AuthService' object has no attribute 'get_visible_menus'"
+  }
+}

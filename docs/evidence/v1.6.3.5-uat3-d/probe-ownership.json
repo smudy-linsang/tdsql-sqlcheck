@@ -1,0 +1,13 @@
+{
+  "target_job": "5a667fe6332e4acab67a2a68dca7feca",
+  "dba_user_create_status": 200,
+  "dba_login": 200,
+  "dba_get_admin_job": 403,
+  "dba_get_admin_results": 403,
+  "dba_cancel_admin_job": 403,
+  "dba_list_status": 403,
+  "dba_list_items": 0,
+  "dba_download_admin_sql": 403,
+  "anon_list": 401,
+  "anon_job": 401
+}
