@@ -24,3 +24,10 @@
 3. **提交范围**：只提交本轮自己产出的文件；他人在途的工作区改动与证据（如 O 正在
    进行的 UAT 证据目录）由产出方自行提交，不代为打包。
 4. 远程 `origin = https://github.com/smudy-linsang/tdsql-sqlcheck.git`，主分支 `main`。
+   HTTPS 匿名可读；本机以 LocalSystem 身份运行，走 **SSH 部署密钥**推送：
+   私钥 `C:\Windows\system32\config\systemprofile\.ssh\id_ed25519_tdsql_sqlcheck`。
+   推送前置
+   `GIT_SSH_COMMAND="ssh -i <上述私钥> -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=<同目录>\known_hosts"`
+   （`known_hosts` 取自 GitHub 官方公布的主机密钥），再执行
+   `git -c safe.directory=<仓库路径> push git@github.com:smudy-linsang/tdsql-sqlcheck.git main:main`。
+   **不改动仓库 remote 配置**，以免影响本人使用 HTTPS/GCM 推拉。
