@@ -1,0 +1,101 @@
+- banner:
+  - img "logo"
+  - generic: TDSQL数据库SQL审核工具
+  - button "O O-UAT2测试员 系统管理员":
+    - generic: O
+    - generic: O-UAT2测试员
+    - generic: 系统管理员
+- complementary:
+  - menubar:
+    - menuitem "治理概览":
+      - generic: 治理概览
+    - menuitem "SQL审核" [expanded]:
+      - generic: SQL审核
+      - menu:
+        - menuitem "即时审核"
+        - menuitem "文件审核"
+        - menuitem "在线元数据审核"
+    - menuitem "慢SQL治理":
+      - generic: 慢SQL治理
+    - menuitem "实例体检":
+      - generic: 实例体检
+    - menuitem "深度诊断":
+      - generic: 深度诊断
+    - menuitem "平台治理":
+      - generic: 平台治理
+    - menuitem "系统管理":
+      - generic: 系统管理
+- navigation "面包屑":
+  - link "SQL审核"
+  - text: /
+  - link "在线元数据审核"
+- tablist:
+  - tab "即时元数据提取与审核" [selected]
+  - tab "历史元数据审核记录"
+  - tab "扫描对比"
+  - tab "对比留档报告"
+- tabpanel "即时元数据提取与审核":
+  - generic: 在线元数据提取与文件审核
+  - combobox
+  - generic: O-UAT2-63表-本机模拟目标 (127.0.0.1:13306)
+  - textbox "目标数据库(留空默认)"
+  - group "checkbox-group":
+    - checkbox "表结构" [checked]
+    - generic: 表结构
+    - checkbox "索引/主键" [checked]
+    - generic: 索引/主键
+    - checkbox "视图定义" [checked]
+    - generic: 视图定义
+    - checkbox "分片键" [checked]
+    - generic: 分片键
+  - button "🚀 拉取元数据并执行文件审核":
+    - generic: 🚀 拉取元数据并执行文件审核
+  - generic: 自动从选择的 SIT/UAT 测试库中提取当前最新表、索引、视图 DDL 元数据，拼接生成完整的 .sql 描述文件，并自动提交文件审核引擎进行规则评价。
+  - generic: "元数据审核任务 #c968f15b"
+  - button "下载 .sql 文件":
+    - text: 下载 .sql 文件
+  - button "导出 HTML 报告":
+    - text: 导出 HTML 报告
+  - table:
+    - rowgroup:
+      - row "状态 SUCCEEDED 阶段 DONE 实例连接 O-UAT2-63表-本机模拟目标":
+        - cell "状态"
+        - cell "SUCCEEDED":
+          - generic: SUCCEEDED
+        - cell "阶段"
+        - cell "DONE"
+        - cell "实例连接"
+        - cell "O-UAT2-63表-本机模拟目标"
+      - row "库 uat_o_1635_r2_target 已用时长 28s 进度 枚举 65 / 提取 65 / 审核 65":
+        - cell "库"
+        - cell "uat_o_1635_r2_target"
+        - cell "已用时长"
+        - cell "28s"
+        - cell "进度"
+        - cell "枚举 65 / 提取 65 / 审核 65"
+  - generic: 📊 审核结果（共 65 条，分页加载）
+  - table:
+    - rowgroup:
+      - row "# 类型 状态 SQL 预览":
+        - columnheader
+        - columnheader "#":
+          - generic: "#"
+        - columnheader "类型":
+          - generic: 类型
+        - columnheader "状态":
+          - generic: 状态
+        - columnheader "SQL 预览":
+          - generic: SQL 预览
+  - table:
+    - rowgroup:
+      - 'row "1 CREATE TABLE 4项违规 -- Table: t_uat3_added_after_scan CREATE TABLE `t_uat3_added_after_scan` ( `id` bigint NOT NULL, PRIMARY KEY (`id`) ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT=''O UAT3 rescan fixture''"':
+        - cell:
+        - cell "1":
+          - generic: "1"
+        - cell "CREATE TABLE":
+          - generic: CREATE TABLE
+        - cell "4项违规":
+          - generic: 4项违规
+        - 'cell "-- Table: t_uat3_added_after_scan CREATE TABLE `t_uat3_added_after_scan` ( `id` bigint NOT NULL, PRIMARY KEY (`id`) ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT=''O UAT3 rescan fixture''"':
+          - generic: "-- Table: t_uat3_added_after_scan CREATE TABLE `t_uat3_added_after_scan` ( `id` bigint NOT NULL, PRIMARY KEY (`id`) ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='O UAT3 rescan fixture'"
+      - 'row "2 C
