@@ -335,6 +335,38 @@ VERSION / APP_VERSION / 前端 5 处版本标记统一 1.6.3.5（version_consist
 
 ---
 
+---
+
+# 第八批：UAT 第三轮整改复测补强（D 复测：D-01/02/03 功能全通过；补 D-02 假绿接线锁 + NIT）
+
+| 项 | 内容 |
+|---|---|
+| 整改日期 | 2026-09-10 |
+| D 复测结论 | D-01/D-02/D-03 功能复测全部通过；但 D-02 回归锁**假绿**（M3/M4：移除两处 reclaim 调用后测试仍全绿——测试只直接调方法，没锁住"生产接线"）。另发现 D-04（P3，随下一版） |
+
+## 整改内容（按 D 照图施工）
+
+| 项 | 内容 |
+|---|---|
+| **M3/M4 接线锁** | `test_v1635_uat3.py` 新增：① `test_reclaim_is_wired_into_acceptance_path`（`create_job` 源码含真实 reclaim 调用）；② `test_reclaim_is_wired_into_runner_tick`（`runner._tick` 源码含真实调用）；③ `test_stale_reclaim_selfheal_end_to_end`（行为级：幽灵任务占槽时经 `create_job` 受理必须自愈成功 + 旧任务 FAILED/START_TIMEOUT） |
+| **接线锁强度** | 用 `_has_real_call`（逐行排除注释，只认真实调用行）替代纯 `"reclaim_stale_accepted" in src`——后者会被"注释里含名字"骗过（变异自证时发现）。 |
+| **NIT（test_cancelled_elapsed_stable）** | 跨 1.1 秒两次查询 + 直接断言 `elapsed == finished_at - started_at`（而非 now−started），堵住"整数秒在 <1s 间隔内对缺陷态也误判通过"的盲区。 |
+
+## 变异自证（D 规约 1）
+- M3（注释 `create_job` 的 reclaim）→ `test_reclaim_is_wired_into_acceptance_path` 变红，恢复后绿。
+- M4（注释 `runner._tick` 的 reclaim）→ `test_reclaim_is_wired_into_runner_tick` 变红，恢复后绿。
+- 无变异残留（git diff 干净、无 MUT 标记）。
+
+## 验证
+- `test_v1635_uat3.py` 14 项全过（8 原 + 3 接线锁 + 强化 NIT + 3 D-03）。
+- 全量回归 **2110 passed + 30 skipped + 0 failed**（30 skip 为既定环境性跳过，非本轮引入）。
+
+## 边界声明
+- **D-04（幽灵 ACCEPTED 任务不在槽时前端两按钮同时禁用）**：按 D 建议**随下一版整改**（当前触发需状态残留，非日常路径）。本轮未改。
+- 内网 6000 表容量、Linux/systemd 部署、CORE_SAFE 回退、断电重入等门禁仍需 G 组织（D 复测 §8 一致声明）。
+
+---
+
 施工人：智能体 Q
-施工对象：v1.6.3.5（DU-1 + DU-2 + SIT 两轮 + UAT 三轮整改）
+施工对象：v1.6.3.5（DU-1 + DU-2 + SIT 两轮 + UAT 三轮 + 复测补强）
 提交给：Mr.Linsang

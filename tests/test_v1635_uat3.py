@@ -57,15 +57,26 @@ def test_cancelled_job_writes_finished_at():
 
 
 def test_cancelled_elapsed_stable():
-    """取消任务两次查询 elapsed 相等（不随时间膨胀）。"""
+    """D-01（含 D 复测 NIT 强化）：取消任务耗时不随查询时刻膨胀。
+
+    直接断言不变式：elapsed == finished_at - started_at（而非 now - started_at），
+    并跨 1 秒以上两次查询保持一致——避免整数秒在 <1s 间隔内对缺陷态也误判通过。
+    """
+    import time as _t
     from backend.api.metadata_audit import _job_summary
+    from backend.services import metadata_job_process as _jp
     job, _ = _mk(key="kc2")
     repo.claim_next_accepted("runner-x", "tok", R._now())
     repo.cancel(job["id"], "tok")
     j = repo.get_job(job["id"])
     s1 = _job_summary(j)["elapsed_seconds"]
+    _t.sleep(1.1)   # 跨过整数秒边界，确保缺陷态（now-started）会变大
     s2 = _job_summary(j)["elapsed_seconds"]
-    assert s1 is not None and s1 == s2   # 稳定，不膨胀
+    assert s1 is not None and s1 == s2, "取消任务耗时必须稳定不膨胀"
+    # 不变式：elapsed 等于 finished_at-started_at（用 finished_at 而非当前时间）
+    st = _jp.parse_utc(j["started_at"]); fin = _jp.parse_utc(j["finished_at"])
+    assert st is not None and fin is not None
+    assert s1 == int((fin - st).total_seconds())
 
 
 def test_terminal_without_finished_at_is_none():
@@ -145,6 +156,55 @@ def test_reclaim_skips_when_slot_owned_by_other_job():
         conn = _get_connection()
         conn.execute("UPDATE metadata_audit_slot SET active_job_id=NULL WHERE id=1")
         conn.commit(); conn.close()
+
+
+# ══ D-02 接线锁（D 复测 M3/M4：防"方法在但没人调"假绿）══
+def _has_real_call(src: str, call_name: str) -> bool:
+    """检查源码中存在对 call_name 的**真实调用行**（排除注释行，防"注释里含名字"假绿）。"""
+    for line in src.split("\n"):
+        s = line.strip()
+        if s.startswith("#"):
+            continue
+        if (call_name + "(") in s:
+            return True
+    return False
+
+
+def test_reclaim_is_wired_into_acceptance_path():
+    """受理路径必须调用回收（防 M3：方法在但 create_job 没调/被注释）。"""
+    import inspect
+    src = inspect.getsource(R.MetadataJobRepository.create_job)
+    assert _has_real_call(src, "self.reclaim_stale_accepted"), \
+        "create_job 中没有对 reclaim_stale_accepted 的真实调用（可能只剩注释）"
+
+
+def test_reclaim_is_wired_into_runner_tick():
+    """runner 每轮必须调用回收（防 M4：runner._tick 没调/被注释）。"""
+    import inspect
+    from backend.workers.metadata_runner import MetadataRunner
+    src = inspect.getsource(MetadataRunner._tick)
+    assert _has_real_call(src, "self.repo.reclaim_stale_accepted"), \
+        "runner._tick 中没有对 reclaim_stale_accepted 的真实调用（可能只剩注释）"
+
+
+def test_stale_reclaim_selfheal_end_to_end():
+    """行为级接线锁：超期未认领占用槽时，经 create_job 生产受理路径必须自愈——
+    新任务受理成功（非 409）且幽灵任务判 FAILED/START_TIMEOUT。
+    这是 D-02 的唯一用户可感知入口，锁住"生产接线真的生效"而非只锁方法本身。"""
+    # 造 60 秒前受理、从未被认领的幽灵任务并占用唯一槽
+    ghost, _ = _mk(key="ghost1")
+    _set_created_at(ghost["id"], 60)
+    assert repo.get_job(ghost["id"])["state"] == R.STATE_ACCEPTED
+    assert repo.slot_state()["active_job_id"] == ghost["id"]
+    # 生产受理路径（create_job 内部会先 reclaim）——新任务应受理成功而非 409
+    new_job, created = _mk(user="d3test_new", key="newjob1")
+    assert created is True, "幽灵任务占槽时新受理应自愈成功（reclaim 释放槽）"
+    # 幽灵任务被判 FAILED/START_TIMEOUT
+    g = repo.get_job(ghost["id"])
+    assert g["state"] == R.STATE_FAILED and g["error_code"] == "START_TIMEOUT"
+    assert g["finished_at"] is not None
+    # 新任务占用槽
+    assert repo.slot_state()["active_job_id"] == new_job["id"]
 
 
 # ══ D-03：前端 submission 生命周期 + 两动作 + generation 守卫（静态契约）══
