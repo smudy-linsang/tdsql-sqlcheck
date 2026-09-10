@@ -165,17 +165,18 @@ def _job_summary(job: dict) -> dict:
         except (json.JSONDecodeError, TypeError):
             progress = {}
     # 耗时用共享 UTC 解析（UAT-O-1635-R2-02：database 兼容层转 ISO 带 T，
-    # 旧 strptime 空格格式解析失败导致 elapsed 恒为 None）。已完成按 started→finished，
-    # 运行中按 started→now；未开始（无 started_at）才是 None。
+    # 旧 strptime 空格格式解析失败导致 elapsed 恒为 None）。
+    # D-01：终态必须有 finished_at 才给耗时（缺失则 None，不回退到当前时间——
+    # 否则取消/早期失败任务的"已用时长"会随查询时间无限膨胀）。存量数据不回填。
     from backend.services import metadata_job_process as _jp
     elapsed = None
     st_dt = _jp.parse_utc(job.get("started_at"))
     if st_dt is not None:
-        if job["state"] in TERMINAL_STATES and job.get("finished_at"):
-            end_dt = _jp.parse_utc(job.get("finished_at")) or _now_utc()
+        if job["state"] in TERMINAL_STATES:
+            end_dt = _jp.parse_utc(job.get("finished_at"))
+            elapsed = None if end_dt is None else max(0, int((end_dt - st_dt).total_seconds()))
         else:
-            end_dt = _now_utc()
-        elapsed = max(0, int((end_dt - st_dt).total_seconds()))
+            elapsed = max(0, int((_now_utc() - st_dt).total_seconds()))
     return {
         "job_id": job["id"], "state": job["state"], "phase": job["phase"],
         "connection_name": (json.loads(job["execution_context_json"] or "{}")

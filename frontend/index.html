@@ -364,6 +364,8 @@
                         <el-checkbox label="SHARDKEY">分片键</el-checkbox>
                       </el-checkbox-group>
                       <el-button type="primary" size="small" :loading="extractAuditing" :disabled="!extractedAuditConnId" @click="runExtractAndAudit">🚀 拉取元数据并执行文件审核</el-button>
+                      <!-- v1.6.3.5 / D-03：与"重新扫描"分离的"恢复查看上次任务"动作（只 GET 不新建） -->
+                      <el-button size="small" :disabled="extractAuditing" @click="recoverMetadataJob">📄 恢复查看上次任务</el-button>
                     </div>
                   </div>
                   <div style="color:#909399;font-size:13px;margin:8px 0">自动从选择的 SIT/UAT 测试库中提取当前最新表、索引、视图 DDL 元数据，拼接生成完整的 .sql 描述文件，并自动提交文件审核引擎进行规则评价。</div>

@@ -300,6 +300,41 @@ VERSION / APP_VERSION / 前端 5 处版本标记统一 1.6.3.5（version_consist
 
 ---
 
+---
+
+# 第七批：UAT 第三轮整改（D 报告，R2-01~06 复测全通过；新发现 D-01/D-02/D-03 整改）
+
+| 项 | 内容 |
+|---|---|
+| 整改日期 | 2026-09-10 |
+| D 结论 | R2-01~R2-06 六项上轮整改**全部关闭（复测通过）**；新发现 D-01/D-02（P2）+ D-03（P3） |
+
+## 逐项整改（3 项全部认可，按 D 照图施工方案实现）
+
+| 编号 | 级别 | 问题（D 实测） | 整改 |
+|---|---|---|---|
+| D-01 | P2 | 取消任务无 `finished_at`，"已用时长"随查询时间无限膨胀（75 秒 +75） | ① repository 新增 `cancel()`（与 fail/complete 同口径写 `finished_at`）；② runner 取消分支改用 `repo.cancel()`；③ `_job_summary` 终态耗时不回退当前时间（`finished_at` 缺失则 `elapsed=None`，页面显示 `-`）。**存量数据不回填**（D 规约 R-06/R-13：取消任务完成时间不可考，回填等于伪造） |
+| D-02 | P2 | 过期未认领任务不回收，唯一受理槽被永久占用（受理后 runner 失效 → 永久 409） | repository 新增 `reclaim_stale_accepted()`（守卫：state=ACCEPTED 且 slot.active_job_id=本 job 且超期，CAS→FAILED/START_TIMEOUT 并释放槽，不发信号不杀 PID）；两个调用点：runner._tick 每轮自愈 + API 受理前自愈（runner 死时用户可自救） |
+| D-03 | P3 | submission 生命周期未落地（meta_submission 只写不读、无"恢复查看/重新扫描"分离、分页回写无 generation 守卫） | ① 前端 `_saveSubmission`/`_loadSubmission` 真正消费 submission 记录（pending→accepted→closed）；② UI 拆出独立"📄 恢复查看上次任务"按钮（只 GET 不新建）与"🚀 重新扫描"（新 key）；③ `loadMetadataResults` 加 `_metaPollGen` generation 守卫防旧响应覆盖新视图 |
+
+## 施工规约遵守（D 转达）
+- **变异自证**：部署契约断言（R2-04）已做删行/注释变异复证（红/绿）；D-01/D-02 回归锁通过。
+- **存量数据不回填**：D-01 不回填历史 finished_at，仅新逻辑返回 None。
+- **SQL 占位符一律 `?`**：reclaim/cancel 的 UPDATE 均用 `?`（兼容游标），迁移纯增量未新增。
+- **部署脚本**：本轮改动不波及部署（未改 deploy/），无需动五脚本。
+- **回归口径**：全量 0 failed；30 个 skip 为既定环境性跳过（SIT/UAT 集成模块需内网凭据，非本轮引入）。
+
+## 验证
+- 新增 `test_v1635_uat3.py` 11 用例（D-01 取消写finished_at/耗时稳定/无finished_at为None/三终态都有finished_at + D-02 回收允许新任务/新鲜不回收/RUNNING不回收/他人槽不误杀 + D-03 submission被消费/两动作分离/generation守卫）全过。
+- 取消路径端到端冒烟：CANCELLED + finished_at 落库 + elapsed 两次查询一致（稳定为 0）。
+- 全量回归 **2107 passed + 30 skipped + 0 failed**。
+
+## 边界声明
+- D-03 前端逻辑经 `node --check` + 静态契约测试；浏览器端真实点击复测由 O/A 下轮进行。
+- 待内网验收项（真实 6000 表容量 §11.4、CORE_SAFE 回退、RSS 真实越界、断电重入）不在本轮范围。
+
+---
+
 施工人：智能体 Q
-施工对象：v1.6.3.5（DU-1 + DU-2 + SIT 两轮 + UAT 两轮整改）
+施工对象：v1.6.3.5（DU-1 + DU-2 + SIT 两轮 + UAT 三轮整改）
 提交给：Mr.Linsang

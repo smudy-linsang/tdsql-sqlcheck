@@ -70,6 +70,11 @@ class MetadataRunner:
             time.sleep(_POLL_SECONDS)
 
     def _tick(self):
+        # D-02：每轮先回收"受理后超期未被认领"的幽灵任务（释放唯一槽）
+        try:
+            self.repo.reclaim_stale_accepted(jp.MetadataLimits.START_TIMEOUT)
+        except Exception as e:
+            logger.error("回收过期未认领任务异常: %s", e)
         token = uuid.uuid4().hex
         job = self.repo.claim_next_accepted(self.runner_id, token, _utcnow())
         if not job:
@@ -123,9 +128,8 @@ class MetadataRunner:
                            error_message=f"子进程内存超过保护上限 "
                                          f"{jp.MetadataLimits.CHILD_RSS_LIMIT_MIB} MiB，已终止回收。")
         elif res.cancelled:
-            self.repo.cas_state(job_id, token, tuple(R.ACTIVE_STATES), R.STATE_CANCELLED,
-                                phase=R.PHASE_CLEANUP, error_code="CANCELLED",
-                                error_message="任务已被用户取消。", )
+            # D-01：取消终态写 finished_at（与 fail/complete 同口径），耗时不膨胀
+            self.repo.cancel(job_id, token, cleanup_ok=res.cleanup_ok)
         elif res.timed_out:
             self.repo.fail(job_id, token, error_code="JOB_TIMEOUT",
                            error_message=f"任务超过保护预算 {self.job_timeout}s，已终止回收。")

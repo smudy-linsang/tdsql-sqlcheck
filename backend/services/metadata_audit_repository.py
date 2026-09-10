@@ -87,6 +87,13 @@ class MetadataJobRepository:
         busy：active_job_id 非空 → 409/METADATA_BUSY（不排长队）。
         锁顺序固定 slot → job。
         """
+        # D-02：受理前先回收"受理后超期未被认领"的幽灵任务（释放唯一槽），
+        # 使 runner 已死时新请求仍能自愈，不被永久 METADATA_BUSY 挡住。
+        try:
+            from backend.services import metadata_job_process as _jp
+            self.reclaim_stale_accepted(_jp.MetadataLimits.START_TIMEOUT)
+        except Exception:
+            pass   # 回收失败不阻断本次受理
         conn = _get_connection()
         try:
             now = _now()
@@ -437,6 +444,80 @@ class MetadataJobRepository:
             job_id, attempt_token, from_states, STATE_FAILED, phase=PHASE_CLEANUP,
             error_code=error_code, error_message=error_message,
             extra={"finished_at": _now()})
+
+    def cancel(self, job_id: str, attempt_token: str, *, cleanup_ok: bool = True) -> bool:
+        """→ CANCELLED（终态写 finished_at，与 fail/complete 同口径）。
+
+        UAT-O-1635-R2 D-01：取消任务的 finished_at 必须落库，否则终态耗时会随查询
+        时间无限膨胀（finished_at 缺失时 elapsed 回退到当前时间）。
+        """
+        return self.cas_state(
+            job_id, attempt_token,
+            (STATE_ACCEPTED, STATE_RUNNING, STATE_PUBLISHING, STATE_STOPPING),
+            STATE_CANCELLED, phase=PHASE_CLEANUP, error_code="CANCELLED",
+            error_message="任务已被用户取消。",
+            extra={"finished_at": _now(), "cleanup_ok": 1 if cleanup_ok else 0})
+
+    def reclaim_stale_accepted(self, start_timeout_seconds: int) -> Optional[str]:
+        """回收"受理后超期未被认领"的任务：判 FAILED/START_TIMEOUT 并释放槽。
+
+        UAT-O-1635-R2 D-02：runner 受理后失效/被 SIGKILL 时，唯一受理槽被幽灵任务
+        永久占用。本方法只处理"确证从未被认领"的过期 ACCEPTED 任务（不碰 RUNNING、
+        不抢占其他 runner 的槽、不发信号不杀 PID）。返回被回收的 job_id 或 None。
+
+        守卫（缺一不可）：job.state='ACCEPTED' 且 slot.active_job_id=job.id 且
+        超期（now - created_at > start_timeout_seconds）。锁序保持 slot → job。
+        """
+        conn = _get_connection()
+        try:
+            conn.execute("SELECT * FROM metadata_audit_slot WHERE id=? FOR UPDATE",
+                         (SLOT_ID,))
+            slot = _row_to_dict(conn.execute(
+                "SELECT * FROM metadata_audit_slot WHERE id=?", (SLOT_ID,)).fetchone())
+            job_id = (slot or {}).get("active_job_id")
+            if not job_id:
+                conn.commit()
+                return None
+            job = _row_to_dict(conn.execute(
+                "SELECT * FROM metadata_audit_jobs WHERE id=? FOR UPDATE",
+                (job_id,)).fetchone())
+            if not job or job["state"] != STATE_ACCEPTED:
+                conn.commit()
+                return None
+            # 超期判定：now(UTC) - created_at > start_timeout_seconds
+            from backend.services import metadata_job_process as _jp
+            created = _jp.parse_utc(job.get("created_at"))
+            if created is None:
+                conn.commit()
+                return None
+            from datetime import datetime, timezone
+            age = (datetime.now(timezone.utc) - created).total_seconds()
+            if age <= start_timeout_seconds:
+                conn.commit()
+                return None
+            now = _now()
+            cur = conn.execute(
+                """UPDATE metadata_audit_jobs SET state=?, phase=?, error_code=?,
+                   error_message=?, finished_at=?, cleanup_ok=1, updated_at=?
+                   WHERE id=? AND state=?""",
+                (STATE_FAILED, PHASE_CLEANUP, "START_TIMEOUT",
+                 "受理后执行器未在期限内认领，任务已作废并释放受理槽。",
+                 now, now, job_id, STATE_ACCEPTED))
+            if getattr(cur, "rowcount", 1) < 1:
+                conn.rollback()
+                return None
+            conn.execute(
+                "UPDATE metadata_audit_slot SET active_job_id=NULL, updated_at=? "
+                "WHERE id=? AND active_job_id=?", (now, SLOT_ID, job_id))
+            conn.commit()
+            logger.warning("回收过期未认领任务 job_id=%s age_s=%.1f", job_id, age)
+            return job_id
+        except Exception as e:
+            conn.rollback()
+            logger.error("回收过期未认领任务失败: %s", e, exc_info=True)
+            return None
+        finally:
+            conn.close()
 
 
 def _new_job_id() -> str:
