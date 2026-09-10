@@ -1,5 +1,5 @@
 {
-  "dirty_before": "M docs/evidence/v1.6.3.5-uat3-d/browser_uat_d.py\n M docs/evidence/v1.6.3.5-uat3-d/d-s9-01-running.png\n M docs/evidence/v1.6.3.5-uat3-d/d-s9-02-confirm-dialog.png\n M docs/evidence/v1.6.3.5-uat3-d/d-s9-02b-confirmed.png\n M docs/evidence/v1.6.3.5-uat3-d/d-s9-03-after-cancel.png\n M docs/evidence/v1.6.3.5-uat3-d/probe-cancel-elapsed.json\n M docs/evidence/v1.6.3.5-uat3-d/s9_cancel.json\n?? docs/evidence/v1.6.3.5-uat3-d/.d02-probe-state.json\n?? docs/evidence/v1.6.3.5-uat3-d/cleanup_probe_residue_d.py\n?? docs/evidence/v1.6.3.5-uat3-d/d-recheck.json\n?? docs/evidence/v1.6.3.5-uat3-d/d-s16-01-recover-no-history.png\n?? docs/evidence/v1.6.3.5-uat3-d/d-s16-02-recovered.png\n?? docs/evidence/v1.6.3.5-uat3-d/d-s17-phantom-accepted.png\n?? docs/evidence/v1.6.3.5-uat3-d/probe-d02-w1.json\n?? docs/evidence/v1.6.3.5-uat3-d/probe-d02-w2.json\n?? docs/evidence/v1.6.3.5-uat3-d/probe_mutation_q_d.py\n?? docs/evidence/v1.6.3.5-uat3-d/probe_stale_reclaim_d.py\n?? docs/evidence/v1.6.3.5-uat3-d/s16_recover_action.json\n?? docs/evidence/v1.6.3.5-uat3-d/s17_phantom_accepted.json",
+  "dirty_before": "M docs/evidence/v1.6.3.5-uat3-d/probe-mutation-q.json\n M docs/evidence/v1.6.3.5-uat3-d/probe_mutation_q_d.py",
   "mutations": [
     {
       "id": "M1",
@@ -9,7 +9,7 @@
       "test": "tests/test_v1635_uat3.py::test_terminal_without_finished_at_is_none",
       "rc_after_mutation": 1,
       "caught": true,
-      "tail": "1 failed in 1.29s"
+      "tail": "1 failed in 1.22s"
     },
     {
       "id": "M2",
@@ -19,7 +19,7 @@
       "test": "tests/test_v1635_uat3.py::test_cancelled_job_writes_finished_at",
       "rc_after_mutation": 1,
       "caught": true,
-      "tail": "1 failed in 1.09s"
+      "tail": "1 failed in 0.98s"
     },
     {
       "id": "M3",
@@ -27,9 +27,9 @@
       "desc": "移除 create_job 中的回收调用（生产接线）",
       "applied": true,
       "test": "tests/test_v1635_uat3.py",
-      "rc_after_mutation": 0,
-      "caught": false,
-      "tail": "11 passed in 2.14s"
+      "rc_after_mutation": 1,
+      "caught": true,
+      "tail": "2 failed, 12 passed in 3.52s"
     },
     {
       "id": "M4",
@@ -37,9 +37,9 @@
       "desc": "移除 runner._tick 中的回收调用（生产接线）",
       "applied": true,
       "test": "tests/test_v1635_uat3.py",
-      "rc_after_mutation": 0,
-      "caught": false,
-      "tail": "11 passed in 2.23s"
+      "rc_after_mutation": 1,
+      "caught": true,
+      "tail": "1 failed, 13 passed in 3.56s"
     },
     {
       "id": "M5",
@@ -49,7 +49,7 @@
       "test": "tests/test_v1635_uat3.py::test_load_metadata_results_has_generation_guard",
       "rc_after_mutation": 1,
       "caught": true,
-      "tail": "1 failed in 1.05s"
+      "tail": "1 failed in 0.98s"
     },
     {
       "id": "M6",
@@ -59,14 +59,41 @@
       "test": "tests/test_v1635_uat3.py::test_two_distinct_actions_recover_and_rescan",
       "rc_after_mutation": 1,
       "caught": true,
-      "tail": "1 failed in 0.90s"
+      "tail": "1 failed in 0.98s"
+    },
+    {
+      "id": "M7",
+      "target": "D-02（受理接线，注释式）",
+      "desc": "把 create_job 的回收调用注释掉（名字仍在源码里）",
+      "applied": true,
+      "test": "tests/test_v1635_uat3.py",
+      "rc_after_mutation": 1,
+      "caught": true,
+      "tail": "2 failed, 12 passed in 3.40s"
+    },
+    {
+      "id": "M8",
+      "target": "D-02（runner 接线，注释式）",
+      "desc": "把 runner._tick 的回收调用注释掉（名字仍在源码里）",
+      "applied": true,
+      "test": "tests/test_v1635_uat3.py",
+      "rc_after_mutation": 1,
+      "caught": true,
+      "tail": "1 failed, 13 passed in 3.44s"
+    },
+    {
+      "id": "M9",
+      "target": "D-01（耗时不变式）",
+      "desc": "耗时回退当前时间（对 finished_at 存在的任务属等价变异；由无 finished_at 的用例兜住）",
+      "applied": true,
+      "test": "tests/test_v1635_uat3.py",
+      "rc_after_mutation": 1,
+      "caught": true,
+      "tail": "1 failed, 13 passed in 3.43s"
     }
   ],
   "restored_rc": 0,
   "restored_green": true,
-  "gap_list": [
-    "M3",
-    "M4"
-  ],
-  "restored_git_status": "M docs/evidence/v1.6.3.5-uat3-d/browser_uat_d.py\n M docs/evidence/v1.6.3.5-uat3-d/d-s9-01-running.png\n M docs/evidence/v1.6.3.5-uat3-d/d-s9-02-confirm-dialog.png\n M docs/evidence/v1.6.3.5-uat3-d/d-s9-02b-confirmed.png\n M docs/evidence/v1.6.3.5-uat3-d/d-s9-03-after-cancel.png\n M docs/evidence/v1.6.3.5-uat3-d/probe-cancel-elapsed.json\n M docs/evidence/v1.6.3.5-uat3-d/s9_cancel.json\n M frontend/index.html\n M frontend/static/js/app.js\n?? docs/evidence/v1.6.3.5-uat3-d/.d02-probe-state.json\n?? docs/evidence/v1.6.3.5-uat3-d/cleanup_probe_residue_d.py\n?? docs/evidence/v1.6.3.5-uat3-d/d-recheck.json\n?? docs/evidence/v1.6.3.5-uat3-d/d-s16-01-recover-no-history.png\n?? docs/evidence/v1.6.3.5-uat3-d/d-s16-02-recovered.png\n?? docs/evidence/v1.6.3.5-uat3-d/d-s17-phantom-accepted.png\n?? docs/evidence/v1.6.3.5-uat3-d/probe-d02-w1.json\n?? docs/evidence/v1.6.3.5-uat3-d/probe-d02-w2.json\n?? docs/evidence/v1.6.3.5-uat3-d/probe_mutation_q_d.py\n?? docs/evidence/v1.6.3.5-uat3-d/probe_stale_reclaim_d.py\n?? docs/evidence/v1.6.3.5-uat3-d/s16_recover_action.json\n?? docs/evidence/v1.6.3.5-uat3-d/s17_phantom_accepted.json"
+  "gap_list": [],
+  "restored_git_status": "M docs/evidence/v1.6.3.5-uat3-d/probe-mutation-q.json\n M docs/evidence/v1.6.3.5-uat3-d/probe_mutation_q_d.py"
 }

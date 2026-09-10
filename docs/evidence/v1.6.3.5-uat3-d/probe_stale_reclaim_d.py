@@ -108,5 +108,29 @@ def check():
     print(json.dumps(out, ensure_ascii=False, indent=2))
 
 
+def w3_unreferenced():
+    """D-04 核实：ACCEPTED 但**未被槽引用**的超期残留，当前回收逻辑是否处理。"""
+    ensure_db()
+    _clear()
+    ghost, _ = _mk("d04ghost")
+    _backdate(ghost["id"], 120)
+    conn = _get_connection()
+    conn.execute("UPDATE metadata_audit_slot SET active_job_id=NULL WHERE id=1")
+    conn.commit(); conn.close()
+    reclaimed = repo.reclaim_stale_accepted(30)
+    j = repo.get_job(ghost["id"])
+    out = {"ghost_job": ghost["id"], "state": j["state"],
+           "slot_active_job": (repo.slot_state() or {}).get("active_job_id"),
+           "reclaim_returned": reclaimed,
+           "verdict": ("未被回收——D-04 仍存在（前端会把它当活动任务，两个按钮同时禁用）"
+                       if reclaimed is None and j["state"] == "ACCEPTED"
+                       else "已被回收（D-04 已修复）")}
+    _clear()
+    (HERE / "probe-d04.json").write_text(
+        json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(json.dumps(out, ensure_ascii=False, indent=2))
+
+
 if __name__ == "__main__":
-    {"w1": w1, "prep": prep, "check": check, "clear": _clear}[sys.argv[1]]()
+    {"w1": w1, "w2": None, "prep": prep, "check": check, "clear": _clear,
+     "w3": w3_unreferenced}[sys.argv[1]]()

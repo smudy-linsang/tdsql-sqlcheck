@@ -76,6 +76,32 @@ MUTATIONS = [
         "test": "tests/test_v1635_uat3.py::test_two_distinct_actions_recover_and_rescan",
         "desc": "移除「恢复查看上次任务」入口",
     },
+    {
+        "id": "M7", "target": "D-02（受理接线，注释式）",
+        "file": "backend/services/metadata_audit_repository.py",
+        "find": "            self.reclaim_stale_accepted(_jp.MetadataLimits.START_TIMEOUT)",
+        "repl": "            # self.reclaim_stale_accepted(_jp.MetadataLimits.START_TIMEOUT)",
+        "test": "tests/test_v1635_uat3.py",
+        "desc": "把 create_job 的回收调用注释掉（名字仍在源码里）",
+    },
+    {
+        "id": "M8", "target": "D-02（runner 接线，注释式）",
+        "file": "backend/workers/metadata_runner.py",
+        "find": "            self.repo.reclaim_stale_accepted(jp.MetadataLimits.START_TIMEOUT)",
+        "repl": "            # self.repo.reclaim_stale_accepted(jp.MetadataLimits.START_TIMEOUT)",
+        "test": "tests/test_v1635_uat3.py",
+        "desc": "把 runner._tick 的回收调用注释掉（名字仍在源码里）",
+    },
+    {
+        "id": "M9", "target": "D-01（耗时不变式）",
+        "file": "backend/api/metadata_audit.py",
+        "find": '            end_dt = _jp.parse_utc(job.get("finished_at"))\n'
+                '            elapsed = None if end_dt is None else max(0, int((end_dt - st_dt).total_seconds()))',
+        "repl": '            end_dt = _jp.parse_utc(job.get("finished_at")) or _now_utc()\n'
+                '            elapsed = max(0, int((end_dt - st_dt).total_seconds()))',
+        "test": "tests/test_v1635_uat3.py",
+        "desc": "耗时回退当前时间（对 finished_at 存在的任务属等价变异；由无 finished_at 的用例兜住）",
+    },
 ]
 
 
@@ -97,12 +123,16 @@ for m in MUTATIONS:
     # 以字节读写，避免 Windows 文本模式把 LF 改成 CRLF（污染工作区）
     raw = path.read_bytes()
     original = raw.decode("utf-8")
-    if m["find"] not in original:
+    # 工作区源码可能是 CRLF；多行锚点必须按实际换行风格匹配
+    nl = "\r\n" if "\r\n" in original else "\n"
+    find = m["find"].replace("\n", nl)
+    repl = m["repl"].replace("\n", nl)
+    if find not in original:
         results.append({**{k: m[k] for k in ("id", "target", "desc")},
                         "applied": False, "note": "变异锚点未命中（源码已变？）"})
         continue
     try:
-        path.write_bytes(original.replace(m["find"], m["repl"], 1).encode("utf-8"))
+        path.write_bytes(original.replace(find, repl, 1).encode("utf-8"))
         rc, tail = run_test(m["test"])
         results.append({**{k: m[k] for k in ("id", "target", "desc")},
                         "applied": True, "test": m["test"],

@@ -1,0 +1,7 @@
+{
+  "ghost_job": "141e48aea32f4ddf87c24df50dd0b631",
+  "state": "ACCEPTED",
+  "slot_active_job": null,
+  "reclaim_returned": null,
+  "verdict": "未被回收——D-04 仍存在（前端会把它当活动任务，两个按钮同时禁用）"
+}
