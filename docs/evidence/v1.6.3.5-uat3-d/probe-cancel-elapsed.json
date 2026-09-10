@@ -1,12 +1,76 @@
 {
   "samples": [
     {
+      "job": "608cb06f",
+      "state": "SUCCEEDED",
+      "finished_at": "2026-09-10T10:43:08.572247",
+      "elapsed_t0": 2,
+      "elapsed_t75": 2,
+      "grew": 0
+    },
+    {
+      "job": "6451f17a",
+      "state": "CANCELLED",
+      "finished_at": "2026-09-10T10:42:53.002881",
+      "elapsed_t0": 3,
+      "elapsed_t75": 3,
+      "grew": 0
+    },
+    {
+      "job": "e2094f2f",
+      "state": "FAILED",
+      "finished_at": "2026-09-10T10:40:03.190266",
+      "elapsed_t0": null,
+      "elapsed_t75": null,
+      "grew": 0
+    },
+    {
+      "job": "fec0cb49",
+      "state": "FAILED",
+      "finished_at": "2026-09-10T10:42:46.269219",
+      "elapsed_t0": null,
+      "elapsed_t75": null,
+      "grew": 0
+    },
+    {
+      "job": "10d509cc",
+      "state": "SUCCEEDED",
+      "finished_at": "2026-09-10T06:54:42.952314",
+      "elapsed_t0": 27,
+      "elapsed_t75": 27,
+      "grew": 0
+    },
+    {
+      "job": "3e941b8a",
+      "state": "SUCCEEDED",
+      "finished_at": "2026-09-10T06:53:47.044367",
+      "elapsed_t0": 27,
+      "elapsed_t75": 27,
+      "grew": 0
+    },
+    {
+      "job": "6ea41fef",
+      "state": "SUCCEEDED",
+      "finished_at": "2026-09-10T06:53:18.813665",
+      "elapsed_t0": 27,
+      "elapsed_t75": 27,
+      "grew": 0
+    },
+    {
+      "job": "8fdce873",
+      "state": "FAILED",
+      "finished_at": "2026-09-10T06:52:32.768038",
+      "elapsed_t0": 3,
+      "elapsed_t75": 3,
+      "grew": 0
+    },
+    {
       "job": "5a667fe6",
       "state": "CANCELLED",
       "finished_at": "",
-      "elapsed_t0": 104,
-      "elapsed_t75": 179,
-      "grew": 75
+      "elapsed_t0": null,
+      "elapsed_t75": null,
+      "grew": 0
     },
     {
       "job": "f2238ab4",
@@ -91,12 +155,20 @@
   ],
   "cancelled_grow": [
     {
+      "job": "6451f17a",
+      "state": "CANCELLED",
+      "finished_at": "2026-09-10T10:42:53.002881",
+      "elapsed_t0": 3,
+      "elapsed_t75": 3,
+      "grew": 0
+    },
+    {
       "job": "5a667fe6",
       "state": "CANCELLED",
       "finished_at": "",
-      "elapsed_t0": 104,
-      "elapsed_t75": 179,
-      "grew": 75
+      "elapsed_t0": null,
+      "elapsed_t75": null,
+      "grew": 0
     }
   ]
 }

@@ -588,6 +588,69 @@ def s15_double_click(pw):
     return "s15_double_click"
 
 
+def s16_recover_action(pw):
+    """D-03："恢复查看上次任务"必须是独立动作（只 GET、不新建任务）。"""
+    before = len(jobs())
+    s = Sess(pw, tag="s16")
+    s.login()
+    s.goto_online()
+    has_btn = s.page.get_by_role("button", name="恢复查看上次任务").count() > 0
+    RESULT["button_present"] = has_btn
+    RESULT["buttons_state_at_entry"] = {
+        lb: {"count": s.page.get_by_role("button", name=lb).count(),
+             "disabled": (s.page.get_by_role("button", name=lb).first.is_disabled()
+                          if s.page.get_by_role("button", name=lb).count() else None)}
+        for lb in ("拉取元数据并执行文件审核", "恢复查看上次任务")}
+    if has_btn and not s.page.get_by_role("button", name="恢复查看上次任务").first.is_disabled():
+        s.page.get_by_role("button", name="恢复查看上次任务").first.click()
+        time.sleep(3)
+        RESULT["msg_no_history"] = s.messages()
+        RESULT["jobs_after_empty_recover"] = len(jobs()) - before
+        s.shot("d-s16-01-recover-no-history")
+    s.pick_instance()
+    s.submit()
+    time.sleep(2)
+    jid = s.active_job_id()
+    wait_job(jid)
+    s.wait_ui_state(["SUCCEEDED"], timeout=30)
+    RESULT["job_id"] = jid
+    RESULT["submission_record"] = s.page.evaluate("sessionStorage.getItem('meta_submission')")
+    s.page.reload(wait_until="domcontentloaded")
+    time.sleep(3)
+    s.goto_online()
+    rec = s.page.get_by_role("button", name="恢复查看上次任务")
+    if rec.count() and not rec.first.is_disabled():
+        rec.first.click()
+    time.sleep(4)
+    RESULT["card_after_recover"] = s.card_text()
+    RESULT["recovered_job_id"] = s.active_job_id()
+    RESULT["recovered_same_job"] = (s.active_job_id() == jid)
+    RESULT["jobs_added_excluding_scan"] = len(jobs()) - before - 1
+    s.shot("d-s16-02-recovered")
+    s.close()
+    return "s16_recover_action"
+
+
+def s17_phantom_accepted(pw):
+    """鲁棒性观察：状态 ACCEPTED 但已不在唯一槽的历史残留任务，前端如何表现。"""
+    s = Sess(pw, tag="s17")
+    s.login()
+    s.goto_online()
+    time.sleep(4)
+    RESULT["card_text"] = s.card_text()
+    RESULT["job_id_session"] = s.page.evaluate("sessionStorage.getItem('meta_active_job')")
+    for label in ("拉取元数据并执行文件审核", "恢复查看上次任务"):
+        loc = s.page.get_by_role("button", name=label)
+        RESULT[label] = {"count": loc.count(),
+                         "disabled": (loc.first.is_disabled() if loc.count() else None)}
+    RESULT["api_jobs_active"] = [{"job_id": j["job_id"], "state": j["state"]}
+                                 for j in jobs()
+                                 if j["state"] not in ("SUCCEEDED", "FAILED", "CANCELLED")]
+    s.shot("d-s17-phantom-accepted")
+    s.close()
+    return "s17_phantom_accepted"
+
+
 SCENARIOS = {
     "s1_baseline": s1_baseline,
     "s3_download": s3_download,
@@ -602,6 +665,8 @@ SCENARIOS = {
     "s13_failed_card": s13_failed_card,
     "s14_concurrency": s14_concurrency,
     "s15_double_click": s15_double_click,
+    "s16_recover_action": s16_recover_action,
+    "s17_phantom_accepted": s17_phantom_accepted,
 }
 
 if __name__ == "__main__":

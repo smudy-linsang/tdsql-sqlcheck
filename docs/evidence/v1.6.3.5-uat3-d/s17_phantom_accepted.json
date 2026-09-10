@@ -1,0 +1,22 @@
+{
+  "scenario": "s17_phantom_accepted",
+  "started_utc": "2026-09-10T10:42:24.400394+00:00",
+  "base": "direct",
+  "card_text": "元数据审核任务 #fec0cb49\n取消任务\n状态\t\nACCEPTED\n\t阶段\tWAITING\t实例连接\tD-UAT3-63表-本机模拟目标\n库\tuat_d_1635_r3_target\t已用时长\t-\t进度\t枚举 - / 提取 - / 审核 -\n任务正在后台执行，页面可离开，完成后可回来查看（进度每 2 秒刷新）。",
+  "job_id_session": null,
+  "拉取元数据并执行文件审核": {
+    "count": 1,
+    "disabled": true
+  },
+  "恢复查看上次任务": {
+    "count": 1,
+    "disabled": true
+  },
+  "api_jobs_active": [
+    {
+      "job_id": "fec0cb494460493fad2209d0418a40c4",
+      "state": "ACCEPTED"
+    }
+  ],
+  "saved_utc": "2026-09-10T10:42:31.138580+00:00"
+}

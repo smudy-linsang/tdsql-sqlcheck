@@ -1,0 +1,11 @@
+{
+  "ghost_job": "648148e845744c618a643b478b2ffce3",
+  "ghost_state_before": "ACCEPTED",
+  "ghost_created_at": "2026-09-10T10:37:38.880716",
+  "new_job_created": true,
+  "new_job_id": "44960c71c0fd4e139cccc2a88af2d2fd",
+  "ghost_state_after": "FAILED",
+  "ghost_error_code": "START_TIMEOUT",
+  "ghost_finished_at": "2026-09-10T10:38:38.901691",
+  "verdict": "受理自愈生效：新任务成功且幽灵任务被判 START_TIMEOUT"
+}

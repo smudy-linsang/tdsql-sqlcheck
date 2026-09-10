@@ -75,3 +75,41 @@ $env:G14_TEST_DB_NAME='uat_d_1635_r3_regression'
 ```
 
 > 不使用生产库、不重置任何既有账号；破坏性测试白名单只指向本人回归库。
+
+## 第三轮整改复测专用（Q 提交 2ab7bf3 之后新增）
+
+**D-02 生产接线验证**（Q 的用例只直接调方法，未锁调用点，故单独取证两条接线）：
+
+```powershell
+# W1 受理路径自愈：造 60 秒前 ACCEPTED 幽灵任务 → 新受理必须成功且旧任务判 START_TIMEOUT
+& $PY docs/evidence/v1.6.3.5-uat3-d/probe_stale_reclaim_d.py w1
+# W2 runner 回收：需先停 runner → prep → 启动 runner → 8 秒内 check 应显示已回收
+& $PY docs/evidence/v1.6.3.5-uat3-d/probe_stale_reclaim_d.py prep
+& $PY docs/evidence/v1.6.3.5-uat3-d/local_harness_d.py runner     # 另开终端
+& $PY docs/evidence/v1.6.3.5-uat3-d/probe_stale_reclaim_d.py check
+```
+
+**回归锁变异有效性验证**（对源码施加回退式变异 → 跑 Q 的用例 → 看是否变红 → 自动恢复）：
+
+```powershell
+$env:SQLCHECK_DB_NAME='uat_d_1635_r3_meta'
+& $PY docs/evidence/v1.6.3.5-uat3-d/probe_mutation_q_d.py      # 结果见 probe-mutation-q.json
+```
+
+> 该脚本以**字节级**读写源码并在 `finally` 中恢复原始字节；运行前工作区应干净，
+> 运行后 `git status` 应无产品文件改动（首轮曾因文本模式写入把两个前端文件改成 CRLF，已修正并恢复）。
+
+**D-01/D-03 浏览器复测**：
+
+```powershell
+& $PY docs/evidence/v1.6.3.5-uat3-d/local_harness_d.py delay-child 25
+& $PY docs/evidence/v1.6.3.5-uat3-d/browser_uat_d.py s9_cancel           # 取消写 finished_at
+& $PY docs/evidence/v1.6.3.5-uat3-d/browser_uat_d.py s16_recover_action  # D-03 恢复入口
+& $PY docs/evidence/v1.6.3.5-uat3-d/browser_uat_d.py s17_phantom_accepted # D-04 幽灵任务观察
+```
+
+**探针残留清理**（构造 D-02/D-04 场景会在专用库留下非终态记录）：
+
+```powershell
+& $PY docs/evidence/v1.6.3.5-uat3-d/cleanup_probe_residue_d.py
+```

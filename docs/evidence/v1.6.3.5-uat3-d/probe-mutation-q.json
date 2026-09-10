@@ -1,0 +1,72 @@
+{
+  "dirty_before": "M docs/evidence/v1.6.3.5-uat3-d/browser_uat_d.py\n M docs/evidence/v1.6.3.5-uat3-d/d-s9-01-running.png\n M docs/evidence/v1.6.3.5-uat3-d/d-s9-02-confirm-dialog.png\n M docs/evidence/v1.6.3.5-uat3-d/d-s9-02b-confirmed.png\n M docs/evidence/v1.6.3.5-uat3-d/d-s9-03-after-cancel.png\n M docs/evidence/v1.6.3.5-uat3-d/probe-cancel-elapsed.json\n M docs/evidence/v1.6.3.5-uat3-d/s9_cancel.json\n?? docs/evidence/v1.6.3.5-uat3-d/.d02-probe-state.json\n?? docs/evidence/v1.6.3.5-uat3-d/cleanup_probe_residue_d.py\n?? docs/evidence/v1.6.3.5-uat3-d/d-recheck.json\n?? docs/evidence/v1.6.3.5-uat3-d/d-s16-01-recover-no-history.png\n?? docs/evidence/v1.6.3.5-uat3-d/d-s16-02-recovered.png\n?? docs/evidence/v1.6.3.5-uat3-d/d-s17-phantom-accepted.png\n?? docs/evidence/v1.6.3.5-uat3-d/probe-d02-w1.json\n?? docs/evidence/v1.6.3.5-uat3-d/probe-d02-w2.json\n?? docs/evidence/v1.6.3.5-uat3-d/probe_mutation_q_d.py\n?? docs/evidence/v1.6.3.5-uat3-d/probe_stale_reclaim_d.py\n?? docs/evidence/v1.6.3.5-uat3-d/s16_recover_action.json\n?? docs/evidence/v1.6.3.5-uat3-d/s17_phantom_accepted.json",
+  "mutations": [
+    {
+      "id": "M1",
+      "target": "D-01",
+      "desc": "把终态耗时回退到当前时间（复原 D-01 缺陷）",
+      "applied": true,
+      "test": "tests/test_v1635_uat3.py::test_terminal_without_finished_at_is_none",
+      "rc_after_mutation": 1,
+      "caught": true,
+      "tail": "1 failed in 1.29s"
+    },
+    {
+      "id": "M2",
+      "target": "D-01",
+      "desc": "取消终态不写 finished_at",
+      "applied": true,
+      "test": "tests/test_v1635_uat3.py::test_cancelled_job_writes_finished_at",
+      "rc_after_mutation": 1,
+      "caught": true,
+      "tail": "1 failed in 1.09s"
+    },
+    {
+      "id": "M3",
+      "target": "D-02（受理接线）",
+      "desc": "移除 create_job 中的回收调用（生产接线）",
+      "applied": true,
+      "test": "tests/test_v1635_uat3.py",
+      "rc_after_mutation": 0,
+      "caught": false,
+      "tail": "11 passed in 2.14s"
+    },
+    {
+      "id": "M4",
+      "target": "D-02（runner 接线）",
+      "desc": "移除 runner._tick 中的回收调用（生产接线）",
+      "applied": true,
+      "test": "tests/test_v1635_uat3.py",
+      "rc_after_mutation": 0,
+      "caught": false,
+      "tail": "11 passed in 2.23s"
+    },
+    {
+      "id": "M5",
+      "target": "D-03（分页守卫）",
+      "desc": "移除分页回写的 generation 守卫",
+      "applied": true,
+      "test": "tests/test_v1635_uat3.py::test_load_metadata_results_has_generation_guard",
+      "rc_after_mutation": 1,
+      "caught": true,
+      "tail": "1 failed in 1.05s"
+    },
+    {
+      "id": "M6",
+      "target": "D-03（恢复入口）",
+      "desc": "移除「恢复查看上次任务」入口",
+      "applied": true,
+      "test": "tests/test_v1635_uat3.py::test_two_distinct_actions_recover_and_rescan",
+      "rc_after_mutation": 1,
+      "caught": true,
+      "tail": "1 failed in 0.90s"
+    }
+  ],
+  "restored_rc": 0,
+  "restored_green": true,
+  "gap_list": [
+    "M3",
+    "M4"
+  ],
+  "restored_git_status": "M docs/evidence/v1.6.3.5-uat3-d/browser_uat_d.py\n M docs/evidence/v1.6.3.5-uat3-d/d-s9-01-running.png\n M docs/evidence/v1.6.3.5-uat3-d/d-s9-02-confirm-dialog.png\n M docs/evidence/v1.6.3.5-uat3-d/d-s9-02b-confirmed.png\n M docs/evidence/v1.6.3.5-uat3-d/d-s9-03-after-cancel.png\n M docs/evidence/v1.6.3.5-uat3-d/probe-cancel-elapsed.json\n M docs/evidence/v1.6.3.5-uat3-d/s9_cancel.json\n M frontend/index.html\n M frontend/static/js/app.js\n?? docs/evidence/v1.6.3.5-uat3-d/.d02-probe-state.json\n?? docs/evidence/v1.6.3.5-uat3-d/cleanup_probe_residue_d.py\n?? docs/evidence/v1.6.3.5-uat3-d/d-recheck.json\n?? docs/evidence/v1.6.3.5-uat3-d/d-s16-01-recover-no-history.png\n?? docs/evidence/v1.6.3.5-uat3-d/d-s16-02-recovered.png\n?? docs/evidence/v1.6.3.5-uat3-d/d-s17-phantom-accepted.png\n?? docs/evidence/v1.6.3.5-uat3-d/probe-d02-w1.json\n?? docs/evidence/v1.6.3.5-uat3-d/probe-d02-w2.json\n?? docs/evidence/v1.6.3.5-uat3-d/probe_mutation_q_d.py\n?? docs/evidence/v1.6.3.5-uat3-d/probe_stale_reclaim_d.py\n?? docs/evidence/v1.6.3.5-uat3-d/s16_recover_action.json\n?? docs/evidence/v1.6.3.5-uat3-d/s17_phantom_accepted.json"
+}

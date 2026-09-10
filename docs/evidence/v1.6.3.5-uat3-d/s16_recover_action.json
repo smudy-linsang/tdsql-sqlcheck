@@ -1,0 +1,27 @@
+{
+  "scenario": "s16_recover_action",
+  "started_utc": "2026-09-10T10:42:59.524544+00:00",
+  "base": "direct",
+  "button_present": true,
+  "buttons_state_at_entry": {
+    "拉取元数据并执行文件审核": {
+      "count": 1,
+      "disabled": true
+    },
+    "恢复查看上次任务": {
+      "count": 1,
+      "disabled": false
+    }
+  },
+  "msg_no_history": [
+    "无历史任务可恢复"
+  ],
+  "jobs_after_empty_recover": 0,
+  "job_id": "608cb06f23ac4004afc6e1008be9da11",
+  "submission_record": "{\"user\":\"uat_d_1635_r3\",\"intent_id\":\"ec57e15d12494bc79d9868f00b02752d\",\"key\":\"ec57e15d12494bc79d9868f00b02752d\",\"job_id\":\"608cb06f23ac4004afc6e1008be9da11\",\"submission_state\":\"closed\"}",
+  "card_after_recover": "元数据审核任务 #608cb06f\n下载 .sql 文件\n导出 HTML 报告\n状态\t\nSUCCEEDED\n\t阶段\tDONE\t实例连接\tD-UAT3-63表-本机模拟目标\n库\tuat_d_1635_r3_target\t已用时长\t2s\t进度\t枚举 64 / 提取 64 / 审核 64",
+  "recovered_job_id": "608cb06f23ac4004afc6e1008be9da11",
+  "recovered_same_job": true,
+  "jobs_added_excluding_scan": 0,
+  "saved_utc": "2026-09-10T10:43:18.320403+00:00"
+}

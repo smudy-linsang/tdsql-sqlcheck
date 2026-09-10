@@ -1,0 +1,9 @@
+{
+  "job_id": "e2094f2f3d2946f7b61d3e3296520a3d",
+  "state": "FAILED",
+  "error_code": "START_TIMEOUT",
+  "finished_at": "2026-09-10T10:40:03.190266",
+  "cleanup_ok": 1,
+  "slot_active_job": null,
+  "verdict": "runner 回收生效"
+}
