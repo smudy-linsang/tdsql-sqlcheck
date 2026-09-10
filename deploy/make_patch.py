@@ -95,10 +95,13 @@ def build_patch():
     doc_candidates = [
         f"DEPLOY-v{version}-内网测试环境增量更新部署手册.md",
         f"DEPLOY-v{version}-内网生产环境增量更新部署手册.md",
+        f"TEST-PLAN-v{version}-内网智能体大库测试方案与操作指引.md",
         f"CONFIRM-v{version}-内网测试环境验证确认报告.md",
         f"REPORT-v{version}-第二轮独立质检验收报告.md",
         f"REPORT-v{version}-独立质检验收报告.md",
+        f"DETAIL-v{version}-大库在线元数据审核稳定性修复.md",
         f"DETAIL-v{version}-报告实例标识与分区统计及审核网关修复.md",
+        "REPORT-6000表元数据审核失败根因深度排查与解决方案报告.md",
         "PRODUCTION-DEPLOY-ISSUES-v1.6.3.0.md",
         f"GATE-DECISION-v{version}-生产发布门禁签署决议与整改任务书.md",
         f"GATE-v{version}-生产发布三项书面门禁发起.md",
