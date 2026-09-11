@@ -56,3 +56,20 @@ $env:G14_ALLOW_DESTRUCTIVE_TESTS='1'; $env:G14_TEST_DB_NAME='uat_d_1636_regressi
 ```
 
 > 仅使用 `uat_d_1636_*` 专用库与本机 loopback；未改动产品代码、未触碰 v1.6.3.5 夹具与生产。
+
+## 第二轮复测（FIXREQ-v1.6.3.6-01，被测 `7d515e5`）
+
+```powershell
+# 三种"悬挂残留"形态的界面表现（published / accepted / running_stale）
+& $PY docs/evidence/v1.6.3.6-uat-d/probe_published_orphan_d36.py published
+& $PY docs/evidence/v1.6.3.6-uat-d/probe_published_orphan_d36.py accepted
+& $PY docs/evidence/v1.6.3.6-uat-d/probe_published_orphan_d36.py running_stale   # 只回拨心跳，勿动 created_at
+# 回收行为矩阵（L1/L2/L3/L4/L5/L10）
+& $PY docs/evidence/v1.6.3.6-uat-d/probe_reclaim_matrix_d36.py
+# 锁有效性独立变异（含组合变异 M7/M8：整层移除才代表真实缺陷）
+$env:SQLCHECK_DB_NAME='uat_d_1636_meta'
+& $PY docs/evidence/v1.6.3.6-uat-d/probe_mutation_fixreq01_d.py
+```
+
+判读要点：**单个变异不变红 ≠ 假绿**——若另一层防护仍能维持行为不变（如 `complete()` 检查与"放槽前终态护栏"、
+回收分支条件与 SQL 内层 `state` 守卫），属等价变异；须施加**组合变异**再判。
