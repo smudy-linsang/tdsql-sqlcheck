@@ -119,9 +119,27 @@ def reclaim_stale_unowned(self, accepted_timeout_s: int,
   - `backend/services/metadata_audit_repository.py::create_job`（受理前自愈，现调用 `reclaim_stale_accepted`）
   - `backend/workers/metadata_runner.py::_tick`（每轮回收）
 
-**待决策项（请 Mr.Linsang 或 A 定，非本次必做）**：`RUNNING` 悬挂（runner 崩溃、child 成孤儿）
-是否也纳入回收？建议**不自动 FAIL**：改为在 `_job_summary` 暴露 `stale_running: true` 并让运维处置，
-避免误杀仍在写产物的孤儿 child。
+### 2.1b `RUNNING` 悬挂的处置——**决策已定：不自动 FAIL**
+
+> **决策记录**：Mr.Linsang 于 2026-09-11 采纳 D 的建议——`RUNNING` 悬挂**不纳入自动回收**。
+> 理由：runner 崩溃后 child 可能仍在写产物，自动判失败会误杀在跑任务并产生"任务已失败但产物仍在写"的二次不一致。
+
+因此本轮**只做可观测、不做自动收敛**：
+
+1. **不自动 FAIL、不自动释放槽**：`reclaim_stale_unowned()` **不得**处理 `state='RUNNING'`。
+2. **必须可观测**：`backend/api/metadata_audit.py::_job_summary` 新增字段
+
+   ```python
+   "stale_running": bool,   # state=='RUNNING' 且 runner 心跳(heartbeat_at)距今 > METADATA_JOB_TIMEOUT_SECONDS
+   ```
+
+   口径说明：以 `metadata_audit_jobs.heartbeat_at`（runner 监督心跳，v1.6.3.5 起每 2 秒刷新）为判据，
+   阈值复用 `MetadataLimits.JOB_TIMEOUT`（默认 1800s）；阈值可通过既有环境变量调整，**不新增参数**。
+   与 `slot_owned` 一样，批量接口只读一次槽/一次心跳基准，不逐条查库。
+3. **前端提示（与 §2.4 合并实现）**：`stale_running === true` 时在任务卡下追加一行提示
+   `该任务长时间无执行器心跳，可能已中断；请联系运维核实后再重新发起`，**按钮保持可用**。
+4. **运维处置**（人工，不写自动化）：沿用既有 `RECOVERY_REQUIRED` 语义或按 §3 自检 SQL 判读后人工收敛。
+
 
 ### 2.2 后端-2：runner 不得"静默放槽"
 
@@ -188,14 +206,23 @@ const _isReallyActive = (d) => ACTIVE_STATES.includes(d.state) && d.slot_owned !
 3. 发布说明附**运维只读自检 SQL**（仅供判读，不自动改数据）：
 
 ```sql
--- 非终态任务与其槽归属；slot为NULL即命中 UAT36-01/D-04 形态
+-- ① 非终态任务与其槽归属；slot为NULL即命中 UAT36-01/D-04 形态
 SELECT j.id, j.state, j.phase, j.created_at, j.updated_at, s.active_job_id
   FROM metadata_audit_jobs j LEFT JOIN metadata_audit_slot s ON s.id = 1
  WHERE j.state NOT IN ('SUCCEEDED','FAILED','CANCELLED') ORDER BY j.created_at;
+
+-- ② RUNNING 悬挂判读（§2.1b：只判读、不自动处理）
+SELECT id, created_at, heartbeat_at, progress_at,
+       TIMESTAMPDIFF(SECOND, heartbeat_at, UTC_TIMESTAMP(6)) AS hb_age_s
+  FROM metadata_audit_jobs
+ WHERE state = 'RUNNING'
+   AND (heartbeat_at IS NULL OR heartbeat_at < UTC_TIMESTAMP(6) - INTERVAL 1800 SECOND);
 ```
 
-处置口径：升级到修复版本后**无需人工干预**；若旧版本现场需立即恢复，可手工把该行置
-`FAILED`/`SUCCEEDED`（保留 `finished_at`），**不要**直接清 `active_job_id`（会掩盖占用）。
+处置口径：升级到修复版本后**无需人工干预**（PUBLISHED/PUBLISHING 与无主 ACCEPTED 会被自动收敛）；
+`RUNNING` 悬挂请人工核实 child 是否仍在运行后再决定收敛，**不要**在无核实的情况下直接改状态或清 `active_job_id`。
+若旧版本现场需立即恢复，可手工把该行置 `FAILED`/`SUCCEEDED`（保留 `finished_at`），**不要**直接清
+`active_job_id`（会掩盖占用）。
 
 ---
 
@@ -213,6 +240,8 @@ SELECT j.id, j.state, j.phase, j.created_at, j.updated_at, s.active_job_id
 | L6 | `test_complete_miss_does_not_release_slot` | 令 `complete()` 返回 `False`（fake/真实 CAS 失败）→ 断言槽**未**释放、任务为 `RECOVERY_REQUIRED` | 去掉返回值检查（`ok`）或去掉终态护栏 |
 | L7 | `test_job_summary_exposes_slot_owned` | 后端：槽指向该任务 → `slot_owned=true`；槽为空/指向他人 → `false` | 把 `slot_owned` 写成常量 |
 | L8 | 前端契约锁 `test_recover_treats_unowned_as_inactive` | `app.js` 中活动判定必须同时看 `state` 与 `slot_owned`，且两个按钮不再共用同一禁用源 | 判定退回"仅看 state"；两按钮仍绑 `extractAuditing` |
+| L9 | `test_job_summary_exposes_stale_running` | `RUNNING` 且 `heartbeat_at` 超 `JOB_TIMEOUT` → `stale_running=true`；心跳新鲜或非 `RUNNING` → `false` | 把 `stale_running` 写成常量；阈值写反（新鲜判 stale） |
+| L10 | `test_reclaim_never_touches_running` | §2.1b 决策锁：`RUNNING` 任务即使超期极久，回收也必须返回"未处理"、状态不变、槽不动 | 把 `RUNNING` 也纳入回收分支 |
 
 **变异自证要求**：至少覆盖上表"必须杀死的变异"列，并像 R3/SIT4 那样给出"注入→变红→恢复→变绿"
 的完整记录（含恢复后 `git status` 产品文件无差异）。
@@ -228,6 +257,7 @@ SELECT j.id, j.state, j.phase, j.created_at, j.updated_at, s.active_job_id
 | 正常任务不受影响 | `docs/evidence/v1.6.3.6-uat-d/browser_uat36_d.py b1_normal_flow`（提交→SUCCEEDED→分页） |
 | 自愈不误伤 | 6 条后端锁 + 全量回归 `0 failed / 0 errors` |
 | 无新增不一致 | 连续跑 3 个任务后执行 §3 自检 SQL，非终态任务应为 0 |
+| `RUNNING` 悬挂"只暴露不自动收敛" | 造 `RUNNING` + 心跳超时任务：页面出现"长时间无执行器心跳"提示**且按钮可用**；回收接口对该任务**不动作**（状态/槽均不变，由 L10 锁住） |
 
 ---
 
@@ -236,7 +266,8 @@ SELECT j.id, j.state, j.phase, j.created_at, j.updated_at, s.active_job_id
 1. **不改** 在线元数据审核的状态机语义与既有 API 字段（只新增 `slot_owned`）。
 2. **不新增** 数据表/迁移（本轮不需要）。
 3. **不动** BUG-01/BUG-02 已复测通过的提取与持久化逻辑。
-4. **不自动处理** `RUNNING` 悬挂（列为待决策项，见 §2.1）。
+4. **不自动处理** `RUNNING` 悬挂（已决策，见 §2.1b）：只暴露 `stale_running` 供运维判读，
+   不自动 FAIL、不自动释放槽。
 5. **不改** 其它模块（网关/慢 SQL/大表/巡检）任何代码。
 6. 部署脚本无需改动（本单不涉及新服务/新配置）。
 
