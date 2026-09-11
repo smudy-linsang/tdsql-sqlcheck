@@ -1,0 +1,59 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">
+<title>在线元数据审核报告 - uat_d_1636_dist</title>
+<style>
+body{font-family:-apple-system,"Microsoft YaHei",sans-serif;background:#f4f6f9;color:#333;margin:0;padding:20px}
+.c{max-width:1000px;margin:0 auto;background:#fff;padding:30px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.05)}
+.h{border-bottom:2px solid #2563eb;padding-bottom:15px;margin-bottom:20px}
+.h h1{margin:0;font-size:24px;color:#0f1e34}
+.meta{font-size:13px;color:#666;margin-top:8px}
+.kpi{display:flex;gap:15px;margin-bottom:20px}
+.k{flex:1;background:#f8fafc;padding:15px;border-radius:6px;text-align:center;border:1px solid #e2e8f0}
+.k b{font-size:22px;display:block}
+.it{margin-bottom:18px;border-bottom:1px dashed #e2e8f0;padding-bottom:14px}
+pre{background:#0f1e34;color:#e2e8f0;padding:12px;border-radius:6px;font-family:monospace;font-size:13px;overflow-x:auto;white-space:pre-wrap}
+.v{padding:8px 12px;border-radius:6px;margin:6px 0;font-size:13px;border-left:4px solid #9ca3af;background:#f3f4f6}
+.v.err{border-left-color:#ef4444;background:#fef2f2}.v.warn{border-left-color:#f59e0b;background:#fffbeb}
+</style></head><body><div class="c">
+<div class="h"><h1>在线元数据审核报告</h1>
+<div class="meta">实例连接名称：<strong></strong> ｜ 库：uat_d_1636_dist ｜
+任务：a0278f77786b453093f04e38ff2ae9bb ｜ 生成：2026-09-11 14:18:09.343900</div>
+<div class="meta">扫描口径：枚举 9 个对象 / 选中 9 / 提取 6 / 跳过 3（异常 1）；拆句 6 条</div></div>
+<div class="kpi">
+<div class="k"><b>6</b>对象数</div>
+<div class="k"><b style="color:#16a34a">0</b>通过</div>
+<div class="k"><b style="color:#dc2626">6</b>未通过</div>
+<div class="k"><b style="color:#2563eb">0.0%</b>通过率</div>
+</div>
+<h2>审核明细</h2>
+<div class="it"><h3>#1 CREATE TABLE <span style="color:#dc2626">3项违规</span></h3><pre>-- Table: biz_tab_00
+CREATE TABLE `biz_tab_00` (
+  `id` bigint NOT NULL COMMENT &#x27;ID&#x27;,
+  `name` varchar(64) NOT NULL DEFAULT &#x27;&#x27; COMMENT &#x27;name&#x27;,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT=&#x27;D36 real table&#x27;</pre><div class="v info"><b>[R036] [INFO]</b> 建议表包含 create_time 和 update_time 字段用于数据追踪</div><div class="v info"><b>[R037] [INFO]</b> 建议添加逻辑删除字段(如 is_deleted)替代物理删除</div><div class="v err"><b>[R077] [ERROR]</b> 建表语句未声明分片键(SHARDKEY)或广播表标记(BROADCAST)，TDSQL分布式实例上不允许创建单表（表 `biz_tab_00`）。分片表必须通过 SHARDKEY=列名 声明分片键，广播表必须通过 BROADCAST 声明</div></div><div class="it"><h3>#2 CREATE TABLE <span style="color:#dc2626">3项违规</span></h3><pre>-- Table: biz_tab_02
+CREATE TABLE `biz_tab_02` (
+  `id` bigint NOT NULL COMMENT &#x27;ID&#x27;,
+  `name` varchar(64) NOT NULL DEFAULT &#x27;&#x27; COMMENT &#x27;name&#x27;,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT=&#x27;D36 real table&#x27;</pre><div class="v info"><b>[R036] [INFO]</b> 建议表包含 create_time 和 update_time 字段用于数据追踪</div><div class="v info"><b>[R037] [INFO]</b> 建议添加逻辑删除字段(如 is_deleted)替代物理删除</div><div class="v err"><b>[R077] [ERROR]</b> 建表语句未声明分片键(SHARDKEY)或广播表标记(BROADCAST)，TDSQL分布式实例上不允许创建单表（表 `biz_tab_02`）。分片表必须通过 SHARDKEY=列名 声明分片键，广播表必须通过 BROADCAST 声明</div></div><div class="it"><h3>#3 CREATE TABLE <span style="color:#dc2626">3项违规</span></h3><pre>-- Table: biz_tab_03
+CREATE TABLE `biz_tab_03` (
+  `id` bigint NOT NULL COMMENT &#x27;ID&#x27;,
+  `name` varchar(64) NOT NULL DEFAULT &#x27;&#x27; COMMENT &#x27;name&#x27;,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT=&#x27;D36 real table&#x27;</pre><div class="v info"><b>[R036] [INFO]</b> 建议表包含 create_time 和 update_time 字段用于数据追踪</div><div class="v info"><b>[R037] [INFO]</b> 建议添加逻辑删除字段(如 is_deleted)替代物理删除</div><div class="v err"><b>[R077] [ERROR]</b> 建表语句未声明分片键(SHARDKEY)或广播表标记(BROADCAST)，TDSQL分布式实例上不允许创建单表（表 `biz_tab_03`）。分片表必须通过 SHARDKEY=列名 声明分片键，广播表必须通过 BROADCAST 声明</div></div><div class="it"><h3>#4 CREATE TABLE <span style="color:#dc2626">3项违规</span></h3><pre>-- Table: biz_tab_04
+CREATE TABLE `biz_tab_04` (
+  `id` bigint NOT NULL COMMENT &#x27;ID&#x27;,
+  `name` varchar(64) NOT NULL DEFAULT &#x27;&#x27; COMMENT &#x27;name&#x27;,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT=&#x27;D36 real table&#x27;</pre><div class="v info"><b>[R036] [INFO]</b> 建议表包含 create_time 和 update_time 字段用于数据追踪</div><div class="v info"><b>[R037] [INFO]</b> 建议添加逻辑删除字段(如 is_deleted)替代物理删除</div><div class="v err"><b>[R077] [ERROR]</b> 建表语句未声明分片键(SHARDKEY)或广播表标记(BROADCAST)，TDSQL分布式实例上不允许创建单表（表 `biz_tab_04`）。分片表必须通过 SHARDKEY=列名 声明分片键，广播表必须通过 BROADCAST 声明</div></div><div class="it"><h3>#5 CREATE TABLE <span style="color:#dc2626">3项违规</span></h3><pre>-- Table: biz_tab_05
+CREATE TABLE `biz_tab_05` (
+  `id` bigint NOT NULL COMMENT &#x27;ID&#x27;,
+  `name` varchar(64) NOT NULL DEFAULT &#x27;&#x27; COMMENT &#x27;name&#x27;,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT=&#x27;D36 real table&#x27;</pre><div class="v info"><b>[R036] [INFO]</b> 建议表包含 create_time 和 update_time 字段用于数据追踪</div><div class="v info"><b>[R037] [INFO]</b> 建议添加逻辑删除字段(如 is_deleted)替代物理删除</div><div class="v err"><b>[R077] [ERROR]</b> 建表语句未声明分片键(SHARDKEY)或广播表标记(BROADCAST)，TDSQL分布式实例上不允许创建单表（表 `biz_tab_05`）。分片表必须通过 SHARDKEY=列名 声明分片键，广播表必须通过 BROADCAST 声明</div></div><div class="it"><h3>#6 CREATE TABLE <span style="color:#dc2626">3项违规</span></h3><pre>-- Table: cus_bas_merge_log
+CREATE TABLE `cus_bas_merge_log` (
+  `id` bigint NOT NULL COMMENT &#x27;ID&#x27;,
+  `payload` varchar(128) NOT NULL DEFAULT &#x27;&#x27; COMMENT &#x27;p&#x27;,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT=&#x27;parent table&#x27;</pre><div class="v info"><b>[R036] [INFO]</b> 建议表包含 create_time 和 update_time 字段用于数据追踪</div><div class="v info"><b>[R037] [INFO]</b> 建议添加逻辑删除字段(如 is_deleted)替代物理删除</div><div class="v err"><b>[R077] [ERROR]</b> 建表语句未声明分片键(SHARDKEY)或广播表标记(BROADCAST)，TDSQL分布式实例上不允许创建单表（表 `cus_bas_merge_log`）。分片表必须通过 SHARDKEY=列名 声明分片键，广播表必须通过 BROADCAST 声明</div></div>
+</div></body></html>

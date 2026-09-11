@@ -1,0 +1,13 @@
+{
+  "max_allowed_packet": 4194304,
+  "adaptive_threshold": 3303014,
+  "A_payload_bytes": 5709730,
+  "A_report_id": 6,
+  "A_omitted": 2950,
+  "A_stored_len": 100830,
+  "A_verdict": "PASS 正确压缩落库",
+  "B_payload_bytes": 3621054,
+  "B_code": "PERSIST_PAYLOAD_TOO_LARGE",
+  "B_message": "审核结果转义后约 4591853 字节，超过元数据库 max_allowed_packet (4194304)；请评估元数据库容量后重试。",
+  "B_verdict": "PASS 友好拦截"
+}

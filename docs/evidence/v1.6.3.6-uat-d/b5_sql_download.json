@@ -1,0 +1,29 @@
+{
+  "scenario": "b5_sql_download",
+  "started_utc": "2026-09-11T14:23:54.537588+00:00",
+  "history_skip_report": {
+    "status": 200,
+    "bytes": 1960,
+    "header_skip": true,
+    "header_omitted": false,
+    "blocks": 6
+  },
+  "history_omitted_report": {
+    "status": 200,
+    "bytes": 1411616,
+    "header_skip": true,
+    "header_omitted": true,
+    "blocks": 50
+  },
+  "artifact_sql": {
+    "bytes": 2470,
+    "has_summary_line": true,
+    "per_object_blocks": 1,
+    "objects": 6
+  },
+  "artifact_html": {
+    "bytes": 7297,
+    "mentions_skip": true
+  },
+  "saved_utc": "2026-09-11T14:24:04.476269+00:00"
+}

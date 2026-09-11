@@ -1,0 +1,20 @@
+{
+  "max_allowed_packet": 67108864,
+  "adaptive_threshold": 53634662,
+  "payload_bytes": 56599740,
+  "payload_over_threshold": true,
+  "report_id": 7,
+  "stored": {
+    "is_list": true,
+    "stored_records": 70,
+    "stored_bytes": 1418690,
+    "omitted_results": 1950,
+    "skipped_objects": 9,
+    "skipped_benign": 7,
+    "skipped_abnormal": 2,
+    "pass_rate": 80.0,
+    "total_sql": 10
+  },
+  "violations_kept": 20,
+  "verdict": "PASS 压缩自洽"
+}

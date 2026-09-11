@@ -1,0 +1,20 @@
+{
+  "prepared": {
+    "job_id": "ca3b85e83d044d26981b555e7777c2b6",
+    "report_id": 12,
+    "state": "PUBLISHED",
+    "phase": "PERSISTING",
+    "slot_active_job": null
+  },
+  "card_text": "元数据审核任务 #ca3b85e8\n状态\t\nPUBLISHED\n\t阶段\tPERSISTING\t实例连接\tD36-分布式库-含子表命名\n库\tuat_d_1636_dist\t已用时长\t7s\t进度\t枚举 - / 提取 - / 审核 -",
+  "拉取元数据并执行文件审核": {
+    "count": 1,
+    "disabled": true
+  },
+  "恢复查看上次任务": {
+    "count": 1,
+    "disabled": true
+  },
+  "verdict": "REPRO 命中：PUBLISHED 悬挂 + 槽无归属 → 两个按钮同时禁用，用户无法自救",
+  "cleanup": "SUCCEEDED"
+}

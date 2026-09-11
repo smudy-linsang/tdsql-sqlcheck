@@ -1,0 +1,73 @@
+{
+  "zero_kill": {
+    "enumerated": 9,
+    "selected": 9,
+    "extracted": 9,
+    "skipped": 0,
+    "benign": 0,
+    "abnormal": 0,
+    "skipped_list_len": 0,
+    "categories": [],
+    "has_summary_line": false,
+    "per_object_blocks": 0,
+    "schema_bytes": 3060,
+    "parsed_objects": 9,
+    "verdict": "PASS 零误杀"
+  },
+  "benign_skip": {
+    "enumerated": 9,
+    "selected": 9,
+    "extracted": 7,
+    "skipped": 2,
+    "benign": 2,
+    "abnormal": 0,
+    "skipped_list_len": 2,
+    "categories": [
+      "tdsql_internal"
+    ],
+    "has_summary_line": true,
+    "per_object_blocks": 0,
+    "schema_bytes": 2474,
+    "parsed_objects": 7,
+    "verdict": "PASS 良性跳过"
+  },
+  "abnormal_skip": {
+    "enumerated": 9,
+    "selected": 9,
+    "extracted": 8,
+    "skipped": 1,
+    "benign": 0,
+    "abnormal": 1,
+    "skipped_list_len": 1,
+    "categories": [
+      "extract_failed"
+    ],
+    "has_summary_line": false,
+    "per_object_blocks": 1,
+    "schema_bytes": 3042,
+    "parsed_objects": 8,
+    "verdict": "PASS 异常跳过"
+  },
+  "centralized_gate": {
+    "enumerated": 2,
+    "selected": 2,
+    "extracted": 1,
+    "skipped": 1,
+    "benign": 0,
+    "abnormal": 1,
+    "skipped_list_len": 1,
+    "categories": [
+      "extract_failed"
+    ],
+    "has_summary_line": false,
+    "per_object_blocks": 1,
+    "schema_bytes": 930,
+    "parsed_objects": 1,
+    "verdict": "PASS 集中式门禁"
+  },
+  "all_fail": {
+    "code": "NO_AUDITABLE_OBJECTS",
+    "message": "库 uat_d_1636_cent 选中的 2 个对象全部提取失败，无可审核内容。",
+    "verdict": "PASS 全失败仍报错"
+  }
+}

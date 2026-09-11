@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>TDSQL 在线元数据规则审核报告 - extracted_uat_d_1636_dist_a0278f77.sql</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background:#f4f6f9; color:#333; margin:0; padding:20px; }
+        .container { max-width: 1000px; margin: 0 auto; background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        .header { border-bottom: 2px solid #2563eb; padding-bottom: 15px; margin-bottom: 20px; }
+        .header h1 { margin: 0; font-size: 24px; color: #0f1e34; }
+        .meta { font-size: 13px; color: #666; margin-top: 8px; }
+        .kpi-grid { display: flex; gap: 15px; margin-bottom: 25px; }
+        .kpi-card { flex: 1; background: #f8fafc; padding: 15px; border-radius: 6px; text-align: center; border: 1px solid #e2e8f0; }
+        .kpi-num { font-size: 22px; font-weight: bold; margin-bottom: 4px; }
+        .v-card { padding: 10px 15px; border-radius: 6px; margin: 8px 0; font-size: 13px; border: 1px solid #e5e7eb; border-left: 4px solid #9ca3af; background: #f3f4f6; }
+        .v-card.error { border-color: #fee2e2; border-left-color: #ef4444; background: #fef2f2; }
+        .v-card.warning { border-color: #fef3c7; border-left-color: #f59e0b; background: #fffbeb; }
+        .v-card.info { border-color: #e5e7eb; border-left-color: #9ca3af; background: #f3f4f6; }
+        .sql-box { background: #0f1e34; color: #e2e8f0; padding: 12px; border-radius: 6px; font-family: monospace; font-size: 13px; overflow-x: auto; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>TDSQL 在线元数据规则审核报告</h1>
+            <div class="meta">提取文件: <b>extracted_uat_d_1636_dist_a0278f77.sql</b> | 审核人: uat_d_1636 | 审计时间: 2026-09-11T14:18:09</div>
+            <div class="report-context" data-report-context-version="1" style="margin:8px 0;padding:8px 12px;background:#f8f9fa;border-left:3px solid #0d6efd;font-size:0.9em;"><span>实例连接名称：<strong>D36-分布式库-含子表命名</strong> <span style="color:#6c757d;">（扫描时名称未记录；当前连接名称，非扫描时快照）</span></span> <span style="color:#6c757d;">库：uat_d_1636_dist</span></div>
+            <div style="background:#fef2f2;border-left:4px solid #ef4444;padding:10px 14px;border-radius:6px;margin:12px 0;color:#991b1b">⚠️ 本次有 1 个对象未能读取 DDL，未纳入审核，请人工核实（是否权限/网络/实例问题）。</div>
+        </div>
+        <div class="kpi-grid">
+            <div class="kpi-card"><div class="kpi-num">6</div><div>对象总数</div></div>
+            <div class="kpi-card"><div class="kpi-num" style="color:#16a34a">0</div><div>通过数</div></div>
+            <div class="kpi-card"><div class="kpi-num" style="color:#dc2626">6</div><div>未通过数</div></div>
+            <div class="kpi-card"><div class="kpi-num" style="color:#2563eb">0.0%</div><div>整体通过率</div></div>
+            <div class="kpi-card"><div class="kpi-num" style="color:#f59e0b">3</div><div>跳过（良性 2 / 异常 1）</div></div>
+        </div>
+        <h2>元数据审核明细列表</h2>
+
+        <div style="margin-bottom: 20px; border-bottom: 1px dashed #e2e8f0; padding-bottom: 15px;">
+            <h3>#1 CREATE TABLE <span style="color:#dc2626;font-weight:bold">[3项违规]</span></h3>
+            <div class="sql-box">-- Table: biz_tab_00
+CREATE TABLE `biz_tab_00` (
+  `id` bigint NOT NULL COMMENT 'ID',
+  `name` varchar(64) NOT NULL DEFAULT '' COMMENT 'name',
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='D36 real table'</div>
+
+            <div class="v-card info">
+                <b>[R036] [INFO]</b> 建议表包含 create_time 和 update_time 字段用于数据追踪<br>
+                💡 <b>修复建议：</b>建议添加: create_time DATETIME DEFAULT CURRENT_TIMESTAMP, update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            </div>
+
+            <div class="v-card info">
+                <b>[R037] [INFO]</b> 建议添加逻辑删除字段(如 is_deleted)替代物理删除<br>
+                💡 <b>修复建议：</b>建议添加: is_deleted TINYINT DEFAULT 0 COMMENT '逻辑删除标记'
+            </div>
+
+            <div class="v-card error">
+                <b>[R077] [ERROR]</b> 建表语句未声明分片键(SHARDKEY)或广播表标记(BROADCAST)，TDSQL分布式实例上不允许创建单表（表 `biz_tab_00`）。分片表必须通过 SHARDKEY=列名 声明分片键，广播表必须通过 BROADCAST 声明<br>
+                💡 <b>修复建议：</b>请按目标实例支持的形态声明分片键或广播表。示例:
+  CREATE TABLE t1 (...) ENGINE=InnoDB SHARDKEY=user_id
+  CREATE TABLE t1 (...) ENGINE=InnoDB TDSQL_DISTRIBUTED BY HASH(`user_id`)
+  CREATE TABLE t1 (...) ENGINE=InnoDB BROADCAST
+  CREATE TABLE t1 (...) ENGINE=InnoDB shardkey=noshardkey_allset
+分片表的分片键必须是主键(或主键的一部分)，且必须包含在每一个唯一索引中。
+            </div>
+        </div>
+        <div style="margin-bottom: 20px; border-bottom: 1px dashed #e2e8f0; padding-bottom: 15px;">
+            <h3>#2 CREATE TABLE <span style="color:#dc2626;font-weight:bold">[3项违规]</span></h3>
+            <div class="sql-box">-- Table: biz_tab_02
+CREATE TABLE `biz_tab_02` (
+  `id` bigint NOT NULL COMMENT 'ID',
+  `name` varchar(64) NOT NULL DEFAULT '' COMMENT 'name',
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='D36 real table'</div>
+
+            <div class="v-card info">
+                <b>[R036] [INFO]</b> 建议表包含 create_time 和 update_time 字段用于数据追踪<br>
+                💡 <b>修复建议：</b>建议添加: create_time DATETIME DEFAULT CURRENT_TIMESTAMP, update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            </div>
+
+            <div class="v-card info">
+                <b>[R037] [INFO]</b> 建议添加逻辑删除字段(如 is_deleted)替代物理删除<br>
+                💡 <b>修复建议：</b>建议添加: is_deleted TINYINT DEFAULT 0 COMMENT '逻辑删除标记'
+            </div>
+
+            <div class="v-card error">
+                <b>[R077] [ERROR]</b> 建表语句未声明分片键(SHARDKEY)或广播表标记(BROADCAST)，TDSQL分布式实例上不允许创建单表（表 `biz_tab_02`）。分片表必须通过 SHARDKEY=列名 声明分片键，广播表必须通过 BROADCAST 声明<br>
+                💡 <b>修复建议：</b>请按目标实例支持的形态声明分片键或广播表。示例:
+  CREATE TABLE t1 (...) ENGINE=InnoDB SHARDKEY=user_id
+  CREATE TABLE t1 (...) ENGINE=InnoDB TDSQL_DISTRIBUTED BY HASH(`user_id`)
+  CREATE TABLE t1 (...) ENGINE=InnoDB BROADCAST
+  CREATE TABLE t1 (...) ENGINE=InnoDB shardkey=noshardkey_allset
+分片表的分片键必须是主键(或主键的一部分)，且必须包含在每一个唯一索引中。
+            </div>
+        </div>
+        <div style="margin-bottom: 20px; border-bottom: 1px dashed #e2e8f0; padding-bottom: 15px;">
+            <h3>#3 CREATE TABLE <span style="color:#dc2626;font-weight:bold">[3项违规]</span></h3>
+            <div class="sql-box">-- Table: biz_tab_03
+CREATE TABLE `biz_tab_03` (
+  `id` bigint NOT NULL COMMENT 'ID',
+  `name` varchar(64) NOT NULL DEFAULT '' COMMENT 'name',
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='D36 real table'</div>
+
+            <div class="v-card info">
+                <b>[R036] [INFO]</b> 建议表包含 create_time 和 update_time 字段用于数据追踪<br>
+                💡 <b>修复建议：</b>建议添加: create_time DATETIME DEFAULT CURRENT_TIMESTAMP, update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            </div>
+
+            <div class="v-card info">
+                <b>[R037] [INFO]</b> 建议添加逻辑删除字段(如 is_deleted)替代物理删除<br>
+                💡 <b>修复建议：</b>建议添加: is_deleted TINYINT DEFAULT 0 COMMENT '逻辑删除标记'
+            </div>
+
+            <div class="v-card error">
+                <b>[R077] [ERROR]</b> 建表语句未声明分片键(SHARDKEY)或广播表标记(BROADCAST)，TDSQL分布式实例上不允许创建单表（表 `biz_tab_03`）。分片表必须通过 SHARDKEY=列名 声明分片键，广播表必须通过 BROADCAST 声明<br>
+                💡 <b>修复建议：</b>请按目标实例支持的形态声明分片键或广播表。示例:
+  CREATE TABLE t1 (...) ENGINE=InnoDB SHARDKEY=user_id
+  CREATE TABLE t1 (...) ENGINE=InnoDB TDSQL_DISTRIBUTED BY HASH(`user_id`)
+  CREATE TABLE t1 (...) ENGINE=InnoDB BROADCAST
+  CREATE TABLE t1 (...) ENGINE=InnoDB shardkey=noshardkey_allset
+分片表的分片键必须是主键(或主键的一部分)，且必须包含在每一个唯一索引中。
+            </div>
+        </div>
+        <div style="margin-bottom: 20px; border-bottom: 1px dashed #e2e8f0; padding-bottom: 15px;">
+            <h3>#4 CREATE TABLE <span style="color:#dc2626;font-weight:bold">[3项违规]</span></h3>
+            <div class="sql-box">-- Table: biz_tab_04
+CREATE TABLE `biz_tab_04` (
+  `id` bigint NOT NULL COMMENT 'ID',
+  `name` varchar(64) NOT NULL DEFAULT '' COMMENT 'name',
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='D36 real table'</div>
+
+            <div class="v-card info">
+                <b>[R036] [INFO]</b> 建议表包含 create_time 和 update_time 字段用于数据追踪<br>
+                💡 <b>修复建议：</b>建议添加: create_time DATETIME DEFAULT CURRENT_TIMESTAMP, update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            </div>
+
+            <div class="v-card info">
+                <b>[R037] [INFO]</b> 建议添加逻辑删除字段(如 is_deleted)替代物理删除<br>
+                💡 <b>修复建议：</b>建议添加: is_deleted TINYINT DEFAULT 0 COMMENT '逻辑删除标记'
+            </div>
+
+            <div class="v-card error">
+                <b>[R077] [ERROR]</b> 建表语句未声明分片键(SHARDKEY)或广播表标记(BROADCAST)，TDSQL分布式实例上不允许创建单表（表 `biz_tab_04`）。分片表必须通过 SHARDKEY=列名 声明分片键，广播表必须通过 BROADCAST 声明<br>
+                💡 <b>修复建议：</b>请按目标实例支持的形态声明分片键或广播表。示例:
+  CREATE TABLE t1 (...) ENGINE=InnoDB SHARDKEY=user_id
+  CREATE TABLE t1 (...) ENGINE=InnoDB TDSQL_DISTRIBUTED BY HASH(`user_id`)
+  CREATE TABLE t1 (...) ENGINE=InnoDB BROADCAST
+  CREATE TABLE t1 (...) ENGINE=InnoDB shardkey=noshardkey_allset
+分片表的分片键必须是主键(或主键的一部分)，且必须包含在每一个唯一索引中。
+            </div>
+        </div>
+        <div style="margin-bottom: 20px; border-bottom: 1px dashed #e2e8f0; padding-bottom: 15px;">
+            <h3>#5 CREATE TABLE <span style="color:#dc2626;font-weight:bold">[3项违规]</span></h3>
+            <div class="sql-box">-- Table: biz_tab_05
+CREATE TABLE `biz_tab_05` (
+  `id` bigint NOT NULL COMMENT 'ID',
+  `name` varchar(64) NOT NULL DEFAULT '' COMMENT 'name',
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='D36 real table'</div>
+
+            <div class="v-card info">
+                <b>[R036] [INFO]</b> 建议表包含 create_time 和 update_time 字段用于数据追踪<br>
+                💡 <b>修复建议：</b>建议添加: create_time DATETIME DEFAULT CURRENT_TIMESTAMP, update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            </div>
+
+            <div class="v-card info">
+                <b>[R037] [INFO]</b> 建议添加逻辑删除字段(如 is_deleted)替代物理删除<br>
+                💡 <b>修复建议：</b>建议添加: is_deleted TINYINT DEFAULT 0 COMMENT '逻辑删除标记'
+            </div>
+
+            <div class="v-card error">
+                <b>[R077] [ERROR]</b> 建表语句未声明分片键(SHARDKEY)或广播表标记(BROADCAST)，TDSQL分布式实例上不允许创建单表（表 `biz_tab_05`）。分片表必须通过 SHARDKEY=列名 声明分片键，广播表必须通过 BROADCAST 声明<br>
+                💡 <b>修复建议：</b>请按目标实例支持的形态声明分片键或广播表。示例:
+  CREATE TABLE t1 (...) ENGINE=InnoDB SHARDKEY=user_id
+  CREATE TABLE t1 (...) ENGINE=InnoDB TDSQL_DISTRIBUTED BY HASH(`user_id`)
+  CREATE TABLE t1 (...) ENGINE=InnoDB BROADCAST
+  CREATE TABLE t1 (...) ENGINE=InnoDB shardkey=noshardkey_allset
+分片表的分片键必须是主键(或主键的一部分)，且必须包含在每一个唯一索引中。
+            </div>
+        </div>
+        <div style="margin-bottom: 20px; border-bottom: 1px dashed #e2e8f0; padding-bottom: 15px;">
+            <h3>#6 CREATE TABLE <span style="color:#dc2626;font-weight:bold">[3项违规]</span></h3>
+            <div class="sql-box">-- Table: cus_bas_merge_log
+CREATE TABLE `cus_bas_merge_log` (
+  `id` bigint NOT NULL COMMENT 'ID',
+  `payload` varchar(128) NOT NULL DEFAULT '' COMMENT 'p',
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='parent table'</div>
+
+            <div class="v-card info">
+                <b>[R036] [INFO]</b> 建议表包含 create_time 和 update_time 字段用于数据追踪<br>
+                💡 <b>修复建议：</b>建议添加: create_time DATETIME DEFAULT CURRENT_TIMESTAMP, update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            </div>
+
+            <div class="v-card info">
+                <b>[R037] [INFO]</b> 建议添加逻辑删除字段(如 is_deleted)替代物理删除<br>
+                💡 <b>修复建议：</b>建议添加: is_deleted TINYINT DEFAULT 0 COMMENT '逻辑删除标记'
+            </div>
+
+            <div class="v-card error">
+                <b>[R077] [ERROR]</b> 建表语句未声明分片键(SHARDKEY)或广播表标记(BROADCAST)，TDSQL分布式实例上不允许创建单表（表 `cus_bas_merge_log`）。分片表必须通过 SHARDKEY=列名 声明分片键，广播表必须通过 BROADCAST 声明<br>
+                💡 <b>修复建议：</b>请按目标实例支持的形态声明分片键或广播表。示例:
+  CREATE TABLE t1 (...) ENGINE=InnoDB SHARDKEY=user_id
+  CREATE TABLE t1 (...) ENGINE=InnoDB TDSQL_DISTRIBUTED BY HASH(`user_id`)
+  CREATE TABLE t1 (...) ENGINE=InnoDB BROADCAST
+  CREATE TABLE t1 (...) ENGINE=InnoDB shardkey=noshardkey_allset
+分片表的分片键必须是主键(或主键的一部分)，且必须包含在每一个唯一索引中。
+            </div>
+        </div>    </div>
+</body>
+</html>

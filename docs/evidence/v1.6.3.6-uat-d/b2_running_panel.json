@@ -1,0 +1,8 @@
+{
+  "scenario": "b2_running_panel",
+  "started_utc": "2026-09-11T14:22:51.721739+00:00",
+  "job_id": "a0278f77786b453093f04e38ff2ae9bb",
+  "card_text": "元数据审核任务 #a0278f77\n下载 .sql 文件\n导出 HTML 报告\n状态\t\nSUCCEEDED\n\t阶段\tDONE\t实例连接\tD36-分布式库-含子表命名\n库\tuat_d_1636_dist\t已用时长\t1s\t进度\t枚举 9 / 提取 6 / 审核 6 / 跳过 3（异常 1）",
+  "has_skip_in_panel": true,
+  "saved_utc": "2026-09-11T14:23:01.194850+00:00"
+}

@@ -1,0 +1,18 @@
+{
+  "max_allowed_packet": 67108864,
+  "escape_factor": 1.25,
+  "margin": 65536,
+  "band_pass": {
+    "payload_bytes": 53630501,
+    "x1_25": 67103662,
+    "x2": 107326538,
+    "report_id": 3,
+    "verdict": "PASS 真实落库（旧 ×2 会误拦）"
+  },
+  "band_reject": {
+    "payload_bytes": 55731749,
+    "code": "PERSIST_PAYLOAD_TOO_LARGE",
+    "message": "审核结果转义后约 69730222 字节，超过元数据库 max_allowed_packet (67108864)；请评估元数据库容量后重试。",
+    "verdict": "PASS 友好拦截"
+  }
+}

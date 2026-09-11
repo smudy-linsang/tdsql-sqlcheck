@@ -1,0 +1,19 @@
+{
+  "scenario": "b4_history_html",
+  "started_utc": "2026-09-11T14:23:07.492882+00:00",
+  "skip_report": {
+    "status": 200,
+    "bytes": 15032,
+    "red_warning": true,
+    "orange_omitted": false,
+    "kpi_skip": true
+  },
+  "omitted_report": {
+    "status": 200,
+    "bytes": 1433868,
+    "red_warning": true,
+    "orange_omitted": true,
+    "kpi_skip": true
+  },
+  "saved_utc": "2026-09-11T14:23:13.852438+00:00"
+}

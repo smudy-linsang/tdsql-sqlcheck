@@ -1,0 +1,54 @@
+{
+  "dirty_before": "?? docs/evidence/v1.6.3.6-uat-d/",
+  "mutations": [
+    {
+      "id": "M1",
+      "target": "BUG-02 预检系数",
+      "desc": "预检恢复 ×2 虚假翻倍（BUG-02 本体）",
+      "applied": true,
+      "test": "test_publish_precheck_no_false_double",
+      "caught": true,
+      "tail": "1 failed, 3 warnings in 2.25s"
+    },
+    {
+      "id": "M2",
+      "target": "BUG-02 自适应阈值",
+      "desc": "阈值写死 32MiB（SIT-D/B-01 本体）",
+      "applied": true,
+      "test": "test_adaptive_threshold_no_compact_below_threshold",
+      "caught": true,
+      "tail": "1 failed, 3 warnings in 1.64s"
+    },
+    {
+      "id": "M3",
+      "target": "BUG-01 良性跳过不写逐个块",
+      "desc": "良性跳过恢复逐个 [SKIPPED] 块（R3-B-01 本体）",
+      "applied": true,
+      "test": "test_m07_benign_skip_summary_not_per_object_block",
+      "caught": true,
+      "tail": "1 failed, 3 warnings in 1.47s"
+    },
+    {
+      "id": "M4",
+      "target": "R2-M-03 实例类型安全方向",
+      "desc": "worker 恢复 or distributed（探测不出类型也当分布式）",
+      "applied": true,
+      "test": "test_m05_l6_missing_arg_and_worker_wiring",
+      "caught": true,
+      "tail": "1 failed, 3 warnings in 5.66s"
+    },
+    {
+      "id": "M5",
+      "target": "M-02 跳过清单截断",
+      "desc": "去掉 skipped_list[:50] 截断",
+      "applied": true,
+      "test": "test_m9_skipped_list_truncated_at_extract_return",
+      "caught": true,
+      "tail": "1 failed, 3 warnings in 1.47s"
+    }
+  ],
+  "restored_all_green": true,
+  "restored_tail": "20 passed, 3 warnings in 7.20s",
+  "gap_list": [],
+  "product_files_changed": ""
+}

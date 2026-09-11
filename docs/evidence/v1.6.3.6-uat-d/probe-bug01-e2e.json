@@ -1,0 +1,32 @@
+{
+  "job_id": "a0278f77786b453093f04e38ff2ae9bb",
+  "worker_rc": 0,
+  "state": "SUCCEEDED",
+  "report_id": 4,
+  "snapshot_id": 1,
+  "progress": "{\"enumerated_objects\": 9, \"selected_objects\": 9, \"extracted_objects\": 6, \"skipped_objects\": 3, \"skipped_benign\": 2, \"skipped_abnormal\": 1, \"skipped_list\": [{\"name\": \"biz_tab_01\", \"type\": \"TABLE\", \"category\": \"extract_failed\", \"reason\": \"(1045, \\\"Access denied for user 'ro'@'%' to database 'uat_d_1636_dist'\\\")\"}, {\"name\": \"cus_bas_merge_log_tdsql_subp190001\", \"type\": \"TABLE\", \"category\": \"tdsql_internal\", \"reason\": \"(660, \\\"Proxy ERROR: Table 'uat_d_1636_dist.cus_bas_merge_log_tdsql_subp190001' does not exist\\\")\"}, {\"name\": \"cus_bas_merge_log_tdsql_subp190002\", \"type\": \"TABLE\", \"category\": \"tdsql_internal\", \"reason\": \"(660, \\\"Proxy ERROR: Table 'uat_d_1636_dist.cus_bas_merge_log_tdsql_subp190001' does not exist\\\")\"}], \"total_statements\": 6, \"audited_statements\": 6}",
+  "history": {
+    "total_sql": 6,
+    "passed": 0,
+    "failed": 6,
+    "pass_rate": 0.0,
+    "skipped_objects": 3,
+    "skipped_benign": 2,
+    "skipped_abnormal": 1,
+    "omitted_results": 0,
+    "records_in_history": 6,
+    "is_list": true,
+    "connection_id": "d36-dist",
+    "db_name": "uat_d_1636_dist"
+  },
+  "artifacts": {
+    "dir": "C:\\TDSQL_SQLCHECK\\TDSQL-SQLCheck\\data\\reports\\uat_d_1636\\reports\\metadata-audit\\a0278f77786b453093f04e38ff2ae9bb",
+    "schema_exists": true,
+    "schema_has_summary": true,
+    "schema_per_object_blocks": 1,
+    "schema_objects": 6,
+    "manifest_exists": true,
+    "results_ndjson_lines": 6
+  },
+  "verdict": "PASS 端到端（含良性+异常跳过）"
+}
