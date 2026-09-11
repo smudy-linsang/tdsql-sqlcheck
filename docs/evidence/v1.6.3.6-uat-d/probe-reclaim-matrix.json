@@ -1,0 +1,44 @@
+{
+  "L1_published_with_report": {
+    "reclaim_returned": {
+      "accepted": [],
+      "published": [
+        "837de57973b444638949cedfc162a30f"
+      ]
+    },
+    "state": "SUCCEEDED",
+    "phase": "DONE",
+    "finished_at": "2026-09-11T16:09:41.826429",
+    "slot_after": null,
+    "report_id": 15,
+    "verdict": "PASS"
+  },
+  "L2_publishing_without_report": {
+    "state": "FAILED",
+    "error_code": "PERSIST_TIMEOUT",
+    "slot_after": null,
+    "verdict": "PASS"
+  },
+  "L5_fresh_published_untouched": {
+    "state": "PUBLISHED",
+    "slot_after": "658402d832624de3acb5393bb974083f",
+    "verdict": "PASS"
+  },
+  "L3_accepted_unowned": {
+    "slot_before": "84259821ee1947469b533b33e3e9d999",
+    "state": "FAILED",
+    "error_code": "START_TIMEOUT",
+    "verdict": "PASS"
+  },
+  "L4_slot_owned_by_other": {
+    "state": "ACCEPTED",
+    "slot_after": "someone-else",
+    "verdict": "PASS"
+  },
+  "L10_running_never_touched": {
+    "state": "RUNNING",
+    "slot_after": "d6f9db0e2d46459ca7139484eea5459f",
+    "verdict": "PASS"
+  },
+  "all_pass": true
+}

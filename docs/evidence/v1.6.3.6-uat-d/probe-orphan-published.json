@@ -1,0 +1,23 @@
+{
+  "prepared": {
+    "mode": "published",
+    "job_id": "75972c3f6c6347e0ab84db0cefd8111f",
+    "report_id": 17,
+    "state": "PUBLISHED",
+    "phase": "PERSISTING",
+    "slot_active_job": null
+  },
+  "card_text": "元数据审核任务 #75972c3f\n状态\t\nPUBLISHED\n\t阶段\tPERSISTING\t实例连接\tD36-分布式库-含子表命名\n库\tuat_d_1636_dist\t已用时长\t2s\t进度\t枚举 - / 提取 - / 审核 -\n结果已落库但未收口，可下载报告；如需重扫请直接重新发起",
+  "拉取元数据并执行文件审核": {
+    "count": 1,
+    "disabled": false
+  },
+  "恢复查看上次任务": {
+    "count": 1,
+    "disabled": false
+  },
+  "expected_hint": "结果已落库但未收口",
+  "hint_present": true,
+  "verdict": "PASS 已修复：悬挂任务不再锁死界面（已选实例后两按钮均可用）",
+  "cleanup": "SUCCEEDED"
+}

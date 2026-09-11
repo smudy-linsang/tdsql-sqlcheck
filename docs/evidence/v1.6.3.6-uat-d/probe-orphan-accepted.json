@@ -1,0 +1,23 @@
+{
+  "prepared": {
+    "mode": "accepted",
+    "job_id": "6b3ea11aabbf4db1911d7000640b1515",
+    "report_id": null,
+    "state": "RUNNING",
+    "phase": "ENUMERATING",
+    "slot_active_job": null
+  },
+  "card_text": "元数据审核任务 #6b3ea11a\n取消任务\n状态\t\nRUNNING\n\t阶段\tENUMERATING\t实例连接\tD36-分布式库-含子表命名\n库\tuat_d_1636_dist\t已用时长\t2s\t进度\t枚举 - / 提取 - / 审核 -\n该任务已不在执行器上运行（可能为中断残留），可重新发起或联系运维",
+  "拉取元数据并执行文件审核": {
+    "count": 1,
+    "disabled": false
+  },
+  "恢复查看上次任务": {
+    "count": 1,
+    "disabled": false
+  },
+  "expected_hint": "该任务已不在执行器上运行",
+  "hint_present": true,
+  "verdict": "PASS 已修复：悬挂任务不再锁死界面（已选实例后两按钮均可用）",
+  "cleanup": "FAILED"
+}

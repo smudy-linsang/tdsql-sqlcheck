@@ -1,9 +1,9 @@
 {
   "scenario": "b1_normal_flow",
-  "started_utc": "2026-09-11T14:22:33.621273+00:00",
-  "job_id": "3043e1af828c456ea1e3d2f99b0249c6",
+  "started_utc": "2026-09-11T16:14:10.108034+00:00",
+  "job_id": "2ebe5fd352844bb49651baa052421bce",
   "final_state": "SUCCEEDED",
-  "card_text": "元数据审核任务 #3043e1af\n下载 .sql 文件\n导出 HTML 报告\n状态\t\nSUCCEEDED\n\t阶段\tDONE\t实例连接\tD36-分布式库-含子表命名\n库\tuat_d_1636_dist\t已用时长\t2s\t进度\t枚举 9 / 提取 9 / 审核 9",
+  "card_text": "元数据审核任务 #2ebe5fd3\n下载 .sql 文件\n导出 HTML 报告\n状态\t\nSUCCEEDED\n\t阶段\tDONE\t实例连接\tD36-分布式库-含子表命名\n库\tuat_d_1636_dist\t已用时长\t3s\t进度\t枚举 9 / 提取 9 / 审核 9",
   "results_total": 9,
-  "saved_utc": "2026-09-11T14:22:42.204206+00:00"
+  "saved_utc": "2026-09-11T16:14:18.742740+00:00"
 }

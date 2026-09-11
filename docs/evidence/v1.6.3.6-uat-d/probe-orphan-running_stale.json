@@ -1,0 +1,33 @@
+{
+  "prepared": {
+    "mode": "running_stale",
+    "job_id": "d8d2e2e810734ae696911a5b5c7526f9",
+    "report_id": null,
+    "state": "RUNNING",
+    "phase": "ENUMERATING",
+    "slot_active_job": "d8d2e2e810734ae696911a5b5c7526f9"
+  },
+  "api_list_nonterminal": [
+    {
+      "job_id": "d8d2e2e810734ae696911a5b5c7526f9",
+      "state": "RUNNING",
+      "slot_owned": true,
+      "stale_running": true
+    }
+  ],
+  "card_text": "元数据审核任务 #d8d2e2e8\n取消任务\n状态\t\nRUNNING\n\t阶段\tENUMERATING\t实例连接\tD36-分布式库-含子表命名\n库\tuat_d_1636_dist\t已用时长\t2s\t进度\t枚举 - / 提取 - / 审核 -\n该任务长时间无执行器心跳，可能已中断；请联系运维核实后再重新发起",
+  "page_has_task_card": true,
+  "page_body_head": "TDSQL数据库SQL审核工具\nD\nD-UAT36测试员\n系统管理员\n治理概览\nSQL审核\n即时审核\n文件审核\n在线元数据审核\n慢SQL治理\n实例体检\n深度诊断\n平台治理\n系统管理\nSQL审核\n/\n在线元数据审核\n即时元数据提取与审核\n历史元数据审核记录\n扫描对比\n对比留档报告\n在线元数据提取与文件审核\n选择目标实例\n表结构\n索引/主键\n视图定义\n分片键\n🚀 拉取元数据并执行文件审核\n📄 恢复查看上次任务\n自动从选择的 SIT/UAT 测试库中提取当前最新表、索引、视图 DDL 元数据，拼接生成完整的 .sql 描",
+  "拉取元数据并执行文件审核": {
+    "count": 1,
+    "disabled": false
+  },
+  "恢复查看上次任务": {
+    "count": 1,
+    "disabled": false
+  },
+  "expected_hint": "长时间无执行器心跳",
+  "hint_present": true,
+  "verdict": "PASS 已修复：悬挂任务不再锁死界面（已选实例后两按钮均可用）",
+  "cleanup": "FAILED"
+}

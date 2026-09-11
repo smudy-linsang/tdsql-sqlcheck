@@ -1,0 +1,85 @@
+{
+  "dirty_before": "M docs/evidence/v1.6.3.6-uat-d/d36-b7-published-orphan.png\n M docs/evidence/v1.6.3.6-uat-d/probe-published-orphan.json\n M docs/evidence/v1.6.3.6-uat-d/probe_published_orphan_d36.py\n?? docs/evidence/v1.6.3.6-uat-d/d36-b7-orphan-accepted.png\n?? docs/evidence/v1.6.3.6-uat-d/d36-b7-orphan-published.png\n?? docs/evidence/v1.6.3.6-uat-d/d36-b7-orphan-running_stale.png\n?? docs/evidence/v1.6.3.6-uat-d/probe-mutation-fixreq01.json\n?? docs/evidence/v1.6.3.6-uat-d/probe-orphan-accepted.json\n?? docs/evidence/v1.6.3.6-uat-d/probe-orphan-published.json\n?? docs/evidence/v1.6.3.6-uat-d/probe-orphan-running_stale.json\n?? docs/evidence/v1.6.3.6-uat-d/probe-reclaim-matrix.json\n?? docs/evidence/v1.6.3.6-uat-d/probe_mutation_fixreq01_d.py\n?? docs/evidence/v1.6.3.6-uat-d/probe_reclaim_matrix_d36.py",
+  "mutations": [
+    {
+      "id": "M1",
+      "target": "L1/L2 回收 PUBLISHING/PUBLISHED",
+      "desc": "回收不再处理 PUBLISHING/PUBLISHED（UAT36-01 本体）",
+      "applied": true,
+      "test": "test_reclaim_published_orphan_converges",
+      "caught": true,
+      "tail": "1 failed in 1.14s"
+    },
+    {
+      "id": "M2",
+      "target": "L9 stale_running 暴露",
+      "desc": "stale_running 恒为假（§2.1b 可观测性丢失）",
+      "applied": true,
+      "test": "test_job_summary_exposes_stale_running",
+      "caught": true,
+      "tail": "1 failed in 1.35s"
+    },
+    {
+      "id": "M3",
+      "target": "L6 complete() 返回值检查",
+      "desc": "忽略 complete() 未命中（静默放槽回归）",
+      "applied": true,
+      "test": "test_complete_miss_does_not_release_slot",
+      "caught": false,
+      "tail": "1 passed in 1.09s"
+    },
+    {
+      "id": "M4",
+      "target": "L6 放槽前终态护栏",
+      "desc": "去掉「非终态不得放槽」护栏",
+      "applied": true,
+      "test": "test_complete_miss_does_not_release_slot",
+      "caught": false,
+      "tail": "1 passed in 1.07s"
+    },
+    {
+      "id": "M5",
+      "target": "L8 前端活动判定",
+      "desc": "前端判定退回「只看 state」（回到锁死）",
+      "applied": true,
+      "test": "test_recover_treats_unowned_as_inactive",
+      "caught": true,
+      "tail": "1 failed in 1.09s"
+    },
+    {
+      "id": "M6",
+      "target": "L10 RUNNING 不回收（§2.1b 决策）",
+      "desc": "把 RUNNING 也纳入回收分支（SQL 内层 state 守卫仍在，属等价变异）",
+      "applied": true,
+      "test": "test_reclaim_never_touches_running",
+      "caught": false,
+      "tail": "1 passed in 1.17s"
+    },
+    {
+      "id": "M7",
+      "target": "L6 两层护栏同时移除（真实缺陷）",
+      "desc": "同时去掉 complete() 检查与放槽前护栏 → 静默放槽缺陷复活",
+      "applied": true,
+      "test": "test_complete_miss_does_not_release_slot",
+      "caught": true,
+      "tail": "1 failed in 1.16s"
+    },
+    {
+      "id": "M8",
+      "target": "L10 内层 state 守卫移除（真实缺陷）",
+      "desc": "分支条件与 SQL 守卫同时放开 → RUNNING 真会被回收",
+      "applied": true,
+      "test": "test_reclaim_never_touches_running",
+      "caught": true,
+      "tail": "1 failed in 1.35s"
+    }
+  ],
+  "restored_all_green": true,
+  "restored_tail": "10 passed in 2.30s",
+  "gap_list": [
+    "M3",
+    "M4",
+    "M6"
+  ],
+  "product_files_changed": ""
+}

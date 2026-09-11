@@ -1,20 +1,20 @@
 {
   "prepared": {
-    "job_id": "ca3b85e83d044d26981b555e7777c2b6",
-    "report_id": 12,
+    "job_id": "b022a7ec66b545868185b2146c05fdb1",
+    "report_id": 14,
     "state": "PUBLISHED",
     "phase": "PERSISTING",
     "slot_active_job": null
   },
-  "card_text": "元数据审核任务 #ca3b85e8\n状态\t\nPUBLISHED\n\t阶段\tPERSISTING\t实例连接\tD36-分布式库-含子表命名\n库\tuat_d_1636_dist\t已用时长\t7s\t进度\t枚举 - / 提取 - / 审核 -",
+  "card_text": "元数据审核任务 #b022a7ec\n状态\t\nPUBLISHED\n\t阶段\tPERSISTING\t实例连接\tD36-分布式库-含子表命名\n库\tuat_d_1636_dist\t已用时长\t3s\t进度\t枚举 - / 提取 - / 审核 -\n结果已落库但未收口，可下载报告；如需重扫请直接重新发起",
   "拉取元数据并执行文件审核": {
     "count": 1,
-    "disabled": true
+    "disabled": false
   },
   "恢复查看上次任务": {
     "count": 1,
-    "disabled": true
+    "disabled": false
   },
-  "verdict": "REPRO 命中：PUBLISHED 悬挂 + 槽无归属 → 两个按钮同时禁用，用户无法自救",
+  "verdict": "PASS 已修复：悬挂任务不再锁死界面（已选实例后两按钮均可用）",
   "cleanup": "SUCCEEDED"
 }
