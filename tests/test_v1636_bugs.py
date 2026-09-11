@@ -148,13 +148,102 @@ def test_big_payload_compaction_fallback_is_list():
 
 
 def test_publish_precheck_no_false_double():
-    """预检不再 *2：一个 40MB（<64MB max_allowed_packet）的结果不应被误拦。
+    """B-03：预检不再有 *2 虚假翻倍——真调 publish() 验证 40MB（<64MB包限）能落库。
 
-    直接验证预检公式：payload = raw + margin（无 *2），40MB+64KiB < 64MB。
+    （修复 D 发现的假绿：旧用例只在测试里重算公式，没真调 publish。）
     """
-    raw_mb = 40 * 1024 * 1024
-    payload = raw_mb + R._PACKET_MARGIN
+    from backend.services.database import ensure_db, _get_connection
+    ensure_db()
+    job, token = _mk_publishing_job("pprecheck")
+    # 33MB 结果（区分带：*1.25→41MB<64MB 放行；*2→66MB>64MB 拦）。真实调 publish。
+    big_sql = "CREATE TABLE t (a INT); -- " + ("x" * (33 * 1024 * 1024))
+    results = [{"sql": big_sql, "passed": True, "violations": []}]
+    results_json = json.dumps(results, ensure_ascii=False)
+    rid = R.repository.publish(job["id"], token, audit_columns_values=_audit_cols(results_json),
+                               results_json=results_json)
+    assert rid > 0
+    # M8：读回 audit_history.results_json，确认是完整 list 且写进了正确列（非 pass_rate）
+    conn = _get_connection()
+    row = conn.execute("SELECT results_json, total_sql FROM audit_history WHERE id=?",
+                       (rid,)).fetchone()
+    conn.close()
+    stored = json.loads(row["results_json"])
+    assert isinstance(stored, list) and len(stored) == 1  # 完整保留，未压成样例
+    assert stored[0]["sql"] == big_sql
+    R.repository.release_slot(job["id"])
+    _cleanup_jobs("pprecheck")
+
+
+def test_adaptive_threshold_no_compact_at_64mb():
+    """B-01：64MiB 包限下自适应阈值≈53MiB，42MiB 结果**不触发**压缩（无损）。"""
     max_pkt = 64 * 1024 * 1024
-    assert payload < max_pkt, "40MB 结果在 64MB 包限制下应通过预检（不得 *2 误拦）"
-    # 反例：旧的 *2 公式会误拦（80MB > 64MB）——证明 *2 是缺陷
-    assert raw_mb * 2 + R._PACKET_MARGIN > max_pkt
+    adaptive = int((max_pkt - R._PACKET_MARGIN) / R._ESCAPE_FACTOR)
+    # 42 MiB 结果（内网 6097 表库的真实体量）不应被压缩
+    raw_42mb = "x" * (42 * 1024 * 1024)
+    js = json.dumps([{"sql": raw_42mb, "passed": True, "violations": []}])
+    assert len(js.encode("utf-8")) < adaptive, "42MiB 应低于自适应阈值（不压缩）"
+    out = R.compact_results_for_audit_history(js, "j", threshold_bytes=adaptive)
+    assert out == js, "低于自适应阈值必须原样返回（不压缩）"
+
+
+def test_m9_skipped_list_truncated_at_extract_return():
+    """M9：skipped_list 在 extract_metadata 返回处截断为前 50，计数仍全量。"""
+    rows = [{"TABLE_NAME": f"t_fail{i}", "TABLE_TYPE": "BASE TABLE"} for i in range(120)]
+    pool = _FakePool(rows, fail_names={f"t_fail{i}" for i in range(120)})
+    # 全失败会抛 NO_AUDITABLE_OBJECTS；改留 1 个成功
+    rows.append({"TABLE_NAME": "t_ok", "TABLE_TYPE": "BASE TABLE"})
+    pool = _FakePool(rows, fail_names={f"t_fail{i}" for i in range(120)})
+    lines, stats = P.extract_metadata(pool, "db1", ["TABLE"], instance_label="x")
+    assert stats["skipped_objects"] == 120       # 计数全量
+    assert len(stats["skipped_list"]) == 50       # list 截断为 50
+    assert stats["skipped_abnormal"] == 120       # 非良性跳过计数
+
+
+def test_m10_subp_requires_digit_and_parent_and_distributed():
+    """M10 + B-02：\\d+（无数字不匹配）+ 集中式不过滤 + 父表须在枚举中。"""
+    # 无数字 → 不匹配（\\d* 笔误已修）
+    assert P.is_tdsql_internal_table("biz_tdsql_subp", "distributed",
+                                     {"biz"}) is False
+    assert P.is_tdsql_internal_table("foo_tdsql_shard", "distributed", {"foo"}) is False
+    # 集中式一律不过滤
+    assert P.is_tdsql_internal_table("orders_tdsql_subp202601", "centralized",
+                                     {"orders"}) is False
+    # 分布式 + 父表不在枚举 → 不过滤（防误杀真业务表）
+    assert P.is_tdsql_internal_table("orders_tdsql_subp202601", "distributed",
+                                     {"other"}) is False
+    # 分布式 + 父表在枚举 + 有数字 → 过滤（内网故障对象）
+    assert P.is_tdsql_internal_table("cus_bas_merge_log_tdsql_subp190001",
+                                     "distributed", {"cus_bas_merge_log"}) is True
+
+
+# ══ 公共辅助 ══
+def _mk_publishing_job(tag):
+    """建一个进入 PUBLISHING 状态的测试任务（真实库）。返回 (job, token)。"""
+    from backend.services.database import ensure_db, _get_connection
+    ensure_db()
+    conn = _get_connection()
+    conn.execute("DELETE FROM metadata_audit_jobs WHERE created_by=?", (f"v1636_{tag}",))
+    conn.execute("UPDATE metadata_audit_slot SET active_job_id=NULL, accepting=1 WHERE id=1")
+    conn.commit(); conn.close()
+    job, _ = R.repository.create_job(
+        created_by=f"v1636_{tag}", request_id="r", idempotency_key=f"k_{tag}",
+        request_hash=f"h_{tag}", connection_id="c", db_name="d", request_json="{}",
+        execution_context_json="{}", connection_fingerprint="f",
+        report_deadline_seconds=600)
+    R.repository.claim_next_accepted("r", "tok", R._now())
+    R.repository.cas_state(job["id"], "tok", (R.STATE_RUNNING,), R.STATE_PUBLISHING)
+    return job, "tok"
+
+
+def _audit_cols(results_json):
+    from backend.services.metadata_audit_repository import _now
+    return ("extracted_schema", "f.sql", 1, 1, 0, 0, 0, 100.0, results_json,
+            "v1636", "", None, "", _now(), "c", "d", None, "centralized", "auto", 0, None)
+
+
+def _cleanup_jobs(tag):
+    from backend.services.database import _get_connection
+    conn = _get_connection()
+    conn.execute("DELETE FROM metadata_audit_jobs WHERE created_by=?", (f"v1636_{tag}",))
+    conn.execute("UPDATE metadata_audit_slot SET active_job_id=NULL WHERE id=1")
+    conn.commit(); conn.close()

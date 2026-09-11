@@ -27,13 +27,30 @@ VALID_SCOPES = ("TABLE", "INDEX", "VIEW", "SHARDKEY")
 # information_schema.TABLES 会枚举出这些物理子表（如 xxx_tdsql_subp190001），
 # 但 TDSQL Proxy 不允许对单个物理分片 SHOW CREATE（报 660 Proxy ERROR ... does not exist）。
 # 主表 DDL 已包含全部分区/分片定义，子表无需也不能单独提取 → 前置过滤。
+# SIT-D/B-02：对齐本项目 table_type_stats_service._classify_subpartitions 的 Rev.G/P1-03
+# 三条件判据（命名匹配只是必要条件而非充分条件），\d+ 要求至少一位数字（不写 \d*）。
 _TDSQL_INTERNAL_PARTITION_PATTERN = re.compile(
-    r".*_tdsql_(subp|shard)\d*$", re.IGNORECASE)
+    r"^(?P<parent>.+?)_tdsql_(?:subp|shard)\d+$", re.IGNORECASE)
 
 
-def is_tdsql_internal_table(table_name: str) -> bool:
-    """判定是否为 TDSQL 底层物理分片子表（主表 DDL 已纳管，不可单独 SHOW CREATE）。"""
-    return bool(_TDSQL_INTERNAL_PARTITION_PATTERN.match(table_name or ""))
+def is_tdsql_internal_table(table_name: str, instance_type: str = "distributed",
+                            available_tables=None) -> bool:
+    """判定是否为 TDSQL 底层物理分片子表（主表 DDL 已纳管，不可单独 SHOW CREATE）。
+
+    三条件缺一不可（对齐 table_type_stats_service Rev.G/P1-03，防误杀真业务表）：
+      1) 实例为**分布式**——集中式根本没有二级分区物理子表，一律不剔除；
+      2) 名字匹配 `<父表>_tdsql_subp|shard<数字>`（\d+ 至少一位数字）；
+      3) 父表确实出现在本库枚举的对象清单中（available_tables）。
+    候选自身能否被 Proxy SHOW CREATE 由提取循环的 try/except 兜底（660 容错跳过）。
+    """
+    if (instance_type or "").lower() != "distributed":
+        return False
+    m = _TDSQL_INTERNAL_PARTITION_PATTERN.match(table_name or "")
+    if not m:
+        return False
+    if available_tables is not None and m.group("parent") not in available_tables:
+        return False
+    return True
 
 
 class MetadataExtractError(Exception):
@@ -120,7 +137,8 @@ def _show_create(conn, target_db: str, obj: dict) -> str:
 
 
 def extract_metadata(pool, target_db: str, scopes: list,
-                     instance_label: str = "") -> tuple:
+                     instance_label: str = "",
+                     instance_type: str = "distributed") -> tuple:
     """只读提取目标库元数据为 SQL 行列表。
 
     Args:
@@ -128,6 +146,7 @@ def extract_metadata(pool, target_db: str, scopes: list,
         target_db: 最终实际库名
         scopes: TABLE/INDEX/VIEW/SHARDKEY 子集
         instance_label: 冻结的实例连接名称（写入 SQL 头部注释，需去 CRLF）
+        instance_type: 实例类型（centralized/distributed）；集中式不剔除任何"子表"
 
     Returns:
         (sql_lines: list[str], stats: dict)
@@ -146,6 +165,7 @@ def extract_metadata(pool, target_db: str, scopes: list,
     with pool.get_connection() as conn:
         objects = enumerate_objects(conn, target_db)
         enumerated = len(objects)
+        available_tables = {o["name"] for o in objects}
         selected_objs = _select_objects(objects, scopes)
         selected = len(selected_objs)
         if selected == 0:
@@ -155,14 +175,19 @@ def extract_metadata(pool, target_db: str, scopes: list,
                 f"（枚举到 {enumerated} 个对象）。")
         extracted = 0
         skipped_objects = []
+        benign_skipped = 0        # TDSQL 物理子表（预期内、良性）
+        abnormal_skipped = 0      # 权限/超时/Proxy 故障等（异常、需要人管）
         for obj in selected_objs:
             kind = "VIEW" if "VIEW" in obj["type"] else "TABLE"
             obj_name = obj["name"]
-            # 1. TDSQL 内部物理分片子表前置跳过（主表 DDL 已纳管，Proxy 不可读）
-            if kind == "TABLE" and is_tdsql_internal_table(obj_name):
+            # 1. TDSQL 内部物理分片子表前置跳过（三条件判据，良性）
+            if kind == "TABLE" and is_tdsql_internal_table(
+                    obj_name, instance_type=instance_type,
+                    available_tables=available_tables):
                 skipped_objects.append({
-                    "name": obj_name, "type": kind,
+                    "name": obj_name, "type": kind, "category": "tdsql_internal",
                     "reason": "TDSQL底层物理分片子表，已由父表统一纳管"})
+                benign_skipped += 1
                 logger.debug("跳过 TDSQL 内部物理子表 %s.%s", target_db, obj_name)
                 continue
             # 2. 单对象 SHOW CREATE 容错：失败仅跳过并留 [SKIPPED] 存证注释，不杀全库
@@ -171,17 +196,19 @@ def extract_metadata(pool, target_db: str, scopes: list,
             except Exception as e:
                 logger.warning("跳过不可读对象 %s.%s(%s): %s",
                                target_db, obj_name, kind, e)
+                abnormal_skipped += 1
                 skipped_objects.append({"name": obj_name, "type": kind,
+                                        "category": "extract_failed",
                                         "reason": str(e)})
                 lines.append("-- ============================================================")
                 lines.append(f"-- [SKIPPED] SQL Object: CREATE {kind}")
-                lines.append(f"-- Object Name: {obj_name}")
+                lines.append(f"-- Object Name: {sanitize_comment(obj_name)}")
                 lines.append(f"-- Skip Reason: {sanitize_comment(str(e))}")
                 lines.append("-- ============================================================")
                 lines.append("")
                 continue
             lines.append(f"-- SQL Object: CREATE {kind}")
-            lines.append(f"-- {'View' if kind == 'VIEW' else 'Table'}: {obj_name}")
+            lines.append(f"-- {'View' if kind == 'VIEW' else 'Table'}: {sanitize_comment(obj_name)}")
             lines.append(ddl.rstrip(";") + ";")
             lines.append("")
             extracted += 1
@@ -190,13 +217,25 @@ def extract_metadata(pool, target_db: str, scopes: list,
         raise MetadataExtractError(
             "NO_AUDITABLE_OBJECTS",
             f"库 {target_db} 选中的 {selected} 个对象全部提取失败，无可审核内容。")
+    # M-03：异常跳过（权限/超时/Proxy 故障等非良性）超阈值时打醒目告警
+    if abnormal_skipped and (abnormal_skipped > 50
+                             or abnormal_skipped > selected * 0.05):
+        logger.warning("库 %s 有 %d 个对象提取失败（非良性，占选中 %d 的 %.1f%%），"
+                       "请人工核实是否权限/网络问题导致漏审",
+                       target_db, abnormal_skipped, selected,
+                       abnormal_skipped / selected * 100)
     if skipped_objects:
-        logger.warning("库 %s 提取完成：成功 %d，跳过 %d（详见 skipped_objects）",
-                       target_db, extracted, len(skipped_objects))
+        logger.warning("库 %s 提取完成：成功 %d，跳过 %d（良性子表 %d / 异常 %d）",
+                       target_db, extracted, len(skipped_objects),
+                       benign_skipped, abnormal_skipped)
     stats = {"enumerated_objects": enumerated, "selected_objects": selected,
              "extracted_objects": extracted,
              "skipped_objects": len(skipped_objects),
-             "skipped_list": skipped_objects}
+             "skipped_benign": benign_skipped,
+             "skipped_abnormal": abnormal_skipped,
+             # M-02：skipped_list 在返回处截断（计数全留 + 样例 50 条），
+             # 让下游所有写点（进度/manifest）天然不超量
+             "skipped_list": skipped_objects[:50]}
     return lines, stats
 
 

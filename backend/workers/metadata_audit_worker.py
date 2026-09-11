@@ -102,7 +102,7 @@ pre{{background:#0f1e34;color:#e2e8f0;padding:12px;border-radius:6px;font-family
 <div class="h"><h1>在线元数据审核报告</h1>
 <div class="meta">实例连接名称：<strong>{_e(conn_name)}</strong> ｜ 库：{_e(job['db_name'])} ｜
 任务：{_e(job['id'])} ｜ 生成：{now}</div>
-<div class="meta">扫描口径：枚举 {stats.get('enumerated_objects',0)} 个对象 / 选中 {stats.get('selected_objects',0)} / 提取 {stats.get('extracted_objects',0)}；拆句 {summary['total_sql']} 条</div></div>
+<div class="meta">扫描口径：枚举 {stats.get('enumerated_objects',0)} 个对象 / 选中 {stats.get('selected_objects',0)} / 提取 {stats.get('extracted_objects',0)} / 跳过 {stats.get('skipped_objects',0)}（异常 {stats.get('skipped_abnormal',0)}）；拆句 {summary['total_sql']} 条</div></div>
 <div class="kpi">
 <div class="k"><b>{summary['total_sql']}</b>对象数</div>
 <div class="k"><b style="color:#16a34a">{summary['passed']}</b>通过</div>
@@ -152,7 +152,8 @@ def run(job_id: str, attempt_token: str) -> int:
         repo.cas_state(job_id, attempt_token, (R.STATE_RUNNING,), R.STATE_RUNNING,
                        phase=R.PHASE_EXTRACTING)
         lines, stats = extract_metadata(pool, db_name, scopes,
-                                        instance_label=ctx.get("connection_name", ""))
+                                        instance_label=ctx.get("connection_name", ""),
+                                        instance_type=instance_type or "distributed")
         schema_sql = "\n".join(lines)
         d = art.job_dir(job_id)
         art.atomic_write_text(d / "schema.sql", schema_sql)
@@ -183,13 +184,9 @@ def run(job_id: str, attempt_token: str) -> int:
         # total_statements 用实际拆句数（len(records)），audited_statements 同步；
         # 不能用表数冒充，不再依赖 idx%50 的稀疏采样（否则终态停在 51 而非 63）。
         _final_count = len(records)
-        # skipped_list 限长（progress_json 限 128KiB）：只存计数 + 前 50 条跳过明细
-        _prog_stats = dict(stats)
-        _skipped_list = _prog_stats.get("skipped_list") or []
-        _prog_stats["skipped_objects"] = len(_skipped_list)
-        _prog_stats["skipped_list"] = _skipped_list[:50]
+        # skipped_list 已在 extract_metadata 返回处截断为前 50 条（M-02），此处直接用
         repo.update_progress(job_id, attempt_token, R.PHASE_SERIALIZING,
-                             json.dumps({**_prog_stats,
+                             json.dumps({**stats,
                                          "total_statements": _final_count,
                                          "audited_statements": _final_count},
                                         ensure_ascii=False))

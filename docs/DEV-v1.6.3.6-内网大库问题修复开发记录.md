@@ -66,3 +66,45 @@ dict 会直接打崩历史报告/看板/快照。故 Q 改为 **list 格式**压
 施工人：智能体 Q
 施工对象：v1.6.3.6（内网大库问题针对性修复）
 提交给：Mr.Linsang
+
+---
+
+# SIT 第一轮整改（D 报告：主功能修复有效，发现 8 项次生问题，不放行 → 全部整改）
+
+| 项 | 内容 |
+|---|---|
+| 整改日期 | 2026-09-11 |
+| D 结论 | BUG-01/BUG-02 主功能修复**有效**；发现 3 高 + 3 中 + 2 低次生问题；不放行，整改后复测 |
+
+## 逐项整改（8 项全部认可）
+
+| 编号 | 级别 | 问题（D 实测） | 整改 |
+|---|---|---|---|
+| B-01 | 高 | 32MiB 写死压缩阈值，内网 6097 表库（42MiB）历史报告静默丢 96.7% 明细，而该体量本不需压缩 | 压缩阈值改为**按 max_allowed_packet 自适应**：`threshold=(max_pkt-margin)/1.25`。64MiB 包限下阈值≈53MiB，42MiB 不触发压缩 → 无损。预检用转义后真实大小（×1.25） |
+| B-02 | 高 | 子表识别只用命名匹配，违反本项目 Rev.G/P1-03；`\d*` 是笔误 | 移植三条件判据：集中式一律不过滤 + 分布式要求父表在枚举清单 + `\d+`（至少一位数字）；候选能否 SHOW CREATE 由提取循环 try/except 兜底 |
+| B-03 | 高 | BUG-02 回归锁假绿（用例只重算公式没真调 publish） | `test_publish_precheck_no_false_double` 改为**真调 publish()**（真实库，33MB 落在 *1.25 放行/*2 拦截的区分带）；补 M8（读回校验列）/M9（skipped_list 截断）/M10（`\d+`/集中式/父表）锁 |
+| M-01 | 中 | 去 *2 后余量归零 + rollback 在死连接上再抛致错误归因误导 | 预检系数取实测 1.25；`except` 里 `conn.rollback()` 与 `conn.close()` 均包 try/except，保证 MetadataJobError 一定抛出 |
+| M-02 | 中 | skipped_list 限长只加在最后一个写点，对峰值无效；128KiB 注释不实 | `skipped_list` 在 `extract_metadata` 返回处截断（计数全留 + 样例 50），下游写点天然安全；删错误注释 |
+| M-03 | 中 | 完整性判据放宽后 fail-open，跳过在历史侧不可见 | 跳过按原因分类（`tdsql_internal` 良性 / `extract_failed` 异常）；异常跳过超阈值（>50 或 >5%）打醒目告警；`report.html` 口径行补"跳过 N（异常 M）" |
+| N-01 | 低 | `-- Object Name:` 未 sanitize（CR/LF 注入） | 对象名加 `sanitize_comment` |
+| N-02 | 低 | compact 的 `job_id` 形参未用 | job_id 纳入压缩日志（大库排障定位） |
+
+## 变异自证（D 规约）
+- M1（publish 恢复 `*2`）→ `test_publish_precheck_no_false_double` 真调 publish 变红（PERSIST_PAYLOAD_TOO_LARGE）。
+- M10（`\d+`→`\d*`）→ `test_m10_subp_requires_digit_and_parent_and_distributed` 变红。
+- 恢复后全绿，git 工作区无变异残留。
+
+## 验证
+- `test_v1636_bugs.py` 15 用例全过（子表三条件 / 单表容错 / 全失败仍报错 / 真调 publish / 自适应阈值不压缩 / 截断 / `\d+` 集中式父表）。
+- 全量回归 **2125 passed + 30 skipped + 0 failed**（30 skip 既定环境性）。
+
+## 边界声明
+- "候选自身不在 Proxy 结果中"（Rev.J 第3条）在本模块由提取循环 try/except 兜底（Proxy 660 容错跳过）近似，因 pipeline 枚举自 information_schema 而非单独查 Proxy；三条件中的可判定部分（分布式门 + 父表存在 + 严格命名）已落实。
+- `audit_history` 增列持久化跳过计数（M-03 建议）未加列（避免改表结构），跳过计数经 report.html 口径行 + manifest + progress 透出；如需历史列表列展示，建议下一版评估。
+- 真实内网 6000 表复跑与 Linux 部署验证仍待内网。
+
+---
+
+施工人：智能体 Q
+施工对象：v1.6.3.6（内网大库修复 + SIT 第一轮整改）
+提交给：Mr.Linsang

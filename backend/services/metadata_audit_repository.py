@@ -56,19 +56,22 @@ _PACKET_MARGIN = 64 * 1024
 MAX_DB_PAYLOAD_THRESHOLD = 32 * 1024 * 1024
 # 压缩时保留的"通过项"样例条数（违规项全保留）
 _COMPACT_PASS_KEPT = 50
+# SIT-D/M-01：JSON 参数经 PyMySQL 转义的真实膨胀系数上限（实测 1.076×–1.207×，取 1.25 留余量）
+_ESCAPE_FACTOR = 1.25
 
 
-def compact_results_for_audit_history(results_json: str, job_id: str = "") -> str:
+def compact_results_for_audit_history(results_json: str, job_id: str = "",
+                                      threshold_bytes: Optional[int] = None) -> str:
     """超大结果集的**向后兼容 list 格式**轻量压缩（v1.6.3.6 / BUG-02）。
 
-    仅当 results_json 超过 MAX_DB_PAYLOAD_THRESHOLD 时触发；返回仍为 JSON **list**
-    （保留全部含违规条目 + 前 _COMPACT_PASS_KEPT 条通过项），不破坏既有消费方
-    （report_service / dashboard / sql_audit 历史详情 / snapshot 提取）把
-    results_json 当 list 遍历的契约。完整明细始终在本地 artifacts/results.ndjson，
-    前端分页读取体验无损。未超阈值原样返回。
+    仅当 results_json 超过阈值时触发（threshold_bytes 缺省用 MAX_DB_PAYLOAD_THRESHOLD；
+    publish 内按 max_allowed_packet 自适应传入）。返回仍为 JSON **list**（保留全部含
+    违规条目 + 前 _COMPACT_PASS_KEPT 条通过项），不破坏既有消费方把 results_json 当
+    list 遍历的契约。完整明细始终在本地 artifacts/results.ndjson。未超阈值原样返回。
     """
+    threshold = threshold_bytes or MAX_DB_PAYLOAD_THRESHOLD
     raw = results_json.encode("utf-8")
-    if len(raw) <= MAX_DB_PAYLOAD_THRESHOLD:
+    if len(raw) <= threshold:
         return results_json
     try:
         records = json.loads(results_json)
@@ -91,9 +94,9 @@ def compact_results_for_audit_history(results_json: str, job_id: str = "") -> st
                 pass_kept += 1
             else:
                 omitted += 1
-    logger.info("审核结果 %d 字节超阈值 %d，启用大库轻量存储：保留 %d 条（违规全留+通过样例%d），"
-                "省略通过项 %d 条（完整明细见 artifacts）",
-                len(raw), MAX_DB_PAYLOAD_THRESHOLD, len(compact), pass_kept, omitted)
+    logger.info("审核结果 %d 字节超阈值 %d（job=%s），启用大库轻量存储：保留 %d 条"
+                "（违规全留+通过样例%d），省略通过项 %d 条（完整明细见 artifacts）",
+                len(raw), threshold, job_id, len(compact), pass_kept, omitted)
     return json.dumps(compact, ensure_ascii=False)
 
 
@@ -375,22 +378,27 @@ class MetadataJobRepository:
         """
         conn = _get_connection()
         try:
-            # 大库轻量压缩（>32MiB 才触发；返回仍为 list 的 JSON）
-            compacted = compact_results_for_audit_history(results_json, job_id)
+            # 先读本连接包限
+            row = conn.execute("SELECT @@session.max_allowed_packet AS p").fetchone()
+            max_pkt = int((row or {}).get("p") or 0)
+            # SIT-D/B-01：压缩阈值按实际包限**自适应**——转义后须装入包限。
+            # 转义系数取实测上限 1.25（留余量）；内网 64MiB 包限下阈值≈53MiB，
+            # 6097 表库（raw≈42MiB）不触发压缩 → 历史报告无损。不再写死 32MiB。
+            adaptive_threshold = (int((max_pkt - _PACKET_MARGIN) / _ESCAPE_FACTOR)
+                                  if max_pkt else MAX_DB_PAYLOAD_THRESHOLD)
+            compacted = compact_results_for_audit_history(
+                results_json, job_id, threshold_bytes=adaptive_threshold)
             if compacted != results_json:
                 results_json = compacted
                 audit_columns_values = tuple(
                     compacted if i == 8 else v
                     for i, v in enumerate(audit_columns_values))
-            # max_allowed_packet 预检：真实 UTF-8 字节 + 64KiB 封装余量（不再 *2）。
-            # 压缩后 payload ≤32MiB，转义膨胀后仍远小于默认 64MiB，安全。
-            payload = len(results_json.encode("utf-8")) + _PACKET_MARGIN
-            row = conn.execute("SELECT @@session.max_allowed_packet AS p").fetchone()
-            max_pkt = int((row or {}).get("p") or 0)
+            # max_allowed_packet 预检：转义后真实大小（×1.25）+ 64KiB 余量。
+            payload = int(len(results_json.encode("utf-8")) * _ESCAPE_FACTOR) + _PACKET_MARGIN
             if max_pkt and payload > max_pkt:
                 raise MetadataJobError(
                     "PERSIST_PAYLOAD_TOO_LARGE",
-                    f"审核结果编码后约 {payload} 字节，超过元数据库 max_allowed_packet "
+                    f"审核结果转义后约 {payload} 字节，超过元数据库 max_allowed_packet "
                     f"({max_pkt})；请评估元数据库容量后重试。", 507)
 
             conn.execute("SELECT * FROM metadata_audit_slot WHERE id=? FOR UPDATE",
@@ -436,11 +444,19 @@ class MetadataJobRepository:
         except MetadataJobError:
             raise
         except Exception as e:
-            conn.rollback()
+            # SIT-D/M-01：连接可能已被包限错误重置（1153/2006），rollback 会再抛——
+            # 包 try/except 保证 MetadataJobError 一定抛出（错误归因正确，不裸穿 2006）。
+            try:
+                conn.rollback()
+            except Exception:
+                pass
             logger.error("发布元数据审核结果失败: %s", e, exc_info=True)
             raise MetadataJobError("REPORT_SAVE_FAILED", f"报告落库失败: {e}", 500) from e
         finally:
-            conn.close()
+            try:
+                conn.close()
+            except Exception:
+                pass
 
     # ── 槽位释放 / 完成 ──────────────────────────────────────────────────
     def slot_heartbeat(self, runner_id: str) -> None:
