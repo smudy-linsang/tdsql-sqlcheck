@@ -145,3 +145,55 @@ dict 会直接打崩历史报告/看板/快照。故 Q 改为 **list 格式**压
 施工人：智能体 Q
 施工对象：v1.6.3.6（内网大库修复 + SIT 第一/二轮整改）
 提交给：Mr.Linsang
+
+---
+
+# 第三轮 SIT 整改（R3-B-01 BLOCK + 8 把锁补强 + 变异自证）
+
+| 项 | 内容 |
+|---|---|
+| 受测提交 | `79291fe`（第二轮整改） |
+| 整改日期 | 2026-09-11 |
+| A 结论 | 不能进 UAT；唯一 BLOCK = R3-B-01；另 8 条为「锁假绿」（产品行为 A 已逐条实测正确，准出前须补齐） |
+
+## 逐项整改
+
+| 编号 | 级别 | 整改 |
+|---|---|---|
+| R3-B-01 | BLOCK | pipeline `extract_metadata`：良性跳过（tdsql_internal）**不再逐个写 `[SKIPPED]` 块**，改为文件末尾一行 `[SKIPPED-SUMMARY]` 汇总；异常跳过（extract_failed）保留逐个块（需溯源）。消除大库 schema.sql 94% 注释噪音与审核超线性变慢 |
+| R3-M-01 | MAJOR | `test_adaptive_threshold` 载荷由**单条**改为 **2000 条通过记录**（>50）；变异（阈值写死 32MiB）时压缩真会 omit → 用例变红（旧版单条使压缩退化成恒等变换，观测不到） |
+| R3-M-02 | MAJOR | `test_n4` 载荷改为**自适应阈值的 1.2 倍**（触发压缩）；断言 results_json 列（索引 8）为压缩后 list、pass_rate 列（索引 7）未污染、omitted>0（旧版 39.9Mi 低于阈值 → 压缩是死代码） |
+| R3-M-03 | MAJOR | `test_n10` sanitize 锁检查口径由 **list 元素**改为 **`"\n".join(lines).splitlines()` 落盘文本行**（旧口径下含内嵌 CR/LF 的元素仍以 `--` 开头，去掉 sanitize 也照样过） |
+| R3-M-04 | MAJOR | 新增 `test_m06`：造 skipped_abnormal>0 / omitted_results>0 真实记录，调两个呈现端点，断言 L11 历史 HTML 告警条（红/橙条件不串）+ L12 SQL 下载文件头（[跳过]/[节选]） |
+| R3-M-05 | MAJOR | 新增 `test_m05`：L6 缺参 TypeError 锁 + worker 接线锁（monkeypatch 捕获 worker 传给 `extract_metadata` 的 `instance_type`，ctx 无类型时须为 `""` 而非 `"distributed"`）——识别真实调用而非源码字符串 |
+| R3-N-01 | MINOR | `test_n2` 由**常量断言**改为**行为断言**：全违规载荷卡在「乘系数超限 / 不乘不超」区分带，预检须抛 `PERSIST_PAYLOAD_TOO_LARGE` |
+| R3-N-02 | MINOR | `test_n9` 由**源码文本断言**改为**行为断言**：fake conn 注入 INSERT 1153 + rollback 2006，断言 publish 抛 `MetadataJobError`（不裸穿 2006） |
+| 新增锁 | — | `test_m07 / m07b`：R3-B-01 BLOCK 锁——良性跳过写汇总不写逐个块 / 异常跳过保留逐个块 |
+
+## 变异自证（A 三轮强调、此前一直缺失的一步）
+本轮对 **11 个变异体**逐条「注入缺陷 → 确认对应用例变红 → 立即原地恢复」（脚本 `scratch/mutation_selfcheck.py`，正向/反向原地替换 + 源文件字节级恢复校验一致，不用备份文件避免残留）：
+
+**KILLED 11/11**：R3-B-01（良性复活逐个块）、P6（缺省参数）、P7（阈值写死 32MiB）、P8（预检不乘系数）、P9（列索引 8→7）、P10（omitted 恒 0）、P11（rollback 再抛）、P12（去 sanitize）、P14（HTML 去告警）、P15（SQL 去文件头）、P17（worker `or "distributed"`）——全部由对应用例杀死，无假绿存活。
+
+## 验证
+- `test_v1636_bugs.py` **20 用例全过**（16 原有 + m05/m06/m07/m07b）。
+- metadata 相关 7 套件 **91 passed**。
+- **全量受控回归对比**（同一 docker MySQL 8.0 / `max_allowed_packet=64MiB` 环境，base 经 `git stash` 回到 `3c53a4e`）：
+
+  | | failed | passed | errors | skipped |
+  |---|---|---|---|---|
+  | 基线 3c53a4e | 419 | 1592 | 114 | 31 |
+  | head（本次改动） | 419 | **1596 (+4)** | 114 | 31 |
+
+  failed / errors / skipped 计数**完全一致**（419 / 114 / 31），passed **+4** 恰为本次新增的 4 把锁 → **零新增失败**。419 failed / 114 errors 为**环境性**（本地 docker 空库缺 RBAC 用户、auth secret、慢查询 monitordb 数据，集中在 test_v2_uat、test_v3_rbac_instances 等需完整部署的集成套件），与本次改动（仅 `extract_metadata` 跳过块写入 + v1636 测试）无关。
+
+## 边界声明
+- R3-M-01/M-02/N-01/N-02 采用 **fake publish conn**（可控 `max_allowed_packet`、捕获 INSERT 参数），使阈值/压缩/预检锁**不依赖运行环境的真实包限**，确定性更强；产品行为已由 A 第三轮实测确认（判据 1-2、§4）。
+- 本地环境不完整（419 环境性失败），完整环境的全量逐条对比待 A 第四轮在其环境执行；本次以「计数一致 + metadata 套件全过 + 变异自证 11/11」作为零回归与锁有效性证据。
+- 真实内网 6000 表复跑 + Linux 部署验证仍待内网（G / 内网智能体组织）。
+
+---
+
+施工人：智能体 Q
+施工对象：v1.6.3.6 第三轮 SIT 整改（R3-B-01 BLOCK + 8 锁补强 + 变异自证 11/11）
+提交给：Mr.Linsang

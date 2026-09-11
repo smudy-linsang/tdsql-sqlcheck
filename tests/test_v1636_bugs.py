@@ -207,41 +207,30 @@ def test_publish_precheck_no_false_double():
     _cleanup_jobs("pprecheck")
 
 
-def test_adaptive_threshold_no_compact_at_64mb():
-    """R2-M-01 + R2-M-04：真调 publish()，载荷压在自适应阈值下方 → 无损落库（不压缩）。
+def test_adaptive_threshold_no_compact_below_threshold(monkeypatch):
+    """R3-M-01：>50 条通过记录、载荷压在自适应阈值下方 → 不压缩（omitted=0，全保留）。
 
-    读真实元数据库 @@max_allowed_packet 反算载荷（不写死 64MiB）；包限不足以构造
-    区分带时 skip。不允许在用例里自算阈值喂给压缩函数（那是假绿）。
+    用 fake conn 控制 max_packet=64MiB（阈值≈53.7Mi），载荷取 0.8×阈值≈43Mi（>32Mi）。
+    变异 P7（阈值还原写死 32MiB）时：43Mi>32Mi → 压缩 → omitted>0 → 本用例变红。
+    （R3-M-01：旧版用单条记录，压缩退化成恒等变换，变异下观测不到。）
     """
-    from backend.services.database import ensure_db, _get_connection
-    ensure_db()
-    conn = _get_connection()
-    max_pkt = int(conn.execute("SELECT @@session.max_allowed_packet AS p").fetchone()["p"])
-    conn.close()
-    adaptive = int((max_pkt - R._PACKET_MARGIN) / R._ESCAPE_FACTOR)
-    # 需要包限至少够装下约 8MiB 的区分带载荷才有意义
-    if adaptive < 8 * 1024 * 1024:
-        pytest.skip(f"元数据库 max_allowed_packet={max_pkt}，不足以构造区分带载荷")
-    # 载荷取自适应阈值的 80%（明确落在"转义后仍装得下、不应压缩"区间）
-    target = int(adaptive * 0.8)
-    big_sql = "CREATE TABLE t (a INT); -- " + ("x" * target)
-    results = [{"sql": big_sql, "passed": True, "violations": []}]
-    results_json = json.dumps(results, ensure_ascii=False)
-    job, token = _mk_publishing_job("adaptive")
-    rid = R.repository.publish(job["id"], token,
+    fake = _FakePublishConn(max_pkt=67108864)
+    monkeypatch.setattr(R, "_get_connection", lambda: fake)
+    threshold = int((67108864 - R._PACKET_MARGIN) / R._ESCAPE_FACTOR)   # ≈53.7Mi
+    target = int(threshold * 0.8)                                       # ≈43Mi
+    assert target > 32 * 1024 * 1024, "载荷须 >32Mi 才能在变异(写死32Mi)下触发压缩"
+    n_rec = 2000
+    per = target // n_rec
+    records = [{"sql": "CREATE TABLE t%d (a INT); -- " % i + "x" * per,
+                "passed": True, "violations": []} for i in range(n_rec)]
+    results_json = json.dumps(records, ensure_ascii=False)
+    rid = R.repository.publish("j", "tok",
                                audit_columns_values=_audit_cols(results_json),
                                results_json=results_json)
-    assert rid > 0
-    conn = _get_connection()
-    row = conn.execute("SELECT results_json, omitted_results FROM audit_history WHERE id=?",
-                       (rid,)).fetchone()
-    conn.close()
-    stored = json.loads(row["results_json"])
-    # 无损：条数与原文一致（未压缩），omitted_results=0
-    assert isinstance(stored, list) and len(stored) == 1 and stored[0]["sql"] == big_sql
-    assert int(row["omitted_results"]) == 0
-    R.repository.release_slot(job["id"])
-    _cleanup_jobs("adaptive")
+    assert rid == 1
+    # 未压缩：omitted_count（INSERT 参数末位）==0，results_json 列保留全部 n_rec 条
+    assert int(fake.insert_params[-1]) == 0
+    assert len(json.loads(fake.insert_params[8])) == n_rec
 
 
 def test_m9_skipped_list_truncated_at_extract_return():
@@ -295,15 +284,21 @@ def _cleanup_jobs(tag):
 
 # ══ R2-N-01：补锁 ══
 def test_n10_object_name_sanitized_in_sql():
-    """N10：含 CR/LF 的对象名，[SKIPPED] 注释行必须全部以 -- 开头（不逃逸出注释）。"""
+    """N10/R3-M-03：含 CR/LF 的对象名，**落盘文本逐行**必须全部以 -- 开头（不逃逸出注释）。
+
+    R3-M-03：检查口径是 `"\\n".join(lines).splitlines()`（落盘后的真实行），
+    不是 list 元素——后者会把内嵌 \\r\\n 的元素当成一行，去掉 sanitize 也照样以 -- 开头。
+    """
     rows = [{"TABLE_NAME": "t_ok", "TABLE_TYPE": "BASE TABLE"},
             {"TABLE_NAME": "evil\r\nDROP TABLE x--", "TABLE_TYPE": "BASE TABLE"}]
     pool = _FakePool(rows, fail_names=("evil\r\nDROP TABLE x--",))
     lines, stats = P.extract_metadata(pool, "db1", ["TABLE"], instance_label="x",
                                       instance_type="distributed")
-    for ln in lines:
-        if "evil" in ln or "DROP" in ln:
-            assert ln.lstrip().startswith("--"), f"含恶意对象名的行未包进注释: {ln!r}"
+    text_lines = "\n".join(lines).splitlines()   # 落盘后的真实文本行
+    matched = [ln for ln in text_lines if "evil" in ln or "DROP" in ln]
+    assert matched, "恶意对象名应出现在 [SKIPPED] 注释中"
+    for ln in matched:
+        assert ln.lstrip().startswith("--"), f"含恶意对象名的行未包进注释: {ln!r}"
 
 
 def test_n12_report_html_scope_line_has_skip_counts():
@@ -321,47 +316,244 @@ def test_n12_report_html_scope_line_has_skip_counts():
     assert "跳过" in html and "异常" in html
 
 
-def test_n4_compaction_writes_results_json_column_not_pass_rate():
-    """N4：触发压缩的路径上，results_json 列写压缩后 list，pass_rate 列不被污染。"""
-    from backend.services.database import ensure_db, _get_connection
-    ensure_db()
-    job, token = _mk_publishing_job("n4")
-    # 构造超自适应阈值的大结果（全通过，触发压缩）
-    pad = "x" * 2000
-    records = [{"sql": f"CREATE TABLE t{i} (a VARCHAR(2000) COMMENT '{pad}')",
-                "passed": True, "violations": []} for i in range(20000)]
+def test_n4_compaction_writes_results_json_column_not_pass_rate(monkeypatch):
+    """R3-M-02：载荷 > 自适应阈值（1.2x）→ 触发压缩；results_json 列（索引8）写压缩后
+    list，pass_rate 列（索引7）不被污染，omitted>0。（fake conn 控制 max_packet，载荷随阈值反算）
+
+    R3-M-02：旧版载荷 39.9Mi 低于阈值→压缩是死代码，P9/P10 变异打不响。
+    变异 P9（列索引 8→7）：压缩值写到 pass_rate 位 → p[7]!=97.5 → 变红。
+    变异 P10（omitted 恒 0）：p[-1]==0 → 变红。
+    """
+    fake = _FakePublishConn(max_pkt=67108864)
+    monkeypatch.setattr(R, "_get_connection", lambda: fake)
+    threshold = int((67108864 - R._PACKET_MARGIN) / R._ESCAPE_FACTOR)
+    target = int(threshold * 1.2)   # >阈值 → 触发压缩
+    n_rec = 3000
+    per = max(1, target // n_rec)
+    records = [{"sql": "CREATE TABLE t%d (a INT); -- " % i + "x" * per,
+                "passed": True, "violations": []} for i in range(n_rec)]
     results_json = json.dumps(records, ensure_ascii=False)
+    assert len(results_json.encode()) > threshold, "载荷须超阈值才触发压缩"
     cols = list(_audit_cols(results_json))
     cols[7] = 97.5   # pass_rate 列
-    rid = R.repository.publish(job["id"], token, audit_columns_values=tuple(cols),
+    rid = R.repository.publish("j", "tok", audit_columns_values=tuple(cols),
                                results_json=results_json)
+    assert rid == 1
+    p = fake.insert_params
+    stored = json.loads(p[8])   # results_json 列（索引 8）= 压缩后 list
+    assert isinstance(stored, list) and len(stored) < n_rec   # 压缩后条数减少
+    assert p[7] == 97.5   # pass_rate 列（索引 7）未被 results_json 污染
+    assert int(p[-1]) > 0   # omitted_results > 0
+
+
+class _FakePublishCursor:
+    def __init__(self, rows=None, lastrowid=1, rowcount=1):
+        self._rows = rows or []
+        self.lastrowid = lastrowid
+        self.rowcount = rowcount
+    def fetchone(self):
+        return self._rows[0] if self._rows else None
+
+
+class _FakePublishConn:
+    """R3-N-01/02：模拟 publish 的连接——可控 max_packet、INSERT/rollback 行为，
+    并捕获 INSERT 参数（用于断言 omitted_count / results_json 列）。不依赖真实库。"""
+    def __init__(self, max_pkt=67108864, job=None,
+                 insert_raises=None, rollback_raises=None):
+        self.max_pkt = max_pkt
+        self.job = job or {"id": "j", "attempt_token": "tok",
+                           "state": R.STATE_PUBLISHING, "report_id": None}
+        self.insert_raises = insert_raises
+        self.rollback_raises = rollback_raises
+        self.insert_params = None
+        self.rolled_back = False
+    def execute(self, sql, params=None):
+        s = " ".join(sql.split()).upper()
+        if "@@SESSION.MAX_ALLOWED_PACKET" in s:
+            return _FakePublishCursor([{"p": self.max_pkt}])
+        if "METADATA_AUDIT_SLOT" in s:
+            return _FakePublishCursor([{"id": 1}])
+        if "FROM METADATA_AUDIT_JOBS" in s:
+            return _FakePublishCursor([self.job])
+        if "INSERT INTO AUDIT_HISTORY" in s:
+            self.insert_params = params
+            if self.insert_raises is not None:
+                raise self.insert_raises
+            return _FakePublishCursor(lastrowid=1)
+        if "UPDATE METADATA_AUDIT_JOBS" in s:
+            return _FakePublishCursor(rowcount=1)
+        return _FakePublishCursor()
+    def rollback(self):
+        self.rolled_back = True
+        if self.rollback_raises is not None:
+            raise self.rollback_raises
+    def commit(self):
+        pass
+    def close(self):
+        pass
+
+
+def test_n9_rollback_failure_does_not_mask_metadata_error(monkeypatch):
+    """R3-N-02：行为断言——INSERT 抛 1153 + rollback 抛 2006 时，publish 必须抛
+    MetadataJobError（含真因），不裸穿 2006/1153。（不再是源码文本断言）"""
+    import pymysql
+    fake = _FakePublishConn(
+        insert_raises=pymysql.err.OperationalError(1153, "packet bigger than max_allowed_packet"),
+        rollback_raises=pymysql.err.OperationalError(2006, "MySQL server has gone away"))
+    monkeypatch.setattr(R, "_get_connection", lambda: fake)
+    with pytest.raises(R.MetadataJobError) as ei:
+        R.repository.publish("j", "tok",
+                             audit_columns_values=_audit_cols("[]"),
+                             results_json="[]")
+    assert ei.value.code == "REPORT_SAVE_FAILED"
+    assert fake.rolled_back, "rollback 应被调用（其 2006 被 try/except 吞掉）"
+
+
+def test_n2_precheck_escape_factor_rejects_in_band(monkeypatch):
+    """R3-N-01：行为断言——预检乘转义系数(1.25)：构造 len<max_pkt 但 len×1.25>max_pkt
+    的全违规载荷（压缩不缩减违规），预检必须抛 PERSIST_PAYLOAD_TOO_LARGE。
+    P8（预检去掉 *系数、常量原地留着）：len<max_pkt → 不拦 → 本锁变红。"""
+    fake = _FakePublishConn(max_pkt=67108864)   # 64MiB
+    monkeypatch.setattr(R, "_get_connection", lambda: fake)
+    max_pkt = 67108864
+    # 全违规载荷：len 卡在 (max_pkt/1.25, max_pkt)——乘系数超限、不乘则不超
+    target = int(max_pkt * 0.9)   # ≈60.4Mi：<64Mi 但 ×1.25≈75.5Mi>64Mi
+    n_rec = 2000
+    per = target // n_rec
+    records = [{"sql": "CREATE TABLE t%d (a INT); -- " % i + "x" * per,
+                "passed": False, "violations": [{"rule_id": "R001"}]} for i in range(n_rec)]
+    results_json = json.dumps(records, ensure_ascii=False)
+    raw = len(results_json.encode())
+    assert raw < max_pkt < int(raw * R._ESCAPE_FACTOR), \
+        "载荷须卡在'乘系数超限/不乘不超'的区分带"
+    with pytest.raises(R.MetadataJobError) as ei:
+        R.repository.publish("j", "tok",
+                             audit_columns_values=_audit_cols(results_json),
+                             results_json=results_json)
+    assert ei.value.code == "PERSIST_PAYLOAD_TOO_LARGE"
+
+
+# ══ R3-M-05：L6 缺参 TypeError + worker instance_type 接线锁 ══
+def test_m05_l6_missing_arg_and_worker_wiring(monkeypatch):
+    """R3-M-05：（1）classify 四参数全部必传，缺参抛 TypeError（L6）；
+    （2）worker 接线锁——ctx 无 instance_type 时 worker 传给 extract_metadata 的必须是
+    ""（不是 "distributed"）。P17（or "distributed"）会被本锁捕获。"""
+    import pymysql
+    err = pymysql.err.OperationalError(660, "x")
+    # L6：缺 available_tables → TypeError（四参必传，无缺省）
+    with pytest.raises(TypeError):
+        P.classify_extract_failure("cus_tdsql_subp123456", err, "distributed")
+    # worker 接线：monkeypatch extract_metadata 捕获 worker 传入的 instance_type
+    from backend.workers import metadata_audit_worker as W
+    from backend.services import metadata_audit_repository as RR
+    import backend.services.connection_registry as CRG
+    captured = {}
+
+    class _Stop(BaseException):
+        pass
+
+    def _fake_extract(pool, db, scopes, instance_label="", instance_type="MISSING"):
+        captured["it"] = instance_type
+        raise _Stop()
+    monkeypatch.setattr(P, "extract_metadata", _fake_extract)
+    job = {"id": "j1", "attempt_token": "tok", "state": RR.STATE_RUNNING,
+           "execution_context_json": json.dumps({}),   # ctx 无 instance_type
+           "request_json": json.dumps({"scopes": ["TABLE"]}),
+           "connection_id": "c1", "db_name": "db1", "created_by": "u"}
+    monkeypatch.setattr(RR.repository, "get_job", lambda jid: dict(job))
+    monkeypatch.setattr(RR.repository, "cas_state", lambda *a, **k: None)
+    monkeypatch.setattr(RR.repository, "update_progress", lambda *a, **k: None)
+    monkeypatch.setattr(CRG.registry, "get", lambda cid: object())
+    try:
+        W.run("j1", "tok")
+    except BaseException:
+        pass
+    assert captured.get("it") == "", \
+        f"worker 应传空串（非 distributed），实际 {captured.get('it')!r}"
+
+
+# ══ R3-M-04：L11 历史 HTML 告警条 + L12 SQL 文件头 锁 ══
+def test_m06_l11_l12_completeness_surfaces():
+    """R3-M-04：造 skipped_abnormal>0 / omitted_results>0 的真实记录，调两个呈现端点：
+    L11 历史报告 HTML 顶部告警条（异常→红、节选→橙，条件不串）；
+    L12 SQL 下载文件头（[跳过]/[节选]）。删掉告警/文件头代码 → 本锁变红。"""
+    import asyncio
+    from backend.services.database import ensure_db, _get_connection
+    from backend.api.sql_audit import (export_extracted_report_html,
+                                       download_extracted_report_sql)
+    ensure_db()
     conn = _get_connection()
-    row = conn.execute("SELECT results_json, pass_rate, omitted_results FROM audit_history WHERE id=?",
-                       (rid,)).fetchone()
-    conn.close()
-    # results_json 列是压缩后的合法 list；pass_rate 列未被 results_json 污染
-    stored = json.loads(row["results_json"])
-    assert isinstance(stored, list)
-    assert abs(float(row["pass_rate"]) - 97.5) < 0.01   # pass_rate 仍是数值
-    assert int(row["omitted_results"]) >= 0
-    R.repository.release_slot(job["id"])
-    _cleanup_jobs("n4")
+    _results = json.dumps([{"sql": "CREATE TABLE t (id INT)", "sql_type": "CREATE",
+                            "passed": True, "violations": []}], ensure_ascii=False)
+
+    def _insert(sk_obj, sk_ben, sk_abn, omitted):
+        cols = tuple(_audit_cols(_results, skipped_objects=sk_obj,
+                                 skipped_benign=sk_ben,
+                                 skipped_abnormal=sk_abn)) + (omitted,)
+        cur = conn.execute(
+            """INSERT INTO audit_history (audit_type, source, total_sql, passed, failed,
+                error_count, warning_count, pass_rate, results_json, created_by, project_id,
+                gate_passed, gate_detail, created_at, connection_id, db_name, rule_set_id,
+                instance_type, instance_type_source, skipped_rules_count, report_context_json,
+                skipped_objects, skipped_benign, skipped_abnormal, omitted_results)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", cols)
+        conn.commit()
+        return int(cur.lastrowid)
+
+    rid_abn = _insert(7, 0, 7, 0)          # 仅异常跳过
+    rid_om = _insert(2800, 2800, 0, 5894)  # 仅节选
+    try:
+        html_abn = asyncio.run(export_extracted_report_html(rid_abn)).body.decode("utf-8")
+        html_om = asyncio.run(export_extracted_report_html(rid_om)).body.decode("utf-8")
+        # L11：异常→红色告警（无节选提示）；节选→橙色提示（无异常告警）
+        assert "未能读取 DDL" in html_abn and "已省略" not in html_abn
+        assert "已省略" in html_om and "未能读取 DDL" not in html_om
+        sql_abn = asyncio.run(download_extracted_report_sql(rid_abn)).body.decode("utf-8")
+        sql_om = asyncio.run(download_extracted_report_sql(rid_om)).body.decode("utf-8")
+        # L12：文件头 [跳过]/[节选] 条件不串
+        assert "-- [跳过]" in sql_abn and "-- [节选]" not in sql_abn
+        assert "-- [节选]" in sql_om and "已省略 5894" in sql_om and "-- [跳过]" not in sql_om
+    finally:
+        conn.execute("DELETE FROM audit_history WHERE id IN (?,?)", (rid_abn, rid_om))
+        conn.commit()
+        conn.close()
 
 
-def test_n9_rollback_wrapped_so_metadata_error_raises():
-    """N9：publish 的 except 里 rollback 包 try/except——INSERT 失败（包限/连接重置）
-    时抛出的必须是 MetadataJobError（含真因），不裸穿 2006。"""
-    import inspect
-    src = inspect.getsource(R.MetadataJobRepository.publish)
-    # except 分支的 rollback 必须包在 try 里（结构性锁）
-    assert "conn.rollback()" in src
-    assert "except MetadataJobError" in src
-    # rollback 行必须出现在一个 except 包裹的 try 块内（不能裸调）
-    assert "try:\n                conn.rollback()" in src or \
-           "try:\n            conn.rollback()" in src, "rollback 未包 try/except"
+# ══ R3-B-01（BLOCK）锁：良性跳过写汇总不写逐个块 ══
+def test_m07_benign_skip_summary_not_per_object_block():
+    """R3-B-01（BLOCK 锁）：良性子表跳过**不写逐个 [SKIPPED] 块**（否则大库文件
+    94% 是注释、审核超线性变慢），只在文件末尾写一行 [SKIPPED-SUMMARY] 汇总。
+    复活“良性也写逐个块”→本锁变红。"""
+    rows = [
+        {"TABLE_NAME": "t_main", "TABLE_TYPE": "BASE TABLE"},
+        {"TABLE_NAME": "t_main_tdsql_subp190001", "TABLE_TYPE": "BASE TABLE"},
+        {"TABLE_NAME": "t_main_tdsql_subp190002", "TABLE_TYPE": "BASE TABLE"},
+    ]
+    pool = _FakePool(rows, fail_names=("t_main_tdsql_subp190001",
+                                       "t_main_tdsql_subp190002"))
+    lines, stats = P.extract_metadata(pool, "db1", ["TABLE"], instance_label="x",
+                                      instance_type="distributed")
+    sql = "\n".join(lines)
+    assert stats["skipped_benign"] == 2 and stats["skipped_abnormal"] == 0
+    # 良性：末尾一行汇总，且**没有**逐个 [SKIPPED] 块
+    assert "[SKIPPED-SUMMARY]" in sql and "2 张已跳过" in sql
+    assert "-- [SKIPPED] SQL Object" not in sql, "良性跳过不应写逐个 [SKIPPED] 块"
+    # 良性子表名不逐个落盘（只在 skipped_list）
+    assert "t_main_tdsql_subp190001" not in sql
 
 
-def test_n2_escape_factor_present_and_bounded():
-    """N2：预检用实测转义系数（1.25，在 1.0 与 2.0 之间的实测区间），不是 1.0 或 2.0。"""
-    assert R._ESCAPE_FACTOR == 1.25
-    assert 1.0 < R._ESCAPE_FACTOR < 2.0
+def test_m07b_abnormal_skip_still_writes_per_object_block():
+    """R3-B-01 对照：异常跳过（extract_failed）**保留**逐个 [SKIPPED] 块（需溯源）。
+
+    t_denied 名字不匹配子表模式 → 无论错误码都判 extract_failed（异常）。"""
+    rows = [
+        {"TABLE_NAME": "t_ok", "TABLE_TYPE": "BASE TABLE"},
+        {"TABLE_NAME": "t_denied", "TABLE_TYPE": "BASE TABLE"},   # 名字非子表→异常
+    ]
+    pool = _FakePool(rows, fail_names=("t_denied",))
+    lines, stats = P.extract_metadata(pool, "db1", ["TABLE"], instance_label="x",
+                                      instance_type="distributed")
+    sql = "\n".join(lines)
+    assert stats["skipped_abnormal"] == 1 and stats["skipped_benign"] == 0
+    assert "-- [SKIPPED] SQL Object" in sql and "t_denied" in sql   # 异常写逐个块
+    assert "[SKIPPED-SUMMARY]" not in sql                            # 无良性→无汇总行

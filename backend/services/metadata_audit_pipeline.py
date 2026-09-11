@@ -206,24 +206,32 @@ def extract_metadata(pool, target_db: str, scopes: list,
                 if category == "tdsql_internal":
                     benign_skipped += 1
                     logger.debug("跳过 TDSQL 内部物理子表 %s.%s", target_db, obj_name)
+                    # SIT-A/R3-B-01：良性跳过**不逐个写 [SKIPPED] 块**（否则大库文件
+                    # 94% 是注释、审核超线性变慢）；计数落 stats，末尾写一行汇总。
                 else:
                     abnormal_skipped += 1
                     logger.warning("跳过不可读对象 %s.%s(%s): %s",
                                    target_db, obj_name, kind, e)
+                    # 异常跳过保留逐个 [SKIPPED] 块（需溯源的是异常，数量有阈值告警兜底）
+                    lines.append("-- ============================================================")
+                    lines.append(f"-- [SKIPPED] SQL Object: CREATE {kind}")
+                    lines.append(f"-- Object Name: {sanitize_comment(obj_name)}")
+                    lines.append(f"-- Skip Reason: {sanitize_comment(str(e))}")
+                    lines.append("-- ============================================================")
+                    lines.append("")
                 skipped_objects.append({"name": obj_name, "type": kind,
                                         "category": category, "reason": str(e)})
-                lines.append("-- ============================================================")
-                lines.append(f"-- [SKIPPED] SQL Object: CREATE {kind}")
-                lines.append(f"-- Object Name: {sanitize_comment(obj_name)}")
-                lines.append(f"-- Skip Reason: {sanitize_comment(str(e))}")
-                lines.append("-- ============================================================")
-                lines.append("")
                 continue
             lines.append(f"-- SQL Object: CREATE {kind}")
             lines.append(f"-- {'View' if kind == 'VIEW' else 'Table'}: {sanitize_comment(obj_name)}")
             lines.append(ddl.rstrip(";") + ";")
             lines.append("")
             extracted += 1
+    # SIT-A/R3-B-01：良性跳过在文件末尾写**一行汇总**（明细见 skipped_list 前 50 条）
+    if benign_skipped:
+        lines.append(f"-- [SKIPPED-SUMMARY] TDSQL 物理分片子表 {benign_skipped} 张已跳过"
+                     f"（父表 DDL 已纳管），明细见任务跳过清单")
+        lines.append("")
     # 仅当所有选定对象全部失败才判不可审核；部分跳过不阻断（跳过清单已存证）
     if extracted == 0:
         raise MetadataExtractError(
