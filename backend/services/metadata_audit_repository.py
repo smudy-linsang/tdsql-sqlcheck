@@ -61,24 +61,24 @@ _ESCAPE_FACTOR = 1.25
 
 
 def compact_results_for_audit_history(results_json: str, job_id: str = "",
-                                      threshold_bytes: Optional[int] = None) -> str:
+                                      threshold_bytes: Optional[int] = None) -> tuple:
     """超大结果集的**向后兼容 list 格式**轻量压缩（v1.6.3.6 / BUG-02）。
 
-    仅当 results_json 超过阈值时触发（threshold_bytes 缺省用 MAX_DB_PAYLOAD_THRESHOLD；
-    publish 内按 max_allowed_packet 自适应传入）。返回仍为 JSON **list**（保留全部含
-    违规条目 + 前 _COMPACT_PASS_KEPT 条通过项），不破坏既有消费方把 results_json 当
-    list 遍历的契约。完整明细始终在本地 artifacts/results.ndjson。未超阈值原样返回。
+    返回 (results_json_out, omitted_count)：未超阈值返回 (原文, 0)；触发压缩返回
+    （压缩后 list JSON, 省略的通过项条数）。压缩结果为 JSON **list**（保留全部含违规
+    条目 + 前 _COMPACT_PASS_KEPT 条通过项），不破坏既有消费方把 results_json 当 list
+    遍历的契约。完整明细始终在本地 artifacts/results.ndjson。
     """
     threshold = threshold_bytes or MAX_DB_PAYLOAD_THRESHOLD
     raw = results_json.encode("utf-8")
     if len(raw) <= threshold:
-        return results_json
+        return results_json, 0
     try:
         records = json.loads(results_json)
     except (json.JSONDecodeError, TypeError):
-        return results_json   # 非 list JSON 不压缩，交由预检如实报错
+        return results_json, 0   # 非 list JSON 不压缩，交由预检如实报错
     if not isinstance(records, list):
-        return results_json
+        return results_json, 0
     compact = []
     pass_kept = 0
     omitted = 0
@@ -97,7 +97,7 @@ def compact_results_for_audit_history(results_json: str, job_id: str = "",
     logger.info("审核结果 %d 字节超阈值 %d（job=%s），启用大库轻量存储：保留 %d 条"
                 "（违规全留+通过样例%d），省略通过项 %d 条（完整明细见 artifacts）",
                 len(raw), threshold, job_id, len(compact), pass_kept, omitted)
-    return json.dumps(compact, ensure_ascii=False)
+    return json.dumps(compact, ensure_ascii=False), omitted
 
 
 def _now() -> str:
@@ -386,7 +386,8 @@ class MetadataJobRepository:
             # 6097 表库（raw≈42MiB）不触发压缩 → 历史报告无损。不再写死 32MiB。
             adaptive_threshold = (int((max_pkt - _PACKET_MARGIN) / _ESCAPE_FACTOR)
                                   if max_pkt else MAX_DB_PAYLOAD_THRESHOLD)
-            compacted = compact_results_for_audit_history(
+            # R2-M-05：compact 返回 (json, omitted_count)；omitted 落 omitted_results 列
+            compacted, omitted_count = compact_results_for_audit_history(
                 results_json, job_id, threshold_bytes=adaptive_threshold)
             if compacted != results_json:
                 results_json = compacted
@@ -418,14 +419,17 @@ class MetadataJobRepository:
                     "INVALID_STATE", f"当前状态 {job['state']} 不可发布。", 409)
 
             now = _now()
+            # R2-M-05：21+3(worker 跳过计数)+1(omitted)=25 列；新列追加末尾，results_json 仍在索引 8
+            audit_columns_values = tuple(audit_columns_values) + (int(omitted_count),)
             cur = conn.execute(
                 """INSERT INTO audit_history (audit_type, source, total_sql, passed, failed,
                     error_count, warning_count, pass_rate, results_json,
                     created_by, project_id, gate_passed, gate_detail, created_at,
                     connection_id, db_name, rule_set_id,
                     instance_type, instance_type_source, skipped_rules_count,
-                    report_context_json)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    report_context_json,
+                    skipped_objects, skipped_benign, skipped_abnormal, omitted_results)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 audit_columns_values)
             report_id = int(getattr(cur, "lastrowid", 0) or 0)
             if not report_id:

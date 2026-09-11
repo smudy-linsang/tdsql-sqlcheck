@@ -153,7 +153,7 @@ def run(job_id: str, attempt_token: str) -> int:
                        phase=R.PHASE_EXTRACTING)
         lines, stats = extract_metadata(pool, db_name, scopes,
                                         instance_label=ctx.get("connection_name", ""),
-                                        instance_type=instance_type or "distributed")
+                                        instance_type=instance_type or "")
         schema_sql = "\n".join(lines)
         d = art.job_dir(job_id)
         art.atomic_write_text(d / "schema.sql", schema_sql)
@@ -211,6 +211,9 @@ def run(job_id: str, attempt_token: str) -> int:
             connection_id, db_name, rule_set_id or None,
             instance_type, instance_type_source, 0,
             report_ctx_json or None,
+            # R2-M-05：末尾追加 3 个跳过计数（publish 再补 omitted_results 成 25 列）
+            stats.get("skipped_objects"), stats.get("skipped_benign"),
+            stats.get("skipped_abnormal"),
         )
         report_id = repo.publish(job_id, attempt_token,
                                  audit_columns_values=audit_cols,

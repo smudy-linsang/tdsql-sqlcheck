@@ -23,34 +23,50 @@ logger = logging.getLogger("tdsql.metadata_pipeline")
 
 VALID_SCOPES = ("TABLE", "INDEX", "VIEW", "SHARDKEY")
 
-# v1.6.3.6 / BUG-01：TDSQL 分布式/二级分区的底层物理分片子表模式。
-# information_schema.TABLES 会枚举出这些物理子表（如 xxx_tdsql_subp190001），
-# 但 TDSQL Proxy 不允许对单个物理分片 SHOW CREATE（报 660 Proxy ERROR ... does not exist）。
-# 主表 DDL 已包含全部分区/分片定义，子表无需也不能单独提取 → 前置过滤。
-# SIT-D/B-02：对齐本项目 table_type_stats_service._classify_subpartitions 的 Rev.G/P1-03
-# 三条件判据（命名匹配只是必要条件而非充分条件），\d+ 要求至少一位数字（不写 \d*）。
+# v1.6.3.6 / BUG-01：TDSQL 分布式/二级分区的底层物理分片子表命名模式。
+# 主表 DDL 已包含全部分区/分片定义，子表无需也不能单独提取。
+# SIT-A/R2-M-02（Mr.Linsang 决策）：命名模式**不再决定要不要提取**（取消前置过滤，
+# 一律先尝试 SHOW CREATE），只在"这次已经失败的提取"里用来分类良性/异常。
+# \d+ 要求至少一位数字（不写 \d*）。
 _TDSQL_INTERNAL_PARTITION_PATTERN = re.compile(
     r"^(?P<parent>.+?)_tdsql_(?:subp|shard)\d+$", re.IGNORECASE)
+# Proxy"对象不存在"错误码（660=Proxy ERROR does not exist；1146=MySQL table doesn't exist）
+_OBJ_NOT_EXIST_CODES = ("660", "1146")
 
 
-def is_tdsql_internal_table(table_name: str, instance_type: str = "distributed",
-                            available_tables=None) -> bool:
-    """判定是否为 TDSQL 底层物理分片子表（主表 DDL 已纳管，不可单独 SHOW CREATE）。
+def classify_extract_failure(table_name: str, error, instance_type: str,
+                             available_tables: set) -> str:
+    """把一次**已经失败**的 DDL 提取归类为 'tdsql_internal'（良性物理子表）或
+    'extract_failed'（异常：权限/超时/真故障，需人工核实）。
 
-    三条件缺一不可（对齐 table_type_stats_service Rev.G/P1-03，防误杀真业务表）：
-      1) 实例为**分布式**——集中式根本没有二级分区物理子表，一律不剔除；
-      2) 名字匹配 `<父表>_tdsql_subp|shard<数字>`（\d+ 至少一位数字）；
-      3) 父表确实出现在本库枚举的对象清单中（available_tables）。
-    候选自身能否被 Proxy SHOW CREATE 由提取循环的 try/except 兜底（660 容错跳过）。
+    SIT-A/R2-M-02：本函数**不参与**"要不要提取"的决策——所有对象一律先尝试
+    SHOW CREATE，失败之后才调用它。命名模式在此最坏只是把异常错记成良性（计数
+    分类错），绝不造成"能读的真业务表被跳过"（漏审）。四个参数全部必传。
+
+    判为良性需四条同时成立：
+      a) instance_type == "distributed"（集中式无物理子表）；
+      b) 错误是"对象不存在"（Proxy 660 / MySQL 1146）；
+      c) 名字匹配 `<父表>_tdsql_subp|shard<数字>`；
+      d) 父表在本库枚举清单 available_tables 中。
     """
     if (instance_type or "").lower() != "distributed":
-        return False
+        return "extract_failed"
+    # 条件 b：错误码是"对象不存在"（从异常 args[0] 整数或文本 (NNNN, 提取）
+    code = ""
+    args = getattr(error, "args", None)
+    if args and isinstance(args[0], int):
+        code = str(args[0])
+    else:
+        m = re.search(r"\((\d{3,4})\s*,", str(error))
+        code = m.group(1) if m else ""
+    if code not in _OBJ_NOT_EXIST_CODES:
+        return "extract_failed"
     m = _TDSQL_INTERNAL_PARTITION_PATTERN.match(table_name or "")
     if not m:
-        return False
-    if available_tables is not None and m.group("parent") not in available_tables:
-        return False
-    return True
+        return "extract_failed"
+    if m.group("parent") not in (available_tables or set()):
+        return "extract_failed"
+    return "tdsql_internal"
 
 
 class MetadataExtractError(Exception):
@@ -137,8 +153,8 @@ def _show_create(conn, target_db: str, obj: dict) -> str:
 
 
 def extract_metadata(pool, target_db: str, scopes: list,
-                     instance_label: str = "",
-                     instance_type: str = "distributed") -> tuple:
+                     instance_label: str,
+                     instance_type: str) -> tuple:
     """只读提取目标库元数据为 SQL 行列表。
 
     Args:
@@ -180,26 +196,22 @@ def extract_metadata(pool, target_db: str, scopes: list,
         for obj in selected_objs:
             kind = "VIEW" if "VIEW" in obj["type"] else "TABLE"
             obj_name = obj["name"]
-            # 1. TDSQL 内部物理分片子表前置跳过（三条件判据，良性）
-            if kind == "TABLE" and is_tdsql_internal_table(
-                    obj_name, instance_type=instance_type,
-                    available_tables=available_tables):
-                skipped_objects.append({
-                    "name": obj_name, "type": kind, "category": "tdsql_internal",
-                    "reason": "TDSQL底层物理分片子表，已由父表统一纳管"})
-                benign_skipped += 1
-                logger.debug("跳过 TDSQL 内部物理子表 %s.%s", target_db, obj_name)
-                continue
-            # 2. 单对象 SHOW CREATE 容错：失败仅跳过并留 [SKIPPED] 存证注释，不杀全库
+            # SIT-A/R2-M-02：取消前置过滤——所有选中对象一律先尝试 SHOW CREATE。
+            # 命名模式不再决定"要不要提取"；只在"已失败"后用来分类良性/异常。
             try:
                 ddl = _show_create(conn, target_db, obj)
             except Exception as e:
-                logger.warning("跳过不可读对象 %s.%s(%s): %s",
-                               target_db, obj_name, kind, e)
-                abnormal_skipped += 1
+                category = classify_extract_failure(
+                    obj_name, e, instance_type, available_tables)
+                if category == "tdsql_internal":
+                    benign_skipped += 1
+                    logger.debug("跳过 TDSQL 内部物理子表 %s.%s", target_db, obj_name)
+                else:
+                    abnormal_skipped += 1
+                    logger.warning("跳过不可读对象 %s.%s(%s): %s",
+                                   target_db, obj_name, kind, e)
                 skipped_objects.append({"name": obj_name, "type": kind,
-                                        "category": "extract_failed",
-                                        "reason": str(e)})
+                                        "category": category, "reason": str(e)})
                 lines.append("-- ============================================================")
                 lines.append(f"-- [SKIPPED] SQL Object: CREATE {kind}")
                 lines.append(f"-- Object Name: {sanitize_comment(obj_name)}")

@@ -108,3 +108,40 @@ dict 会直接打崩历史报告/看板/快照。故 Q 改为 **list 格式**压
 施工人：智能体 Q
 施工对象：v1.6.3.6（内网大库修复 + SIT 第一轮整改）
 提交给：Mr.Linsang
+
+---
+
+# SIT 第二轮整改（A 报告 + FIXREQ：5 MAJOR + 2 MINOR，含 Mr.Linsang 决策）
+
+| 项 | 内容 |
+|---|---|
+| 整改日期 | 2026-09-11 |
+| A 结论 | 可进 UAT，但准出前须补 R2-M-01/M-03/M-04；R2-M-02/M-05 由 Mr.Linsang 定 |
+| Mr.Linsang 决策（FIXREQ） | R2-M-02 按"取消前置过滤全靠 try/except"；R2-M-05 一次做完（含迁移） |
+
+## 逐项整改
+
+| 编号 | 级别 | 整改 |
+|---|---|---|
+| R2-M-01 | MAJOR | `test_adaptive_threshold_no_compact_at_64mb` 改为**真调 publish()**：读真实包限反算载荷（80% 阈值），断言落库无损 + `omitted_results=0`；不再自算阈值喂函数 |
+| R2-M-02 | MAJOR | **取消前置过滤**：pipeline 删 `is_tdsql_internal_table` 前置过滤分支，所有对象一律先尝试 `SHOW CREATE`；新增 `classify_extract_failure()` 在**失败后**分类（tdsql_internal 良性 / extract_failed 异常，四条件 a-d）。真业务表若 SHOW CREATE 成功则正常提取，**零误杀**（命名像子表但可读→正常提取） |
+| R2-M-03 | MAJOR | `extract_metadata` 与 `classify_extract_failure` 的 `instance_type` **改为必传**；worker 去掉 `or "distributed"`——探测不出类型就不过滤（安全方向） |
+| R2-M-04 | MAJOR | 用例读 `@@session.max_allowed_packet` 反算载荷；包限不足时 `pytest.skip`，不写死 64MiB |
+| R2-M-05 | MAJOR | 迁移 `v15/151_audit_history_completeness.sql`：audit_history 加 `skipped_objects/skipped_benign/skipped_abnormal/omitted_results`（INT NULL，不回填）；publish 21→25 列；compact 返回 `(json, omitted)`；worker audit_cols 补 3 跳过计数；四呈现面：P1 历史报告顶部红/橙告警+跳过指标卡、P2 SQL 下载文件头节选/跳过注释、P3 历史列表"跳过"列、P4 运行面板"跳过 N（异常 B）" |
+| R2-N-01 | MINOR | 补 5 条锁：N2（转义系数 1.25 常量）、N4（压缩路径读回 results_json 是 list + pass_rate 不污染）、N9（rollback 包 try/except 结构锁）、N10（CR/LF 对象名注释不逃逸）、N12（report.html 口径行含跳过/异常） |
+| R2-N-02 | MINOR | 压缩节选哨兵/提示由 P1/P2 呈现面覆盖（报告告警 + SQL 文件头注释） |
+
+## 验证
+- `test_v1636_bugs.py` **16 用例全过**（classify 四条件 / 零误杀硬指标：命名像子表但 SHOW CREATE 成功→正常提取 / 真调 publish / 自适应阈值无损 / 截断 / N2/N4/N9/N10/N12 锁）。
+- 25 列端到端冒烟 PASS：worker 全流程 → SUCCEEDED + report_id，4 新列正确落库。
+- 全量回归 **2126 passed + 30 skipped + 0 failed**，零回归。
+
+## 边界声明
+- R2-M-02 取消前置过滤后，大库会多发"注定失败的 SHOW CREATE"（A 已量化：6000 表库约 5800 张子表 × 失败查询 ≈ 0.06ms/个，外推悲观 <11s，占总时长 <3%，可接受）。Proxy 侧错误日志量会增加（运维观感，不影响正确性）。
+- 真实内网 6000 表复跑 + Linux 部署验证仍待内网（G/内网智能体组织）。
+
+---
+
+施工人：智能体 Q
+施工对象：v1.6.3.6（内网大库修复 + SIT 第一/二轮整改）
+提交给：Mr.Linsang

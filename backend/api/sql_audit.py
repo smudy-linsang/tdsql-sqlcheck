@@ -310,7 +310,8 @@ async def get_extracted_reports(limit: int = Query(20, ge=1, le=200), offset: in
             SELECT h.id, h.audit_type, h.source, h.total_sql, h.passed, h.failed,
                    h.error_count, h.warning_count, h.pass_rate, h.created_by, h.created_at,
                    h.connection_id, h.db_name, COALESCE(c.name, '') AS connection_name,
-                   h.instance_type, h.instance_type_source, h.skipped_rules_count
+                   h.instance_type, h.instance_type_source, h.skipped_rules_count,
+                   h.skipped_objects, h.skipped_benign, h.skipped_abnormal, h.omitted_results
             FROM audit_history h
             LEFT JOIN tdsql_connections c ON c.id = h.connection_id
             WHERE {cond}
@@ -453,6 +454,24 @@ async def export_extracted_report_html(report_id: int):
         from backend.services.report_context import render_for_record
         context_html = render_for_record(r_dict, scene="在线元数据审核")
 
+        # v1.6.3.6 / R2-M-05：完整性留痕告警（历史报告顶部）。
+        # skipped_abnormal>0（异常跳过，权限/超时/Proxy故障）→ 红色告警；
+        # omitted_results>0（超大库压缩节选）→ 橙色提示。
+        _sk_abn = r_dict.get("skipped_abnormal")
+        _sk_obj = r_dict.get("skipped_objects")
+        _sk_ben = r_dict.get("skipped_benign")
+        _omitted = r_dict.get("omitted_results")
+        _completeness_html = ""
+        if _sk_abn:
+            _completeness_html += (f'<div style="background:#fef2f2;border-left:4px solid #ef4444;'
+                f'padding:10px 14px;border-radius:6px;margin:12px 0;color:#991b1b">'
+                f'⚠️ 本次有 {int(_sk_abn)} 个对象未能读取 DDL，未纳入审核，请人工核实'
+                f'（是否权限/网络/实例问题）。</div>')
+        if _omitted:
+            _completeness_html += (f'<div style="background:#fffbeb;border-left:4px solid #f59e0b;'
+                f'padding:10px 14px;border-radius:6px;margin:12px 0;color:#92400e">'
+                f'ℹ️ 本报告明细为节选（已省略 {int(_omitted)} 条通过项），完整明细见任务产物。</div>')
+
         html_content = f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -480,12 +499,14 @@ async def export_extracted_report_html(report_id: int):
             <h1>TDSQL 在线元数据规则审核报告</h1>
             <div class="meta">提取文件: <b>{r_dict.get('source')}</b> | 审核人: {r_dict.get('created_by') or 'System'} | 审计时间: {r_dict.get('created_at')}</div>
             {context_html}
+            {_completeness_html}
         </div>
         <div class="kpi-grid">
             <div class="kpi-card"><div class="kpi-num">{r_dict.get('total_sql')}</div><div>对象总数</div></div>
             <div class="kpi-card"><div class="kpi-num" style="color:#16a34a">{r_dict.get('passed')}</div><div>通过数</div></div>
             <div class="kpi-card"><div class="kpi-num" style="color:#dc2626">{r_dict.get('failed')}</div><div>未通过数</div></div>
             <div class="kpi-card"><div class="kpi-num" style="color:#2563eb">{r_dict.get('pass_rate', 0):.1f}%</div><div>整体通过率</div></div>
+            {f'<div class="kpi-card"><div class="kpi-num" style="color:#f59e0b">{int(_sk_obj)}</div><div>跳过（良性 {int(_sk_ben or 0)} / 异常 {int(_sk_abn or 0)}）</div></div>' if _sk_obj else ''}
         </div>
         <h2>元数据审核明细列表</h2>
 """
@@ -533,8 +554,22 @@ async def download_extracted_report_sql(report_id: int):
         for r in results_data:
             if r.get("sql"):
                 sql_blocks.append(f"-- SQL Object: {r.get('sql_type', 'DDL')}\n{r.get('sql')}")
-        
+
         full_sql = "\n\n".join(sql_blocks)
+        # v1.6.3.6 / R2-M-05：完整性留痕——节选（omitted）或异常跳过时在文件头插说明注释
+        _omitted = r_dict.get("omitted_results")
+        _sk_abn = r_dict.get("skipped_abnormal")
+        _sk_obj = r_dict.get("skipped_objects")
+        if _omitted or _sk_abn:
+            _hdr = ["-- ============================================================"]
+            if _omitted:
+                _hdr.append(f"-- [节选] 本 SQL 文件为节选：已省略 {int(_omitted)} 条通过项，"
+                            f"完整明细见任务产物 artifacts。")
+            if _sk_abn:
+                _hdr.append(f"-- [跳过] 本次有 {int(_sk_abn)} 个对象未能读取 DDL，未纳入审核"
+                            f"（共跳过 {int(_sk_obj or 0)} 个），请人工核实。")
+            _hdr.append("-- ============================================================")
+            full_sql = "\n".join(_hdr) + "\n\n" + full_sql
         filename = r_dict.get("source") or f"extracted_{report_id}.sql"
         if not filename.endswith(".sql"):
             filename += ".sql"

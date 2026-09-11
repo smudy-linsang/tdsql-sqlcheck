@@ -105,7 +105,9 @@ def test_publish_atomic_links_report_id():
     results_json = json.dumps(results, ensure_ascii=False)
     cols = ("extracted_schema", "f.sql", 1, 1, 0, 0, 0, 100.0, results_json,
             "utest_pub", "", None, "", R._now(), "conn1", "db1", None,
-            "centralized", "auto", 0, None)
+            "centralized", "auto", 0, None,
+            # v1.6.3.6 / R2-M-05：补 3 个跳过计数（publish 再补 omitted_results 成 25 列）
+            None, 0, 0)
     report_id = repo.publish(jid, token, audit_columns_values=cols,
                              results_json=results_json)
     assert report_id > 0
