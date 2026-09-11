@@ -156,7 +156,7 @@ def _connection_fingerprint(conn_info: dict) -> str:
         json.dumps(material, sort_keys=True, default=str).encode("utf-8")).hexdigest()
 
 
-def _job_summary(job: dict) -> dict:
+def _job_summary(job: dict, slot_active_job_id=None) -> dict:
     """状态接口的概要（不含全量 SQL/结果）。"""
     progress = {}
     if job.get("progress_json"):
@@ -177,8 +177,16 @@ def _job_summary(job: dict) -> dict:
             elapsed = None if end_dt is None else max(0, int((end_dt - st_dt).total_seconds()))
         else:
             elapsed = max(0, int((_now_utc() - st_dt).total_seconds()))
+    # FIXREQ-v1.6.3.6-01 §2.3：暴露槽归属，前端据此区分"真在执行器上跑"vs"悬挂残留"
+    slot_owned = (slot_active_job_id is not None and slot_active_job_id == job["id"])
+    # §2.1b：RUNNING 但心跳超 JOB_TIMEOUT → stale_running（只暴露不自动收敛，按钮保持可用）
+    stale_running = (job.get("state") == "RUNNING"
+                     and not _jp.is_fresh_heartbeat(
+                         job.get("heartbeat_at"),
+                         window_seconds=_jp.MetadataLimits.JOB_TIMEOUT))
     return {
         "job_id": job["id"], "state": job["state"], "phase": job["phase"],
+        "slot_owned": slot_owned, "stale_running": stale_running,
         "connection_name": (json.loads(job["execution_context_json"] or "{}")
                             .get("connection_name") or ""),
         "database": job["db_name"],
@@ -262,7 +270,8 @@ async def create_metadata_job(request: Request):
             status_code=e.http_status,
             media_type="application/json", headers=_no_store())
 
-    payload = _job_summary(job)
+    _slot = repo.slot_state() or {}
+    payload = _job_summary(job, _slot.get("active_job_id"))
     payload["request_id"] = rid
     status = 202 if created_new else 200
     return Response(content=json.dumps(payload, ensure_ascii=False),
@@ -273,7 +282,8 @@ async def create_metadata_job(request: Request):
 @router.get("/metadata-jobs/{job_id}", summary="查询任务状态")
 async def get_metadata_job(job_id: str, request: Request):
     job = _own_or_404(request, repo.get_job(job_id))
-    payload = _job_summary(job)
+    _slot = repo.slot_state() or {}
+    payload = _job_summary(job, _slot.get("active_job_id"))
     payload["request_id"] = _request_id(request)
     return Response(content=json.dumps(payload, ensure_ascii=False),
                     media_type="application/json", headers=_no_store())
@@ -286,7 +296,9 @@ async def list_metadata_jobs(request: Request, limit: int = 20, offset: int = 0,
     creator = None if _role(request) == "admin" else _operator(request)
     rows, total = repo.list_jobs(creator, limit=limit, offset=offset,
                                  state=(state or "").strip())
-    items = [_job_summary(r) for r in rows]
+    _slot = repo.slot_state() or {}
+    _saj = _slot.get("active_job_id")
+    items = [_job_summary(r, _saj) for r in rows]
     return Response(content=json.dumps(
         {"items": items, "total": total, "request_id": _request_id(request)},
         ensure_ascii=False), media_type="application/json", headers=_no_store())

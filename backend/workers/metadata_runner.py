@@ -70,11 +70,13 @@ class MetadataRunner:
             time.sleep(_POLL_SECONDS)
 
     def _tick(self):
-        # D-02：每轮先回收"受理后超期未被认领"的幽灵任务（释放唯一槽）
+        # D-02 + FIXREQ-v1.6.3.6-01 §2.1：每轮先收敛"无主悬挂"任务（ACCEPTED 幽灵 +
+        # PUBLISHING/PUBLISHED 悬挂），释放唯一槽
         try:
-            self.repo.reclaim_stale_accepted(jp.MetadataLimits.START_TIMEOUT)
+            self.repo.reclaim_stale_unowned(jp.MetadataLimits.START_TIMEOUT,
+                                            jp.MetadataLimits.PUBLISH_TIMEOUT)
         except Exception as e:
-            logger.error("回收过期未认领任务异常: %s", e)
+            logger.error("回收无主悬挂任务异常: %s", e)
         token = uuid.uuid4().hex
         job = self.repo.claim_next_accepted(self.runner_id, token, _utcnow())
         if not job:
@@ -134,8 +136,13 @@ class MetadataRunner:
             self.repo.fail(job_id, token, error_code="JOB_TIMEOUT",
                            error_message=f"任务超过保护预算 {self.job_timeout}s，已终止回收。")
         elif final and final.get("state") == R.STATE_PUBLISHED:
-            self.repo.complete(job_id, token, exit_code=res.returncode or 0,
-                               cleanup_ok=res.cleanup_ok)
+            ok = self.repo.complete(job_id, token, exit_code=res.returncode or 0,
+                                    cleanup_ok=res.cleanup_ok)
+            if not ok:   # FIXREQ-v1.6.3.6-01 §2.2：CAS 未命中不得静默继续放槽
+                logger.error("complete() 未命中，任务仍未收敛 job=%s state=%s",
+                             job_id, (self.repo.get_job(job_id) or {}).get("state"))
+                self._mark_recovery(job_id, token)
+                return   # RECOVERY_REQUIRED 不释放槽位
         elif final and final.get("state") == R.STATE_FAILED:
             pass   # worker 已自置 FAILED（业务失败原因已落库）
         elif res.returncode not in (0, None):
@@ -159,6 +166,14 @@ class MetadataRunner:
         if not res.cleanup_ok and (final and final.get("state") in R.ACTIVE_STATES):
             self._mark_recovery(job_id, token)
             return   # RECOVERY_REQUIRED 不释放槽位
+        # FIXREQ-v1.6.3.6-01 §2.2：释放槽位前通用护栏——任务非终态则转 RECOVERY_REQUIRED、
+        # 不放槽，杜绝"槽已释放、任务非终态"的不一致（UAT36-01/D-04 的产生源）。
+        cur = self.repo.get_job(job_id) or {}
+        if cur.get("state") not in R.TERMINAL_STATES:
+            logger.error("任务非终态却准备释放槽位，转入 RECOVERY_REQUIRED job=%s state=%s",
+                         job_id, cur.get("state"))
+            self._mark_recovery(job_id, token)
+            return
         self.repo.release_slot(job_id)
         self._log("释放槽位", job_id=job_id)
 

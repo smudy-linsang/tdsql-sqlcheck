@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <!-- 主题预置：首帧前置 data-theme，避免深/浅切换闪烁；默认深色，localStorage 记忆 -->
   <script>(function(){try{var t=localStorage.getItem('tdsql-theme');if(t!=='light'&&t!=='dark')t='dark';document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','dark');}})();</script>
-  <title>TDSQL数据库SQL审核工具 V1.6.3.6</title>
+  <title>TDSQL数据库SQL审核工具 V1.6.3.7</title>
   <link rel="icon" href="/favicon.ico">
   <script src="/static/vendor/vue.global.prod.js"></script>
   <link rel="stylesheet" href="/static/vendor/element-plus.css">
@@ -13,9 +13,9 @@
   <script src="/static/vendor/element-plus-locale-zh-cn.min.js"></script>
   <script src="/static/vendor/element-plus-icons.iife.min.js"></script>
   <script src="/static/vendor/echarts.min.js"></script>
-  <link rel="stylesheet" href="/static/css/app.css?v=1.6.3.6">
+  <link rel="stylesheet" href="/static/css/app.css?v=1.6.3.7">
   <!-- 深蓝高密度主题：视觉重构层，最后加载以覆盖 Element Plus 与 app.css -->
-  <link rel="stylesheet" href="/static/css/theme-dark-blue.css?v=1.6.3.6">
+  <link rel="stylesheet" href="/static/css/theme-dark-blue.css?v=1.6.3.7">
 </head>
 <body>
 <div id="app">
@@ -27,7 +27,7 @@
     </div>
     <div class="login-brand">
       <h1>TDSQL数据库SQL审核工具</h1>
-      <div class="version">V1.6.3.6 · Design by Linsang</div>
+      <div class="version">V1.6.3.7 · Design by Linsang</div>
     </div>
     <div class="login-form">
       <el-card>
@@ -365,7 +365,7 @@
                       </el-checkbox-group>
                       <el-button type="primary" size="small" :loading="extractAuditing" :disabled="!extractedAuditConnId" @click="runExtractAndAudit">🚀 拉取元数据并执行文件审核</el-button>
                       <!-- v1.6.3.5 / D-03：与"重新扫描"分离的"恢复查看上次任务"动作（只 GET 不新建） -->
-                      <el-button size="small" :disabled="extractAuditing" @click="recoverMetadataJob">📄 恢复查看上次任务</el-button>
+                      <el-button size="small" :disabled="metadataRecovering" @click="recoverMetadataJob">📄 恢复查看上次任务</el-button>
                     </div>
                   </div>
                   <div style="color:#909399;font-size:13px;margin:8px 0">自动从选择的 SIT/UAT 测试库中提取当前最新表、索引、视图 DDL 元数据，拼接生成完整的 .sql 描述文件，并自动提交文件审核引擎进行规则评价。</div>
@@ -393,7 +393,11 @@
                       <el-descriptions-item label="进度">枚举 {{ metadataJob.progress?.enumerated_objects ?? '-' }} / 提取 {{ metadataJob.progress?.extracted_objects ?? '-' }} / 审核 {{ metadataJob.progress?.audited_statements ?? '-' }}<span v-if="metadataJob.progress?.skipped_objects" style="color:#f59e0b"> / 跳过 {{ metadataJob.progress.skipped_objects }}<template v-if="metadataJob.progress?.skipped_abnormal">（异常 {{ metadataJob.progress.skipped_abnormal }}）</template></span></el-descriptions-item>
                     </el-descriptions>
                     <el-alert v-if="metadataJob.error" type="error" :title="metadataJob.error.message" :closable="false" class="mt-16" show-icon></el-alert>
-                    <div v-if="['ACCEPTED','RUNNING','PUBLISHING'].includes(metadataJob.state)" style="color:#909399;font-size:13px;margin-top:10px">任务正在后台执行，页面可离开，完成后可回来查看（进度每 2 秒刷新）。</div>
+                    <!-- FIXREQ-v1.6.3.6-01 §2.1b：RUNNING 心跳超时——只暴露不自动收敛，按钮保持可用 -->
+                    <el-alert v-if="metadataJob.stale_running" type="warning" title="该任务长时间无执行器心跳，可能已中断；请联系运维核实后再重新发起" :closable="false" class="mt-16" show-icon></el-alert>
+                    <!-- §2.4：非终态但槽不指向它＝悬挂残留（逃生提示）；PUBLISHED 未收口单独文案 -->
+                    <el-alert v-else-if="metadataJob.slot_owned===false && !['SUCCEEDED','FAILED','CANCELLED'].includes(metadataJob.state)" type="warning" :title="metadataJob.state==='PUBLISHED' ? '结果已落库但未收口，可下载报告；如需重扫请直接重新发起' : '该任务已不在执行器上运行（可能为中断残留），可重新发起或联系运维'" :closable="false" class="mt-16" show-icon></el-alert>
+                    <div v-if="['ACCEPTED','RUNNING','PUBLISHING'].includes(metadataJob.state) && metadataJob.slot_owned!==false && !metadataJob.stale_running" style="color:#909399;font-size:13px;margin-top:10px">任务正在后台执行，页面可离开，完成后可回来查看（进度每 2 秒刷新）。</div>
                   </div>
 
                   <!-- 审核结果（分页加载，不全量渲染大库） -->
@@ -2881,6 +2885,6 @@
     </div>
   </el-dialog>
 </div>
-<script src="/static/js/app.js?v=1.6.3.6"></script>
+<script src="/static/js/app.js?v=1.6.3.7"></script>
 </body>
 </html>

@@ -129,6 +129,7 @@ class MetadataLimits:
     MAX_CONCURRENT = 1  # 固定 1，其他值启动拒绝
     JOB_TIMEOUT = _env_int("METADATA_JOB_TIMEOUT_SECONDS", 1800)         # 300-7200
     START_TIMEOUT = _env_int("METADATA_START_TIMEOUT_SECONDS", 30)       # 固定 30
+    PUBLISH_TIMEOUT = _env_int("METADATA_PUBLISH_TIMEOUT_SECONDS", 600)  # 60-3600（FIXREQ-v1.6.3.6-01 §2.1：PUBLISHING/PUBLISHED 悬挂收敛阈值）
     CHILD_RSS_LIMIT_MIB = _env_int("METADATA_CHILD_RSS_LIMIT_MIB", 1024)  # 512-4096
     SQL_MAX_MIB = _env_int("METADATA_SQL_MAX_MIB", 256)                  # 16-1024
     RESULTS_MAX_MIB = _env_int("METADATA_RESULTS_MAX_MIB", 256)          # 16-1024
@@ -144,6 +145,7 @@ def validate_limits() -> list:
         if not (lo <= val <= hi):
             errs.append(f"{name}={val} 超出允许范围 [{lo},{hi}]")
     chk("METADATA_JOB_TIMEOUT_SECONDS", MetadataLimits.JOB_TIMEOUT, 300, 7200)
+    chk("METADATA_PUBLISH_TIMEOUT_SECONDS", MetadataLimits.PUBLISH_TIMEOUT, 60, 3600)
     chk("METADATA_CHILD_RSS_LIMIT_MIB", MetadataLimits.CHILD_RSS_LIMIT_MIB, 512, 4096)
     chk("METADATA_SQL_MAX_MIB", MetadataLimits.SQL_MAX_MIB, 16, 1024)
     chk("METADATA_RESULTS_MAX_MIB", MetadataLimits.RESULTS_MAX_MIB, 16, 1024)

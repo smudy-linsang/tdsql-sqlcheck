@@ -133,11 +133,13 @@ class MetadataJobRepository:
         busy：active_job_id 非空 → 409/METADATA_BUSY（不排长队）。
         锁顺序固定 slot → job。
         """
-        # D-02：受理前先回收"受理后超期未被认领"的幽灵任务（释放唯一槽），
-        # 使 runner 已死时新请求仍能自愈，不被永久 METADATA_BUSY 挡住。
+        # D-02 + FIXREQ-v1.6.3.6-01 §2.1：受理前先收敛"无主悬挂"任务（ACCEPTED 幽灵 +
+        # PUBLISHING/PUBLISHED 悬挂），释放唯一槽，使 runner 已死时新请求仍能自愈，
+        # 不被永久 METADATA_BUSY 挡住。
         try:
             from backend.services import metadata_job_process as _jp
-            self.reclaim_stale_accepted(_jp.MetadataLimits.START_TIMEOUT)
+            self.reclaim_stale_unowned(_jp.MetadataLimits.START_TIMEOUT,
+                                       _jp.MetadataLimits.PUBLISH_TIMEOUT)
         except Exception:
             pass   # 回收失败不阻断本次受理
         conn = _get_connection()
@@ -535,63 +537,119 @@ class MetadataJobRepository:
             extra={"finished_at": _now(), "cleanup_ok": 1 if cleanup_ok else 0})
 
     def reclaim_stale_accepted(self, start_timeout_seconds: int) -> Optional[str]:
-        """回收"受理后超期未被认领"的任务：判 FAILED/START_TIMEOUT 并释放槽。
+        """（薄包装，向后兼容）回收过期未认领 ACCEPTED 任务，返回被回收的 job_id 或 None。
 
-        UAT-O-1635-R2 D-02：runner 受理后失效/被 SIGKILL 时，唯一受理槽被幽灵任务
-        永久占用。本方法只处理"确证从未被认领"的过期 ACCEPTED 任务（不碰 RUNNING、
-        不抢占其他 runner 的槽、不发信号不杀 PID）。返回被回收的 job_id 或 None。
-
-        守卫（缺一不可）：job.state='ACCEPTED' 且 slot.active_job_id=job.id 且
-        超期（now - created_at > start_timeout_seconds）。锁序保持 slot → job。
+        FIXREQ-v1.6.3.6-01 §2.1：实际逻辑已并入 reclaim_stale_unowned（统一收敛无主
+        悬挂任务）；保留本方法签名以免打破既有用例与调用点。
         """
+        r = self.reclaim_stale_unowned(start_timeout_seconds)
+        accepted = r.get("accepted") or []
+        return accepted[0] if accepted else None
+
+    def reclaim_stale_unowned(self, accepted_timeout_s: int,
+                              publishing_timeout_s: int = 600) -> dict:
+        """收敛"无主悬挂"任务（FIXREQ-v1.6.3.6-01 §2.1）。返回 {'accepted': [...],
+        'published': [...]} 供日志/告警。
+
+        旧 reclaim_stale_accepted 只"从槽出发"，槽为空或指向他人就直接 return——这正是
+        UAT36-01（PUBLISHED 悬挂）与 D-04（幽灵 ACCEPTED）锁死前端的根因。本方法改为
+        扫描全部非终态任务，对每个判定槽归属后收敛（仍守 slot → job 锁序，写
+        finished_at + cleanup_ok=1 + warning 留痕）：
+          A) state='ACCEPTED' 且 age(created_at) > accepted_timeout_s
+             且（slot.active_job_id == job.id 或 slot.active_job_id IS NULL）
+             → FAILED / START_TIMEOUT；仅当槽指向它时释放槽
+          B) state IN ('PUBLISHING','PUBLISHED') 且 age(updated_at) > publishing_timeout_s
+             · report_id 非空 → SUCCEEDED / DONE（成果已落库，属良性收口）
+             · report_id 为空 → FAILED / PERSIST_TIMEOUT（发布事务未提交）
+             → 仅当槽指向它时释放槽
+        §2.1b 决策（Mr.Linsang 2026-09-11 采纳）：RUNNING **不纳入自动回收**（runner
+        崩溃后 child 可能仍在写产物，自动判失败会误杀并产生二次不一致）；STOPPING /
+        RECOVERY_REQUIRED 同样不动。RUNNING 悬挂仅由 _job_summary.stale_running 暴露。
+        安全性：claim_next_accepted() 只从槽取任务，"槽未指向它"的悬挂任务任何时刻都不
+        可能被认领；publishing_timeout_s 默认 600s 远大于正常发布耗时（本机 <1s、内网
+        6097 表 <1min），不会误伤在跑任务。
+        """
+        from datetime import datetime, timezone
+        from backend.services import metadata_job_process as _jp
+        result = {"accepted": [], "published": []}
         conn = _get_connection()
         try:
+            # 锁序 slot → job：先锁槽并读到当前槽归属
             conn.execute("SELECT * FROM metadata_audit_slot WHERE id=? FOR UPDATE",
                          (SLOT_ID,))
             slot = _row_to_dict(conn.execute(
                 "SELECT * FROM metadata_audit_slot WHERE id=?", (SLOT_ID,)).fetchone())
-            job_id = (slot or {}).get("active_job_id")
-            if not job_id:
-                conn.commit()
-                return None
-            job = _row_to_dict(conn.execute(
-                "SELECT * FROM metadata_audit_jobs WHERE id=? FOR UPDATE",
-                (job_id,)).fetchone())
-            if not job or job["state"] != STATE_ACCEPTED:
-                conn.commit()
-                return None
-            # 超期判定：now(UTC) - created_at > start_timeout_seconds
-            from backend.services import metadata_job_process as _jp
-            created = _jp.parse_utc(job.get("created_at"))
-            if created is None:
-                conn.commit()
-                return None
-            from datetime import datetime, timezone
-            age = (datetime.now(timezone.utc) - created).total_seconds()
-            if age <= start_timeout_seconds:
-                conn.commit()
-                return None
+            slot_active = (slot or {}).get("active_job_id")
+            # 扫描全部非终态任务（悬挂任务的槽可能不指向它，故不能只从槽出发）
+            rows = conn.execute(
+                "SELECT * FROM metadata_audit_jobs WHERE state NOT IN (?,?,?)",
+                (STATE_SUCCEEDED, STATE_FAILED, STATE_CANCELLED)).fetchall()
+            now_dt = datetime.now(timezone.utc)
             now = _now()
-            cur = conn.execute(
-                """UPDATE metadata_audit_jobs SET state=?, phase=?, error_code=?,
-                   error_message=?, finished_at=?, cleanup_ok=1, updated_at=?
-                   WHERE id=? AND state=?""",
-                (STATE_FAILED, PHASE_CLEANUP, "START_TIMEOUT",
-                 "受理后执行器未在期限内认领，任务已作废并释放受理槽。",
-                 now, now, job_id, STATE_ACCEPTED))
-            if getattr(cur, "rowcount", 1) < 1:
-                conn.rollback()
-                return None
-            conn.execute(
-                "UPDATE metadata_audit_slot SET active_job_id=NULL, updated_at=? "
-                "WHERE id=? AND active_job_id=?", (now, SLOT_ID, job_id))
+            for row in rows:
+                job = _row_to_dict(row)
+                jid, state = job["id"], job["state"]
+                owned_by_slot = (slot_active == jid)
+                if state == STATE_ACCEPTED:
+                    created = _jp.parse_utc(job.get("created_at"))
+                    if created is None:
+                        continue
+                    if (now_dt - created).total_seconds() <= accepted_timeout_s:
+                        continue
+                    # 槽指向它 或 槽空闲才收敛；槽被他人占用则不动（不抢槽）
+                    if not (owned_by_slot or slot_active is None):
+                        continue
+                    cur = conn.execute(
+                        """UPDATE metadata_audit_jobs SET state=?, phase=?, error_code=?,
+                           error_message=?, finished_at=?, cleanup_ok=1, updated_at=?
+                           WHERE id=? AND state=?""",
+                        (STATE_FAILED, PHASE_CLEANUP, "START_TIMEOUT",
+                         "受理后执行器未在期限内认领，任务已作废并释放受理槽。",
+                         now, now, jid, STATE_ACCEPTED))
+                    if getattr(cur, "rowcount", 1) < 1:
+                        continue
+                    bucket = "accepted"
+                    new_state = STATE_FAILED
+                elif state in (STATE_PUBLISHING, STATE_PUBLISHED):
+                    updated = _jp.parse_utc(job.get("updated_at"))
+                    if updated is None:
+                        continue
+                    if (now_dt - updated).total_seconds() <= publishing_timeout_s:
+                        continue
+                    report_id = job.get("report_id")
+                    if report_id:
+                        new_state, phase, ecode, emsg = (
+                            STATE_SUCCEEDED, PHASE_DONE, None, None)
+                    else:
+                        new_state, phase, ecode, emsg = (
+                            STATE_FAILED, PHASE_CLEANUP, "PERSIST_TIMEOUT",
+                            "发布阶段超时未收口且无成果落库，任务判失败并释放受理槽。")
+                    cur = conn.execute(
+                        """UPDATE metadata_audit_jobs SET state=?, phase=?, error_code=?,
+                           error_message=?, finished_at=?, cleanup_ok=1, updated_at=?
+                           WHERE id=? AND state=?""",
+                        (new_state, phase, ecode, emsg, now, now, jid, state))
+                    if getattr(cur, "rowcount", 1) < 1:
+                        continue
+                    bucket = "published"
+                else:
+                    # §2.1b：RUNNING / STOPPING / RECOVERY_REQUIRED 不自动收敛
+                    continue
+                # 仅当槽指向它时释放槽（不抢他人占用）
+                if owned_by_slot:
+                    conn.execute(
+                        "UPDATE metadata_audit_slot SET active_job_id=NULL, updated_at=? "
+                        "WHERE id=? AND active_job_id=?", (now, SLOT_ID, jid))
+                    slot_active = None   # 槽已释放，同轮后续任务按"槽空"判定
+                result[bucket].append(jid)
+                logger.warning("收敛无主悬挂任务 job_id=%s state=%s → %s slot_owned=%s",
+                               jid, state, new_state, owned_by_slot)
             conn.commit()
-            logger.warning("回收过期未认领任务 job_id=%s age_s=%.1f", job_id, age)
-            return job_id
+            return result
         except Exception as e:
             conn.rollback()
-            logger.error("回收过期未认领任务失败: %s", e, exc_info=True)
-            return None
+            logger.error("回收无主悬挂任务失败: %s", e, exc_info=True)
+            return result
         finally:
             conn.close()
 

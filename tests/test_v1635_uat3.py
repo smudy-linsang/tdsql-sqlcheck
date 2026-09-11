@@ -171,20 +171,27 @@ def _has_real_call(src: str, call_name: str) -> bool:
 
 
 def test_reclaim_is_wired_into_acceptance_path():
-    """受理路径必须调用回收（防 M3：方法在但 create_job 没调/被注释）。"""
+    """受理路径必须调用回收（防 M3：方法在但 create_job 没调/被注释）。
+
+    FIXREQ-v1.6.3.6-01 §2.1：受理前自愈调用点由 reclaim_stale_accepted 改调
+    reclaim_stale_unowned（统一收敛无主悬挂）；本接线锁同步更新方法名，意图不变。
+    """
     import inspect
     src = inspect.getsource(R.MetadataJobRepository.create_job)
-    assert _has_real_call(src, "self.reclaim_stale_accepted"), \
-        "create_job 中没有对 reclaim_stale_accepted 的真实调用（可能只剩注释）"
+    assert _has_real_call(src, "self.reclaim_stale_unowned"), \
+        "create_job 中没有对 reclaim_stale_unowned 的真实调用（可能只剩注释）"
 
 
 def test_reclaim_is_wired_into_runner_tick():
-    """runner 每轮必须调用回收（防 M4：runner._tick 没调/被注释）。"""
+    """runner 每轮必须调用回收（防 M4：runner._tick 没调/被注释）。
+
+    FIXREQ-v1.6.3.6-01 §2.1：runner._tick 回收调用点改调 reclaim_stale_unowned。
+    """
     import inspect
     from backend.workers.metadata_runner import MetadataRunner
     src = inspect.getsource(MetadataRunner._tick)
-    assert _has_real_call(src, "self.repo.reclaim_stale_accepted"), \
-        "runner._tick 中没有对 reclaim_stale_accepted 的真实调用（可能只剩注释）"
+    assert _has_real_call(src, "self.repo.reclaim_stale_unowned"), \
+        "runner._tick 中没有对 reclaim_stale_unowned 的真实调用（可能只剩注释）"
 
 
 def test_stale_reclaim_selfheal_end_to_end():
