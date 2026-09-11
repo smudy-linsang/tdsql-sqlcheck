@@ -183,8 +183,13 @@ def run(job_id: str, attempt_token: str) -> int:
         # total_statements 用实际拆句数（len(records)），audited_statements 同步；
         # 不能用表数冒充，不再依赖 idx%50 的稀疏采样（否则终态停在 51 而非 63）。
         _final_count = len(records)
+        # skipped_list 限长（progress_json 限 128KiB）：只存计数 + 前 50 条跳过明细
+        _prog_stats = dict(stats)
+        _skipped_list = _prog_stats.get("skipped_list") or []
+        _prog_stats["skipped_objects"] = len(_skipped_list)
+        _prog_stats["skipped_list"] = _skipped_list[:50]
         repo.update_progress(job_id, attempt_token, R.PHASE_SERIALIZING,
-                             json.dumps({**stats,
+                             json.dumps({**_prog_stats,
                                          "total_statements": _final_count,
                                          "audited_statements": _final_count},
                                         ensure_ascii=False))

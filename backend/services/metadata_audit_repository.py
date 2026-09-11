@@ -50,8 +50,51 @@ PHASE_CLEANUP = "CLEANUP"
 PHASE_DONE = "DONE"
 
 SLOT_ID = 1
-# 发布前包大小预检余量（转义膨胀按 2 倍 + 64 KiB）
+# 发布前包大小预检余量（参数封装 + SQL 模板开销，64 KiB 足矣；不再 *2 虚假翻倍）
 _PACKET_MARGIN = 64 * 1024
+# v1.6.3.6 / BUG-02：大库轻量压缩阈值（32 MiB，远低于 MySQL 默认 64 MiB，留足转义余量）
+MAX_DB_PAYLOAD_THRESHOLD = 32 * 1024 * 1024
+# 压缩时保留的"通过项"样例条数（违规项全保留）
+_COMPACT_PASS_KEPT = 50
+
+
+def compact_results_for_audit_history(results_json: str, job_id: str = "") -> str:
+    """超大结果集的**向后兼容 list 格式**轻量压缩（v1.6.3.6 / BUG-02）。
+
+    仅当 results_json 超过 MAX_DB_PAYLOAD_THRESHOLD 时触发；返回仍为 JSON **list**
+    （保留全部含违规条目 + 前 _COMPACT_PASS_KEPT 条通过项），不破坏既有消费方
+    （report_service / dashboard / sql_audit 历史详情 / snapshot 提取）把
+    results_json 当 list 遍历的契约。完整明细始终在本地 artifacts/results.ndjson，
+    前端分页读取体验无损。未超阈值原样返回。
+    """
+    raw = results_json.encode("utf-8")
+    if len(raw) <= MAX_DB_PAYLOAD_THRESHOLD:
+        return results_json
+    try:
+        records = json.loads(results_json)
+    except (json.JSONDecodeError, TypeError):
+        return results_json   # 非 list JSON 不压缩，交由预检如实报错
+    if not isinstance(records, list):
+        return results_json
+    compact = []
+    pass_kept = 0
+    omitted = 0
+    for r in records:
+        if not isinstance(r, dict):
+            compact.append(r)
+            continue
+        if (not r.get("passed", True)) or r.get("violations"):
+            compact.append(r)          # 违规条目全保留
+        else:
+            if pass_kept < _COMPACT_PASS_KEPT:
+                compact.append(r)
+                pass_kept += 1
+            else:
+                omitted += 1
+    logger.info("审核结果 %d 字节超阈值 %d，启用大库轻量存储：保留 %d 条（违规全留+通过样例%d），"
+                "省略通过项 %d 条（完整明细见 artifacts）",
+                len(raw), MAX_DB_PAYLOAD_THRESHOLD, len(compact), pass_kept, omitted)
+    return json.dumps(compact, ensure_ascii=False)
 
 
 def _now() -> str:
@@ -319,16 +362,29 @@ class MetadataJobRepository:
     # ── 原子发布（严格写 audit_history + 关联 report_id）──────────────────
     def publish(self, job_id: str, attempt_token: str, *,
                 audit_columns_values: tuple, results_json: str) -> int:
-        """严格原子发布：先包大小预检，再事务 INSERT audit_history + 关联 job.report_id。
+        """严格原子发布：先（必要时）大库轻量压缩 + 包大小预检，再事务 INSERT。
 
-        audit_columns_values 与 audit_history 的 21 列对齐（见 _save_audit_history）。
+        v1.6.3.6 / BUG-02：
+          · 废除 `*2` 虚假翻倍预检（PyMySQL 转义膨胀远小于 2 倍，原写法自杀式误拦）；
+          · 超大结果（>32MiB）启用**向后兼容的 list 格式**轻量压缩：保留全部违规条目 +
+            前 50 条通过项，仍为 JSON list（不破坏 report_service/dashboard/sql_audit/
+            snapshot 等 `json.loads(results_json)` 当 list 遍历的既有消费方）；
+            完整明细始终在本地 artifacts/results.ndjson，前端分页读取体验无损。
+        audit_columns_values 与 audit_history 的 21 列对齐（results_json 在第 9 列/索引 8）。
         返回 report_id。任何失败抛 MetadataJobError（不吞错、不截断成成功）。
         """
         conn = _get_connection()
         try:
-            # max_allowed_packet 预检（mogrify 精确化以 results_json UTF-8 字节近似，
-            # 含转义膨胀按 2 倍 + 64 KiB 余量；超限明确失败，不自动 SET GLOBAL/截断）
-            payload = len(results_json.encode("utf-8")) * 2 + _PACKET_MARGIN
+            # 大库轻量压缩（>32MiB 才触发；返回仍为 list 的 JSON）
+            compacted = compact_results_for_audit_history(results_json, job_id)
+            if compacted != results_json:
+                results_json = compacted
+                audit_columns_values = tuple(
+                    compacted if i == 8 else v
+                    for i, v in enumerate(audit_columns_values))
+            # max_allowed_packet 预检：真实 UTF-8 字节 + 64KiB 封装余量（不再 *2）。
+            # 压缩后 payload ≤32MiB，转义膨胀后仍远小于默认 64MiB，安全。
+            payload = len(results_json.encode("utf-8")) + _PACKET_MARGIN
             row = conn.execute("SELECT @@session.max_allowed_packet AS p").fetchone()
             max_pkt = int((row or {}).get("p") or 0)
             if max_pkt and payload > max_pkt:

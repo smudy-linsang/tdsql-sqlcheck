@@ -189,6 +189,7 @@ def _job_summary(job: dict) -> dict:
             "extracted_objects": progress.get("extracted_objects"),
             "total_statements": progress.get("total_statements"),
             "audited_statements": progress.get("audited_statements"),
+            "skipped_objects": progress.get("skipped_objects"),
         },
         "report_id": job.get("report_id"), "snapshot_id": job.get("snapshot_id"),
         "cleanup_ok": job.get("cleanup_ok"),

@@ -14,6 +14,7 @@ worker 子进程调用。关键差异（对比旧路由）：
 
 import json
 import logging
+import re
 from typing import Iterator, Optional
 
 from backend.engine.checker import RuleChecker
@@ -21,6 +22,18 @@ from backend.engine.checker import RuleChecker
 logger = logging.getLogger("tdsql.metadata_pipeline")
 
 VALID_SCOPES = ("TABLE", "INDEX", "VIEW", "SHARDKEY")
+
+# v1.6.3.6 / BUG-01：TDSQL 分布式/二级分区的底层物理分片子表模式。
+# information_schema.TABLES 会枚举出这些物理子表（如 xxx_tdsql_subp190001），
+# 但 TDSQL Proxy 不允许对单个物理分片 SHOW CREATE（报 660 Proxy ERROR ... does not exist）。
+# 主表 DDL 已包含全部分区/分片定义，子表无需也不能单独提取 → 前置过滤。
+_TDSQL_INTERNAL_PARTITION_PATTERN = re.compile(
+    r".*_tdsql_(subp|shard)\d*$", re.IGNORECASE)
+
+
+def is_tdsql_internal_table(table_name: str) -> bool:
+    """判定是否为 TDSQL 底层物理分片子表（主表 DDL 已纳管，不可单独 SHOW CREATE）。"""
+    return bool(_TDSQL_INTERNAL_PARTITION_PATTERN.match(table_name or ""))
 
 
 class MetadataExtractError(Exception):
@@ -141,20 +154,49 @@ def extract_metadata(pool, target_db: str, scopes: list,
                 f"库 {target_db} 在选择范围 {scopes} 内没有可审核对象"
                 f"（枚举到 {enumerated} 个对象）。")
         extracted = 0
+        skipped_objects = []
         for obj in selected_objs:
             kind = "VIEW" if "VIEW" in obj["type"] else "TABLE"
-            ddl = _show_create(conn, target_db, obj)
+            obj_name = obj["name"]
+            # 1. TDSQL 内部物理分片子表前置跳过（主表 DDL 已纳管，Proxy 不可读）
+            if kind == "TABLE" and is_tdsql_internal_table(obj_name):
+                skipped_objects.append({
+                    "name": obj_name, "type": kind,
+                    "reason": "TDSQL底层物理分片子表，已由父表统一纳管"})
+                logger.debug("跳过 TDSQL 内部物理子表 %s.%s", target_db, obj_name)
+                continue
+            # 2. 单对象 SHOW CREATE 容错：失败仅跳过并留 [SKIPPED] 存证注释，不杀全库
+            try:
+                ddl = _show_create(conn, target_db, obj)
+            except Exception as e:
+                logger.warning("跳过不可读对象 %s.%s(%s): %s",
+                               target_db, obj_name, kind, e)
+                skipped_objects.append({"name": obj_name, "type": kind,
+                                        "reason": str(e)})
+                lines.append("-- ============================================================")
+                lines.append(f"-- [SKIPPED] SQL Object: CREATE {kind}")
+                lines.append(f"-- Object Name: {obj_name}")
+                lines.append(f"-- Skip Reason: {sanitize_comment(str(e))}")
+                lines.append("-- ============================================================")
+                lines.append("")
+                continue
             lines.append(f"-- SQL Object: CREATE {kind}")
-            lines.append(f"-- {'View' if kind == 'VIEW' else 'Table'}: {obj['name']}")
+            lines.append(f"-- {'View' if kind == 'VIEW' else 'Table'}: {obj_name}")
             lines.append(ddl.rstrip(";") + ";")
             lines.append("")
             extracted += 1
-    if extracted != selected:
+    # 仅当所有选定对象全部失败才判不可审核；部分跳过不阻断（跳过清单已存证）
+    if extracted == 0:
         raise MetadataExtractError(
-            "EXTRACT_INCOMPLETE",
-            f"提取不完整：选中 {selected} 个对象，仅成功 {extracted} 个。")
+            "NO_AUDITABLE_OBJECTS",
+            f"库 {target_db} 选中的 {selected} 个对象全部提取失败，无可审核内容。")
+    if skipped_objects:
+        logger.warning("库 %s 提取完成：成功 %d，跳过 %d（详见 skipped_objects）",
+                       target_db, extracted, len(skipped_objects))
     stats = {"enumerated_objects": enumerated, "selected_objects": selected,
-             "extracted_objects": extracted}
+             "extracted_objects": extracted,
+             "skipped_objects": len(skipped_objects),
+             "skipped_list": skipped_objects}
     return lines, stats
 
 
