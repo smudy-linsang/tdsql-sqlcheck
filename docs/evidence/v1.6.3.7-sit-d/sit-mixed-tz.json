@@ -1,0 +1,91 @@
+{
+  "server_tz_offset_h": 8.0,
+  "records": [
+    {
+      "id": 4,
+      "source": "extracted_uat_d_1636_dist_a0278f77.sql",
+      "created_at": "2026-09-11T14:18:09"
+    },
+    {
+      "id": 7,
+      "source": "extracted_d36_probe.sql",
+      "created_at": "2026-09-11T00:00:00"
+    },
+    {
+      "id": 8,
+      "source": "extracted_uat_d_1636_dist_3043e1af.sql",
+      "created_at": "2026-09-11T14:22:39"
+    },
+    {
+      "id": 9,
+      "source": "f.sql",
+      "created_at": "2026-09-11T14:25:28"
+    },
+    {
+      "id": 12,
+      "source": "extracted_orphan.sql",
+      "created_at": "2026-09-11T00:00:00"
+    },
+    {
+      "id": 13,
+      "source": "extracted_orphan.sql",
+      "created_at": "2026-09-11T00:00:00"
+    },
+    {
+      "id": 14,
+      "source": "extracted_orphan.sql",
+      "created_at": "2026-09-11T00:00:00"
+    },
+    {
+      "id": 15,
+      "source": "f.sql",
+      "created_at": "2026-09-11T00:00:00"
+    },
+    {
+      "id": 16,
+      "source": "f.sql",
+      "created_at": "2026-09-11T00:00:00"
+    },
+    {
+      "id": 17,
+      "source": "extracted_orphan.sql",
+      "created_at": "2026-09-11T00:00:00"
+    },
+    {
+      "id": 18,
+      "source": "f.sql",
+      "created_at": "2026-09-11T16:12:25"
+    },
+    {
+      "id": 21,
+      "source": "f.sql",
+      "created_at": "2026-09-11T16:12:32"
+    },
+    {
+      "id": 22,
+      "source": "extracted_uat_d_1636_dist_2ebe5fd3.sql",
+      "created_at": "2026-09-11T16:14:17"
+    },
+    {
+      "id": 23,
+      "source": "extracted_uat_d_1636_dist_20260912_151849.sql",
+      "created_at": "2026-09-12T15:18:50"
+    },
+    {
+      "id": 24,
+      "source": "extracted_uat_d_1636_dist_20260912_153000.sql",
+      "created_at": "2026-09-12T15:30:00"
+    },
+    {
+      "id": 25,
+      "source": "extracted_uat_d_1636_dist_20260912_153000.sql",
+      "created_at": "2026-09-12T15:30:00"
+    },
+    {
+      "id": 26,
+      "source": "extracted_uat_d_1636_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx_20260912_151916.sql",
+      "created_at": "2026-09-12T15:19:16"
+    }
+  ],
+  "note": "v1.6.3.6 及更早的 worker 记录写 UTC；本次整改后写本地时间 —— 同列混用两种时基，差 = 服务器时区偏移"
+}

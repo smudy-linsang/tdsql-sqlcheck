@@ -1,0 +1,11 @@
+{
+  "db_len": 64,
+  "expected_name_len": 94,
+  "rc": 0,
+  "state": "SUCCEEDED",
+  "source": "extracted_uat_d_1636_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx_20260912_151916.sql",
+  "actual_len": 94,
+  "source_matches_rule": true,
+  "truncated_or_rejected": false,
+  "verdict": "PASS 超长库名仍完整落库"
+}

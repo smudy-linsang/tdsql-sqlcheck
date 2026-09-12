@@ -1,0 +1,108 @@
+{
+  "headers_has_report_id": true,
+  "headers_head": [
+    "",
+    "报告ID",
+    "提取生成的 SQL 文件",
+    "实例",
+    "库名",
+    "口径",
+    "审核人",
+    "对象数",
+    "跳过",
+    "通过/失败",
+    "通过率",
+    "提取时间"
+  ],
+  "rows_head": [
+    [
+      "",
+      "#25",
+      "extracted_uat_d_1636_dist_20260912_153000.sql",
+      "D36-分布式库-含子表命名",
+      "uat_d_1636_dist",
+      "分布式",
+      "uat_d_1636",
+      "9",
+      "-",
+      "0 / 9",
+      "0.0%",
+      "2026-09-12 15:30",
+      "下载 .sql\n下载 HTML 报告"
+    ],
+    [
+      "",
+      "#24",
+      "extracted_uat_d_1636_dist_20260912_153000.sql",
+      "D36-分布式库-含子表命名",
+      "uat_d_1636_dist",
+      "分布式",
+      "uat_d_1636",
+      "9",
+      "-",
+      "0 / 9",
+      "0.0%",
+      "2026-09-12 15:30",
+      "下载 .sql\n下载 HTML 报告"
+    ],
+    [
+      "",
+      "#26",
+      "extracted_uat_d_1636_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx_20260912_151916.sql",
+      "D36-SIT-超长库名",
+      "uat_d_1636_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "分布式",
+      "uat_d_1636",
+      "1",
+      "-",
+      "0 / 1",
+      "0.0%",
+      "2026-09-12 15:19",
+      "下载 .sql\n下载 HTML 报告"
+    ],
+    [
+      "",
+      "#23",
+      "extracted_uat_d_1636_dist_20260912_151849.sql",
+      "D36-分布式库-含子表命名",
+      "uat_d_1636_dist",
+      "分布式",
+      "uat_d_1636",
+      "9",
+      "-",
+      "0 / 9",
+      "0.0%",
+      "2026-09-12 15:18",
+      "下载 .sql\n下载 HTML 报告"
+    ],
+    [
+      "",
+      "#31",
+      "extracted_uat_d_1636_dist_20260912_152048.sql",
+      "D36-分布式库-含子表命名",
+      "uat_d_1636_dist",
+      "分布式",
+      "uat_d_1636",
+      "9",
+      "-",
+      "0 / 9",
+      "0.0%",
+      "2026-09-12 07:20",
+      "下载 .sql\n下载 HTML 报告"
+    ]
+  ],
+  "names": [
+    "extracted_uat_d_1636_dist_20260912_153000.sql",
+    "extracted_uat_d_1636_dist_20260912_153000.sql",
+    "extracted_uat_d_1636_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx_20260912_151916.sql",
+    "extracted_uat_d_1636_dist_20260912_151849.sql",
+    "extracted_uat_d_1636_dist_20260912_152048.sql"
+  ],
+  "names_all_timestamp_form": true,
+  "any_uuid_form": false,
+  "filter_today": {
+    "date": "2026-09-12",
+    "row_count": 5
+  },
+  "verdict": "PASS 历史列表展示还原命名且可按当天筛选"
+}

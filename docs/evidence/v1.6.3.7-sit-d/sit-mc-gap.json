@@ -1,0 +1,16 @@
+{
+  "anchor_found": true,
+  "suites_rc_under_defect": 0,
+  "suites_tail": "46 passed, 3 warnings in 12.24s",
+  "locks_caught_it": false,
+  "real_run": {
+    "source": "extracted_uat_d_1636_dist_20260912_152048.sql",
+    "ts_part": "20260912_152048",
+    "audit_history_created_at": "2026-09-12T07:20:49",
+    "sql_header_line": "-- 鎻愬彇鏃ユ湡: 2026-09-12 15:20:49",
+    "state": "SUCCEEDED"
+  },
+  "drift_hours_source_vs_created_at": -8.0,
+  "verdict": "确证假绿：缺陷态下 4 个套件全绿，而真实落库出现 -8.0 小时错位（source 本地时间 / created_at UTC）",
+  "restored": true
+}

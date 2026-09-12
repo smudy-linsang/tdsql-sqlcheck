@@ -1,0 +1,47 @@
+{
+  "audit_history.source": {
+    "Field": "source",
+    "Type": "text",
+    "Null": "YES",
+    "Key": "",
+    "Default": "None",
+    "Extra": ""
+  },
+  "scan_snapshots.scan_label": {
+    "Field": "scan_label",
+    "Type": "varchar(512)",
+    "Null": "NO",
+    "Key": "",
+    "Default": "",
+    "Extra": ""
+  },
+  "existing_extracted": [
+    {
+      "id": 22,
+      "source": "extracted_uat_d_1636_dist_2ebe5fd3.sql",
+      "created_at": "2026-09-11T16:14:17"
+    },
+    {
+      "id": 21,
+      "source": "f.sql",
+      "created_at": "2026-09-11T16:12:32"
+    },
+    {
+      "id": 18,
+      "source": "f.sql",
+      "created_at": "2026-09-11T16:12:25"
+    },
+    {
+      "id": 17,
+      "source": "extracted_orphan.sql",
+      "created_at": "2026-09-11T00:00:00"
+    },
+    {
+      "id": 16,
+      "source": "f.sql",
+      "created_at": "2026-09-11T00:00:00"
+    }
+  ],
+  "server_local_now": "2026-09-12 15:18:40",
+  "server_utc_now": "2026-09-12 07:18:40"
+}

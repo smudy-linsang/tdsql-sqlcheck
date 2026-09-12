@@ -1,0 +1,39 @@
+{
+  "total_reports": 17,
+  "newest_three": [
+    {
+      "id": 25,
+      "source": "extracted_uat_d_1636_dist_20260912_153000.sql",
+      "created_at": "2026-09-12T15:30:00"
+    },
+    {
+      "id": 24,
+      "source": "extracted_uat_d_1636_dist_20260912_153000.sql",
+      "created_at": "2026-09-12T15:30:00"
+    },
+    {
+      "id": 26,
+      "source": "extracted_uat_d_1636_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx_20260912_151916.sql",
+      "created_at": "2026-09-12T15:19:16"
+    }
+  ],
+  "target_report": {
+    "id": 25,
+    "source": "extracted_uat_d_1636_dist_20260912_153000.sql",
+    "created_at": "2026-09-12T15:30:00"
+  },
+  "sql_download": {
+    "status": 200,
+    "content_disposition": "attachment; filename=extracted_uat_d_1636_dist_20260912_153000.sql",
+    "filename_equals_source": true,
+    "body_bytes": 2708
+  },
+  "html_report": {
+    "status": 200,
+    "bytes": 21278,
+    "shows_source": true,
+    "shows_jobid_form": false
+  },
+  "report_id_field_present": true,
+  "verdict": "PASS 下载与报告抬头均使用还原后的文件名"
+}

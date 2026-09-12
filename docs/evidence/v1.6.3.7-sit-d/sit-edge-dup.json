@@ -1,0 +1,16 @@
+{
+  "job1": "e7e4a5f8482a4dd09376f89ea04be3c1",
+  "job2": "769761199c9948bfae53615c69095bcc",
+  "rows": [
+    {
+      "id": 24,
+      "source": "extracted_uat_d_1636_dist_20260912_153000.sql"
+    },
+    {
+      "id": 25,
+      "source": "extracted_uat_d_1636_dist_20260912_153000.sql"
+    }
+  ],
+  "two_jobs_same_name": true,
+  "note": "同名代表两次不同任务产出同一文件名；磁盘产物按 job_id 隔离，故仅影响可读性与检索"
+}

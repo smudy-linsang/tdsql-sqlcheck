@@ -1,0 +1,47 @@
+{
+  "dirty_before": "M backend/api/sql_audit.py\n M backend/config.py\n M backend/workers/metadata_audit_worker.py\n M deploy/make_patch.py\n M frontend/index.html\n M tests/test_v1636_bugs.py\n?? deploy/patch_v1637_source.sql\n?? tests/test_v1637_filename_rule.py",
+  "mutations": [
+    {
+      "id": "MA",
+      "target": "命名还原（L1/L4 本体）",
+      "desc": "把文件名改回 UUID 前缀（v1.6.3.5/1.6.3.6 缺陷态）",
+      "applied": true,
+      "test": "test_l1_worker_filename_format_and_no_job_id",
+      "caught": true,
+      "tail": "1 failed, 3 warnings in 1.29s"
+    },
+    {
+      "id": "MB",
+      "target": "时间戳取本地时间（L2 本体）",
+      "desc": "时间戳改用 UTC（东八区下与本地时间差 8 小时）",
+      "applied": true,
+      "test": "test_l2_filename_timestamp_matches_local_now",
+      "caught": true,
+      "tail": "1 failed, 3 warnings in 1.38s"
+    },
+    {
+      "id": "MC",
+      "target": "created_at 时区口径用例",
+      "desc": "created_at 回退为 UTC（文件名与提取时间错位 8 小时）",
+      "applied": true,
+      "test": "test_metadata_audit_history_created_at_is_local_time",
+      "caught": false,
+      "tail": "1 passed, 3 warnings in 1.15s"
+    },
+    {
+      "id": "MD",
+      "target": "L1 的 file_path/source 一致性断言",
+      "desc": "审核流 file_path 与落库 source 解耦（契约漂移）",
+      "applied": true,
+      "test": "test_l1_worker_filename_format_and_no_job_id",
+      "caught": true,
+      "tail": "1 failed, 3 warnings in 1.16s"
+    }
+  ],
+  "restored_all_green": true,
+  "restored_tail": "4 passed, 3 warnings in 1.49s",
+  "gap_list": [
+    "MC"
+  ],
+  "product_files_changed": "M backend/api/sql_audit.py\n M backend/config.py\n M backend/workers/metadata_audit_worker.py\n M deploy/make_patch.py\n M frontend/index.html\n M tests/test_v1636_bugs.py\n?? deploy/patch_v1637_source.sql\n?? tests/test_v1637_filename_rule.py"
+}
