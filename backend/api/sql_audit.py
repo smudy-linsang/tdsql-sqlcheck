@@ -315,7 +315,7 @@ async def get_extracted_reports(limit: int = Query(20, ge=1, le=200), offset: in
             FROM audit_history h
             LEFT JOIN tdsql_connections c ON c.id = h.connection_id
             WHERE {cond}
-            ORDER BY h.created_at DESC
+            ORDER BY h.created_at DESC, h.id DESC
             LIMIT ? OFFSET ?
         """, (*args, limit, offset)).fetchall()
 

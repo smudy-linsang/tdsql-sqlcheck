@@ -21,8 +21,10 @@ from pathlib import Path
 logger = logging.getLogger("tdsql.metadata_worker")
 
 
-def _utcnow() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S.%f")
+
+def _local_now_str() -> str:
+    """本地时间字符串（与 audit_service / MySQL DATETIME 默认口径一致，系统本地时区）。"""
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
 def _result_to_dict(r) -> dict:
@@ -69,7 +71,7 @@ def _build_report_html(job: dict, ctx: dict, summary: dict, stats: dict,
             conn_name = rc.connections[0].connection_name or ""
     except Exception:
         conn_name = ""
-    now = _utcnow()
+    now = _local_now_str()
     rows = []
     for i, rec in enumerate(records, 1):
         sev_html = ""
@@ -141,7 +143,8 @@ def run(job_id: str, attempt_token: str) -> int:
     instance_type_source = ctx.get("instance_type_source") or ""
     report_ctx_json = ctx.get("report_context") or ""
     created_by = job["created_by"]
-    filename = f"extracted_{db_name}_{job_id[:8]}.sql"
+    now_ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"extracted_{db_name}_{now_ts}.sql"
 
     try:
         # ── 连接目标库（子进程独立建池，解密凭据不出本进程）──
@@ -203,11 +206,12 @@ def run(job_id: str, attempt_token: str) -> int:
         # ── 发布（PUBLISHING → 严格事务落库 audit_history）──
         repo.cas_state(job_id, attempt_token, (R.STATE_RUNNING,), R.STATE_PUBLISHING,
                        phase=R.PHASE_PERSISTING)
+        now_local = _local_now_str()
         audit_cols = (
             "extracted_schema", filename,
             summary["total_sql"], summary["passed"], summary["failed"],
             summary["error_count"], summary["warning_count"], summary["pass_rate"],
-            results_json, created_by, "", None, "", _utcnow(),
+            results_json, created_by, "", None, "", now_local,
             connection_id, db_name, rule_set_id or None,
             instance_type, instance_type_source, 0,
             report_ctx_json or None,
@@ -226,13 +230,16 @@ def run(job_id: str, attempt_token: str) -> int:
         try:
             from backend.services.snapshot_extractors.schema_audit import extract_from_json
             from backend.services import scan_snapshot_service as _snap
+            from backend.services import metadata_job_process as _jp
             _items, _obj_total = extract_from_json(results_json, db_name, node="")
+            st_dt = _jp.parse_utc(job.get("started_at"))
+            local_started = st_dt.astimezone().strftime("%Y-%m-%d %H:%M:%S") if st_dt else now_local
             snapshot_id = _snap.safe_create_snapshot("schema_audit", {
                 "biz_ref_id": str(report_id), "connection_id": connection_id,
                 "connection_name": ctx.get("connection_name", ""), "db_name": db_name,
                 "node": "", "scan_label": filename,
-                "scan_started_at": job.get("started_at") or _utcnow(),
-                "scan_finished_at": _utcnow(), "created_by": created_by,
+                "scan_started_at": local_started,
+                "scan_finished_at": now_local, "created_by": created_by,
                 "rule_set_id": rule_set_id or "", "instance_type": instance_type or "",
                 "report_context_json": report_ctx_json or None,
             }, _items, _obj_total)
