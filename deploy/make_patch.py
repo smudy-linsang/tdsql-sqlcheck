@@ -102,6 +102,8 @@ def build_patch():
         f"REPORT-v{version}-独立质检验收报告.md",
         f"DETAIL-v{version}-在线元数据提取SQL文件命名规则还原详细设计说明书.md",
         f"SIT-v{version}-在线元数据提取SQL文件命名规则还原-SIT测试报告-D.md",
+        f"RETEST-v{version}-在线元数据提取SQL文件命名规则还原-SIT复测报告-D.md",
+        f"UAT-v{version}-在线元数据提取SQL文件命名规则还原-第一轮测试报告-D.md",
         f"DETAIL-v{version}-内网大库测试问题针对性修复详细设计.md",
         f"DETAIL-v{version}-大库在线元数据审核稳定性修复.md",
         f"DETAIL-v{version}-报告实例标识与分区统计及审核网关修复.md",
@@ -173,8 +175,12 @@ def build_patch():
             f"{patch_name}/deploy/upgrade_incremental.sh",
             f"{patch_name}/deploy/verify_deploy.sh",
             f"{patch_name}/docs/DEPLOY-v{version}-内网测试环境增量更新部署手册.md",
-            f"{patch_name}/docs/DEPLOY-v{version}-内网生产环境增量更新部署手册.md",
         ]
+        # 若存在生产部署手册，也纳入强校验
+        prod_doc = f"DEPLOY-v{version}-内网生产环境增量更新部署手册.md"
+        if (ROOT_DIR / "docs" / prod_doc).exists():
+            required_items.append(f"{patch_name}/docs/{prod_doc}")
+
         missing = [item for item in required_items if item not in names]
         if missing:
             raise RuntimeError(f"补丁包缺少关键文件: {missing}")
