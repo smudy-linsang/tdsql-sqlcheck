@@ -1,0 +1,117 @@
+{
+  "scenario": "u4_smoke_others",
+  "started_utc": "2026-09-12T08:22:16.480110+00:00",
+  "smoke": {
+    "即时审核": {
+      "ok": true,
+      "route": "",
+      "cards": 1,
+      "body_len": 139
+    },
+    "文件审核": {
+      "ok": true,
+      "route": "",
+      "cards": 2,
+      "body_len": 179
+    },
+    "扫描任务": {
+      "ok": true,
+      "route": "",
+      "cards": 3,
+      "body_len": 209
+    },
+    "慢SQL记录": {
+      "ok": true,
+      "route": "",
+      "cards": 1,
+      "body_len": 209
+    },
+    "EXPLAIN分析": {
+      "ok": true,
+      "route": "",
+      "cards": 1,
+      "body_len": 166
+    },
+    "上线检查": {
+      "ok": true,
+      "route": "",
+      "cards": 3,
+      "body_len": 214
+    },
+    "大表治理": {
+      "ok": true,
+      "route": "",
+      "cards": 3,
+      "body_len": 281
+    },
+    "深度诊断": {
+      "ok": true,
+      "route": "",
+      "cards": 1,
+      "body_len": 286
+    },
+    "实例管理": {
+      "ok": true,
+      "route": "",
+      "cards": 1,
+      "body_len": 2308
+    },
+    "审核规则库": {
+      "ok": true,
+      "route": "",
+      "cards": 1,
+      "body_len": 261
+    },
+    "评估规则集": {
+      "ok": true,
+      "route": "",
+      "cards": 1,
+      "body_len": 318
+    },
+    "用户管理": {
+      "ok": true,
+      "route": "",
+      "cards": 1,
+      "body_len": 270
+    },
+    "角色管理": {
+      "ok": true,
+      "route": "",
+      "cards": 1,
+      "body_len": 391
+    },
+    "权限矩阵": {
+      "ok": true,
+      "route": "",
+      "cards": 1,
+      "body_len": 730
+    },
+    "数据保留": {
+      "ok": true,
+      "route": "",
+      "cards": 1,
+      "body_len": 533
+    },
+    "操作审计": {
+      "ok": true,
+      "route": "",
+      "cards": 1,
+      "body_len": 1826
+    },
+    "系统信息": {
+      "ok": true,
+      "route": "",
+      "cards": 1,
+      "body_len": 308
+    },
+    "instant_audit_run": {
+      "ok": true,
+      "has_result_rows": 0,
+      "body_len": 351
+    },
+    "js_errors": [],
+    "version_mark": "TDSQL数据库SQL审核工具 V1.6.3.7"
+  },
+  "smoke_all_ok": true,
+  "saved_utc": "2026-09-12T08:22:50.514689+00:00"
+}

@@ -1,0 +1,212 @@
+{
+  "rows": [
+    {
+      "id": 1386,
+      "db_name": "uat_d_1636_dist",
+      "source": "extracted_uat_d_1636_dist_20260912_161741.sql",
+      "created_at": "2026-09-12T16:17:43",
+      "kind": "新规-时间戳形态",
+      "uuid_form": false,
+      "ts_form": true
+    },
+    {
+      "id": 1385,
+      "db_name": "uat_d_1636_dist",
+      "source": "extracted_uat_d_1636_dist_20260912_161634.sql",
+      "created_at": "2026-09-12T16:16:35",
+      "kind": "新规-时间戳形态",
+      "uuid_form": false,
+      "ts_form": true
+    },
+    {
+      "id": 1384,
+      "db_name": "uat_d_1636_dist",
+      "source": "extracted_uat_d_1636_dist_20260912_160846.sql",
+      "created_at": "2026-09-12T16:08:47",
+      "kind": "新规-时间戳形态",
+      "uuid_form": false,
+      "ts_form": true
+    },
+    {
+      "id": 31,
+      "db_name": "uat_d_1636_dist",
+      "source": "extracted_uat_d_1636_dist_20260912_152048.sql",
+      "created_at": "2026-09-12T07:20:49",
+      "kind": "新规-时间戳形态",
+      "uuid_form": false,
+      "ts_form": true
+    },
+    {
+      "id": 26,
+      "db_name": "uat_d_1636_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "source": "extracted_uat_d_1636_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx_20260912_151916.sql",
+      "created_at": "2026-09-12T15:19:16",
+      "kind": "新规-时间戳形态",
+      "uuid_form": false,
+      "ts_form": true
+    },
+    {
+      "id": 25,
+      "db_name": "uat_d_1636_dist",
+      "source": "extracted_uat_d_1636_dist_20260912_153000.sql",
+      "created_at": "2026-09-12T15:30:00",
+      "kind": "新规-时间戳形态",
+      "uuid_form": false,
+      "ts_form": true
+    },
+    {
+      "id": 24,
+      "db_name": "uat_d_1636_dist",
+      "source": "extracted_uat_d_1636_dist_20260912_153000.sql",
+      "created_at": "2026-09-12T15:30:00",
+      "kind": "新规-时间戳形态",
+      "uuid_form": false,
+      "ts_form": true
+    },
+    {
+      "id": 23,
+      "db_name": "uat_d_1636_dist",
+      "source": "extracted_uat_d_1636_dist_20260912_151849.sql",
+      "created_at": "2026-09-12T15:18:50",
+      "kind": "新规-时间戳形态",
+      "uuid_form": false,
+      "ts_form": true
+    },
+    {
+      "id": 22,
+      "db_name": "uat_d_1636_dist",
+      "source": "extracted_uat_d_1636_dist_2ebe5fd3.sql",
+      "created_at": "2026-09-11T16:14:17",
+      "kind": "存量-UUID形态",
+      "uuid_form": true,
+      "ts_form": false
+    },
+    {
+      "id": 21,
+      "db_name": "db1",
+      "source": "f.sql",
+      "created_at": "2026-09-11T16:12:32",
+      "kind": "其它/遗留",
+      "uuid_form": false,
+      "ts_form": false
+    },
+    {
+      "id": 18,
+      "db_name": "d",
+      "source": "f.sql",
+      "created_at": "2026-09-11T16:12:25",
+      "kind": "其它/遗留",
+      "uuid_form": false,
+      "ts_form": false
+    },
+    {
+      "id": 17,
+      "db_name": "uat_d_1636_dist",
+      "source": "extracted_orphan.sql",
+      "created_at": "2026-09-11T00:00:00",
+      "kind": "其它/遗留",
+      "uuid_form": false,
+      "ts_form": false
+    },
+    {
+      "id": 16,
+      "db_name": "uat_d_1636_dist",
+      "source": "f.sql",
+      "created_at": "2026-09-11T00:00:00",
+      "kind": "其它/遗留",
+      "uuid_form": false,
+      "ts_form": false
+    },
+    {
+      "id": 15,
+      "db_name": "uat_d_1636_dist",
+      "source": "f.sql",
+      "created_at": "2026-09-11T00:00:00",
+      "kind": "其它/遗留",
+      "uuid_form": false,
+      "ts_form": false
+    },
+    {
+      "id": 14,
+      "db_name": "uat_d_1636_dist",
+      "source": "extracted_orphan.sql",
+      "created_at": "2026-09-11T00:00:00",
+      "kind": "其它/遗留",
+      "uuid_form": false,
+      "ts_form": false
+    },
+    {
+      "id": 13,
+      "db_name": "uat_d_1636_dist",
+      "source": "extracted_orphan.sql",
+      "created_at": "2026-09-11T00:00:00",
+      "kind": "其它/遗留",
+      "uuid_form": false,
+      "ts_form": false
+    },
+    {
+      "id": 12,
+      "db_name": "uat_d_1636_dist",
+      "source": "extracted_orphan.sql",
+      "created_at": "2026-09-11T00:00:00",
+      "kind": "其它/遗留",
+      "uuid_form": false,
+      "ts_form": false
+    },
+    {
+      "id": 9,
+      "db_name": "d",
+      "source": "f.sql",
+      "created_at": "2026-09-11T14:25:28",
+      "kind": "其它/遗留",
+      "uuid_form": false,
+      "ts_form": false
+    },
+    {
+      "id": 8,
+      "db_name": "uat_d_1636_dist",
+      "source": "extracted_uat_d_1636_dist_3043e1af.sql",
+      "created_at": "2026-09-11T14:22:39",
+      "kind": "存量-UUID形态",
+      "uuid_form": true,
+      "ts_form": false
+    },
+    {
+      "id": 7,
+      "db_name": "uat_d_1636_dist",
+      "source": "extracted_d36_probe.sql",
+      "created_at": "2026-09-11T00:00:00",
+      "kind": "其它/遗留",
+      "uuid_form": false,
+      "ts_form": false
+    },
+    {
+      "id": 4,
+      "db_name": "uat_d_1636_dist",
+      "source": "extracted_uat_d_1636_dist_a0278f77.sql",
+      "created_at": "2026-09-11T14:18:09",
+      "kind": "存量-UUID形态",
+      "uuid_form": true,
+      "ts_form": false
+    }
+  ],
+  "counts": {
+    "新规-时间戳形态": 8,
+    "存量-UUID形态": 3,
+    "其它/遗留": 10
+  },
+  "artifact_header_dates": {
+    "06c7a7a3": "2026-09-12 15:19:16",
+    "21a461e9": "2026-09-12 15:18:50",
+    "2599310b": "2026-09-12 16:08:47",
+    "2ebe5fd3": "2026-09-12 00:14:16",
+    "3043e1af": "2026-09-11 22:22:38",
+    "5979686b": "2026-09-12 16:16:35",
+    "635c7ce8": "2026-09-12 15:20:49",
+    "76976119": "2026-09-12 15:19:00",
+    "92ac084c": "2026-09-12 16:17:43",
+    "a0278f77": "2026-09-11 22:18:09",
+    "e7e4a5f8": "2026-09-12 15:19:00"
+  },
+  "newest_20_are_all_ts_form": false
+}

@@ -1,5 +1,5 @@
 {
-  "dirty_before": "M backend/api/sql_audit.py\n M backend/config.py\n M backend/workers/metadata_audit_worker.py\n M deploy/make_patch.py\n M frontend/index.html\n M tests/test_v1636_bugs.py\n?? deploy/patch_v1637_source.sql\n?? tests/test_v1637_filename_rule.py",
+  "dirty_before": "",
   "mutations": [
     {
       "id": "MA",
@@ -8,7 +8,7 @@
       "applied": true,
       "test": "test_l1_worker_filename_format_and_no_job_id",
       "caught": true,
-      "tail": "1 failed, 3 warnings in 1.29s"
+      "tail": "1 failed, 3 warnings in 1.19s"
     },
     {
       "id": "MB",
@@ -17,16 +17,16 @@
       "applied": true,
       "test": "test_l2_filename_timestamp_matches_local_now",
       "caught": true,
-      "tail": "1 failed, 3 warnings in 1.38s"
+      "tail": "1 failed, 3 warnings in 1.22s"
     },
     {
       "id": "MC",
-      "target": "created_at 时区口径用例",
-      "desc": "created_at 回退为 UTC（文件名与提取时间错位 8 小时）",
+      "target": "created_at 时区口径（L5 本体）",
+      "desc": "落库时间改用 UTC（合法值，不依赖已删除的 _utcnow，模拟真实缺陷态）",
       "applied": true,
-      "test": "test_metadata_audit_history_created_at_is_local_time",
-      "caught": false,
-      "tail": "1 passed, 3 warnings in 1.15s"
+      "test": "test_l5_publish_created_at_is_local_time",
+      "caught": true,
+      "tail": "1 failed, 3 warnings in 1.27s"
     },
     {
       "id": "MD",
@@ -35,13 +35,11 @@
       "applied": true,
       "test": "test_l1_worker_filename_format_and_no_job_id",
       "caught": true,
-      "tail": "1 failed, 3 warnings in 1.16s"
+      "tail": "1 failed, 3 warnings in 1.26s"
     }
   ],
   "restored_all_green": true,
-  "restored_tail": "4 passed, 3 warnings in 1.49s",
-  "gap_list": [
-    "MC"
-  ],
-  "product_files_changed": "M backend/api/sql_audit.py\n M backend/config.py\n M backend/workers/metadata_audit_worker.py\n M deploy/make_patch.py\n M frontend/index.html\n M tests/test_v1636_bugs.py\n?? deploy/patch_v1637_source.sql\n?? tests/test_v1637_filename_rule.py"
+  "restored_tail": "6 passed, 3 warnings in 1.50s",
+  "gap_list": [],
+  "product_files_changed": ""
 }

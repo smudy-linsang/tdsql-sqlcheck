@@ -1,18 +1,18 @@
 {
-  "job_id": "635c7ce808be47c0ad2658947e17e4dd",
+  "job_id": "2599310b4b354f869ebdd6acb2699079",
   "worker_rc": 0,
   "state": "SUCCEEDED",
-  "report_id": 31,
-  "source": "extracted_uat_d_1636_dist_20260912_152048.sql",
+  "report_id": 1384,
+  "source": "extracted_uat_d_1636_dist_20260912_160846.sql",
   "source_matches_rule": true,
   "db_part": "uat_d_1636_dist",
-  "ts_part": "20260912_152048",
+  "ts_part": "20260912_160846",
   "contains_job_id_fragment": false,
-  "scan_label": "extracted_uat_d_1636_dist_20260912_152048.sql",
+  "scan_label": "extracted_uat_d_1636_dist_20260912_160846.sql",
   "scan_label_equals_source": true,
-  "sql_header_line": "-- 提取日期: 2026-09-12 15:20:49",
+  "sql_header_line": "-- 提取日期: 2026-09-12 16:08:47",
   "header_ts_matches_filename": false,
-  "audit_history_created_at": "2026-09-12T07:20:49",
-  "worker_ran_within_s": 1.6,
-  "ts_delta_s_vs_local_start": 0.2
+  "audit_history_created_at": "2026-09-12T16:08:47",
+  "worker_ran_within_s": 1.5,
+  "ts_delta_s_vs_local_start": -0.1
 }

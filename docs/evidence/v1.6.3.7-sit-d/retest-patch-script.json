@@ -1,0 +1,353 @@
+{
+  "patch_file": "deploy\\patch_v1637_source.sql",
+  "rollback_file": "deploy\\rollback_v1637_source.sql",
+  "setup": {
+    "inserted": [
+      1377,
+      1378,
+      1379
+    ],
+    "inserted_utc_basis": "2026-09-12 08:07:52"
+  },
+  "before": {
+    "rows": [
+      {
+        "id": 1377,
+        "source": "extracted_lzbj_ecif_a27123e1.sql",
+        "created_at": "2026-09-12 08:07:52"
+      },
+      {
+        "id": 1378,
+        "source": "extracted_uat_d_1636_dist_deadbeef.sql",
+        "created_at": "2026-09-12 08:07:52"
+      },
+      {
+        "id": 1379,
+        "source": "extracted_uat_d_1636_dist_cafebabe.sql",
+        "created_at": "2026-09-12 08:07:52"
+      }
+    ],
+    "snapshot": [
+      {
+        "biz_ref_id": "1377",
+        "scan_label": "extracted_lzbj_ecif_a27123e1.sql"
+      }
+    ]
+  },
+  "first_run": [
+    {
+      "stmt": "CREATE",
+      "rowcount": 6
+    },
+    {
+      "stmt": "SELECT",
+      "rows": [
+        {
+          "id": 4,
+          "db_name": "uat_d_1636_dist",
+          "source": "extracted_uat_d_1636_dist_a0278f77.sql",
+          "created_at": "2026-09-11 14:18:09"
+        },
+        {
+          "id": 8,
+          "db_name": "uat_d_1636_dist",
+          "source": "extracted_uat_d_1636_dist_3043e1af.sql",
+          "created_at": "2026-09-11 14:22:39"
+        },
+        {
+          "id": 22,
+          "db_name": "uat_d_1636_dist",
+          "source": "extracted_uat_d_1636_dist_2ebe5fd3.sql",
+          "created_at": "2026-09-11 16:14:17"
+        },
+        {
+          "id": 1377,
+          "db_name": "lzbj_ecif",
+          "source": "extracted_lzbj_ecif_a27123e1.sql",
+          "created_at": "2026-09-12 08:07:52"
+        },
+        {
+          "id": 1378,
+          "db_name": "uat_d_1636_dist",
+          "source": "extracted_uat_d_1636_dist_deadbeef.sql",
+          "created_at": "2026-09-12 08:07:52"
+        },
+        {
+          "id": 1379,
+          "db_name": "uat_d_1636_dist",
+          "source": "extracted_uat_d_1636_dist_cafebabe.sql",
+          "created_at": "2026-09-12 08:07:52"
+        }
+      ]
+    },
+    {
+      "stmt": "SET",
+      "rows": []
+    },
+    {
+      "stmt": "UPDATE",
+      "rowcount": 6
+    },
+    {
+      "stmt": "UPDATE",
+      "rowcount": 6
+    },
+    {
+      "stmt": "UPDATE",
+      "rowcount": 5
+    },
+    {
+      "stmt": "SELECT",
+      "rows": [
+        {
+          "id": 4,
+          "db_name": "uat_d_1636_dist",
+          "source": "extracted_uat_d_1636_dist_20260911_22September09.sql",
+          "created_at": "2026-09-11 22:18:09"
+        },
+        {
+          "id": 8,
+          "db_name": "uat_d_1636_dist",
+          "source": "extracted_uat_d_1636_dist_20260911_22September39.sql",
+          "created_at": "2026-09-11 22:22:39"
+        },
+        {
+          "id": 22,
+          "db_name": "uat_d_1636_dist",
+          "source": "extracted_uat_d_1636_dist_20260912_00September17.sql",
+          "created_at": "2026-09-12 00:14:17"
+        },
+        {
+          "id": 1377,
+          "db_name": "lzbj_ecif",
+          "source": "extracted_lzbj_ecif_20260912_16September52.sql",
+          "created_at": "2026-09-12 16:07:52"
+        },
+        {
+          "id": 1378,
+          "db_name": "uat_d_1636_dist",
+          "source": "extracted_uat_d_1636_dist_20260912_16September52.sql",
+          "created_at": "2026-09-12 16:07:52"
+        },
+        {
+          "id": 1379,
+          "db_name": "uat_d_1636_dist",
+          "source": "extracted_uat_d_1636_dist_20260912_16September52.sql",
+          "created_at": "2026-09-12 16:07:52"
+        }
+      ]
+    }
+  ],
+  "after_first": {
+    "rows": [
+      {
+        "id": 1377,
+        "source": "extracted_lzbj_ecif_20260912_16September52.sql",
+        "created_at": "2026-09-12 16:07:52"
+      },
+      {
+        "id": 1378,
+        "source": "extracted_uat_d_1636_dist_20260912_16September52.sql",
+        "created_at": "2026-09-12 16:07:52"
+      },
+      {
+        "id": 1379,
+        "source": "extracted_uat_d_1636_dist_20260912_16September52.sql",
+        "created_at": "2026-09-12 16:07:52"
+      }
+    ],
+    "snapshot": [
+      {
+        "biz_ref_id": "1377",
+        "scan_label": "extracted_lzbj_ecif_20260912_16September52.sql"
+      }
+    ]
+  },
+  "second_run": [
+    {
+      "stmt": "CREATE",
+      "rowcount": 0
+    },
+    {
+      "stmt": "SELECT",
+      "rows": [
+        {
+          "id": 1377,
+          "db_name": "lzbj_ecif",
+          "source": "extracted_lzbj_ecif_20260912_16September52.sql",
+          "created_at": "2026-09-12 16:07:52"
+        }
+      ]
+    },
+    {
+      "stmt": "SET",
+      "rows": []
+    },
+    {
+      "stmt": "UPDATE",
+      "rowcount": 1
+    },
+    {
+      "stmt": "UPDATE",
+      "rowcount": 1
+    },
+    {
+      "stmt": "UPDATE",
+      "rowcount": 1
+    },
+    {
+      "stmt": "SELECT",
+      "rows": [
+        {
+          "id": 4,
+          "db_name": "uat_d_1636_dist",
+          "source": "extracted_uat_d_1636_dist_20260911_22September09.sql",
+          "created_at": "2026-09-11 22:18:09"
+        },
+        {
+          "id": 8,
+          "db_name": "uat_d_1636_dist",
+          "source": "extracted_uat_d_1636_dist_20260911_22September39.sql",
+          "created_at": "2026-09-11 22:22:39"
+        },
+        {
+          "id": 22,
+          "db_name": "uat_d_1636_dist",
+          "source": "extracted_uat_d_1636_dist_20260912_00September17.sql",
+          "created_at": "2026-09-12 00:14:17"
+        },
+        {
+          "id": 1377,
+          "db_name": "lzbj_ecif",
+          "source": "extracted_lzbj_ecif_20260913_00September52.sql",
+          "created_at": "2026-09-13 00:07:52"
+        },
+        {
+          "id": 1378,
+          "db_name": "uat_d_1636_dist",
+          "source": "extracted_uat_d_1636_dist_20260912_16September52.sql",
+          "created_at": "2026-09-12 16:07:52"
+        },
+        {
+          "id": 1379,
+          "db_name": "uat_d_1636_dist",
+          "source": "extracted_uat_d_1636_dist_20260912_16September52.sql",
+          "created_at": "2026-09-12 16:07:52"
+        }
+      ]
+    }
+  ],
+  "after_second": {
+    "rows": [
+      {
+        "id": 1377,
+        "source": "extracted_lzbj_ecif_20260913_00September52.sql",
+        "created_at": "2026-09-13 00:07:52"
+      },
+      {
+        "id": 1378,
+        "source": "extracted_uat_d_1636_dist_20260912_16September52.sql",
+        "created_at": "2026-09-12 16:07:52"
+      },
+      {
+        "id": 1379,
+        "source": "extracted_uat_d_1636_dist_20260912_16September52.sql",
+        "created_at": "2026-09-12 16:07:52"
+      }
+    ],
+    "snapshot": [
+      {
+        "biz_ref_id": "1377",
+        "scan_label": "extracted_lzbj_ecif_20260913_00September52.sql"
+      }
+    ]
+  },
+  "drift_after_first_s": {},
+  "drift_after_second_s": {},
+  "all_names_timestamp_form": false,
+  "name_matches_created_at_first": true,
+  "idempotent": false,
+  "snapshot_label_synced": true,
+  "rollback_run": [
+    {
+      "stmt": "UPDATE",
+      "rowcount": 6
+    },
+    {
+      "stmt": "UPDATE",
+      "rowcount": 4
+    },
+    {
+      "stmt": "SELECT",
+      "rows": [
+        {
+          "id": 4,
+          "db_name": "uat_d_1636_dist",
+          "source": "extracted_uat_d_1636_dist_a0278f77.sql",
+          "created_at": "2026-09-11 14:18:09"
+        },
+        {
+          "id": 8,
+          "db_name": "uat_d_1636_dist",
+          "source": "extracted_uat_d_1636_dist_3043e1af.sql",
+          "created_at": "2026-09-11 14:22:39"
+        },
+        {
+          "id": 22,
+          "db_name": "uat_d_1636_dist",
+          "source": "extracted_uat_d_1636_dist_2ebe5fd3.sql",
+          "created_at": "2026-09-11 16:14:17"
+        },
+        {
+          "id": 1377,
+          "db_name": "lzbj_ecif",
+          "source": "extracted_lzbj_ecif_a27123e1.sql",
+          "created_at": "2026-09-12 08:07:52"
+        },
+        {
+          "id": 1378,
+          "db_name": "uat_d_1636_dist",
+          "source": "extracted_uat_d_1636_dist_deadbeef.sql",
+          "created_at": "2026-09-12 08:07:52"
+        },
+        {
+          "id": 1379,
+          "db_name": "uat_d_1636_dist",
+          "source": "extracted_uat_d_1636_dist_cafebabe.sql",
+          "created_at": "2026-09-12 08:07:52"
+        }
+      ]
+    }
+  ],
+  "after_rollback": {
+    "rows": [
+      {
+        "id": 1377,
+        "source": "extracted_lzbj_ecif_a27123e1.sql",
+        "created_at": "2026-09-12 08:07:52"
+      },
+      {
+        "id": 1378,
+        "source": "extracted_uat_d_1636_dist_deadbeef.sql",
+        "created_at": "2026-09-12 08:07:52"
+      },
+      {
+        "id": 1379,
+        "source": "extracted_uat_d_1636_dist_cafebabe.sql",
+        "created_at": "2026-09-12 08:07:52"
+      }
+    ],
+    "snapshot": [
+      {
+        "biz_ref_id": "1377",
+        "scan_label": "extracted_lzbj_ecif_a27123e1.sql"
+      }
+    ]
+  },
+  "rollback_restored": true,
+  "verdict": {
+    "F3-1_通用订正": "FAIL",
+    "F3-幂等": "FAIL（二次执行发生了变化）",
+    "F3-2_回滚可还原": "PASS"
+  }
+}

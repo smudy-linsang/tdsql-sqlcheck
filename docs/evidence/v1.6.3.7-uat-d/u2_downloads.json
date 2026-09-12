@@ -1,0 +1,36 @@
+{
+  "scenario": "u2_downloads",
+  "started_utc": "2026-09-12T08:18:17.867922+00:00",
+  "history_row_source": "extracted_uat_d_1636_dist_20260912_161741.sql",
+  "download_events": [],
+  "captured_urls": [
+    "http://127.0.0.1:8025/api/v1/audit/report/1386/sql?access_token=eyJzdWIiOiJ1YXRfZF8xNjM2Iiwicm9sZSI6ImFkbWluIiwidHYiOjAsImlhdCI6MTc4OTIwMTA5OSwiZXhwIjoxNzg5MjI5ODk5LCJqdGkiOiIzMzE2NThmOTg2NzM3NjFmIn0.lu65O_5Kn8PdOf-3WIWdD80jwPTJn0KPDzAXmyIa54Y",
+    "http://127.0.0.1:8025/api/v1/audit/report/1386/html?access_token=eyJzdWIiOiJ1YXRfZF8xNjM2Iiwicm9sZSI6ImFkbWluIiwidHYiOjAsImlhdCI6MTc4OTIwMTA5OSwiZXhwIjoxNzg5MjI5ODk5LCJqdGkiOiIzMzE2NThmOTg2NzM3NjFmIn0.lu65O_5Kn8PdOf-3WIWdD80jwPTJn0KPDzAXmyIa54Y"
+  ],
+  "popups": [
+    "",
+    ""
+  ],
+  "downloads": {
+    "sql": {
+      "download_event": false,
+      "note": "Timeout 8000ms exceeded while waiting for event \"download\"\n=========================== logs ===========================\n",
+      "request_captured": true,
+      "status": 200,
+      "content_disposition": "attachment; filename=extracted_uat_d_1636_dist_20260912_161741.sql",
+      "bytes": 2708,
+      "filename_matches_row": true
+    },
+    "html": {
+      "download_event": false,
+      "note": "Timeout 8000ms exceeded while waiting for event \"download\"\n=========================== logs ===========================\n",
+      "request_captured": true,
+      "status": 200,
+      "content_disposition": "attachment; filename=Extracted_Schema_Report_1386.html",
+      "bytes": 21169,
+      "filename_matches_row": false
+    }
+  },
+  "names_are_timestamp_form": true,
+  "saved_utc": "2026-09-12T08:18:41.965004+00:00"
+}

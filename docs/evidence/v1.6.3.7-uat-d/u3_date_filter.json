@@ -1,0 +1,24 @@
+{
+  "scenario": "u3_date_filter",
+  "started_utc": "2026-09-12T08:18:44.429097+00:00",
+  "filter_today": {
+    "date": "2026-09-12",
+    "rows": 8,
+    "names": [
+      "extracted_uat_d_1636_dist_20260912_161741.sql",
+      "extracted_uat_d_1636_dist_20260912_161634.sql",
+      "extracted_uat_d_1636_dist_20260912_160846.sql",
+      "extracted_uat_d_1636_dist_20260912_153000.sql",
+      "extracted_uat_d_1636_dist_20260912_153000.sql"
+    ],
+    "created": [
+      "2026-09-12 16:17",
+      "2026-09-12 16:16",
+      "2026-09-12 16:08",
+      "2026-09-12 15:30",
+      "2026-09-12 15:30"
+    ]
+  },
+  "filter_today_all_match": true,
+  "saved_utc": "2026-09-12T08:18:53.239188+00:00"
+}
