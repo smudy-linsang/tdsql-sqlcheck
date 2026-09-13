@@ -2,17 +2,17 @@
 
 |项目|内容|
 |---|---|
-|文档编号 / 修订|CP-DETAIL-v1.6.4.0 / Rev.B|
+|文档编号 / 修订|CP-DETAIL-v1.6.4.0 / Rev.C|
 |编制日期 / 设计责任|2026-09-12 / O|
-|修订日期 / 依据|2026-09-13 / Mr.Linsang 确定本次开发版本为 v1.6.4.0|
+|修订日期 / 依据|2026-09-13 / A首轮评审、M-01方案甲裁定及O逐项复核|
 |提交对象|Mr.Linsang|
-|开发状态|仅设计，待独立评审；本次不修改代码、配置、迁移或业务数据|
+|开发状态|仅设计；首轮意见已修订，B-01待讨论与复审；本次不修改代码、配置、迁移或业务数据|
 |发布版本|v1.6.4.0（已定版）；CP-1 是本版本交付的能力阶段名|
 |调研代码基线|TDSQL `b6ce21bbcd731fe4f541c6ec09cd7a1316e52de3`，基线APP_VERSION=1.6.3.7；不因目标定版改写历史基线|
 |参考实现|DB-AIOps `a4dfb3b8d102c2fd9af4a37f416c273aa14840e1`，本地与 GitHub master 一致|
 |上游文档|[需求分析与规划](PLAN-v1.6.4.0-AI-Copilot-需求分析与总体规划-O.md)、[高阶设计](HLD-v1.6.4.0-AI-Copilot-专家助手高阶设计-O.md)|
 
-本文件是 **v1.6.4.0 / CP-1** 的施工规格。CP-1A/CP-1B/CP-1C均为本版本内部实施阶段，CP-2/CP-3仍需后续独立立项。Rev.B仅落实发布版本、文档命名及关联引用；既有功能范围、参数、安全边界和60项验收用例不变。
+本文件是 **v1.6.4.0 / CP-1** 的设计规格，B-01定案前不得作为已批准施工基线。CP-1A/CP-1B/CP-1C均为本版本内部实施阶段，CP-2/CP-3仍需后续独立立项。Rev.C在Rev.B上纳入方案甲、补齐首轮可采纳意见及对应验收，详见[逐项答复](RESPONSE1-v1.6.4.0-AI-Copilot-设计评审逐项答复与RevC修订说明-O.md)。原评审报告保持不改；文档已修订不等于A已复审关闭。
 
 “新增/修改/必须”描述**未来开发要求**，不是已完成事实。版本定版不等于设计评审或上线门禁通过。Q 不得将概念描述、模型自述、mock通过或本设计默认参数当成实机验收结果。
 
@@ -23,7 +23,7 @@
 |不变量|必须满足|
 |---|---|
 |INV-01|现有 RuleChecker、规则集、实例适用域和质量门禁仍是正式审核裁决者；模型不能覆盖其结论|
-|INV-02|Copilot 开关关闭、模型宕机/额度不足不阻断原审核、采集、页面和原报告导出|
+|INV-02|在元数据库及已迁移Schema正常前提下，Copilot开关关闭、模型宕机/额度不足不阻断原审核、采集、页面和原报告导出；升级迁移失败不在此运行隔离保证内，B-01风险与待决项见§10.1/§16.3|
 |INV-03|不允许任意 SQL、HTTP URL、文件路径、shell、MCP、动态代码进入工具执行层|
 |INV-04|会话/turn所有者只能取有效服务端身份，不能取请求体 username/role；管理员也不默认阅读他人会话正文|
 |INV-05|源对象授权、Copilot实例授权、当前用户权限三者取交集；任何查询/解密/出域前均检查|
@@ -136,15 +136,15 @@
 
 availability闭集 `AVAILABLE|MISSING|STALE|UNKNOWN`；completeness闭集 `COMPLETE|PARTIAL|UNKNOWN`；它们不等价。读取到一个完整旧快照可以是AVAILABLE+COMPLETE，但不是当前实时状态。源不含时点时observed_at=null，不能填当前时间冒充采集时间。
 
-规范本地证据快照与模型脱敏投影分别存放；“本地快照”仍只包含批准的有界字段，不包含凭据/业务字面量/原始日志。模型只收到 `E1`、别名 `INSTANCE_1/TABLE_1/COLUMN_1`及获准结构字段；UI名称由服务器渲染，不由模型还原。
+规范本地证据快照与模型脱敏投影分别存放；“本地快照”仍只包含批准的有界字段，不包含凭据/业务字面量/原始日志。模型默认只收到E1、别名INSTANCE_1/TABLE_1/COLUMN_1及获准结构字段；§4.4三闸全部满足时才可发送闭集内真实结构名称。连接展示名称始终由服务器渲染，不通过放宽开关发送或由模型还原。
 
 ### 4.2 源适配器输入与输出
 
 |kind|请求引用|读取位置/方法|字段限制与失败处理|
 |---|---|---|---|
 |rule|rule_ids≤10|RuleChecker.get_rules_info＋ruleset_service|显式读取enabled/severity/scope/spec_source/fix_suggestion；数量不硬编码121|
-|audit_history|history_id＋statement_indexes≤5|audit_history的summary/report_context/有界results_json|先查OCTET_LENGTH；正文>2MiB只给汇总；不得全量反序列化大库结果|
-|metadata_job|job_id＋offset/limit≤20|repository.get_job＋artifacts分页读|仅状态与选中页；产物读取上限2MiB或2秒，先到为止；大offset不能无界扫文件|
+|audit_history|history_id＋statement_indexes≤5|audit_history的summary/report_context/完整性列/有界results_json|显式读取skipped_objects/skipped_benign/skipped_abnormal/omitted_results，null不改0；先查OCTET_LENGTH，正文>2MiB只给汇总|
+|metadata_job|job_id＋offset/limit≤20|Copilot窄查询读取metadata_audit_jobs及可信report_id关联摘要，artifacts只分页读|state/phase/error_code/脱敏error_message/时间/exit_code/cleanup_ok，加有界progress_json中的完整性字段；产物读取≤2MiB或2秒，不无界扫offset|
 |slow_query|slow_id|slow_queries；必要时以scan_task_id关联scan_tasks.id|优先记录自身connection_id，空时才查可信任务归属；两者非空却冲突拒绝；脱敏SQL、已有计划、avg/max/rows/lock；都缺归属则MISSING|
 |scan_snapshot|snapshot_ids≤2|scan_snapshots.snapshot_json及可选已有scan_compare_reports.summary_json|严格模块枚举schema_audit/slow_scan/launch_check/bigtable；源模块二次鉴权；使用下述有界比较合同，最终展示问题最多20|
 |table_type_stat|stat_id|table_type_stat及table_type_stat_item|总表/单表/广播/分片/二级主表/物理子表/质量状态；原始总数不重新相加|
@@ -161,6 +161,10 @@ INSTANCE来源必须与会话connection_id一致；数据库级审核/慢SQL/对
 
 表类型适配必须原样携带 `secondary_partition_main_tables/check_state/candidates/checked/unknown/unchecked/inventory_state/outside_shard` 对应字段；check_state的LEGACY/NOT_APPLICABLE等原值放在data中保留，统一completeness再映射为UNKNOWN或对应质量状态，不丢失原值。`outside_shard`是main的子集，不能再相加。慢SQL的explain_plan只读已存≤32KiB字段，不调用analyze_explain_by_sql（它会连接目标库）。
 
+M-05字段以当前代码实名为准：progress_json允许enumerated_objects/selected_objects/extracted_objects/skipped_objects/skipped_benign/skipped_abnormal/total_statements/audited_statements；先查OCTET_LENGTH，≤128KiB才读取并解析，不发送skipped_list原始对象/错误文本。提取失败前可能尚未持久化完整计数，缺字段必须null/UNKNOWN；不得把报告中的简称enumerated/selected/extracted当真实键读取。当前任务report_id关联的audit_history完整性列单独标来源、版本、权限；二者不一致时展示冲突，不覆盖或相加。
+
+skipped_abnormal>0表示本次目标对象提取不完整，不能称全库审核通过；skipped_benign>0须结合当时分布式物理子表排除口径，不能直接称失败；omitted_results>0仅证明历史results_json省略明细，不单独证明没有审核这些对象。未知旧列、RECOVERY_REQUIRED、只有局部进度均不得改成完整成功。
+
 ### 4.3 数据分级、脱敏和语义保真
 
 |等级|含义|默认处理|
@@ -172,10 +176,10 @@ INSTANCE来源必须与会话connection_id一致；数据库级审核/慢SQL/对
 具体处理顺序：
 
 1. question/user_draft先检测凭据、URL内嵌认证、私钥、token等闭集特征；命中拒绝422 INPUT_SENSITIVE，日志只记类型/长度，不记命中内容。
-2. 服务器源字段按白名单投影；剔除host/IP、port、username、密码/密文、DSN、token、文件路径、业务注释；ID变服务端别名。即使公共问题中自由文本可能包含内部信息，无法确认PUBLIC时不得送公共端点。
+2. 服务器源字段按白名单投影；剔除host/IP、port、username、密码/密文、DSN、token、文件路径、业务注释；对象ID变服务端别名，结构名称仅按§4.4例外。即使公共问题中自由文本可能包含内部信息，无法确认PUBLIC时不得送公共端点。
 3. SQL文本先用现有词法/解析结果构建安全结构描述：语句类型、列类型/长度、索引组成、关联关系、LIMIT结构值、命中规则。字面量值、默认值、分区边界和注释不出站；长度/精度等结构数值以独立字段保留。
 4. SQL模板采用既有sql_masking作为基础，但不能拿被替换的VARCHAR(?)模板做DDL正确性证明。解析无法可靠识别TDSQL扩展时，降为结构特征＋规则证据；若不足以给SQL，只输出文字建议。
-5. 输出候选中含别名/值占位符，则 `executable=false, validation=INCOMPLETE_TEMPLATE`；不自动还原业务字面量，不把模板PASS当作完整SQL通过。用户在原编辑器补齐并点击正式审核。
+5. 输出候选含本轮生成的别名、值占位符、未能按§5.4确认用途的名称，或源必要子句/条件丢失时，executable=false、validation=INCOMPLETE_TEMPLATE；不自动还原业务值。真实名称且文本完整的候选还必须完成T09，才可能为TEXT_ONLY_CHECKED；具体状态见§5.4。用户在原编辑器自行正式审核。
 6. 两侧方向都做敏感字段检测。原始记录已经在业务模块合法保存，不代表允许助手另建明文副本或发送第三方。
 
 预览优先用既有结构化解析字段；没有解析结果时只用限长、线性词法投影，不在Web请求中跑整套RuleChecker/无界AST解析。词法投影需每4KiB检查1秒CPU准备预算，不能可靠完成则减少为规则事实和缺失说明，不返回原始SQL作为“降级”。模型候选完整静态检查才走受控文本worker。
@@ -185,6 +189,24 @@ CP-1不提供“允许原始SQL出域”开关。批准内网网关也不意味�
 PUBLIC_HELP采用**正向来源限制**，不靠“没命中敏感正则”证明公开：公共外部端点只接批准知识包的固定问题ID、对应公共内容及固定系统模板，无用户自由问题/草稿/历史/本项目内部规则覆盖。自由输入默认INTERNAL_REDACTED，无法安全投影则RESTRICTED并拒绝；没有获准内网模型时退本地帮助。普通用户不能自己打PUBLIC标签。固定问题由页面选项提供，preview增加可空public_question_id，若非空则question必须为空并由服务端还原批准公共文本。
 
 敏感检测是纵深防御，不宣称能发现所有秘密。版本化类型闭集为AUTH_HEADER（Bearer/Basic值）、PEM_PRIVATE_KEY、JWT、URI_USERINFO、CREDENTIAL_ASSIGNMENT（password/passwd/pwd/secret/api_key/access_token/refresh_token/私钥/口令的赋值结构）、KNOWN_PROVIDER_KEY（由已批准提供方维护的前缀格式）。配置key的实际值另作精确匹配禁出站；不把key特征写进用户日志。实现按词法边界和明确赋值解析，不用单一贪婪正则跨整份SQL；每类须正反例测试，误报给出删去敏感片段的提示，不开放“仍然发送”按钮。未知非结构化长内容只允许人工先做最小摘录，不自动把未识别值当安全。
+
+### 4.4 方案甲：结构标识符投影（M-01已裁定）
+
+保留三档数据分级；SCHEMA_IDENTIFIERS是INTERNAL_REDACTED内的投影模式，不是任意原始SQL出域许可。满足基础源/实例权限后，以下三闸再取交集：
+
+|闸|施工字段|默认与条件|
+|---|---|---|
+|部署|COPILOT_ALLOW_SCHEMA_IDENTIFIERS；DB settings.allow_schema_identifiers只能进一步关闭|部署false；DB初始false，UI不能突破部署上界|
+|逐实例|grant.allow_schema_identifiers及独立identifier_approval_ref|0；须§9.1申请/复核，不能沿用基础approval_ref自动推定批准|
+|端点|端点清单allows_schema_identifiers|false；仅INTERNAL可为true，PUBLIC+true配置直接拒绝|
+
+放行闭集：库名、表名、视图名、列名、索引名、约束名（含命名主键/唯一键）、分片键列名、分区键列名。不包含分区名称、连接展示名、别名映射以外的自由文本。注释、DEFAULT值、WHERE/INSERT常量、分区边界、主机/IP/端口/账号/密码/密文/DSN/token/文件路径、业务行数据始终不出站；类型长度/精度的结构数值仍按§4.3处理。自由问题/历史/草稿同样按本轮投影策略处理，不能从旁路带入未获准名称。
+
+名称仅从可信源解析的结构槽位取出，各组成部分长度1—64个Unicode字符，不含控制/格式控制字符、换行或路径/凭据特征。此为本项目保守投影上限，不是对全部SQL标识符语法的完备支持声明。失败则该对象及所有引用一致改为服务端别名；别名表与已有真实名称避碰，以映射身份判断模板，不以字符串恰好叫TABLE_1判假。名称放在资料区JSON字符串值，不拼接到system角色；引号转义和长度检查不能证明不存在注入，仍执行输出/动作闭集及对抗评测。复制候选时按方言正确引用名称，不盲目字符串替换还原。
+
+仅INSTANCE会话且存在获批connection_id的源/草稿可进入该模式；GLOBAL_HELP中的草稿保持别名投影。主备两端均须满足本轮标识符能力；否则预览明确采用别名模式或禁用不合格备用，不在故障转移时偷偷缩减/放宽投影。预览标记projection_mode=ALIASED或SCHEMA_IDENTIFIERS，展示实际待发内容；有局部别名还需逐项说明。
+
+部署策略版本、DB设置版本、grant revision及主备端点能力一起冻结进preview/turn。§9.1全部时点重检；预览后三闸或批准范围变化统一CONTEXT_CHANGED重新预览，不用旧确认自动重投影。撤销后历史/导出/候选动作重新鉴权，禁止泄漏旧名称。别名模式且含SQL建议时limitations明确“本次未包含结构标识符，SQL候选为模板”；混合模式说明仍待补全的部分。EGRESS_START记录实际identifiers_included，不以开关值冒充真实发送情况。
 
 ## 5. 工作流与工具闭集
 
@@ -202,7 +224,7 @@ PUBLIC_HELP采用**正向来源限制**，不靠“没命中敏感正则”证�
 |---|---|---|---|---|
 |CP-T01 search_help|query,product_family,app_version|copilot|无|8段，每段≤1200字；总输出≤8KiB|
 |CP-T02 explain_rules|rule_ids,rule_snapshot_ref|copilot＋rules或该审核源模块|无|10规则，≤8KiB|
-|CP-T03 read_audit_evidence|已批准audit_history/metadata_job引用|copilot＋对应源模块＋对象所有权＋实例授权|无|§4.2|
+|CP-T03 read_audit_evidence|已批准audit_history/metadata_job引用；可批量读取预览已选近期任务摘要|copilot＋每条对应源模块＋对象所有权＋实例授权|无|§4.2；近期摘要至多3条，合计≤8KiB|
 |CP-T04 read_job_status|已批准job_id|同CP-T03|无|一条任务，错误消息≤1024字节|
 |CP-T05 read_slow_evidence|已批准slow_id|copilot＋slow-records/slow-tasks＋实例授权|无|1条SQL、≤20行已有计划|
 |CP-T06 read_compare_evidence|已批准的2个snapshot_id|copilot＋两个源模块＋实例授权|无|2份摘要、20项差异|
@@ -219,7 +241,7 @@ USAGE_HELP / DIAGNOSTIC_HELP: T01（无源对象时仅本地指南）
 RULE_EXPLAIN: T02 + 必要时T03 + T01
 SQL_ADVISE: T02 + 已批准T03/USER_DRAFT + T01 → 模型 → T09（最多2个候选）
 AUDIT_EXPLAIN: T03 + T02 + T01
-JOB_TROUBLESHOOT: T04 + T01
+JOB_TROUBLESHOOT: T04 + 可选T03(预览选定的同库近期终态≤3条) + T01
 SLOW_EXPLAIN: T05 + T01
 COMPARE_EXPLAIN: T06 + T01
 TABLETYPE_EXPLAIN: T07 + T01
@@ -228,11 +250,19 @@ GATEWAY_EXPLAIN: T08 + T01
 
 单轮证据收集至多4次工具调用（T09另计最多2次且共用10秒后处理预算）。不存在“模型继续要求→无限追加工具”的循环。预算不足保留已获证据并诚实给出限制。
 
+近期摘要不是隐式加源：用户预览请求可显式include_recent_jobs=true，默认false。服务器按当前job的connection_id/db_name及当前源ACL筛选，终态仅SUCCEEDED/FAILED/CANCELLED，排除当前job，以finished_at DESC/id DESC最多取3条；不能把RECOVERY_REQUIRED/PUBLISHED算已终结。权限过滤先于LIMIT；窄查询仍≤3秒、最多50行，不为找满3条逐页扫描。无合适索引/查询超时则给“近期证据不可用”，不改业务表索引或自动扩大扫描。
+
+本轮总来源仍≤4：当前job加近期job最多3条，有其他来源则进一步缩减。每个job证据包内可附其可信report_id的窄摘要，关联项自身权限/来源版本均冻结，非任意附加来源。预览展示选中的ID/时间/版本和具体摘要，封存后runner只读原集合。对比需同时列代码/规则/范围的可比性；三次失败只能说“所选三次均失败”，不能证明必现或唯一根因。
+
 ### 5.4 纯文本SQL复核
 
 使用冻结rule_overrides和明确instance_type调用RuleChecker，不调用 `_save_audit_history`、在线分片键补查或目标连接。数据库名/架构缺失时返回UNKNOWN而不是默认分布式。
 
 输出 `{validation_mode:'TEXT_ONLY', parse_status, violations, skipped_checks, rule_snapshot_hash, semantic_equivalence:'NOT_PROVEN', executable}`。即使静态无错误也展示“仅通过纯文本规则复核，未在数据库执行”；缺少跨表DDL时R035上下文检查列为未执行，不写全部通过。性能收益必须为待验证的假设。
+
+SQL候选的validation由服务端生成，模型不能自填。闭集为INCOMPLETE_TEMPLATE（占位/丢失必要条件）、TEXT_ONLY_CHECKED（完整且已完成受支持文本复核、无阻断违规）、TEXT_ONLY_REJECTED（文本复核发现阻断违规）、UNKNOWN（方言无法可靠解析、缺架构或复核未完成）。仅TEXT_ONLY_CHECKED可令executable=true；其余false，超时另附TEXT_VALIDATION_TIMEOUT。TEXT_ONLY_CHECKED仍列出skipped_checks，semantic_equivalence始终NOT_PROVEN；若缺失会影响候选合法性判定则必须UNKNOWN。
+
+executable只作兼容字段，UI显示“可送入审核编辑器”，不能显示“可直接执行”。审阅源为完整CREATE语句且模型丢掉未出站的DEFAULT/分区边界，或DML丢掉WHERE条件时，即使剩余文本语法合法也不得标完整；改为局部改动模板或文字建议。已知源名称可使用，拟新增名称必须独立标为NEW_PROPOSAL并按词法及命名规则校验，不冒充已存在/无重名；无法确认上下文时保持UNKNOWN。动作闭集不变。
 
 CPU计算在受管短生命周期子进程中运行：固定模块/序列化参数，禁止用户选择程序；最多2个候选、单轮10秒、内存256MiB软目标，超时TERM/KILL/reap遵循现有进程安全封装。不能仅用asyncio.wait_for包住不可中断线程就称资源已回收。
 
@@ -258,6 +288,8 @@ manifest必填：schema_version、bundle_id、app_min/app_max、product_families
 检索：先按产品族、app_version、内核范围、ACTIVE来源过滤；再对命中候选使用BM25(k1=1.2,b=0.75)，规则号精确命中优先，错误码次之；同分按source_id/chunk_id稳定排序；每个来源最多3段，最终最多8段/8KiB。未知内核不得把单版本限定结论当成通用语法。无命中返回空，不用模型知识补成官方结论。
 
 单包≤10,000段、原文＋索引≤32MiB。启动和每次包切换核验大小/hash，加载不可变内存索引；失败仅使Copilot知识能力降级，不影响正式规则引擎。首期包随版本激活，不提供动态发布接口；保留旧包用于历史引用直到相关会话保留期结束。
+
+知识包启动/切换同时核验app_min/app_max及expires_at：版本不兼容或过期明确knowledge_status=STALE、reason_code=KNOWLEDGE_BUNDLE_STALE，capabilities、管理health与用户提示同步显示；hash/结构损坏为INVALID，缺包为MISSING，合格才READY。只排除不适用的单个产品/内核段属于正常过滤，不误称整个包过期。STALE内容不得用于当前回答，RULE_RUNTIME及合格业务证据仍可本地解释；不得把过期伪装普通“未找到答案”。历史引用保留当时hash/版本及过期标签。
 
 ### 6.3 冲突与知识记忆
 
@@ -364,6 +396,7 @@ Pydantic模型必须 `extra='forbid'`，最多8条findings、8条steps、5条mis
 {
   "schema_version": 1,
   "summary": "不超过800字",
+  "outcome_claims": [],
   "findings": [
     {"kind": "FACT", "text": "不超过600字", "evidence_ids": ["E1"], "knowledge_ids": []}
   ],
@@ -381,6 +414,14 @@ Pydantic模型必须 `extra='forbid'`，最多8条findings、8条steps、5条mis
 kind只允许FACT/HYPOTHESIS/POLICY；risk只允许READ_ONLY/MANUAL_CHANGE。来源编号来自本轮服务器集合；FACT至少一个evidence_id，POLICY至少一个knowledge_id或RULE_RUNTIME证据。可用性/采集时间/统计数/规则级别由本地事实卡呈现，不让模型重写成另一数值。
 
 对不存在引用、错误rule_id、输出越界、拒绝响应、finish_reason=length或tool_calls等非预期输出：不解析成动作，不循环让模型自我修复；降为可核验的本地摘要并记录OUTPUT_INVALID/OUTPUT_TRUNCATED。保留“模型回答未通过校验”提示，不显示为已完成AI分析。
+
+### 8.1.1 结果断言校验（N-04，调整采纳）
+
+不采用“包含已通过审核/已执行/已修复/已扫描/已验收就一律拒绝”的零误判假设。“不能据此认定已通过审核”是必要限制；“历史记录E1在某时点审核通过”可能是真实引用。
+
+权威状态由服务器事实卡生成；模型不得声称Copilot执行了SQL、扫描、修复或验收。模型若提出结果状态/性能百分比结论，须附结构化outcome_claims（最多8条）：claim_type闭集AUDIT_STATUS/SCAN_STATUS/REPAIR_STATUS/ACCEPTANCE_STATUS/PERFORMANCE_DELTA，evidence_id、fact_key、subject_ref、observed_at；不允许自填事实值。服务端核对引用、对象、时间和事实键后渲染状态句；当前证据不提供某类事实时该类不得获批。本模块动作记录中无执行能力，因此“本助手已执行”恒拒绝。
+
+对summary/findings/steps/reason/limitations全部文本另用版本化规则检测无证据肯定断言及可疑百分比，命中无法与服务器事实对应时OUTPUT_INVALID并退本地摘要；规则反例必须覆盖否定、引用、假设和历史时点。字符串筛查只是附加防线，不能完备理解所有改写，不能宣称零幻觉。零容忍是发现严重错误即阻断发布/停用的标准，不是过滤器的数学保证；结合§15.4人工复核、模型漂移处置。
 
 ### 8.2 引用
 
@@ -418,11 +459,17 @@ route_key闭集：audit-sql、file-audit、schema-extractor-audit、slow-tasks�
 
 新 `copilot_instance_grants` 按username/connection_id显式赋予助手资料使用权；默认零行，**admin也需实例授权才能把资料交给模型**。无实例会话只允许公共帮助/用户明确提供的脱敏草稿。源记录connection_id为空/不可证实时不套当前默认实例。
 
+N-03采用事前申请/复核分离，不以月度抽查代替启用闸。申请人和复核人均需admin+copilot-admin；复核人subject必须既不等于申请人，也不等于被授权主体。申请/扩大范围进入PENDING、enabled=0并立即停止旧授权；另一名有权管理员按固定revision核验外部批准单后批准，方可enabled=1。只有一个管理员时保持未授权，可用无实例本地帮助；不设置“应急自批”旁路。撤销可由任一有权管理员立即执行，不等待双签。
+
+基础approval_ref和identifier_approval_ref分别记录批准范围；approved_by从已鉴权复核人生成，不接受客户端填写身份。系统验证的是不同账号主体及流程，不能证明背后是不同自然人，也不能仅凭编号自动鉴定外部批准单真伪；职责分离由管理方核验。批准后任何范围/引用变更重新申请，旧revision不可复活。
+
 既有users以username为主键，没有可直接使用的不变用户ID。新增copilot_subjects提供账号代际subject_id：所有owner比较、授权和额度以subject_id为准，username仅为显示/审计快照。首次迁移为现存账号分配subject；正常create_user/delete_user/bootstrap路径在同一元数据库事务维护新subject或吊销旧subject（删除账号不删除其历史）；密码变更不更换subject。角色/权限修改继续按既有permission_version复核。删除后同名重建不得继承旧grant/session/preview；旧主体默认EXPIRED只保留审计，不能把聊天转给新账号。
 
 Copilot每次鉴权以窄查询核对当前users状态、created_at与ACTIVE subject，不读取password_hash/salt。首次建立或重建subject后要求现有JWT的iat严格晚于subject.created_at，否则401提示重新登录；不改旧模块的登录合同，也不信任旧同名账号token继承新主体。iat精度边界不足时等下一秒再登录，不能用>=放行旧token。后端runner保存的是subject，不保存token；重新查ACTIVE主体、用户状态及当前授权。直接SQL改写/恢复users绕过账户API属于运维变更，必须停用助手并做subject对账，不宣称能在未提供账号生命周期信息时自动识别所有同名替换。
 
 check_permission新增精确Copilot前缀分支，不能把`/api/v1/copilot/`整体塞入developer所有业务写前缀后了事。配置接口独立`/api/v1/copilot-admin/`，审计接口也显式映射。即使AUTH_ENABLED=false，Copilot API独立有效身份依赖仍拒绝匿名，开关启用预检要求认证开启。
+
+M-02：新增Copilot专属全方法覆盖锁，从实际注册的FastAPI路由枚举/api/v1/copilot、/copilot-admin、/copilot-audit及各子路径，对GET/POST/PUT/PATCH/DELETE及已注册HEAD/OPTIONS逐一核对精确方法/路径权限清单和路由级authz依赖；不能只沿用现有test_rbac_path_coverage.py的写端点正则。未登记方法/路由默认拒绝，admin也不能绕过所有者检查；ACL查询错误不得复用get_visible_menus的宽松fallback。受控CORS OPTIONS若存在，只返回协议头，不读源/正文；仍须显式登记并测试。再以匿名、auditor默认关闭、跨用户结果读取做运行时反例。
 
 权限检查时点：预览→受理→runner领取→任何源读取→模型出站前→最终发布→每次历史读取。权限版本改变重读授权而非沿用缓存；DB不可用失败关闭。外发已经完成后再撤权无法撤回供应商已接收数据，应停止后续调用和展示并留痕，不承诺“撤权能收回已发数据”。
 
@@ -430,7 +477,7 @@ check_permission新增精确Copilot前缀分支，不能把`/api/v1/copilot/`整
 
 ### 9.2 出站端点策略
 
-部署文件给出批准端点清单：`endpoint_id, scheme=https, canonical_host, port, base_path, data_zone, privacy_profile, allowed_resolved_cidrs, tls_ca_ref`。管理UI只选择endpoint_id和模型，不能输入任意URL、代理、headers或CA路径。允许非443内网TLS端口，但必须逐项批准；禁止泛域名/0.0.0.0/0、回环、链路本地、云元数据地址、userinfo/query/fragment。
+部署文件给出批准端点清单：`endpoint_id, scheme=https, canonical_host, port, base_path, data_zone, privacy_profile, allows_schema_identifiers, allowed_resolved_cidrs, tls_ca_ref`。allows_schema_identifiers默认false且仅INTERNAL可开启，见§4.4。管理UI只选择endpoint_id和模型，不能输入任意URL、代理、headers或CA路径。允许非443内网TLS端口，但必须逐项批准；禁止泛域名/0.0.0.0/0、回环、链路本地、云元数据地址、userinfo/query/fragment。
 
 保存和实际连接前双检；DNS解析全部地址须落在该条批准CIDR。仅做“解析后再交普通客户端重新解析”存在重绑定窗口，生产通过受控出站网关/网络ACL执行目的地限制；直连方式必须使用绑定已校验地址且保留原host SNI的传输实现并经测试。无网络强制控制且没有绑定传输时，不通过生产门禁。
 
@@ -449,6 +496,10 @@ check_permission新增精确Copilot前缀分支，不能把`/api/v1/copilot/`整
 ### 10.1 通用约定
 
 未来新迁移建议 `backend/schema/v16/160_copilot_core.sql`；v16在本基线未占用，编码前重查，冲突则分配下一个空版本并同步文档。**本次不创建SQL文件、不执行迁移。**以下字段表就是迁移输入规格，未列字段禁止实现时随意添加敏感快照。
+
+**B-01待决：上句仍是保留统一迁移的候选施工路径，不是已批准选择。** 认可新增DDL会扩大全站启动失败面；不同意把INV-02的模型运行隔离读成升级绝无停服，原HLD§7已明确迁移失败关闭。Rev.C把此前容易误读的边界写进INV-02，但改文字不能消除部署风险。
+
+O倾向保留统一迁移并完成§16.3硬门禁：copilot_subjects及runtime已被§9.1/§11.2纳入账户创建/删除/bootstrap事务，若十一表可缺失而账户照常变更，旧subject可能不能及时撤销；若维持强制写subject，所谓“只降级助手”也不能覆盖账户管理故障。独立初始化需要同时解决持久账号代际、锁顺序、故障期撤权和恢复，不能只把DDL挪目录或捕获异常。该方向并非不可做，但当前评审建议不足以形成完整替代合同。由Mr.Linsang讨论迁移选择后再冻结此节，B-01继续OPEN。
 
 MySQL InnoDB、utf8mb4_unicode_ci；ID/hash/key使用ASCII二进制比较（CHAR/VARCHAR CHARACTER SET ascii COLLATE ascii_bin）。日期一律DATETIME(6) UTC，由DB UTC_TIMESTAMP(6)写入；布尔TINYINT，状态VARCHAR而非依赖MySQL ENUM。数值范围同时服务端校验，不能仅信任旧MySQL CHECK。`N`=NOT NULL，`?`=NULL允许；时间默认由应用显式写。除明确默认外不设静默默认值。
 
@@ -486,18 +537,24 @@ username/owner/operator是UTF-8展示/审计快照，不按ASCII列声明；认�
 
 **copilot_instance_grants**：subject_id CHAR(32) N、connection_id VARCHAR(128) N，联合PK；username VARCHAR(128) N（快照）；enabled TINYINT N DEFAULT0；approved_by VARCHAR(128) N；approval_ref VARCHAR(128) N；revision BIGINT N DEFAULT1；updated_at DATETIME(6) N；索引(connection_id,enabled)。必须真实用户、ACTIVE subject和保存连接存在，授权记录含责任批准编号；不能把前端传的角色当用户名。API使用username定位当前subject，旧代际grant不复活。
 
+Rev.C补充字段：allow_schema_identifiers TINYINT N DEFAULT0、identifier_approval_ref VARCHAR(128) ?、approval_state VARCHAR(16) N DEFAULT'PENDING'（PENDING/APPROVED/REVOKED）、requested_by_subject_id CHAR(32) N、approved_by_subject_id CHAR(32) ?、requested_at DATETIME(6) N、approved_at DATETIME(6) ?。原approved_by调整为可空，PENDING/REVOKED均不得启用；批准时由服务器写审核人及时间。allow_schema_identifiers=1启用还须独立identifier_approval_ref非空；无批准记录不能补默认true。申请/审批/撤销同grant revision和审计事务，复核对象为不可变subject。
+
 **copilot_sessions**：id CHAR(32) N PK；owner_subject_id CHAR(32) N；owner VARCHAR(128) N；scope_kind VARCHAR(16) N；connection_id VARCHAR(128) ?；database_name VARCHAR(128) ?；instance_type VARCHAR(16) N；initial_page_key VARCHAR(64) N；name_snapshot VARCHAR(255) ?；name_source VARCHAR(24) N；title VARCHAR(128) N（本地固定生成，不用问题原文作标题）；revision BIGINT N DEFAULT1；active_turn_id CHAR(32) ?；state VARCHAR(16) N（OPEN/ARCHIVED/EXPIRED）；created_at/updated_at/expires_at DATETIME(6) N。索引(owner_subject_id,updated_at,id)、(expires_at,id)。INSTANCE必须connection_id；会话没有owner_subject_id之外的共享成员。
 
 **copilot_previews**：id CHAR(32) N PK；session_id CHAR(32) N；owner_subject_id CHAR(32) N；owner VARCHAR(128) N；scene VARCHAR(32) N；input_hash CHAR(64) N（keyring独立purpose HMAC，kid取本行payload封套，不记录敏感原文裸hash）；payload_envelope MEDIUMTEXT N（清洗后question＋源引用＋草稿＋确认参数，≤64KiB明文）；evidence_envelope MEDIUMTEXT N（规范证据，≤128KiB明文）；model_projection_envelope MEDIUMTEXT N（已批准待发投影，≤32KiB明文）；snapshot_hash CHAR(64) N；permission_version VARCHAR(64) N；grant_revision BIGINT ?；route_revision BIGINT ?；provider_revisions_json TEXT N（≤8KiB）；data_class VARCHAR(24) N；storage_reserved_bytes BIGINT N DEFAULT0；created_at/expires_at DATETIME(6) N；consumed_turn_id CHAR(32) ?。索引(owner_subject_id,created_at,id)、(owner_subject_id,expires_at,id)、(session_id,id)。120秒有效，最多每用户3条未消费，过期不删除已关联turn的唯一证据链。
+
+preview新增projection_mode VARCHAR(24) N（ALIASED/SCHEMA_IDENTIFIERS）、identifier_policy_revision CHAR(64) N（三闸规范快照的SHA256；无敏感值）。三闸原值/批准引用、近期来源集合及各自版本放现有evidence/payload封套，仍受原字节上限约束；turn的route_snapshot_envelope同时冻结这两项及批准策略，不因keyring轮换改变策略身份。
 
 **copilot_turns**：
 
 |字段|类型/空性|含义|
 |---|---|---|
 |id / session_id / preview_id|CHAR(32) N|id为PK|
-|owner|VARCHAR(128) N|不可变身份|
+|owner|VARCHAR(128) N|用户名显示快照，不作为身份判据|
 |owner_subject_id|CHAR(32) N|真正授权主体；owner仅用户名快照|
 |turn_kind|VARCHAR(24) N|USER_QUESTION / PROVIDER_SELFTEST，仅服务端设置|
+|scene|VARCHAR(32) N|从preview冻结，用户场景见§5；自检仅服务端PROVIDER_SELFTEST|
+|rule_snapshot_hash|CHAR(64) ?|服务端本轮冻结规则尺度摘要，无规则来源时null；用于反馈分组，不能由模型/反馈请求提交|
 |client_request_id|CHAR(32) N|UUID hex幂等键，客户端生成|
 |request_hash|CHAR(64) N|规范session/preview/scene等请求，不含浮动状态|
 |sequence_no|INT N|同会话服务端递增轮号|
@@ -519,10 +576,13 @@ username/owner/operator是UTF-8展示/审计快照，不按ASCII列声明；认�
 |feedback_rating|TINYINT ?|−1/1，空=未反馈|
 |feedback_code|VARCHAR(32) ?|INCORRECT/MISSING_CONTEXT/HELPFUL/OTHER，无自由敏感正文|
 |feedback_at|DATETIME(6) ?|UTC|
+|feedback_rule_ids_json|TEXT ?|服务端本轮RULE_RUNTIME/正式命中规则号去重闭集，≤10个/1KiB；不采信用户或模型提供的rule_id|
 
 唯一约束(owner_subject_id,client_request_id)、(session_id,sequence_no)、(preview_id)；索引(state,created_at,id)、(owner_subject_id,created_at,id)、(session_id,created_at,id)。一个preview不能被不同键重复消费：返回409 PREVIEW_CONSUMED；需要新问题/新扫描意图先产生新preview。
 
-**copilot_runtime**：id TINYINT N PK（固定1）；runner_id VARCHAR(128) ?；heartbeat_at DATETIME(6) ?；accepting TINYINT N DEFAULT0；config_revision BIGINT N DEFAULT1；settings_json TEXT N（≤8KiB，仅enabled/user_daily_tokens/global_daily_tokens/session_retention_days/audit_retention_days）；content_used_bytes/content_reserved_bytes BIGINT N DEFAULT0；updated_at DATETIME(6) N。幂等INSERT缺行才插，不能覆盖活跃runner；初始settings.enabled=false，其余按§7默认。该行作为轻量跨Web原子受理/空间锁，**与metadata_audit_slot完全独立**。
+反馈聚合另加索引(feedback_at,id)，仅查询场景、冻结规则版本及feedback字段；不解密request/evidence/response封套。单轮反馈改写保持幂等，统计当前值而非累计点击数。
+
+**copilot_runtime**：id TINYINT N PK（固定1）；runner_id VARCHAR(128) ?；heartbeat_at DATETIME(6) ?；accepting TINYINT N DEFAULT0；config_revision BIGINT N DEFAULT1；settings_json TEXT N（≤8KiB，仅enabled/allow_schema_identifiers/user_daily_tokens/global_daily_tokens/session_retention_days/audit_retention_days）；content_used_bytes/content_reserved_bytes BIGINT N DEFAULT0；updated_at DATETIME(6) N。幂等INSERT缺行才插，不能覆盖活跃runner；初始settings.enabled=false、allow_schema_identifiers=false，其余按§7默认。该行作为轻量跨Web原子受理/空间锁，**与metadata_audit_slot完全独立**。
 
 **copilot_daily_budgets**：principal VARCHAR(160) N（user:<subject_id>或global）、day_utc DATE N联合PK；reserved_tokens BIGINT N DEFAULT0；charged_tokens BIGINT N DEFAULT0；updated_at DATETIME(6) N。每次受理同时预留user/global两条，均不得超额；终态在同事务释放unused/结算。跨UTC日期的turn归受理日期，不会因跨日丢账。
 
@@ -532,9 +592,17 @@ username/owner/operator是UTF-8展示/审计快照，不按ASCII列声明；认�
 
 以上为**11张新表**。不增业务表列，不改audit_history/scan_snapshots原行；账户创建/删除的现有服务只增加本模块subject生命周期事务接点。逻辑关联由事务校验且定时查孤儿，首期不使用跨既有表的ON DELETE CASCADE，以免删除用户/实例顺带抹掉审计证据。copilot_audit_events另含operator_subject_id CHAR(32) ?及索引(operator_subject_id,occurred_at,id)，后台系统事件可空；所有配置写操作的真正操作者由此审计字段识别，避免同名账号审计串人。
 
+Rev.C审计事件闭集补入GRANT_REQUEST、GRANT_APPROVE、EMERGENCY_DISABLE；原GRANT_CHANGE用于撤销/停用及其结果，不用它混淆已申请和已生效。表数仍11；feedback聚合不增加共享会话或正文查询表。
+
 ### 10.3 Schema、容量与保留
 
 provider/route/grant审计必须和配置变更同事务提交；失审计则拒绝变更。EGRESS_START写失败禁止发模型。结果发布和PUBLISH审计同事务，失败不对用户展示已保存。
+
+M-04：每次attempt的EGRESS_START在最终出域校验及请求构造之后、网络发送之前提交。detail_json闭集附attempt_id/attempt_no、projection_hash（规范最终资料区SHA256）、request_body_hash（将交HTTP传输的实际序列化body字节SHA256，不含认证头）、projection_mode、identifiers_included、identifier_policy_revision、provider/endpoint revision、system_template_hash、knowledge_bundle_id/hash，以及projection_manifest：source_kind、不可复用source_id、source_revision、实际投影字段路径列表、排除策略版本。相同冻结字节用于发送，禁止审计后再拼入自由文本；主备尝试各自记录。
+
+清单是结构schema路径（如data.columns[].name），**不是业务列名值**；真实库表列名仍属30天内容，不另存进180天明文审计。来源ID/hash和清单仍是受控内部元数据，只走审计权限，不能复制进公开日志。清单含问题/历史/知识的字段类别，不保存其文本；总detail_json仍≤4KiB，无法完整容纳则出站前拒绝，不静默截断清单。
+
+该记录可证明本系统登记的字段类别、投影版本和摘要，可在另有原文时比对一致性；不能在正文删除后还原当时的SQL/列名/全部请求，也不能靠hash单独证明从未夹带秘密。EGRESS_START只证明准备尝试，不证明供应商收到；EGRESS_END附本地发送/响应状态，未知保留UNKNOWN。无需延长正文保留；若要求31—180天逐字重建，必须另行讨论受控加密留存及批准，不能宣称本修订已经满足。
 
 保留期任务只清理copilot_*自身内容，小批≤100行，按id游标；到期先标EXPIRED不可读取/出域，再按turn→preview→session清正文，审计元数据保留180天。清理前校验无活动turn；独立runner每小时执行且与业务任务共享低优先级预算。提供dry-run清理清单，初次生产清理需运维确认。备份同样按敏感数据管控，不声称删除数据库行会立即消除备份副本。
 
@@ -628,7 +696,7 @@ message仅取本地错误字典，禁止透传数据库、httpx或模型供应�
 
 |方法与相对路径|请求|响应及副作用|
 |---|---|---|
-|GET `/capabilities`|无|200：subject_id、enabled、mode、runner_ready、allowed_scenes、限制值、知识包版本、可见入口；无key/内部端点；配置关闭时仍可读说明|
+|GET `/capabilities`|无|200：subject_id、enabled、mode、runner_ready、allowed_scenes、限制值、知识包版本、knowledge_status及公开原因码、可见入口；无key/内部端点；配置关闭时仍可读说明|
 |GET `/help`|query≤1024字节、page_key|200本地批准知识摘要及来源；不保存会话、不花模型额度；关闭时可用；仅返回当前可见菜单的帮助|
 |GET `/connections`|cursor/limit、keyword≤128字|仅已获Copilot授权且当前可用的connection_id/name/instance_type；不返回host、账号、端口；不能复用未过滤的全站实例列表|
 |POST `/sessions`|scope_kind、connection_id/database可空、instance_type、page_key|201私有会话摘要；有效正文功能需enabled和crypto；GLOBAL_HELP不得携带connection_id；INSTANCE要求已授权连接，数据库取显式选择或已存配置，不连接目标库枚举|
@@ -658,13 +726,18 @@ message仅取本地错误字典，禁止透传数据库、httpx或模型供应�
   "page_key": "schema-extractor-audit",
   "question": "这次审核为什么失败，应先检查哪些证据？",
   "source_refs": [{"kind":"metadata_job","job_id":"0123456789abcdef0123456789abcdef","offset":0,"limit":10}],
-  "draft": null
+  "draft": null,
+  "include_recent_jobs": false
 }
 ```
 
 source_refs是§4.2中kind对应的严格判别联合；rule用rule_ids；audit_history用history_id/statement_indexes；scan_snapshot用snapshot_ids数组；其余单ID按表定义。不接受复合任意JSON条件。draft形状为 `{kind:'SQL'|'EXPLAIN'|'DIAGNOSTIC', text, revision}`，作为USER_DRAFT计入4来源上限；显式草稿架构取会话字段，不从SQL猜实例。缺少本场景必需引用时422 SOURCE_REQUIRED，不擅自读取最新记录。
 
+include_recent_jobs为可选布尔默认false，仅JOB_TROUBLESHOOT且存在当前job引用可为true；由服务端按§5.3定位至多3条，不能请求任意用户名/库名/查询条件。预览须展示实际增加的近期来源并计入同一确认；提交接口不得另带或扩大该集合。
+
 预览响应除request_id外包含：preview_id、expires_at、expected_session_revision、scene、snapshot_hash、input_hash、context_display、evidence_cards、redacted_question、model_projection_preview、data_class、mode、provider_display、route_revision、warnings、estimated_input_upper、reserved_token_upper、requires_confirmation=true。provider_display只包含名称/模型/数据域/主备标识，不含主机/key；LOCAL_ONLY不伪装有模型。
+
+Rev.C另返回projection_mode、identifiers_included、identifier_policy_revision及knowledge_status；实际名称必须在可展开的model_projection_preview中可见，不只显示“已脱敏”。include_recent_jobs产生的摘要与其他资料一起裁剪、封存并计算snapshot_hash；无法放进预算时预览先说明缺项。
 
 model_projection_preview是**实际将发送的问题/历史/证据/知识资料区的脱敏内容**，系统模板另显示template_version/hash及可查看的规则摘要。用户不能在预览JSON中编辑后回传替代服务端版本。只看“删了多少字段”不足以确认出域，必须能展开查看具体投影。预览时完成知识选择、历史权限复核、规则冻结和预算裁剪，封存最终资料区；runner不得再悄悄加入新来源或更新知识。
 
@@ -718,12 +791,18 @@ request_hash是以上字段、session_id、owner_subject_id按固定键排序UTF
 |POST `/copilot-admin/providers/{id}/self-tests`|§12.6；异步202、同键200；明确提示可能产生少量调用费用；不发业务资料|
 |PUT `/copilot-admin/providers/{id}/enabled`|expected_revision、enabled；启用要求同revision自检通过且部署批准；停用拒绝新调用并取消尚未发出的路径；不用DELETE删除被引用provider|
 |GET/PUT `/copilot-admin/routes/{scene}`|仅§5场景闭集；primary/fallback/隐私配置/expected_revision；检查同数据域、能力与额度；revision+1，审计同事务|
-|GET/PUT `/copilot-admin/grants`|分页读取；单项username、connection_id、enabled、approval_ref、expected_revision；目标用户/连接必须存在；撤销更新revision，立即用于下一阶段复核；不提供默认“全实例”批量授权|
+|GET/PUT `/copilot-admin/grants`|GET分页元数据；PUT username、connection_id、intent=REQUEST或REVOKE、approval_ref、allow_schema_identifiers、identifier_approval_ref、expected_revision；REQUEST仅写PENDING/enabled=0，REVOKE即时撤销；禁止直接enabled=true或代填审批人|
+|POST `/copilot-admin/grants/approve`|subject_id、connection_id、expected_revision；§9.1复核人分离，PENDING→APPROVED/enabled=1、revision+1；旧revision返回409 CONFIG_CHANGED，用GET核实已生效状态，不重复修改权限；非PENDING拒绝|
 |GET/PUT `/copilot-admin/settings`|DB进一步关闭开关、额度/保留期的允许字段；expected_revision；不得改变部署硬上限、网络端点或加密路径；值超限拒绝|
-|GET `/copilot-admin/health`|runner心跳、排队/活动数、熔断、配额/空间、错误码、知识包和协议自检状态；不探测目标TDSQL，不在GET调用模型|
+|GET `/copilot-admin/health`|runner心跳、排队/活动数、熔断、配额/空间、错误码、知识包READY/STALE/INVALID/MISSING和协议自检状态；不探测目标TDSQL，不在GET调用模型|
+|GET `/copilot-admin/feedback-summary`|admin+copilot-admin；时间窗≤30天，按scene+rule_id+rule_snapshot_hash聚合当前INCORRECT反馈；无正文/用户名/实例名/会话ID或正文跳转，详见下文|
 |GET `/copilot-audit/events`|admin或auditor+sys-auditlog；时间窗≤31天、用户/turn过滤、分页；仅本地审计元数据、耗时、usage来源、错误码；无问答正文/内部SQL|
 
 配置表GET返回的revision用于乐观锁，旧revision统一409 CONFIG_CHANGED。DB settings使用§10.2 runtime.settings_json闭集，部署配置是上界且COPILOT_ENABLED为硬闸。自检通过不等于自动启用provider/scene/实例授权，三项独立操作。首次启动顺序为策略/keyring/知识/身份准备→仅本地模式启用Copilot→管理员合成自检→人工启用provider及scene→按批准授grant，不存在“必须先有已自检provider才能运行自检”的循环。变更保留期只作用于新会话expires_at；不能悄悄延长已有正文期限。缩短已有会话期限需先dry-run、审批后单独运维变更，本期无批量按钮。
+
+N-07只读聚合口径：feedback_rule_ids_json由服务端冻结证据提取，用户/模型不得指定；没有规则存空数组、聚合时归UNASSIGNED，一轮多规则分别计入，提示“关联质疑次数，不等于该规则已证实误报”。同turn重复提交不增加次数，修改为其他code即退出当前INCORRECT计数。只读未过期30天内容对应的元数据，不从180天审计恢复正文或无限保留反馈明细；按rule_snapshot_hash分组，不能合并不同规则尺度。
+
+先用feedback_at索引窄查至多5001行、单次3秒，超过5000行返回CONTEXT_TOO_LARGE要求缩短时窗，不扫全库、不报截断总量为完整。计算最多1000分组，超限同样缩小范围；对外仅展示至少3个不同subject贡献的组，其余合并隐藏，不返回主体列表。该隐私阈值不是匿名性的证明；仍需管理权限，聚合页不能用于读取他人聊天。
 
 ### 12.6 管理自检也走同一执行控制面
 
@@ -751,7 +830,7 @@ POST自检仅含client_request_id/expected_provider_revision；服务端构造�
 |503|COPILOT_DISABLED、RUNNER_UNAVAILABLE、COPILOT_CRYPTO_UNAVAILABLE、STORAGE_UNAVAILABLE、POLICY_UNAVAILABLE|仅助手拒绝新增；GET状态/取消尽可能保持，原系统功能不依赖此健康|
 |终态错误|QUEUE_TIMEOUT、TURN_TIMEOUT、EXECUTOR_INTERRUPTED、CONTEXT_CHANGED、AUTH_REVOKED|不自动重发推理；先说明状态，用户明确新提问才建新键|
 |模型原因码|PROVIDER_CONNECT_FAILED、PROVIDER_TIMEOUT、PROVIDER_RATE_LIMITED、PROVIDER_UNAVAILABLE、PROVIDER_AUTH_FAILED、PROVIDER_REQUEST_REJECTED、PROVIDER_TLS_FAILED、EGRESS_DENIED|有合格本地证据则DEGRADED，否则FAILED；主备条件按§7，禁止泛化重试|
-|资料/输出原因码|EVIDENCE_UNAVAILABLE、KNOWLEDGE_UNAVAILABLE、OUTPUT_INVALID、OUTPUT_TRUNCATED、OUTPUT_SENSITIVE、TEXT_VALIDATION_TIMEOUT|缺资料明确缺失；输出不合格不开放候选动作；禁止重复模型修复循环|
+|资料/输出原因码|EVIDENCE_UNAVAILABLE、KNOWLEDGE_UNAVAILABLE、KNOWLEDGE_BUNDLE_STALE、OUTPUT_INVALID、OUTPUT_TRUNCATED、OUTPUT_SENSITIVE、TEXT_VALIDATION_TIMEOUT|缺资料/知识过期明确原因；输出不合格不开放候选动作；禁止重复模型修复循环|
 |500|INTERNAL_ERROR|仅追踪号，正文/堆栈不外露；事务是否受理通过原键确认|
 
 对输入敏感值的校验错误同样禁止FastAPI默认422回显input字段；为该router统一校验异常响应，不改变全站既有错误合同。
@@ -798,15 +877,15 @@ HTML仅内联CSS/转义文本，无JavaScript/表单/追踪/远程图片字体�
 |工作包|新增/修改位置|必须交付及依赖|
 |---|---|---|
 |CP-W01 契约|新增backend/models/copilot.py、backend/services/copilot/errors.py|Pydantic输入/输出/枚举闭集、错误字典、限制值；不更改旧API结构|
-|CP-W02 数据|新增backend/schema/v16/160_copilot_core.sql、services/copilot/repository.py|§10十一表、索引/约束、主体代际、幂等事务、预算/存储/锁顺序、迁移幂等及校验和；开工前再次确认v16未被占用|
-|CP-W03 授权加密|services/copilot/authz.py、crypto.py、policy.py；最小修改auth_service.py|角色路径显式覆盖、实例grant、源对象/会话授权、严格keyring、端点与出域白名单；所有失败关闭|
+|CP-W02 数据|候选backend/schema/v16/160_copilot_core.sql、services/copilot/repository.py，B-01裁定后冻结路径|§10十一表、主体代际、申请复核/标识符字段、无值出域清单、幂等事务、预算/锁顺序、迁移校验和；开工前关闭B-01并重查v16|
+|CP-W03 授权加密|services/copilot/authz.py、crypto.py、policy.py；最小修改auth_service.py|全方法路由拒绝默认、申请/复核分离、标识符三闸、源对象/会话授权、严格keyring、端点与出域白名单|
 |CP-W04 知识资料|services/copilot/knowledge.py、evidence.py、redaction.py、tools.py；copilot_knowledge与离线构建器|批准知识包、BM25、各源窄查询、确定性裁剪、来源版本hash；无目标库取数|
 |CP-W05 模型|services/copilot/providers.py、routing.py、output.py|httpx适配/能力合同、主备共享时限、限长/冷却、usage、结构/引用校验、固定本地模板|
 |CP-W06 执行|backend/workers/copilot_runner.py、copilot_text_worker.py；services/copilot/workflow.py|命名锁/心跳/租约/attempt fencing、取消/重启回收、文本计算子进程；不得复用metadata runner槽|
 |CP-W07 API|backend/api/copilot.py、copilot_admin.py、copilot_audit.py；main.py最小注册|§12全端点、预览/202/恢复、管理自检同控制面、路由专属验证错误；GET无外部调用|
 |CP-W08 页面|frontend/static/js/copilot.js、static/css/copilot.css；index.html/app.js接线|§13抽屉/会话页/资料确认/归属防护/原编辑器桥/配置权限；不重做全站框架|
 |CP-W09 导出|services/copilot/report.py、templates/copilot_report.html|仅新建议报告、实例名冻结、无活动内容、当前权限复核、审计|
-|CP-W10 运维|deploy/tdsql-copilot-runner.service、端点/keyring样例与校验；原发布脚本最小接线|§16五条发布链路、开关、预检、停用/备份/恢复、日志资源上限|
+|CP-W10 运维|deploy/tdsql-copilot-runner.service、端点/keyring样例与校验、deploy/copilot_emergency_disable.sh；原发布脚本最小接线|§16五条发布链路、知识重建差异复核、同版本迁移预演、停用/网络切断演练、备份恢复及日志资源上限|
 |CP-W11 测试文档|tests/copilot/、tests/e2e/copilot/、docs/USER_GUIDE.md对应章节|§15矩阵、实测证据、使用/配置/故障/数据批准手册；pytest/Playwright仅测试依赖|
 
 加密模块仅一套 `services/copilot/crypto.py`。所有源码改动在独立实施阶段提交，不由本设计交付提前加入占位接口/迁移。
@@ -818,6 +897,8 @@ HTML仅内联CSS/转义文本，无JavaScript/表单/追踪/远程图片字体�
 ## 15. 验收设计与证据要求
 
 ### 15.1 测试层级及环境
+
+N-01：在相同环境分别对改动前后运行test_rbac_path_coverage.py、test_v2_rbac_matrix.py、test_v3_rbac_instances.py，保存用例清单和失败集合。当前静态函数数为4+5+14，参数化后的实际用例数以收集结果为准；不得硬编码“23全过”代替证据。既有失败逐项归因并走原门禁，不以“前后都失败”自动放行；新增Copilot独立全方法锁和动态权限测试必须通过。
 
 以下全部是**未来必须执行的验收用例，不是本次已执行/通过记录**。测试按纯函数→元数据库事务/受控HTTP模拟端点→真实浏览器→获准内网模型与TDSQL样本→离线发布链路逐层推进。模拟端点可注入超时、429、滴流、错误JSON及断线，但不能代替真实模型质量、真实网关认证/TLS、内部数据政策或6000+表容量验证。
 
@@ -860,7 +941,7 @@ A负责独立SIT、协议/安全/事务；O按人类在真实浏览器点击的�
 |CP-TST-29|F12|取消与最终发布竞争，取消后迟到模型结果|以事务先后为准，终态不反写、无已取消变成功|
 |CP-TST-30|F12/N01|runner崩溃/命名锁连接断/重启|旧RUNNING中断不自动再发，旧attempt不能发布；新控制面可恢复|
 |CP-TST-31|N01|DB在EGRESS_START前断开，在PUBLISH时断开|前者模型调用0；后者不伪装已保存，恢复后保留唯一线索|
-|CP-TST-32|S01|admin/dba/developer/auditor/自定义角色，各菜单组合|§9精确矩阵，未映射路径覆盖测试通过；无匿名旁路|
+|CP-TST-32|S01|admin/dba/developer/auditor/自定义角色，各菜单组合|§9精确矩阵；独立扫描三个Copilot前缀实际路由全部方法及authz依赖；GET漏登记必失败，无匿名或全局fallback旁路|
 |CP-TST-33|S01|猜其他用户session/turn/preview/action/export ID|统一404或适当无权，正文泄漏0；admin也不能读他人聊天|
 |CP-TST-34|S01|有源菜单无grant、有grant无源权限、源对象已删|交集拒绝；不靠前端过滤隐藏|
 |CP-TST-35|S01|预览后/出域前/模型返回前/导出前撤销权限|阶段复核，停止后续调用/展示；不会承诺撤回已发数据|
@@ -880,15 +961,25 @@ A负责独立SIT、协议/安全/事务；O按人类在真实浏览器点击的�
 |CP-TST-49|N01|预览空间预留竞争、到期清理、实际密文膨胀|容量不按明文低估，不允许并发穿透；无误删活动/业务数据|
 |CP-TST-50|F14|单轮HTML导出，名称含引号/脚本/中文、历史缺名|名称快照和缺失说明正确，转义，无脚本/外部资源/Prompt|
 |CP-TST-51|F14|反馈及重开历史|仅本轮反馈更新，无永久记忆/知识变更/训练调用|
-|CP-TST-52|F02/S03|知识包hash错误/过期/错误产品族/旧规则冲突|降级或排除；TDSQL-C资料不冒充TDSQL MySQL语法|
+|CP-TST-52|F02/S03|知识包hash错误/过期/app不兼容/错误产品族/旧规则冲突|STALE/INVALID/MISSING明确区分，capabilities/health/用户提示一致；不把陈旧包静默查空，RULE_RUNTIME仍可用|
 |CP-TST-53|N01|两轮模型处理中做原审核/导出/元数据恢复/网关查看|既有功能正确；时延/内存按§15.3对照测量|
 |CP-TST-54|N02|干净离线全新安装、增量升级、补丁更新|十一表和包校验、开关默认false、旧功能回归；不临时联网pip/CDN|
-|CP-TST-55|N02|迁移中断/残表错列/校验和漂移|不错误标迁移成功；按现有机制可诊断恢复，禁止吞错|
+|CP-TST-55|N02|生产完全同版本MySQL下迁移中断/残表错列/校验和漂移，助手开关分别false/true|按B-01最终选择实测；统一路径须证实Web失败关闭及旧版恢复，独立路径须补账户代际故障测试；禁止吞错或把预演当零停服证明|
 |CP-TST-56|N02|回退至无Copilot版本、再升级恢复|新runner停用且无跨版本残进程；旧业务可用，保留加密新表/keyring|
 |CP-TST-57|S02/N02|发布包/日志/截图自动秘密扫描|无真实key、问答正文、业务行或内网敏感配置进入交付证据|
 |CP-TST-58|F01—F14|§15.4真实批准模型黄金集及浏览器完整业务路径|功能与回答质量分别满足门槛；mock证据不得替代实机结论|
 |CP-TST-59|S01/F12|删除并同名重建账号、旧token访问、新账号查询旧turn|subject更换、旧授权不复活、新用户正文访问0；普通改密后仍可读本人旧会话|
 |CP-TST-60|S02/F12|keyring轮换期间同键恢复，preview或密文跨行置换|幂等身份不受密钥版本影响；AAD拒绝跨行替换；不解密读取他人内容|
+|CP-TST-61|F04/S02|标识符三闸8种组合、PUBLIC误配、主备能力不一致、预览后撤销|仅全部获批INTERNAL可发送闭集名称；其余0出站，变化重新预览；错误配置拒绝|
+|CP-TST-62|F04/S03|标识符注入/超长/控制字符/反引号/别名避碰；夹注释/DEFAULT/边界值|非法名称一致别名化，禁止内容出站0；真实名称实际预览可见，注入不能扩权|
+|CP-TST-63|F04|真实名称但缺WHERE/DEFAULT/分区边界、方言未知、复核超时或违规|不能仅凭名称完整标TEXT_ONLY_CHECKED；按§5.4状态及executable合同，无自动执行|
+|CP-TST-64|F05|完整性字段为null/缺失/异常跳过/良性子表跳过/明细压缩；近期证据不同权限/版本|使用真实键，保留UNKNOWN；不把压缩当漏审；近期≤3、总来源≤4，预览封存，不证明必现|
+|CP-TST-65|S02|有/无标识符每次attempt出站审计，正文30天清理、审计180天|投影/请求hash对应最终字节；清单无真实名称值，≤4KiB；写失败或溢出0调用，不能声称可还原正文|
+|CP-TST-66|S01|自申请自批、目标主体审批、仅一admin、旧revision批准、撤销与出站竞争|自批/替目标自批拒绝；仅独立复核可启用，字段非客户端身份；撤销即时、无默认旁路|
+|CP-TST-67|S03|无证据“我已修复”/收益百分比，否定句/合法历史引用及改写诱导|无证据断言退本地；合法否定/引用不因子串误杀；记录误拒/漏检，不能据此宣称完备过滤|
+|CP-TST-68|N02/S02|有2个活动调用时紧急停用，元数据库同时不可用，随后重启|§16.6切断与回收留证；停用持久生效、审计失败不阻挡止血，无删除取证或自动重调模型|
+|CP-TST-69|F14/S01|反馈重复/改码/多规则/换版本/低人数/过期/无管理权限|按当前值幂等聚合，≥3主体才展示组，超窗/超量拒绝；无正文/身份/实例泄漏，不自动改规则|
+|CP-TST-70|S01/N02|升级存量JWT与新subject时间先后、同秒登录、正常改密|旧token仅Copilot提示重新登录，原模块合同不变；同秒边界不能放宽iat检查|
 
 ### 15.3 非功能量化门禁
 
@@ -911,17 +1002,21 @@ A负责独立SIT、协议/安全/事务；O按人类在真实浏览器点击的�
 
 引用支撑率以“引用内容支持该句话”为判准，不以ID合法代替。人工检查至少覆盖所有SQL候选和数值结论。两轮间温度/模型变化必须记录；切模型/升级知识/改system模板后重跑相关黄金集，不沿用旧签署。
 
+Rev.C在至少100题内明确补入：标识符内含指令、三闸回落、真实名称但必要值缺失、skipped_abnormal>0、旧null、omitted_results>0及所选近期记录不可比。禁止断言题同时有合法否定和历史引用反例，分别记录漏检/误拒。CP-1A可先用本地结果做内部体验与放弃率观察，不能替代上述真实模型黄金集。线上发现模型标识/行为漂移或严重结果断言错误时停用对应provider，固定合成回归和受权样本复核后再人工启用；不自动读取所有私有聊天作评测。
+
 ## 16. 配置、运维、发布及回退
 
 ### 16.1 新增部署材料
 
 本次实施与发布标识统一为 **v1.6.4.0**：开发阶段将APP_VERSION值、前端版本展示、发布包清单、部署手册及新报告应用版本统一为1.6.4.0，并核验一致性；本次文档修订不修改这些代码或配置。既有报告/证据中的历史版本不得批量替换。CP-1能力阶段、CP-SYSTEM-1提示词模板、schema_version=1和数据库迁移v16均属各自独立编号体系，不能机械替换成1.6.4.0。
 
-未来随包交付：`deploy/tdsql-copilot-runner.service`、`deploy/copilot-endpoints.example.json`、`deploy/copilot-keyring.example.json`（仅占位，不含可用密钥）、知识包及hash、配置说明、故障手册。真实端点批准文件/keyring放版本目录之外的受控conf目录，升级不覆盖。Web及runner使用同一策略revision/keyring和应用代码，私钥仅服务账户读；浏览器与静态资源无访问路径。
+未来随包交付：`deploy/tdsql-copilot-runner.service`、`deploy/copilot-endpoints.example.json`、`deploy/copilot-keyring.example.json`（仅占位，不含可用密钥）、`deploy/copilot_emergency_disable.sh`、知识包及hash、配置说明、故障手册。真实端点批准文件/keyring放版本目录之外的受控conf目录，升级不覆盖。Web及runner使用同一策略revision/keyring和应用代码，私钥仅服务账户读；浏览器与静态资源无访问路径。
 
 端点清单schema_version=1，每条字段严格取§9.2；无任意headers/extra_body入口。keyring形状 `{schema_version:1,active_kid:'key-YYYYMM',keys:{kid:'base64的32字节AES密钥'}}`；加载校验kid格式`[A-Za-z0-9_-]{1,64}`、解码长度32、active存在、总key数≤4、文件≤8KiB、无重复JSON键。端点文件≤64KiB、最多16条、禁止重复endpoint_id；路径由部署指定，不来自HTTP请求。
 
-新增部署参数除§7表外为：COPILOT_KEYRING_FILE、COPILOT_ENDPOINTS_FILE、COPILOT_KNOWLEDGE_BUNDLE、COPILOT_STORAGE_MAX_MIB=2048。不得把实际secret放.env模板/Git/截图；.env只放受控路径。数据库中只保存非敏感设置与加密封套。
+新增部署参数除§7表外为：COPILOT_KEYRING_FILE、COPILOT_ENDPOINTS_FILE、COPILOT_KNOWLEDGE_BUNDLE、COPILOT_STORAGE_MAX_MIB=2048、COPILOT_ALLOW_SCHEMA_IDENTIFIERS=false。不得把实际secret放.env模板/Git/截图；.env只放受控路径。数据库中只保存非敏感设置与加密封套。
+
+N-02：首次迁移为存量用户分配subject.created_at后，早于该时点的JWT在Copilot侧将收到401 AUTH_REQUIRED，提示重新登录；原模块不因这一新校验统一失效。部署手册须提前公告并演示重新登录恢复，同秒iat按§9.1等待下一秒，不通过放宽比较消除提示。升级验收同时覆盖已登录会话、密码变更与同名重建。
 
 ### 16.2 独立runner服务
 
@@ -933,15 +1028,23 @@ ExecStart固定为当前发布目录的venv Python执行 `-m backend.workers.cop
 
 ### 16.3 五条发布链路
 
+下表涉及统一迁移的步骤为O建议的B-01候选方案；**Mr.Linsang尚未接受其风险，A尚未复审关闭，不得据此开工或上线**。如果改选独立初始化，必须连同§9—§11账号生命周期、控制行依赖、全新安装bootstrap与恢复合同一起改审，不能只替换此表一行。
+
 |链路|必须修改/核验的现有位置|具体要求|
 |---|---|---|
 |全新安装|deploy/install.sh、env.template、init_metadata_mysql8.sql/迁移入口|安装新unit但默认关闭；十一表由统一迁移链路建立，无明文密钥种子；旧功能先验证；开启助手另走批准|
-|增量升级|deploy/upgrade_incremental.sh、preflight_check.sh|备份元数据库/部署配置/keyring；比对包hash；暂停助手受理、停止对应runner；迁移→原服务→启用条件满足才启动新runner；不覆盖批准端点|
+|增量升级|deploy/upgrade_incremental.sh、preflight_check.sh|停服前完成包/版本/空间/批准检查及隔离库预演；备份元数据库/配置/keyring；暂停受理、停止对应runner，在维护窗口迁移→验证原服务→条件满足才启动新runner；失败保持助手关闭并按实测旧版恢复|
 |补丁更新|deploy/make_patch.py、make_patch.sh、apply_patch.sh|差分包含新增py/js/css/知识/模板/unit及清单；本版本新增内容不能因旧过滤器遗漏；在变更范围含Copilot时管理其停止/启动|
 |回退|deploy/rollback.sh|先停止Copilot接收/服务；回退目标不含模块则禁用unit，不能尝试用旧源码运行新runner；保留十一表/keyring/知识归档，不自动DROP或删除真实资料；原Web/metadata-runner按原流程恢复|
 |验证与打包|deploy/verify_deploy.sh、make_release.sh、make_release.ps1|区分“未启用可接受”与“已启用但runner/策略/知识失败”；发布包清单/hash、离线依赖干净安装、原功能＋助手合成自检均留证据|
 
-新迁移必须在与生产相同MySQL主版本的隔离元数据库验证：重复运行、半途DDL隐式提交、错误残表、两个Web同时启动、空间不足、最小权限。若现有迁移验收器不能正确检查新表类型/索引，补足窄范围测试与实现，不能修改旧SQL校验和绕过。回退后旧迁移器是否容忍额外schema_migrations行必须实测；不把“只加表”当作天然回退证明。
+新迁移必须在与生产**完全相同MySQL发行版及补丁版本**、匹配字符集/排序规则/sql_mode/关键配置与部署权限的隔离元数据库预演，记录VERSION和配置指纹；仅同主版本不足以通过该门禁。验证重复运行、DDL中断及隐式提交、错误残表/列类型/索引、两个Web启动、空间不足、最小权限，以及Copilot关闭仍触发统一迁移的行为。生产版本/配置未知或无法复现时门禁待验证，不能写通过。
+
+若迁移验收器不能正确检查新类型/索引，补足窄范围实现与回归，不修改旧SQL校验和绕过。分别实测旧版读取新增表/迁移记录、失败残表和恢复备份三种回退条件；停用新runner、恢复旧发布目录与服务的执行顺序必须有记录。DDL不能假定事务回滚；不得直接DROP新表充当通用回退。维护窗口禁止并行业务写入，恢复备份仍需明确恢复点及数据损失范围，不能用回退掩盖丢失新业务记录。
+
+上述预演和回退降低风险，**不能保证零停服**：生产DDL、空间、锁或结构验收失败仍可能让全站Web起不来，关COPILOT_ENABLED也不能绕过。此风险需Mr.Linsang明确选择后，才可将B-01标记设计已关闭；实际迁移/恢复证据仍留到发布验证。
+
+M-03发布必检：每次版本发布重建知识包并产生manifest/hash；规则、菜单、使用流程或相关厂商资料变化时，逐条差异复核并重跑对应黄金集。无内容变化也须核对兼容范围和有效期，不能只改app_max/到期时间假装复核。五条链路均校验包与应用版本配套，旧版回退恢复对应包；原RULE_RUNTIME不被知识包覆盖。
 
 发布依赖继续使用现有httpx/cryptography/Pydantic；若实现需要调整版本，单独说明兼容矩阵并走 `dist/wheels_tmp` 干净离线安装。禁止把Playwright、评测SDK、临时爬虫加入生产requirements.txt；开发工具与生产包分离。报告说明本次设计没有安装任何新依赖。
 
@@ -955,12 +1058,22 @@ ExecStart固定为当前发布目录的venv Python执行 `-m backend.workers.cop
 
 |门禁|责任材料|阻断条件|
 |---|---|---|
-|CP-GATE-DESIGN|A设计评审、O整改闭环；Mr.Linsang已确定版本v1.6.4.0|P0/P1未关闭、协议/授权范围仍含歧义；已定版本不代替评审通过|
-|CP-GATE-DATA|G取得端点/数据域/TLS/留存说明及责任批准；Mr.Linsang确认边界|未批准内部资料出域、无强制出站控制、密钥方案未验证|
+|CP-GATE-DESIGN|A设计评审、O整改闭环；版本v1.6.4.0与M-01方案甲已裁定，B-01仍OPEN|B-01未定案、P0/P1未关闭、协议/授权范围含歧义；不能仅O提交修订就宣称A准许开工|
+|CP-GATE-DATA|G取得端点/数据域/TLS/供应商留存说明、内网网关日志/留存书面说明、实例及标识符独立批准；Mr.Linsang确认边界|任一主体记录哪些请求/响应、落盘位置、访问人、保留/清理/备份策略未确认；无强制出站控制或密钥方案未验证；store=false不替代材料|
 |CP-GATE-TEST|Q回归、A独立SIT、O真实浏览器UAT、真实模型黄金集|严重安全/事实错误、原功能回归、mock替代实机|
-|CP-GATE-RELEASE|G离线安装/升级/补丁/回退/容量证据|runner跨版本混跑、包缺文件/含秘密、离线依赖或回退失败|
+|CP-GATE-RELEASE|G离线安装/同版本MySQL迁移/升级/补丁/回退/容量、知识差异复核及紧急停用演练证据|runner跨版本混跑、包缺文件/含秘密、离线依赖/回退/停用失败或知识过期；无生产版本预演不能签署|
 
 这些是**本新功能的拟定门禁**，不等同于v1.6.3.2时期Mr.Linsang已经签过的GATE-1/2/3，也不能沿用旧签字自动批准新的数据出域。全部未执行/未签署状态必须写“待验证/待批准”，不写有条件PASS掩盖未做项目。
+
+### 16.6 停用与事故处置（N-05）
+
+发布前须交付并实测单入口：部署目录内执行 `sudo bash deploy/copilot_emergency_disable.sh --incident-id INCIDENT_ID`。这是未来部署脚本的施工合同，本次不创建或执行；值班运维为执行人，G负责演练材料，数据/安全责任方负责恢复批准。脚本只接受受限事件编号和固定本模块路径/unit，不能把用户输入变成任意命令。
+
+1. 立即停止新受理：有DB时写settings.enabled=false/accepting=false并记EMERGENCY_DISABLE；同时在版本目录外持久停用配置，禁止自动重启后恢复。DB/审计不可写不能阻挡紧急切断，转受控本地最小事件记录（编号/时间/步骤/结果，无正文）。
+2. 停止并禁止自动启动tdsql-copilot-runner，按已核验的进程归属回收其子进程；调用预先批准的网络控制手段切断本模块模型出站，不借事故操作停掉metadata-runner或改业务数据库。网络规则及unit操作与平台绑定，由部署手册列出实测命令，不运行模型生成脚本。
+3. 目标：正常控制面5秒内停止后续出站、20秒内本地进程回收、60秒内完成停用确认；均须实测，失败报告真实阻断及人工升级，不宣称到点必成功。已发给网关/供应商的数据不能撤回，独立记录网关端处理状态。
+4. 保全attempt/投影清单/摘要、策略和知识版本、必要的受控数据库快照；不把问答导到工单或延长普通用户正文保留。需冻结到期资料时由数据责任方另行批准，记录范围/时限；不删除keyring/表或清日志“消除事件”。
+5. 演练覆盖2个活动调用、DB不可用、进程卡住、服务重启后的持久停用及原功能可用；分别核验新连接和已有连接的停止情况，供应商收费/远端任务终止不能由本地退出推定。恢复须查清原因、修复/撤销相关配置、重跑受影响安全/黄金集门禁并人工批准，不自动重放中断turn。
 
 ## 17. 资料来源、证据边界及设计自检
 
@@ -992,5 +1105,7 @@ ExecStart固定为当前发布目录的venv Python执行 `-m backend.workers.cop
 ### 17.3 交付自检及开工边界
 
 本设计交付时仅检查文档内部契约、现有路径/字段接点、相对文档链接及Git差异范围；未执行Copilot功能测试，因为实现尚不存在。不得把§15测试矩阵写入现有版本的“已通过”报告。
+
+Rev.C依据本仓库55556b7所含A首轮报告及§8方案甲裁定复核，应用代码仍为1.6.3.7；本轮实际重查database.py的迁移失败关闭、auth_service的权限兜底/账户事务、写方法覆盖锁、v15完整性迁移及metadata worker真实进度字段。没有复现A所述P16变异实验或重测其内网主机内存，不能转写为O本轮实测。外部协议资料沿用原调研日期，不宣称本轮重新访问验证。
 
 发布版本已由Mr.Linsang定为 **v1.6.4.0**，不再作为待决项。开工前仍须确认设计评审、重查基线及v16占用、冻结API/schema/权限/错误闭集；实施顺序按§14。上线前再取得模型/data-zone/实例授权/保留条件及§16门禁证据。默认关闭、只读建议、无隐式公网回退、原审核权威、180秒既有统计预算不变，均不得在实现中悄悄放宽。
