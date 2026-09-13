@@ -2,17 +2,17 @@
 
 |项目|内容|
 |---|---|
-|文档编号 / 修订|CP-DETAIL-v1.6.4.0 / Rev.C|
+|文档编号 / 修订|CP-DETAIL-v1.6.4.0 / Rev.D|
 |编制日期 / 设计责任|2026-09-12 / O|
-|修订日期 / 依据|2026-09-13 / A首轮评审、M-01方案甲裁定及O逐项复核|
+|修订日期 / 依据|2026-09-13 / A第二轮评审与B-01方案乙裁定；N-08/N-09定点整改|
 |提交对象|Mr.Linsang|
-|开发状态|仅设计；首轮意见已修订，B-01待讨论与复审；本次不修改代码、配置、迁移或业务数据|
+|开发状态|仅设计；Rev.C已通过第二轮，Rev.D待第三轮定点复核；本次不修改代码、配置、迁移或业务数据|
 |发布版本|v1.6.4.0（已定版）；CP-1 是本版本交付的能力阶段名|
 |调研代码基线|TDSQL `b6ce21bbcd731fe4f541c6ec09cd7a1316e52de3`，基线APP_VERSION=1.6.3.7；不因目标定版改写历史基线|
 |参考实现|DB-AIOps `a4dfb3b8d102c2fd9af4a37f416c273aa14840e1`，本地与 GitHub master 一致|
 |上游文档|[需求分析与规划](PLAN-v1.6.4.0-AI-Copilot-需求分析与总体规划-O.md)、[高阶设计](HLD-v1.6.4.0-AI-Copilot-专家助手高阶设计-O.md)|
 
-本文件是 **v1.6.4.0 / CP-1** 的设计规格，B-01定案前不得作为已批准施工基线。CP-1A/CP-1B/CP-1C均为本版本内部实施阶段，CP-2/CP-3仍需后续独立立项。Rev.C在Rev.B上纳入方案甲、补齐首轮可采纳意见及对应验收，详见[逐项答复](RESPONSE1-v1.6.4.0-AI-Copilot-设计评审逐项答复与RevC修订说明-O.md)。原评审报告保持不改；文档已修订不等于A已复审关闭。
+本文件是 **v1.6.4.0 / CP-1 Rev.D** 设计规格。Rev.C已获A第二轮评审通过，Mr.Linsang已裁定B-01采用方案乙；本版落实两组迁移、故障降级/对账及N-08/N-09，供第三轮定点复核后冻结施工基线。依据[第二轮评审及裁定](REVIEW2-v1.6.4.0-AI-Copilot设计第二轮评审报告-ClaudeA.md)，对应[整改与定点复核清单](RESPONSE2-v1.6.4.0-AI-Copilot-第二轮整改与RevD定点复核清单-O.md)。CP-1A/CP-1B/CP-1C仍为本版本内部阶段，CP-2/CP-3另立项；原报告/首轮答复作为历史不改。
 
 “新增/修改/必须”描述**未来开发要求**，不是已完成事实。版本定版不等于设计评审或上线门禁通过。Q 不得将概念描述、模型自述、mock通过或本设计默认参数当成实机验收结果。
 
@@ -23,7 +23,7 @@
 |不变量|必须满足|
 |---|---|
 |INV-01|现有 RuleChecker、规则集、实例适用域和质量门禁仍是正式审核裁决者；模型不能覆盖其结论|
-|INV-02|在元数据库及已迁移Schema正常前提下，Copilot开关关闭、模型宕机/额度不足不阻断原审核、采集、页面和原报告导出；升级迁移失败不在此运行隔离保证内，B-01风险与待决项见§10.1/§16.3|
+|INV-02|在共享元数据库及核心/A组正常前提下，Copilot关闭、模型故障/额度不足、B组九表的模块Schema故障不阻断Web及原审核/采集/页面/报告导出；A组两表与核心迁移仍失败关闭，共享数据库故障不属于模块隔离保证；见§10.4/§16.3|
 |INV-03|不允许任意 SQL、HTTP URL、文件路径、shell、MCP、动态代码进入工具执行层|
 |INV-04|会话/turn所有者只能取有效服务端身份，不能取请求体 username/role；管理员也不默认阅读他人会话正文|
 |INV-05|源对象授权、Copilot实例授权、当前用户权限三者取交集；任何查询/解密/出域前均检查|
@@ -250,9 +250,15 @@ GATEWAY_EXPLAIN: T08 + T01
 
 单轮证据收集至多4次工具调用（T09另计最多2次且共用10秒后处理预算）。不存在“模型继续要求→无限追加工具”的循环。预算不足保留已获证据并诚实给出限制。
 
-近期摘要不是隐式加源：用户预览请求可显式include_recent_jobs=true，默认false。服务器按当前job的connection_id/db_name及当前源ACL筛选，终态仅SUCCEEDED/FAILED/CANCELLED，排除当前job，以finished_at DESC/id DESC最多取3条；不能把RECOVERY_REQUIRED/PUBLISHED算已终结。权限过滤先于LIMIT；窄查询仍≤3秒、最多50行，不为找满3条逐页扫描。无合适索引/查询超时则给“近期证据不可用”，不改业务表索引或自动扩大扫描。
+近期摘要不是隐式加源：用户预览请求可显式include_recent_jobs=true，默认false。服务器按当前job的connection_id/db_name及当前源ACL筛选，终态仅SUCCEEDED/FAILED/CANCELLED，排除当前job，以finished_at DESC/id DESC最多取3条；不能把RECOVERY_REQUIRED/PUBLISHED算已终结。权限过滤先于LIMIT；窄查询仍≤3秒、返回最多50行，不为找满3条逐页扫描。超时给“近期证据不可用”，但不能把长期不可用当功能验收通过；索引措施见N-08，不运行期自动DDL或扩大扫描。
 
 本轮总来源仍≤4：当前job加近期job最多3条，有其他来源则进一步缩减。每个job证据包内可附其可信report_id的窄摘要，关联项自身权限/来源版本均冻结，非任意附加来源。预览展示选中的ID/时间/版本和具体摘要，封存后runner只读原集合。对比需同时列代码/规则/范围的可比性；三次失败只能说“所选三次均失败”，不能证明必现或唯一根因。
+
+N-08：现有metadata_audit_jobs只有creator/state方向索引，不能假设已覆盖同实例同库的最近终态。SIT须记录真实行数、各库/终态分布、批准的增长规模，以及实际ACL查询的EXPLAIN、扫描行数、P50/P95、超时率；至少3轮，查询≤3秒，含有/无近期记录及需按created_by限制的用户。LIMIT只限返回数，不证明扫描有界；只测几条fixture不足以签署。
+
+若扫描/排序退化或在上述规模反复超时，应补二级索引后复测，不坚持原Rev.C“不改业务表索引”的绝对限制。候选索引为(connection_id, db_name, finished_at, id)，需要固定created_by的ACL路径另评估(created_by, connection_id, db_name, finished_at, id)；state过滤与混合终态分布一并实测，不能仅凭字段顺序宣称无filesort/必走索引。最终索引数量、名称和列序由实测确定，并写入施工基线及发布证据。
+
+该索引写既有表，**不属于B组**：需要时单列核心迁移backend/schema/v16/161_metadata_job_copilot_lookup.sql（实施前重查编号），仍失败关闭、同生产版本预演；B组九表清单不变。发布清单固定是否包含该迁移，不按生产启动时行数临时生成SQL；A组新增表仍只有两张，但核心变更另含该索引。验证建索引时间、锁等待、临时空间、原写入与回退影响；不可说“加索引不影响既有查询/写入”。若不加，须保留满足批准规模的无索引实测证据和规模上限。
 
 ### 5.4 纯文本SQL复核
 
@@ -461,9 +467,13 @@ route_key闭集：audit-sql、file-audit、schema-extractor-audit、slow-tasks�
 
 N-03采用事前申请/复核分离，不以月度抽查代替启用闸。申请人和复核人均需admin+copilot-admin；复核人subject必须既不等于申请人，也不等于被授权主体。申请/扩大范围进入PENDING、enabled=0并立即停止旧授权；另一名有权管理员按固定revision核验外部批准单后批准，方可enabled=1。只有一个管理员时保持未授权，可用无实例本地帮助；不设置“应急自批”旁路。撤销可由任一有权管理员立即执行，不等待双签。
 
+N-09：启用实例资料及SCHEMA_IDENTIFIERS之前，必须具备至少两名不同自然人、各自账号/ACTIVE subject的管理员，均为role=admin且有copilot-admin；这是部署和CP-GATE-DATA前置条件，不是“建议以后补齐”。名单、职责、外部批准单及账号有效性由部署责任方核验。只有两个管理员时，目标管理员可提出自己的申请，由另一人复核；不允许申请人改用共享账号完成复核。单管理员部署仍可安装和使用有权本地帮助，但不能以模板模式证明业务资料能力已验收。
+
 基础approval_ref和identifier_approval_ref分别记录批准范围；approved_by从已鉴权复核人生成，不接受客户端填写身份。系统验证的是不同账号主体及流程，不能证明背后是不同自然人，也不能仅凭编号自动鉴定外部批准单真伪；职责分离由管理方核验。批准后任何范围/引用变更重新申请，旧revision不可复活。
 
-既有users以username为主键，没有可直接使用的不变用户ID。新增copilot_subjects提供账号代际subject_id：所有owner比较、授权和额度以subject_id为准，username仅为显示/审计快照。首次迁移为现存账号分配subject；正常create_user/delete_user/bootstrap路径在同一元数据库事务维护新subject或吊销旧subject（删除账号不删除其历史）；密码变更不更换subject。角色/权限修改继续按既有permission_version复核。删除后同名重建不得继承旧grant/session/preview；旧主体默认EXPIRED只保留审计，不能把聊天转给新账号。
+既有users以username为主键，没有可直接使用的不变用户ID。新增copilot_subjects提供账号代际subject_id：所有owner比较、授权和额度以subject_id为准，username仅为显示/审计快照。首次迁移为现存账号分配subject；正常create_user/delete_user/bootstrap路径在同一元数据库事务维护新subject或吊销旧subject（删除账号不删除其历史）；密码变更不更换subject。角色/权限修改继续按既有permission_version复核。删除后同名重建不得继承旧grant/session/preview；旧subject置REVOKED、相关会话不可达，不能把聊天转给新账号；EXPIRED属于会话保留期状态，不是subject枚举。
+
+方案乙下账户事务只新增A组runtime/subjects接点；不得查询或写B组grant/session/turn/audit以完成账户操作。删除时subject置REVOKED即权威撤权，不等待清理B组行；即使B组损坏，重建账号也分配全新subject。B组恢复后清理死授权仅为对账，不是迟到的撤权。正常账户操作审计沿用原机制，不因Copilot审计表不可用而失败。
 
 Copilot每次鉴权以窄查询核对当前users状态、created_at与ACTIVE subject，不读取password_hash/salt。首次建立或重建subject后要求现有JWT的iat严格晚于subject.created_at，否则401提示重新登录；不改旧模块的登录合同，也不信任旧同名账号token继承新主体。iat精度边界不足时等下一秒再登录，不能用>=放行旧token。后端runner保存的是subject，不保存token；重新查ACTIVE主体、用户状态及当前授权。直接SQL改写/恢复users绕过账户API属于运维变更，必须停用助手并做subject对账，不宣称能在未提供账号生命周期信息时自动识别所有同名替换。
 
@@ -495,17 +505,22 @@ M-02：新增Copilot专属全方法覆盖锁，从实际注册的FastAPI路由�
 
 ### 10.1 通用约定
 
-未来新迁移建议 `backend/schema/v16/160_copilot_core.sql`；v16在本基线未占用，编码前重查，冲突则分配下一个空版本并同步文档。**本次不创建SQL文件、不执行迁移。**以下字段表就是迁移输入规格，未列字段禁止实现时随意添加敏感快照。
+**B-01已裁定方案乙，采用A组2表+B组9表。** O保留runtime在A组，因为账户事务先获取它才能维持原锁序；不采用将runtime再移出的可选变体。本次不创建SQL文件或执行迁移，下列为未来施工规格。
 
-**B-01待决：上句仍是保留统一迁移的候选施工路径，不是已批准选择。** 认可新增DDL会扩大全站启动失败面；不同意把INV-02的模型运行隔离读成升级绝无停服，原HLD§7已明确迁移失败关闭。Rev.C把此前容易误读的边界写进INV-02，但改文字不能消除部署风险。
+|组|正式迁移位置 / version_key|精确归属|故障处置|
+|---|---|---|---|
+|A组：核心耦合|backend/schema/v16/160_copilot_identity_runtime.sql；v16_160_copilot_identity_runtime|copilot_subjects、copilot_runtime|统一ensure_db链路，失败关闭|
+|B组：助手模块|backend/copilot_schema/v1/001_business.sql；copilot_v1_001_business|copilot_providers、copilot_scene_routes、copilot_instance_grants、copilot_sessions、copilot_previews、copilot_turns、copilot_daily_budgets、copilot_provider_attempts、copilot_audit_events|独立迁移/完整验收，失败仅助手UNAVAILABLE|
 
-O倾向保留统一迁移并完成§16.3硬门禁：copilot_subjects及runtime已被§9.1/§11.2纳入账户创建/删除/bootstrap事务，若十一表可缺失而账户照常变更，旧subject可能不能及时撤销；若维持强制写subject，所谓“只降级助手”也不能覆盖账户管理故障。独立初始化需要同时解决持久账号代际、锁顺序、故障期撤权和恢复，不能只把DDL挪目录或捕获异常。该方向并非不可做，但当前评审建议不足以形成完整替代合同。由Mr.Linsang讨论迁移选择后再冻结此节，B-01继续OPEN。
+v16及B组v1为不同编号空间，实施前核验空位；冲突时先更新设计和发布清单，不能改已应用文件的校验和。两组共享既有schema_migrations表，键前缀明确区分；B组目录在核心loader扫描根之外，绝不把B文件放入backend/schema/vN再试图事后捕获它的错误。N-08若触发索引整改，作为额外核心迁移单列，不进入B组。
+
+B组迁移DDL只允许闭集九表；仅schema_migrations登记与A组runtime健康控制为规定的管理接点，不增加对业务表/原业务服务的写调用。需要新增业务耦合时须重审归属，不能扩大降级异常捕获范围。保留同一主体身份与事务锁序，详见§10.4/§11.6。
 
 MySQL InnoDB、utf8mb4_unicode_ci；ID/hash/key使用ASCII二进制比较（CHAR/VARCHAR CHARACTER SET ascii COLLATE ascii_bin）。日期一律DATETIME(6) UTC，由DB UTC_TIMESTAMP(6)写入；布尔TINYINT，状态VARCHAR而非依赖MySQL ENUM。数值范围同时服务端校验，不能仅信任旧MySQL CHECK。`N`=NOT NULL，`?`=NULL允许；时间默认由应用显式写。除明确默认外不设静默默认值。
 
 username/owner/operator是UTF-8展示/审计快照，不按ASCII列声明；认证先得到数据库规范username，不自行大小写折叠。Copilot自有表的权限关联另用subject_id；不得以字符排序规则或仅username唯一性代替代际身份。
 
-所有表用 `CREATE TABLE IF NOT EXISTS`；沿用迁移器校验和＋增加Copilot启动结构验收，校验列类型/可空/默认/索引，不因同名残表存在就当通过。内容大字段属于**工具元数据库自身存储**，不改变针对目标业务DDL的LOB规则。
+两组均使用正式DDL与独立于“表已存在”的完整验收合同。CREATE TABLE IF NOT EXISTS只是幂等语句，不是验收；当前migrator对CREATE只核表存在，对ADD COLUMN才逐列验证，未完整验证CREATE内列及索引，因此必须补§10.4的严格校验，不能把已有能力写成足够。内容大字段属于工具元数据库自身，不改变目标业务DDL的LOB规则。
 
 ### 10.2 表字典
 
@@ -545,6 +560,8 @@ Rev.C补充字段：allow_schema_identifiers TINYINT N DEFAULT0、identifier_app
 
 preview新增projection_mode VARCHAR(24) N（ALIASED/SCHEMA_IDENTIFIERS）、identifier_policy_revision CHAR(64) N（三闸规范快照的SHA256；无敏感值）。三闸原值/批准引用、近期来源集合及各自版本放现有evidence/payload封套，仍受原字节上限约束；turn的route_snapshot_envelope同时冻结这两项及批准策略，不因keyring轮换改变策略身份。
 
+Rev.D的preview另存module_schema_epoch BIGINT N，纳入snapshot_hash；受理/来源重检若与A组当前epoch不同则CONTEXT_CHANGED。已有turn的幂等恢复仍先返回该turn真实终态，不为旧preview另发新轮。
+
 **copilot_turns**：
 
 |字段|类型/空性|含义|
@@ -555,6 +572,7 @@ preview新增projection_mode VARCHAR(24) N（ALIASED/SCHEMA_IDENTIFIERS）、ide
 |turn_kind|VARCHAR(24) N|USER_QUESTION / PROVIDER_SELFTEST，仅服务端设置|
 |scene|VARCHAR(32) N|从preview冻结，用户场景见§5；自检仅服务端PROVIDER_SELFTEST|
 |rule_snapshot_hash|CHAR(64) ?|服务端本轮冻结规则尺度摘要，无规则来源时null；用于反馈分组，不能由模型/反馈请求提交|
+|module_schema_epoch|BIGINT N|受理时冻结A组故障代次，出站/发布须与当前READY代次一致；旧代次只能恢复查询或转中断|
 |client_request_id|CHAR(32) N|UUID hex幂等键，客户端生成|
 |request_hash|CHAR(64) N|规范session/preview/scene等请求，不含浮动状态|
 |sequence_no|INT N|同会话服务端递增轮号|
@@ -584,13 +602,15 @@ preview新增projection_mode VARCHAR(24) N（ALIASED/SCHEMA_IDENTIFIERS）、ide
 
 **copilot_runtime**：id TINYINT N PK（固定1）；runner_id VARCHAR(128) ?；heartbeat_at DATETIME(6) ?；accepting TINYINT N DEFAULT0；config_revision BIGINT N DEFAULT1；settings_json TEXT N（≤8KiB，仅enabled/allow_schema_identifiers/user_daily_tokens/global_daily_tokens/session_retention_days/audit_retention_days）；content_used_bytes/content_reserved_bytes BIGINT N DEFAULT0；updated_at DATETIME(6) N。幂等INSERT缺行才插，不能覆盖活跃runner；初始settings.enabled=false、allow_schema_identifiers=false，其余按§7默认。该行作为轻量跨Web原子受理/空间锁，**与metadata_audit_slot完全独立**。
 
+Rev.D在A组runtime新增module_schema_state VARCHAR(16) N DEFAULT'UNAVAILABLE'（仅READY/UNAVAILABLE）、module_schema_revision CHAR(64) ?（该发布B组迁移+结构合同hash）、module_schema_epoch BIGINT N DEFAULT1、module_reconciled_epoch BIGINT N DEFAULT0、module_schema_checked_at DATETIME(6) ?。这些为系统维护字段，不进入settings可写白名单；故障代次用于跨Web/runner失效与恢复幂等，见§10.4/§11.6。因此不能沿用评审报告的“15个列声明/88%”作为本版精确计数或风险降幅。
+
 **copilot_daily_budgets**：principal VARCHAR(160) N（user:<subject_id>或global）、day_utc DATE N联合PK；reserved_tokens BIGINT N DEFAULT0；charged_tokens BIGINT N DEFAULT0；updated_at DATETIME(6) N。每次受理同时预留user/global两条，均不得超额；终态在同事务释放unused/结算。跨UTC日期的turn归受理日期，不会因跨日丢账。
 
 **copilot_provider_attempts**：id CHAR(32) N PK；turn_id CHAR(32) N（自检也必须有turn）；operator_subject_id CHAR(32) N；operator VARCHAR(128) N；provider_id CHAR(32) N；provider_revision BIGINT N；attempt_no INT N；status VARCHAR(24) N（STARTED/OK/FAILED/UNKNOWN）；started_at DATETIME(6) N；finished_at DATETIME(6) ?；latency_ms INT ?；input_tokens BIGINT ?；output_tokens BIGINT ?；usage_source VARCHAR(24) N（PROVIDER/UPPER_BOUND/UNKNOWN）；error_code VARCHAR(64) ?；provider_request_id VARCHAR(128) ?（只允许[A-Za-z0-9_.:-]）；response_digest CHAR(64) ?。唯一(turn_id,attempt_no)，索引(provider_id,started_at,id)、(operator_subject_id,started_at,id)。不保存供应商response body/原始header。
 
 **copilot_audit_events**：id BIGINT AUTO_INCREMENT PK；occurred_at DATETIME(6) N；operator VARCHAR(128) N；event_type VARCHAR(40) N；session_id/turn_id CHAR(32) ?；target_type VARCHAR(32) N；target_id VARCHAR(128) ?；result_code VARCHAR(64) N；detail_json TEXT N（白名单元数据≤4KiB）；request_id CHAR(32) N。索引(operator,occurred_at,id)、(turn_id,id)、(occurred_at,id)。事件闭集：CONFIG_CHANGE/GRANT_CHANGE/PREVIEW/ACCEPT/CANCEL/EGRESS_START/EGRESS_END/PUBLISH/ACCESS_DENIED/EXPORT/FEEDBACK/RETENTION。
 
-以上为**11张新表**。不增业务表列，不改audit_history/scan_snapshots原行；账户创建/删除的现有服务只增加本模块subject生命周期事务接点。逻辑关联由事务校验且定时查孤儿，首期不使用跨既有表的ON DELETE CASCADE，以免删除用户/实例顺带抹掉审计证据。copilot_audit_events另含operator_subject_id CHAR(32) ?及索引(operator_subject_id,occurred_at,id)，后台系统事件可空；所有配置写操作的真正操作者由此审计字段识别，避免同名账号审计串人。
+以上为**11张新表，A组2张、B组9张**。不增业务表列，不改audit_history/scan_snapshots原行；N-08必要时仅单列核心索引迁移。账户生命周期的Copilot接点只访问A组；B组不被账户事务依赖。逻辑关联由事务校验和对账检查，首期无跨既有表ON DELETE CASCADE，以免删账号/实例顺带抹掉审计。copilot_audit_events另含operator_subject_id CHAR(32) ?及索引(operator_subject_id,occurred_at,id)，后台系统事件可空；真正配置操作者按subject识别。
 
 Rev.C审计事件闭集补入GRANT_REQUEST、GRANT_APPROVE、EMERGENCY_DISABLE；原GRANT_CHANGE用于撤销/停用及其结果，不用它混淆已申请和已生效。表数仍11；feedback聚合不增加共享会话或正文查询表。
 
@@ -612,6 +632,40 @@ COPILOT_STORAGE_MAX_MIB默认2048，仅指正文逻辑配额，20%预留给估�
 
 索引、审计元数据、provider/subject配置、知识包和数据库备份**不在这2GiB正文配额内**，部署另留空间并监控；小批清理provider_attempts/audit元数据遵循审计保留期，不删除唯一subject吊销记录。预览同一用户最多3份和时间窗口限流同时约束；不能按MEDIUMTEXT底层最大容量无限存储。安全拒绝事件按相同subject/错误码/分钟汇总次数，避免攻击者把审计日志写满。
 
+### 10.4 方案乙：发现、结构验收与故障传播边界
+
+**两套入口、同一台账、同等严格结构标准。** 核心run_migrations仅发现旧迁移与A组；B组专属schema入口只发现backend/copilot_schema下的版本文件，生成copilot_vN_NNN_name键。各入口只处理本组文件对应的台账行；不能因看到另一组已登记记录而自动加载/执行它。未知缺包、缺合同、空文件清单、重复key或未知校验和漂移均拒绝本组READY；绝不扩充旧迁移的调和白名单掩盖问题。
+
+未来新增backend/schema/contracts.py提供无业务副作用的严格校验工具；A组新key在写台账前和已登记启动路径均调用，B组复用相同校验原语。每个新文件对应随包冻结的完整合同，校验：表存在/引擎/排序规则、列全集/类型及长度精度/字符集/可空/显式或未声明默认、主键/唯一性/索引名/列序/前缀长度与必要索引属性；不把CREATE内列、复合主键或索引当成只验表存在。DDL、合同及程序注册的hash一并进入发布清单，新增DDL解析或索引校验须有正反例；既有迁移校验和与失败关闭回归保持。
+
+首次未登记迁移可逐项幂等创建，所有声明和种子控制行通过后才登记精确checksum。已经登记的A组若缺表/错列/缺控制行，必须失败关闭，不沿用旧迁移“表丢失自动重建”分支悄悄生成新身份锚点；B组启动只读验收，缺表/错结构一律UNAVAILABLE。修复只允许维护入口按固定迁移/经审核修复程序执行，类型不匹配不得自动强改。并发插入version_key时须重读**同一checksum**并复验结构才当幂等，不能仅见台账有一行就算成功。
+
+**启动顺序与入口边界：**
+
+1. ensure_db在核心初始化锁内执行旧迁移+A组及存量subject补齐，结束后释放初始化锁；随后bootstrap按账户事务取得runtime→users/subject锁创建缺失初始账号，核心/A错误继续向上失败关闭。当前main.py的lifespan存在把初始化/bootstrap异常仅记warning的路径，实施须在相关接点明确传播核心/A MigrationError，不让B组隔离包装捕获它；不扩大修改为重写其他启动策略。
+2. bootstrap之后，在Copilot局部启动步骤读验B组，总预算10秒、单DB操作≤3秒；禁止在导入期/ensure_db中执行B组DDL，禁止持核心初始化锁或runtime行锁跑B组验收。超时/任一表或台账/合同不符只返回结构状态UNAVAILABLE，释放本模块连接、写最小诊断并继续Web。每个Web进程默认本地未就绪，先完成自身验收，不能照抄另一进程的READY跳过检查。
+3. B组正式应用入口拟为python -m backend.services.copilot.schema --apply；它由安装/升级/人工维护调用，独立于Web启动，无模型调用。先停用助手并停止旧runner，取得tdsql_copilot_runner命名锁，再取tdsql_copilot_schema命名锁；DDL前短事务将模块置UNAVAILABLE并按下述规则推进epoch，然后释放runtime行锁。逐文件应用、完整验收与§11.6对账全部完成后才可标READY，未完成即非零返回并保持助手不可用。无开关旁路、无无限启动重试；DDL期间不持runtime行锁。
+4. runner启动取得自身命名锁后完成B组读验/必要对账，再考虑模型/开关是否允许accepting；Web只读验成功不得代替runner解除恢复门禁。首次部署即使COPILOT_ENABLED=false，也由维护入口在该命名锁下完成空库对账，让“结构正常但未启用”可与“结构失败”区分；未配置模型不是Schema错误。
+
+**共享状态与失效：** A组runtime.module_schema_state是跨进程准入依据，READY同时要求本版结构hash一致且module_reconciled_epoch=module_schema_epoch；本地自身验收也必须成功。首次故障或发布版本改变，在短runtime事务内READY→UNAVAILABLE、epoch+1、accepting=false；持续同一UNAVAILABLE不反复增代次。初始UNAVAILABLE使用初始epoch=1。每个助手请求、领取/出站/发布阶段都重新读A组状态/代次，不用长期缓存；出现B表读写结构异常立即使本进程失效并传播到A组。A组状态无法读写则本模块失败关闭，不把共享DB失效包装成“原系统仍完全正常”。
+
+模型出站准备/发布冻结module_schema_epoch；epoch变化时旧attempt不得继续出站或发布。runner每60秒做一次有界B组结构复验，运行中发现故障同样停受理/取消本地请求和文本子进程；无法写B组终态时不伪造已完成，等恢复后按§11.6结算。故障期不调用B组审计表记拒绝/健康事件，仅记无正文的本地诊断；不得为“日志必须写成功”反向阻断原账户管理。
+
+Web进程另以60秒周期检查A组状态；A组READY而本地尚未通过同hash验收时，在本地后台安排一次有界读验，成功才恢复该进程业务入口。capabilities/help本身不触发B组修复或查询；后台任务不得阻塞其200响应。旧版本Web发现hash不符只关闭自身助手入口，不把已由新版维护完成的READY反复改回旧hash；部署仍禁止长期混版。
+
+**降级闭集（有效身份及对应菜单权限仍先检查）：**
+
+|接口/能力|B组UNAVAILABLE时|
+|---|---|
+|Web、原审核/采集/页面/原报告导出、账户管理|核心/A组和共享资源正常时继续可用；账户事务对B组SQL次数为0|
+|GET /api/v1/copilot/capabilities|200；mode=UNAVAILABLE、reason_code=COPILOT_SCHEMA_UNAVAILABLE、module_schema_state、runner_ready=false；只读A组/既有身份权限/本地知识元信息|
+|GET /api/v1/copilot/help|200本地有权帮助或明确知识缺失提示；不存会话、不读B组/模型配置/实例grant、不发送模型；仍有输入与权限限制|
+|其余/api/v1/copilot/*、全部/api/v1/copilot-admin/*及/api/v1/copilot-audit/*|统一503 COPILOT_SCHEMA_UNAVAILABLE，schema门禁先于任何B组对象/幂等查询；不承诺此时可读旧正文或受理取消|
+|runner|A组accepting=false；不领取、不新出站；尽力停止已有本地执行，恢复前不写假终态|
+|健康展示/部署验证|有权页面从capabilities显示“模块结构验收失败，需处理”；copilot-admin/health本身仍503，不另开例外。原Web健康不因B组变红；部署验证明确失败项，不能归为普通未启用|
+
+上述两个200接口仍可能因匿名/撤权返回401/403；A组或公共依赖不可用不保证200。B组Schema正常而开关关闭时，沿用原本可读取已授权历史的合同；Schema故障优先于开关关闭，既有“状态/取消尽量保持”仅适用于B组可用。
+
 ## 11. 异步受理、取消与恢复算法
 
 ### 11.1 状态机
@@ -630,11 +684,11 @@ LOCAL_ONLY=未配置模型且本地知识形成有效帮助；DEGRADED=模型路
 
 ### 11.2 受理事务伪代码
 
-统一锁顺序：runtime(id=1) → users/subject（需要写账户时）→ session → user/global预算（principal字典序） → turn。所有写活动状态路径同一顺序，事务内禁止网络和目标库访问。仅本模块新事务采用READ COMMITTED；授权/版本用新鲜窄查询而非长事务旧快照。账户创建/删除接点必须在原账户变更SQL前获取runtime锁，再在同一事务维护subject；启动顺序为统一迁移→现存subject补齐→bootstrap，不反向等待。
+统一锁顺序：runtime(id=1) → users/subject（需要写账户时）→ session → user/global预算（principal字典序） → turn。所有写活动状态路径同一顺序，事务内禁止网络和目标库访问。仅本模块新事务采用READ COMMITTED；授权/版本用新鲜窄查询而非长事务旧快照。账户创建/删除接点只取前两段，在原账户SQL前取runtime锁，同事务维护subject，不读B组；B组验收排在核心/A组→存量subject补齐→bootstrap之后，B组DDL不持这些行锁，见§10.4。
 
 ```text
-验证有效用户和最小请求格式
-BEGIN; SELECT runtime FOR UPDATE
+验证有效用户和最小请求格式；先检查本地及A组schema状态/版本/代次
+BEGIN; SELECT runtime FOR UPDATE；重检READY及reconciled_epoch=epoch
 按(owner_subject_id,client_request_id)查已有turn
   存在且request_hash相同：复核读取权限，COMMIT，返回200原turn
   存在且hash不同：ROLLBACK，409 IDEMPOTENCY_CONFLICT
@@ -647,7 +701,7 @@ session.active_turn_id=turn.id；session.revision+=1；preview.consumed_turn_id=
 插入ACCEPT审计；COMMIT；返回202
 ```
 
-预览版本变化返回409 CONTEXT_CHANGED，用户重新预览；禁止后端默默改实例/权限/模型。幂等查找必须先于“新请求心跳/容量/preview过期”拒绝，否则已成功受理任务在runner离线时也无法恢复。
+预览版本变化返回409 CONTEXT_CHANGED，用户重新预览；禁止后端默默改实例/权限/模型。B组可用时，幂等查找必须先于“新请求心跳/容量/preview过期”拒绝，否则已成功受理任务在runner离线时也无法恢复。B组UNAVAILABLE时不能安全读取幂等记录，先返回503；客户端保留原client_request_id/preview_id，恢复后仍按原键查询，不生成新意图。
 
 ### 11.3 runner流程
 
@@ -660,7 +714,7 @@ session.active_turn_id=turn.id；session.revision+=1；preview.consumed_turn_id=
 ### 11.4 故障与重启
 
 - Web重启：会话/turn在DB，GET恢复，不重发模型。
-- runner重启：拿到命名锁后先核对旧租约。未曾领取的ACCEPTED且未过15秒可以正常领取；已经RUNNING/发过EGRESS_START但未终态者标INTERRUPTED，**不自动重调模型**，保守计费，释放会话。
+- runner普通重启且无Schema故障代次：拿到命名锁后先核对旧租约，未曾领取的ACCEPTED且未过15秒可以正常领取；已经RUNNING/发过EGRESS_START但未终态者标INTERRUPTED，不自动重调模型。**发生B组故障/版本代次未对账时优先§11.6，所有遗留活动态（含未发出的ACCEPTED）均中断**，不能套普通重启例外。
 - 租约失效不是杀任意PID授权；首期不跨runner重新执行旧业务。旧attempt即使回来也被fencing拒绝。
 - 取消与成功竞争：以持锁事务先提交者为准。成功已发布再取消返回200 already_terminal；先写CANCEL_REQUESTED则禁止后来的成功发布。
 - DB断连：不得继续发新模型调用；现有请求中止，不在内存假完成。数据库恢复后安全回收中断turn；绝不抹掉唯一恢复线索。
@@ -675,6 +729,18 @@ sessionStorage仅保存 `copilot:<subject_id>:<tab_nonce>` 的session_id、pendi
 恢复顺序：认证完成→获取当前用户session摘要→选明确session→GET当前active_turn→恢复轮询/终态结果。已知turn用GET；只知道未决键则同键POST重放原preview。GET列表只能辅助展示选择，不能拿最新任务直接替代本次提交。401停止并清视图等待登录；403/404给固定无权或不存在，不枚举对象；网络错误仅UNKNOWN，不把后台任务改FAILED。
 
 每个可见会话最多一个状态请求在途；2秒poll，网络失败4/8秒退避到上限8秒，恢复后回2秒。离页停poll不取消后台；重入只启动一个poll。多个标签页读取同一会话不重复执行模型。
+
+### 11.6 B组故障恢复对账（必须先于重新服务）
+
+仅runner或§10.4维护入口在持有tdsql_copilot_runner命名锁时执行；B组正式结构、全部台账及本版hash先验收通过，runtime保持UNAVAILABLE/accepting=false。同一故障epoch下幂等恢复，不能用一次健康GET触发修复/重发。维护上下文是固定SYSTEM，只访问copilot_*及迁移台账；不调用用户API、源业务读取或目标数据库。
+
+1. 按subject_id核对B组授权/会话关联，不按username重连。REVOKED或不存在的subject对应grant设置enabled=0、allow_schema_identifiers=0、approval_state=REVOKED、revision+1，与GRANT_CHANGE同事务提交；operator='system'、operator_subject_id=null。已经停用的行重跑不重复加revision/造事件。旧session/turn始终因ACTIVE subject检查不可达，对账不是权限开始失效的时刻。
+2. 对所有遗留ACCEPTED/RUNNING/CANCEL_REQUESTED执行条件更新为INTERRUPTED（error_code=EXECUTOR_INTERRUPTED、phase=DONE），在PUBLISH审计留原phase/attempt/故障epoch线索，禁止自动推理/文本审核重跑。与会话active_turn_id释放、revision递增、终态时间、预算结算、空间释放和PUBLISH审计同事务提交。终态行不重写；旧attempt受epoch与终态双重拦截，不能在对账后回写。
+3. 按受理UTC日及原owner_subject_id结算user/global预算。能证实未出站的原ACCEPTED释放未用预留；已出站且有可信usage按记录结算；是否发送/usage未知按原预留上界保守记账，不能记0。结算以turn从活动→终态的同一CAS事务为一次性标记，重复恢复不二次收费或释放；负数/对不上视为恢复失败，不粗暴置0。
+4. 核对所有会话活动指针、预览消费关系、孤儿引用、日预算及A组content_used_bytes/content_reserved_bytes。每批≤100行并按原锁序处理，单事务目标≤1秒，超时回滚缩批；扫描用索引/id游标，批间释放runtime行锁，不能阻塞账户管理等整个对账结束。保留已完成批的可重入状态，结束前还需确认没有活动轮、悬空预留或不可解释差额。
+5. 完成后短runtime事务CAS校验epoch、代码/合同hash及唯一runner身份未变，置module_reconciled_epoch=module_schema_epoch、module_schema_revision=当前hash、module_schema_checked_at=当前UTC、module_schema_state=READY。accepting是否为true另按开关/身份/策略/keyring/runner条件决定；不是结构恢复即自动启用模型或授权。Web在后续有界重验本地结构后才能重新开放业务接口。
+
+任一步失败保持UNAVAILABLE，补偿/重试仍在同一epoch下执行，不边对账边受理。Schema校验成功不证明历史数据完整：权限或连接故障恢复且行数据完好才是纯对账；若表被删除、恢复旧备份或预算/attempt/审计缺失，须核实一致恢复点、修复缺失证据后再对账，不能用建空表、伪造历史或“没有数据丢失”默认放行。恢复范围、可能丢失记录及不可恢复项由运维记录；不以本模块对账改写业务表。
 
 ## 12. HTTP 接口施工合同
 
@@ -694,10 +760,12 @@ message仅取本地错误字典，禁止透传数据库、httpx或模型供应�
 
 下列“权限”均包含§9；没有明确写出的副作用不得实现。
 
+B组UNAVAILABLE的优先级以§10.4为准：仅capabilities/help可不依赖B组响应，其余用户/管理/审计端点503。恢复后沿用本节常规合同，不因数据库故障要求用户重发新任务。
+
 |方法与相对路径|请求|响应及副作用|
 |---|---|---|
-|GET `/capabilities`|无|200：subject_id、enabled、mode、runner_ready、allowed_scenes、限制值、知识包版本、knowledge_status及公开原因码、可见入口；无key/内部端点；配置关闭时仍可读说明|
-|GET `/help`|query≤1024字节、page_key|200本地批准知识摘要及来源；不保存会话、不花模型额度；关闭时可用；仅返回当前可见菜单的帮助|
+|GET `/capabilities`|无|200：subject_id、enabled、mode、runner_ready、allowed_scenes、限制值、知识包版本/knowledge_status、module_schema_state及reason_code；B组故障mode=UNAVAILABLE，不查询B组；无key/内部端点|
+|GET `/help`|query≤1024字节、page_key|200本地批准知识摘要及来源/缺失提示；不保存会话、不读B组、不花模型额度；开关关闭或B组故障仍可用，仅返回当前可见菜单帮助|
 |GET `/connections`|cursor/limit、keyword≤128字|仅已获Copilot授权且当前可用的connection_id/name/instance_type；不返回host、账号、端口；不能复用未过滤的全站实例列表|
 |POST `/sessions`|scope_kind、connection_id/database可空、instance_type、page_key|201私有会话摘要；有效正文功能需enabled和crypto；GLOBAL_HELP不得携带connection_id；INSTANCE要求已授权连接，数据库取显式选择或已存配置，不连接目标库枚举|
 |GET `/sessions`|cursor/limit、state=OPEN或ARCHIVED|200当前用户摘要列表；撤权来源对应摘要打restricted=true并隐藏名称/库名；不列他人会话|
@@ -827,7 +895,8 @@ POST自检仅含client_request_id/expected_provider_revision；服务端构造�
 |413|REQUEST_TOO_LARGE|缩小输入，不先完整读入再拒绝|
 |422|INVALID_REQUEST、SOURCE_REQUIRED、INPUT_SENSITIVE、CONTEXT_TOO_LARGE、PROVIDER_CONFIG_INVALID|指出可公开的字段名/限制；不回显敏感内容|
 |429|RATE_LIMITED、CAPACITY_EXHAUSTED、QUOTA_EXHAUSTED、STORAGE_QUOTA_EXHAUSTED|返回Retry-After或配额日；无新受理；原任务恢复不受新受理限额阻断|
-|503|COPILOT_DISABLED、RUNNER_UNAVAILABLE、COPILOT_CRYPTO_UNAVAILABLE、STORAGE_UNAVAILABLE、POLICY_UNAVAILABLE|仅助手拒绝新增；GET状态/取消尽可能保持，原系统功能不依赖此健康|
+|503|COPILOT_SCHEMA_UNAVAILABLE|B组任何一表/合同/台账失败或恢复未完成；按§10.4仅capabilities/help可读，其余三个Copilot前缀接口503；保留原提交标识，修复对账后恢复|
+|503|COPILOT_DISABLED、RUNNER_UNAVAILABLE、COPILOT_CRYPTO_UNAVAILABLE、STORAGE_UNAVAILABLE、POLICY_UNAVAILABLE|仅助手拒绝新增；在B组可用前提下GET状态/取消尽可能保持，原系统功能不依赖此健康|
 |终态错误|QUEUE_TIMEOUT、TURN_TIMEOUT、EXECUTOR_INTERRUPTED、CONTEXT_CHANGED、AUTH_REVOKED|不自动重发推理；先说明状态，用户明确新提问才建新键|
 |模型原因码|PROVIDER_CONNECT_FAILED、PROVIDER_TIMEOUT、PROVIDER_RATE_LIMITED、PROVIDER_UNAVAILABLE、PROVIDER_AUTH_FAILED、PROVIDER_REQUEST_REJECTED、PROVIDER_TLS_FAILED、EGRESS_DENIED|有合格本地证据则DEGRADED，否则FAILED；主备条件按§7，禁止泛化重试|
 |资料/输出原因码|EVIDENCE_UNAVAILABLE、KNOWLEDGE_UNAVAILABLE、KNOWLEDGE_BUNDLE_STALE、OUTPUT_INVALID、OUTPUT_TRUNCATED、OUTPUT_SENSITIVE、TEXT_VALIDATION_TIMEOUT|缺资料/知识过期明确原因；输出不合格不开放候选动作；禁止重复模型修复循环|
@@ -850,6 +919,7 @@ editorBridge合同：`readRevision()`、`previewReplacement(candidate)`、`apply
 |状态|显示|允许操作|禁止行为|
 |---|---|---|---|
 |DISABLED / LOCAL_HELP|未启用/本地指南，启用条件说明|搜索批准帮助、关抽屉|自动探测模型、隐藏地创建业务任务|
+|UNAVAILABLE（Schema）|模块结构不可用/正在恢复，当前轮状态待恢复确认|本地帮助、关闭视图；保留原提交ID，以capabilities有界轮询等待恢复|展示缓存旧正文、称普通未启用、宣称已取消/已失败、改新键重发；管理health的503不能覆盖此说明|
 |DRAFT|问题、当前来源选择|编辑、预览、切会话|未预览即发送|
 |PREVIEWING|准备资料、真实耗时|取消本次预览/离开|旧preview晚回覆盖新输入|
 |PREVIEW_READY|实际脱敏资料、目标域/模型/主备、限制、到期时间|确认提交、返回修改|修改问题后沿用旧hash提交|
@@ -877,15 +947,15 @@ HTML仅内联CSS/转义文本，无JavaScript/表单/追踪/远程图片字体�
 |工作包|新增/修改位置|必须交付及依赖|
 |---|---|---|
 |CP-W01 契约|新增backend/models/copilot.py、backend/services/copilot/errors.py|Pydantic输入/输出/枚举闭集、错误字典、限制值；不更改旧API结构|
-|CP-W02 数据|候选backend/schema/v16/160_copilot_core.sql、services/copilot/repository.py，B-01裁定后冻结路径|§10十一表、主体代际、申请复核/标识符字段、无值出域清单、幂等事务、预算/锁顺序、迁移校验和；开工前关闭B-01并重查v16|
+|CP-W02 数据|backend/schema/v16/160_copilot_identity_runtime.sql、backend/copilot_schema/v1/001_business.sql；backend/schema/contracts.py、services/copilot/schema.py、repository.py|A2/B9分组、独立发现/同台账、CREATE列及索引完整验收、失败传播、runtime故障epoch与恢复对账；N-08需要时另加核心161索引迁移；重查编号|
 |CP-W03 授权加密|services/copilot/authz.py、crypto.py、policy.py；最小修改auth_service.py|全方法路由拒绝默认、申请/复核分离、标识符三闸、源对象/会话授权、严格keyring、端点与出域白名单|
 |CP-W04 知识资料|services/copilot/knowledge.py、evidence.py、redaction.py、tools.py；copilot_knowledge与离线构建器|批准知识包、BM25、各源窄查询、确定性裁剪、来源版本hash；无目标库取数|
 |CP-W05 模型|services/copilot/providers.py、routing.py、output.py|httpx适配/能力合同、主备共享时限、限长/冷却、usage、结构/引用校验、固定本地模板|
 |CP-W06 执行|backend/workers/copilot_runner.py、copilot_text_worker.py；services/copilot/workflow.py|命名锁/心跳/租约/attempt fencing、取消/重启回收、文本计算子进程；不得复用metadata runner槽|
-|CP-W07 API|backend/api/copilot.py、copilot_admin.py、copilot_audit.py；main.py最小注册|§12全端点、预览/202/恢复、管理自检同控制面、路由专属验证错误；GET无外部调用|
+|CP-W07 API|backend/api/copilot.py、copilot_admin.py、copilot_audit.py；main.py最小注册/启动接线|§12全端点、B组故障时两个只读例外与其余503、预览/202/恢复、自检同控制面；核心/A异常与B组降级捕获分离，GET无外部调用|
 |CP-W08 页面|frontend/static/js/copilot.js、static/css/copilot.css；index.html/app.js接线|§13抽屉/会话页/资料确认/归属防护/原编辑器桥/配置权限；不重做全站框架|
 |CP-W09 导出|services/copilot/report.py、templates/copilot_report.html|仅新建议报告、实例名冻结、无活动内容、当前权限复核、审计|
-|CP-W10 运维|deploy/tdsql-copilot-runner.service、端点/keyring样例与校验、deploy/copilot_emergency_disable.sh；原发布脚本最小接线|§16五条发布链路、知识重建差异复核、同版本迁移预演、停用/网络切断演练、备份恢复及日志资源上限|
+|CP-W10 运维|deploy/tdsql-copilot-runner.service、端点/keyring样例、deploy/copilot_emergency_disable.sh；原发布脚本接线|两组五条发布链路、A同版本/B隔离库预演、B故障退出码和恢复对账、双管理员前置、知识复核、停用/网络切断、备份恢复|
 |CP-W11 测试文档|tests/copilot/、tests/e2e/copilot/、docs/USER_GUIDE.md对应章节|§15矩阵、实测证据、使用/配置/故障/数据批准手册；pytest/Playwright仅测试依赖|
 
 加密模块仅一套 `services/copilot/crypto.py`。所有源码改动在独立实施阶段提交，不由本设计交付提前加入占位接口/迁移。
@@ -963,8 +1033,8 @@ A负责独立SIT、协议/安全/事务；O按人类在真实浏览器点击的�
 |CP-TST-51|F14|反馈及重开历史|仅本轮反馈更新，无永久记忆/知识变更/训练调用|
 |CP-TST-52|F02/S03|知识包hash错误/过期/app不兼容/错误产品族/旧规则冲突|STALE/INVALID/MISSING明确区分，capabilities/health/用户提示一致；不把陈旧包静默查空，RULE_RUNTIME仍可用|
 |CP-TST-53|N01|两轮模型处理中做原审核/导出/元数据恢复/网关查看|既有功能正确；时延/内存按§15.3对照测量|
-|CP-TST-54|N02|干净离线全新安装、增量升级、补丁更新|十一表和包校验、开关默认false、旧功能回归；不临时联网pip/CDN|
-|CP-TST-55|N02|生产完全同版本MySQL下迁移中断/残表错列/校验和漂移，助手开关分别false/true|按B-01最终选择实测；统一路径须证实Web失败关闭及旧版恢复，独立路径须补账户代际故障测试；禁止吞错或把预演当零停服证明|
+|CP-TST-54|N02|干净离线全新安装、增量升级、补丁更新|分别应用/验证A2/B9及两组台账，开关默认false；B故障不阻断旧功能但发布检查报需处理；不临时联网pip/CDN|
+|CP-TST-55|N02|A组生产同版本预演、B组隔离库验证；中断/残表错列/校验和漂移，开关false/true|按已定方案乙：核心/A失败关闭，B失败助手UNAVAILABLE；真实恢复/旧版回退留证，禁止吞错或把预演当零停服证明|
 |CP-TST-56|N02|回退至无Copilot版本、再升级恢复|新runner停用且无跨版本残进程；旧业务可用，保留加密新表/keyring|
 |CP-TST-57|S02/N02|发布包/日志/截图自动秘密扫描|无真实key、问答正文、业务行或内网敏感配置进入交付证据|
 |CP-TST-58|F01—F14|§15.4真实批准模型黄金集及浏览器完整业务路径|功能与回答质量分别满足门槛；mock证据不得替代实机结论|
@@ -980,6 +1050,18 @@ A负责独立SIT、协议/安全/事务；O按人类在真实浏览器点击的�
 |CP-TST-68|N02/S02|有2个活动调用时紧急停用，元数据库同时不可用，随后重启|§16.6切断与回收留证；停用持久生效、审计失败不阻挡止血，无删除取证或自动重调模型|
 |CP-TST-69|F14/S01|反馈重复/改码/多规则/换版本/低人数/过期/无管理权限|按当前值幂等聚合，≥3主体才展示组，超窗/超量拒绝；无正文/身份/实例泄漏，不自动改规则|
 |CP-TST-70|S01/N02|升级存量JWT与新subject时间先后、同秒登录、正常改密|旧token仅Copilot提示重新登录，原模块合同不变；同秒边界不能放宽iat检查|
+|CP-TST-71|B-01/T1|逐一破坏B组九表：缺表、CREATE内错列/默认/可空、缺主键/索引|Web启动及原审核/导出可用；capabilities/help有权可读，其余三前缀503，后台/身份/日志无隐藏B组依赖|
+|CP-TST-72|B-01/T2|A组已登记后缺表/错列/缺runtime控制行，含不同启动入口|核心失败关闭、可诊断；不自动建空subject冒充恢复，不被lifespan warning或B组捕获吞掉|
+|CP-TST-73|B-01/T3|B组损坏时bootstrap/create_user/delete_user及同名重建|账户事务成功、A组身份分配/吊销正确、B组SQL次数0；不因助手审计失败回滚账户|
+|CP-TST-74|B-01/T4|故障期删账号、同名重建，B恢复后遗留grant/session/turn|新subject不能访问旧资料；旧主体一直不可达；对账清理死授权并审计，重复对账不重复写变更|
+|CP-TST-75|B-01/T5|故障期三种活动态、已出站未知usage、跨UTC日、对账中断与重跑|全部旧活动轮INTERRUPTED，无模型重发；额度/会话/空间一次性结算，未知保守计费，故障epoch拒绝迟到发布|
+|CP-TST-76|B-01/T6|全新安装A成功B失败、开关false，随后修复|核心安装完成、原业务可用；验证脚本非零并标需处理，不误报整体发布成功；B正式修复和空库/恢复对账后可READY|
+|CP-TST-77|B-01/T7|回退旧版时同时保留A2/B9及两组version_key，再升级|旧发现器不执行B迁移、容忍两组额外台账/表；旧业务可用；keyring保留，旧版期间身份变更不导致新用户继承旧会话|
+|CP-TST-78|F05/N-08|真实及批准增长规模的近期任务查询，两种ACL和终态分布，必要时补索引|EXPLAIN/扫描行数/P50/P95/超时率留证；每查询≤3秒，长期不可用不算通过；必要索引走核心迁移并测锁/空间/原业务回归|
+|CP-TST-79|S01/N-09|零/一/两名管理员、菜单权缺失、账号停用及共享身份尝试|业务资料启用需两名独立ACTIVE admin+copilot-admin；申请复核分离，无自批旁路；单管理员仍可原业务/本地帮助|
+|CP-TST-80|B-01|两组发现器、丢包/空清单/重复key、校验和漂移及并发台账写|核心不加载B，B不写业务表；完整CREATE/索引验证在台账前及已登记路径均生效；同key异checksum绝不当幂等|
+|CP-TST-81|B-01|多Web+runner运行中B故障、修复，普通重启与故障恢复对照|状态/epoch跨进程失效，原键保留；Schema恢复不套ACCEPTED普通重启例外；管理health仍503，本地帮助无B依赖|
+|CP-TST-82|B-01|B表数据丢失/旧备份、预算或审计缺口、对账锁超时|不以建空表/置0宣称无数据丢失；保持UNAVAILABLE，证据一致恢复后才READY；短批事务不长占账户runtime锁|
 
 ### 15.3 非功能量化门禁
 
@@ -1018,31 +1100,37 @@ Rev.C在至少100题内明确补入：标识符内含指令、三闸回落、真
 
 N-02：首次迁移为存量用户分配subject.created_at后，早于该时点的JWT在Copilot侧将收到401 AUTH_REQUIRED，提示重新登录；原模块不因这一新校验统一失效。部署手册须提前公告并演示重新登录恢复，同秒iat按§9.1等待下一秒，不通过放宽比较消除提示。升级验收同时覆盖已登录会话、密码变更与同名重建。
 
+N-09部署手册必须在“开启业务资料/结构标识符”步骤之前列出：至少两名独立管理员、各自ACTIVE账号及role=admin/copilot-admin、申请/复核职责分离与批准单。预检不足则阻止上述启用，明确提示单管理员只能继续原工具及有权本地帮助；不阻止基础安装，不把用户问题误报为模型未配置，也不提供一键自批。名单由G归档到CP-GATE-DATA，系统只能核验账号，不能仅凭两个用户名证明两个自然人。
+
 ### 16.2 独立runner服务
 
 ExecStart固定为当前发布目录的venv Python执行 `-m backend.workers.copilot_runner`，工作目录与Web保持同版；服务账户沿用部署账户，不用root。参考现有metadata-runner的正确管理方式，但unit名称、锁、PID与日志独立。
 
 必须设置：KillMode=control-group、TimeoutStopSec=20、Restart=on-failure、RestartSec=5、UMask=0077、NoNewPrivileges=true、PrivateTmp=true。Linux systemd建议MemoryMax=1G、TasksMax=64，CPU预算初始1核等额并按容量测试调整；禁止读写业务报告目录以外的任意路径，实际仅需读取批准知识/策略/keyring和写本模块受控临时目录。Windows开发测试使用受控进程树/Job Object回收，不拿开发环境“进程退出”代替生产systemd验收。
 
-停机先runtime.accepting=false→取消/中断本runner在途任务→停止HTTP协程及文本子进程→释放命名锁。不能先退出主进程留下模型/子进程无人归属。runtime健康只作为助手准入，不让原Web `/health`因为未配置模型变红；运维另看Copilot详细健康。当COPILOT_ENABLED=false时不要求runner运行；停用不影响查阅仍有权的已存记录，但失去keyring时不能假读成功。
+停机先runtime.accepting=false→取消/中断本runner在途任务→停止HTTP协程及文本子进程→释放命名锁。不能先退出主进程留下模型/子进程无人归属。runtime健康只作为助手准入，不让原Web /health因为未配置模型或B组故障变红；运维另看Copilot状态。当COPILOT_ENABLED=false且两组结构/对账正常时不要求runner运行，仍可查有权历史；B组故障时按§10.4仅capabilities/help可读，keyring失效也不能假读正文成功。
 
 ### 16.3 五条发布链路
 
-下表涉及统一迁移的步骤为O建议的B-01候选方案；**Mr.Linsang尚未接受其风险，A尚未复审关闭，不得据此开工或上线**。如果改选独立初始化，必须连同§9—§11账号生命周期、控制行依赖、全新安装bootstrap与恢复合同一起改审，不能只替换此表一行。
+五条发布链路统一按已定方案乙区分核心/A组与B组。必须把“核心安装可用”和“完整v1.6.4.0发布通过”分开；B组出错不得阻止恢复原工具，也不得伪报整包成功。以下均为未来脚本实现/验收要求，本次不改脚本。
 
 |链路|必须修改/核验的现有位置|具体要求|
 |---|---|---|
-|全新安装|deploy/install.sh、env.template、init_metadata_mysql8.sql/迁移入口|安装新unit但默认关闭；十一表由统一迁移链路建立，无明文密钥种子；旧功能先验证；开启助手另走批准|
-|增量升级|deploy/upgrade_incremental.sh、preflight_check.sh|停服前完成包/版本/空间/批准检查及隔离库预演；备份元数据库/配置/keyring；暂停受理、停止对应runner，在维护窗口迁移→验证原服务→条件满足才启动新runner；失败保持助手关闭并按实测旧版恢复|
-|补丁更新|deploy/make_patch.py、make_patch.sh、apply_patch.sh|差分包含新增py/js/css/知识/模板/unit及清单；本版本新增内容不能因旧过滤器遗漏；在变更范围含Copilot时管理其停止/启动|
-|回退|deploy/rollback.sh|先停止Copilot接收/服务；回退目标不含模块则禁用unit，不能尝试用旧源码运行新runner；保留十一表/keyring/知识归档，不自动DROP或删除真实资料；原Web/metadata-runner按原流程恢复|
-|验证与打包|deploy/verify_deploy.sh、make_release.sh、make_release.ps1|区分“未启用可接受”与“已启用但runner/策略/知识失败”；发布包清单/hash、离线依赖干净安装、原功能＋助手合成自检均留证据|
+|全新安装|deploy/install.sh、env.template、init_metadata_mysql8.sql/迁移入口|核心+A组→存量subject/bootstrap→B组维护入口正式迁移/空库对账；新unit默认关闭、无密钥种子；A失败中止，B失败仍完成核心安装并启动原Web，报告需处理，不能退出为全量成功|
+|增量升级|deploy/upgrade_incremental.sh、preflight_check.sh|停服前核包/版本/两组预演/空间；备份元数据库/配置/keyring；停助手、停止旧runner；维护窗口核心+A组→B组应用/对账→核验原服务。A失败走旧版恢复，B失败继续原服务但助手不可用；不自动降级台账或改旧checksum|
+|补丁更新|deploy/make_patch.py、make_patch.sh、apply_patch.sh|差分必须含A/B两个目录、结构合同/加载器/校验器及对应manifest，不能只匹配schema/vN；按两组分别应用与验收，B故障捕获不得包住核心步骤；停止/启动助手且核验hash同版|
+|回退|deploy/rollback.sh|停止助手受理、禁用unit并回收在途；旧目录不得残留新A/B文件供旧loader误扫；保留A2/B9表、两组schema_migrations行、keyring及知识归档，不DROP/删台账；验证旧Web/metadata-runner及身份连续性处置|
+|验证与打包|deploy/verify_deploy.sh、make_release.sh、make_release.ps1|分别报告core_ready/module_schema_state/是否启用/runner就绪。结构READY且未启用可接受；B故障即使开关false也需处理/非零，A或核心错误全局失败；打包含两组文件/hash和离线依赖，验证原功能与助手自检|
 
-新迁移必须在与生产**完全相同MySQL发行版及补丁版本**、匹配字符集/排序规则/sql_mode/关键配置与部署权限的隔离元数据库预演，记录VERSION和配置指纹；仅同主版本不足以通过该门禁。验证重复运行、DDL中断及隐式提交、错误残表/列类型/索引、两个Web启动、空间不足、最小权限，以及Copilot关闭仍触发统一迁移的行为。生产版本/配置未知或无法复现时门禁待验证，不能写通过。
+A组及N-08必要核心索引迁移，仍须与生产完全相同MySQL发行版/补丁版本、匹配字符集/排序规则/sql_mode/关键配置与部署权限预演并记录指纹；生产版本未知不能签署。B组至少在受支持的隔离元数据库完成完整结构/台账、重复运行、部分DDL隐式提交、残表/错列/缺索引、并发和权限/空间不足测试；不以允许降级为由免测。若生产版本不在B组已验证兼容范围内，补对应测试后启用，不能假定兼容。
 
-若迁移验收器不能正确检查新类型/索引，补足窄范围实现与回归，不修改旧SQL校验和绕过。分别实测旧版读取新增表/迁移记录、失败残表和恢复备份三种回退条件；停用新runner、恢复旧发布目录与服务的执行顺序必须有记录。DDL不能假定事务回滚；不得直接DROP新表充当通用回退。维护窗口禁止并行业务写入，恢复备份仍需明确恢复点及数据损失范围，不能用回退掩盖丢失新业务记录。
+为脚本写死可区分的处理合同：B组维护入口返回0=READY、20=已确认核心/A可用但B组结构/对账失败、1=核心/共享DB/未知错误；同时输出不含正文的结构化状态摘要。安装/升级显式处理20，继续核心服务收尾后仍返回非零并提示COPILOT_SCHEMA_UNAVAILABLE；不得用无条件“|| true”吞错，也不能让set -e在B组20处提前跳过原Web恢复。其他非零不当作模块降级处理；verify_deploy.sh只读检查，不隐式执行DDL/模型调用。
 
-上述预演和回退降低风险，**不能保证零停服**：生产DDL、空间、锁或结构验收失败仍可能让全站Web起不来，关COPILOT_ENABLED也不能绕过。此风险需Mr.Linsang明确选择后，才可将B-01标记设计已关闭；实际迁移/恢复证据仍留到发布验证。
+台账验收分别覆盖v16_160_copilot_identity_runtime及copilot_v1_001_business；回退用真实旧版本代码/目录验证其忽略额外两组key，不凭当前静态发现器就签署。DDL不能假定事务回滚，不DROP新表充当恢复；维护窗口禁止并行业务写入，需要恢复备份时明确一致恢复点及数据损失界限。B组表/正文丢失走证据恢复后对账，不能建空表视为“对账完成”。
+
+回退到无Copilot账号生命周期接点的旧版前，保存受控回退标记（版本目录外conf/copilot-rollback.json，含源/目标版本、时间、identity_continuity=UNVERIFIED，不含正文/凭据），供再升级识别。旧版期间不保证持续维护subject；再升级检测该标记后，在助手保持UNAVAILABLE时分批吊销旧ACTIVE subject，再为当前账号建立新subject，清理旧授权并完成对账/重新批准，不按同名自动承继旧正文。该保守路径会使旧会话保持不可达，手册须明确；若需保留旧主体访问，必须另有经审核的完整生命周期连续证据，不能静默按用户名恢复。只有新身份/授权准备与对账完成后才归档回退标记。
+
+方案乙的风险取舍已经定案：B组专属结构错误按合同隔离；核心/A组、共享台账/数据库、必要业务索引DDL与资源故障仍可能影响全站。不可承诺零停服，也不以“列声明减少88%”代替实测。文档落实由A第三轮定点确认，实施和发布验证仍待执行。
 
 M-03发布必检：每次版本发布重建知识包并产生manifest/hash；规则、菜单、使用流程或相关厂商资料变化时，逐条差异复核并重跑对应黄金集。无内容变化也须核对兼容范围和有效期，不能只改app_max/到期时间假装复核。五条链路均校验包与应用版本配套，旧版回退恢复对应包；原RULE_RUNTIME不被知识包覆盖。
 
@@ -1050,18 +1138,18 @@ M-03发布必检：每次版本发布重建知识包并产生manifest/hash；规
 
 ### 16.4 运维观测与排障闭环
 
-结构化日志字段闭集：request_id、turn_id、session_id、scene、phase、state、runner_id、attempt_no、provider_id/revision、duration_ms、字节/条数、input/output token或null、usage_source、error_code、policy_revision。用户名/实例名不进公开日志；内部审计按授权查看。禁止记录Prompt、响应正文、key、SQL、DSN、完整供应商响应及HTTP头；生产关闭httpx/httpcore调试级别。
+结构化日志字段闭集：request_id、turn_id、session_id、scene、phase、state、runner_id、attempt_no、provider_id/revision、duration_ms、字节/条数、input/output token或null、usage_source、error_code、policy_revision；Rev.D另含schema_group、version_key、module_schema_state/revision/epoch、recovery_batch_id、recovery_result。用户名/实例名不进公开日志；内部审计按授权查看。禁止记录Prompt、响应正文、key、SQL、DSN、完整供应商响应及HTTP头；生产关闭httpx/httpcore调试级别。
 
-健康告警：启用后心跳>10秒、队列即将到期、连续模型错误/429、权限策略读取失败、空间>80%、日额度>80%、知识包失效、无法回收子进程。健康GET只读现有状态，不通过“每次刷新自检”花费token。运维排查顺序：应用/runner版本→开关/权限→本模块错误码/租约→元数据库→批准网关/TLS→provider revision自检；不优先要求用户粘贴原SQL/key/大日志。
+健康告警：B组结构失败/对账未完成（即使未启用也提示需处理）、启用后心跳>10秒、队列即将到期、连续模型错误/429、权限策略读取失败、空间>80%、日额度>80%、知识包失效、无法回收子进程。健康GET只读现有状态，不通过刷新自检花token。排查顺序：应用/runner版本→A/B结构状态和恢复epoch→开关/权限→本模块错误/租约→共享元数据库→批准网关/TLS→provider revision自检；不优先要求用户粘贴原SQL/key/大日志。
 
 ### 16.5 上线门禁及签署
 
 |门禁|责任材料|阻断条件|
 |---|---|---|
-|CP-GATE-DESIGN|A设计评审、O整改闭环；版本v1.6.4.0与M-01方案甲已裁定，B-01仍OPEN|B-01未定案、P0/P1未关闭、协议/授权范围含歧义；不能仅O提交修订就宣称A准许开工|
-|CP-GATE-DATA|G取得端点/数据域/TLS/供应商留存说明、内网网关日志/留存书面说明、实例及标识符独立批准；Mr.Linsang确认边界|任一主体记录哪些请求/响应、落盘位置、访问人、保留/清理/备份策略未确认；无强制出站控制或密钥方案未验证；store=false不替代材料|
+|CP-GATE-DESIGN|Rev.C第二轮已通过；B-01方案乙已裁定；O交付Rev.D及A第三轮定点复核记录|Rev.D两组迁移/降级/对账、N-08/N-09尚未完成第三轮确认时不代签冻结基线；第二轮通过不替代本轮复核|
+|CP-GATE-DATA|G取得至少两名独立ACTIVE admin+copilot-admin名单/职责证明、端点/数据域/TLS/供应商与网关日志留存政策、实例及标识符独立批准；Mr.Linsang确认边界|缺双管理员或职责分离不成立，业务资料/标识符不得启用；留存/访问/备份策略未确认、无强制出站或密钥未验证亦阻断；不影响原工具/有权本地帮助，store=false不替代材料|
 |CP-GATE-TEST|Q回归、A独立SIT、O真实浏览器UAT、真实模型黄金集|严重安全/事实错误、原功能回归、mock替代实机|
-|CP-GATE-RELEASE|G离线安装/同版本MySQL迁移/升级/补丁/回退/容量、知识差异复核及紧急停用演练证据|runner跨版本混跑、包缺文件/含秘密、离线依赖/回退/停用失败或知识过期；无生产版本预演不能签署|
+|CP-GATE-RELEASE|G离线安装、A同版本/B隔离库预演、两组升级/补丁/台账回退/恢复对账、N-08计划与容量、知识复核/停用演练证据|B组降级不能签完整发布成功；A或必要核心索引缺同版本预演、runner混版、台账/回退/对账失败、离线依赖/秘密/知识问题均阻断|
 
 这些是**本新功能的拟定门禁**，不等同于v1.6.3.2时期Mr.Linsang已经签过的GATE-1/2/3，也不能沿用旧签字自动批准新的数据出域。全部未执行/未签署状态必须写“待验证/待批准”，不写有条件PASS掩盖未做项目。
 
@@ -1108,4 +1196,6 @@ M-03发布必检：每次版本发布重建知识包并产生manifest/hash；规
 
 Rev.C依据本仓库55556b7所含A首轮报告及§8方案甲裁定复核，应用代码仍为1.6.3.7；本轮实际重查database.py的迁移失败关闭、auth_service的权限兜底/账户事务、写方法覆盖锁、v15完整性迁移及metadata worker真实进度字段。没有复现A所述P16变异实验或重测其内网主机内存，不能转写为O本轮实测。外部协议资料沿用原调研日期，不宣称本轮重新访问验证。
 
-发布版本已由Mr.Linsang定为 **v1.6.4.0**，不再作为待决项。开工前仍须确认设计评审、重查基线及v16占用、冻结API/schema/权限/错误闭集；实施顺序按§14。上线前再取得模型/data-zone/实例授权/保留条件及§16门禁证据。默认关闭、只读建议、无隐式公网回退、原审核权威、180秒既有统计预算不变，均不得在实现中悄悄放宽。
+Rev.D依据e18793a所含第二轮报告及§7方案乙裁定修订，重查loader的核心目录发现、migrator的CREATE/ADD COLUMN校验差异和台账循环、main.py的启动捕获，以及近期任务索引。未运行数据库迁移、模型、SIT/UAT、索引性能、停用或回退实测；新增CP-TST-71—82是待执行合同，不是通过记录。
+
+版本v1.6.4.0、M-01方案甲、B-01方案乙均已定，不重复请求选择。下一步由A第三轮定点复核Rev.D后冻结API/schema/权限/错误闭集，实施前重查迁移编号与代码基线；本轮不派发实现任务。上线另取模型/数据域/双管理员/实例授权/留存及§16门禁证据；默认关闭、只读建议、无公网自动回退、原审核权威、180秒统计预算保持。
