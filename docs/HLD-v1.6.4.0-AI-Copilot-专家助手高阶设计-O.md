@@ -2,9 +2,9 @@
 
 文档版本：CP-HLD-v1.6.4.0 / Rev.D；编制日期：2026-09-12；修订日期：2026-09-13；设计：O；提交：Mr.Linsang。
 
-状态：Rev.C已通过第二轮评审，B-01方案乙已裁定；Rev.D待A第三轮定点复核。目标发布版本 **v1.6.4.0**，已由Mr.Linsang定版。上接[需求与规划](PLAN-v1.6.4.0-AI-Copilot-需求分析与总体规划-O.md)，下接[施工详细设计](DETAIL-v1.6.4.0-AI-Copilot-专家助手详细设计说明书-O.md)，参见[第二轮答复与定点复核清单](RESPONSE2-v1.6.4.0-AI-Copilot-第二轮整改与RevD定点复核清单-O.md)。
+状态：A第三轮定点复核8/8通过；N-10已补入，Rev.D施工基线已按Mr.Linsang指示冻结，可交Q实施。目标发布版本 **v1.6.4.0**。上接[需求与规划](PLAN-v1.6.4.0-AI-Copilot-需求分析与总体规划-O.md)，下接[施工详细设计](DETAIL-v1.6.4.0-AI-Copilot-专家助手详细设计说明书-O.md)，依据[第三轮复核报告](CHECK-v1.6.4.0-AI-Copilot-RevD第三轮定点复核结论-ClaudeA.md)，冻结指纹及范围见[施工基线冻结记录](BASELINE-v1.6.4.0-AI-Copilot-RevD施工基线冻结记录-O.md)。
 
-Rev.D保留Rev.C已通过的方案甲、SQL复核四态、outcome_claims、权限与审计合同，落实方案乙两组Schema验收和N-08/N-09。CP-1是v1.6.4.0交付的能力阶段，CP-1A/CP-1B/CP-1C仍为本版本内部里程碑；CP-2/CP-3不在本次范围。第三轮定点复核、功能验收和生产门禁均不得由第二轮设计通过替代。
+Rev.D保留Rev.C已通过的方案甲、SQL复核四态、outcome_claims、权限与审计合同，落实方案乙两组Schema验收和N-08/N-09，并补入N-10共享迁移器双向回归锁。CP-1是v1.6.4.0交付的能力阶段，CP-1A/CP-1B/CP-1C仍为本版本内部里程碑；CP-2/CP-3不在本次范围。设计准入已完成，功能验收和生产门禁仍须独立执行；冻结合同变更须重新评审。
 
 ## 1. 设计基线
 
@@ -119,6 +119,8 @@ Copilot及管理/审计全部HTTP方法独立执行默认拒绝的鉴权，并�
 独立 runner 不复用 `metadata_audit_slot`、网关锁、元数据 worker或扫描槽。总时限、模型连接池、进程资源、配额都有界。启用2个Copilot推理并同时运行既有元数据审核时，原接口P95不得比同场景关闭Copilot劣化超过10%（控制测试条件，内网实测）。
 
 **B-01按已裁定方案乙实施，runtime保留A组。** A组仅copilot_subjects/copilot_runtime两张新表进入核心统一迁移；它们与账户生命周期同事务，沿用失败关闭和生产完全同发行版/补丁版本预演。B组九张业务表使用独立目录、正式迁移文件及同一schema_migrations台账；核心发现器不加载B组，B组DDL仅部署维护流程执行，Web在bootstrap之后只做有界结构核验。完整列/默认/索引验收失败，仅助手UNAVAILABLE，不向ensure_db冒泡。
+
+N-10：已登记A组缺表禁止自动重建，必须失败关闭；既有CREATE TABLE迁移的QC-DEFECT-07缺表自愈保持原行为，不能全局关闭共享分支。首次A组正常安装仍可创建。详细设计§15.1/CP-TST-83要求按精确迁移key区分，覆盖双向正反例、真实启动链路和缺陷注入，并与N-01一并留存改动前后对比。
 
 B组不可用时，已鉴权capabilities返回200及COPILOT_SCHEMA_UNAVAILABLE，本地help仍可读；其余助手、管理和助手审计接口均503，runtime.accepting=false，runner停止领取/出站并回收在途。健康页通过不依赖B组的状态显示“需处理”，不能因开关false伪装正常未启用。故障期账户事务只访问runtime及users/subject，删除即在A组吊销身份；B组恢复后先在runner命名锁下清理死授权、中断旧活动轮、保守结算并核对配额，再恢复服务，绝不自动重调模型。
 
