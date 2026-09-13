@@ -1,12 +1,14 @@
-# TDSQL Copilot 专家助手高阶设计
+# TDSQL v1.6.4.0 AI Copilot 专家助手高阶设计
 
-版本：CP-HLD / Rev.A；日期：2026-09-12；设计：O；提交：Mr.Linsang。
+文档版本：CP-HLD-v1.6.4.0 / Rev.B；编制日期：2026-09-12；修订日期：2026-09-13；设计：O；提交：Mr.Linsang。
 
-状态：待评审、文档设计；发布版本待定。上接[需求与规划](PLAN-AI-Copilot-需求分析与总体规划-O.md)，下接[施工详细设计](DETAIL-AI-Copilot-专家助手详细设计说明书-O.md)。
+状态：待评审、文档设计；目标发布版本 **v1.6.4.0**，已由Mr.Linsang定版。上接[需求与规划](PLAN-v1.6.4.0-AI-Copilot-需求分析与总体规划-O.md)，下接[施工详细设计](DETAIL-v1.6.4.0-AI-Copilot-专家助手详细设计说明书-O.md)。
+
+Rev.B仅落实版本号、文档命名和引用，不改变原架构或安全边界。CP-1是v1.6.4.0交付的能力阶段，CP-1A/CP-1B/CP-1C是本版本内部里程碑；后续CP-2/CP-3不在本次开发范围。版本定版不代表设计已评审通过或已获准上线。
 
 ## 1. 设计基线
 
-TDSQL 当前本地基线 `b6ce21bbcd731fe4f541c6ec09cd7a1316e52de3`，应用版本1.6.3.7；其中最新提交为既有生产部署文档。业务技术栈是 FastAPI、Vue 3全局脚本、Element Plus、PyMySQL/MySQL元数据库，非 Django/React。现有 `httpx`、`pydantic`、`cryptography` 可支撑首期，不需要引入大模型 SDK、Redis、LangChain 或向量数据库。
+TDSQL 调研代码基线 `b6ce21bbcd731fe4f541c6ec09cd7a1316e52de3`，基线应用版本1.6.3.7；其中最新提交为既有生产部署文档。该历史基线保持原值，不因目标定版v1.6.4.0而改写为已实现版本。业务技术栈是 FastAPI、Vue 3全局脚本、Element Plus、PyMySQL/MySQL元数据库，非 Django/React。现有 `httpx`、`pydantic`、`cryptography` 可支撑首期，不需要引入大模型 SDK、Redis、LangChain 或向量数据库。
 
 DB-AIOps 参考基线为 `a4dfb3b8d102c2fd9af4a37f416c273aa14840e1`；仅复用经过审视的设计理念，不能直接拷贝 ORM、数据范围接口和 UI 组件。
 
