@@ -253,4 +253,134 @@ CP-F04 就只能停在别名模板模式。这不是缺陷，是制度前提；
 
 ---
 
+## 7. B-01 评审裁定与方案乙施工合同（2026-09-13）
+
+### 7.1 裁定
+
+**Mr.Linsang 2026-09-13 裁定：B-01 采用方案乙（按耦合关系拆分）。**
+
+O 在上一轮答复里说我的建议"不足以形成完整替代合同"——这话是对的，我当时只给了方向。
+本节把方案乙补成可直接落设计的合同，**逐条回应 O 提出的四项缺口**
+（持久身份锚点、故障期撤权、重建恢复、启动/锁顺序），**不留待 O 自行判断的开放项**。
+未明确写死的实现细节（文件命名、验收函数组织方式）仍属 O 的设计裁量。
+
+### 7.2 分组（写死）
+
+**A 组：留在统一迁移链路，沿用失败关闭** —— **2 张表**
+
+| 表 | 留在 A 组的理由 |
+|---|---|
+| `copilot_subjects` | §9.1 接进 create_user / delete_user / bootstrap 同事务，是账户代际身份的锚点 |
+| `copilot_runtime` | §11.2 要求账户变更事务先取 runtime 锁；留在 A 组才能保住统一锁序（见 §7.6） |
+
+**B 组：Copilot 自有结构验收，失败只降级助手** —— **9 张表**
+
+`copilot_providers`、`copilot_scene_routes`、`copilot_instance_grants`、
+`copilot_sessions`、`copilot_previews`、`copilot_turns`、`copilot_daily_budgets`、
+`copilot_provider_attempts`、`copilot_audit_events`。
+
+分组依据是 Rev.C §10.2 自己的结论——除 subject 生命周期接点外，其余表与既有路径无接点。
+**B 组不得再增加任何对既有服务/既有表的写接点；一旦某表需要这种接点，它必须移入 A 组并重新评审。**
+
+### 7.3 O 缺口一：持久身份锚点 —— 由 A 组保证，无需新增机制
+
+`copilot_subjects` 留在失败关闭链路，因此**代际身份锚点在任何情况下都存在**。
+这正是 O 坚持的那条保证，方案乙完整保留，不做任何削弱。
+
+### 7.4 O 缺口二：故障期撤权 —— 按 subject 失效，不依赖 B 组可读
+
+这是 O 最实的一条质疑，答案是：**撤权的权威点在 A 组，不在 B 组。**
+
+- §9.1 已规定所有 owner 比较、授权与额度**以 `subject_id` 为准**，`username` 只是展示快照；
+  `copilot_instance_grants` 的主键是 `(subject_id, connection_id)`。
+- 删除账号时在 A 组把 subject 置 `REVOKED`（该事务不依赖 B 组，永远可执行）。
+- 被吊销 subject **无法通过 Copilot 鉴权**（§9.1 要求每次鉴权核对 ACTIVE subject），
+  因此 B 组中一切以该 subject 为键的 grant / session / turn **自然失效**。
+
+**结论：B 组不可读期间发生的账号删除，其撤权效力不受影响；
+B 组残留行是不可达的死行，不是活授权。** 这一条必须写进设计并配反例测试（§7.8 T4）。
+
+### 7.5 O 缺口三：重建恢复 —— 对账而非恢复语义
+
+B 组恢复可读后执行一次**对账**（不是数据恢复，因为没有数据丢失）：
+
+1. 把 `subject.state=REVOKED` 对应的 `copilot_instance_grants` 置 `enabled=0`，
+   写 `GRANT_CHANGE` 审计（operator 记为系统事件）。**这是清理不是撤权**——
+   撤权在 §7.4 已经生效，此步只为管理页不显示幽灵授权。
+2. 处于 `ACCEPTED/RUNNING/CANCEL_REQUESTED` 的 turn 一律标 `INTERRUPTED`，
+   沿用 Rev.C §11.4 既有规则：**不自动重调模型、保守计费、释放会话**。
+3. 对账在 runner 取得命名锁后、开始受理前执行；对账失败保持 `COPILOT_SCHEMA_UNAVAILABLE`，
+   不得"边对账边受理"。
+4. 对账只读写 `copilot_*` 自身，**不触碰任何业务表**。
+
+### 7.6 O 缺口四：启动与锁顺序 —— 因 runtime 在 A 组而原样保留
+
+统一锁序 `runtime(id=1) → users/subject → session → 预算 → turn` **不变**。
+
+- 账户生命周期事务只用到前两段（runtime、users/subject），**两者都在 A 组**，
+  因此 B 组不可读时账户管理完全正常——这正是把 runtime 划进 A 组的原因。
+- 启动顺序不变：统一迁移（含 A 组）→ 现存 subject 补齐 → bootstrap；
+  **B 组验收排在这之后**，失败只置助手不可用标志。
+
+如果 O 复核后认为账户变更路径上的 runtime 锁并非必需（仅为防死锁的统一约定），
+可以把 runtime 也移入 B 组，A 组只剩 `copilot_subjects`（7 个列声明）。
+**这一点由 O 判断并在设计中说明理由，两种都可接受，但不得在没有说明的情况下改动锁序。**
+
+### 7.7 B 组的验收与降级合同（写死）
+
+**建表方式不放松**：B 组仍用正式迁移文件、仍进 `schema_migrations` 校验和台账、
+仍做列类型/可空/默认/索引的完整结构验收（Rev.C §10.1 原文保留）。
+**唯一的区别是失败后的处置**：不向上抛断 `ensure_db()`，而是置
+`COPILOT_SCHEMA_UNAVAILABLE` 并继续启动。
+
+**禁止**：用 `CREATE TABLE IF NOT EXISTS` 加宽松 try/except 充当验收。
+**"DDL 跑过了"不等于"结构正确"**——必须是显式结构验收产出 `READY` / `UNAVAILABLE` 二值，
+**不存在部分可用状态**（任一 B 组表验收不过即整体 UNAVAILABLE）。
+
+**降级行为闭集**：
+
+| 面 | B 组不可用时的行为 |
+|---|---|
+| Web 启动、原审核/采集/页面/原报告导出 | **完全正常**（这是方案乙的全部目的） |
+| `GET /copilot/capabilities` | 200，`mode=UNAVAILABLE`、`reason_code=COPILOT_SCHEMA_UNAVAILABLE`（必须可读，否则前端无法解释） |
+| `GET /copilot/help` | **仍可用**（本地知识包，不依赖 B 组） |
+| 其余 `/api/v1/copilot/*`、全部 `/api/v1/copilot-admin/*` | 503 `COPILOT_SCHEMA_UNAVAILABLE` |
+| runner | `runtime.accepting=false`（runtime 在 A 组可写），不领新任务 |
+| 健康页 | 明确区分"未启用（可接受）"与"schema 验收失败（需处理）" |
+
+### 7.8 必须新增的测试（B-01 专项）
+
+| 编号 | 场景 | 断言 |
+|---|---|---|
+| T1 | B 组任一表缺失 / 错列类型 / 缺索引 | Web 正常启动；原审核/导出可用；Copilot 业务端点 503；`capabilities` 与 `help` 仍可读 |
+| T2 | A 组 2 张表缺失 / 错列 | 沿用失败关闭（**这是预期行为，不是缺陷**），并给出可诊断错误 |
+| T3 | B 组不可用期间创建/删除账号 | 账户操作成功；subject 正常分配/吊销；无异常吞错 |
+| T4 | 吊销 subject 后 B 组恢复 | 该 subject 的遗留 grant/session/turn **一律不可达**；对账把 grant 置 enabled=0 |
+| T5 | B 组不可用期间有在途 turn，恢复后 | 标 INTERRUPTED，不自动重调模型，额度保守结算 |
+| T6 | 全新安装时 B 组验收失败 | 安装完成、旧功能可用、助手不可用；`verify_deploy.sh` 判为"需处理"而非"未启用" |
+| T7 | 回退到无 Copilot 版本 | 旧迁移器容忍 **A 组 2 表 ＋ B 组 9 表 ＋ 两组 `schema_migrations` 行**残留；旧业务可用 |
+
+**T7 要特别提示 O**：拆分让台账里出现两组 version_key，
+Rev.C §16.3 原本就要求"回退后旧迁移器是否容忍额外 schema_migrations 行必须实测"——
+**拆分之后这条测试更重要，且必须两组都覆盖**，不能只测一组。
+
+### 7.9 与既有条款的衔接
+
+- `INV-02` 相应更新：Copilot **模块 Schema** 故障不阻断原审核（这是方案乙新增的保证）；
+  A 组 2 张表的迁移故障仍在失败关闭范围内，风险面已从约 130 个列声明降到约 15 个。
+  **不得据此把 INV-02 写回"任何 Copilot 故障都不影响启动"**——A 组仍是例外，要写明。
+- §16.3 五条发布链路按分组重写：全新安装/增量升级需分别处理两组；
+  回退保留两组表与 keyring、不自动 DROP（原条款不变）。
+- §16.3 的"完全相同 MySQL 发行版及补丁版本预演"门禁**对 A 组仍然保留**
+  （虽然只剩 2 张表，但它仍是失败关闭）；B 组预演要求可相应降为常规隔离库验证。
+- N-08、N-09 一并纳入本轮修订。
+
+### 7.10 本裁定不改变的
+
+方案乙只改**Schema 故障的影响范围**，不改任何其他既有设计：
+权限四闸、三档数据分级与方案甲三闸、动作卡闭集、`outcome_claims` 校验、
+异步受理/幂等/租约/fencing、出域策略、保留期与审计合同，**全部按 Rev.C 不变**。
+
+---
+
 *评审人：智能体A（-ClaudeA）　送呈：Mr.Linsang*
