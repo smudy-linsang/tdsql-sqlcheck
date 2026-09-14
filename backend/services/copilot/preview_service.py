@@ -113,12 +113,40 @@ def build_preview(conn, identity: CopilotIdentity, session: dict,
     if req.draft and session.get("scope_kind") == "INSTANCE" and session_conn:
         check_instance_grant(conn, identity, session_conn)
 
-    # §4.4 三闸：部署 → 逐实例 → 端点能力（预览时判定并冻结）
+    # §4.4 三闸（M-01 整改）：部署 → 逐实例 → 端点能力，任一不满足即 ALIASED。
+    # 端点闸在预览即评估主备两端，不让「预览显示将发标识符、实际出站被拒」不一致。
     deploy_allowed = allow_schema_identifiers_deploy()
     grant_allowed = False
     if session_conn and session.get("scope_kind") == "INSTANCE":
         grant_allowed = effective_allow_identifiers(conn, identity, session_conn)
     identifiers_allowed = bool(deploy_allowed and grant_allowed)
+
+    # 路由/配置版本冻结（先解析出主备，供端点闸与快照使用）
+    from backend.services.copilot.routing import resolve_route, route_snapshot
+    from backend.services.copilot.policy import load_policy, policy_available
+    route_info = None
+    route_rev = None
+    provider_revisions: dict[str, int] = {}
+    try:
+        if policy_available():
+            route_info = resolve_route(conn, scene, load_policy())
+    except Exception:
+        route_info = None
+
+    # 端点闸：主备两端都必须 allows_schema_identifiers=true 才放行真实名称
+    endpoint_allowed = False
+    if identifiers_allowed and route_info:
+        try:
+            pol = load_policy()
+            legs = [route_info["primary"]] + (
+                [route_info["fallback"]] if route_info.get("fallback") else [])
+            endpoint_allowed = all(
+                bool((pol.get(p["endpoint_id"]) or {}).get(
+                    "allows_schema_identifiers")) for p in legs)
+        except Exception:
+            endpoint_allowed = False
+    if identifiers_allowed and not endpoint_allowed:
+        identifiers_allowed = False
     projection_mode = "SCHEMA_IDENTIFIERS" if identifiers_allowed else "ALIASED"
 
     # ── 证据收集（预览即封存）──
@@ -188,17 +216,7 @@ def build_preview(conn, identity: CopilotIdentity, session: dict,
         g = GrantRepo.get(conn, identity.subject_id, session_conn)
         grant_revision = int(g["revision"]) if g else None
 
-    # 路由/配置版本冻结
-    from backend.services.copilot.routing import resolve_route, route_snapshot
-    from backend.services.copilot.policy import load_policy, policy_available
-    route_info = None
-    route_rev = None
-    provider_revisions: dict[str, int] = {}
-    try:
-        if policy_available():
-            route_info = resolve_route(conn, scene, load_policy())
-    except Exception:
-        route_info = None
+    # 路由/配置版本冻结（上面已解析 route_info，这里只补快照）
     if route_info:
         route_rev = int(route_info["route"]["revision"])
         provider_revisions[route_info["primary"]["id"]] = int(

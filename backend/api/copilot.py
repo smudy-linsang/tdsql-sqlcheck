@@ -25,6 +25,7 @@ from backend.models.copilot import (
     TurnSubmitRequest,
 )
 from backend.services.copilot import schema as schema_mod
+from backend.services.copilot.schema import guard_structural
 from backend.services.copilot.authz import (
     CopilotIdentity, check_instance_grant, has_copilot_menu, permission_version,
     require_session_owner, require_turn_owner, resolve_identity,
@@ -175,6 +176,7 @@ def help_endpoint(request: Request, query: str = "", page_key: str = ""):
 # ══════════════════════════════════════════════════════════════════
 
 @router.get("/connections")
+@guard_structural
 def connections(request: Request, keyword: str = ""):
     try:
         identity = _identity(request)
@@ -218,6 +220,7 @@ def _list_grants(conn, subject_id: str):
 # ══════════════════════════════════════════════════════════════════
 
 @router.post("/sessions", status_code=201)
+@guard_structural
 def create_session(request: Request, body: SessionCreateRequest):
     try:
         identity = _identity(request)
@@ -304,6 +307,7 @@ def _check_rate_limit(conn, identity: CopilotIdentity, kind: str) -> None:
 # ══════════════════════════════════════════════════════════════════
 
 @router.get("/sessions")
+@guard_structural
 def list_sessions(request: Request, state: str = "", limit: int = 20,
                   cursor: str = ""):
     try:
@@ -361,6 +365,7 @@ def _decode_cursor(cursor: str) -> tuple[Optional[str], Optional[str]]:
 
 
 @router.get("/sessions/{session_id}")
+@guard_structural
 def get_session(request: Request, session_id: str):
     try:
         identity = _identity(request)
@@ -376,6 +381,7 @@ def get_session(request: Request, session_id: str):
 
 
 @router.post("/sessions/{session_id}/archive")
+@guard_structural
 def archive_session(request: Request, session_id: str,
                     expected_revision: int = 0):
     try:
@@ -402,6 +408,7 @@ def archive_session(request: Request, session_id: str,
 
 
 @router.get("/sessions/{session_id}/turns")
+@guard_structural
 def list_turns(request: Request, session_id: str, limit: int = 20,
                cursor: str = ""):
     try:
@@ -445,6 +452,7 @@ def _turn_summary(t: dict) -> dict:
 # ══════════════════════════════════════════════════════════════════
 
 @router.post("/sessions/{session_id}/previews", status_code=201)
+@guard_structural
 def create_preview(request: Request, session_id: str, body: PreviewRequest):
     try:
         identity = _identity(request)
@@ -587,6 +595,7 @@ def _provider_display(route_snapshot: dict) -> dict:
 # ══════════════════════════════════════════════════════════════════
 
 @router.post("/sessions/{session_id}/turns", status_code=202)
+@guard_structural
 def submit_turn(request: Request, session_id: str, body: TurnSubmitRequest):
     try:
         identity = _identity(request)
@@ -726,6 +735,11 @@ def _check_enabled(conn) -> None:
     settings = RuntimeRepo.settings(conn)
     if not copilot_enabled() or not bool(settings.get("enabled", False)):
         raise CopilotError("COPILOT_DISABLED")
+    # M-02：部署参数越界拒绝受理（不静默夹值）
+    problems = Limits.validate()
+    if problems:
+        raise CopilotError("COPILOT_DISABLED",
+                           message="助手部署参数越界未启用，请联系管理员核查配置")
 
 
 def _check_runner(conn) -> None:
@@ -788,6 +802,7 @@ def _route_envelope_from_preview(conn, preview: dict) -> str:
 # ══════════════════════════════════════════════════════════════════
 
 @router.get("/turns/{turn_id}")
+@guard_structural
 def get_turn(request: Request, turn_id: str):
     try:
         identity = _identity(request)
@@ -816,6 +831,7 @@ def get_turn(request: Request, turn_id: str):
 
 
 @router.get("/turns/{turn_id}/result")
+@guard_structural
 def get_turn_result(request: Request, turn_id: str):
     try:
         identity = _identity(request)
@@ -859,6 +875,7 @@ def get_turn_result(request: Request, turn_id: str):
 
 
 @router.post("/turns/{turn_id}/cancel", status_code=202)
+@guard_structural
 def cancel_turn(request: Request, turn_id: str):
     try:
         identity = _identity(request)
@@ -889,6 +906,7 @@ def cancel_turn(request: Request, turn_id: str):
 
 
 @router.post("/turns/{turn_id}/feedback")
+@guard_structural
 def feedback(request: Request, turn_id: str, body: FeedbackRequest):
     try:
         identity = _identity(request)
@@ -927,6 +945,7 @@ def feedback(request: Request, turn_id: str, body: FeedbackRequest):
 
 
 @router.post("/turns/{turn_id}/actions/resolve")
+@guard_structural
 def resolve_action(request: Request, turn_id: str, body: ActionResolveRequest):
     """动作卡再校验：不执行 SQL/审核/扫描，仅返回安全动作数据。"""
     try:
@@ -999,6 +1018,7 @@ def _find_candidate(resp: dict, candidate_id: Optional[str]) -> Optional[dict]:
 
 
 @router.get("/turns/{turn_id}/export.html")
+@guard_structural
 def export_turn_html(request: Request, turn_id: str):
     """单轮独立脱敏 HTML 建议报告（先复核所有者与来源）。"""
     try:

@@ -61,3 +61,21 @@
 - 真实模型接入、数据出域批准、双管理员名单属 CP-GATE-DATA，本次未配置真实 key/端点；
 - CP-TST-58 黄金集真实模型评测、内网实机 UAT、容量实测待 G/A/O 执行；
 - 默认 COPILOT_ENABLED=false，未批准前助手为本地帮助模式。
+
+---
+
+## 6. 第一轮 SIT 整改闭环（2026-09-14，A 报告 `0bfb3c5`）
+
+A 第一轮 SIT 结论 2 BLOCK / 3 MAJOR，不能进 UAT。五项全部认可并完成整改：
+
+| 编号 | 级别 | 整改 |
+|---|---|---|
+| B-01 | BLOCK | 重建知识包（`kb-1.6.4.0-5b8426f429c6a89a` manifest 与实际逐字节自洽，状态 READY）；builder 增加构建期 `_self_verify`（写完即回读核验 file_sizes/sha256，不符即拒绝）；新增 `test_shipped_bundle_ready` + `test_builder_self_verify_catches_tamper` 回归锁 |
+| B-02 | BLOCK | `schema.py` 新增 `is_structural_error`（1054/1146/1149/1091/1050 族 + 包因递归识别）、`fail_open_to_unavailable`（独立新连接置 UNAVAILABLE + 推进 epoch）、`guard_structural` 端点守卫；三个 API 模块 27 个 B 组端点统一接入；运行期删 `copilot_sessions` 实测由裸 500 收敛为 503 `COPILOT_SCHEMA_UNAVAILABLE` 且状态失效；新增 `test_runtime_guard.py` 回归锁 |
+| M-01 | MAJOR | `preview_service.py` 预览阶段一并评估主备两端点 `allows_schema_identifiers`，任一不满足即回落 ALIASED（预览=实际出站，不偷偷缩减） |
+| M-02 | MAJOR | `Limits.validate()` 越界即报；bootstrap（`copilot/__init__.py`）与受理入口（`_check_enabled`）双重拒绝启用，不静默夹值运行 |
+| M-03 | MAJOR | `/copilot-admin/settings` GET/PUT 补 `_require_ready` 门禁（B组 UNAVAILABLE → 503）；health 保持只读例外（A 裁定实现正确，设计文本另行订正） |
+
+变异自证：B-01（变异 `_self_verify` 失效）与 B-02（变异守卫失效）均打红后恢复全绿。
+
+验证：Copilot 专项 103/103；冒烟 99/99（测试库）；全量回归 2249 passed / 30 skipped / 0 failed。

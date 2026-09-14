@@ -14,6 +14,7 @@ from fastapi.responses import JSONResponse
 
 from backend.services.copilot.errors import CopilotError, error_payload
 from backend.services.copilot.repository import AuditRepo
+from backend.services.copilot.schema import guard_structural
 from backend.services.database import _get_connection, ensure_db
 
 router = APIRouter(prefix="/api/v1/copilot-audit", tags=["CopilotAudit"])
@@ -26,6 +27,7 @@ def _rid() -> str:
 
 
 @router.get("/events")
+@guard_structural
 def list_events(request: Request, days: int = 7, operator: str = "",
                 turn_id: str = "", limit: int = 50, offset: int = 0):
     # check_permission 前缀分支已保证 admin 或 auditor+sys-auditlog；

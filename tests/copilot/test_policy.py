@@ -107,3 +107,15 @@ class TestLimits:
         monkeypatch.setenv("COPILOT_TURN_DEADLINE_SECONDS", "30")
         problems = Limits.validate()
         assert any("QUEUE" in p for p in problems)
+
+    def test_m02_out_of_range_rejected_at_bootstrap(self, monkeypatch):
+        """M-02 回归锁：越界参数在 bootstrap 置为 COPILOT_DISABLED（不静默夹值运行）。"""
+        monkeypatch.setenv("COPILOT_OUTPUT_MAX_TOKENS", "99999")
+        problems = Limits.validate()
+        assert any("COPILOT_OUTPUT_MAX_TOKENS" in p for p in problems), \
+            "越界参数必须被 validate() 检出"
+
+    def test_m02_in_range_passes(self, monkeypatch):
+        monkeypatch.delenv("COPILOT_RUNNER_CONCURRENCY", raising=False)
+        monkeypatch.delenv("COPILOT_TURN_DEADLINE_SECONDS", raising=False)
+        assert Limits.validate() == []

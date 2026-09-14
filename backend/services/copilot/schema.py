@@ -48,6 +48,70 @@ SCHEMA_LOCK = "tdsql_copilot_schema"
 MODULE_STATE_READY = "READY"
 MODULE_STATE_UNAVAILABLE = "UNAVAILABLE"
 
+# B-02（SIT 第一轮）：B 表读写结构异常的错误码族（表/列不存在、语法结构类）
+_STRUCTURAL_ERRNOS = frozenset({1054, 1146, 1149, 1091, 1050})
+
+
+def is_structural_error(exc: BaseException) -> bool:
+    """判定是否为 B 组结构类异常（缺表/缺列等）。"""
+    errno = None
+    args = getattr(exc, "args", None)
+    if args:
+        try:
+            errno = int(args[0])
+        except (TypeError, ValueError):
+            errno = None
+    if errno in _STRUCTURAL_ERRNOS:
+        return True
+    # 包一层（如 RuntimeError(ProgrammingError ...)）也识别
+    cause = getattr(exc, "__cause__", None) or getattr(exc, "__context__", None)
+    if cause is not None and cause is not exc:
+        return is_structural_error(cause)
+    return False
+
+
+def fail_open_to_unavailable(exc: BaseException) -> None:
+    """B 表结构异常 → 置 A 组 UNAVAILABLE 并推进 epoch（尽力而为，不遮原异常）。
+
+    用独立新连接写状态，因为触发异常的连接可能已坏。
+    """
+    from backend.services.database import _get_connection
+    conn = None
+    try:
+        conn = _get_connection()
+        mark_unavailable(conn, f"runtime structural error: {type(exc).__name__}")
+    except Exception:
+        logger.error("B 组结构异常状态回写失败", exc_info=True)
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+def guard_structural(fn):
+    """API 端点守卫：捕获 B 组结构类异常 → 置 UNAVAILABLE + 转 503。
+
+    其余异常原样上抛（保持原错误合同）。仅用于读写 B 组的 Copilot 端点。
+    """
+    from functools import wraps
+
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        from backend.services.copilot.errors import CopilotError
+        try:
+            return fn(*args, **kwargs)
+        except CopilotError:
+            raise
+        except Exception as e:
+            if is_structural_error(e):
+                fail_open_to_unavailable(e)
+                raise CopilotError("COPILOT_SCHEMA_UNAVAILABLE") from e
+            raise
+
+    return wrapper
+
 
 @dataclass(frozen=True)
 class CopilotSchemaFile:

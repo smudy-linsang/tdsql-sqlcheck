@@ -21,6 +21,7 @@ from backend.models.copilot import (
     SelfTestRequest, SettingsPutRequest,
 )
 from backend.services.copilot import schema as schema_mod
+from backend.services.copilot.schema import guard_structural
 from backend.services.copilot.authz import (
     has_copilot_admin, require_two_admin_gate, resolve_identity,
 )
@@ -71,6 +72,7 @@ def _require_ready(conn) -> None:
 # ══════════════════════════════════════════════════════════════════
 
 @router.get("/endpoints")
+@guard_structural
 def list_endpoints(request: Request):
     try:
         _admin_identity(request)
@@ -89,6 +91,7 @@ def list_endpoints(request: Request):
 # ══════════════════════════════════════════════════════════════════
 
 @router.get("/providers")
+@guard_structural
 def list_providers(request: Request):
     try:
         _admin_identity(request)
@@ -119,6 +122,7 @@ def list_providers(request: Request):
 
 
 @router.post("/providers", status_code=201)
+@guard_structural
 def create_provider(request: Request, body: ProviderCreateRequest):
     try:
         identity = _admin_identity(request)
@@ -176,6 +180,7 @@ def create_provider(request: Request, body: ProviderCreateRequest):
 
 
 @router.put("/providers/{provider_id}")
+@guard_structural
 def update_provider(request: Request, provider_id: str,
                     body: ProviderUpdateRequest):
     try:
@@ -226,6 +231,7 @@ def update_provider(request: Request, provider_id: str,
 
 
 @router.put("/providers/{provider_id}/enabled")
+@guard_structural
 def set_provider_enabled(request: Request, provider_id: str,
                          body: ProviderEnabledRequest):
     try:
@@ -272,6 +278,7 @@ _SCENES = ("USAGE_HELP", "RULE_EXPLAIN", "SQL_ADVISE", "AUDIT_EXPLAIN",
 
 
 @router.get("/routes")
+@guard_structural
 def list_routes(request: Request):
     try:
         _admin_identity(request)
@@ -292,6 +299,7 @@ def list_routes(request: Request):
 
 
 @router.put("/routes/{scene}")
+@guard_structural
 def put_route(request: Request, scene: str, body: RoutePutRequest):
     try:
         identity = _admin_identity(request)
@@ -347,6 +355,7 @@ def put_route(request: Request, scene: str, body: RoutePutRequest):
 # ══════════════════════════════════════════════════════════════════
 
 @router.get("/grants")
+@guard_structural
 def list_grants(request: Request, limit: int = 20, offset: int = 0,
                 connection_id: str = ""):
     try:
@@ -372,6 +381,7 @@ def list_grants(request: Request, limit: int = 20, offset: int = 0,
 
 
 @router.put("/grants")
+@guard_structural
 def put_grant(request: Request, body: GrantPutRequest):
     try:
         identity = _admin_identity(request)
@@ -428,6 +438,7 @@ def put_grant(request: Request, body: GrantPutRequest):
 
 
 @router.post("/grants/approve")
+@guard_structural
 def approve_grant(request: Request, body: GrantApproveRequest):
     try:
         identity = _admin_identity(request)
@@ -474,6 +485,7 @@ def approve_grant(request: Request, body: GrantApproveRequest):
 # ══════════════════════════════════════════════════════════════════
 
 @router.get("/settings")
+@guard_structural
 def get_settings(request: Request):
     try:
         _admin_identity(request)
@@ -482,6 +494,7 @@ def get_settings(request: Request):
     conn = _get_connection()
     try:
         ensure_db()
+        _require_ready(conn)
         rt = RuntimeRepo.get(conn) or {}
         settings = {}
         try:
@@ -500,6 +513,7 @@ def get_settings(request: Request):
 
 
 @router.put("/settings")
+@guard_structural
 def put_settings(request: Request, body: SettingsPutRequest):
     try:
         identity = _admin_identity(request)
@@ -508,6 +522,7 @@ def put_settings(request: Request, body: SettingsPutRequest):
     conn = _get_connection()
     try:
         ensure_db()
+        _require_ready(conn)
         rt = RuntimeRepo.get(conn, for_update=True) or {}
         if int(rt.get("config_revision") or 1) != body.expected_revision:
             raise CopilotError("CONFIG_CHANGED")

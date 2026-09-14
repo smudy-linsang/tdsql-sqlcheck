@@ -161,7 +161,32 @@ def build(sources_dir: Path, approved_by: str, expires_at: str) -> Path:
     }
     (out_dir / "manifest.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+    # B-01（SIT 第一轮）：构建期自校验——写完立即回读核验 manifest 与实际文件一致，
+    # 防止「manifest 生成后源文件被改动」导致运行期 INVALID 出厂。
+    _problems = _self_verify(out_dir, manifest)
+    if _problems:
+        raise RuntimeError(
+            "知识包构建后自校验失败: " + "；".join(_problems))
     return out_dir
+
+
+def _self_verify(out_dir: Path, manifest: dict) -> list[str]:
+    """构建后立即核验：file_sizes 与 sha256 必须与实际文件逐字节一致。"""
+    problems: list[str] = []
+    for name in ("chunks.jsonl", "index.json"):
+        f = out_dir / name
+        if not f.exists():
+            problems.append(f"缺文件 {name}")
+            continue
+        actual_size = f.stat().st_size
+        if manifest["file_sizes"].get(name) != actual_size:
+            problems.append(
+                f"{name} 大小不符: manifest={manifest['file_sizes'].get(name)} "
+                f"actual={actual_size}")
+        actual_hash = hashlib.sha256(f.read_bytes()).hexdigest()
+        if manifest["sha256"].get(name) != actual_hash:
+            problems.append(f"{name} sha256 不符")
+    return problems
 
 
 def _now() -> str:

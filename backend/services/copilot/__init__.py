@@ -43,6 +43,16 @@ def copilot_bootstrap_check() -> None:
     global _LOCAL_READY, _LOCAL_REASON
     started = time.monotonic()
     _LOCAL_READY = False
+    # M-02（SIT 第一轮）：资源参数超界启动即拒绝启用（不静默夹值到运行期）。
+    _config_invalid = False
+    try:
+        from backend.services.copilot.policy import Limits
+        _limit_problems = Limits.validate()
+        if _limit_problems:
+            logger.error("Copilot 部署参数越界，助手不启用: %s", "; ".join(_limit_problems))
+            _config_invalid = True
+    except Exception:
+        pass
     # 关键：bootstrap 验收用独立直连（不入连接池），避免 SET SESSION 等会话级设置
     # 污染池化连接（MAX_EXECUTION_TIME 残留会中断后续业务慢查询——v1.6.4.0 实测踩坑）。
     raw = None
@@ -99,6 +109,10 @@ def copilot_bootstrap_check() -> None:
                            store.status_info().get("reason_code"))
     except Exception as e:
         logger.error("Copilot 知识包加载异常: %s", e)
+    # M-02：配置越界 → 最终置为未就绪（本地帮助仍可用，但不接受模型/任务受理）
+    if _config_invalid:
+        _LOCAL_READY = False
+        _LOCAL_REASON = "COPILOT_DISABLED"
     logger.info("Copilot 启动验收完成: local_ready=%s reason=%s",
                 _LOCAL_READY, _LOCAL_REASON)
 

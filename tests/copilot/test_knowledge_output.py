@@ -10,6 +10,39 @@ from backend.services.copilot.knowledge import KnowledgeStore
 
 
 class TestKnowledge:
+    def test_shipped_bundle_ready(self):
+        """B-01 回归锁：随包知识包必须 READY（manifest hash/大小自洽），不得 INVALID。"""
+        store = KnowledgeStore()
+        st = store.load()  # 默认加载随包目录
+        assert st == "READY", f"随包知识包未就绪: {store.status_info()}"
+
+    def test_builder_self_verify_catches_tamper(self, tmp_path):
+        """B-01：构建器写完后篡改文件，_self_verify 必须检出。"""
+        from backend.copilot_knowledge.builder import _self_verify
+        import json
+        from pathlib import Path
+        # 构造最小合法包
+        d = tmp_path / "kb-t"
+        d.mkdir()
+        (d / "chunks.jsonl").write_text('{"chunk_id":"a","content":"x"}\n',
+                                        encoding="utf-8")
+        (d / "index.json").write_text('{"bundle_id":"kb-t"}', encoding="utf-8")
+        import hashlib
+        manifest = {
+            "file_sizes": {"chunks.jsonl": (d / "chunks.jsonl").stat().st_size,
+                           "index.json": (d / "index.json").stat().st_size},
+            "sha256": {
+                "chunks.jsonl": hashlib.sha256(
+                    (d / "chunks.jsonl").read_bytes()).hexdigest(),
+                "index.json": hashlib.sha256(
+                    (d / "index.json").read_bytes()).hexdigest()},
+        }
+        assert _self_verify(d, manifest) == []
+        # 篡改
+        (d / "chunks.jsonl").write_text('{"chunk_id":"a","content":"YY"}\n',
+                                        encoding="utf-8")
+        assert _self_verify(d, manifest) != []
+
     def test_store_ready_and_search(self):
         store = KnowledgeStore()
         st = store.load()

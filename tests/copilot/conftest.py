@@ -50,6 +50,20 @@ def copilot_db(tmp_path_factory):
 
 
 @pytest.fixture()
+def client(copilot_db, monkeypatch):
+    """API 测试需要真实认证（Copilot 按设计拒绝匿名/ AUTH_ENABLED=false 旁路）。
+
+    同时钉住配置函数层（DB 开关优先于环境变量，仅设环境变量不够）。
+    """
+    monkeypatch.setenv("AUTH_ENABLED", "true")
+    from backend import config as _cfg
+    monkeypatch.setattr(_cfg, "auth_enabled", lambda: True)
+    from backend.main import app
+    from fastapi.testclient import TestClient
+    return TestClient(app)
+
+
+@pytest.fixture()
 def copilot_conn(copilot_db):
     from backend.services.database import _get_connection
     conn = _get_connection()
@@ -57,6 +71,34 @@ def copilot_conn(copilot_db):
         yield conn
     finally:
         conn.rollback()
+        conn.close()
+
+
+@pytest.fixture()
+def copilot_accepting(copilot_db):
+    """把 Copilot 运行态置为可受理（部署闸 + DB 开关 + runner 心跳）。"""
+    from backend.services.copilot.repository import RuntimeRepo
+    from backend.services.database import _get_connection
+    conn = _get_connection()
+    try:
+        settings = RuntimeRepo.settings(conn)
+        settings["enabled"] = True
+        rt = RuntimeRepo.get(conn) or {}
+        RuntimeRepo.save_settings(conn, settings,
+                                  int(rt.get("config_revision") or 1))
+        conn.commit()  # 先提交再换连接改 accepting，避免同行锁自锁
+    finally:
+        conn.close()
+    RuntimeRepo.set_accepting(True, "test-runner")
+    import os
+    os.environ["COPILOT_ENABLED"] = "true"
+    yield
+    os.environ.pop("COPILOT_ENABLED", None)
+    conn = _get_connection()
+    try:
+        RuntimeRepo.set_accepting(False)
+        conn.commit()
+    finally:
         conn.close()
 
 
