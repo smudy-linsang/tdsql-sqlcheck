@@ -85,6 +85,18 @@ if [[ -d /run/systemd/system ]] && [ -f "$SCRIPT_DIR/deploy/tdsql-metadata-runne
     fi
     echo "metadata-runner 已启动"
 fi
+# 3a2. v1.6.4.0 / CP-1：Copilot 执行器 runner（若补丁包含其 unit 模板则安装；失败不阻断核心补丁）
+if [[ -d /run/systemd/system ]] && [ -f "$SCRIPT_DIR/deploy/tdsql-copilot-runner.service" ]; then
+    echo "安装/启动 Copilot 执行器 tdsql-copilot-runner..."
+    INSTALL_DIR_GUESS="$(cd "$TARGET_DIR" && pwd)"
+    sed -e "s|/opt/tdsql-sqlcheck|${INSTALL_DIR_GUESS}|g" \
+        "$SCRIPT_DIR/deploy/tdsql-copilot-runner.service" > /etc/systemd/system/tdsql-copilot-runner.service
+    systemctl daemon-reload
+    systemctl enable tdsql-copilot-runner >/dev/null 2>&1 || true
+    systemctl restart tdsql-copilot-runner || echo "⚠️ copilot-runner 启动失败（不影响原审核；助手将不可用）"
+    sleep 1
+    systemctl is-active --quiet tdsql-copilot-runner || echo "⚠️ copilot-runner 未处于 active（查 journalctl -u tdsql-copilot-runner）"
+fi
 # 3b. Web 服务
 if systemctl is-active --quiet tdsql-sqlcheck 2>/dev/null; then
     echo "检测到 systemd 托管服务 tdsql-sqlcheck，执行 systemctl restart..."

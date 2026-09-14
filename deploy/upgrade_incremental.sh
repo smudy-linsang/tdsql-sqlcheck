@@ -113,6 +113,28 @@ else
   nohup "${TARGET_RELEASE}/venv/bin/python" -m backend.workers.metadata_runner >> "${INSTALL_DIR}/logs/metadata_runner.log" 2>&1 &
 fi
 
+# 7b. v1.6.4.0 / CP-1：安装/启动 Copilot 执行器 runner（在 Web 之前；失败非零）
+if [[ -d /run/systemd/system ]]; then
+  log "[5b/6] 安装/启动 Copilot 执行器 tdsql-copilot-runner..."
+  COPILOT_UNIT_SRC="${TARGET_RELEASE}/deploy/tdsql-copilot-runner.service"
+  if [[ -f "${COPILOT_UNIT_SRC}" ]]; then
+    sed -e "s|/opt/tdsql-sqlcheck|${INSTALL_DIR}|g" \
+        "${COPILOT_UNIT_SRC}" > /etc/systemd/system/tdsql-copilot-runner.service
+    systemctl daemon-reload
+    systemctl enable tdsql-copilot-runner >/dev/null 2>&1 || true
+    systemctl restart tdsql-copilot-runner || warn "copilot-runner 启动失败（不影响原审核；助手将不可用）"
+    sleep 1
+    systemctl is-active --quiet tdsql-copilot-runner || warn "copilot-runner 未处于 active（查 journalctl -u tdsql-copilot-runner）"
+  else
+    warn "未找到 copilot unit 模板 ${COPILOT_UNIT_SRC}，跳过 Copilot runner 安装"
+  fi
+else
+  warn "非 systemd 环境：以 nohup 方式拉起 copilot-runner（如已有进程则先杀）"
+  pkill -f "backend.workers.copilot_runner" 2>/dev/null || true
+  sleep 1
+  nohup "${TARGET_RELEASE}/venv/bin/python" -m backend.workers.copilot_runner >> "${INSTALL_DIR}/logs/copilot_runner.log" 2>&1 &
+fi
+
 # 7. 重启 systemd 服务（先 runner 后 Web）
 log "[5/6] 重启 systemd 服务 tdsql-sqlcheck..."
 if systemctl is-active tdsql-sqlcheck >/dev/null 2>&1; then

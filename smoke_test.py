@@ -745,6 +745,99 @@ except Exception as e:
     fail("V2.0安全与平台能力测试", traceback.format_exc())
 
 # ─────────────────────────────────────────────
+# [N] v1.6.4.0 AI Copilot 专家助手（CP-1）
+# ─────────────────────────────────────────────
+section("[N] v1.6.4.0 AI Copilot 专家助手")
+try:
+    # 1. 契约模型与错误码闭集
+    from backend.models.copilot import (
+        CopilotScene, TurnState, ModelAnswer, PreviewRequest, TurnSubmitRequest,
+    )
+    from backend.services.copilot.errors import ERROR_TABLE, CopilotError
+    ok("契约模型/错误码闭集导入")
+
+    # 2. 迁移器 N-10：A组禁止自愈注册表
+    from backend.schema.migrator import _NO_CREATE_SELF_HEAL_KEYS
+    assert "v16_160_copilot_identity_runtime" in _NO_CREATE_SELF_HEAL_KEYS
+    assert "v15_150_metadata_audit_jobs" not in _NO_CREATE_SELF_HEAL_KEYS
+    ok("N-10 A组精确 key 禁止自愈注册表")
+
+    # 3. contracts.py 解析
+    from backend.schema.contracts import parse_create_table
+    c = parse_create_table(
+        "CREATE TABLE t_cp (id INT NOT NULL, name VARCHAR(64) DEFAULT '', "
+        "PRIMARY KEY(id)) ENGINE=InnoDB")
+    assert c is not None and c.table == "t_cp" and len(c.columns) == 2
+    ok("contracts.py CREATE TABLE 完整解析")
+
+    # 4. 敏感检测闭集
+    from backend.services.copilot.redaction import detect_sensitive, is_valid_identifier
+    assert "JWT" in detect_sensitive(
+        "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1c2VyIn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJVadQssw5c")
+    assert not detect_sensitive("SELECT id FROM t WHERE id = 1")
+    assert is_valid_identifier("orders_2024") and not is_valid_identifier("bad/name")
+    ok("敏感检测闭集 + 标识符校验")
+
+    # 5. 知识包加载与检索
+    from backend.services.copilot.knowledge import KnowledgeStore
+    ks = KnowledgeStore()
+    st = ks.load()
+    assert st == "READY", f"知识包未就绪: {st}"
+    res = ks.bundle.search("EXECUTOR_UNAVAILABLE", product_family="TDSQL-MySQL")
+    assert res, "知识包检索无命中"
+    ok(f"知识包 READY（{ks.bundle_id}，{len(ks.bundle.chunks)} 段）")
+
+    # 6. 输出校验：伪造引用/执行断言被拒
+    from backend.services.copilot import output as out_mod
+    try:
+        out_mod.validate_model_answer(
+            {"schema_version": 1, "summary": "我已经执行了修复", "outcome_claims": [],
+             "findings": [], "steps": [], "missing_evidence": [],
+             "sql_candidates": [], "limitations": []}, set(), set(), set())
+        fail("输出校验", "执行断言未被拦截")
+    except CopilotError:
+        ok("输出校验拦截执行类断言")
+    try:
+        out_mod.validate_model_answer(
+            {"schema_version": 1, "summary": "s", "outcome_claims": [],
+             "findings": [{"kind": "FACT", "text": "t", "evidence_ids": ["E99"],
+                           "knowledge_ids": []}],
+             "steps": [], "missing_evidence": [], "sql_candidates": [],
+             "limitations": []}, {"E1"}, set(), set())
+        fail("输出校验", "伪造引用未被拦截")
+    except CopilotError:
+        ok("输出校验拦截伪造引用")
+
+    # 7. 部署参数范围
+    from backend.services.copilot.policy import Limits
+    assert Limits.get("COPILOT_RUNNER_CONCURRENCY") == 2
+    assert Limits.get("COPILOT_TURN_DEADLINE_SECONDS") == 90
+    ok("部署参数默认值/范围")
+
+    # 8. 加密往返（临时 keyring）
+    import base64, json as _json, tempfile as _tmp
+    _k = base64.b64encode(os.urandom(32)).decode()
+    _kf = os.path.join(_tmp.mkdtemp(), "kr.json")
+    with open(_kf, "w") as _f:
+        _f.write(_json.dumps({"schema_version": 1, "active_kid": "k1",
+                              "keys": {"k1": _k}}))
+    from backend.services.copilot import crypto as _crypto
+    _crypto.reset_keyring_cache()
+    env = _crypto.encrypt("smoke-secret", "t", "1", "f", owner="S",
+                          keyring=_crypto.Keyring(_kf))
+    assert _crypto.decrypt(env, "t", "1", "f", owner="S",
+                           keyring=_crypto.Keyring(_kf)) == "smoke-secret"
+    try:
+        _crypto.decrypt(env, "t", "2", "f", owner="S", keyring=_crypto.Keyring(_kf))
+        fail("AAD 防置换", "跨行解密未失败关闭")
+    except Exception:
+        ok("AES-GCM 封套往返 + AAD 跨行置换拒绝")
+
+except Exception:
+    import traceback
+    fail("v1.6.4.0 AI Copilot 冒烟", traceback.format_exc())
+
+# ─────────────────────────────────────────────
 # 汇总
 # ─────────────────────────────────────────────
 section("冒烟测试汇总")

@@ -53,6 +53,18 @@ _CREATE_TABLE_RE = re.compile(
     re.IGNORECASE,
 )
 
+# v1.6.4.0 / N-10（CP-1 方案乙）：已登记的 A 组迁移禁止走 CREATE TABLE 缺表自愈重建。
+# 原因：copilot_subjects 是账户代际身份锚点，若被静默重建成空表，全部存量账号会被
+# 重新分配 subject、旧 grant/session 静默孤儿化（方向安全但运维不可见）。
+# 仅按代码中精确注册的 version_key 区分——不全局关闭 QC-DEFECT-07 自愈分支
+# （既有 CREATE TABLE 迁移的假 applied 自愈保持有效），首次未登记正常安装仍允许创建。
+_NO_CREATE_SELF_HEAL_KEYS = frozenset({"v16_160_copilot_identity_runtime"})
+
+# v1.6.4.0 / DETAIL §10.4：A 组新 key 在写台账前与已登记启动路径均须通过
+# backend/schema/contracts.py 的 CREATE 完整结构合同验收（列全集/类型/可空/默认/
+# 主键/索引名/列序/前缀长度），不得只验“表存在”。
+_FULL_CONTRACT_KEYS = frozenset({"v16_160_copilot_identity_runtime"})
+
 
 class SchemaMigrator:
     def ensure_migration_table(self, conn):
@@ -209,6 +221,14 @@ class SchemaMigrator:
         # 最终结构验收：声明列全部存在且结构相符
         for table, column, definition in declared_cols:
             self._verify_column(cursor, key, table, column, definition)
+        # v1.6.4.0 / §10.4：A 组新 key 在写台账前必须通过 CREATE 完整结构合同验收
+        # （表存在/引擎/排序规则/列全集/类型/可空/默认/主键/索引名/列序/前缀长度）。
+        if key in _FULL_CONTRACT_KEYS:
+            from backend.schema.contracts import verify_statements_contracts
+            problems = verify_statements_contracts(cursor, statements, label=key)
+            if problems:
+                raise MigrationError(
+                    f"迁移完整结构验收失败 [{key}]: " + "；".join(problems))
         conn.commit()
         try:
             cursor.execute(
@@ -240,6 +260,13 @@ class SchemaMigrator:
             ct = _CREATE_TABLE_RE.match(stmt)
             if ct:
                 if not self._table_exists(cursor, ct.group(1)):
+                    # v1.6.4.0 / N-10：已登记的 A 组关键表禁止自愈重建（身份锚点），
+                    # 必须失败关闭人工介入；既有迁移的自愈行为不受影响。
+                    if key in _NO_CREATE_SELF_HEAL_KEYS:
+                        raise MigrationError(
+                            f"迁移结构验收失败 [{key}]: 表 {ct.group(1)} 缺失；"
+                            "该迁移属已登记即禁止自动重建的关键组（N-10），"
+                            "请人工核实后按部署手册恢复，不允许自动重建空表")
                     missing = True
                 continue
             m = _ADD_COLUMN_RE.match(stmt)
@@ -386,6 +413,14 @@ class SchemaMigrator:
                     # 已登记且 checksum 一致：仍需完整结构验收（不只验列存在）
                     state = self._structure_state(cursor, key, statements)
                     if state == "valid":
+                        # v1.6.4.0 / §10.4：A 组已登记启动路径同样执行完整合同验收
+                        if key in _FULL_CONTRACT_KEYS:
+                            from backend.schema.contracts import verify_statements_contracts
+                            problems = verify_statements_contracts(
+                                cursor, statements, label=key)
+                            if problems:
+                                raise MigrationError(
+                                    f"迁移完整结构验收失败 [{key}]: " + "；".join(problems))
                         continue
                     # missing：历史假 applied 自愈补齐（幂等流程）
                     logger.warning(

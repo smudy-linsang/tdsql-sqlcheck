@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "endpoints": [
+    {
+      "endpoint_id": "internal-llm-gw-1",
+      "scheme": "https",
+      "canonical_host": "llm-gw.internal.example.com",
+      "port": 443,
+      "base_path": "/v1",
+      "data_zone": "INTERNAL",
+      "privacy_profile": "INTERNAL_REDACTED",
+      "allows_schema_identifiers": false,
+      "allowed_resolved_cidrs": ["10.0.0.0/8"],
+      "tls_ca_ref": "internal-ca"
+    }
+  ]
+}

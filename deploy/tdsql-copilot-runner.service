@@ -1,0 +1,30 @@
+# v1.6.4.0 / CP-1：Copilot 独立执行器 systemd unit（DETAIL §16.2）
+# ExecStart 固定为发布目录 venv Python 执行 -m backend.workers.copilot_runner；
+# 工作目录与 Web 同版；服务账户沿用部署账户，不用 root。
+[Unit]
+Description=TDSQL SQLCheck Copilot Runner (v1.6.4.0)
+After=network.target mysql.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/tdsql-sqlcheck
+ExecStart=/opt/tdsql-sqlcheck/venv/bin/python -m backend.workers.copilot_runner
+KillMode=control-group
+TimeoutStopSec=20
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+MemoryMax=1G
+TasksMax=64
+# CPU 预算初始 1 核等额，按容量测试调整
+CPUQuota=100%
+Environment=COPILOT_ENABLED=false
+# 真实端点批准文件/keyring 放版本目录之外的受控 conf 目录，升级不覆盖
+# Environment=COPILOT_KEYRING_FILE=/etc/tdsql-sqlcheck/copilot-keyring.json
+# Environment=COPILOT_ENDPOINTS_FILE=/etc/tdsql-sqlcheck/copilot-endpoints.json
+# Environment=COPILOT_KNOWLEDGE_BUNDLE=/opt/tdsql-sqlcheck/backend/copilot_knowledge
+
+[Install]
+WantedBy=multi-user.target

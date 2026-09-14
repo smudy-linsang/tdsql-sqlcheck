@@ -50,7 +50,12 @@ from backend.api.admin import router as admin_router
 from backend.api.scan_compare import router as scan_compare_router
 from backend.api.raw_slowlog import router as raw_slowlog_router
 from backend.api.metadata_audit import router as metadata_audit_router  # v1.6.3.5 在线元数据任务
+# v1.6.4.0 / CP-1：AI Copilot 专家助手
+from backend.api.copilot import router as copilot_router
+from backend.api.copilot_admin import router as copilot_admin_router
+from backend.api.copilot_audit import router as copilot_audit_router
 from backend.services.metadata_audit_repository import MetadataJobError  # v1.6.3.5 DU-2 异常处理器
+from backend.services.copilot.errors import CopilotError  # v1.6.4.0 CP-1 异常处理器
 from backend.middleware import (AuthMiddleware, BodySizeLimitMiddleware,
                                 GatewayUploadPolicyMiddleware,
                                 RequestContextMiddleware)
@@ -88,6 +93,12 @@ async def lifespan(app: FastAPI):
         init_rule_configs()
         logger.info("数据库初始化完成 (V2.0, 27张表)")
     except Exception as e:
+        # v1.6.4.0 / §10.4：核心/A组迁移失败必须失败关闭向上传播，
+        # 不能让启动以“非致命 warning”带病继续（含 Copilot A组）。
+        from backend.schema.migrator import MigrationError as _MigErr
+        if isinstance(e, _MigErr):
+            logger.error("核心/A组迁移失败，应用拒绝启动: %s", e)
+            raise
         logger.warning(f"数据库初始化失败（非致命）: {e}")
     # v1.6.3.4 / D05：网关大日志上传配置启动校验（§6.3.1）——失败关闭，拒绝启动。
     # 不能只打印 warning：GATEWAY_MAX_CONCURRENT≠1、超时链余量不足等非法配置若放行，
@@ -122,7 +133,21 @@ async def lifespan(app: FastAPI):
                 "⚠️ 认证已关闭 (AUTH_ENABLED=false)，仅限开发/测试环境使用！"
                 "生产环境必须开启认证。")
     except Exception as e:
+        # v1.6.4.0 / §10.4：账户引导若因 A组（copilot_subjects/runtime）失败，
+        # 属核心耦合故障，必须传播；B组异常不在此路径出现。
+        from backend.schema.migrator import MigrationError as _MigErr2
+        if isinstance(e, _MigErr2):
+            logger.error("账户引导遭遇核心/A组迁移故障，应用拒绝启动: %s", e)
+            raise
         logger.warning(f"管理员账户引导失败（非致命）: {e}")
+    # v1.6.4.0 / CP-1 §10.4：Copilot B组在 bootstrap 之后做有界只读验收（总预算
+    # 10 秒）；验收失败仅助手 UNAVAILABLE，不影响原 Web。不持核心初始化锁，
+    # 不在本步骤执行任何 B组 DDL。capabilities/help 由接口侧降级处理。
+    try:
+        from backend.services.copilot import copilot_bootstrap_check
+        copilot_bootstrap_check()
+    except Exception as e:
+        logger.warning("Copilot B组启动验收异常（仅助手降级，原功能不受影响）: %s", e)
     try:
         from backend.services.scheduler import start_scheduler
         start_scheduler()
@@ -169,6 +194,18 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+
+# v1.6.4.0 / CP-1：Copilot 业务错误 → 稳定 HTTP 错误（code+中文 message+request_id）
+@app.exception_handler(CopilotError)
+async def _copilot_error_handler(request, exc):  # noqa: ANN001
+    from fastapi.responses import JSONResponse
+    from backend.services.copilot.errors import error_payload
+    import uuid as _uuid
+    return JSONResponse(
+        status_code=exc.http_status,
+        content=error_payload(exc.code, _uuid.uuid4().hex, exc.message),
+        headers={"Cache-Control": "no-store"},
+    )
 
 # v1.6.3.5 / DU-2 / SIT-B-03：MetadataJobError → 稳定 HTTP 错误（code+中文 message+request_id）
 # 业务错误不再退化为裸 500；http_status 字段生效（如 runner 未就绪 503）。
@@ -239,6 +276,9 @@ app.include_router(table_type_stats_router)  # G14 表类型统计
 app.include_router(scan_compare_router)     # V1.3 扫描结果纵向对比
 app.include_router(raw_slowlog_router)      # V1.5.3 原始慢日志采集（独立模块）
 app.include_router(metadata_audit_router)   # v1.6.3.5 在线元数据审核任务
+app.include_router(copilot_router)          # v1.6.4.0 AI Copilot 用户侧
+app.include_router(copilot_admin_router)    # v1.6.4.0 AI Copilot 管理端
+app.include_router(copilot_audit_router)    # v1.6.4.0 AI Copilot 审计元数据
 
 # 前端静态资源（V2.0: 本地化vendor资产，纯内网可用）
 STATIC_DIR = FRONTEND_DIR / "static"

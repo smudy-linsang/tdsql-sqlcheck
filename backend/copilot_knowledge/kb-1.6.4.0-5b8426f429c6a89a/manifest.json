@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "bundle_id": "kb-1.6.4.0-5b8426f429c6a89a",
+  "app_min": "1.6.4.0",
+  "app_max": "1.6.4.0",
+  "product_families": [
+    "TDSQL-MySQL"
+  ],
+  "source_entries": [
+    {
+      "source_id": "USER_GUIDE_CORE",
+      "title": "平台核心功能使用指南",
+      "url": "",
+      "doc_path": "docs/USER_GUIDE.md",
+      "version_range": "1.6.x",
+      "section": "使用指南",
+      "authority": "USER_GUIDE"
+    },
+    {
+      "source_id": "FAULT_ENTRIES",
+      "title": "已批准故障处理条目",
+      "url": "",
+      "doc_path": "docs/fault-handling",
+      "version_range": "1.6.x",
+      "section": "故障处理",
+      "authority": "VERIFIED_CASE"
+    },
+    {
+      "source_id": "TDSQL_SYNTAX_NOTES",
+      "title": "TDSQL MySQL 版官方语法摘要",
+      "url": "https://cloud.tencent.com/document/product/557/8767",
+      "doc_path": "",
+      "version_range": "TDSQL-MySQL 分布式 10.3 / 集中式 8.0",
+      "section": "厂商语法",
+      "authority": "VENDOR_SYNTAX"
+    },
+    {
+      "source_id": "PUBLIC_FIXED_QUESTIONS",
+      "title": "Copilot 公共固定问题（PUBLIC_HELP 正向来源）",
+      "url": "",
+      "doc_path": "docs/copilot-public-faq",
+      "version_range": "1.6.x",
+      "section": "公共问题",
+      "authority": "USER_GUIDE"
+    }
+  ],
+  "file_sizes": {
+    "chunks.jsonl": 15540,
+    "index.json": 144
+  },
+  "sha256": {
+    "chunks.jsonl": "f1da316337190b7639969ade18b4a5afbf694f844f446f172b637be386967f53",
+    "index.json": "1c27360995d29e924c36200b99ff39dd8db9ef66def23f91d475168ad28a3ecf"
+  },
+  "approved_by": "Mr.Linsang",
+  "reviewed_at": "2026-09-13T14:42:25Z",
+  "expires_at": "2027-09-13T00:00:00Z"
+}

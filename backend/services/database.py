@@ -1721,6 +1721,8 @@ def _init_default_data(conn):
         'sys-users', 'sys-retention', 'sys-auditlog', 'sys-info',
         'sys-roles', 'sys-perms',
         'scan-compare',
+        # v1.6.4.0 / CP-1：Copilot 专家助手与 AI 配置（DETAIL §9.1）
+        'copilot', 'copilot-admin',
     ]
     for rid, _, _, _ in builtin_roles:
         for mk in all_menus:
@@ -1730,6 +1732,12 @@ def _init_default_data(conn):
                 visible = 0
             # auditor 默认不可见扫描计划/用户管理/数据保留/角色管理/上线检查(只读角色不可执行POST)
             if rid == 'auditor' and mk in ('slow-schedule', 'sys-users', 'sys-retention', 'sys-roles', 'sys-perms', 'schema-check'):
+                visible = 0
+            # v1.6.4.0 / CP-1：auditor 默认关闭 copilot（由管理员明确授予）；
+            # copilot-admin 仅 admin 默认可见，其余内置角色默认关闭。
+            if rid == 'auditor' and mk == 'copilot':
+                visible = 0
+            if mk == 'copilot-admin' and rid != 'admin':
                 visible = 0
             conn.cursor().execute("""
                 INSERT IGNORE INTO role_permissions(role_id, menu_key, visible)
@@ -1792,6 +1800,12 @@ def _init_default_data(conn):
                 if rid == 'developer' and mk in ('monitor', 'inspection', 'slow-schedule', 'sys-users', 'sys-retention', 'sys-info', 'sys-roles', 'sys-perms'):
                     visible = 0
                 if rid == 'auditor' and mk in ('slow-schedule', 'sys-users', 'sys-retention', 'sys-roles', 'sys-perms', 'schema-check'):
+                    visible = 0
+                # v1.6.4.0 / CP-1：copilot 默认仅 admin/dba/developer；auditor 与自定义角色默认关闭；
+                # copilot-admin 仅 admin。
+                if mk == 'copilot' and rid not in ('admin', 'dba', 'developer'):
+                    visible = 0
+                if mk == 'copilot-admin' and rid != 'admin':
                     visible = 0
                 cursor.execute("""
                     INSERT INTO role_permissions(role_id, menu_key, visible)

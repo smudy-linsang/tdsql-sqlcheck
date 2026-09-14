@@ -1,0 +1,5 @@
+{
+  "bundle_id": "kb-1.6.4.0-5b8426f429c6a89a",
+  "chunk_count": 23,
+  "algorithm": "bm25(k1=1.2,b=0.75)+bigram+exact(rule_id,error_code)"
+}

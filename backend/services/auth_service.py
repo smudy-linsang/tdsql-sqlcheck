@@ -395,6 +395,10 @@ _PATH_TO_MENU = {
     "/api/v1/tdsql/scheduler": "slow-tasks",
     "/api/v1/audit/batch-stream": "file-audit",
     "/api/v1/gitlab/audit": "file-audit",
+    # v1.6.4.0 / CP-1：Copilot 三个前缀（check_permission 另有独立精确分支先行拦截）
+    "/api/v1/copilot": "copilot",
+    "/api/v1/copilot-admin": "copilot-admin",
+    "/api/v1/copilot-audit": "sys-auditlog",
 }
 
 # 独立于特定菜单的已认证只读端点（已登录任意有效角色均可读取，但必须携带有效Token，非 PUBLIC_PATHS）
@@ -402,6 +406,14 @@ _MENU_INDEPENDENT_READ_ENDPOINTS = {
     ("GET", "/api/v1/tdsql/connections/options"),
     ("GET", "/api/v1/admin/logo"),
 }
+
+def _copilot_menu_visible(role: str, menu_key: str) -> bool:
+    """Copilot 菜单可见性判定（异常时失败关闭，不复用宽松 fallback）。"""
+    try:
+        return menu_key in get_visible_menus(role)
+    except Exception:
+        return False
+
 
 def check_permission(role: str, method: str, path: str) -> bool:
     """RBAC 权限判定（含role_permissions二级校验）"""
@@ -414,6 +426,21 @@ def check_permission(role: str, method: str, path: str) -> bool:
     # 操作/审计日志仅 admin 和 auditor
     if any(path.startswith(p) for p in _ADMIN_AUDITOR_ONLY_PREFIXES):
         return role in ("admin", "auditor")
+
+    # v1.6.4.0 / CP-1（DETAIL §9.1/M-02）：Copilot 三个前缀独立精确分支，
+    # 全方法（含 GET）默认拒绝，不塞入 developer 写前缀兜底，也不复用宽松 fallback。
+    # 注意判定顺序：copilot-admin / copilot-audit 必须先于 /api/v1/copilot 通用前缀。
+    if path == "/api/v1/copilot-admin" or path.startswith("/api/v1/copilot-admin/"):
+        # 端点/场景/授权/配额配置：role=admin ＋ copilot-admin 菜单（路由内另有显式断言）
+        return role == "admin" and _copilot_menu_visible(role, "copilot-admin")
+    if path == "/api/v1/copilot-audit" or path.startswith("/api/v1/copilot-audit/"):
+        # 审计元数据：admin，或 auditor 同时有 sys-auditlog
+        if role == "admin":
+            return True
+        return role == "auditor" and _copilot_menu_visible(role, "sys-auditlog")
+    if path == "/api/v1/copilot" or path.startswith("/api/v1/copilot/"):
+        # 助手使用面：有效登录 ＋ copilot 菜单（auditor/自定义角色默认关闭）
+        return _copilot_menu_visible(role, "copilot")
 
     if role == "admin":
         return True
@@ -499,6 +526,8 @@ ALL_MENU_KEYS = [
     'deep-diag-tabletype',
     'instances', 'rules', 'rulesets',
     'sys-users', 'sys-roles', 'sys-perms', 'sys-retention', 'sys-auditlog', 'sys-info',
+    # v1.6.4.0 / CP-1：Copilot 专家助手（默认 admin/dba/developer）与管理配置（默认仅 admin）
+    'copilot', 'copilot-admin',
 ]
 
 # 菜单中文标签
@@ -518,6 +547,8 @@ MENU_LABELS = {
     'sys-auditlog': '操作审计', 'sys-info': '系统信息',
     'sys-roles': '角色管理', 'sys-perms': '权限矩阵',
     'scan-compare': '扫描结果对比',
+    # v1.6.4.0 / CP-1
+    'copilot': 'Copilot专家助手', 'copilot-admin': 'AI配置',
 }
 
 def get_all_roles() -> list[dict]:
@@ -736,6 +767,10 @@ class AuthService:
                                   status, must_change_password, created_by)
                 VALUES ('admin', '系统管理员', 'admin', ?, ?, 'active', ?, 'system')
             """, (pw_hash, salt, 1 if generated else 0))
+            # v1.6.4.0 / CP-1：bootstrap 同事务分配 Copilot 代际 subject（A组接点）
+            _u = conn.execute("SELECT created_at FROM users WHERE username = 'admin'").fetchone()
+            from backend.services.copilot.authz import on_user_created
+            on_user_created(conn, "admin", str(dict(_u).get("created_at") or ""))
             conn.commit()
             if generated:
                 logger.warning(
@@ -907,6 +942,12 @@ class AuthService:
                                   status, must_change_password, created_by)
                 VALUES (?, ?, ?, ?, ?, 'active', 1, ?)
             """, (username, display_name, role, pw_hash, salt, operator))
+            # v1.6.4.0 / CP-1（DETAIL §9.1/§11.2）：账户生命周期同事务分配 Copilot
+            # 代际 subject（A组接点，不读 B组）；失败即随账户事务回滚。
+            _u = conn.execute("SELECT created_at FROM users WHERE username = ?",
+                              (username,)).fetchone()
+            from backend.services.copilot.authz import on_user_created
+            on_user_created(conn, username, str(dict(_u).get("created_at") or ""))
             conn.commit()
             log_operation(operator, "create_user", "user", username, f"role={role}")
             return self.get_user(username, use_cache=False), None
@@ -1045,6 +1086,10 @@ class AuthService:
                 if admins <= 1:
                     return "系统必须保留至少一个可用的管理员账户"
             conn.execute("DELETE FROM users WHERE username = ?", (username,))
+            # v1.6.4.0 / CP-1（DETAIL §9.1）：同事务吊销 Copilot 代际 subject
+            # （权威撤权，不等待清理 B组；删除重建不继承旧 grant/session）。
+            from backend.services.copilot.authz import on_user_deleted
+            on_user_deleted(conn, username)
             conn.commit()
             _user_cache.pop(username, None)
             log_operation(operator, "delete_user", "user", username)

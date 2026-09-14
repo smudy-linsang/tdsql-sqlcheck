@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "active_kid": "key-202609",
+  "keys": {
+    "key-202609": "REPLACE_WITH_BASE64_32_BYTES_AES_KEY"
+  }
+}

@@ -54,6 +54,12 @@ if [[ -d /run/systemd/system ]] && systemctl list-unit-files tdsql-metadata-runn
   systemctl start tdsql-metadata-runner || fail "回滚后 metadata-runner 启动失败"
   log "metadata-runner 已随回滚重启"
 fi
+# v1.6.4.0 / CP-1：Copilot runner 随回滚重启（存在才启动；不存在不阻断回滚）
+if [[ -d /run/systemd/system ]] && systemctl list-unit-files tdsql-copilot-runner.service >/dev/null 2>&1 \
+   && systemctl cat tdsql-copilot-runner.service >/dev/null 2>&1; then
+  systemctl start tdsql-copilot-runner || log "⚠️ 回滚后 copilot-runner 启动失败（不影响原审核）"
+  log "copilot-runner 已随回滚重启"
+fi
 systemctl start tdsql-sqlcheck || fail "回滚服务启动失败"
 
 log "✅ 已成功回滚至 ${TARGET_VERSION}！"

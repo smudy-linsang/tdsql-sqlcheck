@@ -162,6 +162,18 @@ else
   echo "  [SKIP] metadata-runner 服务检查（当前非 systemd 运行环境，跳过）"
 fi
 
+# 1c. v1.6.4.0 / CP-1：Copilot 执行器 runner 检查（B组故障即使开关 false 也需处理）
+# 与 metadata-runner 同规则：仅 systemd 环境强制；非 systemd 输出纯 [SKIP] 不计数。
+if [[ -d /run/systemd/system ]]; then
+  if systemctl is-active --quiet tdsql-copilot-runner 2>/dev/null; then
+    ok "copilot-runner 服务运行中"
+  else
+    echo "  [WARN] copilot-runner 未运行（AI Copilot 助手不可用；原审核/采集/导出不受影响）"
+  fi
+else
+  echo "  [SKIP] copilot-runner 服务检查（当前非 systemd 运行环境，跳过）"
+fi
+
 # 2. 前端资产（非 JSON，Bash 字符串匹配；不用 echo|grep -q 管道，规避大 HTML SIGPIPE 假失败）
 FRONT=""
 if FRONT=$(curl -fsS -m "${TIMEOUT}" "${BASE}/" 2>/dev/null); then
