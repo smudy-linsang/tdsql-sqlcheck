@@ -1,0 +1,53 @@
+{
+  "utc": "2026-09-15T13:13:15.193553+00:00",
+  "cases": [
+    {
+      "scene": "RULE_EXPLAIN",
+      "n_refs": 1,
+      "preview_status": 201,
+      "preview_evidence_cards": 1,
+      "frozen_projection_evidence": 1,
+      "frozen_projection_knowledge": 8,
+      "frozen_top_keys": [
+        "allowed_rule_ids",
+        "evidence",
+        "history",
+        "knowledge",
+        "output_schema",
+        "question"
+      ],
+      "terminal": "FAILED",
+      "terminal_error": "EVIDENCE_UNAVAILABLE",
+      "outbound_count": 1,
+      "outbound_evidence": 1,
+      "outbound_knowledge": 8,
+      "outbound_matches_frozen": true,
+      "result_state": "FAILED",
+      "result_model": null
+    },
+    {
+      "scene": "SQL_ADVISE",
+      "n_refs": 0,
+      "preview_status": 201,
+      "preview_evidence_cards": 0,
+      "frozen_projection_evidence": 0,
+      "frozen_projection_knowledge": 5,
+      "frozen_top_keys": [
+        "allowed_rule_ids",
+        "evidence",
+        "history",
+        "knowledge",
+        "output_schema",
+        "question"
+      ],
+      "terminal": "FAILED",
+      "terminal_error": "EVIDENCE_UNAVAILABLE",
+      "outbound_count": 1,
+      "outbound_evidence": 0,
+      "outbound_knowledge": 5,
+      "outbound_matches_frozen": true,
+      "result_state": "FAILED",
+      "result_model": null
+    }
+  ]
+}

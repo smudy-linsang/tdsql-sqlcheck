@@ -1,0 +1,49 @@
+{
+  "utc": "2026-09-15T13:13:01.555276+00:00",
+  "turns": [
+    {
+      "turn_id": "341124f5551c49f1b1bd74f6b45f77c5",
+      "scene": "SQL_ADVISE",
+      "result_status": 200,
+      "state": "FAILED",
+      "answer_source": null,
+      "model": null,
+      "answer_summary": "",
+      "sources": 0,
+      "limitations": []
+    },
+    {
+      "turn_id": "469aa7e7215242faab54b9513a2959d9",
+      "scene": "SQL_ADVISE",
+      "result_status": 200,
+      "state": "FAILED",
+      "answer_source": null,
+      "model": null,
+      "answer_summary": "",
+      "sources": 0,
+      "limitations": []
+    },
+    {
+      "turn_id": "0e925e4fecce445fa3e5e22204383caf",
+      "scene": "SQL_ADVISE",
+      "result_status": 200,
+      "state": "FAILED",
+      "answer_source": null,
+      "model": null,
+      "answer_summary": "",
+      "sources": 0,
+      "limitations": []
+    },
+    {
+      "turn_id": "c6c607955caa4e51b147660f7c7e5907",
+      "scene": "USAGE_HELP",
+      "result_status": 200,
+      "state": "FAILED",
+      "answer_source": null,
+      "model": null,
+      "answer_summary": "",
+      "sources": 0,
+      "limitations": []
+    }
+  ]
+}

@@ -1,0 +1,52 @@
+{
+  "utc": "2026-09-15T13:11:00.290881+00:00",
+  "steps": [
+    {
+      "POST /providers": {
+        "status": 201,
+        "body": {
+          "request_id": "acf0a92d15d0402390aedb00ba53484a",
+          "id": "f0c7bba1862545da95c6a822354e6977",
+          "enabled": false,
+          "revision": 1
+        }
+      }
+    },
+    {
+      "PUT enabled(未自检)": {
+        "status": 422,
+        "code": "PROVIDER_CONFIG_INVALID"
+      }
+    },
+    {
+      "POST /self-tests": {
+        "status": 500,
+        "body": null
+      }
+    },
+    {
+      "PUT enabled(自检后)": {
+        "status": 422,
+        "body": {
+          "detail": {
+            "code": "PROVIDER_CONFIG_INVALID",
+            "message": "当前配置版本尚未通过自检，请先执行自检",
+            "request_id": "50c9f446c9544e24bd0f00ec3b38427a",
+            "retryable": false
+          }
+        }
+      }
+    }
+  ],
+  "provider_id": "f0c7bba1862545da95c6a822354e6977",
+  "selftest_turn_id": null,
+  "selftest_terminal": null,
+  "selftest_error": null,
+  "selftest_outbound": [],
+  "selftest_outbound_count": 0,
+  "provider_after_selftest": {
+    "enabled": false,
+    "revision": 1,
+    "tested_revision": null
+  }
+}

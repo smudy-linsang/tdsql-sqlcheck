@@ -1,0 +1,74 @@
+{
+  "utc": "2026-09-15T13:15:25.913570+00:00",
+  "n01": {
+    "out_of_scope": {
+      "question": "Oracle 的 ROWNUM 分页在 TDSQL 里应该怎么写？",
+      "preview_status": 201,
+      "knowledge_count": 8,
+      "evidence_summary": []
+    },
+    "in_scope": {
+      "question": "在线元数据审核任务失败时我应该先看什么证据？",
+      "preview_status": 201,
+      "knowledge_count": 8,
+      "evidence_summary": []
+    }
+  },
+  "n05_n06": {
+    "turn_id": null,
+    "draft_preview_status": 201,
+    "frozen_payload_draft": {
+      "kind": "SQL",
+      "text": "SELECT 1",
+      "revision": "7"
+    },
+    "draft_revision_present": true
+  },
+  "m04": {
+    "status": 200,
+    "body": {
+      "request_id": "b0d9e6d777d6440a944e92444dab68eb",
+      "days": 30,
+      "items": [],
+      "hidden_below_privacy_threshold": 0,
+      "notice": "关联质疑次数，不等于该规则已证实误报。"
+    },
+    "no_turn_for": [
+      "uat_d_1640dev"
+    ],
+    "feedback_submitted": [
+      {
+        "user": "uat_d_1640",
+        "turn": "b96584db614f46dda8048fc742d33466",
+        "status": 200,
+        "body": {
+          "request_id": "cacba1f5e0004742971b20b88dc7f2de",
+          "turn_id": "b96584db614f46dda8048fc742d33466",
+          "feedback_rating": -1,
+          "feedback_code": "INCORRECT"
+        }
+      },
+      {
+        "user": "uat_d_1640b",
+        "turn": "27147f4d8e7e4af4b1ad90ca3e52644e",
+        "status": 200,
+        "body": {
+          "request_id": "8f08a683fc6640d3b73ce844c056dadd",
+          "turn_id": "27147f4d8e7e4af4b1ad90ca3e52644e",
+          "feedback_rating": -1,
+          "feedback_code": "INCORRECT"
+        }
+      }
+    ],
+    "after": {
+      "status": 200,
+      "body": {
+        "request_id": "b2b37f56f6aa4e5d9b65a2e2f5ca6a2a",
+        "days": 30,
+        "items": [],
+        "hidden_below_privacy_threshold": 2,
+        "notice": "关联质疑次数，不等于该规则已证实误报。"
+      }
+    }
+  }
+}
