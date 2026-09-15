@@ -1,0 +1,50 @@
+{
+  "utc": "2026-09-15T11:14:04.945770Z",
+  "patterns": [
+    "解读本次结果",
+    "解释这条规则",
+    "分析失败原因",
+    "生成修改建议",
+    "让 Copilot",
+    "Copilot 解读",
+    "openCopilot",
+    "getCurrentSelection",
+    "sourceRefs"
+  ],
+  "counts": {
+    "frontend/index.html": {
+      "解读本次结果": 0,
+      "解释这条规则": 0,
+      "分析失败原因": 0,
+      "生成修改建议": 0,
+      "让 Copilot": 0,
+      "Copilot 解读": 0,
+      "openCopilot": 0,
+      "getCurrentSelection": 0,
+      "sourceRefs": 0
+    },
+    "frontend/static/js/app.js": {
+      "解读本次结果": 0,
+      "解释这条规则": 0,
+      "分析失败原因": 0,
+      "生成修改建议": 0,
+      "让 Copilot": 0,
+      "Copilot 解读": 0,
+      "openCopilot": 0,
+      "getCurrentSelection": 0,
+      "sourceRefs": 0
+    },
+    "frontend/static/js/copilot.js": {
+      "解读本次结果": 0,
+      "解释这条规则": 0,
+      "分析失败原因": 0,
+      "生成修改建议": 0,
+      "让 Copilot": 0,
+      "Copilot 解读": 0,
+      "openCopilot": 0,
+      "getCurrentSelection": 0,
+      "sourceRefs": 3
+    }
+  },
+  "note": "设计 §3.1 第3条要求业务结果区出现解读入口；§13.1 要求 getCurrentSelection/openCopilot"
+}

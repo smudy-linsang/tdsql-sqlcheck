@@ -1,0 +1,27 @@
+{
+  "utc": "2026-09-15T10:52:01.647015+00:00",
+  "runner_pids_after_disable": [
+    "70920"
+  ],
+  "runner_still_running": true,
+  "still_accepting_after_disable": {},
+  "mode_after_disable": "DISABLED",
+  "health_after_disable": {
+    "ready": true,
+    "runner": {
+      "accepting": false,
+      "heartbeat_at": "2026-09-15T10:52:04.599892"
+    },
+    "reason_code": null
+  },
+  "persist_removed": true,
+  "mode_after_recovery": "READY",
+  "health_after_recovery": {
+    "ready": true,
+    "runner": {
+      "accepting": true,
+      "heartbeat_at": "2026-09-15T10:52:08.663309"
+    }
+  },
+  "new_session_after_recovery": 201
+}

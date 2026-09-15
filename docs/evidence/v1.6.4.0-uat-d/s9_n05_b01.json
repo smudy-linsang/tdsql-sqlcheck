@@ -1,0 +1,43 @@
+{
+  "utc": "2026-09-15T10:59:30.935524+00:00",
+  "step0_initial": [
+    {
+      "knowledge_status": "READY",
+      "bundle_id": "kb-1.6.4.0-5b8426f429c6a89a",
+      "reason_code": ""
+    },
+    "READY"
+  ],
+  "extra_bundle_created": "kb-1.6.4.0-uatd40-extra",
+  "step1_without_restart": [
+    {
+      "knowledge_status": "READY",
+      "bundle_id": "kb-1.6.4.0-5b8426f429c6a89a",
+      "reason_code": ""
+    },
+    "READY"
+  ],
+  "relogin": "ok",
+  "step2_after_restart": [
+    {
+      "knowledge_status": "INVALID",
+      "bundle_id": "",
+      "reason_code": "KNOWLEDGE_BUNDLE_AMBIGUOUS"
+    },
+    "READY"
+  ],
+  "step2_health": {
+    "knowledge_status": "INVALID",
+    "bundle_id": "",
+    "reason_code": "KNOWLEDGE_BUNDLE_AMBIGUOUS"
+  },
+  "step3_after_cleanup_restart": [
+    {
+      "knowledge_status": "READY",
+      "bundle_id": "kb-1.6.4.0-5b8426f429c6a89a",
+      "reason_code": ""
+    },
+    "READY"
+  ],
+  "extra_bundle_removed": true
+}

@@ -1,0 +1,168 @@
+{
+  "utc": "2026-09-15T10:53:23.262859+00:00",
+  "rounds": 3,
+  "n_per_round": 15,
+  "baseline": {
+    "/api/v1/audit/metadata-jobs?limit=5": [
+      {
+        "p50": 18.9,
+        "p95": 27.9,
+        "max": 31.3,
+        "status_set": [
+          200
+        ]
+      },
+      {
+        "p50": 15.3,
+        "p95": 26.4,
+        "max": 31.3,
+        "status_set": [
+          200
+        ]
+      },
+      {
+        "p50": 17.2,
+        "p95": 23.5,
+        "max": 24.4,
+        "status_set": [
+          200
+        ]
+      }
+    ],
+    "/health": [
+      {
+        "p50": 16.7,
+        "p95": 21.7,
+        "max": 23.2,
+        "status_set": [
+          200
+        ]
+      },
+      {
+        "p50": 15.2,
+        "p95": 20.3,
+        "max": 27.1,
+        "status_set": [
+          200
+        ]
+      },
+      {
+        "p50": 13.8,
+        "p95": 19.4,
+        "max": 19.9,
+        "status_set": [
+          200
+        ]
+      }
+    ]
+  },
+  "turn_A": {
+    "preview_status": 201,
+    "submit_status": 202,
+    "turn_id": "6425213358664b1fbc9ceac1ca4d0356"
+  },
+  "turn_B": {
+    "preview_status": 201,
+    "submit_status": 202,
+    "turn_id": "53efb88c5df34475a719486c6394653a"
+  },
+  "health_under_load": {
+    "accepting": true,
+    "heartbeat_at": "2026-09-15T10:53:32.113477"
+  },
+  "under_load": {
+    "/api/v1/audit/metadata-jobs?limit=5": [
+      {
+        "p50": 16.9,
+        "p95": 24.7,
+        "max": 24.9,
+        "status_set": [
+          200
+        ]
+      },
+      {
+        "p50": 16.9,
+        "p95": 26.2,
+        "max": 32.5,
+        "status_set": [
+          200
+        ]
+      },
+      {
+        "p50": 23.0,
+        "p95": 28.7,
+        "max": 28.8,
+        "status_set": [
+          200
+        ]
+      }
+    ],
+    "/health": [
+      {
+        "p50": 16.6,
+        "p95": 19.5,
+        "max": 19.8,
+        "status_set": [
+          200
+        ]
+      },
+      {
+        "p50": 15.0,
+        "p95": 21.9,
+        "max": 25.6,
+        "status_set": [
+          200
+        ]
+      },
+      {
+        "p50": 13.6,
+        "p95": 17.4,
+        "max": 21.2,
+        "status_set": [
+          200
+        ]
+      }
+    ]
+  },
+  "metadata_job_submit": {
+    "status": 422,
+    "body": {
+      "detail": "无效审核范围: ['COLUMN']（仅允许 ('TABLE', 'INDEX', 'VIEW', 'SHARDKEY')）"
+    }
+  },
+  "metadata_job_id": null,
+  "degradation": {
+    "/api/v1/audit/metadata-jobs?limit=5": {
+      "baseline_p95_rounds": [
+        27.9,
+        26.4,
+        23.5
+      ],
+      "load_p95_rounds": [
+        24.7,
+        26.2,
+        28.7
+      ],
+      "baseline_p95_median": 26.4,
+      "load_p95_median": 26.2,
+      "delta_pct": -0.8,
+      "abs_delta_ms": -0.2
+    },
+    "/health": {
+      "baseline_p95_rounds": [
+        21.7,
+        20.3,
+        19.4
+      ],
+      "load_p95_rounds": [
+        19.5,
+        21.9,
+        17.4
+      ],
+      "baseline_p95_median": 20.3,
+      "load_p95_median": 19.5,
+      "delta_pct": -3.9,
+      "abs_delta_ms": -0.8
+    }
+  }
+}

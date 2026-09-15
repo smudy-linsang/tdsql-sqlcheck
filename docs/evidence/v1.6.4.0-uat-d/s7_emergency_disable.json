@@ -1,0 +1,141 @@
+{
+  "utc": "2026-09-15T10:51:43.727284+00:00",
+  "incident_id": "UATD40-EMG-001",
+  "before": {
+    "flags": {
+      "settings": {
+        "enabled": true,
+        "allow_schema_identifiers": true,
+        "user_daily_tokens": 1000000,
+        "global_daily_tokens": 10000000,
+        "session_retention_days": 30,
+        "audit_retention_days": 180
+      },
+      "accepting": 1,
+      "module_schema_state": "READY"
+    },
+    "capabilities": "READY"
+  },
+  "script_run": {
+    "rc": 0,
+    "stdout": "[emergency-disable] 事件编号: UATD40-EMG-001  时间(UTC): 2026-09-15T10:51:47Z\ndb-disabled-ok\r\n[emergency-disable] DB 侧已停用（settings.enabled=false, accepting=false）\n[emergency-disable] 持久停用标记已写入 /C/TDSQL_SQLCHECK/TDSQL-SQLCheck/data/reports/uat_d_1640/emg/../conf/copilot-disabled.json\n[emergency-disable] 非 systemd：已按进程名停止 copilot_runner\n[emergency-disable] Copilot 已停用（事件 UATD40-EMG-001）。恢复须：查明原因 → 修复/撤销配置 → \n[emergency-disable]   重跑受影响安全/黄金集门禁 → 人工批准 → 删除 /C/TDSQL_SQLCHECK/TDSQL-SQLCheck/data/reports/uat_d_1640/emg/../conf/copilot-disabled.json 并重启 tdsql-copilot-runner。\n",
+    "stderr": "",
+    "install_dir": "/C/TDSQL_SQLCHECK/TDSQL-SQLCheck/data/reports/uat_d_1640/emg"
+  },
+  "after_flags": {
+    "settings": {
+      "enabled": false,
+      "allow_schema_identifiers": true,
+      "user_daily_tokens": 1000000,
+      "global_daily_tokens": 10000000,
+      "session_retention_days": 30,
+      "audit_retention_days": 180
+    },
+    "accepting": 0,
+    "module_schema_state": "READY"
+  },
+  "persist_file_exists": true,
+  "persist_file_content": "{\"incident_id\": \"UATD40-EMG-001\", \"disabled_at\": \"2026-09-15T10:51:47Z\",\n \"db_side\": \"true\", \"note\": \"Copilot 紧急停用标记；恢复须人工查明原因并撤销本文件\"}\n",
+  "event_log_exists": true,
+  "event_log": "2026-09-15T10:51:47Z incident=UATD40-EMG-001 db_side=true unit=tdsql-copilot-runner result=disabled\n",
+  "main_instant_audit": {
+    "status": 200,
+    "keys": [
+      "deprecated_params",
+      "gate_result",
+      "instance_type",
+      "instance_type_conflict",
+      "instance_type_source",
+      "passed",
+      "rule_set_id",
+      "rule_set_name",
+      "scope_notice",
+      "skipped_rules_count",
+      "sql_type",
+      "violations"
+    ],
+    "summary": {
+      "total": null,
+      "passed": true,
+      "violation_count": null,
+      "summary": null
+    }
+  },
+  "main_instant_audit_attempts": [
+    {
+      "status": 422,
+      "detail": "[{'type': 'missing', 'loc': ['body', 'sql'], 'msg': 'Field required', 'input': {'sql_text': 'SELECT id FROM d40_tab_00 WHERE id = 1'}}]"
+    }
+  ],
+  "main_health": {
+    "method": "GET",
+    "path": "/health",
+    "status": 200,
+    "utc": "2026-09-15T10:51:51.658739+00:00",
+    "body": {
+      "status": "ok",
+      "version": "1.6.4.0"
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  "after_capabilities": {
+    "method": "GET",
+    "path": "/api/v1/copilot/capabilities",
+    "status": 200,
+    "utc": "2026-09-15T10:51:51.674999+00:00",
+    "body": {
+      "request_id": "231a9829bae144538bf096c8a2b3ba21",
+      "subject_id": "cfeb737a82104d61bfe5d943dd0b403c",
+      "enabled": true,
+      "mode": "DISABLED",
+      "runner_ready": false,
+      "allowed_scenes": [
+        "USAGE_HELP",
+        "RULE_EXPLAIN",
+        "SQL_ADVISE",
+        "AUDIT_EXPLAIN",
+        "JOB_TROUBLESHOOT",
+        "SLOW_EXPLAIN",
+        "COMPARE_EXPLAIN",
+        "TABLETYPE_EXPLAIN",
+        "GATEWAY_EXPLAIN",
+        "DIAGNOSTIC_HELP"
+      ],
+      "limits": {
+        "COPILOT_RUNNER_CONCURRENCY": 2,
+        "COPILOT_MAX_ACTIVE_TURNS": 4,
+        "COPILOT_TURN_DEADLINE_SECONDS": 90,
+        "COPILOT_QUEUE_MAX_SECONDS": 15,
+        "COPILOT_PROVIDER_TOTAL_SECONDS": 60,
+        "COPILOT_HTTP_CONNECT_SECONDS": 5,
+        "COPILOT_HTTP_READ_SECONDS": 20,
+        "COPILOT_CONTEXT_MAX_BYTES": 24576,
+        "COPILOT_INPUT_TOKEN_UPPER_BOUND": 16384,
+        "COPILOT_OUTPUT_MAX_TOKENS": 2048,
+        "COPILOT_RESPONSE_MAX_BYTES": 1048576,
+        "COPILOT_ANSWER_MAX_BYTES": 32768,
+        "COPILOT_MAX_ACTIVE_PER_USER": 1,
+        "COPILOT_STORAGE_MAX_MIB": 2048
+      },
+      "knowledge": {
+        "knowledge_status": "READY",
+        "bundle_id": "kb-1.6.4.0-5b8426f429c6a89a",
+        "reason_code": ""
+      },
+      "module_schema_state": "READY",
+      "reason_code": null
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  "new_session_after_disable": {
+    "status": 201,
+    "detail": null
+  },
+  "help_after_disable": {
+    "status": 200
+  }
+}

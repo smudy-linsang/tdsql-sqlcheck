@@ -1,0 +1,352 @@
+{
+  "utc": "2026-09-15T10:22:45.229112+00:00",
+  "admin": [
+    {
+      "method": "GET",
+      "path": "/api/v1/copilot-admin/endpoints",
+      "registered": true,
+      "registered_methods": [
+        "GET"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/copilot-admin/providers",
+      "registered": true,
+      "registered_methods": [
+        "GET",
+        "POST"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/copilot-admin/providers",
+      "registered": true,
+      "registered_methods": [
+        "GET",
+        "POST"
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/copilot-admin/providers/{provider_id}",
+      "registered": true,
+      "registered_methods": [
+        "PUT"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/copilot-admin/providers/{provider_id}/self-tests",
+      "registered": false,
+      "registered_methods": []
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/copilot-admin/providers/{provider_id}/enabled",
+      "registered": true,
+      "registered_methods": [
+        "PUT"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/copilot-admin/routes",
+      "registered": true,
+      "registered_methods": [
+        "GET"
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/copilot-admin/routes/{scene}",
+      "registered": true,
+      "registered_methods": [
+        "PUT"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/copilot-admin/grants",
+      "registered": true,
+      "registered_methods": [
+        "GET",
+        "PUT"
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/copilot-admin/grants",
+      "registered": true,
+      "registered_methods": [
+        "GET",
+        "PUT"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/copilot-admin/grants/approve",
+      "registered": true,
+      "registered_methods": [
+        "POST"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/copilot-admin/settings",
+      "registered": true,
+      "registered_methods": [
+        "GET",
+        "PUT"
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/copilot-admin/settings",
+      "registered": true,
+      "registered_methods": [
+        "GET",
+        "PUT"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/copilot-admin/health",
+      "registered": true,
+      "registered_methods": [
+        "GET"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/copilot-admin/feedback-summary",
+      "registered": false,
+      "registered_methods": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/copilot-audit/events",
+      "registered": true,
+      "registered_methods": [
+        "GET"
+      ]
+    }
+  ],
+  "user": [
+    {
+      "method": "GET",
+      "path": "/api/v1/copilot/capabilities",
+      "registered": true,
+      "registered_methods": [
+        "GET"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/copilot/help",
+      "registered": true,
+      "registered_methods": [
+        "GET"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/copilot/connections",
+      "registered": true,
+      "registered_methods": [
+        "GET"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/copilot/sessions",
+      "registered": true,
+      "registered_methods": [
+        "GET",
+        "POST"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/copilot/sessions",
+      "registered": true,
+      "registered_methods": [
+        "GET",
+        "POST"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/copilot/sessions/{session_id}",
+      "registered": true,
+      "registered_methods": [
+        "GET"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/copilot/sessions/{session_id}/archive",
+      "registered": true,
+      "registered_methods": [
+        "POST"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/copilot/sessions/{session_id}/turns",
+      "registered": true,
+      "registered_methods": [
+        "GET",
+        "POST"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/copilot/sessions/{session_id}/previews",
+      "registered": true,
+      "registered_methods": [
+        "POST"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/copilot/sessions/{session_id}/turns",
+      "registered": true,
+      "registered_methods": [
+        "GET",
+        "POST"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/copilot/turns/{turn_id}",
+      "registered": true,
+      "registered_methods": [
+        "GET"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/copilot/turns/{turn_id}/result",
+      "registered": true,
+      "registered_methods": [
+        "GET"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/copilot/turns/{turn_id}/cancel",
+      "registered": true,
+      "registered_methods": [
+        "POST"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/copilot/turns/{turn_id}/feedback",
+      "registered": true,
+      "registered_methods": [
+        "POST"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/copilot/turns/{turn_id}/actions/resolve",
+      "registered": true,
+      "registered_methods": [
+        "POST"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/copilot/turns/{turn_id}/export.html",
+      "registered": true,
+      "registered_methods": [
+        "GET"
+      ]
+    }
+  ],
+  "registered_all": {
+    "/api/v1/copilot/capabilities": [
+      "GET"
+    ],
+    "/api/v1/copilot/help": [
+      "GET"
+    ],
+    "/api/v1/copilot/connections": [
+      "GET"
+    ],
+    "/api/v1/copilot/sessions": [
+      "GET",
+      "POST"
+    ],
+    "/api/v1/copilot/sessions/{session_id}": [
+      "GET"
+    ],
+    "/api/v1/copilot/sessions/{session_id}/archive": [
+      "POST"
+    ],
+    "/api/v1/copilot/sessions/{session_id}/turns": [
+      "GET",
+      "POST"
+    ],
+    "/api/v1/copilot/sessions/{session_id}/previews": [
+      "POST"
+    ],
+    "/api/v1/copilot/turns/{turn_id}": [
+      "GET"
+    ],
+    "/api/v1/copilot/turns/{turn_id}/result": [
+      "GET"
+    ],
+    "/api/v1/copilot/turns/{turn_id}/cancel": [
+      "POST"
+    ],
+    "/api/v1/copilot/turns/{turn_id}/feedback": [
+      "POST"
+    ],
+    "/api/v1/copilot/turns/{turn_id}/actions/resolve": [
+      "POST"
+    ],
+    "/api/v1/copilot/turns/{turn_id}/export.html": [
+      "GET"
+    ],
+    "/api/v1/copilot-admin/endpoints": [
+      "GET"
+    ],
+    "/api/v1/copilot-admin/providers": [
+      "GET",
+      "POST"
+    ],
+    "/api/v1/copilot-admin/providers/{provider_id}": [
+      "PUT"
+    ],
+    "/api/v1/copilot-admin/providers/{provider_id}/enabled": [
+      "PUT"
+    ],
+    "/api/v1/copilot-admin/routes": [
+      "GET"
+    ],
+    "/api/v1/copilot-admin/routes/{scene}": [
+      "PUT"
+    ],
+    "/api/v1/copilot-admin/grants": [
+      "GET",
+      "PUT"
+    ],
+    "/api/v1/copilot-admin/grants/approve": [
+      "POST"
+    ],
+    "/api/v1/copilot-admin/settings": [
+      "GET",
+      "PUT"
+    ],
+    "/api/v1/copilot-admin/health": [
+      "GET"
+    ],
+    "/api/v1/copilot-audit/events": [
+      "GET"
+    ]
+  },
+  "extra_registered": []
+}

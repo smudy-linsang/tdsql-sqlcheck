@@ -1,0 +1,19 @@
+{
+  "utc": "2026-09-15T11:00:02.907986+00:00",
+  "test_shipped_bundle_ready": {
+    "rc": 1,
+    "tail": ""
+  },
+  "test_sources_rebuild_matches_shipped": {
+    "rc": 1,
+    "tail": ""
+  },
+  "chunks.jsonl_sha256": "951cb7260832bc3f911020c2b6035184c6db47746c0a8929d2ec277502a26152",
+  "chunks.jsonl_manifest": "951cb7260832bc3f911020c2b6035184c6db47746c0a8929d2ec277502a26152",
+  "chunks.jsonl_crlf": 0,
+  "chunks.jsonl_lf": 23,
+  "index.json_sha256": "bdd6cc3cf8b5423ee678754c49c7a141353be083121a598c6d7a4a5010eb3713",
+  "index.json_manifest": "bdd6cc3cf8b5423ee678754c49c7a141353be083121a598c6d7a4a5010eb3713",
+  "index.json_crlf": 0,
+  "index.json_lf": 4
+}

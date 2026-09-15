@@ -1,0 +1,35 @@
+{
+  "utc": "2026-09-15T10:43:10.762103+00:00",
+  "pages": [
+    {
+      "page": "即时审核",
+      "copilot_entry_buttons": [],
+      "shot": "docs\\evidence\\v1.6.4.0-uat-d\\shots\\b2-即时审核.png"
+    },
+    {
+      "page": "文件审核",
+      "error": "Locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for get_by_text(\"文件审核\", exact=True).first\n    - locator resolved to <li tabindex=\"-1\" role=\"menuitem\" class=\"el-menu-item\">…</li>\n  - att"
+    },
+    {
+      "page": "在线元数据审核",
+      "copilot_entry_buttons": [],
+      "shot": "docs\\evidence\\v1.6.4.0-uat-d\\shots\\b2-在线元数据审核.png"
+    },
+    {
+      "page": "审核规则库",
+      "error": "Locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for get_by_text(\"审核规则库\", exact=True).first\n    - locator resolved to <li tabindex=\"-1\" role=\"menuitem\" class=\"el-menu-item\">…</li>\n  - at"
+    },
+    {
+      "page": "慢SQL记录",
+      "error": "Locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for get_by_text(\"慢SQL分析\", exact=True).first\n"
+    },
+    {
+      "page": "上线检查",
+      "error": "Locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for get_by_text(\"上线检查\", exact=True).first\n    - locator resolved to <li tabindex=\"-1\" role=\"menuitem\" class=\"el-menu-item\">…</li>\n  - att"
+    },
+    {
+      "page": "大表治理",
+      "error": "Locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for get_by_text(\"大表治理\", exact=True).first\n    - locator resolved to <li tabindex=\"-1\" role=\"menuitem\" class=\"el-menu-item\">…</li>\n  - att"
+    }
+  ]
+}

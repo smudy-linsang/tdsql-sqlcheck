@@ -1,0 +1,41 @@
+{
+  "targets": {
+    "copilot-open": [
+      "html@2",
+      "body@22",
+      "div@23",
+      "div@52(app-layout)",
+      "header@54(topbar)",
+      "div@60(right-area)",
+      "el-tooltip@62"
+    ],
+    "copilot-page": [
+      "html@2",
+      "body@22",
+      "div@23",
+      "el-dialog@2846 v-model=snapshotDetailDialog.visible"
+    ],
+    "copilot-drawer": [
+      "html@2",
+      "body@22",
+      "div@23",
+      "el-dialog@2846 v-model=snapshotDetailDialog.visible"
+    ]
+  },
+  "mismatch_count": 2,
+  "mismatches_sample": [
+    {
+      "at_line": 853,
+      "end_tag": "div",
+      "auto_closed": [
+        "el-tabs:653"
+      ]
+    },
+    {
+      "at_line": 1652,
+      "end_tag": "el-tab-pane",
+      "orphan": true
+    }
+  ],
+  "unclosed_at_eof": []
+}

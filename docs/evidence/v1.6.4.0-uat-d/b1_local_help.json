@@ -1,0 +1,36 @@
+{
+  "utc": "2026-09-15T10:42:18.970492+00:00",
+  "steps": [
+    {
+      "login": "ok",
+      "shot": "docs\\evidence\\v1.6.4.0-uat-d\\shots\\b1-01-dashboard.png"
+    },
+    {
+      "drawer_opened": true,
+      "drawer_text": "展开\n关闭\n打开会话页\n模式：READY； 知识包：READY\n使用帮助\n预览资料\n确认提交",
+      "shot": "docs\\evidence\\v1.6.4.0-uat-d\\shots\\b1-02-drawer.png"
+    },
+    {
+      "preview_box": "",
+      "shot": "docs\\evidence\\v1.6.4.0-uat-d\\shots\\b1-03-preview.png"
+    }
+  ],
+  "scene_options_in_drawer": [
+    "使用帮助",
+    "解释规则",
+    "SQL 修改建议",
+    "解读审核结果",
+    "任务失败排查",
+    "慢SQL解读",
+    "扫描对比解读",
+    "表类型统计解读",
+    "网关报告解读",
+    "诊断模块帮助"
+  ],
+  "console_so_far": [
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    }
+  ]
+}

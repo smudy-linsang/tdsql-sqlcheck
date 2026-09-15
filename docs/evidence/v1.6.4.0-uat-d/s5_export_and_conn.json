@@ -1,0 +1,53 @@
+{
+  "utc": "2026-09-15T10:47:59.328539+00:00",
+  "grants": {
+    "request_id": "3b5b84ac8b1c4d278a57fb23771ead1a",
+    "items": [
+      {
+        "subject_id": "cfeb737a82104d61bfe5d943dd0b403c",
+        "connection_id": "d40-dist",
+        "username": "uat_d_1640",
+        "enabled": true,
+        "approval_state": "APPROVED",
+        "approval_ref": "UATD40-INST-001",
+        "allow_schema_identifiers": true,
+        "revision": 2
+      }
+    ]
+  },
+  "copilot_connections": {
+    "request_id": "22144f1f83df4c449d885cc39f03e035",
+    "items": [
+      {
+        "connection_id": "d40-dist",
+        "name": "D40-分布式测试库",
+        "instance_type": "distributed"
+      }
+    ]
+  },
+  "capabilities": {
+    "enabled": true,
+    "mode": "READY",
+    "runner_ready": true,
+    "knowledge": {
+      "knowledge_status": "READY",
+      "bundle_id": "kb-1.6.4.0-5b8426f429c6a89a",
+      "reason_code": ""
+    },
+    "module_schema_state": "READY"
+  },
+  "turn_state": "SUCCEEDED",
+  "turn_id": "e0bea210a72e4eae89c861f29f3b099a",
+  "export_status": 200,
+  "export_headers": {
+    "content-disposition": "attachment; filename=\"copilot-advice-e0bea210-20260915.html\"",
+    "content-type": "text/html; charset=utf-8",
+    "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+  },
+  "export_bytes": 2414,
+  "export_has_csp_header": true,
+  "export_has_script": false,
+  "export_has_remote": false,
+  "export_internal_banner": true,
+  "export_text_head": "<!DOCTYPE html>\n<html lang=\"zh-CN\">\n<head>\n<meta charset=\"utf-8\">\n<meta http-equiv=\"Content-Security-Policy\"\n      content=\"default-src 'none'; style-src 'unsafe-inline'\">\n<title>Copilot 建议报告</title>\n<style>\nbody{font-family:\"Microsoft YaHei\",sans-serif;margin:24px;color:#222;background:#fff}\nh1{font-size:18px;border-bottom:2px solid #345;padding-bottom:8px}\n.meta{font-size:12px;color:#555;margin:12px 0}\n.meta span{margin-right:16px}\n.banner{background:#fff8e1;border:1px solid #f0c36d;padding:8px 12px;font-size:12px;margin:12px 0}\nh2{font-size:14px;margin-top:20px;color:#234}\ntable{border-collapse:collapse;width:100%;font-size:12px}\ntd,th{border:1px solid #ccc;padding:4px 8px;text-align:left;vertical-align:top}\n.cand{border:1px solid #ddd;margin:8px 0;padding:8px}\n.cand-h{font-weight:bold;margin-bottom:6px}\npre{background:#f6f6f6;padding:8px;white-space:pre-wrap;word-break:break-all;font-size:12px}\n.warn{color:#b45309;font-size:11px;margin-top:6px}\nul{font-size:12px}\n</style>\n</head>\n<body>\n<h1>Copilot 专家建议报告（内部建议资料，请按项目权限传播）</h1>\n<div class=\"meta\">\n<span>报告ID：e0bea210a72e4eae89c861f29f3b099a</span>\n<span>应用版本：1.6.4.0</span>\n<span>生成时间：2026-09-15 10:48:01 UTC</span>\n<span>场景：USAGE_"
+}

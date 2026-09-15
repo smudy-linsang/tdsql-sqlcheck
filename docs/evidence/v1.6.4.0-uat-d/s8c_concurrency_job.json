@@ -1,0 +1,52 @@
+{
+  "utc": "2026-09-15T10:53:49.313727+00:00",
+  "turn_A": {
+    "submit_status": 202,
+    "turn_id": "c6c607955caa4e51b147660f7c7e5907"
+  },
+  "turn_B": {
+    "submit_status": 202,
+    "turn_id": "27147f4d8e7e4af4b1ad90ca3e52644e"
+  },
+  "metadata_job_submit": {
+    "status": 202,
+    "body": {
+      "job_id": "ef0af01f7f064b1eaf9378a186dee459",
+      "state": "ACCEPTED",
+      "phase": "WAITING",
+      "slot_owned": true,
+      "stale_running": false,
+      "connection_name": "D40-分布式测试库",
+      "database": "uat_d_1640_dist",
+      "elapsed_seconds": null,
+      "progress": {
+        "enumerated_objects": null,
+        "selected_objects": null,
+        "extracted_objects": null,
+        "total_statements": null,
+        "audited_statements": null,
+        "skipped_objects": null,
+        "skipped_abnormal": null
+      },
+      "report_id": null,
+      "snapshot_id": null,
+      "cleanup_ok": null,
+      "error_code": null,
+      "error_message": null,
+      "exit_code": null,
+      "error": null,
+      "created_at": "2026-09-15T10:53:55.610502",
+      "finished_at": "",
+      "request_id": "ab0f9b98df0c4a24"
+    },
+    "at_s": 0.15
+  },
+  "metadata_job_id": "ef0af01f7f064b1eaf9378a186dee459",
+  "metadata_job_final": {
+    "state": "SUCCEEDED",
+    "phase": "DONE",
+    "error_code": null,
+    "accepted_to_terminal_s": 299.9,
+    "total_s": 300.0
+  }
+}

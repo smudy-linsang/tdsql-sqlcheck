@@ -1,0 +1,53 @@
+{
+  "utc": "2026-09-15T10:26:17.392199+00:00",
+  "errors": [
+    "console.error: Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+    "--- CLICK ---"
+  ],
+  "before": {
+    "el_drawer_count": 5,
+    "copilot_drawer_count": 0,
+    "copilot_drawer_any": 0,
+    "text_copilot_drawer_present": 0
+  },
+  "after": {
+    "el_drawer_count": 5,
+    "copilot_drawer_count": 0,
+    "copilot_drawer_any": 0,
+    "visible_overlays": 0,
+    "drawers": [
+      {
+        "cls": "el-drawer rtl",
+        "label": "新建扫描任务",
+        "head": "新建扫描任务",
+        "display": "none"
+      },
+      {
+        "cls": "el-drawer rtl",
+        "label": "慢SQL详情",
+        "head": "慢SQL详情",
+        "display": "none"
+      },
+      {
+        "cls": "el-drawer rtl",
+        "label": "新建连接",
+        "head": "新建连接",
+        "display": "none"
+      },
+      {
+        "cls": "el-drawer rtl",
+        "label": "⚙️ 配置规则集: ",
+        "head": "⚙️ 配置规则集: ",
+        "display": "none"
+      },
+      {
+        "cls": "el-drawer rtl",
+        "label": "网关日志分析报告",
+        "head": "网关日志分析报告",
+        "display": "none"
+      }
+    ],
+    "copilot_related_dom": []
+  },
+  "shot": "docs/evidence/v1.6.4.0-uat-d/shots/dbg-drawer3.png"
+}

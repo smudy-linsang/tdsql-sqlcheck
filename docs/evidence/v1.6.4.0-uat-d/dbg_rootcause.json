@@ -1,0 +1,21 @@
+{
+  "utc": "2026-09-15T10:29:26.256779+00:00",
+  "ab1_nav_error": "Locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for get_by_text(\"慢SQL分析\", exact=True).first\n",
+  "ab1_scan_drawer_visible": false,
+  "ab1_shot": "docs/evidence/v1.6.4.0-uat-d/shots/dbg-ab1-scan-drawer.png",
+  "copilot_click_api_calls": [
+    "/api/v1/copilot/capabilities?_t=1789468201386",
+    "/api/v1/copilot/sessions?limit=20&_t=1789468201386",
+    "/api/v1/copilot/connections?_t=1789468201386"
+  ],
+  "copilot_drawer_rendered": 0,
+  "copilot_any_dom": 0,
+  "copilot_shot": "docs/evidence/v1.6.4.0-uat-d/shots/dbg-copilot-after-click.png",
+  "micro_repro": {
+    "nested_drawer": 1,
+    "top_drawer": 1,
+    "nested_text": true,
+    "top_text": true
+  },
+  "micro_shot": "docs/evidence/v1.6.4.0-uat-d/shots/dbg-micro-repro.png"
+}

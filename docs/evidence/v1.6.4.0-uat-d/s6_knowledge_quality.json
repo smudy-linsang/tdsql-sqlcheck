@@ -1,0 +1,403 @@
+{
+  "utc": "2026-09-15T10:50:44.960697+00:00",
+  "total": 18,
+  "hit": 18,
+  "retrieval_hit_rate": 1.0,
+  "http_reconciliation": [
+    {
+      "q": "即时审核功能怎么使用？",
+      "status": 201,
+      "knowledge_count": 8,
+      "projection_mode": "ALIASED"
+    },
+    {
+      "q": "扫描结果对比怎么比较两次快照？",
+      "status": 201,
+      "knowledge_count": 7,
+      "projection_mode": "ALIASED"
+    },
+    {
+      "q": "提示执行器未就绪 EXECUTOR_UNAVAILABLE 怎么处理？",
+      "status": 429,
+      "err": {
+        "code": "RATE_LIMITED",
+        "message": "未消费的预览已达上限，请先提交或等待过期",
+        "request_id": "f245011f9f154b25b79c1221b176737d",
+        "retryable": true
+      }
+    },
+    {
+      "q": "TDSQL 分布式建表的分片键怎么写？",
+      "status": 429,
+      "err": {
+        "code": "RATE_LIMITED",
+        "message": "未消费的预览已达上限，请先提交或等待过期",
+        "request_id": "26c82de1b8ad494cbf135e63813b4014",
+        "retryable": true
+      }
+    },
+    {
+      "q": "这个工具能做什么？",
+      "status": 429,
+      "err": {
+        "code": "RATE_LIMITED",
+        "message": "未消费的预览已达上限，请先提交或等待过期",
+        "request_id": "ad4f7be71c1342f2b5cfb22e9ee8b364",
+        "retryable": true
+      }
+    }
+  ],
+  "out_of_scope_question": "Oracle 的 ROWNUM 分页在 TDSQL 里应该怎么写？",
+  "out_of_scope_retrieved": 8,
+  "out_of_scope_unknown_ok": false,
+  "rows": [
+    {
+      "authority": "USER_GUIDE",
+      "question": "即时审核功能怎么使用？",
+      "required": [
+        "即时审核"
+      ],
+      "retrieved": 8,
+      "hit": true,
+      "titles": [
+        "平台核心功能使用指南",
+        "Copilot 公共固定问题（PUBLIC_HELP 正向来源）",
+        "平台核心功能使用指南",
+        "平台核心功能使用指南"
+      ],
+      "http": {
+        "status": 201,
+        "knowledge_count": 8,
+        "projection_mode": "ALIASED"
+      }
+    },
+    {
+      "authority": "USER_GUIDE",
+      "question": "文件审核支持哪些文件格式？",
+      "required": [
+        "文件审核"
+      ],
+      "retrieved": 8,
+      "hit": true,
+      "titles": [
+        "平台核心功能使用指南",
+        "TDSQL MySQL 版官方语法摘要",
+        "TDSQL MySQL 版官方语法摘要",
+        "TDSQL MySQL 版官方语法摘要"
+      ],
+      "http": {
+        "status": "skipped"
+      }
+    },
+    {
+      "authority": "USER_GUIDE",
+      "question": "在线元数据审核是怎么发起的？",
+      "required": [
+        "在线元数据审核"
+      ],
+      "retrieved": 8,
+      "hit": true,
+      "titles": [
+        "平台核心功能使用指南",
+        "已批准故障处理条目",
+        "平台核心功能使用指南",
+        "Copilot 公共固定问题（PUBLIC_HELP 正向来源）"
+      ],
+      "http": {
+        "status": "skipped"
+      }
+    },
+    {
+      "authority": "USER_GUIDE",
+      "question": "慢SQL记录和EXPLAIN分析在哪里？",
+      "required": [
+        "慢SQL"
+      ],
+      "retrieved": 8,
+      "hit": true,
+      "titles": [
+        "平台核心功能使用指南",
+        "Copilot 公共固定问题（PUBLIC_HELP 正向来源）",
+        "平台核心功能使用指南",
+        "Copilot 公共固定问题（PUBLIC_HELP 正向来源）"
+      ],
+      "http": {
+        "status": "skipped"
+      }
+    },
+    {
+      "authority": "USER_GUIDE",
+      "question": "扫描结果对比怎么比较两次快照？",
+      "required": [
+        "扫描结果对比"
+      ],
+      "retrieved": 7,
+      "hit": true,
+      "titles": [
+        "平台核心功能使用指南",
+        "Copilot 公共固定问题（PUBLIC_HELP 正向来源）",
+        "已批准故障处理条目",
+        "平台核心功能使用指南"
+      ],
+      "http": {
+        "status": 201,
+        "knowledge_count": 7,
+        "projection_mode": "ALIASED"
+      }
+    },
+    {
+      "authority": "USER_GUIDE",
+      "question": "表类型统计里主表和物理子表怎么看？",
+      "required": [
+        "表类型统计"
+      ],
+      "retrieved": 6,
+      "hit": true,
+      "titles": [
+        "平台核心功能使用指南",
+        "TDSQL MySQL 版官方语法摘要",
+        "已批准故障处理条目",
+        "Copilot 公共固定问题（PUBLIC_HELP 正向来源）"
+      ],
+      "http": {
+        "status": "skipped"
+      }
+    },
+    {
+      "authority": "USER_GUIDE",
+      "question": "网关日志分析报告在哪里查看？",
+      "required": [
+        "网关日志"
+      ],
+      "retrieved": 8,
+      "hit": true,
+      "titles": [
+        "平台核心功能使用指南",
+        "已批准故障处理条目",
+        "Copilot 公共固定问题（PUBLIC_HELP 正向来源）",
+        "平台核心功能使用指南"
+      ],
+      "http": {
+        "status": "skipped"
+      }
+    },
+    {
+      "authority": "USER_GUIDE",
+      "question": "Copilot 专家助手怎么打开？",
+      "required": [
+        "Copilot"
+      ],
+      "retrieved": 6,
+      "hit": true,
+      "titles": [
+        "平台核心功能使用指南",
+        "Copilot 公共固定问题（PUBLIC_HELP 正向来源）",
+        "Copilot 公共固定问题（PUBLIC_HELP 正向来源）",
+        "Copilot 公共固定问题（PUBLIC_HELP 正向来源）"
+      ],
+      "http": {
+        "status": "skipped"
+      }
+    },
+    {
+      "authority": "VERIFIED_CASE",
+      "question": "提示执行器未就绪 EXECUTOR_UNAVAILABLE 怎么处理？",
+      "required": [
+        "执行器"
+      ],
+      "retrieved": 8,
+      "hit": true,
+      "titles": [
+        "已批准故障处理条目",
+        "Copilot 公共固定问题（PUBLIC_HELP 正向来源）",
+        "平台核心功能使用指南",
+        "Copilot 公共固定问题（PUBLIC_HELP 正向来源）"
+      ],
+      "http": {
+        "status": 429,
+        "err": {
+          "code": "RATE_LIMITED",
+          "message": "未消费的预览已达上限，请先提交或等待过期",
+          "request_id": "f245011f9f154b25b79c1221b176737d",
+          "retryable": true
+        }
+      }
+    },
+    {
+      "authority": "VERIFIED_CASE",
+      "question": "任务状态未知 REQUIRED 是什么意思？",
+      "required": [
+        "状态"
+      ],
+      "retrieved": 8,
+      "hit": true,
+      "titles": [
+        "已批准故障处理条目",
+        "平台核心功能使用指南",
+        "平台核心功能使用指南",
+        "Copilot 公共固定问题（PUBLIC_HELP 正向来源）"
+      ],
+      "http": {
+        "status": "skipped"
+      }
+    },
+    {
+      "authority": "VERIFIED_CASE",
+      "question": "资料过大 CONTEXT_TOO_LARGE 应该怎么办？",
+      "required": [
+        "过大"
+      ],
+      "retrieved": 5,
+      "hit": true,
+      "titles": [
+        "已批准故障处理条目",
+        "Copilot 公共固定问题（PUBLIC_HELP 正向来源）",
+        "Copilot 公共固定问题（PUBLIC_HELP 正向来源）",
+        "Copilot 公共固定问题（PUBLIC_HELP 正向来源）"
+      ],
+      "http": {
+        "status": "skipped"
+      }
+    },
+    {
+      "authority": "VERIFIED_CASE",
+      "question": "网关摘要显示 PARTIAL 表示什么？",
+      "required": [
+        "PARTIAL"
+      ],
+      "retrieved": 8,
+      "hit": true,
+      "titles": [
+        "已批准故障处理条目",
+        "平台核心功能使用指南",
+        "已批准故障处理条目",
+        "平台核心功能使用指南"
+      ],
+      "http": {
+        "status": "skipped"
+      }
+    },
+    {
+      "authority": "VENDOR_SYNTAX",
+      "question": "TDSQL 分布式建表的分片键怎么写？",
+      "required": [
+        "分片键"
+      ],
+      "retrieved": 8,
+      "hit": true,
+      "titles": [
+        "TDSQL MySQL 版官方语法摘要",
+        "TDSQL MySQL 版官方语法摘要",
+        "TDSQL MySQL 版官方语法摘要",
+        "平台核心功能使用指南"
+      ],
+      "http": {
+        "status": 429,
+        "err": {
+          "code": "RATE_LIMITED",
+          "message": "未消费的预览已达上限，请先提交或等待过期",
+          "request_id": "26c82de1b8ad494cbf135e63813b4014",
+          "retryable": true
+        }
+      }
+    },
+    {
+      "authority": "VENDOR_SYNTAX",
+      "question": "TDSQL 二级分区有什么要求？",
+      "required": [
+        "分区"
+      ],
+      "retrieved": 7,
+      "hit": true,
+      "titles": [
+        "TDSQL MySQL 版官方语法摘要",
+        "Copilot 公共固定问题（PUBLIC_HELP 正向来源）",
+        "TDSQL MySQL 版官方语法摘要",
+        "TDSQL MySQL 版官方语法摘要"
+      ],
+      "http": {
+        "status": "skipped"
+      }
+    },
+    {
+      "authority": "VENDOR_SYNTAX",
+      "question": "TDSQL 和原生 MySQL 有什么差异？",
+      "required": [
+        "MySQL"
+      ],
+      "retrieved": 6,
+      "hit": true,
+      "titles": [
+        "TDSQL MySQL 版官方语法摘要",
+        "TDSQL MySQL 版官方语法摘要",
+        "TDSQL MySQL 版官方语法摘要",
+        "Copilot 公共固定问题（PUBLIC_HELP 正向来源）"
+      ],
+      "http": {
+        "status": "skipped"
+      }
+    },
+    {
+      "authority": "VENDOR_SYNTAX",
+      "question": "项目审核规则和厂商语法能力怎么区分？",
+      "required": [
+        "厂商"
+      ],
+      "retrieved": 8,
+      "hit": true,
+      "titles": [
+        "TDSQL MySQL 版官方语法摘要",
+        "TDSQL MySQL 版官方语法摘要",
+        "TDSQL MySQL 版官方语法摘要",
+        "Copilot 公共固定问题（PUBLIC_HELP 正向来源）"
+      ],
+      "http": {
+        "status": "skipped"
+      }
+    },
+    {
+      "authority": "PUBLIC",
+      "question": "这个工具能做什么？",
+      "required": [
+        "工具"
+      ],
+      "retrieved": 1,
+      "hit": true,
+      "titles": [
+        "Copilot 公共固定问题（PUBLIC_HELP 正向来源）"
+      ],
+      "http": {
+        "status": 429,
+        "err": {
+          "code": "RATE_LIMITED",
+          "message": "未消费的预览已达上限，请先提交或等待过期",
+          "request_id": "ad4f7be71c1342f2b5cfb22e9ee8b364",
+          "retryable": true
+        }
+      }
+    },
+    {
+      "authority": "PUBLIC",
+      "question": "我的数据会被发送到哪里？",
+      "required": [
+        "数据"
+      ],
+      "retrieved": 6,
+      "hit": true,
+      "titles": [
+        "Copilot 公共固定问题（PUBLIC_HELP 正向来源）",
+        "已批准故障处理条目",
+        "平台核心功能使用指南",
+        "已批准故障处理条目"
+      ],
+      "http": {
+        "status": "skipped"
+      }
+    }
+  ],
+  "bundle": {
+    "knowledge_status": "READY",
+    "bundle_id": "kb-1.6.4.0-5b8426f429c6a89a",
+    "reason_code": ""
+  }
+}

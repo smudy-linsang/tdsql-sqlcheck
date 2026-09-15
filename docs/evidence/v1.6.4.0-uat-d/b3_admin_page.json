@@ -1,0 +1,10 @@
+{
+  "utc": "2026-09-15T10:43:05.189559+00:00",
+  "menu_item_exists": true,
+  "menu_clicked": true,
+  "page_content_text": "",
+  "page_content_len": 0,
+  "current_page_attr": "AI配置",
+  "shot": "docs\\evidence\\v1.6.4.0-uat-d\\shots\\b3-ai-config.png",
+  "body_first200_before": "T\nTDSQL数据库SQL审核工具\nD\nD40-UAT管理员甲\n系统管理员\n治理概览\nSQL审核\n慢SQL治理\n实例体检\n深度诊断\n平台治理\nCopilot专家助手\n系统管理\n工作台\n/\n治理概览\n近7天审核趋势\n高频违规规则 TOP5\n规则ID\n\t\n级别\n\t\n描述\n\t\n命中\n暂无数据\nTop3 高耗时慢SQL\nSQL指纹\n\t\n平均耗时(ms)\n\t\n执行次数\n暂无数据\n今日审核记录\n来源\n\t\nSQ"
+}

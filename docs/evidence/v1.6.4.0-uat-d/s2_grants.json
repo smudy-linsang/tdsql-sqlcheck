@@ -1,0 +1,161 @@
+{
+  "utc": "2026-09-15T10:24:14.592601+00:00",
+  "steps": [
+    {
+      "GET grants(初始)": {
+        "method": "GET",
+        "path": "/api/v1/copilot-admin/grants",
+        "status": 200,
+        "utc": "2026-09-15T10:24:18.936293+00:00",
+        "body": {
+          "request_id": "13dabf6780a04f5da367e51febf70a0c",
+          "items": []
+        },
+        "headers": {
+          "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        }
+      }
+    },
+    {
+      "PUT grants REQUEST(甲)": {
+        "method": "PUT",
+        "path": "/api/v1/copilot-admin/grants",
+        "status": 200,
+        "utc": "2026-09-15T10:24:18.980288+00:00",
+        "body": {
+          "request_id": "43c52f12d7ec44cdbdb0a1789aace629",
+          "approval_state": "PENDING",
+          "enabled": false
+        },
+        "headers": {
+          "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        }
+      }
+    },
+    {
+      "GET grants(PENDING)": {
+        "method": "GET",
+        "path": "/api/v1/copilot-admin/grants?connection_id=d40-dist",
+        "status": 200,
+        "utc": "2026-09-15T10:24:18.998712+00:00",
+        "body": {
+          "request_id": "8d5f65ff09974793838596163a83c75f",
+          "items": [
+            {
+              "subject_id": "cfeb737a82104d61bfe5d943dd0b403c",
+              "connection_id": "d40-dist",
+              "username": "uat_d_1640",
+              "enabled": false,
+              "approval_state": "PENDING",
+              "approval_ref": "UATD40-INST-001",
+              "allow_schema_identifiers": true,
+              "revision": 1
+            }
+          ]
+        },
+        "headers": {
+          "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        }
+      }
+    },
+    {
+      "POST approve(甲自批,应拒)": {
+        "method": "POST",
+        "path": "/api/v1/copilot-admin/grants/approve",
+        "status": 403,
+        "utc": "2026-09-15T10:24:19.019230+00:00",
+        "body": {
+          "detail": {
+            "code": "FORBIDDEN",
+            "message": "复核人不能是申请人",
+            "request_id": "30adaa6c962a4f6ebecd799022b0c975",
+            "retryable": false
+          }
+        },
+        "headers": {
+          "cache-control": "no-store",
+          "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        }
+      }
+    },
+    {
+      "POST approve(乙复核,应通过)": {
+        "method": "POST",
+        "path": "/api/v1/copilot-admin/grants/approve",
+        "status": 200,
+        "utc": "2026-09-15T10:24:19.055925+00:00",
+        "body": {
+          "request_id": "6b27aea412d94dbab419dad88d6b052b",
+          "approval_state": "APPROVED",
+          "enabled": true
+        },
+        "headers": {
+          "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        }
+      }
+    },
+    {
+      "POST approve(旧revision,应409)": {
+        "method": "POST",
+        "path": "/api/v1/copilot-admin/grants/approve",
+        "status": 409,
+        "utc": "2026-09-15T10:24:19.075364+00:00",
+        "body": {
+          "detail": {
+            "code": "CONFIG_CHANGED",
+            "message": "配置已被他人修改，请刷新获取最新版本后重试",
+            "request_id": "0b3689fab4b24073bacbfae891bd7afb",
+            "retryable": false
+          }
+        },
+        "headers": {
+          "cache-control": "no-store",
+          "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        }
+      }
+    }
+  ],
+  "grants_final": {
+    "method": "GET",
+    "path": "/api/v1/copilot-admin/grants",
+    "status": 200,
+    "utc": "2026-09-15T10:24:19.095915+00:00",
+    "body": {
+      "request_id": "c34ff5715947416d886ab1c183a3badd",
+      "items": [
+        {
+          "subject_id": "cfeb737a82104d61bfe5d943dd0b403c",
+          "connection_id": "d40-dist",
+          "username": "uat_d_1640",
+          "enabled": true,
+          "approval_state": "APPROVED",
+          "approval_ref": "UATD40-INST-001",
+          "allow_schema_identifiers": true,
+          "revision": 2
+        }
+      ]
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  "connections_user": {
+    "method": "GET",
+    "path": "/api/v1/copilot/connections",
+    "status": 200,
+    "utc": "2026-09-15T10:24:19.111883+00:00",
+    "body": {
+      "request_id": "c960e945d42f4faebbf4123294b39029",
+      "items": [
+        {
+          "connection_id": "d40-dist",
+          "name": "D40-分布式测试库",
+          "instance_type": "distributed"
+        }
+      ]
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  }
+}

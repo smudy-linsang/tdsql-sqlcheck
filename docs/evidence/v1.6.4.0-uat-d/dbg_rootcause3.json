@@ -1,0 +1,158 @@
+{
+  "utc": "2026-09-15T10:31:06.990976+00:00",
+  "parse": {
+    "html_len": 256470,
+    "app_found": true,
+    "app_text_len": 256089,
+    "inside_app": {
+      "copilot_open": true,
+      "copilot_page": true,
+      "copilot_drawer": true,
+      "copilot_dialog": true,
+      "rules_page": true,
+      "gateway_drawer": false
+    },
+    "app_children": [
+      "DIV.login-page#",
+      "DIV.app-layout#",
+      "EL-DIALOG.#",
+      "EL-DIALOG.#",
+      "EL-DIALOG.#",
+      "EL-DIALOG.#",
+      "EL-DIALOG.#",
+      "EL-DIALOG.#",
+      "EL-DRAWER.#",
+      "EL-DIALOG.#"
+    ],
+    "copilot_nodes_total": 36,
+    "copilot_nodes": [
+      {
+        "tag": "EL-ICON",
+        "cls": "clickable",
+        "in_app": true,
+        "parent": "EL-TOOLTIP."
+      },
+      {
+        "tag": "DIV",
+        "cls": "page-content",
+        "in_app": true,
+        "parent": "EL-DIALOG."
+      },
+      {
+        "tag": "DIV",
+        "cls": "copilot-toolbar",
+        "in_app": true,
+        "parent": "EL-CARD."
+      },
+      {
+        "tag": "DIV",
+        "cls": "copilot-session-bar",
+        "in_app": true,
+        "parent": "EL-CARD."
+      },
+      {
+        "tag": "EL-INPUT",
+        "cls": "copilot-question-input",
+        "in_app": true,
+        "parent": "EL-CARD."
+      },
+      {
+        "tag": "EL-INPUT",
+        "cls": "copilot-question-input",
+        "in_app": true,
+        "parent": "EL-CARD."
+      },
+      {
+        "tag": "DIV",
+        "cls": "copilot-actions",
+        "in_app": true,
+        "parent": "EL-CARD."
+      },
+      {
+        "tag": "DIV",
+        "cls": "copilot-error",
+        "in_app": true,
+        "parent": "EL-CARD."
+      },
+      {
+        "tag": "DIV",
+        "cls": "copilot-preview-box",
+        "in_app": true,
+        "parent": "EL-CARD."
+      },
+      {
+        "tag": "DIV",
+        "cls": "copilot-turn-list",
+        "in_app": true,
+        "parent": "EL-CARD."
+      },
+      {
+        "tag": "DIV",
+        "cls": "copilot-turn-item",
+        "in_app": true,
+        "parent": "DIV.copilot-turn-list"
+      },
+      {
+        "tag": "DIV",
+        "cls": "copilot-turn-head",
+        "in_app": true,
+        "parent": "DIV.copilot-turn-item"
+      },
+      {
+        "tag": "SPAN",
+        "cls": "copilot-turn-state",
+        "in_app": true,
+        "parent": "DIV.copilot-turn-head"
+      },
+      {
+        "tag": "SPAN",
+        "cls": "copilot-badge",
+        "in_app": true,
+        "parent": "SPAN.copilot-turn-state"
+      },
+      {
+        "tag": "DIV",
+        "cls": "copilot-turn-actions",
+        "in_app": true,
+        "parent": "DIV.copilot-turn-item"
+      },
+      {
+        "tag": "EL-DRAWER",
+        "cls": "copilot-drawer",
+        "in_app": true,
+        "parent": "EL-DIALOG."
+      },
+      {
+        "tag": "DIV",
+        "cls": "copilot-toolbar",
+        "in_app": true,
+        "parent": "EL-DRAWER.copilot-drawer"
+      },
+      {
+        "tag": "DIV",
+        "cls": "copilot-context-line",
+        "in_app": true,
+        "parent": "EL-DRAWER.copilot-drawer"
+      },
+      {
+        "tag": "DIV",
+        "cls": "copilot-scene-row",
+        "in_app": true,
+        "parent": "EL-DRAWER.copilot-drawer"
+      },
+      {
+        "tag": "EL-INPUT",
+        "cls": "copilot-question-input",
+        "in_app": true,
+        "parent": "EL-DRAWER.copilot-drawer"
+      }
+    ],
+    "body_children": [
+      "DIV.",
+      "SCRIPT.",
+      "SCRIPT."
+    ],
+    "app_last_child": "EL-DIALOG.",
+    "has_gateway_drawer": false
+  }
+}

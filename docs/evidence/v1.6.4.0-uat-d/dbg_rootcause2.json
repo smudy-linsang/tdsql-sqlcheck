@@ -1,0 +1,103 @@
+{
+  "utc": "2026-09-15T10:30:30.710556+00:00",
+  "compile": {
+    "app_outer_len": 30762,
+    "inner_len": 30728,
+    "compile_ok": false,
+    "compile_err": "TypeError: Cannot read properties of undefined (reading 'toString')"
+  },
+  "menu_items": [
+    {
+      "idx": "",
+      "txt": "治理概览"
+    },
+    {
+      "idx": "",
+      "txt": "即时审核"
+    },
+    {
+      "idx": "",
+      "txt": "文件审核"
+    },
+    {
+      "idx": "",
+      "txt": "在线元数据审核"
+    },
+    {
+      "idx": "",
+      "txt": "扫描任务"
+    },
+    {
+      "idx": "",
+      "txt": "慢SQL记录"
+    },
+    {
+      "idx": "",
+      "txt": "EXPLAIN分析"
+    },
+    {
+      "idx": "",
+      "txt": "上线检查"
+    },
+    {
+      "idx": "",
+      "txt": "大表治理"
+    },
+    {
+      "idx": "",
+      "txt": "深度诊断"
+    },
+    {
+      "idx": "",
+      "txt": "实例管理"
+    },
+    {
+      "idx": "",
+      "txt": "审核规则库"
+    },
+    {
+      "idx": "",
+      "txt": "评估规则集"
+    },
+    {
+      "idx": "",
+      "txt": "Copilot专家助手"
+    },
+    {
+      "idx": "",
+      "txt": "用户管理"
+    },
+    {
+      "idx": "",
+      "txt": "角色管理"
+    },
+    {
+      "idx": "",
+      "txt": "权限矩阵"
+    },
+    {
+      "idx": "",
+      "txt": "数据保留"
+    },
+    {
+      "idx": "",
+      "txt": "操作审计"
+    },
+    {
+      "idx": "",
+      "txt": "AI配置"
+    },
+    {
+      "idx": "",
+      "txt": "系统信息"
+    }
+  ],
+  "copilot_menu_present": true,
+  "copilot_page_count": 0,
+  "copilot_page_text": "",
+  "mode_tags": [],
+  "page_shot": "docs/evidence/v1.6.4.0-uat-d/shots/dbg-copilot-page.png",
+  "errors": [
+    "error: Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ]
+}

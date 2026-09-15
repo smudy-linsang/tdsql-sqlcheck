@@ -1,0 +1,108 @@
+{
+  "utc": "2026-09-15T10:33:36.671974+00:00",
+  "rows": [
+    {
+      "scene": "SQL_ADVISE",
+      "n_refs": 0,
+      "status": 201,
+      "projection_mode": null,
+      "identifiers_included": null,
+      "err": null,
+      "preview_id": "c3486133f68e4498a8f3edf2b47fedfd",
+      "session_id": "8123da1d311a480c9fe342f299efe715",
+      "projection_preview": {
+        "projection_mode": "ALIASED",
+        "question": "SELECT * FROM d40_tab_00 有什么风险",
+        "evidence_summary": [],
+        "knowledge_count": 1
+      },
+      "evidence_cards": []
+    },
+    {
+      "scene": "SQL_ADVISE",
+      "n_refs": 1,
+      "status": 201,
+      "projection_mode": null,
+      "identifiers_included": null,
+      "err": null,
+      "preview_id": "e46b152f9c4b4b84870ce744cb015f07",
+      "session_id": "e8d2708e677645e7ad2d1ec9aa18bf74",
+      "projection_preview": {
+        "projection_mode": "ALIASED",
+        "question": "SELECT * FROM d40_tab_00 有什么风险",
+        "evidence_summary": [],
+        "knowledge_count": 1
+      },
+      "evidence_cards": []
+    },
+    {
+      "scene": "RULE_EXPLAIN",
+      "n_refs": 1,
+      "status": 201,
+      "projection_mode": null,
+      "identifiers_included": null,
+      "err": null,
+      "preview_id": "5d6b021b5b104f6ba048292aa5cf6d11",
+      "session_id": "bbd7846b7b4e4ff3a3825fe85ffd555c",
+      "projection_preview": {
+        "projection_mode": "ALIASED",
+        "question": "SELECT * FROM d40_tab_00 有什么风险",
+        "evidence_summary": [
+          {
+            "evidence_id": "E1",
+            "source_kind": "RULE_RUNTIME",
+            "availability": "AVAILABLE",
+            "completeness": "COMPLETE"
+          }
+        ],
+        "knowledge_count": 1
+      },
+      "evidence_cards": [
+        {
+          "evidence_id": "E1",
+          "source_kind": "RULE_RUNTIME",
+          "availability": "AVAILABLE",
+          "completeness": "COMPLETE",
+          "observed_at": null,
+          "connection_name": null
+        }
+      ]
+    },
+    {
+      "scene": "USAGE_HELP",
+      "n_refs": 0,
+      "status": 429,
+      "projection_mode": null,
+      "identifiers_included": null,
+      "err": "RATE_LIMITED",
+      "preview_id": null,
+      "session_id": "325f2acde2c043d0856f595a4e16cc6c",
+      "projection_preview": null,
+      "evidence_cards": null
+    },
+    {
+      "scene": "DIAGNOSTIC_HELP",
+      "n_refs": 0,
+      "status": 429,
+      "projection_mode": null,
+      "identifiers_included": null,
+      "err": "RATE_LIMITED",
+      "preview_id": null,
+      "session_id": "168a81a97e104b94b9b5819385f27830",
+      "projection_preview": null,
+      "evidence_cards": null
+    },
+    {
+      "scene": "RULE_EXPLAIN",
+      "n_refs": 0,
+      "status": 429,
+      "projection_mode": null,
+      "identifiers_included": null,
+      "err": "RATE_LIMITED",
+      "preview_id": null,
+      "session_id": "bacba8a7ab584f07a4945cd014b518b3",
+      "projection_preview": null,
+      "evidence_cards": null
+    }
+  ]
+}

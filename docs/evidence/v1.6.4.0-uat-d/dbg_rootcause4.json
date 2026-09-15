@@ -1,0 +1,89 @@
+{
+  "utc": "2026-09-15T10:31:25.825821+00:00",
+  "parse": {
+    "paths": {
+      "copilot-open": "DIV.app-layout > HEADER.topbar > DIV.right-area > EL-TOOLTIP > EL-ICON.clickable[copilot-open]",
+      "copilot-page": "EL-DIALOG > DIV.page-content[copilot-page]",
+      "copilot-drawer": "EL-DIALOG > EL-DRAWER.copilot-drawer",
+      "copilot-dialog": "DIV.app-layout > DIV.main-body > DIV.content-area > DIV.page-content > EL-DIALOG"
+    },
+    "app_children": [
+      {
+        "tag": "DIV",
+        "cls": "login-page",
+        "attrs": "v-if=!authState.token class=login-page",
+        "child_count": 3,
+        "text_head": "{{ theme==='dark' ? '浅色' : '深色' }}\n    \n    \n      TDSQL数据库S"
+      },
+      {
+        "tag": "DIV",
+        "cls": "app-layout",
+        "attrs": "v-else= class=app-layout",
+        "child_count": 2,
+        "text_head": "T\n        TDSQL数据库SQL审核工具\n      \n      \n        \n        \n  "
+      },
+      {
+        "tag": "EL-DIALOG",
+        "cls": "",
+        "attrs": "v-model=pwdDialog.visible title=修改口令 width=420px :close-on-press-escape=!pwdDialog.forced",
+        "child_count": 2,
+        "text_head": "≥8位，含大小写字母/数字/特殊字符三类"
+      },
+      {
+        "tag": "EL-DIALOG",
+        "cls": "",
+        "attrs": "v-model=zkDialogVisible title=从 ZooKeeper 自动发现实例 width=1280px",
+        "child_count": 7,
+        "text_head": "ZK发现配置\n        开始扫描\n      \n    \n    \n    \n      \n      \n    "
+      },
+      {
+        "tag": "EL-DIALOG",
+        "cls": "",
+        "attrs": "v-model=zkImportDialogVisible title=ZK 实例标准化导入 width=1400px :close-on-click-modal=false",
+        "child_count": 4,
+        "text_head": "MonitorDB 监控配置（写入每一条连接）\n      \n        \n        \n        \n  "
+      },
+      {
+        "tag": "EL-DIALOG",
+        "cls": "",
+        "attrs": "v-model=zkConfigDialogVisible title=ZK发现配置 width=880px :close-on-click-modal=false",
+        "child_count": 2,
+        "text_head": "kazoo（推荐，跨平台）\n            shell（兼容旧 zkCli）\n          \n      "
+      },
+      {
+        "tag": "EL-DIALOG",
+        "cls": "",
+        "attrs": "v-model=lockDialog.visible :title='锁定实例类型 — '+(lockDialog.row?lo width=480px",
+        "child_count": 3,
+        "text_head": "加锁\n          解锁\n        \n      \n      \n        \n          分布"
+      },
+      {
+        "tag": "EL-DIALOG",
+        "cls": "",
+        "attrs": "v-model=diagDialog.visible :title='采集探测诊断 — '+(diagDialog.row?di width=760px",
+        "child_count": 3,
+        "text_head": "开始采集\n      下载 JSON\n    \n    {{ JSON.stringify(diagDialog.dat"
+      },
+      {
+        "tag": "EL-DRAWER",
+        "cls": "",
+        "attrs": "v-model=gatewayDetailVisible title=网关日志分析报告 size=80% destroy-on-close=",
+        "child_count": 1,
+        "text_head": ""
+      },
+      {
+        "tag": "EL-DIALOG",
+        "cls": "",
+        "attrs": "v-model=snapshotDetailDialog.visible title=单次扫描历史明细 width=1000px",
+        "child_count": 4,
+        "text_head": "{{ snapshotDetailDialog.snapshot.scan_label || snapshotDetai"
+      }
+    ],
+    "layout_contains_copilot_page": false,
+    "layout_children_count": 2,
+    "layout_last_child": "DIV.main-body",
+    "main_info": "DIV.content-area",
+    "main_children_count": 2,
+    "main_last_child": "DIV.page-content"
+  }
+}

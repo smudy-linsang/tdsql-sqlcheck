@@ -1,0 +1,36 @@
+{
+  "utc": "2026-09-15T10:26:43.664988+00:00",
+  "net": [],
+  "errors": [
+    "console.error: Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ],
+  "net_before_click": [],
+  "entry_visible": true,
+  "entry_box": {
+    "x": 1371.203125,
+    "y": 18,
+    "width": 19,
+    "height": 19
+  },
+  "net_after_click": [
+    {
+      "phase": "req",
+      "m": "GET",
+      "u": "/api/v1/copilot/capabilities?_t=1789468007623"
+    },
+    {
+      "phase": "req",
+      "m": "GET",
+      "u": "/api/v1/copilot/sessions?limit=20&_t=1789468007624"
+    },
+    {
+      "phase": "req",
+      "m": "GET",
+      "u": "/api/v1/copilot/connections?_t=1789468007624"
+    }
+  ],
+  "drawer_after_click": 0,
+  "net_sidebar_click": [],
+  "copilot_page_in_dom": 0,
+  "shot": "docs/evidence/v1.6.4.0-uat-d/shots/dbg-drawer4.png"
+}

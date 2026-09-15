@@ -1,0 +1,169 @@
+{
+  "utc": "2026-09-15T09:09:53.988407+00:00",
+  "steps": [
+    {
+      "login": "ok",
+      "username": "uat_d_1640"
+    },
+    {
+      "account": "uat_d_1640b",
+      "capabilities_status": 200,
+      "mode": "LOCAL_ONLY"
+    },
+    {
+      "account": "uat_d_1640dev",
+      "capabilities_status": 200,
+      "mode": "LOCAL_ONLY"
+    },
+    {
+      "account": "uat_d_1640aud",
+      "capabilities_status": 403,
+      "mode": null
+    }
+  ],
+  "capabilities": {
+    "method": "GET",
+    "path": "/api/v1/copilot/capabilities",
+    "status": 200,
+    "utc": "2026-09-15T09:10:03.128366+00:00",
+    "body": {
+      "request_id": "30d721d840ed49d899457788bc998a2b",
+      "subject_id": "cfeb737a82104d61bfe5d943dd0b403c",
+      "enabled": true,
+      "mode": "LOCAL_ONLY",
+      "runner_ready": true,
+      "allowed_scenes": [
+        "USAGE_HELP",
+        "RULE_EXPLAIN",
+        "SQL_ADVISE",
+        "AUDIT_EXPLAIN",
+        "JOB_TROUBLESHOOT",
+        "SLOW_EXPLAIN",
+        "COMPARE_EXPLAIN",
+        "TABLETYPE_EXPLAIN",
+        "GATEWAY_EXPLAIN",
+        "DIAGNOSTIC_HELP"
+      ],
+      "limits": {
+        "COPILOT_RUNNER_CONCURRENCY": 2,
+        "COPILOT_MAX_ACTIVE_TURNS": 4,
+        "COPILOT_TURN_DEADLINE_SECONDS": 90,
+        "COPILOT_QUEUE_MAX_SECONDS": 15,
+        "COPILOT_PROVIDER_TOTAL_SECONDS": 60,
+        "COPILOT_HTTP_CONNECT_SECONDS": 5,
+        "COPILOT_HTTP_READ_SECONDS": 20,
+        "COPILOT_CONTEXT_MAX_BYTES": 24576,
+        "COPILOT_INPUT_TOKEN_UPPER_BOUND": 16384,
+        "COPILOT_OUTPUT_MAX_TOKENS": 2048,
+        "COPILOT_RESPONSE_MAX_BYTES": 1048576,
+        "COPILOT_ANSWER_MAX_BYTES": 32768,
+        "COPILOT_MAX_ACTIVE_PER_USER": 1,
+        "COPILOT_STORAGE_MAX_MIB": 2048
+      },
+      "knowledge": {
+        "knowledge_status": "READY",
+        "bundle_id": "kb-1.6.4.0-5b8426f429c6a89a",
+        "reason_code": ""
+      },
+      "module_schema_state": "READY",
+      "reason_code": null
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  "menus_admin": {
+    "method": "GET",
+    "path": "/api/v1/auth/menus",
+    "status": 404,
+    "utc": "2026-09-15T09:10:03.173473+00:00",
+    "body": {
+      "detail": "Not Found"
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  "registered_copilot_routes": {
+    "/api/v1/copilot-admin/endpoints": [
+      "GET"
+    ],
+    "/api/v1/copilot-admin/grants": [
+      "GET",
+      "PUT"
+    ],
+    "/api/v1/copilot-admin/grants/approve": [
+      "POST"
+    ],
+    "/api/v1/copilot-admin/health": [
+      "GET"
+    ],
+    "/api/v1/copilot-admin/providers": [
+      "GET",
+      "POST"
+    ],
+    "/api/v1/copilot-admin/providers/{provider_id}": [
+      "PUT"
+    ],
+    "/api/v1/copilot-admin/providers/{provider_id}/enabled": [
+      "PUT"
+    ],
+    "/api/v1/copilot-admin/routes": [
+      "GET"
+    ],
+    "/api/v1/copilot-admin/routes/{scene}": [
+      "PUT"
+    ],
+    "/api/v1/copilot-admin/settings": [
+      "GET",
+      "PUT"
+    ],
+    "/api/v1/copilot-audit/events": [
+      "GET"
+    ],
+    "/api/v1/copilot/capabilities": [
+      "GET"
+    ],
+    "/api/v1/copilot/connections": [
+      "GET"
+    ],
+    "/api/v1/copilot/help": [
+      "GET"
+    ],
+    "/api/v1/copilot/sessions": [
+      "GET",
+      "POST"
+    ],
+    "/api/v1/copilot/sessions/{session_id}": [
+      "GET"
+    ],
+    "/api/v1/copilot/sessions/{session_id}/archive": [
+      "POST"
+    ],
+    "/api/v1/copilot/sessions/{session_id}/previews": [
+      "POST"
+    ],
+    "/api/v1/copilot/sessions/{session_id}/turns": [
+      "GET",
+      "POST"
+    ],
+    "/api/v1/copilot/turns/{turn_id}": [
+      "GET"
+    ],
+    "/api/v1/copilot/turns/{turn_id}/actions/resolve": [
+      "POST"
+    ],
+    "/api/v1/copilot/turns/{turn_id}/cancel": [
+      "POST"
+    ],
+    "/api/v1/copilot/turns/{turn_id}/export.html": [
+      "GET"
+    ],
+    "/api/v1/copilot/turns/{turn_id}/feedback": [
+      "POST"
+    ],
+    "/api/v1/copilot/turns/{turn_id}/result": [
+      "GET"
+    ]
+  }
+}

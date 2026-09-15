@@ -1,0 +1,29 @@
+{
+  "utc": "2026-09-15T10:47:22.666505+00:00",
+  "steps": [],
+  "copilot_page_rendered": true,
+  "page_text": "Copilot 专家助手\n未启用\n选择已授权实例（可选）\n新建通用会话\n新建实例会话\n选择会话\n使用帮助\n预览资料\n确认提交",
+  "shot_page": "docs/evidence/v1.6.4.0-uat-d/shots/b5-01-copilot-page.png",
+  "page_mode_tag": [
+    "未启用"
+  ],
+  "capabilities_api": "READY",
+  "instance_options": [],
+  "session_selected": "",
+  "shot_session": "docs/evidence/v1.6.4.0-uat-d/shots/b5-02-session.png",
+  "preview_text": "本次将发送的资料（别名脱敏）：\n问题：在线元数据审核任务失败时我应该先看什么证据？\n证据：0 条；知识：8 条\n到期时间：2026-09-15 10:49:34.787612；确认后不可修改",
+  "preview_error": "",
+  "shot_preview": "docs/evidence/v1.6.4.0-uat-d/shots/b5-03-preview.png",
+  "submit_disabled": false,
+  "shot_submit": "docs/evidence/v1.6.4.0-uat-d/shots/b5-04-submitted.png",
+  "turn_list_text": "#1 USAGE_HELP\nSUCCEEDED\n查看结果\n导出报告\n有用\n有误",
+  "shot_turns": "docs/evidence/v1.6.4.0-uat-d/shots/b5-05-turns.png",
+  "result_dialog_text": "Copilot 回答\n来源：AI 建议； 实例：—\n结论摘要\n\n已根据本轮证据整理要点；这是受控网关返回的合成答案。\n\n限制\n合成网关答案，仅用于链路与投影一致性验证\n来源\nAI或本地助手建议不是正式审核、数据库执行或验收结论。",
+  "shot_result": "docs/evidence/v1.6.4.0-uat-d/shots/b5-06-result.png",
+  "export_url": "http://127.0.0.1:8025/api/v1/copilot/turns/e0bea210a72e4eae89c861f29f3b099a/export.html",
+  "export_err": "Page.inner_text() missing 1 required positional argument: 'selector'",
+  "feedback_clicked": true,
+  "console_errors": [
+    "error: Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ]
+}

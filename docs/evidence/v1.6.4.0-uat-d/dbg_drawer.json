@@ -1,0 +1,17 @@
+{
+  "utc": "2026-09-15T10:25:22.296276+00:00",
+  "console": [
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    }
+  ],
+  "has_createCopilotState": "function",
+  "header_icon_count": 1,
+  "overlay_count": 19,
+  "drawer_count": 0,
+  "drawer_visible": false,
+  "dom_snippet": "<div class=\"el-overlay\" style=\"z-index: 2010; display: none;\"><div aria-modal=\"true\" aria-label=\"新建扫描任务\" aria-describedby=\"el-id-5129-18\" class=\"el-drawer rtl\" role=\"dialog\" style=\"width: 480px;\"><span class=\"el-drawer__sr-focus\" tabindex=\"-1\"></span><header class=\"el-drawer__header\"><span id=\"el-id-5129-19\" role=\"heading\" aria-level=\"2\" class=\"el-drawer__title\">新建扫描任务</span><button aria-label=\"el.drawer.close\" class=\"el-drawer__close-btn\" type=\"button\"><i class=\"el-icon el-drawer__close\"><svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 1024 1024\"><path fill=\"currentColor\" d=\"M764.288 214.592 512 466.88 259.712 214.592a31.936 31.936 0 0 0-45.12 45.12L466.752 512 214.528 764.224a31.936 31.936 0 1 0 45.12 45.184L512 557.184l252.288 252.288a31.936 31.936 0 0 0 45.12-45.12L557.12 512.064l252.288-252.352a31.936 31.936 0 1 0-45.12-45.184z\"></path></svg></i></button></header><!--v-if--><div class=\"el-drawer__footer\"><button aria-disabled=\"false\" type=\"button\" class=\"el-button\"><!--v-if--><span class=\"\">取消</span></button><button aria-disabled=\"false\" type=\"button\" class=\"el-button el-button--primary\"><!--v-if--><span class=\"\">开始扫描</span></button></div></div></div>",
+  "body_classes": [],
+  "shot": "docs/evidence/v1.6.4.0-uat-d/shots/dbg-drawer.png"
+}

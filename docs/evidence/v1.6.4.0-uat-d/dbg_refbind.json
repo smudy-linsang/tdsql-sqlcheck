@@ -1,0 +1,41 @@
+{
+  "utc": "2026-09-15T10:42:04.015737+00:00",
+  "anonymous_before": {
+    "url": "/",
+    "logged_in": false,
+    "login_form_visible": true,
+    "copilot_drawer_count": 1,
+    "copilot_drawer_visible": false,
+    "copilot_dialog_present": false,
+    "visible_dialogs": [],
+    "visible_drawers": [],
+    "visible_overlays": 0,
+    "blocked_by": null
+  },
+  "anonymous_shot": "docs/evidence/v1.6.4.0-uat-d/shots/dbg-refbind-anonymous.png",
+  "after_login_before": {
+    "url": "/",
+    "logged_in": false,
+    "login_form_visible": true,
+    "copilot_drawer_count": 1,
+    "copilot_drawer_visible": false,
+    "copilot_dialog_present": false,
+    "visible_dialogs": [],
+    "visible_drawers": [],
+    "visible_overlays": 0,
+    "blocked_by": null
+  },
+  "after_login_after": {
+    "url": "/",
+    "logged_in": true,
+    "login_form_visible": false,
+    "copilot_drawer_count": 1,
+    "copilot_drawer_visible": false,
+    "copilot_dialog_present": false,
+    "visible_dialogs": [],
+    "visible_drawers": [],
+    "visible_overlays": 0,
+    "blocked_by": null
+  },
+  "after_login_shot": "docs/evidence/v1.6.4.0-uat-d/shots/dbg-refbind-after_login.png"
+}

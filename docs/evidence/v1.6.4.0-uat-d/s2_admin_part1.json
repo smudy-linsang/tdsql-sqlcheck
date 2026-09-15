@@ -1,0 +1,153 @@
+{
+  "utc": "2026-09-15T10:23:56.392755+00:00",
+  "steps": [
+    {
+      "GET /endpoints": {
+        "method": "GET",
+        "path": "/api/v1/copilot-admin/endpoints",
+        "status": 200,
+        "utc": "2026-09-15T10:23:58.658100+00:00",
+        "body": {
+          "request_id": "fb9b5588015a4b73909877d0ad2e90c3",
+          "items": [
+            {
+              "endpoint_id": "ep-uat-a",
+              "scheme": "https",
+              "canonical_host": "172.16.4.16",
+              "port": 8443,
+              "base_path": "/v1",
+              "data_zone": "INTERNAL",
+              "privacy_profile": "INTERNAL_REDACTED",
+              "allows_schema_identifiers": true
+            },
+            {
+              "endpoint_id": "ep-uat-b",
+              "scheme": "https",
+              "canonical_host": "172.16.4.16",
+              "port": 8444,
+              "base_path": "/v1",
+              "data_zone": "INTERNAL",
+              "privacy_profile": "INTERNAL_REDACTED",
+              "allows_schema_identifiers": false
+            },
+            {
+              "endpoint_id": "ep-uat-pub",
+              "scheme": "https",
+              "canonical_host": "172.16.4.16",
+              "port": 8445,
+              "base_path": "/v1",
+              "data_zone": "PUBLIC",
+              "privacy_profile": "PUBLIC_HELP",
+              "allows_schema_identifiers": false
+            }
+          ],
+          "policy_available": true
+        },
+        "headers": {
+          "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        }
+      }
+    },
+    {
+      "GET /providers(初始)": {
+        "method": "GET",
+        "path": "/api/v1/copilot-admin/providers",
+        "status": 200,
+        "utc": "2026-09-15T10:23:58.708481+00:00",
+        "body": {
+          "request_id": "89ddd522d17645f3a4dfefa98afe3b1f",
+          "items": []
+        },
+        "headers": {
+          "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        }
+      }
+    },
+    {
+      "POST /providers(主)": {
+        "method": "POST",
+        "path": "/api/v1/copilot-admin/providers",
+        "status": 201,
+        "utc": "2026-09-15T10:23:58.773007+00:00",
+        "body": {
+          "request_id": "2dae65722693448bb8e72eb8444f5878",
+          "id": "89442944ef404738bc6019648e4502ac",
+          "enabled": false,
+          "revision": 1
+        },
+        "headers": {
+          "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        }
+      }
+    },
+    {
+      "POST /providers(备)": {
+        "method": "POST",
+        "path": "/api/v1/copilot-admin/providers",
+        "status": 201,
+        "utc": "2026-09-15T10:23:58.825121+00:00",
+        "body": {
+          "request_id": "b6476490406c4e67b7db55634f2ed6e6",
+          "id": "8aafc253a8db4edfabec9ab821549219",
+          "enabled": false,
+          "revision": 1
+        },
+        "headers": {
+          "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        }
+      }
+    },
+    {
+      "POST /providers/{id}/self-tests（设计§12.5）": {
+        "method": "POST",
+        "path": "/api/v1/copilot-admin/providers/89442944ef404738bc6019648e4502ac/self-tests",
+        "status": 404,
+        "utc": "2026-09-15T10:23:58.832530+00:00",
+        "body": {
+          "detail": "Not Found"
+        },
+        "headers": {
+          "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        }
+      }
+    },
+    {
+      "PUT /providers/{id}/enabled(未自检)": {
+        "method": "PUT",
+        "path": "/api/v1/copilot-admin/providers/89442944ef404738bc6019648e4502ac/enabled",
+        "status": 422,
+        "utc": "2026-09-15T10:23:58.849362+00:00",
+        "body": {
+          "detail": {
+            "code": "PROVIDER_CONFIG_INVALID",
+            "message": "当前配置版本尚未通过自检，请先执行自检",
+            "request_id": "32e69e8d3a1d4b9ca389dc79d5f25ee8",
+            "retryable": false
+          }
+        },
+        "headers": {
+          "cache-control": "no-store",
+          "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        }
+      }
+    },
+    {
+      "GET /feedback-summary（设计§12.5）": {
+        "method": "GET",
+        "path": "/api/v1/copilot-admin/feedback-summary",
+        "status": 404,
+        "utc": "2026-09-15T10:23:58.857272+00:00",
+        "body": {
+          "detail": "Not Found"
+        },
+        "headers": {
+          "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        }
+      }
+    }
+  ],
+  "provider_ids": {
+    "primary": "89442944ef404738bc6019648e4502ac",
+    "fallback": "8aafc253a8db4edfabec9ab821549219"
+  }
+}

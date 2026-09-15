@@ -1,0 +1,122 @@
+{
+  "utc": "2026-09-15T11:04:47.709530+00:00",
+  "pages": [
+    {
+      "menu": "治理概览",
+      "copilot_entry_buttons": []
+    },
+    {
+      "menu": "即时审核",
+      "error": "Locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for locator(\".el-menu-item\").filter(has_text=\"即时审核\").firs"
+    },
+    {
+      "menu": "文件审核",
+      "error": "Locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for locator(\".el-menu-item\").filter(has_text=\"文件审核\").firs"
+    },
+    {
+      "menu": "在线元数据审核",
+      "error": "Locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for locator(\".el-menu-item\").filter(has_text=\"在线元数据审核\").f"
+    },
+    {
+      "menu": "扫描任务",
+      "error": "Locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for locator(\".el-menu-item\").filter(has_text=\"扫描任务\").firs"
+    },
+    {
+      "menu": "慢SQL记录",
+      "error": "Locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for locator(\".el-menu-item\").filter(has_text=\"慢SQL记录\").fi"
+    },
+    {
+      "menu": "EXPLAIN分析",
+      "error": "Locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for locator(\".el-menu-item\").filter(has_text=\"EXPLAIN分析\")"
+    },
+    {
+      "menu": "上线检查",
+      "error": "Locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for locator(\".el-menu-item\").filter(has_text=\"上线检查\").firs"
+    },
+    {
+      "menu": "大表治理",
+      "error": "Locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for locator(\".el-menu-item\").filter(has_text=\"大表治理\").firs"
+    },
+    {
+      "menu": "深度诊断",
+      "copilot_entry_buttons": []
+    },
+    {
+      "menu": "实例管理",
+      "error": "Locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for locator(\".el-menu-item\").filter(has_text=\"实例管理\").firs"
+    },
+    {
+      "menu": "审核规则库",
+      "error": "Locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for locator(\".el-menu-item\").filter(has_text=\"审核规则库\").fir"
+    },
+    {
+      "menu": "评估规则集",
+      "error": "Locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for locator(\".el-menu-item\").filter(has_text=\"评估规则集\").fir"
+    },
+    {
+      "menu": "Copilot专家助手",
+      "copilot_entry_buttons": []
+    },
+    {
+      "menu": "用户管理",
+      "error": "Locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for locator(\".el-menu-item\").filter(has_text=\"用户管理\").firs"
+    },
+    {
+      "menu": "角色管理",
+      "error": "Locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for locator(\".el-menu-item\").filter(has_text=\"角色管理\").firs"
+    },
+    {
+      "menu": "权限矩阵",
+      "error": "Locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for locator(\".el-menu-item\").filter(has_text=\"权限矩阵\").firs"
+    },
+    {
+      "menu": "数据保留",
+      "error": "Locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for locator(\".el-menu-item\").filter(has_text=\"数据保留\").firs"
+    },
+    {
+      "menu": "操作审计",
+      "error": "Locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for locator(\".el-menu-item\").filter(has_text=\"操作审计\").firs"
+    },
+    {
+      "menu": "AI配置",
+      "error": "Locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for locator(\".el-menu-item\").filter(has_text=\"AI配置\").firs"
+    },
+    {
+      "menu": "系统信息",
+      "error": "Locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for locator(\".el-menu-item\").filter(has_text=\"系统信息\").firs"
+    }
+  ],
+  "groups": [
+    "SQL审核",
+    "慢SQL治理",
+    "实例体检",
+    "平台治理",
+    "系统管理"
+  ],
+  "leaf_menus": [
+    "治理概览",
+    "即时审核",
+    "文件审核",
+    "在线元数据审核",
+    "扫描任务",
+    "慢SQL记录",
+    "EXPLAIN分析",
+    "上线检查",
+    "大表治理",
+    "深度诊断",
+    "实例管理",
+    "审核规则库",
+    "评估规则集",
+    "Copilot专家助手",
+    "用户管理",
+    "角色管理",
+    "权限矩阵",
+    "数据保留",
+    "操作审计",
+    "AI配置",
+    "系统信息"
+  ],
+  "console_errors": [
+    "error: Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ]
+}
