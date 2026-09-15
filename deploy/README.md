@@ -47,5 +47,9 @@ git rm -r backend/copilot_knowledge/kb-<版本>-<旧hash>/
 
 # 4. 验证
 python -m pytest tests/copilot/test_knowledge_output.py -v
-# test_shipped_bundle_matches_sources 与 test_shipped_bundle_ready 必须同时为绿
+# test_sources_rebuild_matches_shipped 与 test_shipped_bundle_ready 必须同时为绿
 ```
+
+> **注意**：N-05 是**加载期的闸，不是运行期看门狗**。`store.load()` 全仓唯一调用点在
+> `copilot_bootstrap_check()` 里、挂 FastAPI lifespan——进程启动时跑一次。
+> 现场换完知识包**必须重启**才会生效/才会拦，不要以为换完就自动生效。

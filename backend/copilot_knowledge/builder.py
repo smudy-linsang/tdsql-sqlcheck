@@ -138,9 +138,10 @@ def build(sources_dir: Path, approved_by: str, expires_at: str,
     chunks_path = out_dir / "chunks.jsonl"
     # B-01（SIT 第二轮）：知识包文件必须以 LF 写入——.gitattributes 已钉 eol=lf，
     # 若按 OS 默认（Windows CRLF）写入，git 提交转 LF 后字节变化、hash 即失效。
-    # N-04（SIT 第三轮）：newline="\n" 在 POSIX 上与默认行为等价，
-    # 单独的 LF 断言在该平台是空锁；但 N-03 的重建比对锁会在 Windows 上
-    # 删掉本参数后重建时检出 CRLF 产物与随包 LF 不匹配，构成有效兜底。
+    # N-04（SIT 第三/四轮）：newline="\n" 在 POSIX 上与默认行为等价，
+    # 行为断言在该平台是空锁；真正的回退防护是
+    # tests/copilot/test_knowledge_output.py::test_builder_has_no_translating_write，
+    # 它对本文件做 AST 检查，撤掉本参数在任何平台都会报红（变异 X7 已验证）。
     chunks_path.write_text(
         "\n".join(json.dumps(c, ensure_ascii=False) for c in chunks) + "\n",
         encoding="utf-8", newline="\n")

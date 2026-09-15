@@ -82,33 +82,7 @@ A 第一轮 SIT 结论 2 BLOCK / 3 MAJOR，不能进 UAT。五项全部认可并
 
 ---
 
-## 7. 第三轮 SIT 遗留项修复（2026-09-15，A 整改要求 `5e4e442`）
-
-A 第三轮 SIT 结论可以进 UAT，遗留 N-03/N-04/N-05 三项，按 A 的整改要求逐一修复：
-
-| 编号 | 级别 | 修复 |
-|---|---|---|
-| N-03 | MINOR | `test_sources_rebuild_matches_shipped`：从 `sources/` 确定性重建到临时目录，比对 bundle_id 与 chunks/index SHA256；比对对象取运行期 `KnowledgeStore().load()` 解析出的包（而非字典序第一个），与运行期实际加载一致 |
-| N-04 | 提示 | `test_builder_has_no_translating_write`：AST 检查 builder 源码，任何 `write_text` 缺 `newline="\n"` 或文本模式 `open(mode="w")` 未固定换行均报红，平台无关 |
-| N-05 | MINOR | `knowledge.py` `_resolve_bundle_dir` 改为失败关闭：多包并存抛 `_AmbiguousBundle`，`load()` 内层 try 捕获返回 `INVALID`/`KNOWLEDGE_BUNDLE_AMBIGUOUS`；新增 `test_bundle_dir_is_unambiguous` 回归锁 |
-
-变异自证（均在隔离副本上操作后恢复）：
-
-| 变异 | 注入 | 结果 |
-|---|---|---|
-| X6 | 改源文档不重建 | N-03 红（bundle_id 不匹配） |
-| X7 | 撤掉 builder 三处 `newline="\n"` | N-04 红（AST 检出 3 处） |
-| X8 | `_resolve_bundle_dir` 改回 `candidates[-1]` | N-05 红（2 包仍 READY） |
-| X9 | 去掉 `load()` 内层 try | N-05 红（reason 退化为 INVALID 而非 AMBIGUOUS） |
-| X10 | 知识包目录放第二个漂移包 | N-03 红（load 返回 AMBIGUOUS）+ N-05 绿（证明失败关闭） |
-
-配套：`deploy/README.md` 新增知识包重建流程四步（改源→重建→删旧包→验证）。
-
-验证：Copilot 专项 114/114（新增 3 条锁：N-03 修正 + N-04 AST + N-05 多包）。
-
----
-
-## 8. 第二轮 SIT 整改与交付证据订正（2026-09-15）
+## 7. 第二轮 SIT 整改与交付证据订正（2026-09-15）
 
 ### 7.1 历史结论订正
 
@@ -176,3 +150,48 @@ B-01 的进一步根因已核实：旧 manifest 两个摘要和大小，分别�
 - health 第三条只读例外仍待 O 在设计 §10.4 订正，本轮未擅改冻结设计。
 - 未接真实模型、未批准数据出域、未做内网实机 UAT/容量或黄金集模型评测；不据本轮单元/集成测试自行宣布 UAT 放行。
 - 本轮交付状态为本地整改与候选快照验证；scratch 证据保留在 `scratch/cp_r2_0915/`，验证驱动为 `scratch/verify_copilot_r2.py`，均不纳入版本控制。后续提交后还需确保提交中的代码和知识包与该候选字节一致。
+
+---
+
+## 8. 第三轮 SIT 遗留项修复（2026-09-15，A 整改要求 `5e4e442`）
+
+A 第三轮 SIT 结论可以进 UAT，遗留 N-03/N-04/N-05 三项，按 A 的整改要求逐一修复：
+
+| 编号 | 级别 | 修复 |
+|---|---|---|
+| N-03 | MINOR | `test_sources_rebuild_matches_shipped`：从 `sources/` 确定性重建到临时目录，比对 bundle_id 与 chunks/index SHA256；比对对象取运行期 `KnowledgeStore().load()` 解析出的包（而非字典序第一个），与运行期实际加载一致 |
+| N-04 | 提示 | `test_builder_has_no_translating_write`：AST 检查 builder 源码，任何 `write_text` 缺 `newline="\n"` 或文本模式 `open(mode="w")` 未固定换行均报红，平台无关 |
+| N-05 | MINOR | `knowledge.py` `_resolve_bundle_dir` 改为失败关闭：多包并存抛 `_AmbiguousBundle`，`load()` 内层 try 捕获返回 `INVALID`/`KNOWLEDGE_BUNDLE_AMBIGUOUS`；新增 `test_bundle_dir_is_unambiguous` 回归锁 |
+
+变异自证（均在隔离副本上操作后恢复）：
+
+| 变异 | 注入 | 结果 |
+|---|---|---|
+| X6 | 改源文档不重建 | N-03 红（bundle_id 不匹配） |
+| X7 | 撤掉 builder 三处 `newline="\n"` | N-04 红（AST 检出 3 处） |
+| X8 | `_resolve_bundle_dir` 改回 `candidates[-1]` | N-05 红（2 包仍 READY） |
+| X9 | 去掉 `load()` 内层 try | N-05 红（reason 退化为 INVALID 而非 AMBIGUOUS） |
+| X10 | 知识包目录放第二个漂移包 | N-03 红（load 返回 AMBIGUOUS）+ N-05 绿（证明失败关闭） |
+
+配套：`deploy/README.md` 新增知识包重建流程四步（改源→重建→删旧包→验证）。
+
+验证：Copilot 专项 114/114（新增 3 条锁：N-03 修正 + N-04 AST + N-05 多包）。
+
+---
+
+---
+
+## 9. 文档瑕疵清理（2026-09-15，A 第四轮复验报告 §7）
+
+按 A 第四轮复验报告修正三处文档瑕疵（零代码改动）：
+
+| 编号 | 瑕疵 | 修正 |
+|---|---|---|
+| §7.1 | `builder.py` N-04 注释指向 N-03 重建比对锁作为兜底（已过时） | 改为指向 `test_builder_has_no_translating_write`（AST 断言） |
+| §7.2 | `deploy/README.md` 第 4 步注释写错锁名 `test_shipped_bundle_matches_sources` | 改为 `test_sources_rebuild_matches_shipped`（实际落地的名字） |
+| §7.3 | 开发记录章节编号错位：第三轮（§7）排在第二轮（§8）前面，§8 子标题仍为 7.x | §7/§8 编号对调，子标题不动 |
+
+另在 `deploy/README.md` 补充 N-05 加载期作用域说明（A 第四轮 §8 建议）：
+N-05 是加载期的闸不是运行期看门狗，现场换完知识包必须重启才生效。
+
+验证：`tests/copilot/` 114/114（文档改动不影响测试）。
