@@ -80,6 +80,19 @@ A 第一轮 SIT 结论 2 BLOCK / 3 MAJOR，不能进 UAT。五项全部认可并
 
 验证：Copilot 专项 103/103；冒烟 99/99（测试库）；全量回归 2249 passed / 30 skipped / 0 failed。
 
+---
+
+## 7. 第三轮 SIT 遗留项修复（2026-09-15，A 报告 `b049179`）
+
+A 第三轮 SIT 结论可以进 UAT，遗留两项不阻塞项本轮补齐：
+
+| 编号 | 级别 | 修复 |
+|---|---|---|
+| N-03 | MINOR | 源文档改动不重建知识包无锁可红 → 新增 `test_sources_rebuild_matches_shipped`：从 `sources/` 确定性重建到临时目录，比对 bundle_id 与 chunks/index SHA256 与随包一致；变异 X6（改源文档不重建）实测打红后恢复全绿 |
+| N-04 | 提示 | LF 锁在 POSIX 上是空锁 → 并入 N-03 处理：重建比对锁在 Windows 上删掉 `newline="\n"` 后重建时检出 CRLF 产物与随包 LF 不匹配；builder.py 注释说明覆盖关系 |
+
+验证：Copilot 专项 112/112（新增 1 条 N-03 锁）。
+
 
 ---
 

@@ -93,6 +93,40 @@ class TestKnowledge:
                 assert len(data) == manifest["file_sizes"][name]
                 assert hashlib.sha256(data).hexdigest() == manifest["sha256"][name]
 
+    def test_sources_rebuild_matches_shipped(self, tmp_path):
+        """N-03：源文档改动不重建知识包，必须被检出。
+
+        从 sources/ 重建到临时目录，比对 bundle_id 与产物 SHA256。
+        approved_by / reviewed_at 是构建入参，排除比对。
+        """
+        import hashlib
+        from pathlib import Path
+        from backend.copilot_knowledge.builder import build
+
+        kb_root = Path(__file__).resolve().parents[2] / "backend/copilot_knowledge"
+        bundle_dir = next(d for d in sorted(kb_root.iterdir())
+                          if d.is_dir() and (d / "manifest.json").exists())
+        shipped_manifest = json.loads((bundle_dir / "manifest.json").read_bytes())
+        shipped_bundle_id = shipped_manifest["bundle_id"]
+
+        # 从 sources 重建到隔离临时目录
+        sources = kb_root / "sources"
+        rebuilt = build(sources, "tester", "2027-01-01T00:00:00Z",
+                        out_root=tmp_path)
+        rebuilt_manifest = json.loads((rebuilt / "manifest.json").read_bytes())
+
+        # 确定性比对：bundle_id 由内容 hash 决定，源漂移 → hash 变 → id 变
+        assert rebuilt_manifest["bundle_id"] == shipped_bundle_id, (
+            f"源文档漂移：重建 bundle_id={rebuilt_manifest['bundle_id']} "
+            f"!= 随包 {shipped_bundle_id}；改了 sources/ 必须重建知识包")
+
+        for name in ("chunks.jsonl", "index.json"):
+            rebuilt_sha = hashlib.sha256(
+                (rebuilt / name).read_bytes()).hexdigest()
+            assert rebuilt_sha == shipped_manifest["sha256"][name], (
+                f"{name} 重建 sha256 与随包不符；"
+                f"改了 sources/ 必须重建知识包")
+
     def test_store_ready_and_search(self):
         store = KnowledgeStore()
         st = store.load()
