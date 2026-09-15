@@ -1,0 +1,71 @@
+{
+  "utc": "2026-09-15T14:33:40.236286+00:00",
+  "steps": [
+    {
+      "POST /providers": {
+        "status": 201,
+        "body": {
+          "request_id": "e336677e9a544035ade08409579b442a",
+          "id": "5f9c1dce464d456d8c56cdc0446dc9f7",
+          "enabled": false,
+          "revision": 1
+        }
+      }
+    },
+    {
+      "PUT enabled(未自检)": {
+        "status": 422,
+        "code": "PROVIDER_CONFIG_INVALID"
+      }
+    },
+    {
+      "POST /self-tests": {
+        "status": 202,
+        "body": {
+          "request_id": "0bb165af8f6940ee8d570e889f436020",
+          "turn_id": "ecf519993a9f41369bddd321ea2d20f6",
+          "state": "ACCEPTED",
+          "status_url": "/api/v1/copilot/turns/ecf519993a9f41369bddd321ea2d20f6",
+          "result_url": "/api/v1/copilot/turns/ecf519993a9f41369bddd321ea2d20f6/result",
+          "poll_after_ms": 2000,
+          "reused": false,
+          "notice": "自检可能产生少量模型调用费用；不发送任何业务资料。"
+        }
+      }
+    },
+    {
+      "PUT enabled(自检后)": {
+        "status": 422,
+        "body": {
+          "detail": {
+            "code": "PROVIDER_CONFIG_INVALID",
+            "message": "当前配置版本尚未通过自检，请先执行自检",
+            "request_id": "217354d5639040649f0abc35921c429a",
+            "retryable": false
+          }
+        }
+      }
+    }
+  ],
+  "duplicate_name": {
+    "status": 500,
+    "body": "None"
+  },
+  "provider_id": "5f9c1dce464d456d8c56cdc0446dc9f7",
+  "provider_name": "UAT3-自检-3813ee",
+  "selftest_turn_id": "ecf519993a9f41369bddd321ea2d20f6",
+  "idempotent_replay": {
+    "status": 202,
+    "turn_id": "ecf519993a9f41369bddd321ea2d20f6",
+    "reused": true,
+    "same_turn": true
+  },
+  "selftest_terminal": "FAILED",
+  "selftest_error": "CONTEXT_CHANGED",
+  "selftest_outbound_count": 0,
+  "provider_after_selftest": {
+    "enabled": false,
+    "revision": 1,
+    "tested_revision": null
+  }
+}
