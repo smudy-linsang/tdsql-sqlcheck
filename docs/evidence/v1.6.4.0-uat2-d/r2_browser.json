@@ -1,0 +1,104 @@
+{
+  "utc": "2026-09-15T13:18:10.397091+00:00",
+  "B01_anonymous": {
+    "overlays_visible": 0,
+    "copilot_nodes": 1,
+    "copilot_drawer_visible": false,
+    "copilot_page_path": null,
+    "admin_page_path": null
+  },
+  "B01_login_form_reachable": true,
+  "B01_login_succeeded": true,
+  "B01_shot": "docs/evidence/v1.6.4.0-uat2-d/shots/r2-b01-anonymous.png",
+  "B02_after_login": {
+    "overlays_visible": 0,
+    "copilot_nodes": 1,
+    "copilot_drawer_visible": false,
+    "copilot_page_path": null,
+    "admin_page_path": null
+  },
+  "B02_drawer_after_click": {
+    "overlays_visible": 1,
+    "copilot_nodes": 7,
+    "copilot_drawer_visible": true,
+    "copilot_page_path": null,
+    "admin_page_path": null
+  },
+  "B02_drawer_text": "展开\n关闭\n打开会话页\n选择会话\n新建会话\n模式：READY； 知识包：READY\n使用帮助\n预览资料\n确认提交",
+  "B02_shot": "docs/evidence/v1.6.4.0-uat2-d/shots/r2-b02-drawer.png",
+  "N04_has_session_select": true,
+  "N04_has_new_session_btn": true,
+  "N04_new_session_clicked": true,
+  "N04_select_values": [
+    "",
+    ""
+  ],
+  "N04_drawer_text_after": "展开\n关闭\n打开会话页\n选择会话\n新建会话\n模式：READY； 知识包：READY\n使用帮助\n预览资料\n确认提交\n请求失败（422）",
+  "N04_shot": "docs/evidence/v1.6.4.0-uat2-d/shots/r2-n04-drawer-session.png",
+  "M03_page_rendered": true,
+  "M03_mode_tags": [
+    "已启用"
+  ],
+  "M03_shot": "docs/evidence/v1.6.4.0-uat2-d/shots/r2-m03-copilot-page.png",
+  "M03_instance_options": [
+    "D40-分布式测试库"
+  ],
+  "M03_page_eval": {
+    "overlays_visible": 0,
+    "copilot_nodes": 15,
+    "copilot_drawer_visible": false,
+    "copilot_page_path": "DIV.page-content",
+    "admin_page_path": null
+  },
+  "M03_api_mode": "EVAL_ERR:Page.evaluate: SyntaxError: await is only valid in async functions and the top level bodies of modules\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (",
+  "B05_page_rendered": true,
+  "B05_text": "AI 配置\nREADY\n模型\n场景路由\n实例授权\n名称\n\t\n模型\n\t\n状态\n\t\n自检\n\t\n操作\nUAT-D40-主模型\n\t\nuat-mock-primary\n\t\n已启用\n\t\n已通过 r1\n\t\n连通性自检\n启用\n停用\n\n\nUAT-D40-备模型\n\t\nuat-mock-fallback\n\t\n已启用\n\t\n已通过 r1\n\t\n连通性自检\n启用\n停用\n\n\nUAT2-自检主模型\n\t\nuat2-selftest\n\t\n未启用\n\t\n未通过 / 配置已变更\n\t\n连通性自检\n启用\n停用\n自检会产生少量模型调用费用；只发固定合成问题，不发任何业务资料。",
+  "B05_tabs": [
+    "模型",
+    "场景路由",
+    "实例授权"
+  ],
+  "B05_page_eval": {
+    "overlays_visible": 0,
+    "copilot_nodes": 9,
+    "copilot_drawer_visible": false,
+    "copilot_page_path": null,
+    "admin_page_path": "DIV.page-content"
+  },
+  "B05_shot": "docs/evidence/v1.6.4.0-uat2-d/shots/r2-b05-ai-config.png",
+  "M02_scan": [
+    {
+      "page": "即时审核",
+      "copilot_entries": []
+    },
+    {
+      "page": "文件审核",
+      "copilot_entries": []
+    },
+    {
+      "page": "在线元数据审核",
+      "copilot_entries": []
+    },
+    {
+      "page": "审核规则库",
+      "copilot_entries": []
+    },
+    {
+      "page": "慢SQL记录",
+      "copilot_entries": []
+    },
+    {
+      "page": "上线检查",
+      "copilot_entries": []
+    },
+    {
+      "page": "大表治理",
+      "copilot_entries": []
+    }
+  ],
+  "M02_total_entries": 0,
+  "console_errors": [
+    "error: Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+    "error: Failed to load resource: the server responded with a status of 422 (Unprocessable Content)"
+  ]
+}

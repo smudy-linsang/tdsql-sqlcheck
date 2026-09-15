@@ -1,0 +1,29 @@
+{
+  "utc": "2026-09-15T13:19:34.712349+00:00",
+  "before_mode": "READY",
+  "m05_script": {
+    "rc": 3,
+    "stdout": "[emergency-disable] 事件编号: UATD40R2-EMG-001  时间(UTC): 2026-09-15T13:19:37Z\ndb-disabled-ok\r\n[emergency-disable] DB 侧已停用（settings.enabled=false, accepting=false）\n[emergency-disable] 持久停用标记已写入 /C/TDSQL_SQLCHECK/TDSQL-SQLCheck/data/reports/uat_d_1640/emg/../conf/copilot-disabled.json\n[emergency-disable] 错误：本平台既无 systemd 也无 pkill，无法自动停止 tdsql-copilot-runner。\n[emergency-disable]       请人工终止该进程后重跑本脚本；在此期间 DB 侧已停用，\n[emergency-disable]       助手不会受理新任务，但已发出的模型请求无法撤回。\n[emergency-disable] 停用未完成：runner 仍在运行（manual-required）。\n[emergency-disable] 请人工处理，并复核网关侧是否仍有出站。\n",
+    "stderr": ""
+  },
+  "m05_persist_exists": true,
+  "m05_persist": "{\"incident_id\": \"UATD40R2-EMG-001\", \"disabled_at\": \"2026-09-15T13:19:37Z\",\n \"db_side\": \"true\", \"note\": \"Copilot 紧急停用标记；恢复须人工查明原因并撤销本文件\"}\n",
+  "m05_event_log": "2026-09-15T13:19:37Z incident=UATD40R2-EMG-001 db_side=true runner_stopped=manual-required result=partial\n",
+  "m05_runner_pids": [
+    "44996"
+  ],
+  "m05_runner_still_running": true,
+  "m05_rc_is_3": true,
+  "m05_claims_success": false,
+  "after_disable_mode": "DISABLED",
+  "n02_db_enabled_true": true,
+  "n02_mode_after_restart_with_marker": "READY",
+  "n02_health": {
+    "ready": true,
+    "runner": {
+      "accepting": true,
+      "heartbeat_at": "2026-09-15T13:19:58.480822"
+    }
+  },
+  "recovered_mode": "READY"
+}

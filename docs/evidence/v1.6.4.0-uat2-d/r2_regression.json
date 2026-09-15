@@ -1,0 +1,41 @@
+{
+  "utc": "2026-09-15T13:23:07.052987+00:00",
+  "instant_audit": {
+    "status": 200,
+    "passed": true,
+    "violations": 0
+  },
+  "metadata_job": {
+    "submit_status": 202,
+    "job_id": "f90f8a31186448a58cd5f36122b2aaff",
+    "final": {
+      "state": "SUCCEEDED",
+      "total_s": 4.2
+    }
+  },
+  "rbac": {
+    "uat_d_1640": {
+      "capabilities": 200,
+      "admin_providers": 200
+    },
+    "uat_d_1640b": {
+      "capabilities": 200,
+      "admin_providers": 200
+    },
+    "uat_d_1640dev": {
+      "capabilities": 200,
+      "admin_providers": 403
+    },
+    "uat_d_1640aud": {
+      "capabilities": 403,
+      "admin_providers": 403
+    }
+  },
+  "egress_audit": {
+    "total_requests": 22,
+    "requests_with_tools": 0,
+    "auth_bearer_all": true
+  },
+  "session_create": 201,
+  "tenant_isolation": 404
+}

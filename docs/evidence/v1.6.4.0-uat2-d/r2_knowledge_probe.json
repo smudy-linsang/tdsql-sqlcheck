@@ -1,0 +1,31 @@
+{
+  "load": "READY",
+  "search_TDSQL-MYSQL_upper": 0,
+  "search_TDSQL-MySQL": 8,
+  "first_keys": [
+    "authority",
+    "bundle_id",
+    "content",
+    "content_hash",
+    "knowledge_id",
+    "score",
+    "section",
+    "source_id",
+    "title"
+  ],
+  "kept_by_manual_loop": [
+    "K1",
+    "K2",
+    "K3",
+    "K4",
+    "K5",
+    "K6",
+    "K7",
+    "K8"
+  ],
+  "total_bytes": 2536,
+  "execute_search_help_count": 8,
+  "execute_search_help_status": "READY",
+  "ctx_store_is_same": true,
+  "ctx_bundle_is_none": false
+}

@@ -1,0 +1,12 @@
+{
+  "utc": "2026-09-15T13:21:15.775949+00:00",
+  "sandbox": "/C/TDSQL_SQLCHECK/TDSQL-SQLCheck/data/reports/uat_d_1640/emg",
+  "persist_path": "C:\\TDSQL_SQLCHECK\\TDSQL-SQLCheck\\data\\reports\\uat_d_1640\\conf\\copilot-disabled.json",
+  "marker_exists": true,
+  "web_started": true,
+  "mode_with_marker": "READY",
+  "web_started_2": true,
+  "mode_without_marker": "READY",
+  "web_restored": true,
+  "mode_restored": "READY"
+}

@@ -1,0 +1,27 @@
+{
+  "0_before_bootstrap": {
+    "bundle_none": true,
+    "store_status": "MISSING",
+    "bundle_search": 0,
+    "execute_count": 0,
+    "execute_status": "MISSING"
+  },
+  "local_ready": [
+    true,
+    ""
+  ],
+  "1_after_bootstrap": {
+    "bundle_none": false,
+    "store_status": "READY",
+    "bundle_search": 8,
+    "execute_count": 8,
+    "execute_status": "READY"
+  },
+  "2_after_explicit_load": {
+    "bundle_none": false,
+    "store_status": "READY",
+    "bundle_search": 8,
+    "execute_count": 8,
+    "execute_status": "READY"
+  }
+}

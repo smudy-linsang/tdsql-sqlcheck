@@ -1,0 +1,79 @@
+{
+  "min_score": 0.5,
+  "rows": [
+    {
+      "tag": "越界-Oracle",
+      "question": "Oracle 的 ROWNUM 分页在 TDSQL 里应该怎么写？",
+      "count": 8,
+      "scores": [
+        8.38,
+        7.686,
+        7.669,
+        6.492,
+        6.423,
+        3.11,
+        2.334,
+        2.27
+      ],
+      "titles": [
+        "TDSQL MySQL 版官方语法摘要",
+        "TDSQL MySQL 版官方语法摘要",
+        "TDSQL MySQL 版官方语法摘要"
+      ]
+    },
+    {
+      "tag": "越界-菜谱",
+      "question": "如何做红烧肉？",
+      "count": 0,
+      "scores": [],
+      "titles": []
+    },
+    {
+      "tag": "越界-股票",
+      "question": "今天上证指数收盘多少点？",
+      "count": 0,
+      "scores": [],
+      "titles": []
+    },
+    {
+      "tag": "在域-元数据",
+      "question": "在线元数据审核任务失败时我应该先看什么证据？",
+      "count": 8,
+      "scores": [
+        23.291,
+        16.31,
+        10.393,
+        6.753,
+        5.445,
+        5.391,
+        5.037,
+        3.467
+      ],
+      "titles": [
+        "平台核心功能使用指南",
+        "已批准故障处理条目",
+        "Copilot 公共固定问题（PUBLIC_HELP 正向来源）"
+      ]
+    },
+    {
+      "tag": "在域-分片键",
+      "question": "TDSQL 分布式建表的分片键怎么写？",
+      "count": 8,
+      "scores": [
+        28.67,
+        8.38,
+        7.686,
+        6.492,
+        6.423,
+        3.977,
+        2.334,
+        2.27
+      ],
+      "titles": [
+        "TDSQL MySQL 版官方语法摘要",
+        "TDSQL MySQL 版官方语法摘要",
+        "TDSQL MySQL 版官方语法摘要"
+      ]
+    }
+  ]
+}
