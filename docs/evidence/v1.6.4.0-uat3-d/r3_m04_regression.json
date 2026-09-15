@@ -1,0 +1,58 @@
+{
+  "utc": "2026-09-15T14:37:53.247017+00:00",
+  "m04": {
+    "status": 200,
+    "shape": {
+      "request_id": "d5be12acecad4635bb187ec675297848",
+      "days": 30,
+      "items": [],
+      "hidden_below_privacy_threshold": 2,
+      "notice": "关联质疑次数，不等于该规则已证实误报。"
+    },
+    "after_3_subjects": {
+      "request_id": "a06c43b288a84a43823c6e38835c2550",
+      "days": 30,
+      "items": [],
+      "hidden_below_privacy_threshold": 2,
+      "notice": "关联质疑次数，不等于该规则已证实误报。"
+    },
+    "item_keys": [],
+    "has_rule_snapshot_hash": false,
+    "per_rule_split": null
+  },
+  "regression": {
+    "instant_audit": {
+      "status": 200,
+      "passed": true
+    },
+    "metadata_job_submit": 202,
+    "metadata_job_final": {
+      "state": "SUCCEEDED",
+      "total_s": 4.1
+    },
+    "rbac": {
+      "uat_d_1640": {
+        "capabilities": 200,
+        "admin": 200
+      },
+      "uat_d_1640b": {
+        "capabilities": 200,
+        "admin": 200
+      },
+      "uat_d_1640dev": {
+        "capabilities": 200,
+        "admin": 403
+      },
+      "uat_d_1640aud": {
+        "capabilities": 403,
+        "admin": 403
+      }
+    },
+    "egress": {
+      "total": 26,
+      "with_tools": 0,
+      "all_bearer": true
+    },
+    "tenant_isolation": 404
+  }
+}

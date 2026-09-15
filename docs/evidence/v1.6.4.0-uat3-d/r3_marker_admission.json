@@ -1,0 +1,19 @@
+{
+  "utc": "2026-09-15T14:37:22.290956+00:00",
+  "web_started": true,
+  "capabilities": {
+    "status": 200,
+    "mode": "DISABLED"
+  },
+  "new_session": 201,
+  "preview": {
+    "status": 201,
+    "code": null
+  },
+  "new_turn": {
+    "status": 202,
+    "code": null
+  },
+  "restored": true,
+  "mode_restored": "READY"
+}

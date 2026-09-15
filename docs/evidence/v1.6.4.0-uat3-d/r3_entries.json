@@ -1,0 +1,19 @@
+{
+  "utc": "2026-09-15T14:35:52.039195+00:00",
+  "rules_entries": [],
+  "rules_shot": "docs/evidence/v1.6.4.0-uat3-d/shots/r3-entry-rules.png",
+  "instant_sql_filled": true,
+  "instant_entries": [
+    "生成修改建议"
+  ],
+  "instant_has_result": false,
+  "instant_shot": "docs/evidence/v1.6.4.0-uat3-d/shots/r3-entry-instant.png",
+  "drawer_opened_by_entry": true,
+  "drawer_text": "展开\n关闭\n打开会话页\n选择会话\n新建会话\n模式：READY； 知识包：READY\n使用帮助\n预览资料\n确认提交",
+  "drawer_shot": "docs/evidence/v1.6.4.0-uat3-d/shots/r3-entry-drawer.png",
+  "metadata_entries": [
+    "让 Copilot 解读"
+  ],
+  "metadata_shot": "docs/evidence/v1.6.4.0-uat3-d/shots/r3-entry-metadata.png",
+  "page_errors": []
+}

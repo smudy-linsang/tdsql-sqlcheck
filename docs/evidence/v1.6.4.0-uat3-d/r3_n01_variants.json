@@ -1,0 +1,149 @@
+{
+  "shipped_min_score": 10.0,
+  "variants": [
+    {
+      "variant": "A",
+      "golden_hit": 17,
+      "golden_total": 18,
+      "golden_hit_rate": 0.944,
+      "recall_avg": 1.33,
+      "zero_recall_questions": 1,
+      "oos_nonzero": 0,
+      "oos_total": 6,
+      "oos_detail": [
+        {
+          "q": "Oracle 的 ROWNUM 分页在 TDSQL 里应该怎么写？",
+          "kept": 0
+        },
+        {
+          "q": "如何做红烧肉？",
+          "kept": 0
+        },
+        {
+          "q": "明天北京天气怎么样？",
+          "kept": 0
+        },
+        {
+          "q": "Python 的 pandas 怎么读 CSV？",
+          "kept": 0
+        },
+        {
+          "q": "请帮我写一首唐诗",
+          "kept": 0
+        },
+        {
+          "q": "Kubernetes 的 Pod 怎么重启？",
+          "kept": 0
+        }
+      ]
+    },
+    {
+      "variant": "B",
+      "golden_hit": 18,
+      "golden_total": 18,
+      "golden_hit_rate": 1.0,
+      "recall_avg": 1.61,
+      "zero_recall_questions": 0,
+      "oos_nonzero": 0,
+      "oos_total": 6,
+      "oos_detail": [
+        {
+          "q": "Oracle 的 ROWNUM 分页在 TDSQL 里应该怎么写？",
+          "kept": 0
+        },
+        {
+          "q": "如何做红烧肉？",
+          "kept": 0
+        },
+        {
+          "q": "明天北京天气怎么样？",
+          "kept": 0
+        },
+        {
+          "q": "Python 的 pandas 怎么读 CSV？",
+          "kept": 0
+        },
+        {
+          "q": "请帮我写一首唐诗",
+          "kept": 0
+        },
+        {
+          "q": "Kubernetes 的 Pod 怎么重启？",
+          "kept": 0
+        }
+      ]
+    },
+    {
+      "variant": "C",
+      "golden_hit": 18,
+      "golden_total": 18,
+      "golden_hit_rate": 1.0,
+      "recall_avg": 2.39,
+      "zero_recall_questions": 0,
+      "oos_nonzero": 0,
+      "oos_total": 6,
+      "oos_detail": [
+        {
+          "q": "Oracle 的 ROWNUM 分页在 TDSQL 里应该怎么写？",
+          "kept": 0
+        },
+        {
+          "q": "如何做红烧肉？",
+          "kept": 0
+        },
+        {
+          "q": "明天北京天气怎么样？",
+          "kept": 0
+        },
+        {
+          "q": "Python 的 pandas 怎么读 CSV？",
+          "kept": 0
+        },
+        {
+          "q": "请帮我写一首唐诗",
+          "kept": 0
+        },
+        {
+          "q": "Kubernetes 的 Pod 怎么重启？",
+          "kept": 0
+        }
+      ]
+    },
+    {
+      "variant": "D",
+      "golden_hit": 18,
+      "golden_total": 18,
+      "golden_hit_rate": 1.0,
+      "recall_avg": 3.11,
+      "zero_recall_questions": 0,
+      "oos_nonzero": 0,
+      "oos_total": 6,
+      "oos_detail": [
+        {
+          "q": "Oracle 的 ROWNUM 分页在 TDSQL 里应该怎么写？",
+          "kept": 0
+        },
+        {
+          "q": "如何做红烧肉？",
+          "kept": 0
+        },
+        {
+          "q": "明天北京天气怎么样？",
+          "kept": 0
+        },
+        {
+          "q": "Python 的 pandas 怎么读 CSV？",
+          "kept": 0
+        },
+        {
+          "q": "请帮我写一首唐诗",
+          "kept": 0
+        },
+        {
+          "q": "Kubernetes 的 Pod 怎么重启？",
+          "kept": 0
+        }
+      ]
+    }
+  ]
+}

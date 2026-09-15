@@ -1,0 +1,13 @@
+{
+  "utc": "2026-09-15T14:39:47.440990+00:00",
+  "turn_state": "SUCCEEDED",
+  "turn_id": "0927d3573c90456d9078d147080607d4",
+  "export_status": 200,
+  "csp": "default-src 'none'; style-src 'unsafe-inline'; img-src data:; sandbox",
+  "csp_report_specific": true,
+  "content_disposition": "attachment; filename=\"copilot-advice-0927d357-20260915.html\"",
+  "has_script": false,
+  "has_remote": false,
+  "internal_banner": true,
+  "bytes": 2414
+}

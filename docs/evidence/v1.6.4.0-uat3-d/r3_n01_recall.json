@@ -1,0 +1,414 @@
+{
+  "shipped_min_score": 10.0,
+  "threshold_10.0": {
+    "threshold": 10.0,
+    "golden_hit": 17,
+    "golden_total": 18,
+    "golden_hit_rate": 0.944,
+    "recall_avg": 1.33,
+    "recall_zero_questions": 1,
+    "out_of_scope_nonzero": 0,
+    "rows": [
+      {
+        "q": "即时审核功能怎么使用？",
+        "n": 1,
+        "hit": true,
+        "top": 11.3
+      },
+      {
+        "q": "文件审核支持哪些文件格式？",
+        "n": 1,
+        "hit": true,
+        "top": 16.57
+      },
+      {
+        "q": "在线元数据审核是怎么发起的？",
+        "n": 2,
+        "hit": true,
+        "top": 15.95
+      },
+      {
+        "q": "慢SQL记录和EXPLAIN分析在哪里？",
+        "n": 1,
+        "hit": true,
+        "top": 18.33
+      },
+      {
+        "q": "扫描结果对比怎么比较两次快照？",
+        "n": 1,
+        "hit": true,
+        "top": 20.11
+      },
+      {
+        "q": "表类型统计里主表和物理子表怎么看？",
+        "n": 3,
+        "hit": true,
+        "top": 24.45
+      },
+      {
+        "q": "网关日志分析报告在哪里查看？",
+        "n": 1,
+        "hit": true,
+        "top": 23.02
+      },
+      {
+        "q": "Copilot 专家助手怎么打开？",
+        "n": 0,
+        "hit": false,
+        "top": null
+      },
+      {
+        "q": "提示执行器未就绪 EXECUTOR_UNAVAILABLE 怎么处理？",
+        "n": 1,
+        "hit": true,
+        "top": 25.02
+      },
+      {
+        "q": "任务状态未知 REQUIRED 是什么意思？",
+        "n": 1,
+        "hit": true,
+        "top": 20.0
+      },
+      {
+        "q": "资料过大 CONTEXT_TOO_LARGE 应该怎么办？",
+        "n": 1,
+        "hit": true,
+        "top": 14.93
+      },
+      {
+        "q": "网关摘要显示 PARTIAL 表示什么？",
+        "n": 3,
+        "hit": true,
+        "top": 17.99
+      },
+      {
+        "q": "TDSQL 分布式建表的分片键怎么写？",
+        "n": 1,
+        "hit": true,
+        "top": 28.67
+      },
+      {
+        "q": "TDSQL 二级分区有什么要求？",
+        "n": 1,
+        "hit": true,
+        "top": 20.46
+      },
+      {
+        "q": "TDSQL 和原生 MySQL 有什么差异？",
+        "n": 1,
+        "hit": true,
+        "top": 17.93
+      },
+      {
+        "q": "项目审核规则和厂商语法能力怎么区分？",
+        "n": 3,
+        "hit": true,
+        "top": 16.55
+      },
+      {
+        "q": "这个工具能做什么？",
+        "n": 1,
+        "hit": true,
+        "top": 20.09
+      },
+      {
+        "q": "我的数据会被发送到哪里？",
+        "n": 1,
+        "hit": true,
+        "top": 26.2
+      }
+    ],
+    "oos": [
+      {
+        "tag": "越界-Oracle",
+        "n": 0,
+        "top": null
+      },
+      {
+        "tag": "越界-菜谱",
+        "n": 0,
+        "top": null
+      },
+      {
+        "tag": "越界-天气",
+        "n": 0,
+        "top": null
+      }
+    ]
+  },
+  "threshold_0.5": {
+    "threshold": 0.5,
+    "golden_hit": 18,
+    "golden_total": 18,
+    "golden_hit_rate": 1.0,
+    "recall_avg": 6.89,
+    "recall_zero_questions": 0,
+    "out_of_scope_nonzero": 2,
+    "rows": [
+      {
+        "q": "即时审核功能怎么使用？",
+        "n": 8,
+        "hit": true,
+        "top": 11.3
+      },
+      {
+        "q": "文件审核支持哪些文件格式？",
+        "n": 8,
+        "hit": true,
+        "top": 16.57
+      },
+      {
+        "q": "在线元数据审核是怎么发起的？",
+        "n": 8,
+        "hit": true,
+        "top": 15.95
+      },
+      {
+        "q": "慢SQL记录和EXPLAIN分析在哪里？",
+        "n": 8,
+        "hit": true,
+        "top": 18.33
+      },
+      {
+        "q": "扫描结果对比怎么比较两次快照？",
+        "n": 7,
+        "hit": true,
+        "top": 20.11
+      },
+      {
+        "q": "表类型统计里主表和物理子表怎么看？",
+        "n": 6,
+        "hit": true,
+        "top": 24.45
+      },
+      {
+        "q": "网关日志分析报告在哪里查看？",
+        "n": 8,
+        "hit": true,
+        "top": 23.02
+      },
+      {
+        "q": "Copilot 专家助手怎么打开？",
+        "n": 6,
+        "hit": true,
+        "top": 9.46
+      },
+      {
+        "q": "提示执行器未就绪 EXECUTOR_UNAVAILABLE 怎么处理？",
+        "n": 8,
+        "hit": true,
+        "top": 25.02
+      },
+      {
+        "q": "任务状态未知 REQUIRED 是什么意思？",
+        "n": 8,
+        "hit": true,
+        "top": 20.0
+      },
+      {
+        "q": "资料过大 CONTEXT_TOO_LARGE 应该怎么办？",
+        "n": 5,
+        "hit": true,
+        "top": 14.93
+      },
+      {
+        "q": "网关摘要显示 PARTIAL 表示什么？",
+        "n": 8,
+        "hit": true,
+        "top": 17.99
+      },
+      {
+        "q": "TDSQL 分布式建表的分片键怎么写？",
+        "n": 8,
+        "hit": true,
+        "top": 28.67
+      },
+      {
+        "q": "TDSQL 二级分区有什么要求？",
+        "n": 7,
+        "hit": true,
+        "top": 20.46
+      },
+      {
+        "q": "TDSQL 和原生 MySQL 有什么差异？",
+        "n": 6,
+        "hit": true,
+        "top": 17.93
+      },
+      {
+        "q": "项目审核规则和厂商语法能力怎么区分？",
+        "n": 8,
+        "hit": true,
+        "top": 16.55
+      },
+      {
+        "q": "这个工具能做什么？",
+        "n": 1,
+        "hit": true,
+        "top": 20.09
+      },
+      {
+        "q": "我的数据会被发送到哪里？",
+        "n": 6,
+        "hit": true,
+        "top": 26.2
+      }
+    ],
+    "oos": [
+      {
+        "tag": "越界-Oracle",
+        "n": 8,
+        "top": 8.38
+      },
+      {
+        "tag": "越界-菜谱",
+        "n": 0,
+        "top": null
+      },
+      {
+        "tag": "越界-天气",
+        "n": 2,
+        "top": 2.33
+      }
+    ]
+  },
+  "threshold_0.0": {
+    "threshold": 0.0,
+    "golden_hit": 18,
+    "golden_total": 18,
+    "golden_hit_rate": 1.0,
+    "recall_avg": 8.0,
+    "recall_zero_questions": 0,
+    "out_of_scope_nonzero": 3,
+    "rows": [
+      {
+        "q": "即时审核功能怎么使用？",
+        "n": 8,
+        "hit": true,
+        "top": 11.3
+      },
+      {
+        "q": "文件审核支持哪些文件格式？",
+        "n": 8,
+        "hit": true,
+        "top": 16.57
+      },
+      {
+        "q": "在线元数据审核是怎么发起的？",
+        "n": 8,
+        "hit": true,
+        "top": 15.95
+      },
+      {
+        "q": "慢SQL记录和EXPLAIN分析在哪里？",
+        "n": 8,
+        "hit": true,
+        "top": 18.33
+      },
+      {
+        "q": "扫描结果对比怎么比较两次快照？",
+        "n": 8,
+        "hit": true,
+        "top": 20.11
+      },
+      {
+        "q": "表类型统计里主表和物理子表怎么看？",
+        "n": 8,
+        "hit": true,
+        "top": 24.45
+      },
+      {
+        "q": "网关日志分析报告在哪里查看？",
+        "n": 8,
+        "hit": true,
+        "top": 23.02
+      },
+      {
+        "q": "Copilot 专家助手怎么打开？",
+        "n": 8,
+        "hit": true,
+        "top": 9.46
+      },
+      {
+        "q": "提示执行器未就绪 EXECUTOR_UNAVAILABLE 怎么处理？",
+        "n": 8,
+        "hit": true,
+        "top": 25.02
+      },
+      {
+        "q": "任务状态未知 REQUIRED 是什么意思？",
+        "n": 8,
+        "hit": true,
+        "top": 20.0
+      },
+      {
+        "q": "资料过大 CONTEXT_TOO_LARGE 应该怎么办？",
+        "n": 8,
+        "hit": true,
+        "top": 14.93
+      },
+      {
+        "q": "网关摘要显示 PARTIAL 表示什么？",
+        "n": 8,
+        "hit": true,
+        "top": 17.99
+      },
+      {
+        "q": "TDSQL 分布式建表的分片键怎么写？",
+        "n": 8,
+        "hit": true,
+        "top": 28.67
+      },
+      {
+        "q": "TDSQL 二级分区有什么要求？",
+        "n": 8,
+        "hit": true,
+        "top": 20.46
+      },
+      {
+        "q": "TDSQL 和原生 MySQL 有什么差异？",
+        "n": 8,
+        "hit": true,
+        "top": 17.93
+      },
+      {
+        "q": "项目审核规则和厂商语法能力怎么区分？",
+        "n": 8,
+        "hit": true,
+        "top": 16.55
+      },
+      {
+        "q": "这个工具能做什么？",
+        "n": 8,
+        "hit": true,
+        "top": 20.09
+      },
+      {
+        "q": "我的数据会被发送到哪里？",
+        "n": 8,
+        "hit": true,
+        "top": 26.2
+      }
+    ],
+    "oos": [
+      {
+        "tag": "越界-Oracle",
+        "n": 8,
+        "top": 8.38
+      },
+      {
+        "tag": "越界-菜谱",
+        "n": 8,
+        "top": 0.0
+      },
+      {
+        "tag": "越界-天气",
+        "n": 8,
+        "top": 2.33
+      }
+    ]
+  },
+  "zero_recall_detail": [
+    "Copilot 专家助手怎么打开？"
+  ]
+}
