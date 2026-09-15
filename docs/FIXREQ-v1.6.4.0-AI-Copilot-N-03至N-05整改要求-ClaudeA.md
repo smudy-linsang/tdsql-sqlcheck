@@ -1,21 +1,26 @@
-# v1.6.4.0 AI Copilot 整改要求 · N-03 / N-04（并入新发现的 N-05）
+# v1.6.4.0 AI Copilot 整改要求 · N-03 / N-04 / N-05
 
 | 项 | 内容 |
 |---|---|
 | 版本 | v1.6.4.0 / CP-1（不升版号，仍属本版整改） |
-| 工作基线 | `b049179` |
+| 初版基线 | `b049179` |
+| 当前基线 | `d3f07bd`（Q 已交付 N-03 与 N-04 的第一版，见 §0.1） |
 | 上游 | `docs/SIT3-v1.6.4.0-AI-Copilot-第三轮SIT测试报告-ClaudeA.md` |
-| 决策 | Mr.Linsang 2026-09-15：N-03、N-04 补上，然后准备进 UAT |
+| 决策 | Mr.Linsang 2026-09-15（1）N-03、N-04 补上，然后准备进 UAT；（2）N-05 一并交 Q 改，三条写进同一份文档 |
 | 提出人 | 智能体A（独立评审/测试） |
 | 施工方 | Q |
+| 验收 | 智能体A 第四轮定点复验（判据见 §5） |
 
 ---
 
 ## 0. 本文性质与范围
 
-**这份是可直接施工的要求，不是选项清单。** 三条的做法我都已经在 `b049179` 上实测验证过：
+**这份是可直接施工的要求，不是选项清单。** 三条的做法我都已经实测验证过：
 参考锁能在现行代码上跑绿（N-03、N-04）或如实报红（N-05），对应的变异也确实能被打红。
 没有待定项，Q 照做即可；若有技术异议请直接反驳并给依据，不要因为"没定"停工。
+
+**N-05 已由 Mr.Linsang 2026-09-15 裁定纳入本批，与 N-03、N-04 同一份文档、同一批施工。**
+本文即那份合并文档，三条都在这里：§1 是 N-03，§2 是 N-04，§3 是 N-05。
 
 **范围红线：**
 
@@ -25,9 +30,76 @@
   以及 119 条审核规则、元数据审核、网关、门禁等既有核心功能，**一行都不要碰**。
 - 不要为了这三条去重构 builder 的写入方式（见 §2.1，我特地考虑过并否掉了）。
 
-**为什么把 N-05 并进来**：N-03 的整改动作本身就是"源文档改了就重建知识包"，
+**为什么三条必须同批**：N-03 的整改动作本身就是"源文档改了就重建知识包"，
 而重建会产生一个新的包目录；如果旧目录没删，运行期会**静默加载旧内容且状态仍是 READY**。
-也就是说 N-05 现在是潜伏的，N-03 一落地它就被激活。两条必须同批做，不能拆。
+也就是说 N-05 现在是潜伏的，N-03 一落地它就被激活。这一点在 §0.1 已经从"推断"变成"实测"了。
+
+---
+
+## 0.1 Q 已交付部分（`d3f07bd`）的核对结论
+
+Q 在本文初版发出后先推了一版 N-03 / N-04。我逐条核过，**结论是：N-03 方向对但有一处必须改，
+N-04 未达标，§1.4 未做**。下面三条是本轮剩余工作量，其余部分（§1.3 的锁主体）可以保留。
+
+### 0.1.1 N-03 的锁必须改一处：比对对象要跟着运行期走
+
+Q 的 `test_sources_rebuild_matches_shipped` 这样取随包目录：
+
+```python
+bundle_dir = next(d for d in sorted(kb_root.iterdir())
+                  if d.is_dir() and (d / "manifest.json").exists())
+```
+
+取的是 `candidates[0]`（字典序第一个），而运行期 `_resolve_bundle_dir()` 取的是
+`candidates[-1]`（字典序最后一个）。**两边取的不是同一个包。**
+
+我实测复现了这个洞——在 `d3f07bd` 上往 `backend/copilot_knowledge/` 里放进第二个
+（内容漂移的）包：
+
+```
+候选（字典序）  : ['kb-1.6.4.0-5b8426f429c6a89a', 'kb-1.6.4.0-f53be79116bfe620']
+Q 的锁比对      : kb-1.6.4.0-5b8426f429c6a89a   ← 正确的随包
+运行期实际加载  : kb-1.6.4.0-f53be79116bfe620   ← 漂移包
+
+tests/copilot/test_knowledge_output.py  →  20 passed（全绿）
+KnowledgeStore().load()                 →  READY，bundle = kb-1.6.4.0-f53be79116bfe620
+漂移正文是否进入检索块                   →  是，1 块：「这是变异加入的内容，知识包未重建。」
+```
+
+**所有锁全绿，运行期却在拿未审批的内容作答。** 这正是 §3 说的 N-05，
+而且它让 N-03 的锁本身也失效了——所以这一处不是风格问题，必须按 §1.3 要求 2 改成
+比对 `KnowledgeStore().load()` 之后的 `store._bundle.dir`。改完之后，
+两包并存会同时打红 N-03 和 N-05 两条锁，这才是我要的效果。
+
+### 0.1.2 N-04 未达标：只加了注释，没有补锁
+
+`builder.py` 里新增的注释是这么论证的：
+
+> N-04（SIT 第三轮）：`newline="\n"` 在 POSIX 上与默认行为等价，单独的 LF 断言在该平台是空锁；
+> 但 N-03 的重建比对锁会在 Windows 上删掉本参数后重建时检出 CRLF 产物与随包 LF 不匹配，构成有效兜底。
+
+**这段论证在 Windows 上是对的**，我认这一半：撤掉 `newline="\n"` 后在 Windows 上重建，
+产物是 CRLF，与随包 LF 的 sha256 对不上，N-03 的锁会红。
+
+**但它在 Linux 上不成立，而 Linux 才是本项目 SIT / CI 的实际跑测环境。** 实测：
+
+```
+变异 X7：撤掉 builder 三处 newline="\n"（即把 B-01 的真正修复回退掉）
+tests/copilot/test_knowledge_output.py  →  20 passed   ← 变异存活，与第三轮完全一样
+```
+
+而且这半个兜底在 Q 改之前就已经存在了——`test_build_outputs_lf_bytes` 里那句
+`assert b"\r" not in data` 同样只在 Windows 上会红。所以这版改动**对 N-04 没有产生任何新的覆盖**。
+
+B-01 这个缺陷本身就是"Windows 上自洽、Linux 上才暴露"的平台不对称造成的，
+现在又留一个"Linux 上永远抓不到"的回退口，性质是一样的。**§2.3 的 AST 断言请补上**，
+它在任何平台都会红，我已实测对现行代码无误报。
+
+### 0.1.3 §1.4 的知识包重建流程未见
+
+开发记录和 `docs/` 里都没有找到。这条不是可选项——N-03 的锁报红之后，
+人要知道怎么做才能合法地把它弄绿（重建、重新签审批、**删旧包目录**、再跑锁）。
+没有这段文档，下一个人最可能的动作就是直接把锁删掉。
 
 ---
 
@@ -55,7 +127,9 @@
 
 ### 1.3 参考实现
 
-落位 `tests/copilot/test_knowledge_output.py`，与 `test_shipped_bundle_ready` 放在一起：
+落位 `tests/copilot/test_knowledge_output.py`，与 `test_shipped_bundle_ready` 放在一起。
+Q 在 `d3f07bd` 已经落了一版（`test_sources_rebuild_matches_shipped`），主体是对的，
+**只需按下面要求 2 把取包方式改掉即可**，不必推倒重写：
 
 ```python
 def test_shipped_bundle_matches_sources(self, tmp_path):
@@ -173,7 +247,10 @@ def test_builder_has_no_translating_write(self):
 
 ---
 
-## 3. N-05（本轮新发现）：知识包目录不唯一时必须失败关闭
+## 3. N-05：知识包目录不唯一时必须失败关闭
+
+> Mr.Linsang 2026-09-15 裁定：本条与 N-03、N-04 同批交 Q 施工。
+> §0.1.1 已经把它从"潜伏风险"实测成了"现在就能让所有锁骗过你"的实际场景。
 
 ### 3.1 问题与实测
 
@@ -317,22 +394,26 @@ def test_bundle_dir_is_unambiguous(self, tmp_path, monkeypatch):
 
 ### 5.1 三条锁必须跑绿
 
-| 锁 | 落位 | 现行代码上的预期 |
+锁的名字可以沿用 Q 已有的，不必照搬我的命名；下面按职责列。
+
+| 职责 | 现状 | 第四轮预期 |
 |---|---|---|
-| `test_shipped_bundle_matches_sources` | `test_knowledge_output.py` | 绿（我已实测） |
-| `test_builder_has_no_translating_write` | `test_knowledge_output.py` | 绿（我已实测，无误报） |
-| `test_bundle_dir_is_unambiguous` | `test_knowledge_output.py` | 修 N-05 前红、修后绿（我已实测两态） |
+| N-03 源文档漂移比对 | `test_sources_rebuild_matches_shipped` 已落地，但比对对象取错（§0.1.1） | 改成比对运行期解析出的包后跑绿 |
+| N-04 平台无关的换行断言 | **缺失**，只有注释（§0.1.2） | 补 §2.3 的 AST 断言并跑绿（我已实测对现行代码无误报） |
+| N-05 多包并存失败关闭 | **缺失** | 补 §3.5 的锁；修 N-05 前红、修后绿（我已实测两态） |
 
 ### 5.2 变异必须被杀
 
 | 变异 | 注入 | 判据 |
 |---|---|---|
-| **X6** | 在任一 `sources/*.md` 末尾追加一节，不重建 | `test_shipped_bundle_matches_sources` 报红，且错误信息里要能看出"重建得到 X、随包是 Y" |
-| **X7** | 撤掉 builder 三处 `newline="\n"` | `test_builder_has_no_translating_write` 报红（**在 Linux 上也必须红**，这是本条的全部意义） |
-| **X8** | 把 `_resolve_bundle_dir` 的失败关闭改回 `candidates[-1]` | `test_bundle_dir_is_unambiguous` 报红 |
-| **X9** | 把 §3.4 的内层 `try` 去掉（让 `_AmbiguousBundle` 落到外层 `except Exception`） | `test_bundle_dir_is_unambiguous` 报红（reason 会退化成 MISSING，断言要能区分出来） |
+| **X6** | 在任一 `sources/*.md` 末尾追加一节，不重建 | N-03 锁报红，错误信息里要能看出"重建得到 X、随包是 Y" |
+| **X7** | 撤掉 builder 三处 `newline="\n"` | N-04 锁报红。**在 Linux 上也必须红**——这是本条的全部意义，Windows 上能红不算数（`d3f07bd` 上实测 20 passed 存活） |
+| **X8** | 把 `_resolve_bundle_dir` 的失败关闭改回 `candidates[-1]` | N-05 锁报红 |
+| **X9** | 把 §3.4 的内层 `try` 去掉（让 `_AmbiguousBundle` 落到外层 `except Exception`） | N-05 锁报红（reason 会退化成 `KNOWLEDGE_BUNDLE_MISSING`，断言要能把两者区分开） |
+| **X10** | 往 `backend/copilot_knowledge/` 里再放一个内容漂移的包（不改任何代码） | **N-03 与 N-05 两条锁必须同时报红**。这条专门验 §0.1.1：在 `d3f07bd` 上它是 20 passed 全绿、运行期却加载漂移包 |
 
-X9 是专门防"改对了但被外层异常吞掉"的，请务必自测这一条。
+X9 防的是"改对了但被外层异常吞掉"，X10 防的是"锁和运行期看的不是同一个包"。
+这两条请务必自测，它们不是形式主义——X10 我已经在 `d3f07bd` 上实际复现过一次。
 
 ### 5.3 防回退重跑（第一至三轮全部通过项）
 
@@ -348,6 +429,9 @@ X1/X2/X3A–D/X4/X5 变异复杀 —— 全部重跑，一条都不能退。
 
 `services` / `api` / `workers` / `schema` / `models` / `main.py` 的 diff，
 本次**只允许出现 `knowledge.py` 的包目录解析这一处**。多出任何一个文件我都会追问。
+
+`builder.py` 允许出现的改动仅限注释；如果 Q 选择改 `write_bytes`（§2.1 说过两种写法都过），
+请在开发记录里单独说明，我会把它当成一处产品改动来验。
 
 ---
 
