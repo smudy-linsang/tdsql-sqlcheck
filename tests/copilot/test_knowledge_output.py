@@ -43,6 +43,56 @@ class TestKnowledge:
                                         encoding="utf-8")
         assert _self_verify(d, manifest) != []
 
+    @pytest.mark.parametrize("damaged_file", ["chunks.jsonl", "index.json"])
+    def test_build_calls_self_verify_end_to_end(self, tmp_path, monkeypatch,
+                                               damaged_file):
+        """X1：manifest 落盘后注入损坏，真实 build() 必须拒绝交付。"""
+        from pathlib import Path
+        from backend.copilot_knowledge.builder import build
+
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "s1.md").write_text(
+            "---\nsource_id: S1\ntitle: t\nauthority: USER_GUIDE\n---\n\n# 标题\n\n正文内容\n",
+            encoding="utf-8")
+        out_root = tmp_path / "kbout"
+        out = build(src, "tester", "2027-01-01T00:00:00Z", out_root=out_root)
+        write_text = Path.write_text
+        injected = []
+
+        def damage_after_manifest(path, data, *args, **kwargs):
+            result = write_text(path, data, *args, **kwargs)
+            if path == out / "manifest.json":
+                victim = out / damaged_file
+                victim.write_bytes(victim.read_bytes() + b"tampered\n")
+                injected.append(damaged_file)
+            return result
+
+        # 不替换 _self_verify；损坏发生在摘要登记之后，避免被 build 重写掩盖。
+        with monkeypatch.context() as patch:
+            patch.setattr(Path, "write_text", damage_after_manifest)
+            with pytest.raises(RuntimeError, match=damaged_file):
+                build(src, "tester", "2027-01-01T00:00:00Z", out_root=out_root)
+        assert injected == [damaged_file]
+        assert build(src, "tester", "2027-01-01T00:00:00Z", out_root=out_root) == out
+
+    def test_build_outputs_lf_bytes(self, tmp_path):
+        """B-01：Windows 构建也必须写 LF，不能仅在存仓后才转换。"""
+        import hashlib
+        from pathlib import Path
+        from backend.copilot_knowledge.builder import build
+
+        sources = Path(__file__).resolve().parents[2] / "backend/copilot_knowledge/sources"
+        out = build(sources, "tester", "2027-01-01T00:00:00Z", out_root=tmp_path)
+        manifest = json.loads((out / "manifest.json").read_bytes())
+        for name in ("chunks.jsonl", "index.json", "manifest.json"):
+            data = (out / name).read_bytes()
+            assert b"\r" not in data, f"{name} 必须使用 LF"
+            assert b"\n" in data
+            if name != "manifest.json":
+                assert len(data) == manifest["file_sizes"][name]
+                assert hashlib.sha256(data).hexdigest() == manifest["sha256"][name]
+
     def test_store_ready_and_search(self):
         store = KnowledgeStore()
         st = store.load()

@@ -79,3 +79,75 @@ A 第一轮 SIT 结论 2 BLOCK / 3 MAJOR，不能进 UAT。五项全部认可并
 变异自证：B-01（变异 `_self_verify` 失效）与 B-02（变异守卫失效）均打红后恢复全绿。
 
 验证：Copilot 专项 103/103；冒烟 99/99（测试库）；全量回归 2249 passed / 30 skipped / 0 failed。
+
+
+---
+
+## 7. 第二轮 SIT 整改与交付证据订正（2026-09-15）
+
+### 7.1 历史结论订正
+
+保留 §4/§6 原文作为历史记录，但其中“B-01 已闭环、随包 READY”“X1 变异有效”“专项 103/103、全量零失败”不能作为 `74c3e5c` 的 Git 交付验收结论。A 在 `7ff356d` 的第二轮 SIT 已证明随包校验失败，以及 X1/X3 接线变异存活。本轮不沿用旧计数或中断前未核验的结果，以下仅记录本轮实际执行证据。
+
+B-01 的进一步根因已核实：旧 manifest 两个摘要和大小，分别精确对应旧 Git blob 将 LF 扩展为 CRLF 后的字节；直接核验 Git 中 LF blob 则不符。因此“本地构建自洽”不等于“存仓后可用”。不能再将这类产物的 CRLF→LF 警告当作无害警告。
+
+### 7.2 实际整改
+
+| 编号 | 变更与防回退锁 |
+|---|---|
+| B-01 | builder 三个产物显式以 `newline="\n"` 写入，重建随包 manifest；`.gitattributes` 对知识包 JSON/JSONL 显式固定 LF，未扩大到全仓 JSON。新增 LF/大小/SHA256 行为断言。 |
+| N-01 / X1 | `build()` 增加独立 `out_root` 供测试使用；在真实 manifest 写完后分别损坏 chunks/index，真实 `build()` 必须抛 `RuntimeError`，恢复后可重建。不替换 `_self_verify`，不再用调用计数代替损坏拒绝。 |
+| N-01 / X3 | 真调 `build_preview()`，使用真实数据库中的 grant/provider/route/session；覆盖主备均允许、主拒绝、备拒绝、均拒绝、仅主端点、部署拒绝、实例拒绝、无路由八种情况，同时核对真实路由快照。测试事务统一回滚，端点配置与缓存恢复。产品 `preview_service.py` 无语义改动。 |
+| N-02 | M-03 使用随机管理员名，不再盲删固定账号；回收仅由本次测试创建的用户和 subject。READY 的 GET 为正例，UNAVAILABLE 时 GET/PUT 均须 503，health 保持 200。 |
+| 测试隔离 | 会话 keyring 用有退出清理的 fixture，恢复环境变量与缓存；B组 schema 初始化错误直接报错，不再被宽泛异常捕获伪装为 skip。 |
+
+### 7.3 Git 字节证据与验证口径
+
+- 基线：`7ff356d5a499453443b71cdeadd55683033d1f07`；开始时 `git pull --ff-only` 返回已是最新。
+- 受测候选 Git tree：`73b43907f7a4809d2cefc0e5dec3fb11ac894402`。使用独立 `GIT_INDEX_FILE` 从 Git 对象导出至 `scratch/cp_r2_0915/checkout_73b43907f7a4`，没有复制 `.env`、本地 keyring 或其他未跟踪配置；真实 index 与 HEAD 未改。这是未提交候选快照，不是已经推送的 commit。
+- 导出后和验证结束后均逐一核对 2096 个受版本控制文件的原始 Git blob；全部一致。历史三份 HTML blob 自带 CRLF，Git clean filter 会报告换行差异，故全树使用原始 blob 对比；backend/tests/deploy/属性文件另经 Git diff 核验。
+- 知识包工作区字节＝Git blob＝检出字节；运行期加载 READY。重建保留已有审批人和有效期，本轮没有新增内容审批或数据出域审批。
+
+| 文件 | LF 字节数 | SHA256 |
+|---|---:|---|
+| chunks.jsonl | 15517 | `951cb7260832bc3f911020c2b6035184c6db47746c0a8929d2ec277502a26152` |
+| index.json | 140 | `bdd6cc3cf8b5423ee678754c49c7a141353be083121a598c6d7a4a5010eb3713` |
+| manifest.json | 1700 | `dda5935b54dabbaff4f6e21f56c65f8f86e6e616be5b7b82019d0c85ec3427da` |
+
+### 7.4 本轮实跑结果
+
+环境：Windows、Python 3.14.6、pytest 9.1.1、MySQL 8.0.45、FastAPI 0.139.0、Pydantic 2.13.4。所有测试使用本轮独立库，未使用部署库；pytest 临时目录显式置于工作区。原始 stdout、JUnit XML、命令和结果 JSON 保留在 `scratch/cp_r2_0915/`，本地复跑驱动为 `scratch/verify_copilot_r2.py`；这些本地 scratch 证据尚未提交。
+
+| 执行项 | 数据库 / 证据前缀 | 实际结果 |
+|---|---|---|
+| Copilot 连跑第 1 轮 | `tdsql_cp_r2_clean_0915` / `copilot_round_1` | 111 passed，0 failed / errors / skipped，49.17s |
+| 同库第 2 轮（未清空库） | 同上 / `copilot_round_2` | 111 passed，0 failed / errors / skipped，26.09s |
+| 同库第 3 轮（未清空库） | 同上 / `copilot_round_3` | 111 passed，0 failed / errors / skipped，25.27s |
+| 变异全部恢复后专项 | `tdsql_cp_r2_mut_0915` / `mutation_restored` | 111 passed，0 failed / errors / skipped，25.18s |
+| 冒烟 | `tdsql_cp_r2_smoke_0915` / `smoke` | 99/99，退出码 0 |
+| 六份部署 shell 语法 | install/upgrade_incremental/apply_patch/rollback/verify_deploy/copilot_emergency_disable | `bash -n` 全部退出码 0 |
+| 原始新库全量（前置未补齐） | `tdsql_cp_r2_regress_0915` / `regression` | 1725 passed / 417 failed / 114 errors / 31 skipped；不是有效的全绿证据 |
+| 补齐前置后整改全量 | `tdsql_cp_r2_ctrl_h_0915` / `controlled_head` | 2255 passed / 2 failed / 0 errors / 30 skipped，525.83s |
+| 同前置基线对照 | `tdsql_cp_r2_ctrl_b_0915` / `controlled_base` | 2279 tests / 6 failed / 0 errors / 30 skipped，498.41s |
+| 回归对照结论 | `regression_comparison` | 新增失败 0；HEAD 较基线修复 4 项（知识包 B-01 重建锁住的 4 个 copilot 用例），剩余 2 项两侧相同 |
+
+原始全量失败中的环境前置：冷库尚无 `admin`，旧 fixture 直接 reset/login 失败且未进入 teardown，造成认证状态连锁污染；G14 的破坏性测试另要求显式批准自定义测试库。受控对照两侧均先调用真实 `ensure_bootstrap_admin()`，使用测试初始口令，并设置 `G14_ALLOW_DESTRUCTIVE_TESTS=1`、`G14_TEST_DB_NAME` 精确指向各自隔离库，未修改产品或旧用例。整改侧剩余两项均来自 `test_fix_user_issues.py`：PDF 导出和慢 SQL 状态更新直接读取预存慢 SQL，而冷库没有该记录；本轮未补置该预存数据，全量结果仍非全绿。基线侧同样这 2 项失败，另加 4 个知识包用例（旧 commit 的随包校验失败，正是 B-01 整改对象）——HEAD 已全部修复。
+
+变异只修改隔离检出副本，每项 `finally` 按原始字节恢复；真实工作区从未施加变异：
+
+| 变异 | 实际结果 |
+|---|---|
+| X1 摘除 `build()` 的 `_self_verify` 调用 | 2 failed，均为未抛出预期 RuntimeError |
+| X3 摘除预览端点闸 | 4 failed / 4 passed；主拒绝、备拒绝、均拒绝、无路由被抓住 |
+| B01-LF 将 index 输出改成 CRLF | 1 failed，LF 字节断言失败 |
+| X2 结构错误分类恒 False | 2 failed |
+| X4 Limits.validate 恒空 | 3 failed / 13 passed |
+| X5 分别摘除 settings GET / PUT 门禁 | 各 1 failed |
+
+三轮完成后，M01/M03 的 users、subjects、providers、sessions、测试实例残留均为 0（`final_verification.json`）；代码与受测候选 tree 一致。IDE 语言服务未就绪，静态问题面板不能作为“无错误”依据；以 pytest 实跑和 Git 检查为准。
+
+### 7.5 尚未覆盖与交接边界
+
+- health 第三条只读例外仍待 O 在设计 §10.4 订正，本轮未擅改冻结设计。
+- 未接真实模型、未批准数据出域、未做内网实机 UAT/容量或黄金集模型评测；不据本轮单元/集成测试自行宣布 UAT 放行。
+- 本轮交付状态为本地整改与候选快照验证；scratch 证据保留在 `scratch/cp_r2_0915/`，验证驱动为 `scratch/verify_copilot_r2.py`，均不纳入版本控制。后续提交后还需确保提交中的代码和知识包与该候选字节一致。

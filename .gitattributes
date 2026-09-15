@@ -22,6 +22,11 @@ VERSION text eol=lf
 # Python
 *.py text eol=lf
 
+# v1.6.4.0 / CP-1：知识包产物必须以 LF 存储（manifest 记录的 sha256 按 LF 字节计算，
+# CRLF 转换会使运行期核验失效——SIT 第二轮 B-01 根因）
+backend/copilot_knowledge/**/*.jsonl text eol=lf
+backend/copilot_knowledge/**/*.json text eol=lf
+
 # 二进制文件不转换
 *.whl binary
 *.png binary

@@ -45,14 +45,14 @@
     }
   ],
   "file_sizes": {
-    "chunks.jsonl": 15540,
-    "index.json": 144
+    "chunks.jsonl": 15517,
+    "index.json": 140
   },
   "sha256": {
-    "chunks.jsonl": "f1da316337190b7639969ade18b4a5afbf694f844f446f172b637be386967f53",
-    "index.json": "1c27360995d29e924c36200b99ff39dd8db9ef66def23f91d475168ad28a3ecf"
+    "chunks.jsonl": "951cb7260832bc3f911020c2b6035184c6db47746c0a8929d2ec277502a26152",
+    "index.json": "bdd6cc3cf8b5423ee678754c49c7a141353be083121a598c6d7a4a5010eb3713"
   },
   "approved_by": "Mr.Linsang",
-  "reviewed_at": "2026-09-14T10:52:12Z",
+  "reviewed_at": "2026-09-15T02:29:22Z",
   "expires_at": "2027-09-13T00:00:00Z"
 }

@@ -90,7 +90,10 @@ def _split_chunks(content: str) -> list[tuple[str, str]]:
     return chunks
 
 
-def build(sources_dir: Path, approved_by: str, expires_at: str) -> Path:
+def build(sources_dir: Path, approved_by: str, expires_at: str,
+          out_root: Path | None = None) -> Path:
+    """构建知识包。out_root 默认生产目录 backend/copilot_knowledge；
+    测试须传独立 out_root，避免把测试包写进生产知识包目录。"""
     source_entries = []
     chunks: list[dict] = []
     for md in sorted(sources_dir.glob("*.md")):
@@ -128,18 +131,21 @@ def build(sources_dir: Path, approved_by: str, expires_at: str) -> Path:
         json.dumps(chunks, ensure_ascii=False, sort_keys=True).encode("utf-8")
     ).hexdigest()[:16]
     bundle_id = f"kb-{app_version}-{content_hash}"
-    out_dir = Path(__file__).resolve().parent / bundle_id
+    out_dir = (out_root if out_root is not None
+               else Path(__file__).resolve().parent) / bundle_id
     out_dir.mkdir(parents=True, exist_ok=True)
 
     chunks_path = out_dir / "chunks.jsonl"
+    # B-01（SIT 第二轮）：知识包文件必须以 LF 写入——.gitattributes 已钉 eol=lf，
+    # 若按 OS 默认（Windows CRLF）写入，git 提交转 LF 后字节变化、hash 即失效。
     chunks_path.write_text(
         "\n".join(json.dumps(c, ensure_ascii=False) for c in chunks) + "\n",
-        encoding="utf-8")
+        encoding="utf-8", newline="\n")
     index = {"bundle_id": bundle_id, "chunk_count": len(chunks),
              "algorithm": "bm25(k1=1.2,b=0.75)+bigram+exact(rule_id,error_code)"}
     index_path = out_dir / "index.json"
     index_path.write_text(json.dumps(index, ensure_ascii=False, indent=2),
-                          encoding="utf-8")
+                          encoding="utf-8", newline="\n")
     manifest = {
         "schema_version": 1,
         "bundle_id": bundle_id,
@@ -160,7 +166,8 @@ def build(sources_dir: Path, approved_by: str, expires_at: str) -> Path:
         "expires_at": expires_at,
     }
     (out_dir / "manifest.json").write_text(
-        json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+        json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8",
+        newline="\n")
     # B-01（SIT 第一轮）：构建期自校验——写完立即回读核验 manifest 与实际文件一致，
     # 防止「manifest 生成后源文件被改动」导致运行期 INVALID 出厂。
     _problems = _self_verify(out_dir, manifest)

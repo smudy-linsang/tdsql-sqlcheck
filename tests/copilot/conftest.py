@@ -29,24 +29,25 @@ def copilot_db(tmp_path_factory):
     kf = kdir / "copilot-keyring.json"
     kf.write_text(json.dumps({"schema_version": 1, "active_kid": "key-sit",
                               "keys": {"key-sit": key}}), encoding="utf-8")
-    os.environ["COPILOT_KEYRING_FILE"] = str(kf)
     from backend.services.copilot.crypto import reset_keyring_cache
-    reset_keyring_cache()
     try:
-        from backend.services.database import ensure_db, _get_connection
-        ensure_db()
-        conn = _get_connection()
-        try:
-            conn.execute("SELECT 1")
-        finally:
-            conn.close()
-        # B组应用（幂等）
-        from backend.services.copilot import schema as schema_mod
-        rc = schema_mod.apply_business_schema()
-        assert rc == 0, f"B组 schema 应用失败 rc={rc}"
-        return True
-    except Exception as e:
-        pytest.skip(f"元数据库不可用: {type(e).__name__}: {e}")
+        with pytest.MonkeyPatch.context() as patch:
+            patch.setenv("COPILOT_KEYRING_FILE", str(kf))
+            reset_keyring_cache()
+            from backend.services.database import ensure_db, _get_connection
+            ensure_db()
+            conn = _get_connection()
+            try:
+                conn.execute("SELECT 1")
+            finally:
+                conn.close()
+            # B组应用失败必须报错，不能把结构回归包装成“数据库不可用”而跳过。
+            from backend.services.copilot import schema as schema_mod
+            rc = schema_mod.apply_business_schema()
+            assert rc == 0, f"B组 schema 应用失败 rc={rc}"
+            yield True
+    finally:
+        reset_keyring_cache()
 
 
 @pytest.fixture()
