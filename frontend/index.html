@@ -237,6 +237,11 @@
                   <span v-if="auditResult.gate_result" class="ml-16">门禁: <el-tag :type="auditResult.gate_result.passed?'success':'danger'" size="small">{{ auditResult.gate_result.passed?'通过':'阻断' }}</el-tag></span>
                 </template>
               </el-alert>
+              <!-- v1.6.4.0 / CP-1：Copilot 业务入口（§13.1） -->
+              <div v-if="visibleMenus.has('copilot')" style="margin-bottom:12px">
+                <el-button size="small" type="primary" plain @click="openCopilotWith({page_key:'audit-sql',source_refs:[],draft:{kind:'SQL',text:sqlInput,revision:editorRevision}})">生成修改建议</el-button>
+                <el-button v-if="auditResult.violations.length" size="small" type="primary" plain @click="openCopilotWith({page_key:'audit-sql',source_refs:[{kind:'rule',rule_ids:auditResult.violations.map(v=>v.rule_id).slice(0,10)}],draft:null})">解释违规规则</el-button>
+              </div>
               <div v-if="auditResult.gate_result && !auditResult.gate_result.passed" class="mb-16">
                 <el-alert type="error" :closable="false" show-icon>
                   <template #title>门禁阻断: {{ auditResult.gate_result.detail }}</template>
@@ -271,7 +276,9 @@
                   </el-upload>
                 </div>
                 <div v-if="fileAuditResult" class="page-card">
-                  <div class="page-card-title">审核结果</div>
+                  <div class="page-card-title">审核结果
+                    <el-button v-if="visibleMenus.has('copilot')" size="small" type="primary" plain style="margin-left:12px" @click="openCopilotWith({page_key:'file-audit',source_refs:[],draft:null})">解读本次审核结果</el-button>
+                  </div>
                   <el-descriptions :column="5" border class="mb-16">
                     <el-descriptions-item label="SQL总数">{{ fileAuditResult.summary?.total_sql }}</el-descriptions-item>
                     <el-descriptions-item label="通过">{{ fileAuditResult.summary?.passed }}</el-descriptions-item>
@@ -389,6 +396,7 @@
                         <template v-if="metadataJob.state==='SUCCEEDED'">
                           <el-button type="success" size="small" @click="downloadMetadataSql"><el-icon><Download /></el-icon>下载 .sql 文件</el-button>
                           <el-button type="primary" size="small" @click="downloadMetadataHtml"><el-icon><Download /></el-icon>导出 HTML 报告</el-button>
+                          <el-button v-if="visibleMenus.has('copilot')" size="small" type="primary" plain @click="openCopilotWith({page_key:'schema-extractor-audit',source_refs:[{kind:'metadata_job',job_id:metadataJob.job_id,offset:0,limit:10}],draft:null})">让 Copilot 解读</el-button>
                         </template>
                       </div>
                     </div>
@@ -642,6 +650,11 @@
                     <el-table-column prop="description" label="描述" show-overflow-tooltip></el-table-column>
                     <el-table-column label="适用域" width="100"><template #default="{row}"><el-tag v-if="row.instance_scope==='distributed'" type="warning" size="small" effect="plain">仅分布式</el-tag><el-tag v-else-if="row.instance_scope==='centralized'" type="info" size="small" effect="plain">仅集中式</el-tag><el-tag v-else type="success" size="small" effect="plain">通用</el-tag></template></el-table-column>
                     <el-table-column label="状态" width="60"><template #default="{row}"><el-tag :type="row.enabled?'success':'info'" size="small">{{ row.enabled?'启用':'禁用' }}</el-tag></template></el-table-column>
+                    <el-table-column label="" width="80">
+                      <template #default="{row}">
+                        <el-button v-if="visibleMenus.has('copilot')" link size="small" @click="openCopilotWith({page_key:'rules',source_refs:[{kind:'rule',rule_ids:[row.rule_id]}],draft:null})">解释</el-button>
+                      </template>
+                    </el-table-column>
                   </el-table>
                 </el-collapse-item>
               </el-collapse>
@@ -932,12 +945,13 @@
                 <el-table-column prop="db_name" label="库" width="80"></el-table-column>
                 <el-table-column prop="set_id" label="SET" width="60"></el-table-column>
                 <el-table-column prop="status" label="状态" width="80"><template #default="{row}"><el-tag :type="row.status==='optimized'?'success':row.status==='ignored'?'info':'warning'" size="small">{{ statusLabel(row.status) }}</el-tag></template></el-table-column>
-                <el-table-column label="操作" width="200" fixed="right">
+                <el-table-column label="操作" width="280" fixed="right">
                   <template #default="{row}">
                     <el-button link size="small" @click.stop="openSlowDetail(row)">详情</el-button>
                     <!-- v1.6.2.2-UAT-O-07：标记下拉触发器必须阻止冒泡，否则点击“标记”会冒泡到行级 @row-click 误开详情抽屉 -->
                     <span @click.stop><el-dropdown @command="c=>setSlowStatus(row,c)" class="ml-8"><el-button link size="small">标记<el-icon><ArrowDown /></el-icon></el-button><template #dropdown><el-dropdown-menu><el-dropdown-item command="pending">待处理</el-dropdown-item><el-dropdown-item command="optimized">已优化</el-dropdown-item><el-dropdown-item command="ignored">已忽略</el-dropdown-item></el-dropdown-menu></template></el-dropdown></span>
                     <el-button link size="small" @click.stop="exportSlowReport(row)">导出</el-button>
+                    <el-button v-if="visibleMenus.has('copilot')" link size="small" @click.stop="openCopilotWith({page_key:'slow-records',source_refs:[{kind:'slow_query',slow_id:row.id}],draft:null})">解读</el-button>
                   </template>
                 </el-table-column>
               </el-table>
@@ -1236,6 +1250,7 @@
                 <el-col :span="4"><div class="kpi-card" style="text-align:center"><div class="kpi-num" style="color:var(--info-500,#909399)">{{ schemaCheckSummary.info }}</div><div class="kpi-label">INFO</div></div></el-col>
                 <el-col :span="4"><div class="kpi-card" style="text-align:center"><div class="kpi-num" style="color:var(--success-500)">{{ schemaCheckSummary.checks_passed }}</div><div class="kpi-label">通过项</div></div></el-col>
                 <el-col :span="4"><div class="kpi-card" style="text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center"><el-button type="primary" size="small" :disabled="!schemaCheckResults.length" @click="exportSchemaCheckReport"><el-icon><Download /></el-icon>导出报告</el-button><div class="kpi-label" style="margin-top:4px">HTML格式</div></div></el-col>
+                <el-col v-if="visibleMenus.has('copilot')" :span="4"><div class="kpi-card" style="text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center"><el-button size="small" type="primary" plain @click="openCopilotWith({page_key:'schema-check',source_refs:[],draft:null})">解读本次检查</el-button></div></el-col>
               </el-row>
             </div>
 
@@ -1495,6 +1510,11 @@
                     <el-table-column prop="level" label="级别" width="110"><template #default="{row}"><el-tag :type="row.level&&String(row.level).startsWith('L3')?'danger':row.level&&String(row.level).startsWith('L2')?'warning':'info'" size="small">{{ row.level }}</el-tag></template></el-table-column>
                     <el-table-column prop="is_partitioned" label="分区" width="60"><template #default="{row}">{{ row.is_partitioned?'是':'否' }}</template></el-table-column>
                     <el-table-column prop="shard_key" label="分片键" width="100" show-overflow-tooltip></el-table-column>
+                    <el-table-column label="" width="80">
+                      <template #default="{row}">
+                        <el-button v-if="visibleMenus.has('copilot')" link size="small" @click="openCopilotWith({page_key:'bigtable',source_refs:[],draft:null})">解读</el-button>
+                      </template>
+                    </el-table-column>
                   </el-table>
                 </div>
               </el-tab-pane>
@@ -1866,6 +1886,7 @@
                   <span v-if="tabletypeView.skipped_databases"> · <b style="color:var(--warning-500)">未采集 {{ tabletypeView.skipped_databases }}</b></span>
                 </span>
                 <el-button size="small" style="margin-left:8px" @click="openTableTypeHistory">历史</el-button>
+                <el-button v-if="visibleMenus.has('copilot') && tabletypeView" size="small" type="primary" plain style="margin-left:8px" @click="openCopilotWith({page_key:'deep-diag-tabletype',source_refs:[],draft:null})">解读统计结果</el-button>
                 <el-alert v-for="(w,i) in visibleTableTypeWarnings" :key="i"
                           :type="w.severity==='ERROR'?'error':(w.severity==='WARNING'?'warning':'info')"
                           :closable="false" show-icon style="margin-top:8px"
@@ -2136,9 +2157,10 @@
                   <el-table-column prop="avg_time_ms" label="平均时耗(ms)" width="120"></el-table-column>
                   <el-table-column prop="max_time_ms" label="最大时耗(ms)" width="120"></el-table-column>
                   <el-table-column prop="created_at" label="分析时间" width="160"></el-table-column>
-                  <el-table-column label="操作" width="100" fixed="right">
+                  <el-table-column label="操作" width="180" fixed="right">
                     <template #default="{row}">
                       <el-button link type="primary" size="small" @click="viewGatewayReport(row)">查看报告</el-button>
+                      <el-button v-if="visibleMenus.has('copilot')" link size="small" @click="openCopilotWith({page_key:'deep-diag-gateway',source_refs:[{kind:'gateway_report',report_id:row.id}],draft:null})">解读</el-button>
                     </template>
                   </el-table-column>
                 </el-table>
@@ -3021,9 +3043,14 @@
       <!-- N-04（UAT D40）：抽屉内补会话创建/选择入口 -->
       <div class="copilot-toolbar" style="margin-top:4px">
         <el-select v-model="copilot.currentSessionId" placeholder="选择会话" size="small" clearable style="flex:1" @change="copilot.selectSession">
-          <el-option v-for="s in copilot.sessions" :key="s.id" :label="s.scene + ' ' + (s.created_at||'').slice(0,16)" :value="s.id"></el-option>
+          <el-option v-for="s in copilot.sessions" :key="s.session_id"
+                     :label="(s.connection_name || s.scope_kind) + ' ' + (s.updated_at||'').slice(0,16)"
+                     :value="s.session_id"></el-option>
         </el-select>
-        <el-button size="small" type="primary" plain @click="copilot.createSession()">新建会话</el-button>
+        <el-button size="small" type="primary" plain
+                   @click="copilot.createSession(copilot.selectedConnectionId ? 'INSTANCE' : 'GLOBAL_HELP')">
+          新建会话
+        </el-button>
       </div>
       <div class="copilot-context-line" v-if="copilot.capabilities">
         模式：{{ copilot.copilotMode }}；

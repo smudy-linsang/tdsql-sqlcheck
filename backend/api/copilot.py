@@ -113,8 +113,11 @@ def capabilities(request: Request):
             settings = json.loads(runtime.get("settings_json") or "{}")
         except Exception:
             pass
+        from backend.services.copilot import local_ready
+        _lr, _lr_reason = local_ready()
         enabled = bool(copilot_enabled()) and bool(settings.get("enabled", False)) \
-            and crypto_available() and policy_available()
+            and crypto_available() and policy_available() \
+            and not (_lr_reason == "COPILOT_DISABLED")
         if not ready:
             mode = "UNAVAILABLE"
         elif not enabled:

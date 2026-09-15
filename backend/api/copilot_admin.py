@@ -601,7 +601,7 @@ def put_settings(request: Request, body: SettingsPutRequest):
 @router.get("/feedback-summary")
 @guard_structural
 def feedback_summary(request: Request, days: int = 30):
-    """N-07 只读聚合：按 scene+rule_id 聚合当前 INCORRECT 反馈。"""
+    """N-07 只读聚合：按 scene+rule_id+rule_snapshot_hash 聚合当前 INCORRECT 反馈。"""
     try:
         identity = _admin_identity(request)
     except CopilotError as e:
@@ -611,29 +611,35 @@ def feedback_summary(request: Request, days: int = 30):
         ensure_db()
         _require_ready(conn)
         days = max(1, min(30, days))
+        # 先用 feedback_at 索引窄查，单次 3 秒预算，至多 5001 行
         rows = conn.execute(
-            "SELECT scene, feedback_rule_ids_json, "
-            "COUNT(*) AS cnt, COUNT(DISTINCT owner_subject_id) AS subject_count "
+            "SELECT feedback_rule_ids_json, COALESCE(rule_snapshot_hash,'') AS rsh, "
+            "scene, owner_subject_id "
             "FROM copilot_turns "
             "WHERE feedback_code = 'INCORRECT' "
             "AND feedback_at >= UTC_TIMESTAMP(6) - INTERVAL %s DAY "
-            "GROUP BY scene, feedback_rule_ids_json "
-            "ORDER BY cnt DESC LIMIT 5000",
+            "ORDER BY feedback_at DESC LIMIT 5001",
             (days,)).fetchall()
-        if len(rows) >= 5000:
+        if len(rows) > 5000:
             return _err("CONTEXT_TOO_LARGE", "反馈数据过多，请缩短时间窗")
-        items = []
-        hidden = 0
+        # 一轮多规则分别计入：按 (scene, rule_id, rsh) 拆行聚合
+        buckets: dict[tuple, dict] = {}
         for r in rows:
-            if r["subject_count"] >= 3:
-                items.append({
-                    "scene": r["scene"],
-                    "rule_ids": json.loads(r["feedback_rule_ids_json"])
-                    if r["feedback_rule_ids_json"] else [],
-                    "count": r["cnt"],
-                    "subject_count": r["subject_count"]})
-            else:
-                hidden += 1
+            rids = json.loads(r["feedback_rule_ids_json"] or "[]") or [None]
+            for rid in rids:
+                k = (r["scene"], rid or "UNASSIGNED", r["rsh"])
+                b = buckets.setdefault(k, {"scene": r["scene"],
+                                           "rule_id": rid or "UNASSIGNED",
+                                           "rule_snapshot_hash": r["rsh"],
+                                           "count": 0, "subjects": set()})
+                b["count"] += 1
+                b["subjects"].add(r["owner_subject_id"])
+        if len(buckets) > 1000:
+            return _err("CONTEXT_TOO_LARGE", "分组过多，请缩短时间窗")
+        items = [{kk: vv for kk, vv in b.items() if kk != "subjects"} | 
+                 {"subject_count": len(b["subjects"])}
+                 for b in buckets.values() if len(b["subjects"]) >= 3]
+        hidden = sum(1 for b in buckets.values() if len(b["subjects"]) < 3)
         return {"request_id": _rid(), "days": days, "items": items,
                 "hidden_below_privacy_threshold": hidden,
                 "notice": "关联质疑次数，不等于该规则已证实误报。"}

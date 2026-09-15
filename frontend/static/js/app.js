@@ -53,9 +53,9 @@ const app=createApp({
     const sidebarCollapsed=ref(false);
     // v1.6.4.0 / CP-1：Copilot 上下文桥（业务页 → Copilot 入口，§13.1）
     const copilotSelection=ref({});
-    // N-03（UAT D40）：编辑器草稿版本计数（每次内容变更自增）
+    // N-03（UAT D40）：编辑器草稿版本计数（每次内容变更自增，读取无副作用）
     let _editorRev=0;
-    function _revCounter(){return String(++_editorRev)}
+    const editorRevision=ref('0');
     const copilotContextBridge={
       pageKey:'',
       getCurrentSelection(){
@@ -79,9 +79,9 @@ const app=createApp({
       getMenus:()=>{try{return Array.from(visibleMenus.value||[])}catch(e){return[]}},
       navigate:(page)=>{currentPage.value=page},
       editorBridge:{
-        readRevision:()=>{try{return String(sqlInput.value?_revCounter():'0')}catch(e){return '0'}},
-        previewReplacement:(c)=>{try{if(c&&c.sql){sqlInput.value=c.sql;currentPage.value='audit-sql'}}catch(e){}},
-        applyDraftIfRevision:(expected,text)=>{try{if(String(_revCounter())!==String(expected)){ElementPlus.ElMessage.warning('草稿已变更，请重新比较');return false}sqlInput.value=text;currentPage.value='audit-sql';return true}catch(e){return false}},
+        readRevision:()=>editorRevision.value,
+        previewReplacement:(c)=>{try{if(c&&c.sql){sqlInput.value=c.sql;currentPage.value='audit-sql';_editorRev++;editorRevision.value=String(_editorRev)}}catch(e){}},
+        applyDraftIfRevision:(expected,text)=>{try{if(editorRevision.value!==String(expected)){ElementPlus.ElMessage.warning('草稿已变更，请重新比较');return false}sqlInput.value=text;currentPage.value='audit-sql';_editorRev++;editorRevision.value=String(_editorRev);return true}catch(e){return false}},
       },
       contextBridge:copilotContextBridge,
     }):{drawerVisible:ref(false),copilotMode:ref('DISABLED')};
@@ -126,6 +126,7 @@ const app=createApp({
     const ruleHits=ref([]);
     const trendChartRef=ref(null);
     const sqlInput=ref('');
+        watch(sqlInput,()=>{_editorRev++;editorRevision.value=String(_editorRev)});
     const instantAuditInstType=ref('distributed');
     const auditing=ref(false);
     const auditResult=ref(null);

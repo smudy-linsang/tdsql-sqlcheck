@@ -82,42 +82,52 @@ def admit_self_test(conn, identity, provider: dict,
     # 创建内部会话（自检不挂在用户会话上）
     from backend.services.copilot.repository import SessionRepo
     session_id = new_id()
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S.%f")
+    deadline = (datetime.now(timezone.utc) + timedelta(seconds=120)).strftime(
+        "%Y-%m-%d %H:%M:%S.%f")
     SessionRepo.insert(conn, {
         "id": session_id,
         "owner": identity.username,
         "owner_subject_id": identity.subject_id,
-        "scene": _SELFTEST_SCENE,
+        "scope_kind": "GLOBAL_HELP",
         "connection_id": None,
-        "state": "OPEN",
-        "created_at": now,
-        "updated_at": now,
+        "database_name": None,
+        "instance_type": "unknown",
+        "initial_page_key": "copilot-admin",
+        "name_snapshot": None,
+        "name_source": "selftest",
+        "title": f"自检 {provider_id[:8]} r{revision}",
+        "expires_at": deadline,
     })
 
     # 创建 preview（自检也需要 preview 因为 runner 会读）
     from backend.services.copilot.repository import PreviewRepo
     preview_id = new_id()
-    deadline = (datetime.now(timezone.utc) + timedelta(seconds=120)).strftime(
-        "%Y-%m-%d %H:%M:%S.%f")
     PreviewRepo.insert(conn, {
         "id": preview_id,
         "session_id": session_id,
         "owner_subject_id": identity.subject_id,
+        "owner": identity.username,
         "scene": _SELFTEST_SCENE,
+        "input_hash": hashlib.sha256(
+            json.dumps(payload, sort_keys=True, ensure_ascii=False)
+            .encode("utf-8")).hexdigest(),
         "payload_envelope": payload_envelope,
-        "model_projection_envelope": projection_envelope,
         "evidence_envelope": "[]",
+        "model_projection_envelope": projection_envelope,
         "snapshot_hash": hashlib.sha256(
             json.dumps(payload, ensure_ascii=False).encode("utf-8")).hexdigest(),
-        "projection_mode": "PUBLIC_HELP",
-        "data_class": "PUBLIC_HELP",
-        "module_schema_epoch": 0,
         "permission_version": "selftest",
+        "grant_revision": None,
+        "route_revision": None,
         "provider_revisions_json": json.dumps({
             "primary": {"provider_id": provider_id,
                          "provider_revision": revision}}),
+        "data_class": "PUBLIC_HELP",
+        "storage_reserved_bytes": 0,
         "expires_at": deadline,
-        "created_at": now,
+        "projection_mode": "PUBLIC_HELP",
+        "identifier_policy_revision": "selftest",
+        "module_schema_epoch": 0,
     })
 
     # 创建 turn

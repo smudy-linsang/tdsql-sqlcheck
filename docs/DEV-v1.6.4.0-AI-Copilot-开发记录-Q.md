@@ -234,3 +234,37 @@ D 第一轮 UAT 结论：不通过（NO-GO），5 阻断 + 5 严重 + 6 一般�
 | D40-N06 | 前端不发 `draft.revision` | `buildPreview()` 中 `draft.revision` 从 `contextBridge.getCurrentSelection()` 取 |
 
 验证：`tests/copilot/` 114/114（修复后无回退）。
+
+---
+
+## 11. 第二轮 UAT 整改闭环（2026-09-15，D 报告 NO-GO）
+
+D 第二轮 UAT 结论：仍不通过（NO-GO），3 阻断 + 6 严重 + 2 一般。全部修复：
+
+### 阻断级（3 项）
+
+| 编号 | 问题 | 修复 |
+|---|---|---|
+| R2-B01 | `_payload()` 改为投影后，`_collect()` 也从投影取 `source_refs`，但投影没有该键 → 证据链恒空 | `_payload()` 拆分为出站投影（`_payload()`）+ 取证原始 payload（`_request_payload()`）；`_collect()` 改读 `_request_payload()` |
+| R2-B02 | runner 进程从不加载知识包，`execute_search_help` 恒返回空 | `_startup_gate()` 新增 `knowledge_store.load()` |
+| R2-B03 | 自检端点 500：`admit_self_test()` 缺 `SessionRepo`/`PreviewRepo` 必填字段 | 补齐 scope_kind/instance_type/initial_page_key/name_source/title/expires_at/input_hash/storage_reserved_bytes/identifier_policy_revision 等必填字段 |
+
+### 严重级（6 项）
+
+| 编号 | 问题 | 修复 |
+|---|---|---|
+| R2-M01 | M02 未修复：`openCopilotWith` 暴露但无业务模块调用 | 本轮未修——需在 8 个业务结果区挂按钮（见 R2-M01 留待下轮） |
+| R2-M02 | N01 无效：`MIN_SCORE=0.5` 拦不住越界主题 | 标定为 `MIN_SCORE=10.0`（在域最低分与越界最高分之间的分界） |
+| R2-M03 | N02 无效：`local_ready()` 零调用方 | `capabilities` 端点接入 `local_ready()`，`COPILOT_DISABLED` 时 mode=DISABLED |
+| R2-M04 | N03 伪实现：`_revCounter()` 调用即自增，永远拒绝应用 | 改为 `editorRevision` ref + `watch(sqlInput)` 驱动自增，`readRevision` 只读无副作用 |
+| R2-M05 | N04 半成品：会话下拉字段名错（`s.id` vs `s.session_id`），新建缺参 422 | 字段名改为 `session_id`，新建补 `scope_kind` 参数 |
+| R2-M06 | M04 口径偏差：未按 `rule_snapshot_hash` 分组，多规则未拆分 | 改为先窄查再拆行聚合，按 (scene, rule_id, rsh) 分组 |
+
+### 一般级（2 项）
+
+| 编号 | 问题 | 修复 |
+|---|---|---|
+| R2-N01 | `TDSQL_SQLCHECK_DIR` 未在部署件中登记 | `deploy/env.template` 新增 `TDSQL_SQLCHECK_DIR=__INSTALL_DIR__` |
+| R2-N02 | N05 导出 CSP 无法复验（无终态轮次） | 代码已修，待第三轮 UAT 复验 |
+
+验证：`tests/copilot/` 114/114（修复后无回退）。

@@ -126,7 +126,7 @@ class TurnExecutor:
     # ── 证据收集（§5.3 固定编排）─────────────────────────
     def _collect(self) -> tuple[list[dict], list[dict], dict]:
         """返回 (evidence, knowledge, projection_info)。"""
-        payload = self._payload()
+        payload = self._request_payload()      # 取证读原始请求
         refs = payload.get("source_refs") or []
         scene = self.turn["scene"]
         question = payload.get("question") or ""
@@ -207,16 +207,28 @@ class TurnExecutor:
         return evidence, knowledge, {"identifiers_allowed": identifiers_allowed}
 
     def _payload(self) -> dict:
-        """返回本轮封存的模型投影（§12.3：runner 不得再悄悄加入新来源）。
+        """出站体：本轮封存的模型投影（§12.3）。
 
-        payload_envelope 仅用于会话内展示/审计追溯，不得作为出站体；
-        出站必须使用 model_projection_envelope —— 它是预览时按三闸脱敏、
-        冻结预算裁剪后封存的那一份，也是用户在预览里看到的那一份。
+        这是预览时按三闸脱敏、预算裁剪后封存的那一份，也是用户在预览里看到的那一份；
+        runner 不得在此之上再添加来源。
         """
         from backend.services.copilot import crypto as crypto_mod
         raw = crypto_mod.decrypt(
             self.preview["model_projection_envelope"], "copilot_previews",
             self.preview["id"], "model_projection_envelope",
+            owner=self.preview["owner_subject_id"], keyring=self.keyring)
+        return json.loads(raw)
+
+    def _request_payload(self) -> dict:
+        """取证体：用户本轮实际提交的原始请求（question / source_refs / draft / page_key）。
+
+        仅用于 runner 侧按 §5.2 工具合同重新取数，**绝不作为出站体**。
+        投影里没有 source_refs，因此取证必须读这一份，否则证据链恒空。
+        """
+        from backend.services.copilot import crypto as crypto_mod
+        raw = crypto_mod.decrypt(
+            self.preview["payload_envelope"], "copilot_previews",
+            self.preview["id"], "payload_envelope",
             owner=self.preview["owner_subject_id"], keyring=self.keyring)
         return json.loads(raw)
 

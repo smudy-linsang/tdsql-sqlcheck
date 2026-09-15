@@ -82,6 +82,17 @@ class CopilotRunner:
         from backend.services.copilot.crypto import crypto_available
         from backend.services.copilot.repository import RuntimeRepo
         from backend.services.database import _get_connection, ensure_db
+        # R2-B02：runner 必须自行加载知识包——取证与本地模板都依赖它。
+        # 不加载时 execute_search_help 恒返回空，表现为"知识能力静默为 0"。
+        from backend.services.copilot.knowledge import store as knowledge_store
+        try:
+            _kst = knowledge_store.load()
+            if _kst != "READY":
+                logger.warning("runner 知识包状态 %s（%s）——知识能力降级，"
+                               "其余能力继续", _kst,
+                               knowledge_store.status_info().get("reason_code"))
+        except Exception as e:
+            logger.error("runner 知识包加载异常（仅知识能力降级）: %s", e)
 
         ensure_db()
         problems = Limits.validate()
