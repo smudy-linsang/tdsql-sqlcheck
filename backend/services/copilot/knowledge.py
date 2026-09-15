@@ -34,6 +34,7 @@ MAX_BUNDLE_BYTES = 32 * 1024 * 1024
 MAX_RESULTS = 8
 MAX_RESULT_BYTES = 8192
 PER_SOURCE_MAX = 3
+MIN_SCORE = 0.5  # N-01（UAT D40）：低于此分数的结果不返回，避免越界问题误报
 
 STATUS_READY = "READY"
 STATUS_STALE = "STALE"
@@ -121,7 +122,7 @@ class KnowledgeBundle:
             for ec in q_errs:
                 if ec in ch_text:
                     score += 4.0
-            if score > 0:
+            if score >= MIN_SCORE:
                 scored.append((score, idx))
         # 同分按 source_id/chunk_id 稳定排序
         scored.sort(key=lambda x: (-x[0], self.chunks[x[1]].get("source_id", ""),

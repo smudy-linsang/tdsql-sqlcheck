@@ -195,3 +195,42 @@ A 第三轮 SIT 结论可以进 UAT，遗留 N-03/N-04/N-05 三项，按 A 的�
 N-05 是加载期的闸不是运行期看门狗，现场换完知识包必须重启才生效。
 
 验证：`tests/copilot/` 114/114（文档改动不影响测试）。
+
+---
+
+## 10. 第一轮 UAT 整改闭环（2026-09-15，D 报告 NO-GO）
+
+D 第一轮 UAT 结论：不通过（NO-GO），5 阻断 + 5 严重 + 6 一般。全部修复：
+
+### 阻断级（5 项）
+
+| 编号 | 问题 | 修复 |
+|---|---|---|
+| D40-B01 | `index.html` 第 2846 行 `<el-dialog>` 未闭合，Copilot 页面/抽屉被解析进对话框内部 | 在第 2894 行后补 `</el-dialog>`，删除文件末尾多余闭合 |
+| D40-B02 | `app.js` copilot 状态是普通对象包 ref，Vue 模板不解包 | `createCopilotState()` 返回值外包 `reactive()` |
+| D40-B03 | `workflow.py` 使用未导入的 `ProviderRepo` → NameError | import 补 `ProviderRepo` |
+| D40-B04 | `POST /copilot-admin/providers/{id}/self-tests` 未实现，启用死锁 | 新增 `selftest.py`（admit/complete）+ 端点；`_publish` 中 hook `complete_self_test` |
+| D40-B05 | 管理区"AI配置"菜单无页面主体 | `index.html` 补 `copilot-admin` 页（模型/路由/授权三页签）；新增 `copilot_admin.js` |
+
+### 严重级（5 项）
+
+| 编号 | 问题 | 修复 |
+|---|---|---|
+| D40-M01 | 实际出站载荷 = 原始 payload，不含 evidence/knowledge；投影三闸被旁路 | `_payload()` 改为解 `model_projection_envelope`（预览封存的那份），不再用 `payload_envelope` |
+| D40-M02 | ContextBridge 是空壳，全前端 0 个业务解读入口 | 实现 `copilotContextBridge.getCurrentSelection()` + `openCopilotWith(selection)`；暴露到模板 |
+| D40-M03 | 会话页不加载 capabilities/connections/sessions | `copilot.js` 新增 `initPage()`；`onMenuSelect` 中调用 |
+| D40-M04 | `GET /copilot-admin/feedback-summary` 未实现 | 新增端点：按 scene+rule_id 聚合 INCORRECT 反馈，≥3 subject 才展示 |
+| D40-M05 | 应急脚本非 systemd 平台静默失败却报成功 | 改写停止逻辑：先探测→执行→失败即报错退出（exit 3），事件日志写 partial |
+
+### 一般级（6 项）
+
+| 编号 | 问题 | 修复 |
+|---|---|---|
+| D40-N01 | 知识检索无相关性阈值，越界问题返回 8 段无关内容 | `knowledge.py` 新增 `MIN_SCORE=0.5`，低于阈值不返回 |
+| D40-N02 | `copilot-disabled.json` 只写不读 | `copilot_bootstrap_check()` 读取该文件，存在即强制 `_LOCAL_READY=False` |
+| D40-N03 | `editorBridge` 直接覆盖草稿，无版本比对 | 补 `readRevision()` / `applyDraftIfRevision()` 方法；编辑器版本计数 |
+| D40-N04 | 抽屉内无会话创建/选择入口 | 抽屉顶部补会话下拉 + 新建按钮 |
+| D40-N05 | 导出报告沿用全站 CSP | 导出端点单独设置限制性 CSP：`default-src 'none'; style-src 'unsafe-inline'` |
+| D40-N06 | 前端不发 `draft.revision` | `buildPreview()` 中 `draft.revision` 从 `contextBridge.getCurrentSelection()` 取 |
+
+验证：`tests/copilot/` 114/114（修复后无回退）。

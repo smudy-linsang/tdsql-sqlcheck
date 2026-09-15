@@ -51,16 +51,47 @@ const app=createApp({
   setup(){
     const currentPage=ref('dashboard');
     const sidebarCollapsed=ref(false);
+    // v1.6.4.0 / CP-1：Copilot 上下文桥（业务页 → Copilot 入口，§13.1）
+    const copilotSelection=ref({});
+    // N-03（UAT D40）：编辑器草稿版本计数（每次内容变更自增）
+    let _editorRev=0;
+    function _revCounter(){return String(++_editorRev)}
+    const copilotContextBridge={
+      pageKey:'',
+      getCurrentSelection(){
+        return {
+          page_key:currentPage.value,
+          source_refs:(copilotSelection.value&&copilotSelection.value.source_refs)||[],
+          draft:(copilotSelection.value&&copilotSelection.value.draft)||null,
+          draft_revision:String((copilotSelection.value&&copilotSelection.value.draft_revision)||'0'),
+        };
+      },
+    };
+    function openCopilotWith(selection){
+      copilotSelection.value=selection||{};
+      copilot.openDrawer();
+    }
     // v1.6.4.0 / CP-1：Copilot 组合模块（依赖注入，不读任意 window 对象）
-    const copilot=(typeof createCopilotState==='function')?createCopilotState({
+    const copilotState=(typeof createCopilotState==='function')?createCopilotState({
       Vue:{ref,computed,reactive,watch,nextTick,onMounted},
       apiFetch:apiFetch,
       getIdentity:()=>{try{return (authState&&authState.user)||{}}catch(e){return{}}},
       getMenus:()=>{try{return Array.from(visibleMenus.value||[])}catch(e){return[]}},
       navigate:(page)=>{currentPage.value=page},
-      editorBridge:{previewReplacement:(c)=>{try{if(c&&c.sql){sqlInput.value=c.sql;currentPage.value='audit-sql'}}catch(e){}}},
-      contextBridge:{pageKey:''},
+      editorBridge:{
+        readRevision:()=>{try{return String(sqlInput.value?_revCounter():'0')}catch(e){return '0'}},
+        previewReplacement:(c)=>{try{if(c&&c.sql){sqlInput.value=c.sql;currentPage.value='audit-sql'}}catch(e){}},
+        applyDraftIfRevision:(expected,text)=>{try{if(String(_revCounter())!==String(expected)){ElementPlus.ElMessage.warning('草稿已变更，请重新比较');return false}sqlInput.value=text;currentPage.value='audit-sql';return true}catch(e){return false}},
+      },
+      contextBridge:copilotContextBridge,
     }):{drawerVisible:ref(false),copilotMode:ref('DISABLED')};
+    const copilot=reactive(copilotState);
+    // v1.6.4.0 / CP-1：AI 配置管理端组合模块
+    const copilotAdminState=(typeof createCopilotAdminState==='function')?createCopilotAdminState({
+      Vue:{ref,computed,reactive,watch,nextTick},
+      apiFetch:apiFetch,
+    }):{tab:ref('providers'),providers:ref([]),routes:ref([]),grants:ref([]),health:ref(null),loading:ref(false),errorMsg:ref('')};
+    const copilotAdmin=reactive(copilotAdminState);
     // 主题：深/浅双风格，localStorage 记忆；仅切换 <html data-theme> + 重绘图表，无逻辑/DOM 改动
     const theme=ref((()=>{try{const t=localStorage.getItem('tdsql-theme');return (t==='light'||t==='dark')?t:'dark'}catch(e){return 'dark'}})());
     const applyTheme=()=>{document.documentElement.setAttribute('data-theme',theme.value);try{localStorage.setItem('tdsql-theme',theme.value)}catch(e){}};
@@ -533,7 +564,7 @@ const app=createApp({
     const changePassword=async()=>{if(!pwdDialog.new_password){ElementPlus.ElMessage.warning('请输入新口令');return}pwdDialog.loading=true;try{const resp=await apiFetch(`${API_BASE}/api/v1/auth/change-password`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({old_password:pwdDialog.old_password,new_password:pwdDialog.new_password})});const data=await resp.json();if(!resp.ok){ElementPlus.ElMessage.error(data.detail||'修改失败');return}ElementPlus.ElMessage.success('口令修改成功，请重新登录');pwdDialog.visible=false;pwdDialog.forced=false;pwdDialog.old_password='';pwdDialog.new_password='';doLogout()}catch(e){ElementPlus.ElMessage.error('修改失败: '+e.message)}finally{pwdDialog.loading=false}};
     const checkSession=async()=>{try{const resp=await apiFetch(`${API_BASE}/api/v1/auth/me`);if(resp.ok){const u=await resp.json();applyUser(u);if(u.must_change_password){ElementPlus.ElMessage.warning('首次登录请修改口令');pwdDialog.visible=true;pwdDialog.forced=true}return true}}catch(e){}return false};
     const onUserCommand=(cmd)=>{if(cmd==='password'){pwdDialog.visible=true;pwdDialog.forced=false;pwdDialog.old_password='';pwdDialog.new_password=''}else if(cmd==='logout'){doLogout()}};
-    const onMenuSelect=(key)=>{if(key==='slow-raw-log'&&!rawSlowlogEnabled){currentPage.value='slow-tasks';return}currentPage.value=key};
+    const onMenuSelect=(key)=>{if(key==='slow-raw-log'&&!rawSlowlogEnabled){currentPage.value='slow-tasks';return}currentPage.value=key;if(key==='copilot-page'){try{copilot.initPage()}catch(e){}};if(key==='copilot-admin'){try{copilotAdmin.initPage()}catch(e){}}};
     // P1-04: 切换实例后刷新数据
     const onConnectionSwitch=async(connId)=>{if(!connId)return;localStorage.setItem('tdsql_conn',connId);try{const conn=savedConnections.value.find(c=>c.id===connId);if(conn&&!conn.active){const resp=await apiFetch(`${API_BASE}/api/v1/tdsql/connections/${connId}/connect`,{method:'POST'});if(resp.ok){ElementPlus.ElMessage.success('实例已连接');tdsqlStatus.value={connected:true}}else{const d=await resp.json();ElementPlus.ElMessage.error(d.detail||'连接失败')}}loadAll()}catch(e){ElementPlus.ElMessage.error('切换实例失败: '+e.message)}};
     // P1-03: 项目切换后刷新受影响页面
@@ -2572,7 +2603,7 @@ const app=createApp({
       fileReportFilters,resetFileReportFilters,scanTaskFilters,scanTaskQuery,resetScanTaskFilters,
       connectionOptions,managedConnections,loadConnectionOptions,loadManagedConnections,syncConnectionsAfterWrite,authState,loginForm,loginLoading,loginError,pwdDialog,savedConnections,connFilters,connPage,connPageSize,filteredConnections,pagedConnections,onConnFilterChange,currentConnectionId,projects,currentProjectId,activeAlerts,metadataEnhanced,statsLoading,stats,ruleHits,trendChartRef,kpiCards,sqlInput,instantAuditInstType,auditing,auditResult,auditProjectId,fileAuditTab,fileAuditInstType,fileAuditResult,fileReports,fileReportsLoading,fileReportsTotal,fileReportsPage,selectedFileReportIds,fileReportsDeleting,fileReportsTableRef,onFileReportsSelect,batchDeleteFileReports,deleteSingleFileReport,slowTasksTab,onSlowTasksTabChange,bigtableTab,onBigtableTabChange,rulesList,rulesByCategory,ruleSearch,expandedCategories,filteredCategories,slowList,slowListLoading,slowFilters,slowPage,scanTasks,scanTaskTotal,scanTaskCurrentPage,scanTaskLoading,selectedTaskIds,batchDeleting,clearingOrphan,scanDrawer,scanTimeWindow,scanTaskForm,slowDetailDrawer,slowDetail,closeSlowDetail,rawSlowTab,rawEvents,rawEventsTotal,rawEventsLoading,rawRuns,rawRunsLoading,rawSources,rawSourcesLoading,rawFilters,rawSourceDrawer,rawSourceSaving,rawSourceEditMode,rawSourceForm,explainMode,explainSqlInput,explainInput,explainConnId,explainDbName,analyzingExplain,explainResult,tdsqlStatus,connDrawer,connForm,connEditMode,connTestResult,connTesting,connLoading,usersList,usersLoading,usersTotal,usersPage,usersPageSize,userKeyword,userQuery,userDialog,resetDialog,scanSchedules,scanScheduleLoading,scheduleDrawer,scheduleForm,healthLoading,healthResult,healthCheckType,healthDbName,schemaCheckConnId,schemaCheckScope,schemaCheckResults,schemaCheckSummary,schemaCheckLoading,schemaCheckTab,onSchemaCheckTabChange,extractedAuditConnId,extractedDbName,extractedScope,extractAuditing,extractedResult,runExtractAndAudit,downloadExtractedSql,bigtableLoading,bigtableData,bigtableRef,partitionDetail,partitionLoading,projectsList,projectsLoading,projectDialog,rulesets,rulesetsLoading,gateRules,gateStrategies,gateLoading,monitorAlerts,monitorRules,monitorLoading,monitorTab,inspectionTasks,inspectionLoading,auditLogs,auditLogsLoading,auditLogsTotal,auditLogsPage,retentionPolicies,retentionLoading,sysInfo,sysInfoLoading,roleLabel,canManagePlatform,isAdmin,canManageInstances,canViewAuditLog,canViewSysInfo,canViewProjects,canViewMonitor,canViewSchedule,canViewBigtable,breadcrumbItems,formatTime,sevTagType,statusLabel,sourceLabel,categoryOrder,doLogin,doLogout,changePassword,onUserCommand,onMenuSelect,onConnectionSwitch,onProjectSwitch,auditSql,loadExample,onFileChange,loadFileReports,downloadFileReport,loadRules,loadSlowList,resetSlowFilter,openSlowDetail,setSlowStatus,exportSlowReport,downloadScanReport,goSlowDetail,goExplainFromSlow,loadRawSources,loadRawRuns,loadRawEvents,resetRawFilters,downloadRawEvents,openRawSourceCreate,openRawSourceEdit,addRawNode,removeRawNode,saveRawSource,probeRawSource,collectRawSource,toggleRawSource,loadScanTasks,onTaskSelectChange,deleteScanTask,batchDeleteScanTasks,startScanTask,viewTaskSlowQueries,clearOrphanRecords,analyzeExplainBySql,analyzeExplain,loadSavedConnections,testConn,saveConn,openEditConn,openNewConn,deleteConn,probeInstanceType,instTypeCn,instSourceCn,lockDialog,openLockDialog,submitLock,diagDialog,openDiagDialog,runDiagnostics,downloadDiagnostics,connZkInfo,setDefaultConn,connectInstance,loadUsers,openUserCreate,createUser,openResetPwd,resetUserPwd,unlockUser,toggleUserStatus,deleteUser,loadAll,renderTrendChart,loadProjects,loadActiveAlerts,loadScanSchedules,createScanSchedule,deleteScanSchedule,toggleScheduleEnabled,runHealthCheck,runSchemaCheck,exportSchemaCheckReport,loadBigtable,bigtableRowKey,partitionBoundaryLabel,bigtableRowClass,togglePartitions,onBigtableExpand,loadTablePartitions,loadProjectsList,createProject,deleteProject,toggleProjectStatus,loadRulesets,loadGateRules,loadGateStrategies,applyGateStrategy,loadMonitorAlerts,acknowledgeAlert,loadMonitorRules,loadInspectionTasks,loadAuditLogs,loadRetention,runRetentionCleanup,loadSysInfo,bigtableCollecting,collectBigtable,rulesetDialog,createRuleset,deleteRuleset,activateRuleset,gateCustom,openGateCustom,saveGateCustom,monitorRuleDialog,createMonitorRule,inspectionDialog,createInspection,inspectionResultDrawer,inspectionResults,viewInspectionResult,retentionDialog,openRetentionEdit,saveRetention,retentionEditMode,logoUrl,loadLogo,onLogoUpload,resetLogo,toggleSysConfig,auditFilter,resetAuditFilter,tableNameLabel,metricLabel,rolesList,rolesLoading,roleDialog,deleteRole,openRoleCreate,openRoleEdit,saveRole,roleLabelFn,permsMatrixData,permsMenuList,permsLoading,loadPerms,onPermChange,deepConnId,deepRightConnId,deepDb,deepTab,deepLoading,deepResult,runClusterInspect,runIndexAudit,runSchemaDiff,runEmergency,runSqlStats,runTableTypeStats,openTableTypeHistory,loadTableTypeHistoryDetail,fmtSecondaryMain,fmtSecondaryMainSummary,fmtSecondaryMainTooltip,visibleTableTypeWarnings,tabletypeWarnTotal,tabletypeWarnAll,tabletypeHistoryVisible,tabletypeHistory,tabletypeDetailItems,tabletypeDetailWarnings,tabletypeDetailAll,tabletypeDetailExpand,tabletypeDetailLoading,tabletypeView,tabletypeScopeText,canRunTableTypeStats,tabletypeLoading,visibleMenus,zkDialogVisible,zkConfigDialogVisible,zkConfigLoading,zkConfigSaving,zkConfigMeta,zkConfigForm,zkEndpointRows,zkOctetRows,openZkConfig,saveZkConfig,addZkEndpointRow,removeZkEndpointRow,addZkOctetRow,removeZkOctetRow,zkScanning,zkDiscovered,zkSelected,zkRegistering,zkDiscoveryIsMock,zkScanFilter,zkScanPage,zkScanPageSize,zkFilteredDiscovered,zkPagedDiscovered,onZkScanFilterChange,openZkDiscovery,runZkDiscovery,handleZkSelection,zkImportDialogVisible,zkImportPreparing,zkImportCommitting,zkImportPreviewId,zkImportRows,zkImportSelected,zkImportSummary,zkImportTableRef,zkDiscoveryTableRef,closeZkImport,zkFailureLabel,zkImportForm,zkImportOctetRows,zkManualDbsText,zkNameOverrideText,zkPreviewPage,zkPreviewPageSize,zkPagedPreviewRows,addZkImportOctetRow,removeZkImportOctetRow,openZkImport,runZkImportPreview,handleZkImportSelection,commitZkImport,gatewayLoading,gatewayReports,gatewayHtml,gatewayReportUrl,gatewayDetailVisible,loadGatewayReports,viewGatewayReport,onGatewayUpload,pptLoading,pptDashboard,loadPptDashboard,generatePptReport,toolkitLoading,toolkitScripts,loadToolkitScripts,downloadToolkitScript,extractedTab,extractedReports,extractedReportsLoading,loadExtractedReports,downloadExtractedHtmlReport,downloadExtractedSqlFile,extractedReportsTotal,extractedReportsPage,extractedPageSize,extractedFilters,extractedTableRef,selectedExtractedIds,extractedPurgeSnapshots,extractedDeleting,canDeleteExtractedReports,extractedQuery,extractedResetFilters,extractedPickOlderThan,onExtractedSelect,batchDeleteExtractedReports,dailyInspectDates,dailyInspectThreshold,dailyCompareResult,dailyResultVisible,resetDailyResult,dailyInstSearch,dailyInstSigOnly,dailySrvSearch,dailySrvSigOnly,dailyInspectChartData,dailyInspectChartMetric,dailyInspectChartNode,dailyInspectChartNodes,dailyTrendChartRef,filteredDailyInstDiffs,filteredDailySrvDiffs,runDailyInspect,compareDailyInspect,renderDailyTrendChart,exportDailyHtmlReport,activeEmergencyNames,emergencyNameLabel,rulesetDrawer,rulesetConfigItems,openRulesetConfig,rulesetCategories,rulesetCategoryCounts,filteredRulesetItems,modifiedOverrideCount,disabledCount,setFilteredRulesEnabled,resetFilteredRulesOverrides,saveRulesetConfig,dailyInstNodeSelect,dailyInstPage,dailyInstPageSize,dailySrvIpSelect,dailySrvPage,dailySrvPageSize,dailyInstNodeList,dailySrvIpList,pagedDailyInstDiffs,pagedDailySrvDiffs,
       metadataJob,metadataItems,metadataResultsTotal,metadataResultsPage,metadataResultsPageSize,metadataCancelling,metadataRecovering,loadMetadataResults,onMetadataResultsPage,cancelMetadataJob,downloadMetadataSql,downloadMetadataHtml,recoverMetadataJob,
-      copilot};
+      copilot,copilotAdmin,openCopilotWith,copilotSelection};
   }
 });
 app.use(ElementPlus,{locale:ElementPlusLocaleZhCn});

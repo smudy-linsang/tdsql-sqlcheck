@@ -1047,6 +1047,8 @@ def export_turn_html(request: Request, turn_id: str):
             headers={
                 "Content-Disposition": f'attachment; filename="{filename}"',
                 "Cache-Control": "no-store",
+                # N-05（UAT D40）：报告专用限制性 CSP，不用全站 CSP
+                "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; img-src data:; sandbox",
             })
     finally:
         conn.close()

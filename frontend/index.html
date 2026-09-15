@@ -2892,6 +2892,8 @@
         </el-table>
       </div>
     </div>
+  </el-dialog>
+
     <!-- ═══ v1.6.4.0 / CP-1：Copilot 专家助手页 ═══ -->
     <div v-if="currentPage==='copilot-page'" class="page-content" data-testid="copilot-page">
       <el-card>
@@ -2953,12 +2955,75 @@
       </el-card>
     </div>
 
+    <!-- ═══ v1.6.4.0 / CP-1：AI配置（管理区，DETAIL §3.1-4 / §12.5）═══ -->
+    <div v-if="currentPage==='copilot-admin'" class="page-content" data-testid="copilot-admin-page">
+      <el-card>
+        <template #header><span>AI 配置</span>
+          <el-tag size="small" style="margin-left:8px" v-if="copilotAdmin.health">{{ copilotAdmin.health.module_schema_state || '—' }}</el-tag>
+        </template>
+        <el-tabs v-model="copilotAdmin.tab">
+          <el-tab-pane label="模型" name="providers">
+            <el-table :data="copilotAdmin.providers" size="small" stripe>
+              <el-table-column prop="name" label="名称" width="160"></el-table-column>
+              <el-table-column prop="model_id" label="模型" width="180"></el-table-column>
+              <el-table-column label="状态" width="110">
+                <template #default="{row}">
+                  <el-tag :type="row.enabled ? 'success' : 'info'" size="small">{{ row.enabled ? '已启用' : '未启用' }}</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="自检" width="140">
+                <template #default="{row}">
+                  <span v-if="row.tested_revision===row.revision" style="color:#67c23a">已通过 r{{ row.revision }}</span>
+                  <span v-else style="color:#e6a23c">未通过 / 配置已变更</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" min-width="200">
+                <template #default="{row}">
+                  <el-button size="small" @click="copilotAdmin.runSelfTest(row)">连通性自检</el-button>
+                  <el-button size="small" type="primary" :disabled="row.tested_revision!==row.revision" @click="copilotAdmin.enableProvider(row, true)">启用</el-button>
+                  <el-button size="small" @click="copilotAdmin.enableProvider(row, false)">停用</el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+            <div class="copilot-limit" style="margin-top:8px">自检会产生少量模型调用费用；只发固定合成问题，不发任何业务资料。</div>
+          </el-tab-pane>
+          <el-tab-pane label="场景路由" name="routes">
+            <el-table :data="copilotAdmin.routes" size="small" stripe>
+              <el-table-column prop="scene" label="场景" width="180"></el-table-column>
+              <el-table-column prop="primary_name" label="主模型" width="160"></el-table-column>
+              <el-table-column prop="fallback_name" label="备模型" width="160"></el-table-column>
+              <el-table-column prop="mode" label="模式" width="120"></el-table-column>
+            </el-table>
+          </el-tab-pane>
+          <el-tab-pane label="实例授权" name="grants">
+            <el-table :data="copilotAdmin.grants" size="small" stripe>
+              <el-table-column prop="connection_id" label="实例" width="180"></el-table-column>
+              <el-table-column prop="username" label="用户" width="140"></el-table-column>
+              <el-table-column prop="approval_state" label="审批状态" width="120"></el-table-column>
+              <el-table-column label="启用" width="80">
+                <template #default="{row}">
+                  <el-tag :type="row.enabled ? 'success' : 'info'" size="small">{{ row.enabled ? '是' : '否' }}</el-tag>
+                </template>
+              </el-table-column>
+            </el-table>
+          </el-tab-pane>
+        </el-tabs>
+      </el-card>
+    </div>
+
     <!-- ═══ v1.6.4.0 / CP-1：Copilot 全局抽屉 ═══ -->
     <el-drawer v-model="copilot.drawerVisible" class="copilot-drawer" :size="copilot.expanded ? 'min(960px, 100vw)' : 'min(640px, 100vw)'" :with-header="false" @close="copilot.closeDrawer">
       <div class="copilot-toolbar">
         <el-button size="small" @click="copilot.toggleExpand">{{ copilot.expanded ? '收起' : '展开' }}</el-button>
         <el-button size="small" @click="copilot.closeDrawer">关闭</el-button>
         <el-button size="small" @click="currentPage='copilot-page';copilot.closeDrawer()">打开会话页</el-button>
+      </div>
+      <!-- N-04（UAT D40）：抽屉内补会话创建/选择入口 -->
+      <div class="copilot-toolbar" style="margin-top:4px">
+        <el-select v-model="copilot.currentSessionId" placeholder="选择会话" size="small" clearable style="flex:1" @change="copilot.selectSession">
+          <el-option v-for="s in copilot.sessions" :key="s.id" :label="s.scene + ' ' + (s.created_at||'').slice(0,16)" :value="s.id"></el-option>
+        </el-select>
+        <el-button size="small" type="primary" plain @click="copilot.createSession()">新建会话</el-button>
       </div>
       <div class="copilot-context-line" v-if="copilot.capabilities">
         模式：{{ copilot.copilotMode }}；
@@ -3022,9 +3087,9 @@
         <div class="copilot-limit" style="margin-top:12px">{{ copilot.turnResult.disclaimer }}</div>
       </div>
     </el-dialog>
-  </el-dialog>
 </div>
 <script src="/static/js/copilot.js?v=1.6.4.0"></script>
+<script src="/static/js/copilot_admin.js?v=1.6.4.0"></script>
 <script src="/static/js/app.js?v=1.6.4.0"></script>
 </body>
 </html>

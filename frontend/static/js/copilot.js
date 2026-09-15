@@ -263,7 +263,9 @@
         source_refs: refs,
       };
       if (draftText.value) {
-        body.draft = { kind: 'SQL', text: draftText.value.slice(0, 32768) };
+        body.draft = { kind: 'SQL', text: draftText.value.slice(0, 32768),
+                       revision: String((contextBridge && contextBridge.getCurrentSelection
+                         ? contextBridge.getCurrentSelection().draft_revision : null) || '0') };
       }
       try {
         const resp = await apiFetch(
@@ -518,6 +520,11 @@
       }
     }
 
+    // ── 页面初始化（侧栏进入时调用）──────────────────────────
+    async function initPage() {
+      await Promise.all([loadCapabilities(), loadConnections(), loadSessions()]);
+    }
+
     return {
       drawerVisible, fullPageVisible, capabilities, sessions, sessionsLoading,
       currentSessionId, currentSession, turns, turnsLoading, question,
@@ -529,6 +536,7 @@
       createSession, selectSession, buildPreview, submitTurn,
       recoverSubmission, cancelTurn, sendFeedback, viewResult, exportTurnHtml,
       copySuggestion, sendToEditor, loadTurns, startPolling, stopPolling,
+      initPage,
     };
   }
 

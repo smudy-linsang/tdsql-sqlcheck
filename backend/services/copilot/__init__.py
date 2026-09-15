@@ -113,6 +113,18 @@ def copilot_bootstrap_check() -> None:
     if _config_invalid:
         _LOCAL_READY = False
         _LOCAL_REASON = "COPILOT_DISABLED"
+    # N-02（UAT D40）：持久停用标记存在即强制不就绪——禁止自动重启后恢复。
+    try:
+        import os
+        _persist = os.path.join(
+            os.environ.get("TDSQL_SQLCHECK_DIR", "/opt/tdsql-sqlcheck"),
+            "..", "conf", "copilot-disabled.json")
+        if os.path.isfile(_persist):
+            _LOCAL_READY = False
+            _LOCAL_REASON = "COPILOT_DISABLED"
+            logger.warning("Copilot 持久停用标记存在（%s），强制不就绪", _persist)
+    except Exception:
+        pass
     logger.info("Copilot 启动验收完成: local_ready=%s reason=%s",
                 _LOCAL_READY, _LOCAL_REASON)
 

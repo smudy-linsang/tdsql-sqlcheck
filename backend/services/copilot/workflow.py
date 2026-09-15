@@ -33,7 +33,7 @@ from backend.services.copilot.knowledge import store as knowledge_store
 from backend.services.copilot.policy import Limits, load_policy
 from backend.services.copilot.redaction import detect_sensitive, truncate_utf8
 from backend.services.copilot.repository import (
-    AttemptRepo, AuditRepo, TurnRepo, new_id,
+    AttemptRepo, AuditRepo, ProviderRepo, TurnRepo, new_id,
 )
 from backend.services.copilot.tools import (
     ToolContext, build_text_validation_payload, execute_explain_rules,
@@ -113,6 +113,10 @@ class TurnExecutor:
                     self.identity.get("subject_id"), "copilot_turns", self.turn["id"],
                     final_state, request_id=self.request_id,
                     session_id=self.turn["session_id"], turn_id=self.turn["id"])
+                # 自检回写：PROVIDER_SELFTEST 成功时回写 tested_revision
+                from backend.services.copilot.selftest import complete_self_test
+                complete_self_test(self.conn, self.turn,
+                                   success=(final_state == "SUCCEEDED"))
                 self.conn.commit()
             except Exception:
                 self.conn.rollback()
@@ -203,10 +207,16 @@ class TurnExecutor:
         return evidence, knowledge, {"identifiers_allowed": identifiers_allowed}
 
     def _payload(self) -> dict:
+        """返回本轮封存的模型投影（§12.3：runner 不得再悄悄加入新来源）。
+
+        payload_envelope 仅用于会话内展示/审计追溯，不得作为出站体；
+        出站必须使用 model_projection_envelope —— 它是预览时按三闸脱敏、
+        冻结预算裁剪后封存的那一份，也是用户在预览里看到的那一份。
+        """
         from backend.services.copilot import crypto as crypto_mod
         raw = crypto_mod.decrypt(
-            self.preview["payload_envelope"], "copilot_previews",
-            self.preview["id"], "payload_envelope",
+            self.preview["model_projection_envelope"], "copilot_previews",
+            self.preview["id"], "model_projection_envelope",
             owner=self.preview["owner_subject_id"], keyring=self.keyring)
         return json.loads(raw)
 

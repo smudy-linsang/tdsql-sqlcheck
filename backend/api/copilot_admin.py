@@ -230,6 +230,45 @@ def update_provider(request: Request, provider_id: str,
         conn.close()
 
 
+# ══════════════════════════════════════════════════════════════
+# Provider 自检（§12.5/§12.6）
+# ══════════════════════════════════════════════════════════════
+
+@router.post("/providers/{provider_id}/self-tests", status_code=202)
+@guard_structural
+def start_provider_self_test(request: Request, provider_id: str,
+                             body: SelfTestRequest):
+    """§12.5/§12.6：自检实现为 turn_kind=PROVIDER_SELFTEST 的内部 turn。
+
+    不发业务资料；主备尝试上限 1，不借 fallback；同键幂等 202/200。
+    """
+    try:
+        identity = _admin_identity(request)
+    except CopilotError as e:
+        return _err(e.code, e.message)
+    conn = _get_connection()
+    try:
+        ensure_db()
+        _require_ready(conn)
+        provider = ProviderRepo.get(conn, provider_id, for_update=True)
+        if provider is None:
+            raise CopilotError("NOT_FOUND")
+        if int(provider["revision"]) != body.expected_provider_revision:
+            raise CopilotError("CONFIG_CHANGED")
+        from backend.services.copilot.selftest import admit_self_test
+        turn = admit_self_test(conn, identity, provider,
+                              body.client_request_id)
+        conn.commit()
+        return JSONResponse(status_code=202, content={
+            "request_id": _rid(), "turn_id": turn["id"], "state": "ACCEPTED",
+            "status_url": f"/api/v1/copilot/turns/{turn['id']}",
+            "result_url": f"/api/v1/copilot/turns/{turn['id']}/result",
+            "poll_after_ms": 2000, "reused": bool(turn.get("reused")),
+            "notice": "自检可能产生少量模型调用费用；不发送任何业务资料。"})
+    finally:
+        conn.close()
+
+
 @router.put("/providers/{provider_id}/enabled")
 @guard_structural
 def set_provider_enabled(request: Request, provider_id: str,
@@ -555,6 +594,49 @@ def put_settings(request: Request, body: SettingsPutRequest):
         conn.commit()
         return {"request_id": _rid(), "settings": settings,
                 "config_revision": body.expected_revision + 1}
+    finally:
+        conn.close()
+
+
+@router.get("/feedback-summary")
+@guard_structural
+def feedback_summary(request: Request, days: int = 30):
+    """N-07 只读聚合：按 scene+rule_id 聚合当前 INCORRECT 反馈。"""
+    try:
+        identity = _admin_identity(request)
+    except CopilotError as e:
+        return _err(e.code, e.message)
+    conn = _get_connection()
+    try:
+        ensure_db()
+        _require_ready(conn)
+        days = max(1, min(30, days))
+        rows = conn.execute(
+            "SELECT scene, feedback_rule_ids_json, "
+            "COUNT(*) AS cnt, COUNT(DISTINCT owner_subject_id) AS subject_count "
+            "FROM copilot_turns "
+            "WHERE feedback_code = 'INCORRECT' "
+            "AND feedback_at >= UTC_TIMESTAMP(6) - INTERVAL %s DAY "
+            "GROUP BY scene, feedback_rule_ids_json "
+            "ORDER BY cnt DESC LIMIT 5000",
+            (days,)).fetchall()
+        if len(rows) >= 5000:
+            return _err("CONTEXT_TOO_LARGE", "反馈数据过多，请缩短时间窗")
+        items = []
+        hidden = 0
+        for r in rows:
+            if r["subject_count"] >= 3:
+                items.append({
+                    "scene": r["scene"],
+                    "rule_ids": json.loads(r["feedback_rule_ids_json"])
+                    if r["feedback_rule_ids_json"] else [],
+                    "count": r["cnt"],
+                    "subject_count": r["subject_count"]})
+            else:
+                hidden += 1
+        return {"request_id": _rid(), "days": days, "items": items,
+                "hidden_below_privacy_threshold": hidden,
+                "notice": "关联质疑次数，不等于该规则已证实误报。"}
     finally:
         conn.close()
 
