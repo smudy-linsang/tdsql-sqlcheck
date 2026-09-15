@@ -94,38 +94,105 @@ class TestKnowledge:
                 assert hashlib.sha256(data).hexdigest() == manifest["sha256"][name]
 
     def test_sources_rebuild_matches_shipped(self, tmp_path):
-        """N-03：源文档改动不重建知识包，必须被检出。
+        """N-03：随包产物必须是当前 sources/ 的构建结果，不得静默漂移。
 
-        从 sources/ 重建到临时目录，比对 bundle_id 与产物 SHA256。
+        从 sources/ 确定性重建到临时目录，比对 bundle_id 与产物 SHA256。
         approved_by / reviewed_at 是构建入参，排除比对。
+        比对对象取运行期加载器解析出的包，与 KnowledgeStore 实际使用的一致。
         """
         import hashlib
         from pathlib import Path
         from backend.copilot_knowledge.builder import build
+        from backend.services.copilot.knowledge import KnowledgeStore
 
-        kb_root = Path(__file__).resolve().parents[2] / "backend/copilot_knowledge"
-        bundle_dir = next(d for d in sorted(kb_root.iterdir())
-                          if d.is_dir() and (d / "manifest.json").exists())
-        shipped_manifest = json.loads((bundle_dir / "manifest.json").read_bytes())
+        # 用运行期加载器解析出实际加载的包（不写死目录名）
+        store = KnowledgeStore()
+        assert store.load() == "READY", f"随包知识包未就绪: {store.status_info()}"
+        shipped = store._bundle.dir
+        shipped_manifest = json.loads(
+            (shipped / "manifest.json").read_bytes())
         shipped_bundle_id = shipped_manifest["bundle_id"]
 
         # 从 sources 重建到隔离临时目录
-        sources = kb_root / "sources"
-        rebuilt = build(sources, "tester", "2027-01-01T00:00:00Z",
+        sources = Path(__file__).resolve().parents[2] / "backend/copilot_knowledge/sources"
+        rebuilt = build(sources, "contract-check", "2099-01-01T00:00:00Z",
                         out_root=tmp_path)
         rebuilt_manifest = json.loads((rebuilt / "manifest.json").read_bytes())
 
         # 确定性比对：bundle_id 由内容 hash 决定，源漂移 → hash 变 → id 变
         assert rebuilt_manifest["bundle_id"] == shipped_bundle_id, (
             f"源文档漂移：重建 bundle_id={rebuilt_manifest['bundle_id']} "
-            f"!= 随包 {shipped_bundle_id}；改了 sources/ 必须重建知识包")
+            f"!= 随包 {shipped_bundle_id}；改了 sources/ 必须重建知识包，"
+            f"由审批人重新签署 approved_by / reviewed_at，且删除旧包目录")
 
         for name in ("chunks.jsonl", "index.json"):
-            rebuilt_sha = hashlib.sha256(
-                (rebuilt / name).read_bytes()).hexdigest()
-            assert rebuilt_sha == shipped_manifest["sha256"][name], (
-                f"{name} 重建 sha256 与随包不符；"
-                f"改了 sources/ 必须重建知识包")
+            a = hashlib.sha256((rebuilt / name).read_bytes()).hexdigest()
+            b = hashlib.sha256((shipped / name).read_bytes()).hexdigest()
+            assert a == b, (
+                f"{name} 与按源文档重建的结果不一致（{a[:16]} vs {b[:16]}）")
+
+    def test_builder_has_no_translating_write(self):
+        """N-04：builder 落盘不得走可能翻译换行的文本模式（平台无关断言）。
+
+        在 POSIX 上 newline="\\n" 与默认行为等价，行为断言不会红；
+        本条用 AST 检查源码，任何平台上撤掉 newline 参数都会被检出。
+        """
+        import ast
+        from pathlib import Path
+
+        builder = Path(__file__).resolve().parents[2] / "backend/copilot_knowledge/builder.py"
+        problems = []
+        for node in ast.walk(ast.parse(builder.read_text(encoding="utf-8"))):
+            if not isinstance(node, ast.Call):
+                continue
+            fn = node.func
+            name = fn.attr if isinstance(fn, ast.Attribute) else getattr(fn, "id", "")
+            kws = {k.arg: k.value for k in node.keywords if k.arg}
+            if name == "write_text":
+                nl = kws.get("newline")
+                if not (isinstance(nl, ast.Constant) and nl.value == "\n"):
+                    problems.append(f"第{node.lineno}行 write_text 未显式 newline='\\n'")
+            elif name == "open":
+                mode = None
+                if len(node.args) > 1 and isinstance(node.args[1], ast.Constant):
+                    mode = node.args[1].value
+                elif isinstance(kws.get("mode"), ast.Constant):
+                    mode = kws["mode"].value
+                mode = str(mode or "r")
+                if "w" in mode and "b" not in mode and "newline" not in kws:
+                    problems.append(f"第{node.lineno}行 open(mode={mode!r}) 文本模式写且未固定换行")
+        assert not problems, (
+            "builder 存在可能翻译换行的落盘调用（Windows 上会写出 CRLF，导致 manifest "
+            "摘要与存仓字节不符——B-01 根因）：" + "；".join(problems))
+
+    def test_bundle_dir_is_unambiguous(self, tmp_path, monkeypatch):
+        """N-05：知识包根目录下同时存在多个包时必须失败关闭，不得按名字猜。"""
+        from pathlib import Path
+        from backend.copilot_knowledge.builder import build
+        from backend.services.copilot.knowledge import KnowledgeStore
+
+        sources = Path(__file__).resolve().parents[2] / "backend/copilot_knowledge/sources"
+        root = tmp_path / "kbroot"
+        root.mkdir()
+        build(sources, "Mr.Linsang", "2099-01-01T00:00:00Z", out_root=root)
+        # 构造内容漂移的第二个包
+        drifted = tmp_path / "src2"
+        drifted.mkdir()
+        for f in sorted(sources.glob("*.md")):
+            (drifted / f.name).write_text(f.read_text(encoding="utf-8"),
+                                          encoding="utf-8")
+        first = drifted / sorted(p.name for p in sources.glob("*.md"))[0]
+        first.write_text(first.read_text(encoding="utf-8") + "\n## 漂移\n\n内容。\n",
+                         encoding="utf-8")
+        build(drifted, "Mr.Linsang", "2099-01-01T00:00:00Z", out_root=root)
+        assert len([d for d in root.iterdir()
+                    if (d / "manifest.json").exists()]) == 2
+
+        monkeypatch.setenv("COPILOT_KNOWLEDGE_BUNDLE", str(root))
+        store = KnowledgeStore()
+        assert store.load() != "READY", (
+            f"知识包根目录下有 2 个包却仍加载成功（选中 {store.bundle_id}）")
+        assert store.status_info()["reason_code"] == "KNOWLEDGE_BUNDLE_AMBIGUOUS"
 
     def test_store_ready_and_search(self):
         store = KnowledgeStore()

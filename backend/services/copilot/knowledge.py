@@ -61,6 +61,14 @@ def _tokenize(text: str) -> list[str]:
     return tokens
 
 
+class _AmbiguousBundle(Exception):
+    """知识包根目录下存在多个包 —— 必须由运维删除旧包，不得由程序猜。"""
+
+    def __init__(self, names: list[str]):
+        super().__init__(", ".join(names))
+        self.names = names
+
+
 class KnowledgeBundle:
     """不可变内存索引的知识包。"""
 
@@ -205,7 +213,15 @@ class KnowledgeStore:
                 self._status = STATUS_MISSING
                 self._reason = "KNOWLEDGE_BUNDLE_MISSING"
                 return self._status
-            bdir = self._resolve_bundle_dir(root)
+            try:
+                bdir = self._resolve_bundle_dir(root)
+            except _AmbiguousBundle as amb:
+                self._bundle = None
+                self._status = STATUS_INVALID
+                self._reason = "KNOWLEDGE_BUNDLE_AMBIGUOUS"
+                self._error_detail = "知识包根目录存在多个包: " + ", ".join(amb.names)
+                logger.error("知识包目录不唯一，拒绝加载: %s", self._error_detail)
+                return self._status
             if bdir is None:
                 self._bundle = None
                 self._status = STATUS_MISSING
@@ -247,10 +263,13 @@ class KnowledgeStore:
     def _resolve_bundle_dir(root: Path) -> Optional[Path]:
         if (root / "manifest.json").exists():
             return root
-        # 根目录：取唯一/最新一个含 manifest 的子目录
+        # 根目录下必须只有一个知识包。目录名里的是内容 hash，不含时间序，
+        # 多包并存时按名字取"最后一个"等于随机选，会静默加载旧内容（N-05）。
         candidates = [d for d in sorted(root.iterdir())
                       if d.is_dir() and (d / "manifest.json").exists()]
-        return candidates[-1] if candidates else None
+        if len(candidates) > 1:
+            raise _AmbiguousBundle([d.name for d in candidates])
+        return candidates[0] if candidates else None
 
     @staticmethod
     def _verify(bdir: Path, manifest: dict) -> list[str]:

@@ -26,3 +26,26 @@ tar -xzf tdsql-sqlcheck-v1.0.3-linux-x86_64.tar.gz && cd tdsql-sqlcheck-v1.0.3-l
 cp deploy/env.template deploy/.env && vi deploy/.env       # 填 TDSQL 元数据库连接、ADMIN 初始口令
 sudo ./deploy/install.sh                                    # 一键部署（内含预检与部署后验证）
 ```
+
+---
+
+### Copilot 知识包重建流程（v1.6.4.0+）
+
+修改 `backend/copilot_knowledge/sources/*.md` 后必须重建知识包，否则 `test_sources_rebuild_matches_shipped` 会报红：
+
+```bash
+# 1. 修改源文档
+vi backend/copilot_knowledge/sources/01_user_guide_core.md
+
+# 2. 重建知识包（approved-by 由审批人填写，expires-at 重新设定）
+python -m backend.copilot_knowledge.builder \
+    --sources backend/copilot_knowledge/sources \
+    --approved-by "Mr.Linsang" --expires-at 2027-09-13T00:00:00Z
+
+# 3. 删除旧包目录（重建会产生新目录名，旧目录不删会触发 N-05 多包失败关闭）
+git rm -r backend/copilot_knowledge/kb-<版本>-<旧hash>/
+
+# 4. 验证
+python -m pytest tests/copilot/test_knowledge_output.py -v
+# test_shipped_bundle_matches_sources 与 test_shipped_bundle_ready 必须同时为绿
+```
