@@ -1,13 +1,13 @@
 {
-  "utc": "2026-09-16T00:31:55.992438+00:00",
+  "utc": "2026-09-16T01:16:13.962834+00:00",
   "selftest": {
     "steps": [
       {
         "POST /providers": {
           "status": 201,
           "body": {
-            "request_id": "662e088973634127a50073190d5f3a29",
-            "id": "4d5038b20481497592551a4e947fd483",
+            "request_id": "febbc3d9954140179788bf15dbf7b717",
+            "id": "e4ef9ec2ace84102877173618b99884a",
             "enabled": false,
             "revision": 1
           }
@@ -28,17 +28,17 @@
         "PUT enabled(自检后)": {
           "status": 200,
           "body": {
-            "request_id": "d4de0e616f9848039f15c28e595c1cb6",
-            "id": "4d5038b20481497592551a4e947fd483",
+            "request_id": "5ffc459be87848ed93f7574dc088af77",
+            "id": "e4ef9ec2ace84102877173618b99884a",
             "enabled": true,
             "revision": 2
           }
         }
       }
     ],
-    "provider_id": "4d5038b20481497592551a4e947fd483",
-    "provider_name": "UAT4-自检-a1491e",
-    "selftest_turn_id": "84ed1e4de10d4f90846410976e79fd5e",
+    "provider_id": "e4ef9ec2ace84102877173618b99884a",
+    "provider_name": "UAT4-自检-358b86",
+    "selftest_turn_id": "c3eb29a1493f468eb4c614c2658300b6",
     "selftest_terminal": "SUCCEEDED",
     "selftest_error": null,
     "selftest_outbound_count": 1,

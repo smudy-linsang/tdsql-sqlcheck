@@ -132,6 +132,11 @@ JOB_TROUBLESHOOT|SLOW_EXPLAIN|COMPARE_EXPLAIN|TABLETYPE_EXPLAIN|GATEWAY_EXPLAIN|
 补丁见 `docs/evidence/v1.6.4.0-uat4-d/verified-fix-selftest.patch`（`git apply` 可直接用），
 验证后**已完整回滚**，干净树复跑 `tests/copilot` 得 **114 passed**。
 
+> **⚠️ 更正（同上补记）**：本补丁文件初版是用 PowerShell 的 `>` 重定向生成的，
+> 被写成了 **UTF-16LE**，`git apply` 报 `No valid patches in input` —— 这是我这边交付物的缺陷。
+> 现已改用 `git diff --output=…`（由 git 自己写字节）并限定为仅两个产品文件重新生成：
+> 编码正确（以 ASCII `diff` 开头）、排除自引用、**干净树上 `git apply --check` 通过**。
+
 ### 2.6 解决方案（照图施工）
 
 **修复一：封套 AAD 必须用真实 `preview_id`（把 id 生成提到加密之前）**
@@ -187,8 +192,22 @@ JOB_TROUBLESHOOT|SLOW_EXPLAIN|COMPARE_EXPLAIN|TABLETYPE_EXPLAIN|GATEWAY_EXPLAIN|
          return p
 ```
 
-> 注意用 `TurnKind.PROVIDER_SELFTEST.value` 而不是字符串字面量——
-> `workflow.py` 已在别处 import 该枚举，避免又一处"字面量对不上"的隐患。
+> 注意用 `TurnKind.PROVIDER_SELFTEST.value` 而不是字符串字面量，避免又一处"字面量对不上"的隐患。
+
+> **⚠️ 更正（2026-09-16 补记）**：本节初版写的是"`workflow.py` 已在别处 import 该枚举"——
+> **这句话是错的**。`workflow.py` 第 27 行原文只导入了 `ModelAnswer`：
+> ```python
+> from backend.models.copilot import ModelAnswer          # 原文
+> ```
+> 按初版说明直接施工会抛 `NameError: name 'TurnKind' is not defined`，
+> 把"自检失败"换成"自检崩溃"。**必须同时补上导入**：
+> ```diff
+> -from backend.models.copilot import ModelAnswer
+> +from backend.models.copilot import ModelAnswer, TurnKind
+> ```
+> 已修正的补丁见 `docs/evidence/v1.6.4.0-uat4-d/verified-fix-selftest.patch`
+> （含该导入，已在干净树 `git apply --check` 通过，并重跑功能验证：
+> `SUCCEEDED` + `tested_revision=1` + 启用 200）。
 
 **修复三（建议，防错误归因）：`_collect()` 给自检场景一个显式分支**
 
