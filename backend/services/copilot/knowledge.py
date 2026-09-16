@@ -132,10 +132,13 @@ class KnowledgeBundle:
         # 同分按 source_id/chunk_id 稳定排序
         scored.sort(key=lambda x: (-x[0], self.chunks[x[1]].get("source_id", ""),
                                    self.chunks[x[1]].get("chunk_id", "")))
-        # 相对保留：绝对下限与 top1 的 30% 取大者，避免只剩 1 条而丢失上下文
+        # 两道过滤并联（R4-N02）：绝对下限只判断"是否收录"，相对比例决定"保留几条"
         if scored:
-            _threshold = max(MIN_SCORE_FLOOR, scored[0][0] * MIN_SCORE_RATIO)
-            scored = [(s, i) for s, i in scored if s >= _threshold]
+            if scored[0][0] < MIN_SCORE:
+                scored = []
+            else:
+                _floor = max(MIN_SCORE_FLOOR, scored[0][0] * MIN_SCORE_RATIO)
+                scored = [(s, i) for s, i in scored if s >= _floor]
         results: list[dict] = []
         per_source: Counter = Counter()
         total_bytes = 0

@@ -78,13 +78,16 @@ def admit_self_test(conn, identity, provider: dict,
 
     from backend.services.copilot import crypto as crypto_mod
     keyring = crypto_mod.load_keyring()
+    # AAD 行 ID 必须与 runner 解密时一致（它用 preview["id"]），
+    # 不能用字面量；否则 AES-GCM 必然 InvalidTag。
+    preview_id = new_id()
     payload_envelope = crypto_mod.encrypt(
         json.dumps(payload, ensure_ascii=False), "copilot_previews",
-        "selftest", "payload_envelope", owner=identity.subject_id,
+        preview_id, "payload_envelope", owner=identity.subject_id,
         keyring=keyring)
     projection_envelope = crypto_mod.encrypt(
         json.dumps(payload, ensure_ascii=False), "copilot_previews",
-        "selftest", "model_projection_envelope", owner=identity.subject_id,
+        preview_id, "model_projection_envelope", owner=identity.subject_id,
         keyring=keyring)
 
     # 创建内部会话（自检不挂在用户会话上）
@@ -109,7 +112,7 @@ def admit_self_test(conn, identity, provider: dict,
 
     # 创建 preview（自检也需要 preview 因为 runner 会读）
     from backend.services.copilot.repository import PreviewRepo
-    preview_id = new_id()
+    # preview_id 已在加密封套前生成（见上）
     PreviewRepo.insert(conn, {
         "id": preview_id,
         "session_id": session_id,

@@ -271,6 +271,21 @@ D 第二轮 UAT 结论：仍不通过（NO-GO），3 阻断 + 6 严重 + 2 一�
 
 ---
 
+## 13. 第四轮 UAT 整改闭环（2026-09-16，D 复测报告 NO-GO，仅剩自检链路）
+
+D 第四轮复测结论：第三轮 4 项修复 3 项闭合，仅剩自检链路（R2-B03 第 4 轮）。修复：
+
+| 编号 | 问题 | 修复 |
+|---|---|---|
+| R4-B01 | 封套 AAD 行 ID 用了字面量 `"selftest"`，runner 解密用真实 `preview_id` → AES-GCM InvalidTag | `preview_id` 生成提到加密之前，AAD 用真实 `preview_id` |
+| R4-B02 | `_load_provider_frozen()` 要求 `enabled=1`，但自检恰恰发生在启用之前 → 逻辑死结 | 自检轮（`turn_kind=PROVIDER_SELFTEST`）放开 `enabled` 检查；普通业务轮仍要求 `enabled=1` |
+| R4-N01 | `_collect()` 没有 `PROVIDER_SELFTEST` 分支 | 补显式分支：自检场景返回空集合，不报错 |
+| R4-N02 | 两道召回过滤串联（先绝对阈值再相对比例），召回只恢复一半 | 改为并联：绝对下限只判断"是否收录"，相对比例决定"保留几条" |
+
+验证：`tests/copilot/` 114/114（修复后无回退）。
+
+---
+
 ## 12. 第三轮 UAT 整改闭环（2026-09-16，D 报告 NO-GO，仅剩 1 项阻断）
 
 D 第三轮 UAT 结论：仍不通过（NO-GO），但只剩 1 项阻断。修复：

@@ -24,7 +24,7 @@ import logging
 import time
 from typing import Any, Optional
 
-from backend.models.copilot import ModelAnswer
+from backend.models.copilot import ModelAnswer, TurnKind
 from backend.services.copilot import output as out_mod
 from backend.services.copilot import providers as prov_mod
 from backend.services.copilot import routing as routing_mod
@@ -148,6 +148,9 @@ class TurnExecutor:
                 if len(evidence) < 4:
                     evidence.append(ev)
 
+        if scene == "PROVIDER_SELFTEST":
+            # §12.6：自检不带业务资料，也不做知识检索；空集合是设计使然，不是"资料不可用"。
+            return [], [], {"identifiers_allowed": False}
         if scene in ("USAGE_HELP", "DIAGNOSTIC_HELP"):
             _t01(question)
         elif scene == "RULE_EXPLAIN":
@@ -271,7 +274,10 @@ class TurnExecutor:
             self.last_model_error = "PROVIDER_CONFIG_INVALID"
             return None
         if not int(p.get("enabled") or 0):
-            return None
+            # §12.6：自检的目的就是"启用前先验证"，此时 provider 必然 enabled=0。
+            # 仅对 PROVIDER_SELFTEST 轮放行；普通业务轮仍要求 enabled=1。
+            if self.turn.get("turn_kind") != TurnKind.PROVIDER_SELFTEST.value:
+                return None
         return p
 
     def _single_attempt(self, provider: dict, endpoint: dict,
