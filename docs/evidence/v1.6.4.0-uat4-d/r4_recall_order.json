@@ -1,0 +1,103 @@
+{
+  "shipped": {
+    "MIN_SCORE": 9.0,
+    "MIN_SCORE_RATIO": 0.3,
+    "MIN_SCORE_FLOOR": 4.0
+  },
+  "serial_recall_avg": 1.61,
+  "parallel_recall_avg": 2.39,
+  "serial_zero": 0,
+  "parallel_zero": 0,
+  "per_question": [
+    {
+      "q": "即时审核功能怎么使用？",
+      "serial": 1,
+      "parallel": 1
+    },
+    {
+      "q": "文件审核支持哪些文件格式？",
+      "serial": 1,
+      "parallel": 1
+    },
+    {
+      "q": "在线元数据审核是怎么发起的？",
+      "serial": 2,
+      "parallel": 2
+    },
+    {
+      "q": "慢SQL记录和EXPLAIN分析在哪里？",
+      "serial": 1,
+      "parallel": 3
+    },
+    {
+      "q": "扫描结果对比怎么比较两次快照？",
+      "serial": 1,
+      "parallel": 2
+    },
+    {
+      "q": "表类型统计里主表和物理子表怎么看？",
+      "serial": 3,
+      "parallel": 3
+    },
+    {
+      "q": "网关日志分析报告在哪里查看？",
+      "serial": 1,
+      "parallel": 2
+    },
+    {
+      "q": "Copilot 专家助手怎么打开？",
+      "serial": 1,
+      "parallel": 4
+    },
+    {
+      "q": "提示执行器未就绪 EXECUTOR_UNAVAILABLE 怎么处理？",
+      "serial": 1,
+      "parallel": 1
+    },
+    {
+      "q": "任务状态未知 REQUIRED 是什么意思？",
+      "serial": 1,
+      "parallel": 1
+    },
+    {
+      "q": "资料过大 CONTEXT_TOO_LARGE 应该怎么办？",
+      "serial": 1,
+      "parallel": 2
+    },
+    {
+      "q": "网关摘要显示 PARTIAL 表示什么？",
+      "serial": 3,
+      "parallel": 4
+    },
+    {
+      "q": "TDSQL 分布式建表的分片键怎么写？",
+      "serial": 1,
+      "parallel": 1
+    },
+    {
+      "q": "TDSQL 二级分区有什么要求？",
+      "serial": 2,
+      "parallel": 5
+    },
+    {
+      "q": "TDSQL 和原生 MySQL 有什么差异？",
+      "serial": 4,
+      "parallel": 5
+    },
+    {
+      "q": "项目审核规则和厂商语法能力怎么区分？",
+      "serial": 3,
+      "parallel": 4
+    },
+    {
+      "q": "这个工具能做什么？",
+      "serial": 1,
+      "parallel": 1
+    },
+    {
+      "q": "我的数据会被发送到哪里？",
+      "serial": 1,
+      "parallel": 1
+    }
+  ]
+}

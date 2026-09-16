@@ -1,0 +1,94 @@
+{
+  "utc": "2026-09-16T00:27:22.819674+00:00",
+  "selftest": {
+    "steps": [
+      {
+        "POST /providers": {
+          "status": 201,
+          "body": {
+            "request_id": "6b4c181f796f42b8b2b42ae842c9c425",
+            "id": "e05b3fd8c9f945f59106a9c145e63dcc",
+            "enabled": false,
+            "revision": 1
+          }
+        }
+      },
+      {
+        "PUT enabled(未自检)": {
+          "status": 422,
+          "code": "PROVIDER_CONFIG_INVALID"
+        }
+      },
+      {
+        "POST /self-tests": {
+          "status": 202
+        }
+      },
+      {
+        "PUT enabled(自检后)": {
+          "status": 422,
+          "body": {
+            "detail": {
+              "code": "PROVIDER_CONFIG_INVALID",
+              "message": "当前配置版本尚未通过自检，请先执行自检",
+              "request_id": "2a74613b2f0746b191c884da3bc82f70",
+              "retryable": false
+            }
+          }
+        }
+      }
+    ],
+    "provider_id": "e05b3fd8c9f945f59106a9c145e63dcc",
+    "provider_name": "UAT4-自检-5d6b2b",
+    "selftest_turn_id": "efb382fbf47547f884436d6fe95c070d",
+    "selftest_terminal": "FAILED",
+    "selftest_error": "INTERNAL_ERROR",
+    "selftest_outbound_count": 0,
+    "provider_after_selftest": {
+      "enabled": false,
+      "revision": 1,
+      "tested_revision": null
+    },
+    "tested_revision_written": false,
+    "enable_succeeded": false
+  },
+  "threshold": {
+    "min_score": 9.0,
+    "min_score_ratio": 0.3,
+    "min_score_floor": 4.0,
+    "golden_hit": 18,
+    "golden_total": 18,
+    "golden_hit_rate": 1.0,
+    "recall_avg": 1.61,
+    "zero_recall_questions": [],
+    "oos_rejected": 6,
+    "oos_total": 6,
+    "oos_leaked": []
+  },
+  "projection": [
+    {
+      "scene": "RULE_EXPLAIN",
+      "preview_status": 201,
+      "terminal": "SUCCEEDED",
+      "outbound_count": 1,
+      "matches_frozen": [
+        true
+      ],
+      "frozen_evidence": 1,
+      "frozen_knowledge": 0,
+      "answer_source": "MODEL"
+    },
+    {
+      "scene": "SQL_ADVISE",
+      "preview_status": 201,
+      "terminal": "SUCCEEDED",
+      "outbound_count": 1,
+      "matches_frozen": [
+        true
+      ],
+      "frozen_evidence": 0,
+      "frozen_knowledge": 0,
+      "answer_source": "MODEL"
+    }
+  ]
+}

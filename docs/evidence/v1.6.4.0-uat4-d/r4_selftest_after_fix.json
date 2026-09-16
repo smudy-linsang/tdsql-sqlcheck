@@ -1,0 +1,65 @@
+{
+  "utc": "2026-09-16T00:31:55.992438+00:00",
+  "selftest": {
+    "steps": [
+      {
+        "POST /providers": {
+          "status": 201,
+          "body": {
+            "request_id": "662e088973634127a50073190d5f3a29",
+            "id": "4d5038b20481497592551a4e947fd483",
+            "enabled": false,
+            "revision": 1
+          }
+        }
+      },
+      {
+        "PUT enabled(未自检)": {
+          "status": 422,
+          "code": "PROVIDER_CONFIG_INVALID"
+        }
+      },
+      {
+        "POST /self-tests": {
+          "status": 202
+        }
+      },
+      {
+        "PUT enabled(自检后)": {
+          "status": 200,
+          "body": {
+            "request_id": "d4de0e616f9848039f15c28e595c1cb6",
+            "id": "4d5038b20481497592551a4e947fd483",
+            "enabled": true,
+            "revision": 2
+          }
+        }
+      }
+    ],
+    "provider_id": "4d5038b20481497592551a4e947fd483",
+    "provider_name": "UAT4-自检-a1491e",
+    "selftest_turn_id": "84ed1e4de10d4f90846410976e79fd5e",
+    "selftest_terminal": "SUCCEEDED",
+    "selftest_error": null,
+    "selftest_outbound_count": 1,
+    "selftest_outbound": {
+      "port": 8443,
+      "keys": [
+        "draft",
+        "page_key",
+        "question",
+        "source_refs"
+      ],
+      "has_real_identifier": false,
+      "has_tools": false,
+      "question_head": "请回复以下 JSON：{\"ok\": true, \"model\": \"<你的模型名>\"}。这是连通性自检，不需要任何业务知识。"
+    },
+    "provider_after_selftest": {
+      "enabled": false,
+      "revision": 1,
+      "tested_revision": 1
+    },
+    "tested_revision_written": true,
+    "enable_succeeded": true
+  }
+}

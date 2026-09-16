@@ -1,0 +1,55 @@
+{
+  "utc": "2026-09-16T00:28:45.436798+00:00",
+  "marker": {
+    "web_started": true,
+    "capabilities": {
+      "status": 200,
+      "mode": "DISABLED"
+    },
+    "new_session": 201,
+    "preview": 201,
+    "new_turn": {
+      "status": 503,
+      "code": "COPILOT_DISABLED",
+      "message": "助手功能未启用"
+    },
+    "restored": true,
+    "mode_restored": "READY"
+  },
+  "regression": {
+    "instant_audit": {
+      "status": 200,
+      "passed": true
+    },
+    "metadata_job_submit": 202,
+    "metadata_job_final": {
+      "state": "SUCCEEDED",
+      "total_s": 4.1
+    },
+    "rbac": {
+      "uat_d_1640": {
+        "capabilities": 200,
+        "admin": 200
+      },
+      "uat_d_1640dev": {
+        "capabilities": 200,
+        "admin": 403
+      },
+      "uat_d_1640aud": {
+        "capabilities": 403,
+        "admin": 403
+      }
+    },
+    "egress": {
+      "total": 28,
+      "with_tools": 0,
+      "all_bearer": true
+    },
+    "tenant_isolation": 404,
+    "duplicate_name": {
+      "status": 422,
+      "code": "INVALID_REQUEST",
+      "message": "模型名称已存在，请换一个名称"
+    }
+  }
+}
