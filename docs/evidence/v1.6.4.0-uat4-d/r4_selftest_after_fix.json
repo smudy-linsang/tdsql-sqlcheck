@@ -1,13 +1,13 @@
 {
-  "utc": "2026-09-16T01:16:13.962834+00:00",
+  "utc": "2026-09-16T01:23:28.638419+00:00",
   "selftest": {
     "steps": [
       {
         "POST /providers": {
           "status": 201,
           "body": {
-            "request_id": "febbc3d9954140179788bf15dbf7b717",
-            "id": "e4ef9ec2ace84102877173618b99884a",
+            "request_id": "50bb56df9e5c462f97676e5fe24076c4",
+            "id": "1d2ccf4f88a54fc08b4544d72e933815",
             "enabled": false,
             "revision": 1
           }
@@ -26,40 +26,30 @@
       },
       {
         "PUT enabled(自检后)": {
-          "status": 200,
+          "status": 422,
           "body": {
-            "request_id": "5ffc459be87848ed93f7574dc088af77",
-            "id": "e4ef9ec2ace84102877173618b99884a",
-            "enabled": true,
-            "revision": 2
+            "detail": {
+              "code": "PROVIDER_CONFIG_INVALID",
+              "message": "当前配置版本尚未通过自检，请先执行自检",
+              "request_id": "5c20f87d5798468f96891ee77425bc5e",
+              "retryable": false
+            }
           }
         }
       }
     ],
-    "provider_id": "e4ef9ec2ace84102877173618b99884a",
-    "provider_name": "UAT4-自检-358b86",
-    "selftest_turn_id": "c3eb29a1493f468eb4c614c2658300b6",
-    "selftest_terminal": "SUCCEEDED",
-    "selftest_error": null,
-    "selftest_outbound_count": 1,
-    "selftest_outbound": {
-      "port": 8443,
-      "keys": [
-        "draft",
-        "page_key",
-        "question",
-        "source_refs"
-      ],
-      "has_real_identifier": false,
-      "has_tools": false,
-      "question_head": "请回复以下 JSON：{\"ok\": true, \"model\": \"<你的模型名>\"}。这是连通性自检，不需要任何业务知识。"
-    },
+    "provider_id": "1d2ccf4f88a54fc08b4544d72e933815",
+    "provider_name": "UAT4-自检-5838b0",
+    "selftest_turn_id": "048a2af9f67847ad9f1db1ee013c53bd",
+    "selftest_terminal": "FAILED",
+    "selftest_error": "INTERNAL_ERROR",
+    "selftest_outbound_count": 0,
     "provider_after_selftest": {
       "enabled": false,
       "revision": 1,
-      "tested_revision": 1
+      "tested_revision": null
     },
-    "tested_revision_written": true,
-    "enable_succeeded": true
+    "tested_revision_written": false,
+    "enable_succeeded": false
   }
 }

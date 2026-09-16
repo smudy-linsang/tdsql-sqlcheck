@@ -1,0 +1,28 @@
+{
+  "checked_at": "2026-09-16T01:24:04.435157+00:00",
+  "head": "bb54bd34d20bc9a685d6f6a7f686c37ed5692969",
+  "claim_checked": "Q 称 052cc39 已推送 main 且包含第四轮 UAT 发现的修复",
+  "timeline": {
+    "052cc39_committed": "2026-09-16 08:05:23 +0800",
+    "052cc39_subject": "fix(copilot): UAT第三轮4项修复——自检代次取当前READY值+MIN_SCORE标定9.0+停用标记进受理路径+重名provider返回4xx;114/114",
+    "round4_report_committed": "2026-09-16 08:35:43 +0800"
+  },
+  "scope": {
+    "052cc39_touched_workflow_py": false,
+    "052cc39_touched_selftest_py": true,
+    "052cc39_is_ancestor_of_main": true
+  },
+  "source_still_buggy": {
+    "selftest_py_line83": "AAD row id 仍为字面量 selftest（payload_envelope）",
+    "selftest_py_line87": "AAD row id 仍为字面量 selftest（model_projection_envelope）",
+    "workflow_py_line273": "仍是裸的 if not enabled: return None"
+  },
+  "live_run_on_pristine_main": {
+    "selftest_terminal": "FAILED",
+    "selftest_error": "INTERNAL_ERROR",
+    "outbound_count": 0,
+    "tested_revision_written": false,
+    "enable_after_selftest_status": 422
+  },
+  "verdict": "052cc39 不含第四轮两项修复；故障在纯净 main 上可复现（三重佐证：时间线、改动范围、实测）"
+}
