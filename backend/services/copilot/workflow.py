@@ -467,6 +467,12 @@ class TurnExecutor:
     def _publish_local(self, evidence: list[dict], knowledge: list[dict],
                        has_evidence: bool, has_knowledge: bool) -> None:
         scene = self.turn["scene"]
+        # §12.6：自检不带业务资料，"无证据"是设计使然，不能用 EVIDENCE_UNAVAILABLE 归因。
+        if scene == "PROVIDER_SELFTEST":
+            self._publish("FAILED", None,
+                          self.last_model_error or "PROVIDER_UNAVAILABLE",
+                          "自检未能完成：模型不可达或输出不合规")
+            return
         route_snap = _safe_json(self.turn.get("route_snapshot_envelope")) or {}
         no_route = route_snap.get("mode") != "ROUTE"
         if scene == "JOB_TROUBLESHOOT":

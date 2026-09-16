@@ -298,3 +298,49 @@ D 第三轮 UAT 结论：仍不通过（NO-GO），但只剩 1 项阻断。修�
 | R3-N01 | 重名 provider 返回 500 而非可解释的 4xx | `create_provider` 先查名称存在性，重名抛 `INVALID_REQUEST`（422） |
 
 验证：`tests/copilot/` 114/114（修复后无回退）。
+
+---
+
+## 14. 第五轮 UAT 整改闭环（2026-09-16，D 报告功能通过 / 准入条件未满足）
+
+D 第五轮复测结论：**唯一阻断已解除，功能验收通过**。但准入条件 F-4（回归锁）连续第四轮未满足，Mr.Linsang 裁定维持准入条件（选项 B）。本轮补 F-2 半完成部分 + F-3 上游架空部分 + F-4 三条回归锁（含红→绿证据）。
+
+### 修复项
+
+| 编号 | 问题 | 修复 |
+|---|---|---|
+| F-2 | `_publish_local()` 自检场景误报 `EVIDENCE_UNAVAILABLE`，真实原因是模型不可达 | `_publish_local()` 开头对 `PROVIDER_SELFTEST` 场景单独归因，使用 `self.last_model_error` 透出真实原因码 |
+| F-3 | 采集循环 `score >= MIN_SCORE` 先把低分丢掉，下游并联块永远无法恢复 | 采集循环改为 `score > 0`（先全收），过滤统一在排序后做一次 |
+| F-4 | 连续四轮零新增回归用例 | 收录 D 的参考实现为 `tests/copilot/test_provider_selftest_e2e.py`（三条锁） |
+
+### 三条回归锁
+
+| 锁 | 覆盖的历史根因 | 断言要点 |
+|---|---|---|
+| `test_selftest_admits_and_writes_tested_revision` | 第二轮缺字段→500；第三轮 epoch 写死→CONTEXT_CHANGED | 受理→模拟 runner 领取（CAS + fencing token）→**真跑 `TurnExecutor.run()`** →断言 `SUCCEEDED` 且 `tested_revision == revision` →断言能启用 |
+| `test_selftest_envelopes_decrypt_with_real_preview_id` | 第四轮 AAD 字面量→InvalidTag | 用 preview 真实主键作 AAD 解密两个封套，必须成功 |
+| `test_selftest_turn_bypasses_enabled_only_for_selftest` | 第四轮 enabled 死结 | 自检轮 `_load_provider_frozen` 返回 provider；`USER_QUESTION` 轮返回 `None` |
+
+### 红→绿证据
+
+**红色**（`_reintroduce_bugs.py` 临时回退 AAD + 去掉自检放行后跑锁）：
+
+```
+tests/copilot/test_provider_selftest_e2e.py::test_selftest_admits_and_writes_tested_revision FAILED
+tests/copilot/test_provider_selftest_e2e.py::test_selftest_envelopes_decrypt_with_real_preview_id FAILED
+tests/copilot/test_provider_selftest_e2e.py::test_selftest_turn_bypasses_enabled_only_for_selftest FAILED
+============================== 3 failed in 15.22s ==============================
+```
+
+**绿色**（`git checkout` 还原产品代码 + 补 F-2/F-3 修复后跑全量）：
+
+```
+tests/copilot/test_provider_selftest_e2e.py::test_selftest_admits_and_writes_tested_revision PASSED
+tests/copilot/test_provider_selftest_e2e.py::test_selftest_envelopes_decrypt_with_real_preview_id PASSED
+tests/copilot/test_provider_selftest_e2e.py::test_selftest_turn_bypasses_enabled_only_for_selftest PASSED
+====================== 117 passed, 4 warnings in 28.17s =======================
+```
+
+复现脚本：`docs/evidence/v1.6.4.0-uat5-d/_reintroduce_bugs.py`（用完即 `git checkout` 还原）。
+
+验证：`tests/copilot/` **117/117**（114 原有 + 3 新增回归锁，全量绿）。

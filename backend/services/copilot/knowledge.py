@@ -127,7 +127,7 @@ class KnowledgeBundle:
             for ec in q_errs:
                 if ec in ch_text:
                     score += 4.0
-            if score >= MIN_SCORE:
+            if score > 0:  # 先全收，过滤统一放到排序后（F-3：避免上游过滤架空并联逻辑）
                 scored.append((score, idx))
         # 同分按 source_id/chunk_id 稳定排序
         scored.sort(key=lambda x: (-x[0], self.chunks[x[1]].get("source_id", ""),
