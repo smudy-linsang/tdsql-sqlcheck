@@ -1,0 +1,44 @@
+{
+  "utc": "2026-09-16T02:11:34.504651+00:00",
+  "instant_audit": {
+    "status": 200,
+    "passed": true,
+    "violations": 0
+  },
+  "metadata_job_submit": 202,
+  "metadata_job_final": {
+    "state": "SUCCEEDED",
+    "total_s": 4.1
+  },
+  "rbac": {
+    "uat_d_1640": {
+      "capabilities": 200,
+      "admin": 200
+    },
+    "uat_d_1640b": {
+      "capabilities": 200,
+      "admin": 200
+    },
+    "uat_d_1640dev": {
+      "capabilities": 200,
+      "admin": 403
+    },
+    "uat_d_1640aud": {
+      "capabilities": 403,
+      "admin": 403
+    }
+  },
+  "egress": {
+    "total": 34,
+    "with_tools": 0,
+    "all_bearer": true
+  },
+  "tenant_isolation": 404,
+  "duplicate_name": {
+    "status": 422,
+    "code": "INVALID_REQUEST"
+  },
+  "health": true,
+  "feedback_summary": 200,
+  "audit_events": 200
+}

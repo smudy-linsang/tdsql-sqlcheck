@@ -1,0 +1,70 @@
+{
+  "utc": "2026-09-16T02:10:21.339926+00:00",
+  "f3": {
+    "min_score": 9.0,
+    "ratio": 0.3,
+    "floor": 4.0,
+    "recall_avg": 1.61,
+    "zero_recall": 0,
+    "oos_rejected": "6/6",
+    "oos_leaked": [],
+    "per_q": {
+      "即时审核功能怎么使用？": 1,
+      "文件审核支持哪些文件格式？": 1,
+      "在线元数据审核是怎么发起的？": 2,
+      "慢SQL记录和EXPLAIN分析在哪里？": 1,
+      "扫描结果对比怎么比较两次快照？": 1,
+      "表类型统计里主表和物理子表怎么看？": 3,
+      "网关日志分析报告在哪里查看？": 1,
+      "Copilot 专家助手怎么打开？": 1,
+      "提示执行器未就绪 EXECUTOR_UNAVAILABLE 怎么处理？": 1,
+      "任务状态未知 REQUIRED 是什么意思？": 1,
+      "资料过大 CONTEXT_TOO_LARGE 应该怎么办？": 1,
+      "网关摘要显示 PARTIAL 表示什么？": 3,
+      "TDSQL 分布式建表的分片键怎么写？": 1,
+      "TDSQL 二级分区有什么要求？": 2,
+      "TDSQL 和原生 MySQL 有什么差异？": 4,
+      "项目审核规则和厂商语法能力怎么区分？": 3,
+      "这个工具能做什么？": 1,
+      "我的数据会被发送到哪里？": 1
+    }
+  },
+  "projection": [
+    {
+      "scene": "RULE_EXPLAIN",
+      "preview_status": 201,
+      "terminal": "SUCCEEDED",
+      "outbound_count": 1,
+      "matches_frozen": [
+        true
+      ],
+      "frozen_evidence": 1,
+      "frozen_knowledge": 0,
+      "answer_source": "MODEL"
+    },
+    {
+      "scene": "SQL_ADVISE",
+      "preview_status": 201,
+      "terminal": "SUCCEEDED",
+      "outbound_count": 1,
+      "matches_frozen": [
+        true
+      ],
+      "frozen_evidence": 0,
+      "frozen_knowledge": 0,
+      "answer_source": "MODEL"
+    }
+  ],
+  "f2": {
+    "provider_id": "33871becba8c4b2db5a31f7a30ff5e45",
+    "create_status": 201,
+    "self_test_status": 202,
+    "terminal": "FAILED",
+    "error_code": "EVIDENCE_UNAVAILABLE",
+    "is_model_related": false,
+    "answer_source": null,
+    "model_block": null,
+    "limitations": [],
+    "tested_revision": null
+  }
+}
