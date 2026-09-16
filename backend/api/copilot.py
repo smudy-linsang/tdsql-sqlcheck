@@ -738,6 +738,10 @@ def _check_enabled(conn) -> None:
     settings = RuntimeRepo.settings(conn)
     if not copilot_enabled() or not bool(settings.get("enabled", False)):
         raise CopilotError("COPILOT_DISABLED")
+    # R3-M02：持久停用标记存在时不得新受理（不只是页面显示）
+    from backend.services.copilot.policy import deployed_disabled_reason
+    if deployed_disabled_reason():
+        raise CopilotError("COPILOT_DISABLED")
     # M-02：部署参数越界拒绝受理（不静默夹值）
     problems = Limits.validate()
     if problems:

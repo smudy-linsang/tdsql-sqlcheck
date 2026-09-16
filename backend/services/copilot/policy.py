@@ -42,6 +42,16 @@ def copilot_enabled() -> bool:
     return os.getenv("COPILOT_ENABLED", "false").strip().lower() in ("true", "1", "yes", "on")
 
 
+def deployed_disabled_reason() -> Optional[str]:
+    """返回部署侧强制停用原因；None 表示未强制停用。
+
+    统一供 capabilities / admit / preview / runner 使用，避免各处口径不一致。
+    """
+    from backend.services.copilot import local_ready
+    _lr, reason = local_ready()
+    return reason if reason == "COPILOT_DISABLED" else None
+
+
 def allow_schema_identifiers_deploy() -> bool:
     """部署级结构标识符闸（默认 false；DB 只能进一步关闭）。"""
     return os.getenv("COPILOT_ALLOW_SCHEMA_IDENTIFIERS", "false").strip().lower() in \

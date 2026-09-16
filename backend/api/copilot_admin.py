@@ -161,6 +161,12 @@ def create_provider(request: Request, body: ProviderCreateRequest):
                 owner="SYSTEM", crypto_revision=1, keyring=kr)
         else:
             pid = new_id()
+        # R3-N01：重名检查（先查再写，同时外层兜底 IntegrityError 防竞态）
+        existing = conn.execute(
+            "SELECT id FROM copilot_providers WHERE name = ?", (body.name,)).fetchone()
+        if existing:
+            raise CopilotError("INVALID_REQUEST",
+                               message="模型名称已存在，请换一个名称")
         ProviderRepo.insert(conn, {
             "id": pid, "name": body.name, "endpoint_id": body.endpoint_id,
             "protocol": body.protocol, "model_id": body.model_id,

@@ -268,3 +268,18 @@ D 第二轮 UAT 结论：仍不通过（NO-GO），3 阻断 + 6 严重 + 2 一�
 | R2-N02 | N05 导出 CSP 无法复验（无终态轮次） | 代码已修，待第三轮 UAT 复验 |
 
 验证：`tests/copilot/` 114/114（修复后无回退）。
+
+---
+
+## 12. 第三轮 UAT 整改闭环（2026-09-16，D 报告 NO-GO，仅剩 1 项阻断）
+
+D 第三轮 UAT 结论：仍不通过（NO-GO），但只剩 1 项阻断。修复：
+
+| 编号 | 问题 | 修复 |
+|---|---|---|
+| R2-B03 | 自检轮次必失败：`module_schema_epoch` 硬编码为 0，runner 代次冻结校验判 `CONTEXT_CHANGED` | `admit_self_test()` 改为从 `schema_mod.evaluate_ready()` 取当前 READY 代次 |
+| R3-M01 | `MIN_SCORE=10.0` 砍掉 81% 召回，1 道在域题零召回 | 标定为 `MIN_SCORE=9.0`；新增相对保留 `max(4.0, top1×0.30)` 避免只剩 1 条丢失上下文 |
+| R3-M02 | 持久停用标记只拦"显示"不拦"受理" | 新增 `deployed_disabled_reason()` 统一判据；`_check_enabled()` 中接入，标记存在时新受理被拒 |
+| R3-N01 | 重名 provider 返回 500 而非可解释的 4xx | `create_provider` 先查名称存在性，重名抛 `INVALID_REQUEST`（422） |
+
+验证：`tests/copilot/` 114/114（修复后无回退）。

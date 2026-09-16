@@ -34,7 +34,12 @@ MAX_BUNDLE_BYTES = 32 * 1024 * 1024
 MAX_RESULTS = 8
 MAX_RESULT_BYTES = 8192
 PER_SOURCE_MAX = 3
-MIN_SCORE = 10.0  # N-01（UAT D40）：阈值用黄金集标定——在域最低分与越界最高分之间的分界
+# N-01（UAT D40 / 第三轮 R3-M01）：标定自 18 题在域 + 6 题越界黄金集。
+# 在域 top1 最低 9.46、越界 top1 最高 8.38 → 分界取 9.0（10.0 会误杀 top1=9.46 的在域题）。
+MIN_SCORE = 9.0
+# 命中后的保留下限：绝对下限与相对比例取大者，避免只剩 1 条而丢失上下文
+MIN_SCORE_RATIO = 0.30
+MIN_SCORE_FLOOR = 4.0
 
 STATUS_READY = "READY"
 STATUS_STALE = "STALE"
@@ -127,6 +132,10 @@ class KnowledgeBundle:
         # 同分按 source_id/chunk_id 稳定排序
         scored.sort(key=lambda x: (-x[0], self.chunks[x[1]].get("source_id", ""),
                                    self.chunks[x[1]].get("chunk_id", "")))
+        # 相对保留：绝对下限与 top1 的 30% 取大者，避免只剩 1 条而丢失上下文
+        if scored:
+            _threshold = max(MIN_SCORE_FLOOR, scored[0][0] * MIN_SCORE_RATIO)
+            scored = [(s, i) for s, i in scored if s >= _threshold]
         results: list[dict] = []
         per_source: Counter = Counter()
         total_bytes = 0

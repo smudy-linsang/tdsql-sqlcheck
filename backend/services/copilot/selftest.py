@@ -41,6 +41,14 @@ def admit_self_test(conn, identity, provider: dict,
     provider_id = provider["id"]
     revision = int(provider["revision"])
 
+    # 代次必须取当前 READY 值：runner 领取时会用 module_schema_epoch 做冻结校验，
+    # 写死 0（或任何过期值）会让每一次自检都被判 CONTEXT_CHANGED 而必然 FAILED。
+    from backend.services.copilot import schema as schema_mod
+    _ready, _r, _st = schema_mod.evaluate_ready(conn)
+    if not _ready:
+        raise CopilotError("COPILOT_SCHEMA_UNAVAILABLE")
+    _epoch = int(_st["module_schema_epoch"])
+
     # 幂等 hash：owner + provider_id + revision + 模板版本
     idem_key = hashlib.sha256(
         f"selftest:{identity.subject_id}:{provider_id}:{revision}:"
@@ -127,7 +135,7 @@ def admit_self_test(conn, identity, provider: dict,
         "expires_at": deadline,
         "projection_mode": "PUBLIC_HELP",
         "identifier_policy_revision": "selftest",
-        "module_schema_epoch": 0,
+        "module_schema_epoch": _epoch,
     })
 
     # 创建 turn
@@ -141,7 +149,7 @@ def admit_self_test(conn, identity, provider: dict,
         "turn_kind": TurnKind.PROVIDER_SELFTEST.value,
         "scene": _SELFTEST_SCENE,
         "rule_snapshot_hash": None,
-        "module_schema_epoch": 0,
+        "module_schema_epoch": _epoch,
         "client_request_id": idem_key,
         "request_hash": idem_key,
         "sequence_no": 1,
