@@ -170,26 +170,62 @@ if scored:
 - 从**风险**看：自检链路四轮四个根因，全部是"跑一次就会暴露"的类型。
   缺锁意味着**下一次重构仍可能无声改坏它**，而不会再有人替它跑四轮。
 
-**两个选项**（请 Mr.Linsang 定）：
+**两个选项**（已提交 Mr.Linsang 裁定）：
 
 | 选项 | 含义 | 影响 |
 |---|---|---|
-| **A. 有条件放行** | 认可功能验收通过，把三条回归锁**移到发布门禁阶段**（CP-GATE-TEST）由 A 或 Q 补齐 | v1.6.4.0 可进入发布门禁；风险是锁补齐前若有人再动 `selftest.py`/`workflow.py`，无护栏 |
-| **B. 维持准入条件** | Q 补三条锁（含"红→绿"证据）后，本轮重新判定为放行 | 多一轮往返（工作量约 1 个测试文件），但换来对同类问题的长期护栏 |
+| A. 有条件放行 | 认可功能验收通过，三条回归锁移到发布门禁阶段补齐 | v1.6.4.0 可进发布门禁；风险是锁补齐前若再动 `selftest.py`/`workflow.py`，无护栏 |
+| **B. 维持准入条件** | Q 补三条锁（含"红→绿"证据）后，本轮重新判定放行 | 多一轮往返，换来对同类问题的长期护栏 |
 
-> 我的建议：**选 A，但把三条锁写成发布门禁的硬性前置项并指定责任人**。
-> 理由：锁的价值在于"防止以后再改坏"，而 `4b8eaf1` 之后这两个文件短期内不会再动；
-> 现在卡住不放行，收益低于把锁放进门禁清单、和真实模型黄金集一起做。
+### 4.1 裁定结果：**B（维持准入条件）**
+
+> **Mr.Linsang 于 2026-09-16 裁定：维持准入条件。**
+> 即：**Q 补齐三条回归锁并提供"锁在未修复代码上失败"的红→绿证据后**，
+> 本报告才转为"放行"结论。在此之前，v1.6.4.0 的 UAT 状态为
+> **功能验收通过、准入条件未满足**。
+
+### 4.2 为便于施工：参考锁已写好并**已亲自验证红→绿**
+
+为让 Q 的工作变成机械动作，我按工单把三条锁写成**可直接落地的参考实现**并实测通过：
+
+参考实现：`docs/evidence/v1.6.4.0-uat5-d/proposed_test_provider_selftest_e2e.py`
+（建议原样收录为 `tests/copilot/test_provider_selftest_e2e.py`）
+
+| 锁 | 覆盖的历史根因 | 断言要点 |
+|---|---|---|
+| `test_selftest_admits_and_writes_tested_revision` | 第二轮缺必填字段 → 500；第三轮 epoch 写死 → CONTEXT_CHANGED；第四轮 AAD/enabled | 受理自检 → 模拟 runner 领取（CAS ACCEPTED→RUNNING + fencing token）→ **离线打桩模型、真跑 `TurnExecutor.run()`** → 断言 `SUCCEEDED` **且 `tested_revision == revision`** → 断言能启用 |
+| `test_selftest_envelopes_decrypt_with_real_preview_id` | 第四轮 R4-B01 AAD 字面量 | 用 preview **真实主键** 作 AAD 解密两个封套，必须成功 |
+| `test_selftest_turn_bypasses_enabled_only_for_selftest` | 第四轮 R4-B02 enabled 死结 | 自检轮 `_load_provider_frozen` 必须返回 provider；`USER_QUESTION` 轮必须返回 `None` |
+
+**红→绿实测（原始输出已归档）**：
+
+| 步骤 | 命令 | 结果 |
+|---|---|---|
+| **红** | 临时把两个根因改回去（AAD 用字面量 + 去掉自检放行）→ 跑同一组锁 | **3 failed** — 全部三条锁报红，错误信息分别为<br>`state=FAILED error=INTERNAL_ERROR` + `InvalidTag` / `封套解密失败`、<br>解密断言失败、`自检轮必须能对未启用的 provider 发起验证调用` |
+| **绿** | `git checkout` 还原产品代码 → 跑同一组锁 | **3 passed** |
+
+- 复现脚本：`docs/evidence/v1.6.4.0-uat5-d/_reintroduce_bugs.py`（用完即还原）
+- 原始输出：`lock-red.txt`（29.8 KB）、`lock-green.txt`（2.3 KB）
+
+> **给 Q 的最小动作**：`cp` 参考实现到 `tests/copilot/` → 跑一次（绿）→
+> 用 `_reintroduce_bugs.py` 制造红 → 再跑一次（红）→ `git checkout` 还原 →
+> 把两次输出贴进开发记录。**不要重写这三条锁。**
+
+**产品代码保持零改动**：验证用的临时测试文件已删除，`tests/copilot` 用例数仍为 **114**，
+`git status` 对 `backend/`、`tests/` 无任何改动。
 
 ---
 
 ## 5. 出口判定
 
-**功能验收：通过。**
-**整体放行判定：待 Mr.Linsang 就 §4 的 A/B 选项裁定。**
+| 项 | 判定 |
+|---|---|
+| **功能验收** | ✅ **通过**——唯一阻断已解除，全部回归绿，出站投影四轮未失守 |
+| **准入条件（F-4）** | ❌ **未满足**——Mr.Linsang 裁定维持该条件 |
+| **v1.6.4.0 UAT 总判定** | **功能通过 / 放行待锁**：Q 收录三条回归锁并提交红→绿证据后，本报告即转"放行" |
 
-若选 A（有条件放行），则本轮即为 v1.6.4.0 AI Copilot 的 **UAT 通过**结论，
-遗留两项建议级（F-2 半完成、F-3 未生效）与一项门禁前置（三条回归锁）随发布门禁闭环。
+遗留两项**建议级**（F-2 失败归因半完成、F-3 并联被上游架空）不阻断放行，
+建议与三条锁一并处理；若时间紧，可并入发布门禁。
 
 ---
 
@@ -210,9 +246,10 @@ if scored:
 
 | 主题 | 文件 |
 |---|---|
-| **自检链路复测（主事件）** | `r4_selftest_verify.py`（复用第四轮脚本）、`r4_selftest_after_fix.json` |
+| **自检链路复测（主事件）** | `r4_selftest_verify.py`（复用第四轮脚本）、`r5-d/r4_selftest_after_fix.json` |
 | **F-3 召回 + M01 防回退 + F-2 归因** | `r5_core.py`、`r5_core.json` |
 | **防回退回归** | `r5_regression.py`、`r5_regression.json` |
+| **参考锁（已验红→绿）** | `proposed_test_provider_selftest_e2e.py`、`lock-red.txt`、`lock-green.txt`、`_reintroduce_bugs.py` |
 
 ### 一键复现
 
@@ -230,13 +267,15 @@ python docs/evidence/v1.6.4.0-uat-d/prepare_uat_d40.py untrust
 ## 8. 给 Mr.Linsang 的一句话
 
 **四轮之后，那条自检链路终于通了**——而且是产品代码自己跑通的（我没打补丁）：
-自检 `SUCCEEDED` → `tested_revision` 写入 → 启用 **200**。全部回归绿、出站投影四轮未失守。
-剩下的是两项**建议级**（F-2 归因只做了一半、F-3 并联被上游架空）和一项**流程门**
-（三条回归锁仍缺）。功能上我已无阻断项可报，**是否需要"先补锁再放行"，请您裁定**——
-我倾向有条件放行，把锁并入发布门禁清单。
+自检 `SUCCEEDED` → `tested_revision` 写入 → 启用 **200**；全部回归绿、出站投影四轮未失守。
+按您的裁定（**维持准入条件**），本轮结论为「**功能验收通过 / 放行待锁**」：
+三条回归锁我已写好、并**亲自跑出了红→绿**（缺陷回归 3 failed → 代码还原 3 passed），
+Q 只需 `cp` 进 `tests/copilot/`、跑两次、把输出贴进开发记录即可。
+另建议顺手清掉 F-2/F-3 两个建议级尾巴（各约 2–5 行）。
 
 ---
 
 **-智能体D**
 
 *2026-09-16 · TDSQL-SQLCheck v1.6.4.0 AI Copilot 第五轮 UAT（复测）*
+*裁定记录：Mr.Linsang 2026-09-16 裁定维持 UAT 准入条件（选项 B）*
