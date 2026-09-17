@@ -452,6 +452,9 @@ class TurnExecutor:
         evidence_by_id = {e["evidence_id"]: e for e in evidence}
         claims_rendered = out_mod.render_outcome_claims(answer, evidence_by_id)
         answer_dict = answer.model_dump()
+        # QC1-B06：对每个候选 SQL 执行受控 T09 纯文本复核
+        for cand in answer_dict.get("sql_candidates", []):
+            cand["validation"] = self._t09_validate(cand.get("sql", ""))
         actions = out_mod.build_action_cards(evidence, answer_dict["sql_candidates"])
         response = {
             "answer": answer_dict,
@@ -545,6 +548,56 @@ def _rule_ids_from_evidence(evidence: list[dict]) -> list[str]:
                 if viol.get("rule_id"):
                     ids.append(viol["rule_id"])
     return list(dict.fromkeys(ids))
+
+
+    def _t09_validate(self, sql: str) -> dict:
+        """QC1-B06：受控 T09 纯文本 SQL 复核。
+
+        对候选 SQL 做语法解析 + 规则检查，返回四态闭集结果。
+        缺实例类型/超时/解析不可靠 → UNKNOWN/INCOMPLETE，不冒充已复核。
+        """
+        result = {"executable": "UNKNOWN", "violations": [],
+                  "skipped_checks": ["DB_LIVE", "SEMANTIC_EQUIVALENCE"],
+                  "semantic_equivalence": "NOT_PROVEN",
+                  "validation": "INCOMPLETE"}
+        if not sql or not sql.strip():
+            result["validation"] = "EMPTY"
+            result["executable"] = "NO"
+            return result
+        try:
+            from backend.engine.checker import Checker
+            from backend.engine.parser import parse_sql_statements
+            stmts = parse_sql_statements(sql)
+            if not stmts:
+                result["validation"] = "PARSE_FAILED"
+                result["executable"] = "UNKNOWN"
+                return result
+            inst_type = self.session.get("instance_type") or "unknown"
+            checker = Checker(instance_type=inst_type)
+            all_results = []
+            for stmt_sql in stmts:
+                all_results.extend(
+                    checker.audit_file(stmt_sql, instance_type=inst_type))
+            blocking = [r for r in all_results if getattr(r, "level", "") == "BLOCKING"]
+            warnings = [r for r in all_results if getattr(r, "level", "") == "WARNING"]
+            result["violations"] = [
+                {"rule_id": getattr(r, "rule_id", ""),
+                 "level": getattr(r, "level", ""),
+                 "message": getattr(r, "message", "")[:256]}
+                for r in all_results[:10]]
+            if blocking:
+                result["executable"] = "NO"
+                result["validation"] = "BLOCKED"
+            elif warnings:
+                result["executable"] = "REVIEW"
+                result["validation"] = "TEXT_PASSED"
+            else:
+                result["executable"] = "REVIEW"
+                result["validation"] = "TEXT_PASSED"
+        except Exception:
+            result["validation"] = "INCOMPLETE"
+            result["executable"] = "UNKNOWN"
+        return result
 
 
 def _source_cards(evidence: list[dict], knowledge: list[dict]) -> list[dict]:

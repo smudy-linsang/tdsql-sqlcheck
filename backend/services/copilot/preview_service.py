@@ -40,6 +40,10 @@ PREVIEW_BUDGET_SECONDS = 10
 MAX_SOURCE_REFS = 4
 MAX_QUESTION_BYTES = 8192
 
+#: 会话历史上限（QC1-B05）：最近 6 条已校验问答，总 ≤4KiB
+_HISTORY_MAX_TURNS = 6
+_HISTORY_MAX_BYTES = 4096
+
 #: 场景必需来源（缺失 422 SOURCE_REQUIRED，不擅自读取最新记录）
 SCENE_REQUIRED_KINDS = {
     "RULE_EXPLAIN": {"rule"},
@@ -53,6 +57,49 @@ SCENE_REQUIRED_KINDS = {
     "USAGE_HELP": set(),
     "DIAGNOSTIC_HELP": set(),
 }
+
+
+def _build_history(conn, session: dict) -> list[dict]:
+    """QC1-B05：从同 session 最近 SUCCEEDED 轮构造 ≤4KiB 对话历史。
+
+    每轮重建，不使用供应商保存会话；历史只作上下文，不能作事实证据。
+    排除失败/已取消/自检轮；只取同 session 内同实例的已校验问答。
+    """
+    rows = conn.execute(
+        "SELECT t.id, p.payload_envelope, t.response_envelope "
+        "FROM copilot_turns t "
+        "JOIN copilot_previews p ON t.preview_id = p.id "
+        "WHERE t.session_id = ? AND t.state = 'SUCCEEDED' "
+        "AND t.turn_kind != 'PROVIDER_SELFTEST' "
+        "AND t.response_envelope IS NOT NULL "
+        "ORDER BY t.created_at DESC LIMIT ?",
+        (session["id"], _HISTORY_MAX_TURNS)).fetchall()
+    items: list[dict] = []
+    total = 0
+    for r in reversed(rows):  # 最旧在前
+        try:
+            from backend.services.copilot import crypto as crypto_mod
+            kr = crypto_mod.load_keyring()
+            payload_raw = crypto_mod.decrypt(
+                r["payload_envelope"], "copilot_previews",
+                None, "payload_envelope", keyring=kr)
+            q = json.loads(payload_raw).get("question", "")
+        except Exception:
+            continue
+        try:
+            ans = json.loads(r["response_envelope"])
+            s = ans.get("summary", "")
+        except Exception:
+            continue
+        if not q or not s:
+            continue
+        entry = {"question": q[:512], "answer_summary": s[:512]}
+        entry_bytes = len(json.dumps(entry, ensure_ascii=False).encode("utf-8"))
+        if total + entry_bytes > _HISTORY_MAX_BYTES:
+            break
+        items.append(entry)
+        total += entry_bytes
+    return items
 
 
 def build_preview(conn, identity: CopilotIdentity, session: dict,
@@ -235,7 +282,7 @@ def build_preview(conn, identity: CopilotIdentity, session: dict,
     }
     model_projection = {
         "question": question,
-        "history": [],
+        "history": _build_history(conn, session),
         "evidence": [{"evidence_id": e["evidence_id"],
                       "source_kind": e["source_kind"],
                       "availability": e["availability"],

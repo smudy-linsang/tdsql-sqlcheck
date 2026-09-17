@@ -90,6 +90,23 @@ def _conn_or_503():
 
 
 
+def authorize_turn_material(conn, identity: CopilotIdentity, turn: dict) -> None:
+    """QC1-B02：撤销即时——历史结果/动作/导出重新鉴权。
+
+    实例会话每次读取结果/动作/导出时，按当前 grant revision 重新校验。
+    任何一项撤销后不得返回结果正文和来源 excerpt。
+    """
+    session = SessionRepo.get(conn, turn["session_id"]) or {}
+    if session.get("scope_kind") != "INSTANCE":
+        return
+    conn_id = session.get("connection_id")
+    if not conn_id:
+        return
+    check_instance_grant(conn, identity, conn_id)
+
+
+
+
 # ══════════════════════════════════════════════════════════════════
 # GET /capabilities（B组故障仍 200，不读 B组）
 # ══════════════════════════════════════════════════════════════════
@@ -848,6 +865,7 @@ def get_turn_result(request: Request, turn_id: str):
     try:
         _require_business_ready(conn)
         t = require_turn_owner(TurnRepo.get(conn, turn_id), identity)
+        authorize_turn_material(conn, identity, t)
         terminal = t["state"] in (
             "SUCCEEDED", "LOCAL_ONLY", "DEGRADED", "FAILED", "CANCELLED",
             "INTERRUPTED")
@@ -963,6 +981,7 @@ def resolve_action(request: Request, turn_id: str, body: ActionResolveRequest):
     try:
         _require_business_ready(conn)
         t = require_turn_owner(TurnRepo.get(conn, turn_id), identity)
+        authorize_turn_material(conn, identity, t)
         if not t.get("response_envelope"):
             raise CopilotError("NOT_FOUND")
         resp = json.loads(t["response_envelope"])
@@ -1036,6 +1055,7 @@ def export_turn_html(request: Request, turn_id: str):
     try:
         _require_business_ready(conn)
         t = require_turn_owner(TurnRepo.get(conn, turn_id), identity)
+        authorize_turn_material(conn, identity, t)
         if not t.get("response_envelope"):
             raise CopilotError("RESULT_NOT_READY")
         from backend.services.copilot.report import render_turn_html

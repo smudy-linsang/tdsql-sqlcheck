@@ -69,6 +69,8 @@ const app=createApp({
     };
     function openCopilotWith(selection){
       copilotSelection.value=selection||{};
+      // QC1-B04：打开抽屉前导入业务上下文
+      try{if(copilot&&copilot.applyBusinessContext)copilot.applyBusinessContext(selection)}catch(e){}
       copilot.openDrawer();
     }
     // v1.6.4.0 / CP-1：Copilot 组合模块（依赖注入，不读任意 window 对象）
@@ -553,6 +555,8 @@ const app=createApp({
     };
     const doLogout=async()=>{
       try{await apiFetch(`${API_BASE}/api/v1/auth/logout`,{method:'POST'})}catch(e){}
+      // QC1-B01：退出登录重置 Copilot 私有状态
+      try{const oldSub=(authState.user&&authState.user.subject_id)||'';if(copilot&&copilot.resetForIdentityChange)copilot.resetForIdentityChange(oldSub,'','logout')}catch(e){}
       clearToken();
       clearRoleScopedState();
       // v1.6.3.2 / §7.4：退出登录清空跨页选择，防止跨用户残留 UI 状态

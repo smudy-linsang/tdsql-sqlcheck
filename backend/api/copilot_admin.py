@@ -665,7 +665,7 @@ def health(request: Request):
         ready, reason, st = schema_mod.evaluate_ready(conn)
         rt = RuntimeRepo.get(conn) or {}
         from backend.services.copilot.knowledge import store as kstore
-        return {"request_id": _rid(),
+        body = {"request_id": _rid(),
                 "module_schema_state": st.get("module_schema_state"),
                 "module_schema_epoch": st.get("module_schema_epoch"),
                 "module_reconciled_epoch": st.get("module_reconciled_epoch"),
@@ -677,5 +677,9 @@ def health(request: Request):
                             "reserved_bytes": int(
                                 rt.get("content_reserved_bytes") or 0)},
                 "knowledge": kstore.status_info()}
+        # QC1-m01：结构不可用时返回 503 + 完整诊断 JSON
+        if not ready:
+            return JSONResponse(status_code=503, content=body)
+        return body
     finally:
         conn.close()

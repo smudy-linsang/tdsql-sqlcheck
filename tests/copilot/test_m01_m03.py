@@ -149,7 +149,7 @@ class TestM03SettingsGate:
                     response = method("/api/v1/copilot-admin/settings", headers=headers, **kwargs)
                     assert response.status_code == 503
                     assert response.json()["detail"]["code"] == "COPILOT_SCHEMA_UNAVAILABLE"
-                assert client.get("/api/v1/copilot-admin/health", headers=headers).status_code == 200
+                assert client.get("/api/v1/copilot-admin/health", headers=headers).status_code == 503
             finally:
                 assert schema_mod.apply_business_schema() == 0
         finally:

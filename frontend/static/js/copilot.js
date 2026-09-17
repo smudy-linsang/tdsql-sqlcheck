@@ -118,6 +118,40 @@
       return gen === view.generation;
     }
 
+    // QC1-B01：身份变更时重置全部私有状态
+    function resetForIdentityChange(oldSubject, newSubject, reason) {
+      _bumpGeneration();
+      stopPolling();
+      // 清除旧 subject 的 sessionStorage
+      if (oldSubject) {
+        try { sessionStorage.removeItem('copilot:' + oldSubject + ':' + _tabNonce()); } catch (e) {}
+      }
+      // 清空全部私有状态
+      question.value = '';
+      preview.value = null;
+      previewing.value = false;
+      submitting.value = false;
+      submittingState.value = 'DRAFT';
+      activeTurnId.value = '';
+      polling.value = false;
+      errorMsg.value = '';
+      sourceRefs.value = [];
+      draftText.value = '';
+      turnResult.value = null;
+      resultVisible.value = false;
+      currentSessionId.value = '';
+      currentSession.value = null;
+      turns.value = [];
+      sessions.value = [];
+      selectedConnectionId.value = '';
+      capabilities.value = null;
+      view.subject_id = newSubject || '';
+      view.session_id = '';
+      view.turn_id = '';
+      drawerVisible.value = false;
+      fullPageVisible.value = false;
+    }
+
     // ── 能力 ─────────────────────────────────────────────
     async function loadCapabilities() {
       const gen = _currentGen();
@@ -222,6 +256,14 @@
       currentSessionId.value = sessionId;
       preview.value = null;
       activeTurnId.value = '';
+      _clearSubmission();  // QC1-B05：切会话清除旧提交标识
+      // QC1-B05：选择会话时同时加载 session 详情（刷新 revision）
+      try {
+        const sResp = await apiFetch(`/api/v1/copilot/sessions/${sessionId}`);
+        if (_checkGen(_currentGen()) && sResp.ok) {
+          currentSession.value = await sResp.json();
+        }
+      } catch (e) { /* 不阻塞 */ }
       await loadTurns(sessionId);
       if (!_checkGen(_currentGen())) return;
     }
@@ -307,8 +349,8 @@
       submitting.value = true;
       submittingState.value = 'SUBMITTING';
       errorMsg.value = '';
-      const saved = _loadSubmission();
-      const clientRequestId = saved.pending_client_request_id || _uuid32();
+      // QC1-B05：每个新意图生成新 client_request_id（只有 UNCERTAIN 恢复才复用）
+      const clientRequestId = _uuid32();
       _saveSubmission({ pending_client_request_id: clientRequestId,
                         submission_state: 'SUBMITTING' });
       const body = {
@@ -418,6 +460,12 @@
           const terminal = data.terminal;
           if (terminal) {
             polling.value = false;
+            _clearSubmission();  // QC1-B05：终态后清除提交标识
+            // QC1-B05：终态后刷新 session revision
+            try {
+              const sResp = await apiFetch(`/api/v1/copilot/sessions/${currentSessionId.value}`);
+              if (_checkGen(gen) && sResp.ok) currentSession.value = await sResp.json();
+            } catch (e) { /* 不阻塞 */ }
             await loadTurns(currentSessionId.value);
             return;
           }
@@ -480,8 +528,29 @@
     }
 
     async function exportTurnHtml(turnId) {
-      window.open(`/api/v1/copilot/turns/${turnId}/export.html`, '_blank',
-                  'noopener');
+      // QC1-M01：用 apiFetch 带 Bearer 获取 blob，不再 window.open 裸链接
+      const gen = _currentGen();
+      try {
+        const resp = await apiFetch(`/api/v1/copilot/turns/${turnId}/export.html`);
+        if (!_checkGen(gen)) return;
+        if (!resp.ok) {
+          errorMsg.value = await _readError(resp);
+          return;
+        }
+        const blob = await resp.blob();
+        if (!_checkGen(gen)) return;
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `copilot-advice-${turnId.slice(0, 8)}.html`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+      } catch (e) {
+        if (!_checkGen(gen)) return;
+        errorMsg.value = '导出失败（网络异常）';
+      }
     }
 
     async function copySuggestion(candidate) {
@@ -505,9 +574,32 @@
     }
 
     function sendToEditor(candidate) {
-      if (editorBridge && editorBridge.previewReplacement) {
-        editorBridge.previewReplacement(candidate);
-      }
+      // QC1-B06：候选 SQL 不直接覆盖草稿，先确认 + revision 检查
+      if (!editorBridge) return;
+      const text = (candidate && candidate.sql) || '';
+      if (!text) return;
+      const currentRev = editorBridge.readRevision ? editorBridge.readRevision() : '0';
+      const validation = (candidate && candidate.validation) || {};
+      const stateLabel = validation.validation === 'TEXT_PASSED' ? '文本复核通过'
+        : validation.validation === 'BLOCKED' ? '存在阻断违规'
+        : validation.validation === 'PARSE_FAILED' ? '解析失败'
+        : '未完成复核';
+      ElementPlus.ElMessageBox.confirm(
+        `候选 SQL 状态：${stateLabel}\n` +
+        (validation.executable === 'NO' ? '存在阻断级违规，不建议直接执行。\n' : '') +
+        `将替换审核编辑器中当前草稿（revision ${currentRev}）。确认继续？`,
+        '送入审核编辑器',
+        { confirmButtonText: '确认替换', cancelButtonText: '取消', type: 'warning' }
+      ).then(() => {
+        if (editorBridge.applyDraftIfRevision) {
+          const ok = editorBridge.applyDraftIfRevision(currentRev, text);
+          if (ok) {
+            ElementPlus.ElMessage.success('已送入编辑器（请人工复核后使用）');
+          }
+        } else if (editorBridge.previewReplacement) {
+          editorBridge.previewReplacement(candidate);
+        }
+      }).catch(() => { /* 用户取消，草稿零改动 */ });
     }
 
     async function _readError(resp) {
@@ -525,6 +617,29 @@
       await Promise.all([loadCapabilities(), loadConnections(), loadSessions()]);
     }
 
+    // QC1-B04：业务页上下文桥原子入口——打开抽屉前导入业务选择
+    function applyBusinessContext(selection) {
+      if (!selection) return;
+      // 映射目标 scene
+      if (selection.scene) scene.value = selection.scene;
+      // 复制来源 IDs
+      if (selection.source_refs && selection.source_refs.length) {
+        sourceRefs.value = selection.source_refs.slice(0, 4);
+      }
+      // 复制草稿和 revision
+      if (selection.draft) {
+        draftText.value = selection.draft;
+      }
+      // 同步 pageKey
+      if (contextBridge && selection.page_key) {
+        contextBridge.pageKey = selection.page_key;
+      }
+      // 清旧 preview/submit journal
+      preview.value = null;
+      _clearSubmission();
+      errorMsg.value = '';
+    }
+
     return {
       drawerVisible, fullPageVisible, capabilities, sessions, sessionsLoading,
       currentSessionId, currentSession, turns, turnsLoading, question,
@@ -536,7 +651,7 @@
       createSession, selectSession, buildPreview, submitTurn,
       recoverSubmission, cancelTurn, sendFeedback, viewResult, exportTurnHtml,
       copySuggestion, sendToEditor, loadTurns, startPolling, stopPolling,
-      initPage,
+      initPage, resetForIdentityChange, applyBusinessContext,
     };
   }
 

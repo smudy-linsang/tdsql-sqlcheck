@@ -62,3 +62,6 @@ tests/pressure_test/_*
 # Node (if any)
 node_modules/
 npm-debug.log
+
+# QC1: pytest basetemp “≈¡Ù
+tests/_tmp_*/

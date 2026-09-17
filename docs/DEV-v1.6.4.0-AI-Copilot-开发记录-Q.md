@@ -344,3 +344,45 @@ tests/copilot/test_provider_selftest_e2e.py::test_selftest_turn_bypasses_enabled
 复现脚本：`docs/evidence/v1.6.4.0-uat5-d/_reintroduce_bugs.py`（用完即 `git checkout` 还原）。
 
 验证：`tests/copilot/` **117/117**（114 原有 + 3 新增回归锁，全量绿）。
+
+---
+
+## 15. 第一轮 QC 整改闭环（2026-09-17，O 报告 QC1 REJECT / NO-GO）
+
+O 第一轮质检结论：**QC1 不通过**，6 BLOCKER + 5 MAJOR + 1 MINOR。核心发现：后端受控链路可用，但人类浏览器路径存在多项阻断——WebUI 无法完成模型配置、浏览器多轮对话不稳定、上下文桥未接入、账号切换泄露、撤权不即时、候选 SQL 无校验。逐项修复：
+
+### 阻断级（6 项）
+
+| 编号 | 问题 | 修复 |
+|---|---|---|
+| QC1-B01 | 账号切换泄露上一账号私有前端状态 | `copilot.js` 新增 `resetForIdentityChange()`：递增 generation、abort fetch、停止 polling、清空全部私有状态和 sessionStorage；`app.js` `doLogout` 中调用 |
+| QC1-B02 | 实例授权撤销后历史结果/动作/导出仍可访问 | `copilot.py` 新增 `authorize_turn_material()`：实例会话每次读取 result/actions/export 时按当前 grant 重新校验；接入三个端点 |
+| QC1-B03 | WebUI 无法完成大模型配置（空环境无法首配） | `copilot_admin.js` 完整重写：provider 增/改抽屉、端点下拉、密钥管理（永不回显）、场景路由配置（主备选择+隐私级别）、授权申请/审批/撤销、运行设置表单、自检轮询；`index.html` AI 配置页全量重写 |
+| QC1-B04 | 业务页上下文桥未接入 Copilot 状态 | `copilot.js` 新增 `applyBusinessContext(selection)`：映射 scene、复制 source_refs/draft、同步 pageKey、清旧 preview；`app.js` `openCopilotWith` 中调用 |
+| QC1-B05 | 浏览器会话生命周期错误+模型无历史 | 后端 `preview_service.py` 新增 `_build_history()`：从同 session 最近 6 条 SUCCEEDED 轮构造 ≤4KiB 对话历史；前端：选择会话刷新 revision、终态清除 pending ID、新意图生成新 client_request_id |
+| QC1-B06 | 候选 SQL 无 T09 校验+一键覆盖草稿 | 后端 `workflow.py` `_t09_validate()`：对每个候选 SQL 做语法解析+规则检查，返回四态闭集（TEXT_PASSED/BLOCKED/PARSE_FAILED/INCOMPLETE）；前端 `sendToEditor` 改为确认+revision 检查，显示 T09 校验状态 |
+
+### 严重级（5 项）
+
+| 编号 | 问题 | 修复 |
+|---|---|---|
+| QC1-M01 | 浏览器导出始终 401 | `exportTurnHtml` 改为 `apiFetch` 带 Bearer 获取 blob + object URL 下载 |
+| QC1-M02 | 预览不是完整可核对的冻结投影 | 预览展示增强：显示证据类型列表、知识条数、实例、到期时间、快照 hash |
+| QC1-M03 | FAILED 结果弹窗为空 | 结果对话框分态渲染：FAILED/CANCELLED/INTERRUPTED 显示原因码+错误消息+追踪号；SUCCEEDED/LOCAL_ONLY/DEGRADED 正常渲染 |
+| QC1-M04 | 自检终态和路由 DTO 未刷新 | 自检后轮询 turn 终态并自动刷新 provider 列表；路由表格绑定正确 API 字段（scene_code/primary_provider_id/privacy_profile） |
+| QC1-M05 | 关闭 Copilot 时无本地帮助路径 | DISABLED/UNAVAILABLE 模式显示本地帮助搜索框，不创建 session |
+
+### 一般级（1 项）
+
+| 编号 | 问题 | 修复 |
+|---|---|---|
+| QC1-m01 | 健康端点与冻结合同漂移 | health 在结构不可用时返回 HTTP 503 + 完整诊断 JSON；同步更新测试断言 |
+
+### 清理项
+
+| 项 | 处理 |
+|---|---|
+| `_verify_a_group.py` / `_verify_b_group.py` | 已删除 |
+| `tests/_tmp_test/` 等 pytest basetemp 遗留 | `.gitignore` 新增 `tests/_tmp_*/` |
+
+验证：`tests/copilot/` **117/117**（修复后全量绿）。

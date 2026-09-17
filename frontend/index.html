@@ -2977,18 +2977,29 @@
       </el-card>
     </div>
 
-    <!-- ═══ v1.6.4.0 / CP-1：AI配置（管理区，DETAIL §3.1-4 / §12.5）═══ -->
+    <!-- ═══ v1.6.4.0 / CP-1：AI配置（管理区，DETAIL §3.1-4 / §12.5，QC1-B03 完整重写）═══ -->
     <div v-if="currentPage==='copilot-admin'" class="page-content" data-testid="copilot-admin-page">
       <el-card>
         <template #header><span>AI 配置</span>
           <el-tag size="small" style="margin-left:8px" v-if="copilotAdmin.health">{{ copilotAdmin.health.module_schema_state || '—' }}</el-tag>
+          <el-tag size="small" type="warning" style="margin-left:4px" v-if="copilotAdmin.selfTestPolling">自检中…</el-tag>
         </template>
         <el-tabs v-model="copilotAdmin.tab">
+          <!-- ═══ 模型 ═══ -->
           <el-tab-pane label="模型" name="providers">
+            <div style="margin-bottom:8px">
+              <el-button size="small" type="primary" @click="copilotAdmin.openProviderCreate()">新增模型</el-button>
+              <el-button size="small" @click="copilotAdmin.loadProviders()">刷新</el-button>
+            </div>
             <el-table :data="copilotAdmin.providers" size="small" stripe>
-              <el-table-column prop="name" label="名称" width="160"></el-table-column>
-              <el-table-column prop="model_id" label="模型" width="180"></el-table-column>
-              <el-table-column label="状态" width="110">
+              <el-table-column prop="name" label="名称" width="140"></el-table-column>
+              <el-table-column prop="model_id" label="模型" width="160"></el-table-column>
+              <el-table-column prop="endpoint_id" label="端点" width="120"></el-table-column>
+              <el-table-column prop="auth_mode" label="认证" width="140"></el-table-column>
+              <el-table-column label="密钥" width="70">
+                <template #default="{row}">{{ row.has_secret ? '有' : '无' }}</template>
+              </el-table-column>
+              <el-table-column label="状态" width="90">
                 <template #default="{row}">
                   <el-tag :type="row.enabled ? 'success' : 'info'" size="small">{{ row.enabled ? '已启用' : '未启用' }}</el-tag>
                 </template>
@@ -2999,9 +3010,10 @@
                   <span v-else style="color:#e6a23c">未通过 / 配置已变更</span>
                 </template>
               </el-table-column>
-              <el-table-column label="操作" min-width="200">
+              <el-table-column label="操作" min-width="260">
                 <template #default="{row}">
-                  <el-button size="small" @click="copilotAdmin.runSelfTest(row)">连通性自检</el-button>
+                  <el-button size="small" @click="copilotAdmin.openProviderEdit(row)">编辑</el-button>
+                  <el-button size="small" @click="copilotAdmin.runSelfTest(row)">自检</el-button>
                   <el-button size="small" type="primary" :disabled="row.tested_revision!==row.revision" @click="copilotAdmin.enableProvider(row, true)">启用</el-button>
                   <el-button size="small" @click="copilotAdmin.enableProvider(row, false)">停用</el-button>
                 </template>
@@ -3009,28 +3021,196 @@
             </el-table>
             <div class="copilot-limit" style="margin-top:8px">自检会产生少量模型调用费用；只发固定合成问题，不发任何业务资料。</div>
           </el-tab-pane>
+          <!-- ═══ 场景路由 ═══ -->
           <el-tab-pane label="场景路由" name="routes">
+            <div style="margin-bottom:8px" v-if="copilotAdmin.unconfiguredScenes.length">
+              <span style="margin-right:8px;color:#e6a23c">未配置场景：</span>
+              <el-button v-for="s in copilotAdmin.unconfiguredScenes" :key="s.value" size="small" style="margin:2px" @click="copilotAdmin.openRouteCreate(s.value)">{{ s.label }}</el-button>
+            </div>
             <el-table :data="copilotAdmin.routes" size="small" stripe>
-              <el-table-column prop="scene" label="场景" width="180"></el-table-column>
-              <el-table-column prop="primary_name" label="主模型" width="160"></el-table-column>
-              <el-table-column prop="fallback_name" label="备模型" width="160"></el-table-column>
-              <el-table-column prop="mode" label="模式" width="120"></el-table-column>
-            </el-table>
-          </el-tab-pane>
-          <el-tab-pane label="实例授权" name="grants">
-            <el-table :data="copilotAdmin.grants" size="small" stripe>
-              <el-table-column prop="connection_id" label="实例" width="180"></el-table-column>
-              <el-table-column prop="username" label="用户" width="140"></el-table-column>
-              <el-table-column prop="approval_state" label="审批状态" width="120"></el-table-column>
-              <el-table-column label="启用" width="80">
+              <el-table-column label="场景" width="160">
+                <template #default="{row}">{{ (copilotAdmin.SCENES.find(s=>s.value===row.scene_code)||{}).label || row.scene_code }}</template>
+              </el-table-column>
+              <el-table-column label="主模型" width="140">
+                <template #default="{row}">{{ copilotAdmin.providerMap[row.primary_provider_id] || row.primary_provider_id || '—' }}</template>
+              </el-table-column>
+              <el-table-column label="备模型" width="140">
+                <template #default="{row}">{{ copilotAdmin.providerMap[row.fallback_provider_id] || row.fallback_provider_id || '—' }}</template>
+              </el-table-column>
+              <el-table-column prop="privacy_profile" label="隐私级别" width="140"></el-table-column>
+              <el-table-column label="操作" width="100">
                 <template #default="{row}">
-                  <el-tag :type="row.enabled ? 'success' : 'info'" size="small">{{ row.enabled ? '是' : '否' }}</el-tag>
+                  <el-button size="small" @click="copilotAdmin.openRouteEdit(row)">编辑</el-button>
                 </template>
               </el-table-column>
             </el-table>
           </el-tab-pane>
+          <!-- ═══ 实例授权 ═══ -->
+          <el-tab-pane label="实例授权" name="grants">
+            <div style="margin-bottom:8px">
+              <el-button size="small" type="primary" @click="copilotAdmin.openGrantRequest()">申请授权</el-button>
+              <el-button size="small" @click="copilotAdmin.loadGrants()">刷新</el-button>
+            </div>
+            <el-table :data="copilotAdmin.grants" size="small" stripe>
+              <el-table-column prop="connection_id" label="实例" width="160"></el-table-column>
+              <el-table-column prop="username" label="用户" width="120"></el-table-column>
+              <el-table-column prop="approval_state" label="审批状态" width="100">
+                <template #default="{row}">
+                  <el-tag :type="row.approval_state==='APPROVED'?'success':(row.approval_state==='PENDING'?'warning':'info')" size="small">{{ row.approval_state }}</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="启用" width="70">
+                <template #default="{row}">
+                  <el-tag :type="row.enabled ? 'success' : 'info'" size="small">{{ row.enabled ? '是' : '否' }}</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="标识符" width="70">
+                <template #default="{row}">{{ row.allow_schema_identifiers ? '允许' : '禁止' }}</template>
+              </el-table-column>
+              <el-table-column label="操作" width="180">
+                <template #default="{row}">
+                  <el-button v-if="row.approval_state==='PENDING'" size="small" type="primary" @click="copilotAdmin.approveGrant(row)">批准</el-button>
+                  <el-button v-if="row.enabled" size="small" type="danger" @click="copilotAdmin.revokeGrant(row)">撤销</el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+          </el-tab-pane>
+          <!-- ═══ 运行设置 ═══ -->
+          <el-tab-pane label="运行设置" name="settings">
+            <div v-if="copilotAdmin.settings" style="max-width:480px">
+              <el-form label-width="160px" size="small">
+                <el-form-item label="启用 Copilot">
+                  <el-switch v-model="copilotAdmin.settings.settings.enabled"></el-switch>
+                </el-form-item>
+                <el-form-item label="允许结构标识符">
+                  <el-switch v-model="copilotAdmin.settings.settings.allow_schema_identifiers"></el-switch>
+                </el-form-item>
+                <el-form-item label="用户日额度(tokens)">
+                  <el-input-number v-model="copilotAdmin.settings.settings.user_daily_tokens" :min="0" :max="10000000"></el-input-number>
+                </el-form-item>
+                <el-form-item label="全局日额度(tokens)">
+                  <el-input-number v-model="copilotAdmin.settings.settings.global_daily_tokens" :min="0" :max="100000000"></el-input-number>
+                </el-form-item>
+                <el-form-item label="会话保留(天)">
+                  <el-input-number v-model="copilotAdmin.settings.settings.session_retention_days" :min="1" :max="365"></el-input-number>
+                </el-form-item>
+                <el-form-item label="审计保留(天)">
+                  <el-input-number v-model="copilotAdmin.settings.settings.audit_retention_days" :min="1" :max="365"></el-input-number>
+                </el-form-item>
+                <el-form-item>
+                  <el-button type="primary" :loading="copilotAdmin.saving" @click="copilotAdmin.saveSettings()">保存设置</el-button>
+                </el-form-item>
+              </el-form>
+            </div>
+            <div v-else style="color:#909399">加载中…</div>
+          </el-tab-pane>
         </el-tabs>
       </el-card>
+
+      <!-- ═══ Provider 新增/编辑抽屉 ═══ -->
+      <el-drawer v-model="copilotAdmin.providerDrawer" :title="copilotAdmin.providerForm.isEdit ? '编辑模型' : '新增模型'" size="480px">
+        <el-form label-width="120px" size="small" style="padding:0 16px">
+          <el-form-item label="名称" required>
+            <el-input v-model="copilotAdmin.providerForm.name" placeholder="模型显示名称"></el-input>
+          </el-form-item>
+          <el-form-item label="批准端点" required>
+            <el-select v-model="copilotAdmin.providerForm.endpoint_id" style="width:100%">
+              <el-option v-for="ep in copilotAdmin.endpoints" :key="ep.endpoint_id"
+                         :label="ep.endpoint_id + ' (' + ep.canonical_host + ')'"
+                         :value="ep.endpoint_id"></el-option>
+            </el-select>
+          </el-form-item>
+          <el-form-item label="模型 ID" required>
+            <el-input v-model="copilotAdmin.providerForm.model_id" placeholder="如 gpt-4 / claude-3"></el-input>
+          </el-form-item>
+          <el-form-item label="认证方式">
+            <el-select v-model="copilotAdmin.providerForm.auth_mode" style="width:100%">
+              <el-option v-for="m in copilotAdmin.AUTH_MODES" :key="m.value" :label="m.label" :value="m.value"></el-option>
+            </el-select>
+          </el-form-item>
+          <el-form-item label="上下文 tokens">
+            <el-input-number v-model="copilotAdmin.providerForm.context_tokens" :min="1024" :max="1048576"></el-input-number>
+          </el-form-item>
+          <el-form-item label="密钥操作" v-if="copilotAdmin.providerForm.auth_mode==='BEARER_KEY'">
+            <el-select v-model="copilotAdmin.providerForm.secret_action" style="width:100%">
+              <el-option label="保持不变" value="KEEP"></el-option>
+              <el-option label="替换密钥" value="REPLACE"></el-option>
+              <el-option label="清除密钥" value="CLEAR" v-if="copilotAdmin.providerForm.isEdit"></el-option>
+            </el-select>
+          </el-form-item>
+          <el-form-item label="密钥" v-if="copilotAdmin.providerForm.secret_action==='REPLACE'">
+            <el-input v-model="copilotAdmin.providerForm.secret" type="password" show-password placeholder="输入新密钥（不回显）"></el-input>
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" :loading="copilotAdmin.saving" @click="copilotAdmin.saveProvider()">{{ copilotAdmin.providerForm.isEdit ? '保存' : '创建' }}</el-button>
+            <el-button @click="copilotAdmin.providerDrawer=false">取消</el-button>
+          </el-form-item>
+          <div v-if="copilotAdmin.providerFormError" style="color:#f56c6c;margin-top:8px">{{ copilotAdmin.providerFormError }}</div>
+        </el-form>
+      </el-drawer>
+
+      <!-- ═══ 路由编辑抽屉 ═══ -->
+      <el-drawer v-model="copilotAdmin.routeDrawer" title="场景路由配置" size="420px">
+        <el-form label-width="120px" size="small" style="padding:0 16px">
+          <el-form-item label="场景">
+            <el-input v-model="copilotAdmin.routeForm.scene_code" disabled></el-input>
+          </el-form-item>
+          <el-form-item label="主模型" required>
+            <el-select v-model="copilotAdmin.routeForm.primary_provider_id" style="width:100%">
+              <el-option v-for="p in copilotAdmin.providers" :key="p.id" :label="p.name" :value="p.id"></el-option>
+            </el-select>
+          </el-form-item>
+          <el-form-item label="备模型">
+            <el-select v-model="copilotAdmin.routeForm.fallback_provider_id" clearable style="width:100%">
+              <el-option v-for="p in copilotAdmin.providers" :key="p.id" :label="p.name" :value="p.id"></el-option>
+            </el-select>
+          </el-form-item>
+          <el-form-item label="隐私级别">
+            <el-select v-model="copilotAdmin.routeForm.privacy_profile" style="width:100%">
+              <el-option v-for="pp in copilotAdmin.PRIVACY_PROFILES" :key="pp.value" :label="pp.label" :value="pp.value"></el-option>
+            </el-select>
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" :loading="copilotAdmin.saving" @click="copilotAdmin.saveRoute()">保存</el-button>
+            <el-button @click="copilotAdmin.routeDrawer=false">取消</el-button>
+          </el-form-item>
+          <div v-if="copilotAdmin.routeFormError" style="color:#f56c6c;margin-top:8px">{{ copilotAdmin.routeFormError }}</div>
+        </el-form>
+      </el-drawer>
+
+      <!-- ═══ 授权申请抽屉 ═══ -->
+      <el-drawer v-model="copilotAdmin.grantDrawer" title="实例授权申请" size="420px">
+        <el-form label-width="120px" size="small" style="padding:0 16px">
+          <el-form-item label="用户" required>
+            <el-input v-model="copilotAdmin.grantForm.username" placeholder="目标用户名"></el-input>
+          </el-form-item>
+          <el-form-item label="实例连接" required>
+            <el-input v-model="copilotAdmin.grantForm.connection_id" placeholder="连接 ID"></el-input>
+          </el-form-item>
+          <el-form-item label="操作">
+            <el-radio-group v-model="copilotAdmin.grantForm.intent">
+              <el-radio value="REQUEST">申请</el-radio>
+              <el-radio value="REVOKE">撤销</el-radio>
+            </el-radio-group>
+          </el-form-item>
+          <template v-if="copilotAdmin.grantForm.intent==='REQUEST'">
+            <el-form-item label="批准单号">
+              <el-input v-model="copilotAdmin.grantForm.approval_ref" placeholder="审批参考号"></el-input>
+            </el-form-item>
+            <el-form-item label="允许标识符">
+              <el-switch v-model="copilotAdmin.grantForm.allow_schema_identifiers"></el-switch>
+            </el-form-item>
+            <el-form-item label="标识符批准单" v-if="copilotAdmin.grantForm.allow_schema_identifiers">
+              <el-input v-model="copilotAdmin.grantForm.identifier_approval_ref" placeholder="独立批准单号"></el-input>
+            </el-form-item>
+          </template>
+          <el-form-item>
+            <el-button type="primary" :loading="copilotAdmin.saving" @click="copilotAdmin.saveGrant()">提交</el-button>
+            <el-button @click="copilotAdmin.grantDrawer=false">取消</el-button>
+          </el-form-item>
+          <div v-if="copilotAdmin.grantFormError" style="color:#f56c6c;margin-top:8px">{{ copilotAdmin.grantFormError }}</div>
+        </el-form>
+      </el-drawer>
     </div>
 
     <!-- ═══ v1.6.4.0 / CP-1：Copilot 全局抽屉 ═══ -->
@@ -3056,6 +3236,23 @@
         模式：{{ copilot.copilotMode }}；
         <span v-if="copilot.capabilities.knowledge">知识包：{{ copilot.capabilities.knowledge.knowledge_status }}</span>
       </div>
+      <!-- QC1-M05：DISABLED/UNAVAILABLE 时显示本地帮助路径 -->
+      <template v-if="copilot.copilotMode==='DISABLED'||copilot.copilotMode==='UNAVAILABLE'">
+        <el-alert type="info" :closable="false" style="margin:8px 0">
+          <template #title>
+            Copilot 当前{{ copilot.copilotMode==='DISABLED'?'未启用':'暂不可用' }}。您仍可使用本地帮助搜索常见问题。
+          </template>
+        </el-alert>
+        <div class="copilot-scene-row">
+          <el-input v-model="copilot.question" size="small" placeholder="搜索帮助…"
+                    @keydown.enter.exact.prevent="copilot.buildPreview">
+            <template #append><el-button size="small" @click="copilot.buildPreview">搜索</el-button></template>
+          </el-input>
+        </div>
+        <div v-if="copilot.errorMsg" class="copilot-error">{{ copilot.errorMsg }}</div>
+      </template>
+      <!-- 正常模式 -->
+      <template v-else>
       <div class="copilot-scene-row">
         <el-select v-model="copilot.scene" size="small" style="flex:1">
           <el-option v-for="o in copilot.sceneOptions" :key="o.value" :label="o.label" :value="o.value"></el-option>
@@ -3069,49 +3266,85 @@
         <el-button size="small" :disabled="copilot.submittingState!=='PREVIEW_READY'" @click="copilot.submitTurn">确认提交</el-button>
       </div>
       <div v-if="copilot.errorMsg" class="copilot-error">{{ copilot.errorMsg }}</div>
+      <!-- QC1-M02：预览显示更完整的冻结投影信息 -->
       <div v-if="copilot.preview" class="copilot-preview-box">
-        <div>本次将发送的资料：</div>
+        <div style="font-weight:600;margin-bottom:4px">冻结投影（确认后不可修改）：</div>
         <div class="proj">问题：{{ copilot.preview.redacted_question }}</div>
-        <div class="proj">证据 {{ (copilot.preview.evidence_cards||[]).length }} 条；模式 {{ copilot.preview.projection_mode }}</div>
+        <div class="proj">证据：{{ (copilot.preview.evidence_cards||[]).length }} 条
+          <span v-if="copilot.preview.evidence_cards && copilot.preview.evidence_cards.length">
+            （{{ copilot.preview.evidence_cards.map(e=>e.source_kind).join(', ') }}）
+          </span>
+        </div>
+        <div class="proj">知识：{{ (copilot.preview.model_projection_preview||{}).knowledge_count || 0 }} 条</div>
+        <div class="proj">模式：{{ copilot.preview.projection_mode==='SCHEMA_IDENTIFIERS' ? '含结构标识符' : '别名脱敏' }}；
+          实例：{{ copilot.preview.session_display || '—' }}</div>
+        <div class="proj">到期：{{ copilot.preview.expires_at }}；
+          快照：<code style="font-size:11px">{{ (copilot.preview.snapshot_hash||'').slice(0,16) }}…</code></div>
       </div>
+      </template>
     </el-drawer>
 
-    <!-- ═══ v1.6.4.0 / CP-1：Copilot 结果对话框 ═══ -->
+    <!-- ═══ v1.6.4.0 / CP-1：Copilot 结果对话框（QC1-M03：分态渲染）═══ -->
     <el-dialog v-model="copilot.resultVisible" title="Copilot 回答" width="720px">
       <div v-if="copilot.turnResult" class="copilot-result-answer">
-        <div class="copilot-context-line">
-          来源：{{ copilot.turnResult.answer_source==='MODEL'?'AI 建议':'本地模板' }}；
-          实例：{{ (copilot.turnResult.context_display||{}).connection_name || '—' }}
-        </div>
-        <div class="copilot-result-section"><h4>结论摘要</h4><p>{{ (copilot.turnResult.answer||{}).summary }}</p></div>
-        <div class="copilot-result-section" v-if="(copilot.turnResult.answer||{}).findings && copilot.turnResult.answer.findings.length">
-          <h4>事实与依据</h4>
-          <ul><li v-for="(f,i) in copilot.turnResult.answer.findings" :key="i">[{{ f.kind }}] {{ f.text }}</li></ul>
-        </div>
-        <div class="copilot-result-section" v-if="(copilot.turnResult.answer||{}).steps && copilot.turnResult.answer.steps.length">
-          <h4>建议步骤</h4>
-          <ul><li v-for="(s,i) in copilot.turnResult.answer.steps" :key="i">{{ s.text }}（{{ s.risk==='READ_ONLY'?'只读':'人工变更' }}）</li></ul>
-        </div>
-        <div class="copilot-result-section" v-if="(copilot.turnResult.answer||{}).sql_candidates && copilot.turnResult.answer.sql_candidates.length">
-          <h4>候选 SQL（仅文本复核）</h4>
-          <div v-for="(c,i) in copilot.turnResult.answer.sql_candidates" :key="i">
-            <pre class="copilot-sql-pre">{{ c.sql }}</pre>
-            <div class="copilot-limit">{{ c.reason }}</div>
-            <el-button size="small" @click="copilot.copySuggestion(c)">复制</el-button>
-            <el-button size="small" @click="copilot.sendToEditor(c)">送入审核编辑器</el-button>
+        <!-- QC1-M03：失败态显示闭集原因+追踪号 -->
+        <template v-if="copilot.turnResult.state==='FAILED'||copilot.turnResult.state==='CANCELLED'||copilot.turnResult.state==='INTERRUPTED'">
+          <el-alert :type="copilot.turnResult.state==='FAILED'?'error':'warning'" :closable="false" style="margin-bottom:12px">
+            <template #title>
+              <div><strong>{{ copilot.turnResult.state==='FAILED'?'处理失败':(copilot.turnResult.state==='CANCELLED'?'已取消':'已中断') }}</strong></div>
+              <div v-if="copilot.turnResult.error_code" style="margin-top:4px">原因码：<code>{{ copilot.turnResult.error_code }}</code></div>
+              <div v-if="copilot.turnResult.error_message" style="margin-top:2px">{{ copilot.turnResult.error_message }}</div>
+              <div style="margin-top:4px;color:#909399">Turn ID：{{ copilot.turnResult.turn_id }}</div>
+            </template>
+          </el-alert>
+        </template>
+        <!-- 成功/降级态 -->
+        <template v-else>
+          <div class="copilot-context-line">
+            来源：{{ copilot.turnResult.answer_source==='MODEL'?'AI 建议':'本地模板' }}；
+            实例：{{ (copilot.turnResult.context_display||{}).connection_name || '—' }}
+            <el-tag v-if="copilot.turnResult.state==='LOCAL_ONLY'" size="small" type="warning" style="margin-left:8px">仅本地</el-tag>
+            <el-tag v-if="copilot.turnResult.state==='DEGRADED'" size="small" type="warning" style="margin-left:8px">降级</el-tag>
           </div>
-        </div>
-        <div class="copilot-result-section" v-if="(copilot.turnResult.answer||{}).limitations && copilot.turnResult.answer.limitations.length">
-          <h4>限制</h4>
-          <ul><li v-for="(l,i) in copilot.turnResult.answer.limitations" :key="i" class="copilot-limit">{{ l }}</li></ul>
-        </div>
-        <div class="copilot-result-section">
-          <h4>来源</h4>
-          <div v-for="(s,i) in (copilot.turnResult.sources||[])" :key="i" class="copilot-src-card">
-            {{ s.evidence_id || s.source_id }}（{{ s.source_kind }}，{{ s.available?'可用':'缺失' }}）
+          <div class="copilot-result-section"><h4>结论摘要</h4><p>{{ (copilot.turnResult.answer||{}).summary }}</p></div>
+          <div class="copilot-result-section" v-if="(copilot.turnResult.answer||{}).findings && copilot.turnResult.answer.findings.length">
+            <h4>事实与依据</h4>
+            <ul><li v-for="(f,i) in copilot.turnResult.answer.findings" :key="i">[{{ f.kind }}] {{ f.text }}</li></ul>
           </div>
-        </div>
-        <div class="copilot-limit" style="margin-top:12px">{{ copilot.turnResult.disclaimer }}</div>
+          <div class="copilot-result-section" v-if="(copilot.turnResult.answer||{}).steps && copilot.turnResult.answer.steps.length">
+            <h4>建议步骤</h4>
+            <ul><li v-for="(s,i) in copilot.turnResult.answer.steps" :key="i">{{ s.text }}（{{ s.risk==='READ_ONLY'?'只读':'人工变更' }}）</li></ul>
+          </div>
+          <!-- QC1-B06：候选 SQL 显示 T09 校验状态 -->
+          <div class="copilot-result-section" v-if="(copilot.turnResult.answer||{}).sql_candidates && copilot.turnResult.answer.sql_candidates.length">
+            <h4>候选 SQL</h4>
+            <div v-for="(c,i) in copilot.turnResult.answer.sql_candidates" :key="i">
+              <pre class="copilot-sql-pre">{{ c.sql }}</pre>
+              <div class="copilot-limit">{{ c.reason }}</div>
+              <div v-if="c.validation" style="margin:4px 0">
+                <el-tag size="small" :type="c.validation.validation==='TEXT_PASSED'?'success':(c.validation.validation==='BLOCKED'?'danger':'info')">
+                  {{ c.validation.validation==='TEXT_PASSED'?'文本复核通过':(c.validation.validation==='BLOCKED'?'存在阻断违规':(c.validation.validation==='PARSE_FAILED'?'解析失败':'未完成复核')) }}
+                </el-tag>
+                <span v-if="c.validation.violations && c.validation.violations.length" style="margin-left:8px;color:#f56c6c;font-size:12px">
+                  {{ c.validation.violations.length }} 项违规
+                </span>
+              </div>
+              <el-button size="small" @click="copilot.copySuggestion(c)">复制</el-button>
+              <el-button size="small" @click="copilot.sendToEditor(c)">送入审核编辑器</el-button>
+            </div>
+          </div>
+          <div class="copilot-result-section" v-if="(copilot.turnResult.answer||{}).limitations && copilot.turnResult.answer.limitations.length">
+            <h4>限制</h4>
+            <ul><li v-for="(l,i) in copilot.turnResult.answer.limitations" :key="i" class="copilot-limit">{{ l }}</li></ul>
+          </div>
+          <div class="copilot-result-section">
+            <h4>来源</h4>
+            <div v-for="(s,i) in (copilot.turnResult.sources||[])" :key="i" class="copilot-src-card">
+              {{ s.evidence_id || s.source_id }}（{{ s.source_kind }}，{{ s.available?'可用':'缺失' }}）
+            </div>
+          </div>
+          <div class="copilot-limit" style="margin-top:12px">{{ copilot.turnResult.disclaimer }}</div>
+        </template>
       </div>
     </el-dialog>
 </div>
