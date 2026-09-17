@@ -1,0 +1,613 @@
+{
+  "label": "copilot-focused",
+  "command": [
+    "C:\\Python314\\python.exe",
+    "-m",
+    "pytest",
+    "tests/copilot",
+    "-q",
+    "--tb=short",
+    "--basetemp=C:\\TDSQL_SQLCHECK\\TDSQL-SQLCheck\\data\\reports\\qc_o_1640\\copilot-focused-temp",
+    "--junitxml=C:\\TDSQL_SQLCHECK\\TDSQL-SQLCheck\\data\\reports\\qc_o_1640\\copilot-focused.xml"
+  ],
+  "code_path": "C:\\TDSQL_SQLCHECK\\TDSQL-SQLCheck",
+  "database": "qc_o_1640_focus",
+  "exit_code": 0,
+  "suite": {
+    "name": "pytest",
+    "errors": "0",
+    "failures": "0",
+    "skipped": "0",
+    "tests": "117",
+    "time": "44.420",
+    "timestamp": "2026-09-16T17:32:29.849882+08:00",
+    "hostname": "Smudy"
+  },
+  "cases": [
+    {
+      "id": "tests.copilot.test_api_contract.TestAuthGate::test_anonymous_rejected",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_api_contract.TestAuthGate::test_capabilities_with_auth",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_api_contract.TestAuthGate::test_admin_requires_copilot_admin_menu",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_api_contract.TestSessionTurnFlow::test_session_create_and_idempotent_turn",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_api_contract.TestSessionTurnFlow::test_cross_user_cannot_read",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_api_contract.TestSchemaGate::test_503_when_b_group_unavailable",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_api_contract.TestInputSensitive::test_sensitive_question_rejected",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_contracts.TestParse::test_parse_basic",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_contracts.TestParse::test_parse_not_create",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_contracts.TestParse::test_parse_index_prefix",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_contracts.TestVerifyAgainstDb::test_full_match",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_contracts.TestVerifyAgainstDb::test_missing_table",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_contracts.TestVerifyAgainstDb::test_wrong_column_type",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_contracts.TestVerifyAgainstDb::test_missing_index",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_contracts.TestVerifyAgainstDb::test_extra_index_in_ddl_missing_in_db",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_crypto.TestKeyring::test_load_and_roundtrip",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_crypto.TestKeyring::test_aad_cross_row_rejected",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_crypto.TestKeyring::test_missing_keyring_fails_closed",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_crypto.TestKeyring::test_bad_key_length_rejected",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_crypto.TestKeyring::test_duplicate_json_keys_rejected",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_crypto.TestKeyring::test_hmac_purpose_separation",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_crypto.TestKeyring::test_rotation_old_kid_readable",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_deploy_contract::test_copilot_runner_unit_file_exists",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_deploy_contract::test_copilot_emergency_disable_exists",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_deploy_contract::test_copilot_examples_exist",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_deploy_contract::test_script_references_copilot_runner[install.sh]",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_deploy_contract::test_script_references_copilot_runner[upgrade_incremental.sh]",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_deploy_contract::test_script_references_copilot_runner[apply_patch.sh]",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_deploy_contract::test_script_references_copilot_runner[rollback.sh]",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_deploy_contract::test_script_references_copilot_runner[verify_deploy.sh]",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_deploy_contract::test_emergency_disable_requires_incident_id",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_deploy_contract::test_runner_unit_hard_limits",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_deploy_contract::test_copilot_runner_before_web[install.sh]",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_deploy_contract::test_copilot_runner_before_web[upgrade_incremental.sh]",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_deploy_contract::test_copilot_runner_before_web[apply_patch.sh]",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_knowledge_output.TestKnowledge::test_shipped_bundle_ready",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_knowledge_output.TestKnowledge::test_builder_self_verify_catches_tamper",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_knowledge_output.TestKnowledge::test_build_calls_self_verify_end_to_end[chunks.jsonl]",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_knowledge_output.TestKnowledge::test_build_calls_self_verify_end_to_end[index.json]",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_knowledge_output.TestKnowledge::test_build_outputs_lf_bytes",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_knowledge_output.TestKnowledge::test_sources_rebuild_matches_shipped",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_knowledge_output.TestKnowledge::test_builder_has_no_translating_write",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_knowledge_output.TestKnowledge::test_bundle_dir_is_unambiguous",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_knowledge_output.TestKnowledge::test_store_ready_and_search",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_knowledge_output.TestKnowledge::test_rule_id_exact_boost",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_knowledge_output.TestKnowledge::test_missing_bundle",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_knowledge_output.TestKnowledge::test_invalid_bundle_bad_hash",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_knowledge_output.TestKnowledge::test_stale_bundle_expired",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_knowledge_output.TestOutputValidation::test_valid_answer",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_knowledge_output.TestOutputValidation::test_extra_field_rejected",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_knowledge_output.TestOutputValidation::test_phantom_reference_rejected",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_knowledge_output.TestOutputValidation::test_execution_claim_rejected",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_knowledge_output.TestOutputValidation::test_unfounded_percentage_rejected",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_knowledge_output.TestOutputValidation::test_negation_and_history_not_killed",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_knowledge_output.TestOutputValidation::test_outcome_claim_requires_evidence",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_knowledge_output.TestAssertionDetection::test_execution_variants",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_knowledge_output.TestAssertionDetection::test_safe_text",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_m01_m03.TestM01ProjectionGate::test_preview_projection[both-allow]",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_m01_m03.TestM01ProjectionGate::test_preview_projection[primary-deny]",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_m01_m03.TestM01ProjectionGate::test_preview_projection[fallback-deny]",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_m01_m03.TestM01ProjectionGate::test_preview_projection[both-deny]",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_m01_m03.TestM01ProjectionGate::test_preview_projection[primary-only]",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_m01_m03.TestM01ProjectionGate::test_preview_projection[deploy-deny]",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_m01_m03.TestM01ProjectionGate::test_preview_projection[grant-deny]",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_m01_m03.TestM01ProjectionGate::test_preview_projection[no-route]",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_m01_m03.TestM03SettingsGate::test_settings_503_when_unavailable",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_migrator_n10.TestExistingSelfHealPreserved::test_non_a_group_create_missing_self_heals",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_migrator_n10.TestAGroupFailClosed::test_registered_a_group_missing_table_fails",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_migrator_n10.TestAGroupFailClosed::test_registered_runtime_missing_fails",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_migrator_n10.TestAGroupFailClosed::test_a_group_intact_passes",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_migrator_n10.TestAGroupFailClosed::test_first_install_creates",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_migrator_n10.TestMutationProof::test_mutation_disable_self_heal_breaks_83a",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_migrator_n10.TestMutationProof::test_mutation_allow_a_group_rebuild_breaks_83b",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_migrator_n10.TestMutationProof::test_n10_key_registration",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_policy.TestEndpointValidation::test_valid_endpoint",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_policy.TestEndpointValidation::test_http_scheme_rejected",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_policy.TestEndpointValidation::test_wildcard_cidr_rejected",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_policy.TestEndpointValidation::test_loopback_cidr_rejected",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_policy.TestEndpointValidation::test_cloud_metadata_cidr_rejected",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_policy.TestEndpointValidation::test_public_with_identifiers_rejected",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_policy.TestEndpointValidation::test_duplicate_endpoint_id_rejected",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_policy.TestEndpointValidation::test_userinfo_in_host_rejected",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_policy.TestEgressGate::test_internal_data_to_public_denied",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_policy.TestEgressGate::test_internal_to_internal_ok",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_policy.TestEgressGate::test_identifiers_require_endpoint_flag",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_policy.TestEgressGate::test_restricted_never_egress",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_policy.TestLimits::test_out_of_range_clamped_and_validated",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_policy.TestLimits::test_queue_vs_deadline_rule",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_policy.TestLimits::test_m02_out_of_range_rejected_at_bootstrap",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_policy.TestLimits::test_m02_in_range_passes",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_provider_selftest_e2e::test_selftest_admits_and_writes_tested_revision",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_provider_selftest_e2e::test_selftest_envelopes_decrypt_with_real_preview_id",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_provider_selftest_e2e::test_selftest_turn_bypasses_enabled_only_for_selftest",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_redaction.TestSensitiveDetection::test_password_assignment",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_redaction.TestSensitiveDetection::test_jwt",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_redaction.TestSensitiveDetection::test_pem",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_redaction.TestSensitiveDetection::test_uri_userinfo",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_redaction.TestSensitiveDetection::test_auth_header",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_redaction.TestSensitiveDetection::test_known_provider_key",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_redaction.TestSensitiveDetection::test_clean_sql_not_flagged",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_redaction.TestSensitiveDetection::test_log_does_not_contain_hit_content",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_redaction.TestIdentifiers::test_valid",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_redaction.TestIdentifiers::test_invalid",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_redaction.TestIdentifiers::test_alias_mapper_collision_avoidance",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_redaction.TestIdentifiers::test_alias_avoids_real_name_collision",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_redaction.TestIdentifiers::test_projection_gating",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_redaction.TestMasking::test_literals_masked",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_redaction.TestMasking::test_unparseable_returns_none",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_redaction.TestMasking::test_truncate_utf8",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_runtime_guard.TestRuntimeStructuralGuard::test_missing_table_turns_to_503",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_runtime_guard.TestRuntimeStructuralGuard::test_is_structural_error_classification",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_schema_b_group.TestBGroupVerify::test_ready_after_apply",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_schema_b_group.TestBGroupVerify::test_missing_b_table_detected",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_schema_b_group.TestBGroupVerify::test_wrong_column_detected",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_schema_b_group.TestBGroupVerify::test_missing_index_detected",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_schema_b_group.TestAccountOpsIndependentOfBGroup::test_create_delete_user_with_b_group_broken",
+      "status": "passed",
+      "message": ""
+    },
+    {
+      "id": "tests.copilot.test_schema_b_group.TestAccountOpsIndependentOfBGroup::test_recreate_same_name_gets_new_subject",
+      "status": "passed",
+      "message": ""
+    }
+  ]
+}

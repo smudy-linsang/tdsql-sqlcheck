@@ -1,0 +1,32 @@
+[
+  {
+    "method": "POST",
+    "path": "/api/v1/copilot-admin/providers",
+    "status": 201,
+    "utc": "2026-09-16T09:28:47.946252+00:00",
+    "body": {
+      "request_id": "65a2add460824aa692b9fb4268c61e95",
+      "id": "7dfc824bae714890ab837219af643469",
+      "enabled": false,
+      "revision": 1
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/copilot-admin/providers",
+    "status": 201,
+    "utc": "2026-09-16T09:28:48.003873+00:00",
+    "body": {
+      "request_id": "c161a12d2b5e4dddb065e2e1c6a0b649",
+      "id": "2fb0cdafb0ef411aa75ad44e6e91df4f",
+      "enabled": false,
+      "revision": 1
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  }
+]

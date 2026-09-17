@@ -1,0 +1,13 @@
+Browser tab: 1, Title: "TDSQL数据库SQL审核工具 V1.6.4.0", URL: "http://127.0.0.1:8026/".
+The following is a diff from the previous accessibility tree with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.
+Removed element IDs: 70-103
+~			55 tab (selectable, settable, boolean) 模型, Value: 0, ID: tab-providers
+~			56 tab (selected, settable, boolean) 场景路由, Value: 1, ID: tab-routes
+~		58 container Description: 场景路由, ID: pane-routes
+~							63 text 场景
+~							65 text 主模型
+~							67 text 备模型
+~							69 text 模式
++				70 table
++					71 container
+The focused UI element is 56 tab (selected, settable, boolean) 场景路由, Value: 1, ID: tab-routes

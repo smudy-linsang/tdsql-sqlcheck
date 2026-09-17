@@ -1,0 +1,28 @@
+{
+  "baseline_suite": {
+    "name": "pytest",
+    "errors": "89",
+    "failures": "417",
+    "skipped": "31",
+    "tests": "2176",
+    "time": "433.325",
+    "timestamp": "2026-09-16T17:40:27.827067+08:00",
+    "hostname": "Smudy"
+  },
+  "clean_head_suite": {
+    "name": "pytest",
+    "errors": "89",
+    "failures": "417",
+    "skipped": "31",
+    "tests": "2176",
+    "time": "3087.367",
+    "timestamp": "2026-09-17T07:07:12.927127+08:00",
+    "hostname": "Smudy"
+  },
+  "baseline_unsuccessful_ids": 506,
+  "clean_head_unsuccessful_ids": 506,
+  "common_unsuccessful_ids": 506,
+  "clean_head_only": [],
+  "baseline_only": [],
+  "same_failure_id_set": true
+}

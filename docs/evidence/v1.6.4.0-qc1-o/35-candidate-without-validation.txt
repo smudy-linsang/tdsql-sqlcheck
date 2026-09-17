@@ -1,0 +1,108 @@
+- banner:
+  - img "logo"
+  - generic: TDSQL数据库SQL审核工具
+  - button "Q QC1-UAT管理员甲 系统管理员":
+    - generic: Q
+    - generic: QC1-UAT管理员甲
+    - generic: 系统管理员
+- complementary:
+  - menubar:
+    - menuitem "治理概览":
+      - generic: 治理概览
+    - menuitem "SQL审核" [expanded]:
+      - generic: SQL审核
+      - menu:
+        - menuitem "即时审核"
+        - menuitem "文件审核"
+        - menuitem "在线元数据审核"
+    - menuitem "慢SQL治理":
+      - generic: 慢SQL治理
+    - menuitem "实例体检":
+      - generic: 实例体检
+    - menuitem "深度诊断":
+      - generic: 深度诊断
+    - menuitem "平台治理":
+      - generic: 平台治理
+    - menuitem "Copilot专家助手":
+      - generic: Copilot专家助手
+    - menuitem "系统管理":
+      - generic: 系统管理
+- navigation "面包屑"
+- text: Copilot 专家助手
+- generic: 已启用
+- combobox
+- generic: QC1-分布式测试库
+- button "新建通用会话":
+  - generic: 新建通用会话
+- button "新建实例会话":
+  - generic: 新建实例会话
+- combobox
+- generic: 通用咨询 09-16 14:37
+- combobox
+- generic: 使用帮助
+- textbox "输入问题（Enter 发送，Shift+Enter 换行）；敏感信息（口令/密钥）请勿输入": QC1-A-PRIVATE-NOTE-RECHECK：甲的未提交内部草稿
+- textbox "可选：粘贴待分析的 SQL / 诊断摘录（USER_DRAFT）"
+- button "预览资料":
+  - generic: 预览资料
+- button "确认提交" [disabled]:
+  - generic: 确认提交
+- button "恢复本次提交":
+  - generic: 恢复本次提交
+- generic: 相同提交标识对应不同请求内容，请核对后重新发起（可尝试“恢复本次提交”）
+- generic: "#1 RULE_EXPLAIN"
+- generic: SUCCEEDED
+- button "查看结果":
+  - generic: 查看结果
+- button "导出报告":
+  - generic: 导出报告
+- button "有用":
+  - generic: 有用
+- button "有误":
+  - generic: 有误
+- generic: "#2 RULE_EXPLAIN"
+- generic: SUCCEEDED
+- button "查看结果":
+  - generic: 查看结果
+- button "导出报告":
+  - generic: 导出报告
+- button "有用":
+  - generic: 有用
+- button "有误":
+  - generic: 有误
+- generic: "#3 RULE_EXPLAIN"
+- generic: SUCCEEDED
+- button "查看结果":
+  - generic: 查看结果
+- button "导出报告":
+  - generic: 导出报告
+- button "有用":
+  - generic: 有用
+- button "有误":
+  - generic: 有误
+- dialog "Copilot 回答":
+  - banner:
+    - heading "Copilot 回答" [level=2]
+    - button "el.dialog.close":
+  - generic: 来源：AI 建议； 实例：—
+  - heading "结论摘要" [level=4]
+  - paragraph: 已根据本轮证据整理要点；这是受控网关返回的合成答案。
+  - heading "事实与依据" [level=4]
+  - list:
+    - listitem: "[FACT] 本轮资料卡已随请求送达，编号见 evidence_ids。"
+    - listitem: "[POLICY] 本轮知识条目已随请求送达，编号见 knowledge_ids。"
+  - heading "候选 SQL（仅文本复核）" [level=4]
+  - generic: SELECT * FROM qc_candidate_missing;
+  - generic: QC1 synthetic candidate for text-validation and editor-safety tests
+  - button "复制":
+    - generic: 复制
+  - button "送入审核编辑器":
+    - generic: 送入审核编辑器
+  - heading "限制" [level=4]
+  - list:
+    - listitem: 合成网关答案，仅用于链路与投影一致性验证
+  - heading "来源" [level=4]
+  - generic: E1（RULE_RUNTIME，可用）
+  - generic: USER_GUIDE_CORE（KNOWLEDGE_PACK，可用）
+  - generic: PUBLIC_FIXED_QUESTIONS（KNOWLEDGE_PACK，可用）
+  - generic: PUBLIC_FIXED_QUESTIONS（KNOWLEDGE_PACK，可用）
+  - generic: AI或本地助手建议不是正式审核、数据库执行或验收结论。

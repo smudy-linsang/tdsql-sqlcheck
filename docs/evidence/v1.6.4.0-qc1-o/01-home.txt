@@ -1,0 +1,51 @@
+Browser tab: 1, Title: "TDSQL数据库SQL审核工具 V1.6.4.0", URL: "http://127.0.0.1:8026/".
+The following is a diff from the previous accessibility tree with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.
+Removed element IDs: 3, 27-40
++			70 image logo
++			71 text TDSQL数据库SQL审核工具
++				72 text 治理概览
++				73 container
++					74 image
++					75 text SQL审核
++					76 image
++				77 container
++					78 image
++					79 text 慢SQL治理
++					80 image
++				81 container
++					82 image
++					83 text 实例体检
++					84 image
++				85 text 深度诊断
++				86 container
++					87 image
++					88 text 平台治理
++					89 image
++				90 text Copilot专家助手
++				91 container
++					92 image
++					93 text 系统管理
++					94 image
++			95 container
++				96 text 0 今日审核 通过 0 / 拦截 0
++			97 container
++				98 text 0.0% 今日通过率 ERROR 0 / WARNING 0
++			99 container
++				100 text 0 待处理慢SQL 严重 0
++			101 container
++				102 text 0 已优化慢SQL
++			103 container
++				104 table
++					105 row
++						106 cell
++							107 text 规则ID
++						108 cell
++							109 text 级别
++						110 cell
++							111 text 描述
++						112 cell
++							113 text 命中
++				114 container
++					115 table
++					116 text 暂无数据
+The focused UI element is 0 AXWebArea TDSQL数据库SQL审核工具 V1.6.4.0, URL: 127.0.0.1:8026/

@@ -1,0 +1,98 @@
+- banner:
+  - img "logo"
+  - generic: TDSQL数据库SQL审核工具
+  - button "Q QC1-UAT管理员甲 系统管理员":
+    - generic: Q
+    - generic: QC1-UAT管理员甲
+    - generic: 系统管理员
+- complementary:
+  - menubar:
+    - menuitem "治理概览":
+      - generic: 治理概览
+    - menuitem "SQL审核" [expanded]:
+      - generic: SQL审核
+      - menu:
+        - menuitem "即时审核"
+        - menuitem "文件审核"
+        - menuitem "在线元数据审核"
+    - menuitem "慢SQL治理" [expanded]:
+      - generic: 慢SQL治理
+      - menu:
+        - menuitem "扫描任务"
+        - menuitem "慢SQL记录"
+        - menuitem "EXPLAIN分析"
+    - menuitem "实例体检" [expanded]:
+      - generic: 实例体检
+      - menu:
+        - menuitem "上线检查"
+        - menuitem "大表治理"
+    - menuitem "深度诊断":
+      - generic: 深度诊断
+    - menuitem "平台治理" [expanded]:
+      - generic: 平台治理
+      - menu:
+        - menuitem "实例管理"
+        - menuitem "审核规则库"
+        - menuitem "评估规则集"
+    - menuitem "Copilot专家助手":
+      - generic: Copilot专家助手
+    - menuitem "系统管理":
+      - generic: 系统管理
+- navigation "面包屑":
+  - link "SQL审核"
+  - text: /
+  - link "即时审核"
+- generic: 即时SQL审核
+- text: 规则适用架构：
+- radiogroup "radio-group":
+  - radio "分布式规则" [checked]
+  - generic: 分布式规则
+  - radio "集中式规则"
+  - generic: 集中式规则
+- textbox "粘贴SQL语句，Ctrl+Enter 快速审核": CREATE TABLE qc_disabled(id BIGINT);
+- button "开始审核":
+  - generic: 开始审核
+- button "示例":
+  - generic: 示例
+- alert:
+  - generic: 发现 8 项违规
+  - paragraph:
+    - text: "SQL类型: CREATE TABLE"
+    - text: "适用架构:"
+    - generic: 分布式
+- button "生成修改建议":
+  - generic: 生成修改建议
+- button "解释违规规则":
+  - generic: 解释违规规则
+- text: "[R003]"
+- generic: ERROR
+- text: CREATE TABLE 未指定主键，TDSQL 要求每个表必须有主键
+- generic: "💡 建议添加自增主键: id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY"
+- text: "[R004]"
+- generic: ERROR
+- text: 未指定存储引擎，TDSQL 要求使用 InnoDB 引擎
+- generic: "💡 请在 DDL 中添加: ENGINE=InnoDB"
+- text: "[R005]"
+- generic: ERROR
+- text: 未指定字符集，TDSQL 要求使用 utf8mb4
+- generic: "💡 请在 DDL 中添加: DEFAULT CHARSET=utf8mb4"
+- text: "[R028]"
+- generic: ERROR
+- text: 表 qc_disabled 缺少表级别COMMENT
+- generic: 💡 请添加 COMMENT '表用途说明' 到CREATE TABLE语句中
+- text: "[R029]"
+- generic: WARNING
+- text: 字段 'id' 缺少COMMENT注释
+- generic: "💡 请为每个字段添加COMMENT，如: col_name INT COMMENT '字段说明'"
+- text: "[R036]"
+- generic: INFO
+- text: 建议表包含 create_time 和 update_time 字段用于数据追踪
+- generic: "💡 建议添加: create_time DATETIME DEFAULT CURRENT_TIMESTAMP, update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"
+- text: "[R037]"
+- generic: INFO
+- text: 建议添加逻辑删除字段(如 is_deleted)替代物理删除
+- generic: "💡 建议添加: is_deleted TINYINT DEFAULT 0 COMMENT '逻辑删除标记'"
+- text: "[R077]"
+- generic: ERROR
+- text: 建表语句未声明分片键(SHARDKEY)或广播表标记(BROADCAST)，TDSQL分布式实例上不允许创建单表（表 qc_disabled）。分片表必须通过 SHARDKEY=列名 声明分片键，广播表必须通过 BROADCAST 声明
+- generic: "💡 请按目标实例支持的形态声明分片键或广播表。示例: CREATE TABLE t1 (...) ENGINE=InnoDB SHARDKEY=user_id CREATE TABLE t1 (...) ENGINE=InnoDB TDSQL_DISTRIBUTED BY HASH(`user_id`) CREATE TABLE t1 (...) ENGINE=InnoDB BROADCAST CREATE TABLE t1 (...) ENGINE=InnoDB shardkey=noshardkey_allset 分片表的分片键必须是主键(或主键的一部分)，且必须包含在每一个唯一索引中。"

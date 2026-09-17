@@ -1,0 +1,106 @@
+Browser tab: 1, Title: "TDSQL数据库SQL审核工具 V1.6.4.0", URL: "http://127.0.0.1:8026/".
+1 AXWebArea TDSQL数据库SQL审核工具 V1.6.4.0, URL: 127.0.0.1:8026/
+	2 container app
+		3 container
+			4 image logo
+			5 text TDSQL数据库SQL审核工具
+			6 image
+			7 pop up button (collapsed) Q QC1-UAT管理员甲 系统管理员, ID: el-id-805-71, Secondary Actions: Expand
+				8 text Q
+				9 text QC1-UAT管理员甲
+				10 text 系统管理员
+		11 menu bar
+			12 治理概览
+				13 text 治理概览
+			14 (collapsed) SQL审核, Secondary Actions: Expand
+				15 container
+					16 image
+					17 text SQL审核
+					18 image
+			19 (collapsed) 慢SQL治理, Secondary Actions: Expand
+				20 container
+					21 image
+					22 text 慢SQL治理
+					23 image
+			24 (collapsed) 实例体检, Secondary Actions: Expand
+				25 container
+					26 image
+					27 text 实例体检
+					28 image
+			29 深度诊断
+				30 text 深度诊断
+			31 (collapsed) 平台治理, Secondary Actions: Expand
+				32 container
+					33 image
+					34 text 平台治理
+					35 image
+			36 Copilot专家助手
+				37 text Copilot专家助手
+			38 (expanded) 系统管理, Secondary Actions: Collapse
+				39 container
+					40 image
+					41 text 系统管理
+					42 image
+				43 menu
+					44 用户管理
+					45 角色管理
+					46 权限矩阵
+					47 数据保留
+					48 操作审计
+					49 AI配置
+					50 系统信息
+		51 container 面包屑
+		52 container
+			53 text AI 配置 READY
+		54 tab group
+			55 tab (selected, settable, boolean) 模型, Value: 1, ID: tab-providers
+			56 tab (selectable, settable, boolean) 场景路由, Value: 0, ID: tab-routes
+			57 tab (selectable, settable, boolean) 实例授权, Value: 0, ID: tab-grants
+		58 container Description: 模型, ID: pane-providers
+			59 container
+				60 table
+					61 row
+						62 cell
+							63 text 名称
+						64 cell
+							65 text 模型
+						66 cell
+							67 text 状态
+						68 cell
+							69 text 自检
+						70 cell
+							71 text 操作
+				72 container
+					73 table
+						74 container
+							75 row
+								76 cell
+									77 text QC1 Controlled Backup
+								78 cell
+									79 text qc1-synthetic
+								80 cell
+									81 text 未启用
+								82 cell
+									83 text 未通过 / 配置已变更
+								84 cell
+									85 container
+										86 button 连通性自检
+										87 button (disabled) 启用
+										88 button 停用
+							89 row
+								90 cell
+									91 text QC1 Controlled Main
+								92 cell
+									93 text qc1-synthetic
+								94 cell
+									95 text 未启用
+								96 cell
+									97 text 未通过 / 配置已变更
+								98 cell
+									99 container
+										100 button 连通性自检
+										101 button (disabled) 启用
+										102 button 停用
+			103 text 自检会产生少量模型调用费用；只发固定合成问题，不发任何业务资料。
+
+The focused UI element is 100 button 连通性自检

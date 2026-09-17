@@ -1,0 +1,86 @@
+[
+  {
+    "method": "GET",
+    "path": "/api/v1/copilot/turns/a409e7d3761c438e9bf5d5c10aedd683",
+    "status": 200,
+    "utc": "2026-09-16T09:29:52.156813+00:00",
+    "body": {
+      "request_id": "d8a41ecfb31045639359790996222426",
+      "turn_id": "a409e7d3761c438e9bf5d5c10aedd683",
+      "session_id": "815c75f8f224441eace2876a93e40e33",
+      "state": "SUCCEEDED",
+      "phase": "DONE",
+      "scene": "PROVIDER_SELFTEST",
+      "created_at": "2026-09-16T09:29:28.909635",
+      "deadline_at": "2026-09-16T09:31:28.901929",
+      "finished_at": "2026-09-16T09:29:29.483176",
+      "terminal": true,
+      "result_available": true,
+      "error_code": null,
+      "retry_after_ms": 0
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/copilot-admin/providers",
+    "status": 200,
+    "utc": "2026-09-16T09:29:52.191091+00:00",
+    "body": {
+      "request_id": "d0fd9c6b44bc4155ae788d3127098080",
+      "items": [
+        {
+          "id": "2fb0cdafb0ef411aa75ad44e6e91df4f",
+          "name": "QC1 Controlled Backup",
+          "endpoint_id": "ep-uat-b",
+          "protocol": "OPENAI_COMPAT_CHAT",
+          "model_id": "qc1-synthetic",
+          "auth_mode": "BEARER",
+          "capabilities": {
+            "context_tokens": 32768,
+            "supports_json_schema": false,
+            "supports_json_object": true,
+            "max_output_field": "max_tokens",
+            "supports_temperature": false,
+            "supports_store_false": true
+          },
+          "enabled": false,
+          "revision": 1,
+          "tested_revision": null,
+          "has_secret": true,
+          "cooldown_until": null,
+          "consecutive_failures": 0,
+          "last_error_code": null
+        },
+        {
+          "id": "7dfc824bae714890ab837219af643469",
+          "name": "QC1 Controlled Main",
+          "endpoint_id": "ep-uat-a",
+          "protocol": "OPENAI_COMPAT_CHAT",
+          "model_id": "qc1-synthetic",
+          "auth_mode": "BEARER",
+          "capabilities": {
+            "context_tokens": 32768,
+            "supports_json_schema": false,
+            "supports_json_object": true,
+            "max_output_field": "max_tokens",
+            "supports_temperature": false,
+            "supports_store_false": true
+          },
+          "enabled": false,
+          "revision": 1,
+          "tested_revision": 1,
+          "has_secret": true,
+          "cooldown_until": null,
+          "consecutive_failures": 0,
+          "last_error_code": null
+        }
+      ]
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  }
+]

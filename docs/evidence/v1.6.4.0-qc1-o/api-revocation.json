@@ -1,0 +1,634 @@
+[
+  {
+    "method": "POST",
+    "path": "/api/v1/copilot/sessions",
+    "status": 201,
+    "utc": "2026-09-16T14:43:31.361783+00:00",
+    "body": {
+      "request_id": "9968a155a6594e0a8ac8a2324e737923",
+      "session_id": "1bc7ad7d08714a998f07798f04cedcf6",
+      "title": "实例咨询 09-16 14:43",
+      "scope_kind": "INSTANCE",
+      "state": "OPEN",
+      "expires_at": "2026-10-16 14:43:31.335923"
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/copilot/sessions/1bc7ad7d08714a998f07798f04cedcf6",
+    "status": 200,
+    "utc": "2026-09-16T14:43:31.412616+00:00",
+    "body": {
+      "request_id": "926404e184424f9eb2a5992b4cc2eb7c",
+      "session_id": "1bc7ad7d08714a998f07798f04cedcf6",
+      "title": "实例咨询 09-16 14:43",
+      "scope_kind": "INSTANCE",
+      "state": "OPEN",
+      "connection_name": "QC1-分布式测试库",
+      "database": "qc_o_1640_dist",
+      "instance_type": "distributed",
+      "revision": 1,
+      "active_turn_id": null,
+      "created_at": "2026-09-16T14:43:31.336070",
+      "updated_at": "2026-09-16T14:43:31.336070"
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/copilot/sessions/1bc7ad7d08714a998f07798f04cedcf6/previews",
+    "status": 201,
+    "utc": "2026-09-16T14:43:31.492814+00:00",
+    "body": {
+      "request_id": "2746a48d1c7e48d98e70c2467e4acb7a",
+      "preview_id": "e28d814a9d424ae4a71e5db987735e80",
+      "expires_at": "2026-09-16 14:45:31.467219",
+      "expected_session_revision": 1,
+      "scene": "AUDIT_EXPLAIN",
+      "snapshot_hash": "d545216c27c7b8e1200ed37cb1e17010ea79e07a93ea1424c39b46d68007ffb8",
+      "input_hash": "d767f285b96abbd92e5de1a5fb7180ca3f0cdf22944b77c628644a51d91f1ca0",
+      "context_display": {
+        "connection_name": "QC1-分布式测试库",
+        "name_source": "snapshot",
+        "database": "qc_o_1640_dist",
+        "instance_type": "distributed",
+        "observed_at": null,
+        "completeness": "COMPLETE"
+      },
+      "evidence_cards": [
+        {
+          "evidence_id": "E1",
+          "source_kind": "METADATA_JOB",
+          "availability": "AVAILABLE",
+          "completeness": "COMPLETE",
+          "observed_at": "2026-09-16T09:38:03.795219",
+          "connection_name": null
+        }
+      ],
+      "redacted_question": "解释本次合成元数据审核的结果。",
+      "model_projection_preview": {
+        "projection_mode": "SCHEMA_IDENTIFIERS",
+        "question": "解释本次合成元数据审核的结果。",
+        "evidence_summary": [
+          {
+            "evidence_id": "E1",
+            "source_kind": "METADATA_JOB",
+            "availability": "AVAILABLE",
+            "completeness": "COMPLETE"
+          }
+        ],
+        "knowledge_count": 6
+      },
+      "data_class": "INTERNAL_REDACTED",
+      "mode": "ROUTE",
+      "provider_display": {
+        "name": "7dfc824bae714890ab837219af643469",
+        "model_id": "qc1-synthetic",
+        "data_zone": null,
+        "has_fallback": false
+      },
+      "route_revision": 1,
+      "warnings": [],
+      "reserved_token_upper": 38912,
+      "requires_confirmation": true
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/copilot/sessions/1bc7ad7d08714a998f07798f04cedcf6/turns",
+    "status": 202,
+    "utc": "2026-09-16T14:43:31.581043+00:00",
+    "body": {
+      "request_id": "d56b74890a0045958638f0731ed8eaee",
+      "turn_id": "70a20957654c40ec8f971d8484b1e786",
+      "session_id": "1bc7ad7d08714a998f07798f04cedcf6",
+      "state": "ACCEPTED",
+      "deadline_at": "2026-09-16 14:45:01.522670",
+      "status_url": "/api/v1/copilot/turns/70a20957654c40ec8f971d8484b1e786",
+      "result_url": "/api/v1/copilot/turns/70a20957654c40ec8f971d8484b1e786/result",
+      "poll_after_ms": 2000,
+      "reused": false
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/copilot/turns/70a20957654c40ec8f971d8484b1e786",
+    "status": 200,
+    "utc": "2026-09-16T14:43:31.603859+00:00",
+    "body": {
+      "request_id": "92dcb9304c9340b8a01e706b68815b11",
+      "turn_id": "70a20957654c40ec8f971d8484b1e786",
+      "session_id": "1bc7ad7d08714a998f07798f04cedcf6",
+      "state": "ACCEPTED",
+      "phase": "WAITING",
+      "scene": "AUDIT_EXPLAIN",
+      "created_at": "2026-09-16T14:43:31.524348",
+      "deadline_at": "2026-09-16T14:45:01.522670",
+      "finished_at": null,
+      "terminal": false,
+      "result_available": false,
+      "error_code": null,
+      "retry_after_ms": 2000
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/copilot/turns/70a20957654c40ec8f971d8484b1e786",
+    "status": 200,
+    "utc": "2026-09-16T14:43:32.637563+00:00",
+    "body": {
+      "request_id": "ae05470801514a8fa1396237d0c6bd31",
+      "turn_id": "70a20957654c40ec8f971d8484b1e786",
+      "session_id": "1bc7ad7d08714a998f07798f04cedcf6",
+      "state": "RUNNING",
+      "phase": "EVIDENCE",
+      "scene": "AUDIT_EXPLAIN",
+      "created_at": "2026-09-16T14:43:31.524348",
+      "deadline_at": "2026-09-16T14:45:01.522670",
+      "finished_at": null,
+      "terminal": false,
+      "result_available": false,
+      "error_code": null,
+      "retry_after_ms": 2000
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/copilot/turns/70a20957654c40ec8f971d8484b1e786",
+    "status": 200,
+    "utc": "2026-09-16T14:43:33.694262+00:00",
+    "body": {
+      "request_id": "cf4cc72d03d94a96a7a27e10020b0afe",
+      "turn_id": "70a20957654c40ec8f971d8484b1e786",
+      "session_id": "1bc7ad7d08714a998f07798f04cedcf6",
+      "state": "SUCCEEDED",
+      "phase": "DONE",
+      "scene": "AUDIT_EXPLAIN",
+      "created_at": "2026-09-16T14:43:31.524348",
+      "deadline_at": "2026-09-16T14:45:01.522670",
+      "finished_at": "2026-09-16T14:43:32.561384",
+      "terminal": true,
+      "result_available": true,
+      "error_code": null,
+      "retry_after_ms": 0
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/copilot/turns/70a20957654c40ec8f971d8484b1e786/result",
+    "status": 200,
+    "utc": "2026-09-16T14:43:33.730468+00:00",
+    "body": {
+      "request_id": "806ce78a929f42f6a611b8423f5940e0",
+      "turn_id": "70a20957654c40ec8f971d8484b1e786",
+      "state": "SUCCEEDED",
+      "answer_source": "MODEL",
+      "context_display": {
+        "connection_name": "QC1-分布式测试库",
+        "name_source": "snapshot",
+        "database": "qc_o_1640_dist",
+        "instance_type": "distributed"
+      },
+      "answer": {
+        "schema_version": 1,
+        "summary": "已根据本轮证据整理要点；这是受控网关返回的合成答案。",
+        "outcome_claims": [],
+        "findings": [
+          {
+            "kind": "FACT",
+            "text": "本轮资料卡已随请求送达，编号见 evidence_ids。",
+            "evidence_ids": [
+              "E1"
+            ],
+            "knowledge_ids": []
+          },
+          {
+            "kind": "POLICY",
+            "text": "本轮知识条目已随请求送达，编号见 knowledge_ids。",
+            "evidence_ids": [],
+            "knowledge_ids": [
+              "K1"
+            ]
+          }
+        ],
+        "steps": [],
+        "missing_evidence": [
+          "进程退出信号与资源记录"
+        ],
+        "sql_candidates": [
+          {
+            "sql": "SELECT * FROM qc_candidate_missing;",
+            "reason": "QC1 synthetic candidate for text-validation and editor-safety tests",
+            "evidence_ids": []
+          }
+        ],
+        "limitations": [
+          "合成网关答案，仅用于链路与投影一致性验证"
+        ]
+      },
+      "sources": [
+        {
+          "evidence_id": "E1",
+          "source_kind": "METADATA_JOB",
+          "source_id": "7a5d09ca4583444d8e6f12a3b747dd2e",
+          "available": true,
+          "observed_at": "2026-09-16T09:38:03.795219",
+          "completeness": "COMPLETE",
+          "excerpt": "{\"state\": \"SUCCEEDED\", \"phase\": \"DONE\", \"error_code\": null, \"error_message\": \"\", \"created_at\": \"2026-09-16T09:38:00.470444\", \"started_at\": \"2026-09-16T09:38:00.687117\", \"finished_at\": \"2026-09-16T09:38:03.795219\", \"progress\": {\"enumerated_objects\": 4, \"selected_objects\": 4, \"extracted_objects\": 4, \"skipped_objects\": 0, \"skipped_benign\": 0, \"skipped_abnormal\": 0, \"total_statements\": 4, \"audited_statements\": 4}}"
+        },
+        {
+          "evidence_id": null,
+          "source_kind": "KNOWLEDGE_PACK",
+          "source_id": "USER_GUIDE_CORE",
+          "available": true,
+          "observed_at": null,
+          "completeness": "COMPLETE",
+          "excerpt": "在线元数据审核入口在“在线元数据审核”（schema-extractor-audit）。它从已授权的 TDSQL 实例提取库表结构并执行审核。任务需要 metadata-runner 执行器在线；页面提示“执行器不可用”时请联系管理员检查 tdsql-metadata-runner 服务。\n\n任务失败排查顺序：先看任务状态与阶段（phase），再看错误码（error_code），最后看是否有资源类记录。没有看到退出码或内存证据时，不能直接断定是内存不足。"
+        },
+        {
+          "evidence_id": null,
+          "source_kind": "KNOWLEDGE_PACK",
+          "source_id": "FAULT_ENTRIES",
+          "available": true,
+          "observed_at": null,
+          "completeness": "COMPLETE",
+          "excerpt": "现象：提交在线元数据审核任务返回 EXECUTOR_UNAVAILABLE 或任务长时间停在待执行。处理：确认 tdsql-metadata-runner 服务已启动且有最新心跳；检查 metadata_audit_slot 表中的心跳时间是否新鲜；Web 与 runner 的版本必须一致。"
+        },
+        {
+          "evidence_id": null,
+          "source_kind": "KNOWLEDGE_PACK",
+          "source_id": "PUBLIC_FIXED_QUESTIONS",
+          "available": true,
+          "observed_at": null,
+          "completeness": "COMPLETE",
+          "excerpt": "TDSQL SQL 审核工具提供 SQL 审核（一百余条规则）、慢 SQL 采集分析、扫描结果纵向对比、深度诊断、权限管理与报告导出。Copilot 专家助手用于解释功能、规则与已有记录，给出建议；它不代替正式审核结论，也不执行数据库变更。"
+        },
+        {
+          "evidence_id": null,
+          "source_kind": "KNOWLEDGE_PACK",
+          "source_id": "USER_GUIDE_CORE",
+          "available": true,
+          "observed_at": null,
+          "completeness": "COMPLETE",
+          "excerpt": "Copilot 专家助手是本平台的只读建议助手。它可以解释审核结果、解释规则、协助排查任务失败、解读已有报告。它的回答是建议性质，不是正式审核结论，也不代替人工复核与签署。\n\n助手不能执行 SQL、不能修改审核结果、不能自动修复问题。涉及生产变更时，请按变更管理流程在目标库上人工操作。"
+        },
+        {
+          "evidence_id": null,
+          "source_kind": "KNOWLEDGE_PACK",
+          "source_id": "USER_GUIDE_CORE",
+          "available": true,
+          "observed_at": null,
+          "completeness": "COMPLETE",
+          "excerpt": "即时审核入口在左侧菜单“即时审核”（audit-sql）。把 SQL 粘贴进编辑器，选择实例类型（分布式/集中式，不确定可选 unknown），点击“开始审核”。审核结果按规则号 R 开头列出，分 ERROR、WARNING、INFO 三个级别。ERROR 必须修复后才能过质量门禁。\n\n审核结果只代表当前规则集与当前输入文本的静态结论，不等于在数据库实际执行通过。"
+        },
+        {
+          "evidence_id": null,
+          "source_kind": "KNOWLEDGE_PACK",
+          "source_id": "PUBLIC_FIXED_QUESTIONS",
+          "available": true,
+          "observed_at": null,
+          "completeness": "COMPLETE",
+          "excerpt": "默认情况下助手只使用本地知识库回答。启用模型后，只有经过脱敏且获得批准的资料才会发送到部署批准的内网模型端点；凭据、业务行数据、原始日志永远不会出站。每次提问前可以预览本次实际带入的资料。"
+        }
+      ],
+      "actions": [
+        {
+          "action_id": "A1",
+          "type": "OPEN_SOURCE",
+          "label": "查看原始任务",
+          "evidence_id": "E1",
+          "route_key": null,
+          "source_ref": null,
+          "candidate_id": null
+        },
+        {
+          "action_id": "A2",
+          "type": "COPY_SUGGESTION",
+          "label": "复制候选 1",
+          "evidence_id": null,
+          "route_key": null,
+          "source_ref": null,
+          "candidate_id": "C1"
+        },
+        {
+          "action_id": "A3",
+          "type": "OPEN_AUDIT_EDITOR",
+          "label": "送入审核编辑器（候选 1）",
+          "evidence_id": null,
+          "route_key": null,
+          "source_ref": null,
+          "candidate_id": "C1"
+        }
+      ],
+      "model": {
+        "provider_id": null,
+        "attempted": true,
+        "failure_code": null
+      },
+      "usage": {
+        "input_tokens": 1234,
+        "output_tokens": 56,
+        "accounting_source": "PROVIDER"
+      },
+      "disclaimer": "AI或本地助手建议不是正式审核、数据库执行或验收结论。"
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/copilot-admin/grants",
+    "status": 200,
+    "utc": "2026-09-16T14:43:33.792722+00:00",
+    "body": {
+      "request_id": "7e749208f6a84d1090617d109cf79a4f",
+      "revoked": true
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/copilot/turns/70a20957654c40ec8f971d8484b1e786/result",
+    "status": 200,
+    "utc": "2026-09-16T14:43:33.834071+00:00",
+    "body": {
+      "request_id": "31cf19d64d894400928dc49aba02adfe",
+      "turn_id": "70a20957654c40ec8f971d8484b1e786",
+      "state": "SUCCEEDED",
+      "answer_source": "MODEL",
+      "context_display": {
+        "connection_name": "QC1-分布式测试库",
+        "name_source": "snapshot",
+        "database": "qc_o_1640_dist",
+        "instance_type": "distributed"
+      },
+      "answer": {
+        "schema_version": 1,
+        "summary": "已根据本轮证据整理要点；这是受控网关返回的合成答案。",
+        "outcome_claims": [],
+        "findings": [
+          {
+            "kind": "FACT",
+            "text": "本轮资料卡已随请求送达，编号见 evidence_ids。",
+            "evidence_ids": [
+              "E1"
+            ],
+            "knowledge_ids": []
+          },
+          {
+            "kind": "POLICY",
+            "text": "本轮知识条目已随请求送达，编号见 knowledge_ids。",
+            "evidence_ids": [],
+            "knowledge_ids": [
+              "K1"
+            ]
+          }
+        ],
+        "steps": [],
+        "missing_evidence": [
+          "进程退出信号与资源记录"
+        ],
+        "sql_candidates": [
+          {
+            "sql": "SELECT * FROM qc_candidate_missing;",
+            "reason": "QC1 synthetic candidate for text-validation and editor-safety tests",
+            "evidence_ids": []
+          }
+        ],
+        "limitations": [
+          "合成网关答案，仅用于链路与投影一致性验证"
+        ]
+      },
+      "sources": [
+        {
+          "evidence_id": "E1",
+          "source_kind": "METADATA_JOB",
+          "source_id": "7a5d09ca4583444d8e6f12a3b747dd2e",
+          "available": true,
+          "observed_at": "2026-09-16T09:38:03.795219",
+          "completeness": "COMPLETE",
+          "excerpt": "{\"state\": \"SUCCEEDED\", \"phase\": \"DONE\", \"error_code\": null, \"error_message\": \"\", \"created_at\": \"2026-09-16T09:38:00.470444\", \"started_at\": \"2026-09-16T09:38:00.687117\", \"finished_at\": \"2026-09-16T09:38:03.795219\", \"progress\": {\"enumerated_objects\": 4, \"selected_objects\": 4, \"extracted_objects\": 4, \"skipped_objects\": 0, \"skipped_benign\": 0, \"skipped_abnormal\": 0, \"total_statements\": 4, \"audited_statements\": 4}}"
+        },
+        {
+          "evidence_id": null,
+          "source_kind": "KNOWLEDGE_PACK",
+          "source_id": "USER_GUIDE_CORE",
+          "available": true,
+          "observed_at": null,
+          "completeness": "COMPLETE",
+          "excerpt": "在线元数据审核入口在“在线元数据审核”（schema-extractor-audit）。它从已授权的 TDSQL 实例提取库表结构并执行审核。任务需要 metadata-runner 执行器在线；页面提示“执行器不可用”时请联系管理员检查 tdsql-metadata-runner 服务。\n\n任务失败排查顺序：先看任务状态与阶段（phase），再看错误码（error_code），最后看是否有资源类记录。没有看到退出码或内存证据时，不能直接断定是内存不足。"
+        },
+        {
+          "evidence_id": null,
+          "source_kind": "KNOWLEDGE_PACK",
+          "source_id": "FAULT_ENTRIES",
+          "available": true,
+          "observed_at": null,
+          "completeness": "COMPLETE",
+          "excerpt": "现象：提交在线元数据审核任务返回 EXECUTOR_UNAVAILABLE 或任务长时间停在待执行。处理：确认 tdsql-metadata-runner 服务已启动且有最新心跳；检查 metadata_audit_slot 表中的心跳时间是否新鲜；Web 与 runner 的版本必须一致。"
+        },
+        {
+          "evidence_id": null,
+          "source_kind": "KNOWLEDGE_PACK",
+          "source_id": "PUBLIC_FIXED_QUESTIONS",
+          "available": true,
+          "observed_at": null,
+          "completeness": "COMPLETE",
+          "excerpt": "TDSQL SQL 审核工具提供 SQL 审核（一百余条规则）、慢 SQL 采集分析、扫描结果纵向对比、深度诊断、权限管理与报告导出。Copilot 专家助手用于解释功能、规则与已有记录，给出建议；它不代替正式审核结论，也不执行数据库变更。"
+        },
+        {
+          "evidence_id": null,
+          "source_kind": "KNOWLEDGE_PACK",
+          "source_id": "USER_GUIDE_CORE",
+          "available": true,
+          "observed_at": null,
+          "completeness": "COMPLETE",
+          "excerpt": "Copilot 专家助手是本平台的只读建议助手。它可以解释审核结果、解释规则、协助排查任务失败、解读已有报告。它的回答是建议性质，不是正式审核结论，也不代替人工复核与签署。\n\n助手不能执行 SQL、不能修改审核结果、不能自动修复问题。涉及生产变更时，请按变更管理流程在目标库上人工操作。"
+        },
+        {
+          "evidence_id": null,
+          "source_kind": "KNOWLEDGE_PACK",
+          "source_id": "USER_GUIDE_CORE",
+          "available": true,
+          "observed_at": null,
+          "completeness": "COMPLETE",
+          "excerpt": "即时审核入口在左侧菜单“即时审核”（audit-sql）。把 SQL 粘贴进编辑器，选择实例类型（分布式/集中式，不确定可选 unknown），点击“开始审核”。审核结果按规则号 R 开头列出，分 ERROR、WARNING、INFO 三个级别。ERROR 必须修复后才能过质量门禁。\n\n审核结果只代表当前规则集与当前输入文本的静态结论，不等于在数据库实际执行通过。"
+        },
+        {
+          "evidence_id": null,
+          "source_kind": "KNOWLEDGE_PACK",
+          "source_id": "PUBLIC_FIXED_QUESTIONS",
+          "available": true,
+          "observed_at": null,
+          "completeness": "COMPLETE",
+          "excerpt": "默认情况下助手只使用本地知识库回答。启用模型后，只有经过脱敏且获得批准的资料才会发送到部署批准的内网模型端点；凭据、业务行数据、原始日志永远不会出站。每次提问前可以预览本次实际带入的资料。"
+        }
+      ],
+      "actions": [
+        {
+          "action_id": "A1",
+          "type": "OPEN_SOURCE",
+          "label": "查看原始任务",
+          "evidence_id": "E1",
+          "route_key": null,
+          "source_ref": null,
+          "candidate_id": null
+        },
+        {
+          "action_id": "A2",
+          "type": "COPY_SUGGESTION",
+          "label": "复制候选 1",
+          "evidence_id": null,
+          "route_key": null,
+          "source_ref": null,
+          "candidate_id": "C1"
+        },
+        {
+          "action_id": "A3",
+          "type": "OPEN_AUDIT_EDITOR",
+          "label": "送入审核编辑器（候选 1）",
+          "evidence_id": null,
+          "route_key": null,
+          "source_ref": null,
+          "candidate_id": "C1"
+        }
+      ],
+      "model": {
+        "provider_id": null,
+        "attempted": true,
+        "failure_code": null
+      },
+      "usage": {
+        "input_tokens": 1234,
+        "output_tokens": 56,
+        "accounting_source": "PROVIDER"
+      },
+      "disclaimer": "AI或本地助手建议不是正式审核、数据库执行或验收结论。"
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/copilot/turns/70a20957654c40ec8f971d8484b1e786/actions/resolve",
+    "status": 200,
+    "utc": "2026-09-16T14:43:33.856283+00:00",
+    "body": {
+      "request_id": "51da0a774f5443d79b4771b82ce8fa6d",
+      "type": "OPEN_SOURCE",
+      "evidence_id": "E1",
+      "url_hint": "source:E1"
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/copilot/turns/70a20957654c40ec8f971d8484b1e786/export.html",
+    "status": 200,
+    "utc": "2026-09-16T14:43:33.912544+00:00",
+    "body_text": "<!DOCTYPE html>\n<html lang=\"zh-CN\">\n<head>\n<meta charset=\"utf-8\">\n<meta http-equiv=\"Content-Security-Policy\"\n      content=\"default-src 'none'; style-src 'unsafe-inline'\">\n<title>Copilot 建议报告</title>\n<style>\nbody{font-family:\"Microsoft YaHei\",sans-serif;margin:24px;color:#222;background:#fff}\nh1{font-size:18px;border-bottom:2px solid #345;padding-bottom:8px}\n.meta{font-size:12px;color:#555;margin:12px 0}\n.meta span{margin-right:16px}\n.banner{background:#fff8e1;border:1px solid #f0c36d;padding:8px 12px;font-size:12px;margin:12px 0}\nh2{font-size:14px;margin-top:20px;color:#234}\ntable{border-collapse:collapse;width:100%;font-size:12px}\ntd,th{border:1px solid #ccc;padding:4px 8px;text-align:left;vertical-align:top}\n.cand{border:1px solid #ddd;margin:8px 0;padding:8px}\n.cand-h{font-weight:bold;margin-bottom:6px}\npre{background:#f6f6f6;padding:8px;white-space:pre-wrap;word-break:break-all;font-size:12px}\n.warn{color:#b45309;font-size:11px;margin-top:6px}\nul{font-size:12px}\n</style>\n</head>\n<body>\n<h1>Copilot 专家建议报告（内部建议资料，请按项目权限传播）</h1>\n<div class=\"meta\">\n<span>报告ID：70a20957654c40ec8f971d8484b1e786</span>\n<span>应用版本：1.6.4.0</span>\n<span>生成时间：2026-09-16 14:43:33 UTC</span>\n<span>场景：AUDIT_EXPLAIN</span>\n<span>状态：SUCCEEDED</span>\n</div>\n<div class=\"meta\">\n<span>实例连接名称：QC1-分布式测试库（来源：snapshot）</span>\n<span>数据库：qc_o_1640_dist</span>\n<span>实例类型：distributed</span>\n<span>模型：本地模板</span>\n<span>用量来源：PROVIDER</span>\n</div>\n<div class=\"banner\">AI或本地助手建议不是正式审核、数据库执行或验收结论。</div>\n\n<h2>结论摘要</h2>\n<p>已根据本轮证据整理要点；这是受控网关返回的合成答案。</p>\n\n<h2>事实与依据</h2>\n<table><tr><th>类型</th><th>内容</th></tr><tr><td>FACT</td><td>本轮资料卡已随请求送达，编号见 evidence_ids。</td></tr><tr><td>POLICY</td><td>本轮知识条目已随请求送达，编号见 knowledge_ids。</td></tr></table>\n\n<h2>建议步骤</h2>\n<table><tr><th>步骤</th><th>风险</th></tr><tr><td colspan=\"2\">无</td></tr></table>\n\n<h2>候选 SQL（仅文本复核）</h2>\n<div class='cand'><div class='cand-h'>候选 1：QC1 synthetic candidate for text-validation and editor-safety tests</div><pre>SELECT * FROM qc_candidate_missing;</pre><di",
+    "headers": {
+      "cache-control": "no-store",
+      "content-disposition": "attachment; filename=\"copilot-advice-70a20957-20260916.html\"",
+      "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; img-src data:; sandbox"
+    }
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/copilot-admin/grants",
+    "status": 200,
+    "utc": "2026-09-16T14:43:33.957901+00:00",
+    "body": {
+      "request_id": "682e5a591b8849689fb1a4fa896d91cb",
+      "approval_state": "PENDING",
+      "enabled": false
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/copilot-admin/grants?limit=50",
+    "status": 200,
+    "utc": "2026-09-16T14:43:33.980390+00:00",
+    "body": {
+      "request_id": "74cacfcf41704d58bfb4bb6ec971bb2b",
+      "items": [
+        {
+          "subject_id": "45393ac9628349ecbc28be5266781357",
+          "connection_id": "q40-dist",
+          "username": "qc_o_1640",
+          "enabled": false,
+          "approval_state": "PENDING",
+          "approval_ref": "QC1-SYNTHETIC-ONLY",
+          "allow_schema_identifiers": true,
+          "revision": 4
+        },
+        {
+          "subject_id": "392a7ca84fd84db386a2f4a3e3b1b81b",
+          "connection_id": "q40-dist",
+          "username": "qc_o_1640dev",
+          "enabled": true,
+          "approval_state": "APPROVED",
+          "approval_ref": "QC1-SYNTHETIC-ONLY",
+          "allow_schema_identifiers": true,
+          "revision": 2
+        },
+        {
+          "subject_id": "59594dbf4873401796435d63adca67ab",
+          "connection_id": "q40-dist",
+          "username": "qc_o_1640dev2",
+          "enabled": true,
+          "approval_state": "APPROVED",
+          "approval_ref": "QC1-SYNTHETIC-ONLY",
+          "allow_schema_identifiers": true,
+          "revision": 2
+        }
+      ]
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/copilot-admin/grants/approve",
+    "status": 200,
+    "utc": "2026-09-16T14:43:34.149193+00:00",
+    "body": {
+      "request_id": "50a5943549a54d90ab37289e049c50f0",
+      "approval_state": "APPROVED",
+      "enabled": true
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  }
+]

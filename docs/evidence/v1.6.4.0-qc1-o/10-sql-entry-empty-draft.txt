@@ -1,0 +1,4 @@
+Browser tab: 1, Title: "TDSQL数据库SQL审核工具 V1.6.4.0", URL: "http://127.0.0.1:8026/".
+The following is a diff from the previous accessibility tree with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.
+Removed element IDs: 197-203, 205-215, 217-220
+The focused UI element is 0 AXWebArea TDSQL数据库SQL审核工具 V1.6.4.0, URL: 127.0.0.1:8026/

@@ -1,0 +1,330 @@
+[
+  {
+    "method": "GET",
+    "path": "/api/v1/copilot-admin/providers",
+    "status": 200,
+    "utc": "2026-09-16T09:30:22.952161+00:00",
+    "body": {
+      "request_id": "fca04ba190604ef1923b33f3574678ff",
+      "items": [
+        {
+          "id": "2fb0cdafb0ef411aa75ad44e6e91df4f",
+          "name": "QC1 Controlled Backup",
+          "endpoint_id": "ep-uat-b",
+          "protocol": "OPENAI_COMPAT_CHAT",
+          "model_id": "qc1-synthetic",
+          "auth_mode": "BEARER",
+          "capabilities": {
+            "context_tokens": 32768,
+            "supports_json_schema": false,
+            "supports_json_object": true,
+            "max_output_field": "max_tokens",
+            "supports_temperature": false,
+            "supports_store_false": true
+          },
+          "enabled": false,
+          "revision": 1,
+          "tested_revision": null,
+          "has_secret": true,
+          "cooldown_until": null,
+          "consecutive_failures": 0,
+          "last_error_code": null
+        },
+        {
+          "id": "7dfc824bae714890ab837219af643469",
+          "name": "QC1 Controlled Main",
+          "endpoint_id": "ep-uat-a",
+          "protocol": "OPENAI_COMPAT_CHAT",
+          "model_id": "qc1-synthetic",
+          "auth_mode": "BEARER",
+          "capabilities": {
+            "context_tokens": 32768,
+            "supports_json_schema": false,
+            "supports_json_object": true,
+            "max_output_field": "max_tokens",
+            "supports_temperature": false,
+            "supports_store_false": true
+          },
+          "enabled": true,
+          "revision": 1,
+          "tested_revision": 1,
+          "has_secret": true,
+          "cooldown_until": null,
+          "consecutive_failures": 0,
+          "last_error_code": null
+        }
+      ]
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/copilot-admin/routes/USAGE_HELP",
+    "status": 200,
+    "utc": "2026-09-16T09:30:23.006308+00:00",
+    "body": {
+      "request_id": "17c94acfb1c9463b8bba9aad8935eda7",
+      "scene_code": "USAGE_HELP",
+      "revision": 1
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/copilot-admin/routes/RULE_EXPLAIN",
+    "status": 200,
+    "utc": "2026-09-16T09:30:23.057383+00:00",
+    "body": {
+      "request_id": "505484f61414492e969bad112be0b0f9",
+      "scene_code": "RULE_EXPLAIN",
+      "revision": 1
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/copilot-admin/routes/SQL_ADVISE",
+    "status": 200,
+    "utc": "2026-09-16T09:30:23.113484+00:00",
+    "body": {
+      "request_id": "435d7eaa44e14122a37eadf17ff1550e",
+      "scene_code": "SQL_ADVISE",
+      "revision": 1
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/copilot-admin/routes/AUDIT_EXPLAIN",
+    "status": 200,
+    "utc": "2026-09-16T09:30:23.162103+00:00",
+    "body": {
+      "request_id": "edbeec89be2d4981b9d55c78e2386002",
+      "scene_code": "AUDIT_EXPLAIN",
+      "revision": 1
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/copilot-admin/routes/JOB_TROUBLESHOOT",
+    "status": 200,
+    "utc": "2026-09-16T09:30:23.220776+00:00",
+    "body": {
+      "request_id": "dfc3a0b4e88e4e11b3328678f4cbf1ff",
+      "scene_code": "JOB_TROUBLESHOOT",
+      "revision": 1
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/copilot-admin/routes/SLOW_EXPLAIN",
+    "status": 200,
+    "utc": "2026-09-16T09:30:23.293970+00:00",
+    "body": {
+      "request_id": "8239c39396f94cbcbb448ce54b36a6b8",
+      "scene_code": "SLOW_EXPLAIN",
+      "revision": 1
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/copilot-admin/routes/COMPARE_EXPLAIN",
+    "status": 200,
+    "utc": "2026-09-16T09:30:23.350434+00:00",
+    "body": {
+      "request_id": "07ff572cc96a4057b83aa5e221c038f8",
+      "scene_code": "COMPARE_EXPLAIN",
+      "revision": 1
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/copilot-admin/routes/TABLETYPE_EXPLAIN",
+    "status": 200,
+    "utc": "2026-09-16T09:30:23.418818+00:00",
+    "body": {
+      "request_id": "62a6afe7c5dc46a3bdc5dfb1bfecac79",
+      "scene_code": "TABLETYPE_EXPLAIN",
+      "revision": 1
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/copilot-admin/routes/GATEWAY_EXPLAIN",
+    "status": 200,
+    "utc": "2026-09-16T09:30:23.492848+00:00",
+    "body": {
+      "request_id": "eb5aa8a315644cecb1dc5ebfb46efd11",
+      "scene_code": "GATEWAY_EXPLAIN",
+      "revision": 1
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/copilot-admin/routes/DIAGNOSTIC_HELP",
+    "status": 200,
+    "utc": "2026-09-16T09:30:23.565987+00:00",
+    "body": {
+      "request_id": "d32118c127ed4ddbb519f16e2be0f574",
+      "scene_code": "DIAGNOSTIC_HELP",
+      "revision": 1
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/copilot-admin/grants",
+    "status": 200,
+    "utc": "2026-09-16T09:30:23.768369+00:00",
+    "body": {
+      "request_id": "2a736e6983c84e48983f24690240a827",
+      "approval_state": "PENDING",
+      "enabled": false
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/copilot-admin/grants",
+    "status": 200,
+    "utc": "2026-09-16T09:30:23.845098+00:00",
+    "body": {
+      "request_id": "ed163a5ae4104feea59f551e84d223ff",
+      "approval_state": "PENDING",
+      "enabled": false
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/copilot-admin/grants",
+    "status": 200,
+    "utc": "2026-09-16T09:30:23.905273+00:00",
+    "body": {
+      "request_id": "4afbb582f6454901ad2669c974008f1d",
+      "approval_state": "PENDING",
+      "enabled": false
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/copilot-admin/grants?limit=50",
+    "status": 200,
+    "utc": "2026-09-16T09:30:23.934825+00:00",
+    "body": {
+      "request_id": "d30aff2ae4b04546821e604d4b69d907",
+      "items": [
+        {
+          "subject_id": "59594dbf4873401796435d63adca67ab",
+          "connection_id": "q40-dist",
+          "username": "qc_o_1640dev2",
+          "enabled": false,
+          "approval_state": "PENDING",
+          "approval_ref": "QC1-SYNTHETIC-ONLY",
+          "allow_schema_identifiers": true,
+          "revision": 1
+        },
+        {
+          "subject_id": "392a7ca84fd84db386a2f4a3e3b1b81b",
+          "connection_id": "q40-dist",
+          "username": "qc_o_1640dev",
+          "enabled": false,
+          "approval_state": "PENDING",
+          "approval_ref": "QC1-SYNTHETIC-ONLY",
+          "allow_schema_identifiers": true,
+          "revision": 1
+        },
+        {
+          "subject_id": "45393ac9628349ecbc28be5266781357",
+          "connection_id": "q40-dist",
+          "username": "qc_o_1640",
+          "enabled": false,
+          "approval_state": "PENDING",
+          "approval_ref": "QC1-SYNTHETIC-ONLY",
+          "allow_schema_identifiers": true,
+          "revision": 1
+        }
+      ]
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/copilot-admin/grants/approve",
+    "status": 200,
+    "utc": "2026-09-16T09:30:24.002090+00:00",
+    "body": {
+      "request_id": "53101a3d04c44167b9ae2bf34887cd00",
+      "approval_state": "APPROVED",
+      "enabled": true
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/copilot-admin/grants/approve",
+    "status": 200,
+    "utc": "2026-09-16T09:30:24.087527+00:00",
+    "body": {
+      "request_id": "d05b0d245f6b49858922699e8760adb2",
+      "approval_state": "APPROVED",
+      "enabled": true
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/copilot-admin/grants/approve",
+    "status": 200,
+    "utc": "2026-09-16T09:30:24.137788+00:00",
+    "body": {
+      "request_id": "77511432a5234144bce1624b59c6de00",
+      "approval_state": "APPROVED",
+      "enabled": true
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  }
+]

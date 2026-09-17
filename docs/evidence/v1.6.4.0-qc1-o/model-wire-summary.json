@@ -1,0 +1,56 @@
+{
+  "calls": [
+    {
+      "utc": "2026-09-16T14:37:28.124008+00:00",
+      "body_sha256": "79a771b006be8bf02946512c48b0e4681c1092b7701d866bd66b6b0a15c2c969",
+      "path": "/v1/chat/completions",
+      "authorization_present": true,
+      "question": "本项目的 R003 规则是什么？",
+      "history": [],
+      "evidence_count": 1,
+      "knowledge_count": 0
+    },
+    {
+      "utc": "2026-09-16T14:37:29.790268+00:00",
+      "body_sha256": "90badf4060d0f22e80dfbd0955dce34b491ab047f67323ddd107689020460359",
+      "path": "/v1/chat/completions",
+      "authorization_present": true,
+      "question": "接着解释它与表注释的关系。",
+      "history": [],
+      "evidence_count": 1,
+      "knowledge_count": 0
+    },
+    {
+      "utc": "2026-09-16T14:37:30.829321+00:00",
+      "body_sha256": "8daf35bdee293e491c9ff1c6ef72f21efda2423ef6ee8349f1749e6aff1d7846",
+      "path": "/v1/chat/completions",
+      "authorization_present": true,
+      "question": "如何在原即时审核中验证这个建议？",
+      "history": [],
+      "evidence_count": 1,
+      "knowledge_count": 3
+    }
+  ],
+  "result_states": [
+    "SUCCEEDED",
+    "SUCCEEDED",
+    "SUCCEEDED"
+  ],
+  "candidate_fields": [
+    [
+      "sql",
+      "reason",
+      "evidence_ids"
+    ],
+    [
+      "sql",
+      "reason",
+      "evidence_ids"
+    ],
+    [
+      "sql",
+      "reason",
+      "evidence_ids"
+    ]
+  ]
+}

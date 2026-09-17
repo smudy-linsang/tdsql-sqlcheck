@@ -1,0 +1,285 @@
+[
+  {
+    "method": "GET",
+    "path": "/api/v1/copilot/capabilities",
+    "status": 200,
+    "utc": "2026-09-16T09:28:48.503030+00:00",
+    "body": {
+      "request_id": "08f1b0462c8e45b3857645ea8b467589",
+      "subject_id": "45393ac9628349ecbc28be5266781357",
+      "enabled": true,
+      "mode": "LOCAL_ONLY",
+      "runner_ready": true,
+      "allowed_scenes": [
+        "USAGE_HELP",
+        "RULE_EXPLAIN",
+        "SQL_ADVISE",
+        "AUDIT_EXPLAIN",
+        "JOB_TROUBLESHOOT",
+        "SLOW_EXPLAIN",
+        "COMPARE_EXPLAIN",
+        "TABLETYPE_EXPLAIN",
+        "GATEWAY_EXPLAIN",
+        "DIAGNOSTIC_HELP"
+      ],
+      "limits": {
+        "COPILOT_RUNNER_CONCURRENCY": 2,
+        "COPILOT_MAX_ACTIVE_TURNS": 4,
+        "COPILOT_TURN_DEADLINE_SECONDS": 90,
+        "COPILOT_QUEUE_MAX_SECONDS": 15,
+        "COPILOT_PROVIDER_TOTAL_SECONDS": 60,
+        "COPILOT_HTTP_CONNECT_SECONDS": 5,
+        "COPILOT_HTTP_READ_SECONDS": 20,
+        "COPILOT_CONTEXT_MAX_BYTES": 24576,
+        "COPILOT_INPUT_TOKEN_UPPER_BOUND": 16384,
+        "COPILOT_OUTPUT_MAX_TOKENS": 2048,
+        "COPILOT_RESPONSE_MAX_BYTES": 1048576,
+        "COPILOT_ANSWER_MAX_BYTES": 32768,
+        "COPILOT_MAX_ACTIVE_PER_USER": 1,
+        "COPILOT_STORAGE_MAX_MIB": 2048
+      },
+      "knowledge": {
+        "knowledge_status": "READY",
+        "bundle_id": "kb-1.6.4.0-5b8426f429c6a89a",
+        "reason_code": ""
+      },
+      "module_schema_state": "READY",
+      "reason_code": null
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/copilot/sessions?limit=20",
+    "status": 200,
+    "utc": "2026-09-16T09:28:48.538991+00:00",
+    "body": {
+      "request_id": "2b3f4944fbe44ce5b2b97eac3c3d7147",
+      "items": [
+        {
+          "session_id": "741a1e1dce2c453dad79488ef2ed7303",
+          "title": "通用咨询 09-16 04:11",
+          "scope_kind": "GLOBAL_HELP",
+          "state": "OPEN",
+          "connection_name": null,
+          "database": null,
+          "instance_type": "unknown",
+          "revision": 1,
+          "active_turn_id": null,
+          "created_at": "2026-09-16T04:11:39.596006",
+          "updated_at": "2026-09-16T04:11:39.596006"
+        },
+        {
+          "session_id": "038c57f9222a42a9bafd7a3bda67ff44",
+          "title": "通用咨询 09-16 04:09",
+          "scope_kind": "GLOBAL_HELP",
+          "state": "OPEN",
+          "connection_name": null,
+          "database": null,
+          "instance_type": "unknown",
+          "revision": 3,
+          "active_turn_id": null,
+          "created_at": "2026-09-16T04:09:52.886958",
+          "updated_at": "2026-09-16T04:10:02.540322"
+        }
+      ],
+      "next_cursor": "",
+      "has_more": false
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/copilot/help?query=R003",
+    "status": 200,
+    "utc": "2026-09-16T09:28:48.579570+00:00",
+    "body": {
+      "request_id": "7c118847439a4b8fa4a1baee1f3cc580",
+      "knowledge_status": "READY",
+      "items": [],
+      "page_key": ""
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/copilot-admin/providers",
+    "status": 200,
+    "utc": "2026-09-16T09:28:48.601827+00:00",
+    "body": {
+      "request_id": "d8227abe22e64cefbf69c0c929b32099",
+      "items": [
+        {
+          "id": "2fb0cdafb0ef411aa75ad44e6e91df4f",
+          "name": "QC1 Controlled Backup",
+          "endpoint_id": "ep-uat-b",
+          "protocol": "OPENAI_COMPAT_CHAT",
+          "model_id": "qc1-synthetic",
+          "auth_mode": "BEARER",
+          "capabilities": {
+            "context_tokens": 32768,
+            "supports_json_schema": false,
+            "supports_json_object": true,
+            "max_output_field": "max_tokens",
+            "supports_temperature": false,
+            "supports_store_false": true
+          },
+          "enabled": false,
+          "revision": 1,
+          "tested_revision": null,
+          "has_secret": true,
+          "cooldown_until": null,
+          "consecutive_failures": 0,
+          "last_error_code": null
+        },
+        {
+          "id": "7dfc824bae714890ab837219af643469",
+          "name": "QC1 Controlled Main",
+          "endpoint_id": "ep-uat-a",
+          "protocol": "OPENAI_COMPAT_CHAT",
+          "model_id": "qc1-synthetic",
+          "auth_mode": "BEARER",
+          "capabilities": {
+            "context_tokens": 32768,
+            "supports_json_schema": false,
+            "supports_json_object": true,
+            "max_output_field": "max_tokens",
+            "supports_temperature": false,
+            "supports_store_false": true
+          },
+          "enabled": false,
+          "revision": 1,
+          "tested_revision": null,
+          "has_secret": true,
+          "cooldown_until": null,
+          "consecutive_failures": 0,
+          "last_error_code": null
+        }
+      ]
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/copilot-admin/routes",
+    "status": 200,
+    "utc": "2026-09-16T09:28:48.627061+00:00",
+    "body": {
+      "request_id": "7150df0b7a17462dbcdf5db713b1bda9",
+      "items": []
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/copilot-admin/grants",
+    "status": 200,
+    "utc": "2026-09-16T09:28:48.647940+00:00",
+    "body": {
+      "request_id": "1cb467495e314aa7bdebb5dd379f7615",
+      "items": []
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/copilot-admin/health",
+    "status": 200,
+    "utc": "2026-09-16T09:28:48.690532+00:00",
+    "body": {
+      "request_id": "0f14edf201c04143aacb77d4542aab63",
+      "module_schema_state": "READY",
+      "module_schema_epoch": 1,
+      "module_reconciled_epoch": 1,
+      "ready": true,
+      "reason_code": null,
+      "runner": {
+        "accepting": true,
+        "heartbeat_at": "2026-09-16T09:28:48.532092"
+      },
+      "storage": {
+        "used_bytes": 0,
+        "reserved_bytes": 3148012
+      },
+      "knowledge": {
+        "knowledge_status": "READY",
+        "bundle_id": "kb-1.6.4.0-5b8426f429c6a89a",
+        "reason_code": ""
+      }
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/copilot/sessions/741a1e1dce2c453dad79488ef2ed7303/turns?limit=20",
+    "status": 200,
+    "utc": "2026-09-16T09:28:48.721905+00:00",
+    "body": {
+      "request_id": "f009b693f8eb4dbf81f196b9df0ce362",
+      "items": [],
+      "next_cursor": "",
+      "has_more": false
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/copilot/sessions/038c57f9222a42a9bafd7a3bda67ff44/turns?limit=20",
+    "status": 200,
+    "utc": "2026-09-16T09:28:48.750565+00:00",
+    "body": {
+      "request_id": "219a321fe29c40f791ff714bf1cd4b9d",
+      "items": [
+        {
+          "turn_id": "5379f43c54bf49029a95ee28d83bf93b",
+          "sequence_no": 1,
+          "state": "FAILED",
+          "phase": "DONE",
+          "scene": "USAGE_HELP",
+          "created_at": "2026-09-16T04:10:01.383566",
+          "finished_at": "2026-09-16T04:10:02.539355",
+          "error_code": "EVIDENCE_UNAVAILABLE",
+          "feedback_rating": null,
+          "feedback_code": null
+        }
+      ],
+      "next_cursor": "",
+      "has_more": false
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/copilot/turns/5379f43c54bf49029a95ee28d83bf93b/result",
+    "status": 200,
+    "utc": "2026-09-16T09:28:48.795791+00:00",
+    "body": {
+      "request_id": "79cf39113362485488e43cca767efffc",
+      "turn_id": "5379f43c54bf49029a95ee28d83bf93b",
+      "state": "FAILED",
+      "error_code": "EVIDENCE_UNAVAILABLE",
+      "error_message": "所选资料不可用，请回到原页面确认后重试"
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  }
+]

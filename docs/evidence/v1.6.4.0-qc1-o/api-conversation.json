@@ -1,0 +1,876 @@
+[
+  {
+    "method": "POST",
+    "path": "/api/v1/copilot/sessions",
+    "status": 201,
+    "utc": "2026-09-16T14:37:26.830786+00:00",
+    "body": {
+      "request_id": "f581c77d88e34b4abaf4158afcdb3664",
+      "session_id": "d7f504e327ec4e25935638ae80a8f9b5",
+      "title": "通用咨询 09-16 14:37",
+      "scope_kind": "GLOBAL_HELP",
+      "state": "OPEN",
+      "expires_at": "2026-10-16 14:37:26.797200"
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/copilot/sessions/d7f504e327ec4e25935638ae80a8f9b5",
+    "status": 200,
+    "utc": "2026-09-16T14:37:26.858134+00:00",
+    "body": {
+      "request_id": "6eb31dfe81ff47b8838229463fefb373",
+      "session_id": "d7f504e327ec4e25935638ae80a8f9b5",
+      "title": "通用咨询 09-16 14:37",
+      "scope_kind": "GLOBAL_HELP",
+      "state": "OPEN",
+      "connection_name": null,
+      "database": null,
+      "instance_type": "unknown",
+      "revision": 1,
+      "active_turn_id": null,
+      "created_at": "2026-09-16T14:37:26.796811",
+      "updated_at": "2026-09-16T14:37:26.796811"
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/copilot/sessions/d7f504e327ec4e25935638ae80a8f9b5/previews",
+    "status": 201,
+    "utc": "2026-09-16T14:37:26.973919+00:00",
+    "body": {
+      "request_id": "0eb0ca647aca4fb29a2b8d5161f01119",
+      "preview_id": "d1113d673db041099ea70296f1ac305e",
+      "expires_at": "2026-09-16 14:39:26.915482",
+      "expected_session_revision": 1,
+      "scene": "RULE_EXPLAIN",
+      "snapshot_hash": "47c5937106ee060d04ab2ff045b7d4a1989a4f98118db503164f1517c7d98cbb",
+      "input_hash": "ec397467a5005efb9e8ae0c84fa5f7185040c725555d3a0e29aecfb53662ae4f",
+      "context_display": {
+        "connection_name": null,
+        "name_source": "missing",
+        "database": null,
+        "instance_type": "unknown",
+        "observed_at": null,
+        "completeness": "COMPLETE"
+      },
+      "evidence_cards": [
+        {
+          "evidence_id": "E1",
+          "source_kind": "RULE_RUNTIME",
+          "availability": "AVAILABLE",
+          "completeness": "COMPLETE",
+          "observed_at": null,
+          "connection_name": null
+        }
+      ],
+      "redacted_question": "本项目的 R003 规则是什么？",
+      "model_projection_preview": {
+        "projection_mode": "ALIASED",
+        "question": "本项目的 R003 规则是什么？",
+        "evidence_summary": [
+          {
+            "evidence_id": "E1",
+            "source_kind": "RULE_RUNTIME",
+            "availability": "AVAILABLE",
+            "completeness": "COMPLETE"
+          }
+        ],
+        "knowledge_count": 0
+      },
+      "data_class": "INTERNAL_REDACTED",
+      "mode": "ROUTE",
+      "provider_display": {
+        "name": "7dfc824bae714890ab837219af643469",
+        "model_id": "qc1-synthetic",
+        "data_zone": null,
+        "has_fallback": false
+      },
+      "route_revision": 1,
+      "warnings": [],
+      "reserved_token_upper": 38912,
+      "requires_confirmation": true
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/copilot/sessions/d7f504e327ec4e25935638ae80a8f9b5/turns",
+    "status": 202,
+    "utc": "2026-09-16T14:37:27.039139+00:00",
+    "body": {
+      "request_id": "cef551822bf1460db40c4911fbcd35c2",
+      "turn_id": "bf5d7c6a140142b0a7cc60136d41a5a9",
+      "session_id": "d7f504e327ec4e25935638ae80a8f9b5",
+      "state": "ACCEPTED",
+      "deadline_at": "2026-09-16 14:38:57.004145",
+      "status_url": "/api/v1/copilot/turns/bf5d7c6a140142b0a7cc60136d41a5a9",
+      "result_url": "/api/v1/copilot/turns/bf5d7c6a140142b0a7cc60136d41a5a9/result",
+      "poll_after_ms": 2000,
+      "reused": false
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/copilot/turns/bf5d7c6a140142b0a7cc60136d41a5a9",
+    "status": 200,
+    "utc": "2026-09-16T14:37:27.079471+00:00",
+    "body": {
+      "request_id": "b2a8bd755b1a4e7b8e8089151d768124",
+      "turn_id": "bf5d7c6a140142b0a7cc60136d41a5a9",
+      "session_id": "d7f504e327ec4e25935638ae80a8f9b5",
+      "state": "ACCEPTED",
+      "phase": "WAITING",
+      "scene": "RULE_EXPLAIN",
+      "created_at": "2026-09-16T14:37:27.005712",
+      "deadline_at": "2026-09-16T14:38:57.004145",
+      "finished_at": null,
+      "terminal": false,
+      "result_available": false,
+      "error_code": null,
+      "retry_after_ms": 2000
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/copilot/turns/bf5d7c6a140142b0a7cc60136d41a5a9",
+    "status": 200,
+    "utc": "2026-09-16T14:37:28.107888+00:00",
+    "body": {
+      "request_id": "1ff2ed621fa24befbc55b52d10bcb4fe",
+      "turn_id": "bf5d7c6a140142b0a7cc60136d41a5a9",
+      "session_id": "d7f504e327ec4e25935638ae80a8f9b5",
+      "state": "RUNNING",
+      "phase": "EVIDENCE",
+      "scene": "RULE_EXPLAIN",
+      "created_at": "2026-09-16T14:37:27.005712",
+      "deadline_at": "2026-09-16T14:38:57.004145",
+      "finished_at": null,
+      "terminal": false,
+      "result_available": false,
+      "error_code": null,
+      "retry_after_ms": 2000
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/copilot/turns/bf5d7c6a140142b0a7cc60136d41a5a9",
+    "status": 200,
+    "utc": "2026-09-16T14:37:29.150950+00:00",
+    "body": {
+      "request_id": "617a0aaf485e4cdd8e7b4b99a4a2218c",
+      "turn_id": "bf5d7c6a140142b0a7cc60136d41a5a9",
+      "session_id": "d7f504e327ec4e25935638ae80a8f9b5",
+      "state": "SUCCEEDED",
+      "phase": "DONE",
+      "scene": "RULE_EXPLAIN",
+      "created_at": "2026-09-16T14:37:27.005712",
+      "deadline_at": "2026-09-16T14:38:57.004145",
+      "finished_at": "2026-09-16T14:37:28.180309",
+      "terminal": true,
+      "result_available": true,
+      "error_code": null,
+      "retry_after_ms": 0
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/copilot/turns/bf5d7c6a140142b0a7cc60136d41a5a9/result",
+    "status": 200,
+    "utc": "2026-09-16T14:37:29.199582+00:00",
+    "body": {
+      "request_id": "836c0cec59e04eb488bcf85187797ccf",
+      "turn_id": "bf5d7c6a140142b0a7cc60136d41a5a9",
+      "state": "SUCCEEDED",
+      "answer_source": "MODEL",
+      "context_display": {
+        "connection_name": null,
+        "name_source": "missing",
+        "database": null,
+        "instance_type": "unknown"
+      },
+      "answer": {
+        "schema_version": 1,
+        "summary": "已根据本轮证据整理要点；这是受控网关返回的合成答案。",
+        "outcome_claims": [],
+        "findings": [
+          {
+            "kind": "FACT",
+            "text": "本轮资料卡已随请求送达，编号见 evidence_ids。",
+            "evidence_ids": [
+              "E1"
+            ],
+            "knowledge_ids": []
+          }
+        ],
+        "steps": [],
+        "missing_evidence": [
+          "进程退出信号与资源记录"
+        ],
+        "sql_candidates": [
+          {
+            "sql": "SELECT * FROM qc_candidate_missing;",
+            "reason": "QC1 synthetic candidate for text-validation and editor-safety tests",
+            "evidence_ids": []
+          }
+        ],
+        "limitations": [
+          "合成网关答案，仅用于链路与投影一致性验证"
+        ]
+      },
+      "sources": [
+        {
+          "evidence_id": "E1",
+          "source_kind": "RULE_RUNTIME",
+          "source_id": "runtime-rules",
+          "available": true,
+          "observed_at": null,
+          "completeness": "COMPLETE",
+          "excerpt": "{\"rules\": [{\"rule_id\": \"R003\", \"enabled\": true, \"severity\": \"ERROR\", \"category\": \"ddl\", \"scope\": \"all\", \"spec_source\": \"TDSQL数据库开发规范 - 表设计规范\", \"description\": \"CREATE TABLE 必须显式指定主键\", \"fix_suggestion\": \"建议添加自增主键: id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY\"}]}"
+        }
+      ],
+      "actions": [
+        {
+          "action_id": "A1",
+          "type": "OPEN_SOURCE",
+          "label": "查看原始规则定义",
+          "evidence_id": "E1",
+          "route_key": null,
+          "source_ref": null,
+          "candidate_id": null
+        },
+        {
+          "action_id": "A2",
+          "type": "COPY_SUGGESTION",
+          "label": "复制候选 1",
+          "evidence_id": null,
+          "route_key": null,
+          "source_ref": null,
+          "candidate_id": "C1"
+        },
+        {
+          "action_id": "A3",
+          "type": "OPEN_AUDIT_EDITOR",
+          "label": "送入审核编辑器（候选 1）",
+          "evidence_id": null,
+          "route_key": null,
+          "source_ref": null,
+          "candidate_id": "C1"
+        }
+      ],
+      "model": {
+        "provider_id": null,
+        "attempted": true,
+        "failure_code": null
+      },
+      "usage": {
+        "input_tokens": 1234,
+        "output_tokens": 56,
+        "accounting_source": "PROVIDER"
+      },
+      "disclaimer": "AI或本地助手建议不是正式审核、数据库执行或验收结论。"
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/copilot/sessions/d7f504e327ec4e25935638ae80a8f9b5",
+    "status": 200,
+    "utc": "2026-09-16T14:37:29.244617+00:00",
+    "body": {
+      "request_id": "556aae4ffd33472c820b5152a69c990b",
+      "session_id": "d7f504e327ec4e25935638ae80a8f9b5",
+      "title": "通用咨询 09-16 14:37",
+      "scope_kind": "GLOBAL_HELP",
+      "state": "OPEN",
+      "connection_name": null,
+      "database": null,
+      "instance_type": "unknown",
+      "revision": 3,
+      "active_turn_id": null,
+      "created_at": "2026-09-16T14:37:26.796811",
+      "updated_at": "2026-09-16T14:37:28.193284"
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/copilot/sessions/d7f504e327ec4e25935638ae80a8f9b5/previews",
+    "status": 201,
+    "utc": "2026-09-16T14:37:29.322745+00:00",
+    "body": {
+      "request_id": "73c942da8cff42abb967eae8125fa4b2",
+      "preview_id": "c5730db6aff34c6fadf82db8d1721698",
+      "expires_at": "2026-09-16 14:39:29.293658",
+      "expected_session_revision": 3,
+      "scene": "RULE_EXPLAIN",
+      "snapshot_hash": "47c5937106ee060d04ab2ff045b7d4a1989a4f98118db503164f1517c7d98cbb",
+      "input_hash": "334c5f97a6e8a27bfb9701f73a86c7dcc9176bb4de67a04cc33ac0256285bb91",
+      "context_display": {
+        "connection_name": null,
+        "name_source": "missing",
+        "database": null,
+        "instance_type": "unknown",
+        "observed_at": null,
+        "completeness": "COMPLETE"
+      },
+      "evidence_cards": [
+        {
+          "evidence_id": "E1",
+          "source_kind": "RULE_RUNTIME",
+          "availability": "AVAILABLE",
+          "completeness": "COMPLETE",
+          "observed_at": null,
+          "connection_name": null
+        }
+      ],
+      "redacted_question": "接着解释它与表注释的关系。",
+      "model_projection_preview": {
+        "projection_mode": "ALIASED",
+        "question": "接着解释它与表注释的关系。",
+        "evidence_summary": [
+          {
+            "evidence_id": "E1",
+            "source_kind": "RULE_RUNTIME",
+            "availability": "AVAILABLE",
+            "completeness": "COMPLETE"
+          }
+        ],
+        "knowledge_count": 0
+      },
+      "data_class": "INTERNAL_REDACTED",
+      "mode": "ROUTE",
+      "provider_display": {
+        "name": "7dfc824bae714890ab837219af643469",
+        "model_id": "qc1-synthetic",
+        "data_zone": null,
+        "has_fallback": false
+      },
+      "route_revision": 1,
+      "warnings": [],
+      "reserved_token_upper": 38912,
+      "requires_confirmation": true
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/copilot/sessions/d7f504e327ec4e25935638ae80a8f9b5/turns",
+    "status": 202,
+    "utc": "2026-09-16T14:37:29.385316+00:00",
+    "body": {
+      "request_id": "446ecb47cd0a413cb0aeb558d1848815",
+      "turn_id": "ed81497d801044cf8b40d4e904308c93",
+      "session_id": "d7f504e327ec4e25935638ae80a8f9b5",
+      "state": "ACCEPTED",
+      "deadline_at": "2026-09-16 14:38:59.355648",
+      "status_url": "/api/v1/copilot/turns/ed81497d801044cf8b40d4e904308c93",
+      "result_url": "/api/v1/copilot/turns/ed81497d801044cf8b40d4e904308c93/result",
+      "poll_after_ms": 2000,
+      "reused": false
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/copilot/turns/ed81497d801044cf8b40d4e904308c93",
+    "status": 200,
+    "utc": "2026-09-16T14:37:29.421750+00:00",
+    "body": {
+      "request_id": "308511c4978e47feb61e9b92dcdb3c1c",
+      "turn_id": "ed81497d801044cf8b40d4e904308c93",
+      "session_id": "d7f504e327ec4e25935638ae80a8f9b5",
+      "state": "ACCEPTED",
+      "phase": "WAITING",
+      "scene": "RULE_EXPLAIN",
+      "created_at": "2026-09-16T14:37:29.359874",
+      "deadline_at": "2026-09-16T14:38:59.355648",
+      "finished_at": null,
+      "terminal": false,
+      "result_available": false,
+      "error_code": null,
+      "retry_after_ms": 2000
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/copilot/turns/ed81497d801044cf8b40d4e904308c93",
+    "status": 200,
+    "utc": "2026-09-16T14:37:30.484168+00:00",
+    "body": {
+      "request_id": "c7011e79504548199105dfb1fa329b5c",
+      "turn_id": "ed81497d801044cf8b40d4e904308c93",
+      "session_id": "d7f504e327ec4e25935638ae80a8f9b5",
+      "state": "SUCCEEDED",
+      "phase": "DONE",
+      "scene": "RULE_EXPLAIN",
+      "created_at": "2026-09-16T14:37:29.359874",
+      "deadline_at": "2026-09-16T14:38:59.355648",
+      "finished_at": "2026-09-16T14:37:29.811971",
+      "terminal": true,
+      "result_available": true,
+      "error_code": null,
+      "retry_after_ms": 0
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/copilot/turns/ed81497d801044cf8b40d4e904308c93/result",
+    "status": 200,
+    "utc": "2026-09-16T14:37:30.511492+00:00",
+    "body": {
+      "request_id": "5aa9887938ad4e08b8bff73ffc8bc1e0",
+      "turn_id": "ed81497d801044cf8b40d4e904308c93",
+      "state": "SUCCEEDED",
+      "answer_source": "MODEL",
+      "context_display": {
+        "connection_name": null,
+        "name_source": "missing",
+        "database": null,
+        "instance_type": "unknown"
+      },
+      "answer": {
+        "schema_version": 1,
+        "summary": "已根据本轮证据整理要点；这是受控网关返回的合成答案。",
+        "outcome_claims": [],
+        "findings": [
+          {
+            "kind": "FACT",
+            "text": "本轮资料卡已随请求送达，编号见 evidence_ids。",
+            "evidence_ids": [
+              "E1"
+            ],
+            "knowledge_ids": []
+          }
+        ],
+        "steps": [],
+        "missing_evidence": [
+          "进程退出信号与资源记录"
+        ],
+        "sql_candidates": [
+          {
+            "sql": "SELECT * FROM qc_candidate_missing;",
+            "reason": "QC1 synthetic candidate for text-validation and editor-safety tests",
+            "evidence_ids": []
+          }
+        ],
+        "limitations": [
+          "合成网关答案，仅用于链路与投影一致性验证"
+        ]
+      },
+      "sources": [
+        {
+          "evidence_id": "E1",
+          "source_kind": "RULE_RUNTIME",
+          "source_id": "runtime-rules",
+          "available": true,
+          "observed_at": null,
+          "completeness": "COMPLETE",
+          "excerpt": "{\"rules\": [{\"rule_id\": \"R003\", \"enabled\": true, \"severity\": \"ERROR\", \"category\": \"ddl\", \"scope\": \"all\", \"spec_source\": \"TDSQL数据库开发规范 - 表设计规范\", \"description\": \"CREATE TABLE 必须显式指定主键\", \"fix_suggestion\": \"建议添加自增主键: id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY\"}]}"
+        }
+      ],
+      "actions": [
+        {
+          "action_id": "A1",
+          "type": "OPEN_SOURCE",
+          "label": "查看原始规则定义",
+          "evidence_id": "E1",
+          "route_key": null,
+          "source_ref": null,
+          "candidate_id": null
+        },
+        {
+          "action_id": "A2",
+          "type": "COPY_SUGGESTION",
+          "label": "复制候选 1",
+          "evidence_id": null,
+          "route_key": null,
+          "source_ref": null,
+          "candidate_id": "C1"
+        },
+        {
+          "action_id": "A3",
+          "type": "OPEN_AUDIT_EDITOR",
+          "label": "送入审核编辑器（候选 1）",
+          "evidence_id": null,
+          "route_key": null,
+          "source_ref": null,
+          "candidate_id": "C1"
+        }
+      ],
+      "model": {
+        "provider_id": null,
+        "attempted": true,
+        "failure_code": null
+      },
+      "usage": {
+        "input_tokens": 1234,
+        "output_tokens": 56,
+        "accounting_source": "PROVIDER"
+      },
+      "disclaimer": "AI或本地助手建议不是正式审核、数据库执行或验收结论。"
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/copilot/sessions/d7f504e327ec4e25935638ae80a8f9b5",
+    "status": 200,
+    "utc": "2026-09-16T14:37:30.545413+00:00",
+    "body": {
+      "request_id": "249ca9fdef334522a4efcce792f6e143",
+      "session_id": "d7f504e327ec4e25935638ae80a8f9b5",
+      "title": "通用咨询 09-16 14:37",
+      "scope_kind": "GLOBAL_HELP",
+      "state": "OPEN",
+      "connection_name": null,
+      "database": null,
+      "instance_type": "unknown",
+      "revision": 5,
+      "active_turn_id": null,
+      "created_at": "2026-09-16T14:37:26.796811",
+      "updated_at": "2026-09-16T14:37:29.822615"
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/copilot/sessions/d7f504e327ec4e25935638ae80a8f9b5/previews",
+    "status": 201,
+    "utc": "2026-09-16T14:37:30.618713+00:00",
+    "body": {
+      "request_id": "637541b932b54b5da9ddacfcd1277f20",
+      "preview_id": "b65a460f68ee4c94b40d296e5428496c",
+      "expires_at": "2026-09-16 14:39:30.573648",
+      "expected_session_revision": 5,
+      "scene": "RULE_EXPLAIN",
+      "snapshot_hash": "47c5937106ee060d04ab2ff045b7d4a1989a4f98118db503164f1517c7d98cbb",
+      "input_hash": "199a8a79ea57a4b689a6a289ba11924957339e2769fd95184aca106aa629da63",
+      "context_display": {
+        "connection_name": null,
+        "name_source": "missing",
+        "database": null,
+        "instance_type": "unknown",
+        "observed_at": null,
+        "completeness": "COMPLETE"
+      },
+      "evidence_cards": [
+        {
+          "evidence_id": "E1",
+          "source_kind": "RULE_RUNTIME",
+          "availability": "AVAILABLE",
+          "completeness": "COMPLETE",
+          "observed_at": null,
+          "connection_name": null
+        }
+      ],
+      "redacted_question": "如何在原即时审核中验证这个建议？",
+      "model_projection_preview": {
+        "projection_mode": "ALIASED",
+        "question": "如何在原即时审核中验证这个建议？",
+        "evidence_summary": [
+          {
+            "evidence_id": "E1",
+            "source_kind": "RULE_RUNTIME",
+            "availability": "AVAILABLE",
+            "completeness": "COMPLETE"
+          }
+        ],
+        "knowledge_count": 3
+      },
+      "data_class": "INTERNAL_REDACTED",
+      "mode": "ROUTE",
+      "provider_display": {
+        "name": "7dfc824bae714890ab837219af643469",
+        "model_id": "qc1-synthetic",
+        "data_zone": null,
+        "has_fallback": false
+      },
+      "route_revision": 1,
+      "warnings": [],
+      "reserved_token_upper": 38912,
+      "requires_confirmation": true
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/copilot/sessions/d7f504e327ec4e25935638ae80a8f9b5/turns",
+    "status": 202,
+    "utc": "2026-09-16T14:37:30.698635+00:00",
+    "body": {
+      "request_id": "89f1c3d5003d4b0c86d4d5b9eb1f5c57",
+      "turn_id": "71584694edd84cb18900a4f17d95318d",
+      "session_id": "d7f504e327ec4e25935638ae80a8f9b5",
+      "state": "ACCEPTED",
+      "deadline_at": "2026-09-16 14:39:00.648339",
+      "status_url": "/api/v1/copilot/turns/71584694edd84cb18900a4f17d95318d",
+      "result_url": "/api/v1/copilot/turns/71584694edd84cb18900a4f17d95318d/result",
+      "poll_after_ms": 2000,
+      "reused": false
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/copilot/turns/71584694edd84cb18900a4f17d95318d",
+    "status": 200,
+    "utc": "2026-09-16T14:37:30.719739+00:00",
+    "body": {
+      "request_id": "fd94ff05cfdd43799f24dbb108f0b731",
+      "turn_id": "71584694edd84cb18900a4f17d95318d",
+      "session_id": "d7f504e327ec4e25935638ae80a8f9b5",
+      "state": "ACCEPTED",
+      "phase": "WAITING",
+      "scene": "RULE_EXPLAIN",
+      "created_at": "2026-09-16T14:37:30.649608",
+      "deadline_at": "2026-09-16T14:39:00.648339",
+      "finished_at": null,
+      "terminal": false,
+      "result_available": false,
+      "error_code": null,
+      "retry_after_ms": 2000
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/copilot/turns/71584694edd84cb18900a4f17d95318d",
+    "status": 200,
+    "utc": "2026-09-16T14:37:31.765942+00:00",
+    "body": {
+      "request_id": "af415c9ef699463c90821b64c9be0c5b",
+      "turn_id": "71584694edd84cb18900a4f17d95318d",
+      "session_id": "d7f504e327ec4e25935638ae80a8f9b5",
+      "state": "SUCCEEDED",
+      "phase": "DONE",
+      "scene": "RULE_EXPLAIN",
+      "created_at": "2026-09-16T14:37:30.649608",
+      "deadline_at": "2026-09-16T14:39:00.648339",
+      "finished_at": "2026-09-16T14:37:30.849495",
+      "terminal": true,
+      "result_available": true,
+      "error_code": null,
+      "retry_after_ms": 0
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/copilot/turns/71584694edd84cb18900a4f17d95318d/result",
+    "status": 200,
+    "utc": "2026-09-16T14:37:31.816423+00:00",
+    "body": {
+      "request_id": "3979bd186ff74d22a7666b7d6598c711",
+      "turn_id": "71584694edd84cb18900a4f17d95318d",
+      "state": "SUCCEEDED",
+      "answer_source": "MODEL",
+      "context_display": {
+        "connection_name": null,
+        "name_source": "missing",
+        "database": null,
+        "instance_type": "unknown"
+      },
+      "answer": {
+        "schema_version": 1,
+        "summary": "已根据本轮证据整理要点；这是受控网关返回的合成答案。",
+        "outcome_claims": [],
+        "findings": [
+          {
+            "kind": "FACT",
+            "text": "本轮资料卡已随请求送达，编号见 evidence_ids。",
+            "evidence_ids": [
+              "E1"
+            ],
+            "knowledge_ids": []
+          },
+          {
+            "kind": "POLICY",
+            "text": "本轮知识条目已随请求送达，编号见 knowledge_ids。",
+            "evidence_ids": [],
+            "knowledge_ids": [
+              "K1"
+            ]
+          }
+        ],
+        "steps": [],
+        "missing_evidence": [
+          "进程退出信号与资源记录"
+        ],
+        "sql_candidates": [
+          {
+            "sql": "SELECT * FROM qc_candidate_missing;",
+            "reason": "QC1 synthetic candidate for text-validation and editor-safety tests",
+            "evidence_ids": []
+          }
+        ],
+        "limitations": [
+          "合成网关答案，仅用于链路与投影一致性验证"
+        ]
+      },
+      "sources": [
+        {
+          "evidence_id": "E1",
+          "source_kind": "RULE_RUNTIME",
+          "source_id": "runtime-rules",
+          "available": true,
+          "observed_at": null,
+          "completeness": "COMPLETE",
+          "excerpt": "{\"rules\": [{\"rule_id\": \"R003\", \"enabled\": true, \"severity\": \"ERROR\", \"category\": \"ddl\", \"scope\": \"all\", \"spec_source\": \"TDSQL数据库开发规范 - 表设计规范\", \"description\": \"CREATE TABLE 必须显式指定主键\", \"fix_suggestion\": \"建议添加自增主键: id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY\"}]}"
+        },
+        {
+          "evidence_id": null,
+          "source_kind": "KNOWLEDGE_PACK",
+          "source_id": "USER_GUIDE_CORE",
+          "available": true,
+          "observed_at": null,
+          "completeness": "COMPLETE",
+          "excerpt": "即时审核入口在左侧菜单“即时审核”（audit-sql）。把 SQL 粘贴进编辑器，选择实例类型（分布式/集中式，不确定可选 unknown），点击“开始审核”。审核结果按规则号 R 开头列出，分 ERROR、WARNING、INFO 三个级别。ERROR 必须修复后才能过质量门禁。\n\n审核结果只代表当前规则集与当前输入文本的静态结论，不等于在数据库实际执行通过。"
+        },
+        {
+          "evidence_id": null,
+          "source_kind": "KNOWLEDGE_PACK",
+          "source_id": "PUBLIC_FIXED_QUESTIONS",
+          "available": true,
+          "observed_at": null,
+          "completeness": "COMPLETE",
+          "excerpt": "TDSQL SQL 审核工具提供 SQL 审核（一百余条规则）、慢 SQL 采集分析、扫描结果纵向对比、深度诊断、权限管理与报告导出。Copilot 专家助手用于解释功能、规则与已有记录，给出建议；它不代替正式审核结论，也不执行数据库变更。"
+        },
+        {
+          "evidence_id": null,
+          "source_kind": "KNOWLEDGE_PACK",
+          "source_id": "PUBLIC_FIXED_QUESTIONS",
+          "available": true,
+          "observed_at": null,
+          "completeness": "COMPLETE",
+          "excerpt": "先看违规的规则号与级别，再看规则说明与修复建议。ERROR 级别必须处理。修改后需要重新执行正式审核；助手给出的候选 SQL 只是建议，需人工确认后送入审核编辑器复核。"
+        }
+      ],
+      "actions": [
+        {
+          "action_id": "A1",
+          "type": "OPEN_SOURCE",
+          "label": "查看原始规则定义",
+          "evidence_id": "E1",
+          "route_key": null,
+          "source_ref": null,
+          "candidate_id": null
+        },
+        {
+          "action_id": "A2",
+          "type": "COPY_SUGGESTION",
+          "label": "复制候选 1",
+          "evidence_id": null,
+          "route_key": null,
+          "source_ref": null,
+          "candidate_id": "C1"
+        },
+        {
+          "action_id": "A3",
+          "type": "OPEN_AUDIT_EDITOR",
+          "label": "送入审核编辑器（候选 1）",
+          "evidence_id": null,
+          "route_key": null,
+          "source_ref": null,
+          "candidate_id": "C1"
+        }
+      ],
+      "model": {
+        "provider_id": null,
+        "attempted": true,
+        "failure_code": null
+      },
+      "usage": {
+        "input_tokens": 1234,
+        "output_tokens": 56,
+        "accounting_source": "PROVIDER"
+      },
+      "disclaimer": "AI或本地助手建议不是正式审核、数据库执行或验收结论。"
+    },
+    "headers": {
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/copilot/turns/71584694edd84cb18900a4f17d95318d/result",
+    "status": 404,
+    "utc": "2026-09-16T14:37:31.981186+00:00",
+    "body": {
+      "detail": {
+        "code": "NOT_FOUND",
+        "message": "对象不存在或无权访问",
+        "request_id": "dde03820302c4c25957dbbd36813c00b",
+        "retryable": false
+      }
+    },
+    "headers": {
+      "cache-control": "no-store",
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/copilot/sessions/d7f504e327ec4e25935638ae80a8f9b5",
+    "status": 404,
+    "utc": "2026-09-16T14:37:32.001727+00:00",
+    "body": {
+      "detail": {
+        "code": "NOT_FOUND",
+        "message": "对象不存在或无权访问",
+        "request_id": "54014d1bfb1743c4b0bde827a422dc90",
+        "retryable": false
+      }
+    },
+    "headers": {
+      "cache-control": "no-store",
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-eval' 'sha256-cdekG9cIdI9gtVRZGv6Od+m5VzXnZfdYIKSX/nFpv7g='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    }
+  }
+]

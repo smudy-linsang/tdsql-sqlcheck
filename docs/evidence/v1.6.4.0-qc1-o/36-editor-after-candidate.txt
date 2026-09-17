@@ -1,0 +1,72 @@
+- banner:
+  - img "logo"
+  - generic: TDSQL数据库SQL审核工具
+  - button "Q QC1-UAT管理员甲 系统管理员":
+    - generic: Q
+    - generic: QC1-UAT管理员甲
+    - generic: 系统管理员
+- complementary:
+  - menubar:
+    - menuitem "治理概览":
+      - generic: 治理概览
+    - menuitem "SQL审核" [expanded]:
+      - generic: SQL审核
+      - menu:
+        - menuitem "即时审核"
+        - menuitem "文件审核"
+        - menuitem "在线元数据审核"
+    - menuitem "慢SQL治理":
+      - generic: 慢SQL治理
+    - menuitem "实例体检":
+      - generic: 实例体检
+    - menuitem "深度诊断":
+      - generic: 深度诊断
+    - menuitem "平台治理":
+      - generic: 平台治理
+    - menuitem "Copilot专家助手":
+      - generic: Copilot专家助手
+    - menuitem "系统管理":
+      - generic: 系统管理
+- navigation "面包屑":
+  - link "SQL审核"
+  - text: /
+  - link "即时审核"
+- generic: 即时SQL审核
+- text: 规则适用架构：
+- radiogroup "radio-group":
+  - radio "分布式规则" [checked]
+  - generic: 分布式规则
+  - radio "集中式规则"
+  - generic: 集中式规则
+- textbox "粘贴SQL语句，Ctrl+Enter 快速审核": SELECT * FROM qc_candidate_missing;
+- button "开始审核":
+  - generic: 开始审核
+- button "示例":
+  - generic: 示例
+- dialog "Copilot 回答":
+  - banner:
+    - heading "Copilot 回答" [level=2]
+    - button "el.dialog.close" [active]:
+  - generic: 来源：AI 建议； 实例：—
+  - heading "结论摘要" [level=4]
+  - paragraph: 已根据本轮证据整理要点；这是受控网关返回的合成答案。
+  - heading "事实与依据" [level=4]
+  - list:
+    - listitem: "[FACT] 本轮资料卡已随请求送达，编号见 evidence_ids。"
+    - listitem: "[POLICY] 本轮知识条目已随请求送达，编号见 knowledge_ids。"
+  - heading "候选 SQL（仅文本复核）" [level=4]
+  - generic: SELECT * FROM qc_candidate_missing;
+  - generic: QC1 synthetic candidate for text-validation and editor-safety tests
+  - button "复制":
+    - generic: 复制
+  - button "送入审核编辑器":
+    - generic: 送入审核编辑器
+  - heading "限制" [level=4]
+  - list:
+    - listitem: 合成网关答案，仅用于链路与投影一致性验证
+  - heading "来源" [level=4]
+  - generic: E1（RULE_RUNTIME，可用）
+  - generic: USER_GUIDE_CORE（KNOWLEDGE_PACK，可用）
+  - generic: PUBLIC_FIXED_QUESTIONS（KNOWLEDGE_PACK，可用）
+  - generic: PUBLIC_FIXED_QUESTIONS（KNOWLEDGE_PACK，可用）
+  - generic: AI或本地助手建议不是正式审核、数据库执行或验收结论。

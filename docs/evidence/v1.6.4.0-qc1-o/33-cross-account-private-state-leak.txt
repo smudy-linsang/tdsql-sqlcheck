@@ -1,0 +1,49 @@
+- banner:
+  - img "logo"
+  - generic: TDSQL数据库SQL审核工具
+  - button "Q QC1-UAT开发员 开发":
+    - generic: Q
+    - generic: QC1-UAT开发员
+    - generic: 开发
+- complementary:
+  - menubar:
+    - menuitem "治理概览":
+      - generic: 治理概览
+    - menuitem "SQL审核":
+      - generic: SQL审核
+    - menuitem "慢SQL治理":
+      - generic: 慢SQL治理
+    - menuitem "实例体检":
+      - generic: 实例体检
+    - menuitem "深度诊断":
+      - generic: 深度诊断
+    - menuitem "平台治理":
+      - generic: 平台治理
+    - menuitem "Copilot专家助手" [active]:
+      - generic: Copilot专家助手
+- navigation "面包屑"
+- text: Copilot 专家助手
+- generic: 已启用
+- combobox
+- generic: QC1-分布式测试库
+- button "新建通用会话":
+  - generic: 新建通用会话
+- button "新建实例会话":
+  - generic: 新建实例会话
+- combobox
+- generic: 通用咨询 09-16 14:41
+- combobox
+- generic: 使用帮助
+- textbox "输入问题（Enter 发送，Shift+Enter 换行）；敏感信息（口令/密钥）请勿输入": QC1-A-PRIVATE-NOTE-RECHECK：甲的未提交内部草稿
+- textbox "可选：粘贴待分析的 SQL / 诊断摘录（USER_DRAFT）"
+- button "预览资料":
+  - generic: 预览资料
+- button "确认提交" [disabled]:
+  - generic: 确认提交
+- button "恢复本次提交":
+  - generic: 恢复本次提交
+- generic: 相同提交标识对应不同请求内容，请核对后重新发起（可尝试“恢复本次提交”）
+- generic: 本次将发送的资料（别名脱敏）：
+- generic: 问题：R003 规则是什么意思？
+- generic: 证据：0 条；知识：0 条
+- generic: 到期时间：2026-09-16 14:43:36.480647；确认后不可修改
