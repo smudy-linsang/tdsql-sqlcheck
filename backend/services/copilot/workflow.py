@@ -511,45 +511,6 @@ class TurnExecutor:
     def _fail(self, code: str, message: str) -> None:
         self._publish("FAILED", None, code, message)
 
-
-class _TurnCancelled(Exception):
-    pass
-
-
-def _charge_tokens(in_tok, out_tok, usage) -> int:
-    """结算：有可信 usage 按实际；缺失按每次实际尝试 19,456 保守上界。"""
-    if usage and in_tok is not None and out_tok is not None:
-        try:
-            return int(in_tok) + int(out_tok)
-        except (TypeError, ValueError):
-            pass
-    return 19456
-
-
-def _safe_json(text) -> Optional[dict]:
-    if not text:
-        return None
-    try:
-        v = json.loads(text)
-        return v if isinstance(v, dict) else None
-    except Exception:
-        return None
-
-
-def _rule_ids_from_evidence(evidence: list[dict]) -> list[str]:
-    ids: list[str] = []
-    for ev in evidence:
-        if ev.get("source_kind") == "RULE_RUNTIME":
-            for r in (ev.get("data") or {}).get("rules", []):
-                if r.get("rule_id"):
-                    ids.append(r["rule_id"])
-        for v in (ev.get("data") or {}).get("selected_results", []) or []:
-            for viol in v.get("violations") or []:
-                if viol.get("rule_id"):
-                    ids.append(viol["rule_id"])
-    return list(dict.fromkeys(ids))
-
-
     def _t09_validate(self, sql: str) -> dict:
         """QC1-B06：受控 T09 纯文本 SQL 复核。
 
@@ -598,6 +559,44 @@ def _rule_ids_from_evidence(evidence: list[dict]) -> list[str]:
             result["validation"] = "INCOMPLETE"
             result["executable"] = "UNKNOWN"
         return result
+
+
+class _TurnCancelled(Exception):
+    pass
+
+
+def _charge_tokens(in_tok, out_tok, usage) -> int:
+    """结算：有可信 usage 按实际；缺失按每次实际尝试 19,456 保守上界。"""
+    if usage and in_tok is not None and out_tok is not None:
+        try:
+            return int(in_tok) + int(out_tok)
+        except (TypeError, ValueError):
+            pass
+    return 19456
+
+
+def _safe_json(text) -> Optional[dict]:
+    if not text:
+        return None
+    try:
+        v = json.loads(text)
+        return v if isinstance(v, dict) else None
+    except Exception:
+        return None
+
+
+def _rule_ids_from_evidence(evidence: list[dict]) -> list[str]:
+    ids: list[str] = []
+    for ev in evidence:
+        if ev.get("source_kind") == "RULE_RUNTIME":
+            for r in (ev.get("data") or {}).get("rules", []):
+                if r.get("rule_id"):
+                    ids.append(r["rule_id"])
+        for v in (ev.get("data") or {}).get("selected_results", []) or []:
+            for viol in v.get("violations") or []:
+                if viol.get("rule_id"):
+                    ids.append(viol["rule_id"])
+    return list(dict.fromkeys(ids))
 
 
 def _source_cards(evidence: list[dict], knowledge: list[dict]) -> list[dict]:

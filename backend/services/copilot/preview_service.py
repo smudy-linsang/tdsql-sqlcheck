@@ -66,7 +66,8 @@ def _build_history(conn, session: dict) -> list[dict]:
     排除失败/已取消/自检轮；只取同 session 内同实例的已校验问答。
     """
     rows = conn.execute(
-        "SELECT t.id, p.payload_envelope, t.response_envelope "
+        "SELECT p.id AS preview_id, t.id AS turn_id, "
+        "p.payload_envelope, t.response_envelope, p.owner_subject_id "
         "FROM copilot_turns t "
         "JOIN copilot_previews p ON t.preview_id = p.id "
         "WHERE t.session_id = ? AND t.state = 'SUCCEEDED' "
@@ -80,9 +81,11 @@ def _build_history(conn, session: dict) -> list[dict]:
         try:
             from backend.services.copilot import crypto as crypto_mod
             kr = crypto_mod.load_keyring()
+            # QC2-B01：AAD 必须与加密时一致（preview_id + owner）
             payload_raw = crypto_mod.decrypt(
                 r["payload_envelope"], "copilot_previews",
-                None, "payload_envelope", keyring=kr)
+                r["preview_id"], "payload_envelope",
+                owner=r["owner_subject_id"], keyring=kr)
             q = json.loads(payload_raw).get("question", "")
         except Exception:
             continue

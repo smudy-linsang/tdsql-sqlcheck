@@ -386,3 +386,30 @@ O 第一轮质检结论：**QC1 不通过**，6 BLOCKER + 5 MAJOR + 1 MINOR。�
 | `tests/_tmp_test/` 等 pytest basetemp 遗留 | `.gitignore` 新增 `tests/_tmp_*/` |
 
 验证：`tests/copilot/` **117/117**（修复后全量绿）。
+
+---
+
+## 16. 第二轮 QC 整改闭环（2026-09-17，O 报告 QC2 REJECT / NO-GO）
+
+O 第二轮质检结论：**QC1 提出 12 项缺陷中 9 项已有效闭环**，但遗留 2 项 BLOCKER + 1 项 MAJOR。两项阻断均为“单测假绿”——测试全部通过但运行时才暴露。
+
+### 阻断级（2 项）
+
+| 编号 | 问题 | 修复 |
+|---|---|---|
+| QC2-B01 | `_build_history` 解密历史预览快照时 AAD 不匹配：SQL 未查 `p.id` 和 `p.owner_subject_id`，解密参数 `primary_key=None` + `owner` 默认 `"SYSTEM"`，但加密时用的是 `preview_id` + `identity.subject_id` → AES-GCM InvalidTag 被 `except Exception: continue` 静默吞掉 → 出站 `history` 恒空 | SQL 补查 `p.id AS preview_id, p.owner_subject_id`；解密传入 `r["preview_id"]` + `owner=r["owner_subject_id"]` |
+| QC2-B02 | `_t09_validate` 错写在模块顶层（`TurnExecutor` 类已结束后的位置），`self._t09_validate()` 触发 `AttributeError` → 候选 SQL 非空时执行器崩溃 `INTERNAL_ERROR`；117 项测试全部打桩 `sql_candidates=[]` 从未覆盖此分支 | 将 `_t09_validate` 移入 `TurnExecutor` 类内（`_fail` 之后）；删除模块级旧副本 |
+
+### 回归锁（8 条新增，`tests/copilot/test_qc2_regressions.py`）
+
+| 锁 | 覆盖 |
+|---|---|
+| `test_t09_validate_is_instance_method` | QC2-B02 核心：`self._t09_validate` 不抛 AttributeError |
+| `test_t09_validate_empty_sql` / `whitespace` | 空 SQL → EMPTY + NO |
+| `test_t09_validate_valid_sql` | 有效 SQL → 四态闭集 |
+| `test_t09_validate_unparseable_sql` | 不可解析 → PARSE_FAILED/INCOMPLETE |
+| `test_t09_validate_blocking_violation` | 违规 SQL → violations 列表非空 |
+| `test_publish_model_with_sql_candidates` | QC2-B02 端到端：非空候选 SQL 时 `_publish_model` 正常 SUCCEEDED 且带 validation |
+| `test_build_history_returns_nonempty_after_decrypt_fix` | QC2-B01 核心：构造加密 preview + SUCCEEDED turn，`_build_history` 返回非空且内容正确 |
+
+验证：`tests/copilot/` **125/125**（117 原有 + 8 新增 QC2 回归锁，全量绿）。
