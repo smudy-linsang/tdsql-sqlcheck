@@ -431,3 +431,17 @@ O 第三轮质检结论：QC2 两项阻断中 **QC2-B02（候选 SQL 崩溃）�
 QC2 回归测试 `test_build_history_returns_nonempty_after_decrypt_fix` 中手工构造了扁平 `{"summary": "..."}` 结构，与真实执行器 `_publish_model`/`_publish_local` 写入的 `{"answer": {"summary": ...}}` 不一致，导致单测绿但线上崩。已同步修正 mock 数据。
 
 验证：`tests/copilot/` **125/125**（修复后全量绿，测试 mock 结构与生产真实结构一致）。
+
+---
+
+## 18. 第四轮 QC 整改闭环（2026-09-17，G 报告 QC4 REJECT / NO-GO）
+
+G 第四轮质检结论：QC3-B01（history 嵌套摘要）已彻底闭环（网络抓包证实第 2/3 轮携带历史摘要），但新发现 **QC4-UI01（BLOCKER）**：`copilot-page` 与 `copilot-admin` 脱离主内容容器坠底大黑屏。
+
+### 阻断级（1 项）
+
+| 编号 | 问题 | 修复 |
+|---|---|---|
+| QC4-UI01 | `frontend/index.html` 中 `copilot-page`（行 2920）和 `copilot-admin`（行 2981）被写在了 `<div class="content-area">` 和 `<div class="page-content">` 的闭合标签（行 2575-2576）**之外**，脱离主布局容器；CSS `content-area { flex:1; overflow-y:auto }` 导致两页面坠落视口最底部，上方一整屏黑屏 | 将两个页面 DOM 块从容器外（行 2919-3214）剪切移至 `.page-content` 容器内部（sys-perms 闭合之后、page-content 闭合之前）；去除冗余 `class="page-content"`；删除末尾孤立 `</div>` |
+
+验证：`tests/copilot/` **125/125**（修复后全量绿）。
