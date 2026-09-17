@@ -193,8 +193,12 @@ class TestHistoryAAD:
         })
 
         # 创建 SUCCEEDED turn（直接 SQL，TurnRepo.insert 只创建 ACCEPTED）
-        response = {"summary": "R003 要求表必须有主键",
-                     "findings": [], "steps": [], "sql_candidates": []}
+        # QC3-B01：mock 结构必须与真实执行器一致（answer.summary 嵌套）
+        response = {"answer": {"summary": "R003 要求表必须有主键",
+                                "findings": [], "steps": [], "sql_candidates": []},
+                    "claims_rendered": [], "sources": [], "actions": [],
+                    "model": {"provider_id": None, "attempted": True},
+                    "usage": {}}
         conn.execute(
             "INSERT INTO copilot_turns (id, session_id, preview_id, owner, "
             "owner_subject_id, turn_kind, scene, rule_snapshot_hash, "

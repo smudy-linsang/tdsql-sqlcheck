@@ -91,7 +91,8 @@ def _build_history(conn, session: dict) -> list[dict]:
             continue
         try:
             ans = json.loads(r["response_envelope"])
-            s = ans.get("summary", "")
+            # QC3-B01：生产 response_envelope 结构为 {"answer": {"summary": ...}}
+            s = ans.get("summary", "") or (ans.get("answer") or {}).get("summary", "")
         except Exception:
             continue
         if not q or not s:

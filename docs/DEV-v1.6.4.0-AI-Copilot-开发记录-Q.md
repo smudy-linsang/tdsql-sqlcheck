@@ -413,3 +413,21 @@ O 第二轮质检结论：**QC1 提出 12 项缺陷中 9 项已有效闭环**，
 | `test_build_history_returns_nonempty_after_decrypt_fix` | QC2-B01 核心：构造加密 preview + SUCCEEDED turn，`_build_history` 返回非空且内容正确 |
 
 验证：`tests/copilot/` **125/125**（117 原有 + 8 新增 QC2 回归锁，全量绿）。
+
+---
+
+## 17. 第三轮 QC 整改闭环（2026-09-17，O 报告 QC3 REJECT / NO-GO）
+
+O 第三轮质检结论：QC2 两项阻断中 **QC2-B02（候选 SQL 崩溃）已彻底闭环**，但 **QC3-B01（history 恒空）仍阻断**——AAD 解密修复后，摘要提取又踩了第二层坑。
+
+### 阻断级（1 项）
+
+| 编号 | 问题 | 修复 |
+|---|---|---|
+| QC3-B01 | `_build_history` 提取历史回答摘要时用 `ans.get("summary", "")` 在顶层找，但生产 `response_envelope` 真实结构为 `{"answer": {"summary": ...}}`（嵌套），导致提取值恒空字符串 → `if not q or not s: continue` 100% 跳过全部历史 → 出站 `history: []` 恒空 | `preview_service.py` 改为兼容提取：`ans.get("summary", "") or (ans.get("answer") or {}).get("summary", "")`；同步修正测试 mock 结构为嵌套 `answer.summary` |
+
+### 假绿根因
+
+QC2 回归测试 `test_build_history_returns_nonempty_after_decrypt_fix` 中手工构造了扁平 `{"summary": "..."}` 结构，与真实执行器 `_publish_model`/`_publish_local` 写入的 `{"answer": {"summary": ...}}` 不一致，导致单测绿但线上崩。已同步修正 mock 数据。
+
+验证：`tests/copilot/` **125/125**（修复后全量绿，测试 mock 结构与生产真实结构一致）。
