@@ -2725,6 +2725,59 @@
             </el-table>
             <div class="copilot-limit" style="margin-top:8px">自检会产生少量模型调用费用；只发固定合成问题，不发任何业务资料。</div>
           </el-tab-pane>
+          <!-- ═══ 端点管理 ═══ -->
+          <el-tab-pane label="端点管理" name="endpoints">
+            <div style="margin-bottom:8px;display:flex;gap:8px;align-items:center">
+              <el-button size="small" type="primary" @click="copilotAdmin.openEndpointCreate()">新增端点</el-button>
+              <el-button size="small" @click="copilotAdmin.loadEndpoints()">刷新</el-button>
+              <span style="font-size:12px;color:var(--el-text-color-secondary);margin-left:auto">
+                受控大模型网络端点（IP/域名/端口/BaseURL），仅系统管理员可见与配置
+              </span>
+            </div>
+            <el-table :data="copilotAdmin.endpoints" size="small" stripe>
+              <el-table-column prop="endpoint_id" label="端点标识" width="140" show-overflow-tooltip></el-table-column>
+              <el-table-column label="协议" width="75">
+                <template #default="{row}">
+                  <el-tag :type="row.scheme==='https'?'success':'info'" size="small">{{ (row.scheme || 'https').toUpperCase() }}</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column prop="canonical_host" label="主机 / IP" min-width="150" show-overflow-tooltip></el-table-column>
+              <el-table-column prop="port" label="端口" width="70"></el-table-column>
+              <el-table-column prop="base_path" label="基础路径" width="130"></el-table-column>
+              <el-table-column label="分区" width="80">
+                <template #default="{row}">
+                  <el-tag :type="row.data_zone==='INTERNAL'?'primary':'warning'" size="small">
+                    {{ row.data_zone==='INTERNAL'?'内网':'公网' }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="结构标识符" width="90">
+                <template #default="{row}">
+                  <el-tag :type="row.allows_schema_identifiers?'success':'info'" size="small">
+                    {{ row.allows_schema_identifiers ? '允许' : '禁止' }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="关联模型" min-width="140" show-overflow-tooltip>
+                <template #default="{row}">
+                  <span v-if="row.used_by_providers && row.used_by_providers.length" style="color:var(--el-color-primary);font-weight:500">
+                    {{ row.used_by_providers.join(', ') }}
+                  </span>
+                  <span v-else style="color:var(--el-text-color-secondary)">未绑定</span>
+                </template>
+              </el-table-column>
+              <el-table-column prop="description" label="说明备注" min-width="140" show-overflow-tooltip></el-table-column>
+              <el-table-column label="操作" width="140" fixed="right">
+                <template #default="{row}">
+                  <el-button link type="primary" size="small" @click="copilotAdmin.openEndpointEdit(row)">编辑</el-button>
+                  <el-button link type="danger" size="small" @click="copilotAdmin.deleteEndpoint(row)">删除</el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+            <div class="copilot-limit" style="margin-top:8px">
+              内网环境可直接配置内网大模型服务（如 vLLM、Ollama 或私有 AI 网关）的内网 IP 与端口；所有端点变动均记入系统安全审计日志。
+            </div>
+          </el-tab-pane>
           <!-- ═══ 场景路由 ═══ -->
           <el-tab-pane label="场景路由" name="routes">
             <div style="margin-bottom:8px" v-if="copilotAdmin.unconfiguredScenes.length">
@@ -2854,14 +2907,22 @@
             <el-input v-model="copilotAdmin.providerForm.name" placeholder="模型显示名称"></el-input>
           </el-form-item>
           <el-form-item label="批准端点" required>
-            <el-select v-model="copilotAdmin.providerForm.endpoint_id" style="width:100%">
-              <el-option v-for="ep in copilotAdmin.endpoints" :key="ep.endpoint_id"
-                         :label="ep.endpoint_id + ' (' + ep.canonical_host + ')'"
-                         :value="ep.endpoint_id"></el-option>
-            </el-select>
+            <div style="display:flex;gap:8px;width:100%">
+              <el-select v-model="copilotAdmin.providerForm.endpoint_id" style="flex:1" placeholder="选择批准端点">
+                <el-option v-for="ep in copilotAdmin.endpoints" :key="ep.endpoint_id"
+                           :label="ep.endpoint_id + ' (' + (ep.scheme || 'https') + '://' + ep.canonical_host + ':' + ep.port + ep.base_path + ')'"
+                           :value="ep.endpoint_id">
+                  <span style="float:left;font-weight:600">{{ ep.endpoint_id }}</span>
+                  <span style="float:right;color:var(--el-text-color-secondary);font-size:12px;margin-left:8px">
+                    {{ ep.scheme || 'https' }}://{{ ep.canonical_host }}:{{ ep.port }}{{ ep.base_path }}
+                  </span>
+                </el-option>
+              </el-select>
+              <el-button size="small" type="primary" plain @click="copilotAdmin.openEndpointCreate()">+ 新建</el-button>
+            </div>
           </el-form-item>
           <el-form-item label="模型 ID" required>
-            <el-input v-model="copilotAdmin.providerForm.model_id" placeholder="如 gpt-4 / claude-3"></el-input>
+            <el-input v-model="copilotAdmin.providerForm.model_id" placeholder="如 gpt-4 / claude-3 / qwen2.5-72b-instruct"></el-input>
           </el-form-item>
           <el-form-item label="认证方式">
             <el-select v-model="copilotAdmin.providerForm.auth_mode" style="width:100%">
@@ -2886,6 +2947,63 @@
             <el-button @click="copilotAdmin.providerDrawer=false">取消</el-button>
           </el-form-item>
           <div v-if="copilotAdmin.providerFormError" style="color:#f56c6c;margin-top:8px">{{ copilotAdmin.providerFormError }}</div>
+        </el-form>
+      </el-drawer>
+
+      <!-- ═══ Endpoint 新增/编辑抽屉 ═══ -->
+      <el-drawer v-model="copilotAdmin.endpointDrawer" :title="copilotAdmin.endpointForm.isEdit ? '编辑批准端点' : '新增批准端点'" size="500px">
+        <el-form label-width="125px" size="small" style="padding:0 16px">
+          <el-alert title="内网环境可直接配置大模型服务 IP 与端口，由系统管理员统一受控管理。" type="info" :closable="false" style="margin-bottom:14px"></el-alert>
+          <el-form-item label="端点标识" required>
+            <el-input v-model="copilotAdmin.endpointForm.endpoint_id" :disabled="copilotAdmin.endpointForm.isEdit" placeholder="如 ep-internal-qwen 或 ep-vllm"></el-input>
+            <div style="font-size:11px;color:var(--el-text-color-secondary)">英文字母、数字、短横线及点，创建后作为唯一标识</div>
+          </el-form-item>
+          <el-form-item label="服务协议" required>
+            <el-radio-group v-model="copilotAdmin.endpointForm.scheme" @change="copilotAdmin.onEndpointSchemeChange()">
+              <el-radio value="https">HTTPS (加密推荐)</el-radio>
+              <el-radio value="http">HTTP (内网明文服务)</el-radio>
+            </el-radio-group>
+          </el-form-item>
+          <el-form-item label="主机 IP / 域名" required>
+            <el-input v-model="copilotAdmin.endpointForm.canonical_host" placeholder="如 10.21.34.56 或 llm-gw.bank.local"></el-input>
+          </el-form-item>
+          <el-form-item label="服务端口" required>
+            <el-input-number v-model="copilotAdmin.endpointForm.port" :min="1" :max="65535"></el-input-number>
+          </el-form-item>
+          <el-form-item label="基础路径" required>
+            <el-input v-model="copilotAdmin.endpointForm.base_path" placeholder="如 /v1 或 /compatible-mode/v1"></el-input>
+            <div style="font-size:11px;color:var(--el-text-color-secondary)">模型 API 根路径，调用时会自动在其后追加 /chat/completions</div>
+          </el-form-item>
+          <el-form-item label="数据分区" required>
+            <el-select v-model="copilotAdmin.endpointForm.data_zone" style="width:100%">
+              <el-option label="INTERNAL (行内私有)" value="INTERNAL"></el-option>
+              <el-option label="PUBLIC (外部公网)" value="PUBLIC"></el-option>
+            </el-select>
+          </el-form-item>
+          <el-form-item label="隐私策略" required>
+            <el-select v-model="copilotAdmin.endpointForm.privacy_profile" style="width:100%">
+              <el-option label="INTERNAL_REDACTED (脱敏内网)" value="INTERNAL_REDACTED"></el-option>
+              <el-option label="PUBLIC_HELP (公网帮助)" value="PUBLIC_HELP"></el-option>
+            </el-select>
+          </el-form-item>
+          <el-form-item label="允许结构标识符">
+            <el-switch v-model="copilotAdmin.endpointForm.allows_schema_identifiers"></el-switch>
+            <div style="font-size:11px;color:var(--el-text-color-secondary)">是否允许向该模型端点发送脱敏后的表名与列名字段</div>
+          </el-form-item>
+          <el-form-item label="解析网段 (CIDR)">
+            <el-input v-model="copilotAdmin.endpointForm.allowed_resolved_cidrs_str" placeholder="留空则自动根据主机生成"></el-input>
+            <div style="font-size:11px;color:var(--el-text-color-secondary)">可选，多个逗号分隔。IP主机默认自动匹配 /32。</div>
+          </el-form-item>
+          <el-form-item label="说明备注">
+            <el-input v-model="copilotAdmin.endpointForm.description" placeholder="如：总行算力中心A区私有推理服务"></el-input>
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" :loading="copilotAdmin.endpointSaving" @click="copilotAdmin.saveEndpoint()">
+              {{ copilotAdmin.endpointForm.isEdit ? '保存更新' : '立即创建' }}
+            </el-button>
+            <el-button @click="copilotAdmin.endpointDrawer=false">取消</el-button>
+          </el-form-item>
+          <div v-if="copilotAdmin.endpointFormError" style="color:#f56c6c;margin-top:8px">{{ copilotAdmin.endpointFormError }}</div>
         </el-form>
       </el-drawer>
 

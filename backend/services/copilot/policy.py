@@ -19,8 +19,8 @@ from backend.services.copilot.errors import CopilotError
 
 logger = logging.getLogger("tdsql.copilot.policy")
 
-_ENDPOINTS_MAX_BYTES = 64 * 1024
-_ENDPOINTS_MAX_COUNT = 16
+_ENDPOINTS_MAX_BYTES = 256 * 1024
+_ENDPOINTS_MAX_COUNT = 64
 _ENDPOINT_ID_RE = re.compile(r"^[A-Za-z0-9_.-]{1,64}$")
 _HOST_RE = re.compile(r"^[A-Za-z0-9.-]{1,253}$")
 _BASE_PATH_RE = re.compile(r"^/[A-Za-z0-9/_-]*$")
@@ -141,8 +141,6 @@ def _validate_cidr(cidr: str) -> Optional[str]:
         if net.version != blocked.version:
             continue
         # 仅拒绝“整条禁止网段被包含在批准 CIDR 中”或二者相等/批准范围更宽
-        # （0.0.0.0/0 自身或超宽段）；批准段是禁止段的子集属正常（如 10.0.0.0/8
-        # 本来就是 0.0.0.0/0 的子集，这不构成放行全部地址）。
         if blocked.prefixlen == 0:
             if net.prefixlen == 0:
                 return f"CIDR 落入禁止范围 {blocked}: {cidr}"
@@ -153,7 +151,7 @@ def _validate_cidr(cidr: str) -> Optional[str]:
 
 
 class EndpointPolicy:
-    """部署批准端点清单（只读；Web/runner 共享）。"""
+    """部署批准端点清单（只读/管理写入并存；Web/runner 共享）。"""
 
     def __init__(self, path: str):
         self.path = path
@@ -195,8 +193,15 @@ class EndpointPolicy:
                 raise CopilotError("POLICY_UNAVAILABLE")
         if not _ENDPOINT_ID_RE.match(str(ep["endpoint_id"])):
             raise CopilotError("POLICY_UNAVAILABLE")
-        if ep["scheme"] != "https":
-            raise CopilotError("POLICY_UNAVAILABLE")  # 不接受 HTTP 降级
+        scheme = str(ep.get("scheme", "")).lower()
+        if scheme not in ("https", "http"):
+            raise CopilotError("POLICY_UNAVAILABLE")
+        if scheme == "http":
+            # HTTP 仅限 INTERNAL 内网分区，且需 ep["allow_http"]=True 或环境变量 COPILOT_ALLOW_HTTP=true
+            is_internal = ep.get("data_zone") == "INTERNAL"
+            allowed_http = ep.get("allow_http", False) or os.getenv("COPILOT_ALLOW_HTTP", "false").lower() in ("true", "1", "yes")
+            if not is_internal or not allowed_http:
+                raise CopilotError("POLICY_UNAVAILABLE")
         if not _HOST_RE.match(str(ep["canonical_host"])):
             raise CopilotError("POLICY_UNAVAILABLE")
         host = str(ep["canonical_host"])
@@ -232,13 +237,17 @@ class EndpointPolicy:
         """管理端可见的非敏感视图（不含 CA 路径细节仅引用名）。"""
         return [{
             "endpoint_id": e["endpoint_id"],
-            "scheme": e["scheme"],
+            "scheme": e.get("scheme", "https"),
             "canonical_host": e["canonical_host"],
             "port": e["port"],
             "base_path": e["base_path"],
             "data_zone": e["data_zone"],
             "privacy_profile": e["privacy_profile"],
             "allows_schema_identifiers": e["allows_schema_identifiers"],
+            "allowed_resolved_cidrs": e.get("allowed_resolved_cidrs", []),
+            "tls_ca_ref": e.get("tls_ca_ref", "internal"),
+            "description": e.get("description", ""),
+            "allow_http": e.get("allow_http", False),
         } for e in self._endpoints.values()]
 
     def build_url(self, endpoint_id: str) -> str:
@@ -246,7 +255,8 @@ class EndpointPolicy:
         ep = self._endpoints.get(endpoint_id)
         if ep is None:
             raise CopilotError("PROVIDER_CONFIG_INVALID")
-        base = f"https://{ep['canonical_host']}:{ep['port']}{ep['base_path']}"
+        scheme = ep.get("scheme", "https")
+        base = f"{scheme}://{ep['canonical_host']}:{ep['port']}{ep['base_path']}"
         return base.rstrip("/") + "/chat/completions"
 
     def egress_check(self, endpoint_id: str, data_class: str,
@@ -265,28 +275,81 @@ class EndpointPolicy:
         if identifiers and not ep["allows_schema_identifiers"]:
             raise CopilotError("EGRESS_DENIED")
 
+    def upsert(self, ep: dict) -> None:
+        """管理员在线添加或更新端点配置，并原子持久化到配置文件。"""
+        self._validate_entry(ep)
+        self._endpoints[ep["endpoint_id"]] = ep
+        self._persist()
+
+    def remove(self, endpoint_id: str) -> None:
+        """管理员删除端点配置，并原子持久化到配置文件。"""
+        if endpoint_id not in self._endpoints:
+            raise CopilotError("NOT_FOUND", message=f"端点 {endpoint_id} 不存在")
+        del self._endpoints[endpoint_id]
+        self._persist()
+
+    def _persist(self) -> None:
+        """原子写入 JSON 配置文件并同步 mtime 缓存。"""
+        p = Path(self.path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        data = {
+            "schema_version": 1,
+            "endpoints": list(self._endpoints.values())
+        }
+        tmp_path = p.with_suffix(f".tmp.{os.getpid()}")
+        tmp_path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+        tmp_path.replace(p)
+        global _policy_mtime_cache
+        try:
+            _policy_mtime_cache = os.path.getmtime(self.path)
+        except OSError:
+            pass
+
 
 _policy_cache: Optional[EndpointPolicy] = None
 _policy_path_cache: str = ""
+_policy_mtime_cache: float = 0.0
 
 
 def reset_policy_cache() -> None:
-    global _policy_cache, _policy_path_cache
+    global _policy_cache, _policy_path_cache, _policy_mtime_cache
     _policy_cache = None
     _policy_path_cache = ""
+    _policy_mtime_cache = 0.0
 
 
 def load_policy(path: Optional[str] = None) -> EndpointPolicy:
-    """加载端点策略；文件缺失/非法抛 POLICY_UNAVAILABLE。"""
-    global _policy_cache, _policy_path_cache
+    """加载端点策略；支持基于文件 mtime 的自动热重载与缺省自动兜底。"""
+    global _policy_cache, _policy_path_cache, _policy_mtime_cache
     p = path or os.getenv("COPILOT_ENDPOINTS_FILE", "")
     if not p:
-        raise CopilotError("POLICY_UNAVAILABLE")
-    if _policy_cache is not None and _policy_path_cache == p:
+        for candidate in [
+            Path("data/reports/qc_o_1640/copilot-endpoints.json"),
+            Path("data/copilot-endpoints.json"),
+            Path(__file__).resolve().parent.parent.parent.parent / "data/reports/qc_o_1640/copilot-endpoints.json",
+        ]:
+            if candidate.exists():
+                p = str(candidate)
+                break
+        if not p:
+            p = str(Path("data/copilot-endpoints.json").resolve())
+            if not Path(p).exists():
+                Path(p).parent.mkdir(parents=True, exist_ok=True)
+                Path(p).write_text(json.dumps({"schema_version": 1, "endpoints": []}), encoding="utf-8")
+
+    mtime = 0.0
+    try:
+        mtime = os.path.getmtime(p)
+    except OSError:
+        pass
+
+    if _policy_cache is not None and _policy_path_cache == p and _policy_mtime_cache == mtime:
         return _policy_cache
+
     pol = EndpointPolicy(p)
     _policy_cache = pol
     _policy_path_cache = p
+    _policy_mtime_cache = mtime
     return pol
 
 

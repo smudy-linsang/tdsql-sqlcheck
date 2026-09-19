@@ -12,10 +12,12 @@ import logging
 import uuid
 from typing import Optional
 
+import ipaddress
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
 from backend.models.copilot import (
+    EndpointCreateRequest, EndpointUpdateRequest,
     GrantActionItem, GrantApproveRequest, GrantBatchActionRequest, GrantBatchApproveRequest,
     GrantPutRequest, ProviderCreateRequest, ProviderEnabledRequest, ProviderUpdateRequest,
     RoutePutRequest, SelfTestRequest, SettingsPutRequest,
@@ -46,9 +48,10 @@ def _rid() -> str:
     return uuid.uuid4().hex
 
 
-def _err(code: str, message: Optional[str] = None) -> JSONResponse:
+def _err(code: str, message: Optional[str] = None, status_code: Optional[int] = None) -> JSONResponse:
     from backend.services.copilot.errors import http_status_of
-    return JSONResponse(status_code=http_status_of(code),
+    sc = status_code or (400 if code in ("ENDPOINT_IN_USE", "INVALID_REQUEST", "DUPLICATE_ENDPOINT") else http_status_of(code))
+    return JSONResponse(status_code=sc,
                         content=error_payload(code, _rid(), message))
 
 
@@ -68,7 +71,7 @@ def _require_ready(conn) -> None:
 
 
 # ══════════════════════════════════════════════════════════════════
-# 端点清单（只读部署批准）
+# 端点管理（管理员受控配置，支持内网直接配置 IP / 端口 / 模型服务）
 # ══════════════════════════════════════════════════════════════════
 
 @router.get("/endpoints")
@@ -81,9 +84,196 @@ def list_endpoints(request: Request):
     if not policy_available():
         return {"request_id": _rid(), "items": [],
                 "policy_available": False}
+    
+    # 统计每个端点正在被哪些模型使用
+    usage_map = {}
+    conn = _get_connection()
+    try:
+        ensure_db()
+        _require_ready(conn)
+        providers = ProviderRepo.list(conn)
+        for p in providers:
+            eid = p.get("endpoint_id")
+            if eid:
+                usage_map.setdefault(eid, []).append(p.get("name") or p.get("id"))
+    except Exception:
+        usage_map = {}
+    finally:
+        conn.close()
+
+    items = load_policy().list_public_view()
+    for item in items:
+        item["used_by_providers"] = usage_map.get(item["endpoint_id"], [])
+
     return {"request_id": _rid(),
-            "items": load_policy().list_public_view(),
+            "items": items,
             "policy_available": True}
+
+
+@router.post("/endpoints", status_code=201)
+@guard_structural
+def create_endpoint(request: Request, body: EndpointCreateRequest):
+    try:
+        identity = _admin_identity(request)
+    except CopilotError as e:
+        return _err(e.code, e.message)
+
+    pol = load_policy()
+    if pol.get(body.endpoint_id) is not None:
+        return _err("INVALID_REQUEST", f"端点标识 {body.endpoint_id} 已存在，请换一个名称")
+
+    cidrs = body.allowed_resolved_cidrs or []
+    if not cidrs:
+        try:
+            ip = ipaddress.ip_address(body.canonical_host)
+            cidrs = [f"{ip}/32"]
+        except ValueError:
+            cidrs = ["1.0.0.0/1", "128.0.0.0/1"]
+
+    ep_data = {
+        "endpoint_id": body.endpoint_id,
+        "scheme": body.scheme.lower(),
+        "canonical_host": body.canonical_host.strip(),
+        "port": body.port,
+        "base_path": body.base_path.strip(),
+        "data_zone": body.data_zone,
+        "privacy_profile": body.privacy_profile,
+        "allows_schema_identifiers": body.allows_schema_identifiers,
+        "allowed_resolved_cidrs": cidrs,
+        "tls_ca_ref": body.tls_ca_ref or "internal",
+        "description": body.description or "",
+    }
+    if body.scheme == "http":
+        ep_data["allow_http"] = True
+    elif body.allow_http is not None:
+        ep_data["allow_http"] = body.allow_http
+
+    try:
+        pol.upsert(ep_data)
+    except CopilotError as e:
+        return _err(e.code, e.message)
+    except Exception as e:
+        return _err("INVALID_REQUEST", f"端点配置校验失败: {e}")
+
+    conn = _get_connection()
+    try:
+        ensure_db()
+        _require_ready(conn)
+        AuditRepo.record(conn, "CONFIG_CHANGE", identity.username,
+                         identity.subject_id, "copilot_endpoints", body.endpoint_id,
+                         "CREATE", detail=ep_data)
+        conn.commit()
+    except Exception:
+        pass
+    finally:
+        conn.close()
+
+    return JSONResponse(status_code=201, content={
+        "request_id": _rid(),
+        "endpoint": ep_data
+    })
+
+
+@router.put("/endpoints/{endpoint_id}")
+@guard_structural
+def update_endpoint(request: Request, endpoint_id: str, body: EndpointUpdateRequest):
+    try:
+        identity = _admin_identity(request)
+    except CopilotError as e:
+        return _err(e.code, e.message)
+
+    pol = load_policy()
+    existing = pol.get(endpoint_id)
+    if existing is None:
+        return _err("NOT_FOUND", f"端点 {endpoint_id} 不存在")
+
+    ep_data = dict(existing)
+    if body.scheme is not None:
+        ep_data["scheme"] = body.scheme.lower()
+    if body.canonical_host is not None:
+        ep_data["canonical_host"] = body.canonical_host.strip()
+    if body.port is not None:
+        ep_data["port"] = body.port
+    if body.base_path is not None:
+        ep_data["base_path"] = body.base_path.strip()
+    if body.data_zone is not None:
+        ep_data["data_zone"] = body.data_zone
+    if body.privacy_profile is not None:
+        ep_data["privacy_profile"] = body.privacy_profile
+    if body.allows_schema_identifiers is not None:
+        ep_data["allows_schema_identifiers"] = body.allows_schema_identifiers
+    if body.allowed_resolved_cidrs is not None and len(body.allowed_resolved_cidrs) > 0:
+        ep_data["allowed_resolved_cidrs"] = body.allowed_resolved_cidrs
+    if body.tls_ca_ref is not None:
+        ep_data["tls_ca_ref"] = body.tls_ca_ref
+    if body.description is not None:
+        ep_data["description"] = body.description
+
+    if ep_data.get("scheme") == "http":
+        ep_data["allow_http"] = True
+    elif body.allow_http is not None:
+        ep_data["allow_http"] = body.allow_http
+
+    try:
+        pol.upsert(ep_data)
+    except CopilotError as e:
+        return _err(e.code, e.message)
+    except Exception as e:
+        return _err("INVALID_REQUEST", f"端点配置校验失败: {e}")
+
+    conn = _get_connection()
+    try:
+        ensure_db()
+        _require_ready(conn)
+        AuditRepo.record(conn, "CONFIG_CHANGE", identity.username,
+                         identity.subject_id, "copilot_endpoints", endpoint_id,
+                         "UPDATE", detail=ep_data)
+        conn.commit()
+    except Exception:
+        pass
+    finally:
+        conn.close()
+
+    return {
+        "request_id": _rid(),
+        "endpoint": ep_data
+    }
+
+
+@router.delete("/endpoints/{endpoint_id}")
+@guard_structural
+def delete_endpoint(request: Request, endpoint_id: str):
+    try:
+        identity = _admin_identity(request)
+    except CopilotError as e:
+        return _err(e.code, e.message)
+
+    pol = load_policy()
+    existing = pol.get(endpoint_id)
+    if existing is None:
+        return _err("NOT_FOUND", f"端点 {endpoint_id} 不存在")
+
+    conn = _get_connection()
+    try:
+        ensure_db()
+        _require_ready(conn)
+        providers = ProviderRepo.list(conn)
+        used_by = [p["name"] for p in providers if p.get("endpoint_id") == endpoint_id]
+        if used_by:
+            return _err("ENDPOINT_IN_USE", f"端点已被模型【{', '.join(used_by)}】使用，请先解除绑定或修改对应模型后再删除")
+
+        pol.remove(endpoint_id)
+        AuditRepo.record(conn, "CONFIG_CHANGE", identity.username,
+                         identity.subject_id, "copilot_endpoints", endpoint_id,
+                         "DELETE", detail={"endpoint_id": endpoint_id})
+        conn.commit()
+    finally:
+        conn.close()
+
+    return {
+        "request_id": _rid(),
+        "deleted": endpoint_id
+    }
 
 
 # ══════════════════════════════════════════════════════════════════

@@ -531,6 +531,39 @@ class ProviderCapabilities(BaseModel):
     supports_store_false: bool = False
 
 
+class EndpointCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    endpoint_id: str = Field(..., min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_.-]{1,64}$")
+    scheme: str = Field("https", pattern=r"^(https|http)$")
+    canonical_host: str = Field(..., min_length=1, max_length=253)
+    port: int = Field(..., ge=1, le=65535)
+    base_path: str = Field("/v1", pattern=r"^/[A-Za-z0-9/_-]*$")
+    data_zone: str = Field("INTERNAL", pattern=r"^(INTERNAL|PUBLIC)$")
+    privacy_profile: str = Field("INTERNAL_REDACTED", pattern=r"^(INTERNAL_REDACTED|PUBLIC_HELP)$")
+    allows_schema_identifiers: bool = True
+    allowed_resolved_cidrs: list[str] = Field(default_factory=list)
+    tls_ca_ref: str = Field("internal", max_length=64)
+    description: Optional[str] = Field("", max_length=256)
+    allow_http: Optional[bool] = None
+
+
+class EndpointUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    scheme: Optional[str] = Field(None, pattern=r"^(https|http)$")
+    canonical_host: Optional[str] = Field(None, min_length=1, max_length=253)
+    port: Optional[int] = Field(None, ge=1, le=65535)
+    base_path: Optional[str] = Field(None, pattern=r"^/[A-Za-z0-9/_-]*$")
+    data_zone: Optional[str] = Field(None, pattern=r"^(INTERNAL|PUBLIC)$")
+    privacy_profile: Optional[str] = Field(None, pattern=r"^(INTERNAL_REDACTED|PUBLIC_HELP)$")
+    allows_schema_identifiers: Optional[bool] = None
+    allowed_resolved_cidrs: Optional[list[str]] = None
+    tls_ca_ref: Optional[str] = Field(None, max_length=64)
+    description: Optional[str] = Field(None, max_length=256)
+    allow_http: Optional[bool] = None
+
+
 class ProviderCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

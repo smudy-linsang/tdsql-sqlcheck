@@ -53,6 +53,25 @@
     });
     var providerFormError = ref('');
 
+    // ── 端点表单 ──
+    var endpointDrawer = ref(false);
+    var endpointSaving = ref(false);
+    var endpointFormError = ref('');
+    var endpointForm = reactive({
+      endpoint_id: '',
+      scheme: 'https',
+      canonical_host: '',
+      port: 443,
+      base_path: '/v1',
+      data_zone: 'INTERNAL',
+      privacy_profile: 'INTERNAL_REDACTED',
+      allows_schema_identifiers: true,
+      allowed_resolved_cidrs_str: '',
+      tls_ca_ref: 'internal',
+      description: '',
+      isEdit: false,
+    });
+
     // ── 路由表单 ──
     var routeDrawer = ref(false);
     var routeForm = reactive({
@@ -205,6 +224,167 @@
         var resp = await apiFetch('/api/v1/copilot-admin/settings');
         if (resp.ok) settings.value = await resp.json();
       } catch (e) { /* 静默 */ }
+    }
+
+    // ═══ Endpoint CRUD ═══
+    function openEndpointCreate(suggestedId) {
+      endpointForm.endpoint_id = suggestedId || '';
+      endpointForm.scheme = 'https';
+      endpointForm.canonical_host = '';
+      endpointForm.port = 443;
+      endpointForm.base_path = '/v1';
+      endpointForm.data_zone = 'INTERNAL';
+      endpointForm.privacy_profile = 'INTERNAL_REDACTED';
+      endpointForm.allows_schema_identifiers = true;
+      endpointForm.allowed_resolved_cidrs_str = '';
+      endpointForm.tls_ca_ref = 'internal';
+      endpointForm.description = '';
+      endpointForm.isEdit = false;
+      endpointFormError.value = '';
+      endpointDrawer.value = true;
+    }
+
+    function openEndpointEdit(row) {
+      endpointForm.endpoint_id = row.endpoint_id;
+      endpointForm.scheme = row.scheme || 'https';
+      endpointForm.canonical_host = row.canonical_host || '';
+      endpointForm.port = row.port || (row.scheme === 'http' ? 80 : 443);
+      endpointForm.base_path = row.base_path || '/v1';
+      endpointForm.data_zone = row.data_zone || 'INTERNAL';
+      endpointForm.privacy_profile = row.privacy_profile || 'INTERNAL_REDACTED';
+      endpointForm.allows_schema_identifiers = !!row.allows_schema_identifiers;
+      endpointForm.allowed_resolved_cidrs_str = (row.allowed_resolved_cidrs || []).join(', ');
+      endpointForm.tls_ca_ref = row.tls_ca_ref || 'internal';
+      endpointForm.description = row.description || '';
+      endpointForm.isEdit = true;
+      endpointFormError.value = '';
+      endpointDrawer.value = true;
+    }
+
+    function onEndpointSchemeChange() {
+      if (!endpointForm.isEdit) {
+        if (endpointForm.scheme === 'http' && endpointForm.port === 443) {
+          endpointForm.port = 8000;
+        } else if (endpointForm.scheme === 'https' && (endpointForm.port === 80 || endpointForm.port === 8000)) {
+          endpointForm.port = 443;
+        }
+      }
+    }
+
+    async function saveEndpoint() {
+      endpointFormError.value = '';
+      var eid = (endpointForm.endpoint_id || '').trim();
+      var host = (endpointForm.canonical_host || '').trim();
+      var basePath = (endpointForm.base_path || '').trim();
+
+      if (!eid) { endpointFormError.value = '端点标识不能为空'; return; }
+      if (!/^[A-Za-z0-9_.-]{1,64}$/.test(eid)) {
+        endpointFormError.value = '端点标识只能包含英文字母、数字、短横线、下划线与点';
+        return;
+      }
+      if (!host) { endpointFormError.value = '主机 IP 或域名不能为空'; return; }
+      if (host.includes('@') || host.includes('?') || host.includes('#') || host.includes('*')) {
+        endpointFormError.value = '主机不能包含 @、?、#、* 等特殊字符';
+        return;
+      }
+      if (!endpointForm.port || endpointForm.port < 1 || endpointForm.port > 65535) {
+        endpointFormError.value = '端口范围需在 1 到 65535 之间';
+        return;
+      }
+      if (!basePath || !basePath.startsWith('/')) {
+        endpointFormError.value = '基础路径必须以 / 开头，例如 /v1';
+        return;
+      }
+
+      var cidrs = [];
+      if (endpointForm.allowed_resolved_cidrs_str && endpointForm.allowed_resolved_cidrs_str.trim()) {
+        cidrs = endpointForm.allowed_resolved_cidrs_str.split(',')
+          .map(function(s) { return s.trim(); })
+          .filter(function(s) { return !!s; });
+      }
+
+      endpointSaving.value = true;
+      try {
+        var body = {
+          scheme: endpointForm.scheme,
+          canonical_host: host,
+          port: endpointForm.port,
+          base_path: basePath,
+          data_zone: endpointForm.data_zone,
+          privacy_profile: endpointForm.privacy_profile,
+          allows_schema_identifiers: endpointForm.allows_schema_identifiers,
+          allowed_resolved_cidrs: cidrs,
+          tls_ca_ref: endpointForm.tls_ca_ref || 'internal',
+          description: (endpointForm.description || '').trim(),
+        };
+
+        var resp;
+        if (endpointForm.isEdit) {
+          resp = await apiFetch('/api/v1/copilot-admin/endpoints/' + encodeURIComponent(eid), {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+        } else {
+          body.endpoint_id = eid;
+          resp = await apiFetch('/api/v1/copilot-admin/endpoints', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+        }
+
+        if (resp.ok || resp.status === 201) {
+          ElementPlus.ElMessage.success(endpointForm.isEdit ? '端点已更新' : '端点已创建');
+          endpointDrawer.value = false;
+          await loadEndpoints();
+          // 如果当前处于新增/编辑模型抽屉中，自动将新建的端点选中
+          if (providerDrawer.value) {
+            providerForm.endpoint_id = eid;
+          }
+        } else {
+          endpointFormError.value = await _readErr(resp);
+        }
+      } catch (e) {
+        endpointFormError.value = '请求失败（' + e.message + '）';
+      } finally {
+        endpointSaving.value = false;
+      }
+    }
+
+    async function deleteEndpoint(row) {
+      if (row.used_by_providers && row.used_by_providers.length > 0) {
+        ElementPlus.ElMessageBox.alert(
+          '端点【' + row.endpoint_id + '】当前正被模型【' + row.used_by_providers.join(', ') + '】使用，无法直接删除。请先在模型标签页解除关联或更换模型端点后再操作。',
+          '禁止删除',
+          { confirmButtonText: '知道了', type: 'warning' }
+        );
+        return;
+      }
+
+      try {
+        await ElementPlus.ElMessageBox.confirm(
+          '确定要彻底删除批准端点【' + row.endpoint_id + '】(' + row.canonical_host + ') 吗？',
+          '删除确认',
+          { confirmButtonText: '确定删除', cancelButtonText: '取消', type: 'warning' }
+        );
+      } catch (e) {
+        return; // 用户取消
+      }
+
+      try {
+        var resp = await apiFetch('/api/v1/copilot-admin/endpoints/' + encodeURIComponent(row.endpoint_id), {
+          method: 'DELETE',
+        });
+        if (resp.ok) {
+          ElementPlus.ElMessage.success('端点已删除');
+          await loadEndpoints();
+        } else {
+          ElementPlus.ElMessage.error(await _readErr(resp));
+        }
+      } catch (e) {
+        ElementPlus.ElMessage.error('删除失败（' + e.message + '）');
+      }
     }
 
     // ═══ Provider CRUD ═══
@@ -826,7 +1006,11 @@
       approveGrant: approveGrant, revokeGrant: revokeGrant,
       restoreGrant: restoreGrant, deleteGrant: deleteGrant,
       batchRestoreGrants: batchRestoreGrants, batchDeleteGrants: batchDeleteGrants,
-      clearAllRevokedGrants: clearAllRevokedGrants,
+      endpointDrawer: endpointDrawer, endpointForm: endpointForm,
+      endpointFormError: endpointFormError, endpointSaving: endpointSaving,
+      openEndpointCreate: openEndpointCreate, openEndpointEdit: openEndpointEdit,
+      onEndpointSchemeChange: onEndpointSchemeChange,
+      saveEndpoint: saveEndpoint, deleteEndpoint: deleteEndpoint,
       saveSettings: saveSettings,
       initPage: initPage,
     };

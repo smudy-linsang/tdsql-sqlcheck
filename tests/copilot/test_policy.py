@@ -119,3 +119,33 @@ class TestLimits:
         monkeypatch.delenv("COPILOT_RUNNER_CONCURRENCY", raising=False)
         monkeypatch.delenv("COPILOT_TURN_DEADLINE_SECONDS", raising=False)
         assert Limits.validate() == []
+
+
+class TestEndpointDynamicOps:
+    def test_upsert_and_remove_endpoint(self, tmp_path):
+        p = _write(tmp_path, [_valid()])
+        pol = EndpointPolicy(p)
+        assert pol.get("ep-2") is None
+        
+        # Upsert new endpoint
+        new_ep = {
+            "endpoint_id": "ep-2", "scheme": "http",
+            "canonical_host": "10.20.30.40", "port": 8000, "base_path": "/v1",
+            "data_zone": "INTERNAL", "privacy_profile": "INTERNAL_REDACTED",
+            "allows_schema_identifiers": True,
+            "allowed_resolved_cidrs": ["10.20.30.40/32"], "tls_ca_ref": "internal",
+            "allow_http": True,
+        }
+        pol.upsert(new_ep)
+        assert pol.get("ep-2") is not None
+        assert pol.build_url("ep-2") == "http://10.20.30.40:8000/v1/chat/completions"
+
+        # Check file updated
+        pol2 = EndpointPolicy(p)
+        assert pol2.get("ep-2") is not None
+
+        # Remove
+        pol.remove("ep-2")
+        assert pol.get("ep-2") is None
+        pol3 = EndpointPolicy(p)
+        assert pol3.get("ep-2") is None
