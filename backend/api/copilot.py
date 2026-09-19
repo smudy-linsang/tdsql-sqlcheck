@@ -1271,26 +1271,44 @@ async def copilot_chat(request: Request, body: Optional[CopilotChatRequest] = No
             try:
                 # 并发信号量保护容量 (M-03b) + 异步非阻塞调用释放事件循环 (B-02)
                 async with _CHAT_SEMAPHORE:
-                    async with httpx.AsyncClient(trust_env=False, follow_redirects=False,
-                                                 timeout=httpx.Timeout(copilot_timeout)) as client:
-                        resp = await client.post(
-                            url,
-                            json=req_body,
-                            headers={
-                                "Content-Type": "application/json",
-                                "Authorization": f"Bearer {secret}"
-                            }
-                        )
-                        latency_ms = int((time.time() - t0) * 1000)
-                        if resp.status_code == 200:
-                            resp_data = resp.json()
-                            answer = resp_data['choices'][0]['message']['content']
-                            model_name = full_p["model_id"]
-                            provider_name = full_p.get("name")
-                        else:
-                            logger.warning("Copilot 模型响应非 200: %s %s", resp.status_code, resp.text[:200])
+                    def _call_sync():
+                        with httpx.Client(trust_env=False, follow_redirects=False,
+                                          timeout=httpx.Timeout(copilot_timeout)) as client:
+                            return client.post(
+                                url,
+                                json=req_body,
+                                headers={
+                                    "Content-Type": "application/json",
+                                    "Authorization": f"Bearer {secret}"
+                                }
+                            )
+
+                    try:
+                        async with httpx.AsyncClient(trust_env=False, follow_redirects=False,
+                                                     timeout=httpx.Timeout(copilot_timeout)) as client:
+                            resp = await client.post(
+                                url,
+                                json=req_body,
+                                headers={
+                                    "Content-Type": "application/json",
+                                    "Authorization": f"Bearer {secret}"
+                                }
+                            )
+                    except httpx.ConnectError:
+                        # 兼容环境：Windows / Python 3.14 在 anyio TLS 握手时抛出 ConnectError(EndOfStream)
+                        # 使用 asyncio.to_thread 在工作线程运行同步 httpx 客户端，既不阻塞主事件循环，又保证 TLS 可靠握手
+                        resp = await asyncio.to_thread(_call_sync)
+
+                    latency_ms = int((time.time() - t0) * 1000)
+                    if resp.status_code == 200:
+                        resp_data = resp.json()
+                        answer = resp_data['choices'][0]['message']['content']
+                        model_name = full_p["model_id"]
+                        provider_name = full_p.get("name")
+                    else:
+                        logger.warning("Copilot 模型响应非 200: %s %s", resp.status_code, resp.text[:200])
             except Exception as e:
-                logger.warning("Copilot 模型异步调用异常，使用本地降级: %s", e)
+                logger.warning("Copilot 模型调用异常，使用本地降级: %r", e)
     except CopilotError:
         raise
     except Exception as e:
