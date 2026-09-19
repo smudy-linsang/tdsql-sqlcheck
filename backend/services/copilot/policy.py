@@ -322,6 +322,12 @@ def load_policy(path: Optional[str] = None) -> EndpointPolicy:
     """加载端点策略；支持基于文件 mtime 的自动热重载与缺省自动兜底。"""
     global _policy_cache, _policy_path_cache, _policy_mtime_cache
     p = path or os.getenv("COPILOT_ENDPOINTS_FILE", "")
+    if p and not Path(p).exists():
+        try:
+            Path(p).parent.mkdir(parents=True, exist_ok=True)
+            Path(p).write_text(json.dumps({"schema_version": 1, "endpoints": []}), encoding="utf-8")
+        except Exception:
+            pass
     if not p:
         for candidate in [
             Path("data/reports/qc_o_1640/copilot-endpoints.json"),

@@ -651,7 +651,7 @@ class GrantBatchApproveItem(BaseModel):
 class GrantBatchApproveRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    grants: list[GrantBatchApproveItem] = Field(..., min_length=1)
+    grants: list[GrantBatchApproveItem] = Field(..., min_length=1, max_length=100)
 
 
 class GrantActionItem(BaseModel):
@@ -665,9 +665,9 @@ class GrantActionItem(BaseModel):
 class GrantBatchActionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    grants: list[GrantActionItem] = Field(default_factory=list)
-    usernames: list[str] = Field(default_factory=list)
-    connection_ids: list[str] = Field(default_factory=list)
+    grants: list[GrantActionItem] = Field(default_factory=list, max_length=100)
+    usernames: list[str] = Field(default_factory=list, max_length=100)
+    connection_ids: list[str] = Field(default_factory=list, max_length=100)
     clear_revoked_only: bool = False
 
 

@@ -793,11 +793,12 @@
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            grants: [{ subject_id: row.subject_id, connection_id: row.connection_id }]
+            grants: [{ subject_id: row.subject_id, connection_id: row.connection_id, username: row.username }]
           }),
         });
         if (resp.ok) {
-          ElementPlus.ElMessage.success('已恢复用户 ' + row.username + ' 对实例 ' + row.connection_id + ' 的授权');
+          var connDisplay = row.connection_name || row.instance_name || row.connection_id;
+          ElementPlus.ElMessage.success('已恢复用户 ' + row.username + ' 对实例 ' + connDisplay + ' 的授权');
           await loadGrants();
         } else {
           ElementPlus.ElMessage.error(await _readErr(resp));
@@ -808,20 +809,26 @@
     }
 
     async function deleteGrant(row) {
+      var connDisplay = row.connection_name || row.instance_name || row.connection_id;
       try {
         await ElementPlus.ElMessageBox.confirm(
-          '确认彻底删除用户 ' + row.username + ' 对实例 ' + row.connection_id + ' 的授权记录？删除后将永久移除该条记录。',
+          '确认彻底删除用户 ' + row.username + ' 对实例 ' + connDisplay + ' 的授权记录？删除后将永久移除该条记录。',
           '彻底删除授权',
           { confirmButtonText: '彻底删除', cancelButtonText: '取消', type: 'warning' }
         );
       } catch (e) { return; }
 
       try {
-        var resp = await apiFetch('/api/v1/copilot-admin/grants?subject_id=' + encodeURIComponent(row.subject_id) + '&connection_id=' + encodeURIComponent(row.connection_id), {
+        var resp = await apiFetch('/api/v1/copilot-admin/grants?subject_id=' + encodeURIComponent(row.subject_id || '') + '&connection_id=' + encodeURIComponent(row.connection_id) + '&username=' + encodeURIComponent(row.username || ''), {
           method: 'DELETE',
         });
         if (resp.ok) {
-          ElementPlus.ElMessage.success('已彻底删除该授权记录');
+          var res = await resp.json();
+          if (res.deleted || (res.deleted_count && res.deleted_count > 0)) {
+            ElementPlus.ElMessage.success('已彻底删除该授权记录');
+          } else {
+            ElementPlus.ElMessage.info('记录已不存在或已被清理');
+          }
           await loadGrants();
         } else {
           ElementPlus.ElMessage.error(await _readErr(resp));
@@ -853,12 +860,18 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             grants: revokedList.map(function (r) {
-              return { subject_id: r.subject_id, connection_id: r.connection_id };
+              return { subject_id: r.subject_id, connection_id: r.connection_id, username: r.username };
             })
           }),
         });
         if (resp.ok) {
-          ElementPlus.ElMessage.success('批量恢复成功，已重新生效');
+          var res = await resp.json();
+          var count = res.restored_count != null ? res.restored_count : (res.count || 0);
+          if (count > 0) {
+            ElementPlus.ElMessage.success('批量恢复成功，已重新生效 ' + count + ' 条授权');
+          } else {
+            ElementPlus.ElMessage.info('未找到可恢复的授权记录');
+          }
           await loadGrants();
         } else {
           ElementPlus.ElMessage.error(await _readErr(resp));
@@ -887,12 +900,18 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             grants: selectedGrants.value.map(function (r) {
-              return { subject_id: r.subject_id, connection_id: r.connection_id };
+              return { subject_id: r.subject_id, connection_id: r.connection_id, username: r.username };
             })
           }),
         });
         if (resp.ok) {
-          ElementPlus.ElMessage.success('批量删除成功');
+          var res = await resp.json();
+          var count = res.deleted_count != null ? res.deleted_count : (res.count || 0);
+          if (count > 0) {
+            ElementPlus.ElMessage.success('批量删除成功，已移除 ' + count + ' 条记录');
+          } else {
+            ElementPlus.ElMessage.info('未找到需删除的记录或已删除');
+          }
           await loadGrants();
         } else {
           ElementPlus.ElMessage.error(await _readErr(resp));

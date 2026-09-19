@@ -17,7 +17,7 @@
   <!-- 深蓝高密度主题：视觉重构层，最后加载以覆盖 Element Plus 与 app.css -->
   <link rel="stylesheet" href="/static/css/theme-dark-blue.css?v=1.6.4.0">
   <!-- v1.6.4.0 / CP-1：AI Copilot 专家助手 -->
-  <link rel="stylesheet" href="/static/css/copilot.css?v=1.6.4.1">
+  <link rel="stylesheet" href="/static/css/copilot.css?v=1.6.4.0">
 </head>
 <body>
 <div id="app">
@@ -2835,7 +2835,12 @@
             </div>
             <el-table :data="copilotAdmin.filteredGrants" size="small" stripe @selection-change="copilotAdmin.handleGrantSelectionChange">
               <el-table-column type="selection" width="45"></el-table-column>
-              <el-table-column prop="connection_id" label="实例" min-width="150" show-overflow-tooltip></el-table-column>
+              <el-table-column label="实例" min-width="170" show-overflow-tooltip>
+                <template #default="{row}">
+                  <div style="font-weight:500">{{ row.connection_name || row.connection_id }}</div>
+                  <div v-if="row.connection_name && row.connection_name !== row.connection_id" style="font-size:11px;color:var(--el-text-color-secondary)">{{ row.connection_id.slice(0, 12) }}…</div>
+                </template>
+              </el-table-column>
               <el-table-column prop="username" label="用户" width="130"></el-table-column>
               <el-table-column prop="approval_state" label="审批状态" width="110">
                 <template #default="{row}">
@@ -2963,6 +2968,9 @@
               <el-radio value="https">HTTPS (加密推荐)</el-radio>
               <el-radio value="http">HTTP (内网明文服务)</el-radio>
             </el-radio-group>
+            <el-alert v-if="copilotAdmin.endpointForm.scheme==='http'"
+                      title="安全提示：明文 HTTP 将在内网直接传输 API Key 与对话内容，请确保该端点仅部署在行内受信隔离网络中。"
+                      type="warning" :closable="false" show-icon style="margin-top:6px"></el-alert>
           </el-form-item>
           <el-form-item label="主机 IP / 域名" required>
             <el-input v-model="copilotAdmin.endpointForm.canonical_host" placeholder="如 10.21.34.56 或 llm-gw.bank.local"></el-input>
@@ -3607,8 +3615,9 @@
         </template>
       </div>
     </el-dialog>
-<script src="/static/js/copilot.js?v=1.6.4.1"></script>
-<script src="/static/js/copilot_admin.js?v=1.6.4.3"></script>
+  </div>
+<script src="/static/js/copilot.js?v=1.6.4.0"></script>
+<script src="/static/js/copilot_admin.js?v=1.6.4.0"></script>
 <script src="/static/js/app.js?v=1.6.4.0"></script>
 </body>
 </html>

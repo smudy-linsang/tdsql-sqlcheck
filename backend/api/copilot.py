@@ -1086,14 +1086,16 @@ def export_turn_html(request: Request, turn_id: str):
 # POST /chat（类 DB_Monitor 流畅对话问答模式 + 银行只读安全底线）
 # ══════════════════════════════════════════════════════════════════
 
-from pydantic import BaseModel
-import urllib.request
+from pydantic import BaseModel, ConfigDict, Field
 import re
+import httpx
 
 class CopilotChatRequest(BaseModel):
-    query: str
-    connection_id: Optional[str] = None
-    history: Optional[list] = None
+    model_config = ConfigDict(extra="forbid")
+
+    query: str = Field(..., min_length=1, max_length=8000)
+    connection_id: Optional[str] = Field(None, max_length=128)
+    history: Optional[list[dict]] = None
 
 
 COPILOT_CHAT_SYSTEM_PROMPT = """你是 TDSQL SQL审核与智能运维平台的专属 Copilot 专家助手。
@@ -1113,12 +1115,14 @@ COPILOT_CHAT_SYSTEM_PROMPT = """你是 TDSQL SQL审核与智能运维平台的�
 
 
 @router.post("/chat", summary="Copilot 实时对话接口 (类似 DB_Monitor)")
+@guard_structural
 async def copilot_chat(request: Request, body: Optional[CopilotChatRequest] = None):
     """类 DB_Monitor 模式的自然流利对话接口：
     - 多轮历史记录衔接
     - 实时资产与拓扑上下文注入
     - 银行只读安全硬红线拦截
     - 智能动作卡片 (Action Cards) 生成
+    - 身份解析与全链路审计留痕
     """
     if body is None:
         try:
@@ -1127,25 +1131,29 @@ async def copilot_chat(request: Request, body: Optional[CopilotChatRequest] = No
                 body = CopilotChatRequest(**raw)
             else:
                 body = CopilotChatRequest(query=str(raw))
-        except Exception:
-            try:
-                body_bytes = await request.body()
-                raw = json.loads(body_bytes.decode('utf-8'))
-                body = CopilotChatRequest(**raw)
-            except Exception:
-                body = CopilotChatRequest(query="")
+        except Exception as e:
+            return JSONResponse(status_code=400, content=error_payload("INVALID_REQUEST", uuid.uuid4().hex, f"请求参数非法: {e}"))
 
     query = (body.query or "").strip()
     if not query:
         return {"ok": False, "answer": "请输入您的问题。", "model": "none"}
-    q_lower = query.lower()
 
-    from backend.services.connection_registry import registry
+    # 1. 身份解析（B-01 治理门禁）
+    identity = None
+    if config.auth_enabled():
+        try:
+            identity = resolve_identity(request)
+        except CopilotError as e:
+            from backend.services.copilot.errors import http_status_of
+            return JSONResponse(status_code=http_status_of(e.code),
+                                content=error_payload(e.code, uuid.uuid4().hex, e.message))
+        except Exception:
+            return JSONResponse(status_code=401,
+                                content=error_payload("AUTH_REQUIRED", uuid.uuid4().hex, "身份验证失败，请重新登录"))
+
     from backend.services.copilot import crypto as crypto_mod
     from backend.services.copilot.policy import load_policy
-    from backend.services.copilot.repository import ProviderRepo
-
-    # 1. 调用 Copilot 全模块动态感知引擎收集多维实时业务与系统上下文
+    from backend.services.copilot.repository import ProviderRepo, AuditRepo, GrantRepo
     from backend.services.copilot.perception import CopilotPerceptionEngine
 
     answer = None
@@ -1155,9 +1163,19 @@ async def copilot_chat(request: Request, body: Optional[CopilotChatRequest] = No
 
     conn = _get_connection()
     try:
+        ensure_db()
+        # 2. 实例授权检查（若指定了 connection_id）
+        if body.connection_id and identity:
+            grant = GrantRepo.get_enabled(conn, identity.subject_id, body.connection_id)
+            if not grant:
+                return JSONResponse(
+                    status_code=403,
+                    content=error_payload("INSTANCE_NOT_GRANTED", uuid.uuid4().hex, f"当前用户未获准访问该实例（{body.connection_id}）的 Copilot 资料")
+                )
+
         ctx_parts = CopilotPerceptionEngine.gather_context(conn, query, body.connection_id)
 
-        # 2. 尝试调用真实大模型（优先按“AI配置 -> 场景路由”精准匹配主模型/备模型）
+        # 3. 尝试调用真实大模型（优先按“AI配置 -> 场景路由”精准匹配主模型/备模型）
         from backend.services.copilot.repository import RouteRepo
         detected_scene = CopilotPerceptionEngine.detect_scene(query)
         route = RouteRepo.get(conn, detected_scene)
@@ -1192,9 +1210,9 @@ async def copilot_chat(request: Request, body: Optional[CopilotChatRequest] = No
 
             messages = [{"role": "system", "content": COPILOT_CHAT_SYSTEM_PROMPT}]
             if body.history:
-                for h in body.history[-6:]:
+                for h in body.history[-8:]:
                     if isinstance(h, dict) and h.get('role') in ('user', 'assistant') and h.get('content'):
-                        messages.append({'role': h['role'], 'content': h['content']})
+                        messages.append({'role': h['role'], 'content': str(h['content'])[:4000]})
 
             user_msg = query
             if ctx_parts:
@@ -1209,38 +1227,43 @@ async def copilot_chat(request: Request, body: Optional[CopilotChatRequest] = No
                 "stream": False
             }
 
-            req = urllib.request.Request(
-                url,
-                data=json.dumps(req_body, ensure_ascii=False).encode('utf-8'),
-                headers={
-                    "Content-Type": "application/json",
-                    "Authorization": f"Bearer {secret}"
-                }
-            )
+            copilot_timeout = float(os.getenv("COPILOT_CHAT_TIMEOUT", "3600"))
             t0 = time.time()
             try:
-                copilot_timeout = int(os.getenv("COPILOT_CHAT_TIMEOUT", "3600"))
-                with urllib.request.urlopen(req, timeout=copilot_timeout) as resp:
-                    resp_data = json.loads(resp.read().decode('utf-8'))
-                latency_ms = int((time.time() - t0) * 1000)
-                answer = resp_data['choices'][0]['message']['content']
-                model_name = full_p["model_id"]
-                provider_name = full_p.get("name")
+                # 异步非阻塞调用，释放 asyncio 事件循环（B-02），trust_env=False 严禁代理逃逸
+                async with httpx.AsyncClient(trust_env=False, follow_redirects=False,
+                                             timeout=httpx.Timeout(copilot_timeout)) as client:
+                    resp = await client.post(
+                        url,
+                        json=req_body,
+                        headers={
+                            "Content-Type": "application/json",
+                            "Authorization": f"Bearer {secret}"
+                        }
+                    )
+                    latency_ms = int((time.time() - t0) * 1000)
+                    if resp.status_code == 200:
+                        resp_data = resp.json()
+                        answer = resp_data['choices'][0]['message']['content']
+                        model_name = full_p["model_id"]
+                        provider_name = full_p.get("name")
+                    else:
+                        logger.warning("Copilot 模型响应非 200: %s %s", resp.status_code, resp.text[:200])
             except Exception as e:
-                logger.warning("Copilot 模型直接调用异常，使用降级逻辑: %s", e)
+                logger.warning("Copilot 模型异步调用异常，使用本地降级: %s", e)
     except Exception as e:
-        logger.warning("Copilot provider 读取异常: %s", e)
+        logger.warning("Copilot 处理异常: %s", e)
     finally:
         conn.close()
 
-    # 3. 若模型调用不可用时的平滑降级
+    # 4. 降级方案
     if not answer:
         if ctx_parts:
             answer = "### 🤖 TDSQL 智能助手 (本地资产与规则引擎模式)\n\n" + "\n\n".join(ctx_parts) + "\n\n您可以提问关于上述实例的架构规范、连接排查或慢查询诊断建议。"
         else:
             answer = f"### 🤖 TDSQL 智能专家助手\n\n已收到您的问题：**{query}**。\n\n当前大模型服务连接暂时波动或未配置完成。您可以通过上方实例选择器切换数据库，或在『SQL审核』『实例体检』模块执行标准诊断。"
 
-    # 4. 银行系统硬性只读安全审查 (Guardrail)
+    # 5. 银行系统硬性只读安全审查 (Guardrail) 与只读强制提醒 (N-03)
     write_patterns = [
         r'\b(DROP\s+TABLE|DROP\s+DATABASE|TRUNCATE\s+TABLE|TRUNCATE\s+\w+)\b',
         r'\b(DELETE\s+FROM)\b',
@@ -1259,6 +1282,25 @@ async def copilot_chat(request: Request, body: Optional[CopilotChatRequest] = No
         "is_read_only": len(detected_violations) == 0,
         "violations": list(set(detected_violations))
     }
+    if detected_violations:
+        answer += "\n\n> ⚠️ **【银行系统只读安全红线提示】**\n> 诊断输出中检测到可能引发数据变更的写操作语句（如 " + ", ".join(list(set(detected_violations))[:3]) + "），已被系统安全防线标记！在数据库日常运维中请严格使用只读诊断语句。"
+
+    # 6. 审计日志入库留痕 (B-01)
+    if identity:
+        conn_audit = _get_connection()
+        try:
+            ensure_db()
+            AuditRepo.record(
+                conn_audit, "COPILOT_CHAT", identity.username, identity.subject_id,
+                "copilot_chat", body.connection_id or "GENERAL", "INVOKE",
+                detail={"query": query[:200], "model": model_name, "latency_ms": latency_ms,
+                        "is_read_only": safety_status["is_read_only"]}
+            )
+            conn_audit.commit()
+        except Exception as e:
+            logger.warning("Copilot 对话审计日志写入异常: %s", e)
+        finally:
+            conn_audit.close()
 
     # 5. 组装交互动作卡片 (Action Cards)
     action_cards = []

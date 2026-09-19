@@ -128,14 +128,24 @@ def create_endpoint(request: Request, body: EndpointCreateRequest):
             ip = ipaddress.ip_address(body.canonical_host)
             cidrs = [f"{ip}/32"]
         except ValueError:
-            cidrs = ["1.0.0.0/1", "128.0.0.0/1"]
+            # 域名/主机名且未传 CIDR：尝试解析 DNS，若不可解析则严格收敛至 RFC 1918 私有地址空间，禁止通配全公网
+            import socket
+            resolved_ip = None
+            try:
+                resolved_ip = socket.gethostbyname(body.canonical_host)
+            except Exception:
+                pass
+            if resolved_ip:
+                cidrs = [f"{resolved_ip}/32"]
+            else:
+                cidrs = ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]
 
-    raw_path = (body.base_path or "").strip()
-    base_path = ("/" + raw_path) if (raw_path and not raw_path.startswith("/")) else (raw_path or "/")
+    base_path = body.base_path or "/"
+    scheme = body.scheme.lower()
 
     ep_data = {
         "endpoint_id": body.endpoint_id,
-        "scheme": body.scheme.lower(),
+        "scheme": scheme,
         "canonical_host": body.canonical_host.strip(),
         "port": body.port,
         "base_path": base_path,
@@ -146,8 +156,9 @@ def create_endpoint(request: Request, body: EndpointCreateRequest):
         "tls_ca_ref": body.tls_ca_ref or "internal",
         "description": body.description or "",
     }
-    if body.scheme == "http":
+    if scheme == "http":
         ep_data["allow_http"] = True
+        logger.info("端点 %s 使用明文 HTTP 协议，已确认在内网受控环境中使用", body.endpoint_id)
     elif body.allow_http is not None:
         ep_data["allow_http"] = body.allow_http
 
@@ -166,8 +177,8 @@ def create_endpoint(request: Request, body: EndpointCreateRequest):
                          identity.subject_id, "copilot_endpoints", body.endpoint_id,
                          "CREATE", detail=ep_data)
         conn.commit()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("端点创建审计记录写入异常: %s", e)
     finally:
         conn.close()
 
@@ -198,8 +209,7 @@ def update_endpoint(request: Request, endpoint_id: str, body: EndpointUpdateRequ
     if body.port is not None:
         ep_data["port"] = body.port
     if body.base_path is not None:
-        raw_path = body.base_path.strip()
-        ep_data["base_path"] = ("/" + raw_path) if (raw_path and not raw_path.startswith("/")) else (raw_path or "/")
+        ep_data["base_path"] = body.base_path or "/"
     if body.data_zone is not None:
         ep_data["data_zone"] = body.data_zone
     if body.privacy_profile is not None:
@@ -233,8 +243,8 @@ def update_endpoint(request: Request, endpoint_id: str, body: EndpointUpdateRequ
                          identity.subject_id, "copilot_endpoints", endpoint_id,
                          "UPDATE", detail=ep_data)
         conn.commit()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("端点更新审计记录写入异常: %s", e)
     finally:
         conn.close()
 
@@ -607,8 +617,11 @@ def list_grants(request: Request, limit: int = 50, offset: int = 0,
         _require_ready(conn)
         rows = GrantRepo.list_page(conn, min(max(1, limit), 100),
                                    max(0, offset), connection_id, state=state)
+        conn_rows = conn.execute("SELECT id, name FROM tdsql_connections").fetchall()
+        conn_name_map = {r["id"]: r["name"] for r in conn_rows}
         return {"request_id": _rid(), "items": [{
             "subject_id": g["subject_id"], "connection_id": g["connection_id"],
+            "connection_name": conn_name_map.get(g["connection_id"], g["connection_id"]),
             "username": g["username"], "enabled": bool(g["enabled"]),
             "approval_state": g["approval_state"],
             "approval_ref": g["approval_ref"],
@@ -710,23 +723,46 @@ def put_grant(request: Request, body: GrantPutRequest):
             conn.commit()
             return {"request_id": _rid(), "revoked": True, "count": revoked_count}
 
-        # 管理员直接分配授权（即时生效，APPROVED + enabled=1）
-        granted_count = 0
-        for uname in target_users:
-            sid = user_subjects[uname]
-            for cid in target_conns:
-                GrantRepo.direct_grant(
-                    conn, sid, cid, uname,
-                    identity.username, identity.subject_id, body.approval_ref,
-                    body.allow_schema_identifiers, body.identifier_approval_ref)
-                AuditRepo.record(conn, "GRANT_APPROVE", identity.username,
-                                 identity.subject_id, "copilot_instance_grants",
-                                 cid, "APPROVE",
-                                 detail={"target": uname, "direct_grant": True})
-                granted_count += 1
-        conn.commit()
-        return {"request_id": _rid(), "approval_state": "APPROVED",
-                "enabled": True, "count": granted_count}
+        if body.intent == "REQUEST":
+            requested_count = 0
+            for uname in target_users:
+                sid = user_subjects[uname]
+                for cid in target_conns:
+                    GrantRepo.upsert_request(
+                        conn, sid, cid, uname, identity.subject_id,
+                        body.approval_ref, body.allow_schema_identifiers,
+                        body.identifier_approval_ref)
+                    AuditRepo.record(conn, "GRANT_REQUEST", identity.username,
+                                     identity.subject_id, "copilot_instance_grants",
+                                     cid, "REQUEST",
+                                     detail={"target": uname})
+                    requested_count += 1
+            conn.commit()
+            return {"request_id": _rid(), "approval_state": "PENDING",
+                    "enabled": False, "count": requested_count}
+
+        if body.intent == "GRANT":
+            if identity.role not in ("admin", "copilot_admin"):
+                raise CopilotError("FORBIDDEN", message="仅管理员可执行直接授权分配")
+            # 管理员直接分配授权（即时生效，APPROVED + enabled=1）
+            granted_count = 0
+            for uname in target_users:
+                sid = user_subjects[uname]
+                for cid in target_conns:
+                    GrantRepo.direct_grant(
+                        conn, sid, cid, uname,
+                        identity.username, identity.subject_id, body.approval_ref,
+                        body.allow_schema_identifiers, body.identifier_approval_ref)
+                    AuditRepo.record(conn, "GRANT_APPROVE", identity.username,
+                                     identity.subject_id, "copilot_instance_grants",
+                                     cid, "APPROVE",
+                                     detail={"target": uname, "direct_grant": True})
+                    granted_count += 1
+            conn.commit()
+            return {"request_id": _rid(), "approval_state": "APPROVED",
+                    "enabled": True, "count": granted_count}
+
+        raise CopilotError("INVALID_REQUEST", message=f"不支持的意图: {body.intent}")
     finally:
         conn.close()
 
@@ -744,13 +780,18 @@ def restore_grant(request: Request, body: GrantBatchActionRequest):
         _require_ready(conn)
         restored_count = 0
         for item in body.grants:
-            if item.subject_id and item.connection_id:
-                if GrantRepo.restore(conn, item.subject_id, item.connection_id,
+            sid = item.subject_id
+            if not sid and item.username:
+                subj = SubjectRepo.get_active_by_username(conn, item.username)
+                if subj:
+                    sid = subj["subject_id"]
+            if sid and item.connection_id:
+                if GrantRepo.restore(conn, sid, item.connection_id,
                                      identity.username, identity.subject_id):
                     AuditRepo.record(conn, "GRANT_RESTORE", identity.username,
                                      identity.subject_id, "copilot_instance_grants",
                                      item.connection_id, "RESTORE",
-                                     detail={"target_subject": item.subject_id})
+                                     detail={"target_subject": sid, "target_user": item.username or ""})
                     restored_count += 1
         conn.commit()
         return {"request_id": _rid(), "restored_count": restored_count}
@@ -763,6 +804,7 @@ def restore_grant(request: Request, body: GrantBatchActionRequest):
 def delete_grants(request: Request,
                   subject_id: Optional[str] = None,
                   connection_id: Optional[str] = None,
+                  username: Optional[str] = None,
                   clear_revoked: Optional[bool] = False):
     try:
         identity = _admin_identity(request)
@@ -781,13 +823,19 @@ def delete_grants(request: Request,
             conn.commit()
             return {"request_id": _rid(), "deleted_count": count, "cleared_revoked": True}
 
-        if subject_id and connection_id:
-            deleted = GrantRepo.delete(conn, subject_id, connection_id)
+        sid = subject_id
+        if not sid and username:
+            subj = SubjectRepo.get_active_by_username(conn, username)
+            if subj:
+                sid = subj["subject_id"]
+
+        if sid and connection_id:
+            deleted = GrantRepo.delete(conn, sid, connection_id)
             if deleted:
                 AuditRepo.record(conn, "GRANT_DELETE", identity.username,
                                  identity.subject_id, "copilot_instance_grants",
                                  connection_id, "DELETE",
-                                 detail={"target_subject": subject_id})
+                                 detail={"target_subject": sid, "target_user": username or ""})
             conn.commit()
             return {"request_id": _rid(), "deleted": deleted, "deleted_count": 1 if deleted else 0}
 
@@ -818,12 +866,17 @@ def batch_delete_grants(request: Request, body: GrantBatchActionRequest):
 
         deleted_count = 0
         for item in body.grants:
-            if item.subject_id and item.connection_id:
-                if GrantRepo.delete(conn, item.subject_id, item.connection_id):
+            sid = item.subject_id
+            if not sid and item.username:
+                subj = SubjectRepo.get_active_by_username(conn, item.username)
+                if subj:
+                    sid = subj["subject_id"]
+            if sid and item.connection_id:
+                if GrantRepo.delete(conn, sid, item.connection_id):
                     AuditRepo.record(conn, "GRANT_DELETE", identity.username,
                                      identity.subject_id, "copilot_instance_grants",
                                      item.connection_id, "DELETE",
-                                     detail={"target_subject": item.subject_id})
+                                     detail={"target_subject": sid, "target_user": item.username or ""})
                     deleted_count += 1
         conn.commit()
         return {"request_id": _rid(), "deleted_count": deleted_count}
