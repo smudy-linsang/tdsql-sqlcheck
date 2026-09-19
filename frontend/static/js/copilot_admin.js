@@ -291,9 +291,10 @@
         endpointFormError.value = '端口范围需在 1 到 65535 之间';
         return;
       }
-      if (!basePath || !basePath.startsWith('/')) {
-        endpointFormError.value = '基础路径必须以 / 开头，例如 /v1';
-        return;
+      if (!basePath) {
+        basePath = '/';
+      } else if (!basePath.startsWith('/')) {
+        basePath = '/' + basePath;
       }
 
       var cidrs = [];

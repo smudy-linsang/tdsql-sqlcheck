@@ -2970,9 +2970,11 @@
           <el-form-item label="服务端口" required>
             <el-input-number v-model="copilotAdmin.endpointForm.port" :min="1" :max="65535"></el-input-number>
           </el-form-item>
-          <el-form-item label="基础路径" required>
-            <el-input v-model="copilotAdmin.endpointForm.base_path" placeholder="如 /v1 或 /compatible-mode/v1"></el-input>
-            <div style="font-size:11px;color:var(--el-text-color-secondary)">模型 API 根路径，调用时会自动在其后追加 /chat/completions</div>
+          <el-form-item label="基础路径">
+            <el-input v-model="copilotAdmin.endpointForm.base_path" placeholder="默认为 /；若服务带 /v1 则填 /v1"></el-input>
+            <div style="font-size:11px;color:var(--el-text-color-secondary)">
+              模型 API 基础路径。若内网仅提供了 http://IP:端口，此处直接填 / 或留空即可，调用时会自动拼接 /chat/completions
+            </div>
           </el-form-item>
           <el-form-item label="数据分区" required>
             <el-select v-model="copilotAdmin.endpointForm.data_zone" style="width:100%">

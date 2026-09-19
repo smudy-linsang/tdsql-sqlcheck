@@ -538,7 +538,7 @@ class EndpointCreateRequest(BaseModel):
     scheme: str = Field("https", pattern=r"^(https|http)$")
     canonical_host: str = Field(..., min_length=1, max_length=253)
     port: int = Field(..., ge=1, le=65535)
-    base_path: str = Field("/v1", pattern=r"^/[A-Za-z0-9/_-]*$")
+    base_path: str = Field("/", pattern=r"^(/[A-Za-z0-9/_-]*)?$")
     data_zone: str = Field("INTERNAL", pattern=r"^(INTERNAL|PUBLIC)$")
     privacy_profile: str = Field("INTERNAL_REDACTED", pattern=r"^(INTERNAL_REDACTED|PUBLIC_HELP)$")
     allows_schema_identifiers: bool = True
@@ -554,7 +554,7 @@ class EndpointUpdateRequest(BaseModel):
     scheme: Optional[str] = Field(None, pattern=r"^(https|http)$")
     canonical_host: Optional[str] = Field(None, min_length=1, max_length=253)
     port: Optional[int] = Field(None, ge=1, le=65535)
-    base_path: Optional[str] = Field(None, pattern=r"^/[A-Za-z0-9/_-]*$")
+    base_path: Optional[str] = Field(None, pattern=r"^(/[A-Za-z0-9/_-]*)?$")
     data_zone: Optional[str] = Field(None, pattern=r"^(INTERNAL|PUBLIC)$")
     privacy_profile: Optional[str] = Field(None, pattern=r"^(INTERNAL_REDACTED|PUBLIC_HELP)$")
     allows_schema_identifiers: Optional[bool] = None

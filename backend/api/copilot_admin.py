@@ -130,12 +130,15 @@ def create_endpoint(request: Request, body: EndpointCreateRequest):
         except ValueError:
             cidrs = ["1.0.0.0/1", "128.0.0.0/1"]
 
+    raw_path = (body.base_path or "").strip()
+    base_path = ("/" + raw_path) if (raw_path and not raw_path.startswith("/")) else (raw_path or "/")
+
     ep_data = {
         "endpoint_id": body.endpoint_id,
         "scheme": body.scheme.lower(),
         "canonical_host": body.canonical_host.strip(),
         "port": body.port,
-        "base_path": body.base_path.strip(),
+        "base_path": base_path,
         "data_zone": body.data_zone,
         "privacy_profile": body.privacy_profile,
         "allows_schema_identifiers": body.allows_schema_identifiers,
@@ -195,7 +198,8 @@ def update_endpoint(request: Request, endpoint_id: str, body: EndpointUpdateRequ
     if body.port is not None:
         ep_data["port"] = body.port
     if body.base_path is not None:
-        ep_data["base_path"] = body.base_path.strip()
+        raw_path = body.base_path.strip()
+        ep_data["base_path"] = ("/" + raw_path) if (raw_path and not raw_path.startswith("/")) else (raw_path or "/")
     if body.data_zone is not None:
         ep_data["data_zone"] = body.data_zone
     if body.privacy_profile is not None:
