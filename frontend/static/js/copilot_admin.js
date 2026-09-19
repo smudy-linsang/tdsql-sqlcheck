@@ -63,12 +63,70 @@
 
     // ── 授权表单 ──
     var grantDrawer = ref(false);
+    var allUsers = ref([]);
+    var allConnections = ref([]);
+    var selectedGrants = ref([]);
     var grantForm = reactive({
-      username: '', connection_id: '', intent: 'REQUEST',
+      usernames: [], connection_ids: [], intent: 'REQUEST',
       approval_ref: '', allow_schema_identifiers: false,
       identifier_approval_ref: '',
     });
     var grantFormError = ref('');
+
+    var grantFilterState = ref('ALL');
+
+    var grantEstimateCount = computed(function () {
+      return ((grantForm.usernames && grantForm.usernames.length) || 0) *
+             ((grantForm.connection_ids && grantForm.connection_ids.length) || 0);
+    });
+    var pendingSelectedCount = computed(function () {
+      return (selectedGrants.value || []).filter(function (r) {
+        return r.approval_state === 'PENDING';
+      }).length;
+    });
+    var revokedSelectedCount = computed(function () {
+      return (selectedGrants.value || []).filter(function (r) {
+        return r.approval_state === 'REVOKED' || !r.enabled;
+      }).length;
+    });
+    var approvedSelectedCount = computed(function () {
+      return (selectedGrants.value || []).filter(function (r) {
+        return r.approval_state === 'APPROVED' && r.enabled;
+      }).length;
+    });
+    var totalRevokedCount = computed(function () {
+      return (grants.value || []).filter(function (r) {
+        return r.approval_state === 'REVOKED' || !r.enabled;
+      }).length;
+    });
+    var totalApprovedCount = computed(function () {
+      return (grants.value || []).filter(function (r) {
+        return r.approval_state === 'APPROVED' && r.enabled;
+      }).length;
+    });
+    var filteredGrants = computed(function () {
+      var state = grantFilterState.value;
+      if (!state || state === 'ALL') return grants.value || [];
+      if (state === 'APPROVED') {
+        return (grants.value || []).filter(function (r) {
+          return r.approval_state === 'APPROVED' && r.enabled;
+        });
+      }
+      if (state === 'REVOKED') {
+        return (grants.value || []).filter(function (r) {
+          return r.approval_state === 'REVOKED' || !r.enabled;
+        });
+      }
+      if (state === 'PENDING') {
+        return (grants.value || []).filter(function (r) {
+          return r.approval_state === 'PENDING';
+        });
+      }
+      return grants.value || [];
+    });
+    var canBatchApprove = computed(function () {
+      return pendingSelectedCount.value > 0;
+    });
 
     // ── 自检轮询 ──
     var selfTestPolling = ref(false);
@@ -153,9 +211,9 @@
     function openProviderCreate() {
       providerForm.id = ''; providerForm.name = '';
       providerForm.endpoint_id = endpoints.value.length ? endpoints.value[0].endpoint_id : '';
-      providerForm.model_id = ''; providerForm.auth_mode = 'NETWORK_IDENTITY';
-      providerForm.context_tokens = 8192;
-      providerForm.secret_action = 'KEEP'; providerForm.secret = '';
+      providerForm.model_id = ''; providerForm.auth_mode = 'BEARER_KEY';
+      providerForm.context_tokens = 65536;
+      providerForm.secret_action = 'REPLACE'; providerForm.secret = '';
       providerForm.isEdit = false; providerForm.expected_revision = 1;
       providerFormError.value = '';
       providerDrawer.value = true;
@@ -164,8 +222,9 @@
     function openProviderEdit(row) {
       providerForm.id = row.id; providerForm.name = row.name;
       providerForm.endpoint_id = row.endpoint_id;
-      providerForm.model_id = row.model_id; providerForm.auth_mode = row.auth_mode;
-      providerForm.context_tokens = (row.capabilities && row.capabilities.context_tokens) || 8192;
+      providerForm.model_id = row.model_id;
+      providerForm.auth_mode = (row.auth_mode === 'BEARER' || row.auth_mode === 'BEARER_KEY') ? 'BEARER_KEY' : row.auth_mode;
+      providerForm.context_tokens = (row.capabilities && row.capabilities.context_tokens) || 65536;
       providerForm.secret_action = 'KEEP'; providerForm.secret = '';
       providerForm.isEdit = true; providerForm.expected_revision = row.revision;
       providerFormError.value = '';
@@ -185,7 +244,10 @@
           protocol: 'OPENAI_COMPAT_CHAT',
           model_id: providerForm.model_id.trim(),
           auth_mode: providerForm.auth_mode,
-          capabilities: { context_tokens: providerForm.context_tokens },
+          capabilities: {
+            context_tokens: providerForm.context_tokens || 65536,
+            max_output_field: 'max_tokens',
+          },
           secret_action: providerForm.secret_action,
         };
         if (providerForm.secret_action === 'REPLACE' && providerForm.secret) {
@@ -344,26 +406,72 @@
     }
 
     // ═══ 授权管理 ═══
+    async function loadGrantCandidates() {
+      try {
+        var pUsers = apiFetch('/api/v1/auth/users?limit=500');
+        var pConns = apiFetch('/api/v1/tdsql/connections');
+        var resps = await Promise.allSettled([pUsers, pConns]);
+        if (resps[0].status === 'fulfilled' && resps[0].value.ok) {
+          var uData = await resps[0].value.json();
+          allUsers.value = (uData.users || []).filter(function (u) {
+            return u.status === 'active';
+          });
+        }
+        if (resps[1].status === 'fulfilled' && resps[1].value.ok) {
+          var cData = await resps[1].value.json();
+          allConnections.value = cData.connections || [];
+        }
+      } catch (e) { /* 静默 */ }
+    }
+
+    function selectAllDevUsers() {
+      var devs = allUsers.value.filter(function (u) { return u.role === 'developer'; });
+      grantForm.usernames = devs.map(function (u) { return u.username; });
+    }
+
+    function selectAllUsers() {
+      grantForm.usernames = allUsers.value.map(function (u) { return u.username; });
+    }
+
+    function clearUsers() {
+      grantForm.usernames = [];
+    }
+
+    function selectAllConnections() {
+      grantForm.connection_ids = allConnections.value.map(function (c) { return c.id; });
+    }
+
+    function clearConnections() {
+      grantForm.connection_ids = [];
+    }
+
     function openGrantRequest() {
-      grantForm.username = ''; grantForm.connection_id = '';
-      grantForm.intent = 'REQUEST'; grantForm.approval_ref = '';
+      grantForm.usernames = []; grantForm.connection_ids = [];
+      grantForm.intent = 'GRANT'; grantForm.approval_ref = '';
       grantForm.allow_schema_identifiers = false;
       grantForm.identifier_approval_ref = '';
       grantFormError.value = '';
       grantDrawer.value = true;
+      loadGrantCandidates();
     }
 
     async function saveGrant() {
       grantFormError.value = '';
-      if (!grantForm.username.trim()) { grantFormError.value = '用户不能为空'; return; }
-      if (!grantForm.connection_id.trim()) { grantFormError.value = '实例连接 ID 不能为空'; return; }
+      if (!grantForm.usernames || !grantForm.usernames.length) {
+        grantFormError.value = '请至少选择一个目标用户';
+        return;
+      }
+      if (!grantForm.connection_ids || !grantForm.connection_ids.length) {
+        grantFormError.value = '请至少选择一个实例连接';
+        return;
+      }
       saving.value = true;
       try {
         var resp = await apiFetch('/api/v1/copilot-admin/grants', {
           method: 'PUT', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            username: grantForm.username.trim(),
-            connection_id: grantForm.connection_id.trim(),
+            usernames: grantForm.usernames,
+            connection_ids: grantForm.connection_ids,
             intent: grantForm.intent,
             approval_ref: grantForm.approval_ref || '',
             allow_schema_identifiers: grantForm.allow_schema_identifiers,
@@ -371,7 +479,13 @@
           }),
         });
         if (resp.ok) {
-          ElementPlus.ElMessage.success(grantForm.intent === 'REVOKE' ? '已撤销' : '申请已提交');
+          var resData = await resp.json().catch(function () { return {}; });
+          var count = resData.count || (grantForm.usernames.length * grantForm.connection_ids.length);
+          var msg = '已成功分配 ' + count + ' 条实例授权（已即时生效）';
+          if (grantForm.intent === 'REVOKE') msg = '已成功撤销 ' + count + ' 条实例授权';
+          else if (grantForm.intent === 'DELETE') msg = '已成功彻底删除 ' + count + ' 条实例授权记录';
+          else if (grantForm.intent === 'RESTORE') msg = '已成功恢复 ' + count + ' 条实例授权';
+          ElementPlus.ElMessage.success(msg);
           grantDrawer.value = false;
           await loadGrants();
         } else {
@@ -404,9 +518,232 @@
     }
 
     async function revokeGrant(row) {
-      grantForm.username = row.username; grantForm.connection_id = row.connection_id;
+      grantForm.usernames = [row.username];
+      grantForm.connection_ids = [row.connection_id];
       grantForm.intent = 'REVOKE';
       await saveGrant();
+    }
+
+    function handleGrantSelectionChange(selection) {
+      selectedGrants.value = selection || [];
+    }
+
+    async function batchApproveGrants() {
+      var pendingList = (selectedGrants.value || []).filter(function (r) {
+        return r.approval_state === 'PENDING';
+      });
+      if (!pendingList.length) {
+        ElementPlus.ElMessage.warning('请勾选处于 PENDING 状态的待批准授权');
+        return;
+      }
+      try {
+        await ElementPlus.ElMessageBox.confirm(
+          '确认批量批准选中的 ' + pendingList.length + ' 条实例授权？',
+          '批量批准确认',
+          { confirmButtonText: '确认批准', cancelButtonText: '取消', type: 'info' }
+        );
+      } catch (e) { return; }
+
+      try {
+        var resp = await apiFetch('/api/v1/copilot-admin/grants/batch-approve', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            grants: pendingList.map(function (r) {
+              return {
+                subject_id: r.subject_id,
+                connection_id: r.connection_id,
+                expected_revision: r.revision,
+              };
+            }),
+          }),
+        });
+        if (resp.ok) {
+          var res = await resp.json();
+          ElementPlus.ElMessage.success('批量批准完成，成功：' + res.approved_count + ' 条');
+          await loadGrants();
+        } else {
+          ElementPlus.ElMessage.error(await _readErr(resp));
+        }
+      } catch (e) {
+        ElementPlus.ElMessage.error('批量批准失败：' + e.message);
+      }
+    }
+
+    async function batchRevokeGrants() {
+      if (!selectedGrants.value || !selectedGrants.value.length) {
+        ElementPlus.ElMessage.warning('请先勾选需要撤销的授权项');
+        return;
+      }
+      var targetUsers = Array.from(new Set(selectedGrants.value.map(function (r) { return r.username; })));
+      var targetConns = Array.from(new Set(selectedGrants.value.map(function (r) { return r.connection_id; })));
+      try {
+        await ElementPlus.ElMessageBox.confirm(
+          '确认批量撤销选中的 ' + selectedGrants.value.length + ' 条实例授权？',
+          '批量撤销确认',
+          { confirmButtonText: '确认撤销', cancelButtonText: '取消', type: 'warning' }
+        );
+      } catch (e) { return; }
+
+      try {
+        var resp = await apiFetch('/api/v1/copilot-admin/grants', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            usernames: targetUsers,
+            connection_ids: targetConns,
+            intent: 'REVOKE',
+          }),
+        });
+        if (resp.ok) {
+          ElementPlus.ElMessage.success('批量撤销已生效');
+          await loadGrants();
+        } else {
+          ElementPlus.ElMessage.error(await _readErr(resp));
+        }
+      } catch (e) {
+        ElementPlus.ElMessage.error('批量撤销失败：' + e.message);
+      }
+    }
+
+    async function restoreGrant(row) {
+      try {
+        var resp = await apiFetch('/api/v1/copilot-admin/grants/restore', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            grants: [{ subject_id: row.subject_id, connection_id: row.connection_id }]
+          }),
+        });
+        if (resp.ok) {
+          ElementPlus.ElMessage.success('已恢复用户 ' + row.username + ' 对实例 ' + row.connection_id + ' 的授权');
+          await loadGrants();
+        } else {
+          ElementPlus.ElMessage.error(await _readErr(resp));
+        }
+      } catch (e) {
+        ElementPlus.ElMessage.error('恢复授权失败：' + e.message);
+      }
+    }
+
+    async function deleteGrant(row) {
+      try {
+        await ElementPlus.ElMessageBox.confirm(
+          '确认彻底删除用户 ' + row.username + ' 对实例 ' + row.connection_id + ' 的授权记录？删除后将永久移除该条记录。',
+          '彻底删除授权',
+          { confirmButtonText: '彻底删除', cancelButtonText: '取消', type: 'warning' }
+        );
+      } catch (e) { return; }
+
+      try {
+        var resp = await apiFetch('/api/v1/copilot-admin/grants?subject_id=' + encodeURIComponent(row.subject_id) + '&connection_id=' + encodeURIComponent(row.connection_id), {
+          method: 'DELETE',
+        });
+        if (resp.ok) {
+          ElementPlus.ElMessage.success('已彻底删除该授权记录');
+          await loadGrants();
+        } else {
+          ElementPlus.ElMessage.error(await _readErr(resp));
+        }
+      } catch (e) {
+        ElementPlus.ElMessage.error('删除授权失败：' + e.message);
+      }
+    }
+
+    async function batchRestoreGrants() {
+      var revokedList = (selectedGrants.value || []).filter(function (r) {
+        return r.approval_state === 'REVOKED' || !r.enabled;
+      });
+      if (!revokedList.length) {
+        ElementPlus.ElMessage.warning('请勾选处于已撤销状态的授权项');
+        return;
+      }
+      try {
+        await ElementPlus.ElMessageBox.confirm(
+          '确认批量恢复选中的 ' + revokedList.length + ' 条实例授权并重新生效？',
+          '批量恢复确认',
+          { confirmButtonText: '确认恢复', cancelButtonText: '取消', type: 'success' }
+        );
+      } catch (e) { return; }
+
+      try {
+        var resp = await apiFetch('/api/v1/copilot-admin/grants/restore', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            grants: revokedList.map(function (r) {
+              return { subject_id: r.subject_id, connection_id: r.connection_id };
+            })
+          }),
+        });
+        if (resp.ok) {
+          ElementPlus.ElMessage.success('批量恢复成功，已重新生效');
+          await loadGrants();
+        } else {
+          ElementPlus.ElMessage.error(await _readErr(resp));
+        }
+      } catch (e) {
+        ElementPlus.ElMessage.error('批量恢复失败：' + e.message);
+      }
+    }
+
+    async function batchDeleteGrants() {
+      if (!selectedGrants.value || !selectedGrants.value.length) {
+        ElementPlus.ElMessage.warning('请先勾选需要彻底删除的授权项');
+        return;
+      }
+      try {
+        await ElementPlus.ElMessageBox.confirm(
+          '确认彻底删除选中的 ' + selectedGrants.value.length + ' 条实例授权记录？删除后将从列表中彻底移除。',
+          '批量删除确认',
+          { confirmButtonText: '彻底删除', cancelButtonText: '取消', type: 'danger' }
+        );
+      } catch (e) { return; }
+
+      try {
+        var resp = await apiFetch('/api/v1/copilot-admin/grants/batch-delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            grants: selectedGrants.value.map(function (r) {
+              return { subject_id: r.subject_id, connection_id: r.connection_id };
+            })
+          }),
+        });
+        if (resp.ok) {
+          ElementPlus.ElMessage.success('批量删除成功');
+          await loadGrants();
+        } else {
+          ElementPlus.ElMessage.error(await _readErr(resp));
+        }
+      } catch (e) {
+        ElementPlus.ElMessage.error('批量删除失败：' + e.message);
+      }
+    }
+
+    async function clearAllRevokedGrants() {
+      try {
+        await ElementPlus.ElMessageBox.confirm(
+          '确认一键清空所有历史已撤销/已停用的授权记录？（共 ' + totalRevokedCount.value + ' 条）清空后列表仅保留有效授权。',
+          '清空已撤销记录',
+          { confirmButtonText: '清空已撤销', cancelButtonText: '取消', type: 'warning' }
+        );
+      } catch (e) { return; }
+
+      try {
+        var resp = await apiFetch('/api/v1/copilot-admin/grants?clear_revoked=true', {
+          method: 'DELETE',
+        });
+        if (resp.ok) {
+          var res = await resp.json();
+          ElementPlus.ElMessage.success('已清空 ' + (res.deleted_count || 0) + ' 条已撤销记录');
+          await loadGrants();
+        } else {
+          ElementPlus.ElMessage.error(await _readErr(resp));
+        }
+      } catch (e) {
+        ElementPlus.ElMessage.error('清空失败：' + e.message);
+      }
     }
 
     // ═══ 设置 ═══
@@ -466,6 +803,12 @@
       providerFormError: providerFormError,
       routeDrawer: routeDrawer, routeForm: routeForm, routeFormError: routeFormError,
       grantDrawer: grantDrawer, grantForm: grantForm, grantFormError: grantFormError,
+      allUsers: allUsers, allConnections: allConnections, selectedGrants: selectedGrants,
+      grantEstimateCount: grantEstimateCount, pendingSelectedCount: pendingSelectedCount,
+      canBatchApprove: canBatchApprove,
+      grantFilterState: grantFilterState, filteredGrants: filteredGrants,
+      revokedSelectedCount: revokedSelectedCount, approvedSelectedCount: approvedSelectedCount,
+      totalRevokedCount: totalRevokedCount, totalApprovedCount: totalApprovedCount,
       selfTestPolling: selfTestPolling,
       providerMap: providerMap, unconfiguredScenes: unconfiguredScenes,
       SCENES: SCENES, PRIVACY_PROFILES: PRIVACY_PROFILES, AUTH_MODES: AUTH_MODES,
@@ -476,7 +819,14 @@
       runSelfTest: runSelfTest, enableProvider: enableProvider,
       openRouteEdit: openRouteEdit, openRouteCreate: openRouteCreate, saveRoute: saveRoute,
       openGrantRequest: openGrantRequest, saveGrant: saveGrant,
+      selectAllDevUsers: selectAllDevUsers, selectAllUsers: selectAllUsers, clearUsers: clearUsers,
+      selectAllConnections: selectAllConnections, clearConnections: clearConnections,
+      handleGrantSelectionChange: handleGrantSelectionChange,
+      batchApproveGrants: batchApproveGrants, batchRevokeGrants: batchRevokeGrants,
       approveGrant: approveGrant, revokeGrant: revokeGrant,
+      restoreGrant: restoreGrant, deleteGrant: deleteGrant,
+      batchRestoreGrants: batchRestoreGrants, batchDeleteGrants: batchDeleteGrants,
+      clearAllRevokedGrants: clearAllRevokedGrants,
       saveSettings: saveSettings,
       initPage: initPage,
     };

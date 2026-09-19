@@ -206,7 +206,12 @@ def build_preview(conn, identity: CopilotIdentity, session: dict,
                       knowledge_store=knowledge_store)
     evidence: list[dict] = []
     if scene in ("USAGE_HELP", "DIAGNOSTIC_HELP"):
-        pass
+        from backend.services.copilot.knowledge import _RULE_ID_RE
+        rids = _RULE_ID_RE.findall(question)
+        if rids:
+            ev = execute_explain_rules(
+                ctx, {"rule_ids": rids[:5]}, deadline).get("evidence") or []
+            evidence.extend(ev)
     elif scene == "RULE_EXPLAIN":
         for r in refs:
             if r.get("kind") == "rule":

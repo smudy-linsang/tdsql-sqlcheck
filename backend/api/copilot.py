@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import os
 import time
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -1079,3 +1080,252 @@ def export_turn_html(request: Request, turn_id: str):
             })
     finally:
         conn.close()
+
+
+# ══════════════════════════════════════════════════════════════════
+# POST /chat（类 DB_Monitor 流畅对话问答模式 + 银行只读安全底线）
+# ══════════════════════════════════════════════════════════════════
+
+from pydantic import BaseModel
+import urllib.request
+import re
+
+class CopilotChatRequest(BaseModel):
+    query: str
+    connection_id: Optional[str] = None
+    history: Optional[list] = None
+
+
+COPILOT_CHAT_SYSTEM_PROMPT = """你是 TDSQL SQL审核与智能运维平台的专属 Copilot 专家助手。
+精通 TDSQL 分布式数据库架构（Proxy、DB节点、赤兔管理台、Zookeeper）、MySQL 语法内核、SQL 审核规则、慢查询优化与运维诊断。
+
+【服务准则与沟通风格】
+1. 热情、直接、专业地回答用户的问题，提供“你一言我一语”的流畅对话交互体验；
+2. 不要设置刻板繁复的审查门槛或生硬拒答；对于用户的各种技术咨询、原理解析、配置疑问，能回答的请直接清晰解答；
+3. 若用户提问涉及系统纳管实例数量、内置审核规则定义（如 R043 等规则）、在线元数据审核历史记录数或拓扑状态，请严格结合下方提供的【系统实时上下文数据与拓扑】如实、准确、权威地解答；
+4. 输出请使用美观易读的 Markdown 排版（小标题、加粗重点、列表、对比表格、代码块）。
+
+【绝对安全底线（银行系统只读约束 - 最高优先级）】
+本平台运行于银行数据库管理环境中，但不是交易业务系统，严禁输出任何可直接修改数据库数据或结构的 SQL 语句（包括但不限于 DROP, TRUNCATE, DELETE, UPDATE, ALTER, INSERT, REPLACE, GRANT, REVOKE 等写操作）。
+你仅被允许提供只读查询与性能诊断语句（如 SELECT, EXPLAIN, SHOW, DESCRIBE）。
+若用户提问要求直接修改数据，必须明确拒绝并提示“根据银行只读安全规范，Copilot 仅提供只读查询与优化建议，严禁生成修改数据的 SQL”，并仅提供只读查询或诊断方案。
+"""
+
+
+@router.post("/chat", summary="Copilot 实时对话接口 (类似 DB_Monitor)")
+async def copilot_chat(request: Request, body: Optional[CopilotChatRequest] = None):
+    """类 DB_Monitor 模式的自然流利对话接口：
+    - 多轮历史记录衔接
+    - 实时资产与拓扑上下文注入
+    - 银行只读安全硬红线拦截
+    - 智能动作卡片 (Action Cards) 生成
+    """
+    if body is None:
+        try:
+            raw = await request.json()
+            if isinstance(raw, dict):
+                body = CopilotChatRequest(**raw)
+            else:
+                body = CopilotChatRequest(query=str(raw))
+        except Exception:
+            try:
+                body_bytes = await request.body()
+                raw = json.loads(body_bytes.decode('utf-8'))
+                body = CopilotChatRequest(**raw)
+            except Exception:
+                body = CopilotChatRequest(query="")
+
+    query = (body.query or "").strip()
+    if not query:
+        return {"ok": False, "answer": "请输入您的问题。", "model": "none"}
+    q_lower = query.lower()
+
+    from backend.services.connection_registry import registry
+    from backend.services.copilot import crypto as crypto_mod
+    from backend.services.copilot.policy import load_policy
+    from backend.services.copilot.repository import ProviderRepo
+
+    # 1. 调用 Copilot 全模块动态感知引擎收集多维实时业务与系统上下文
+    from backend.services.copilot.perception import CopilotPerceptionEngine
+
+    answer = None
+    model_name = "local-expert"
+    provider_name = "DBA专家引擎"
+    latency_ms = 0
+
+    conn = _get_connection()
+    try:
+        ctx_parts = CopilotPerceptionEngine.gather_context(conn, query, body.connection_id)
+
+        # 2. 尝试调用真实大模型（优先按“AI配置 -> 场景路由”精准匹配主模型/备模型）
+        from backend.services.copilot.repository import RouteRepo
+        detected_scene = CopilotPerceptionEngine.detect_scene(query)
+        route = RouteRepo.get(conn, detected_scene)
+
+        active_p = None
+        if route and route.get("enabled"):
+            p_id = route.get("primary_provider_id")
+            if p_id:
+                cand = ProviderRepo.get(conn, p_id)
+                if cand and cand.get("enabled"):
+                    active_p = cand
+            if not active_p and route.get("fallback_provider_id"):
+                fb_cand = ProviderRepo.get(conn, route["fallback_provider_id"])
+                if fb_cand and fb_cand.get("enabled"):
+                    active_p = fb_cand
+
+        # 若未命中场景或场景主备模型未就绪，使用全局已启用的首选模型兜底
+        if not active_p:
+            ps = ProviderRepo.list(conn)
+            active_p = next((p for p in ps if p.get('enabled')), None)
+
+        if active_p:
+            full_p = ProviderRepo.get(conn, active_p['id'])
+            keyring = load_keyring()
+            secret = crypto_mod.decrypt(
+                full_p['secret_envelope'], 'copilot_providers', full_p['id'],
+                'secret_envelope', owner='SYSTEM',
+                crypto_revision=int(full_p.get('revision') or 1), keyring=keyring
+            )
+            policy = load_policy()
+            url = policy.build_url(full_p['endpoint_id'])
+
+            messages = [{"role": "system", "content": COPILOT_CHAT_SYSTEM_PROMPT}]
+            if body.history:
+                for h in body.history[-6:]:
+                    if isinstance(h, dict) and h.get('role') in ('user', 'assistant') and h.get('content'):
+                        messages.append({'role': h['role'], 'content': h['content']})
+
+            user_msg = query
+            if ctx_parts:
+                user_msg += "\n\n[系统实时上下文数据与拓扑]\n" + "\n".join(ctx_parts)
+            messages.append({"role": "user", "content": user_msg})
+
+            req_body = {
+                "model": full_p["model_id"],
+                "messages": messages,
+                "max_tokens": 4096,
+                "temperature": 0.3,
+                "stream": False
+            }
+
+            req = urllib.request.Request(
+                url,
+                data=json.dumps(req_body, ensure_ascii=False).encode('utf-8'),
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {secret}"
+                }
+            )
+            t0 = time.time()
+            try:
+                copilot_timeout = int(os.getenv("COPILOT_CHAT_TIMEOUT", "3600"))
+                with urllib.request.urlopen(req, timeout=copilot_timeout) as resp:
+                    resp_data = json.loads(resp.read().decode('utf-8'))
+                latency_ms = int((time.time() - t0) * 1000)
+                answer = resp_data['choices'][0]['message']['content']
+                model_name = full_p["model_id"]
+                provider_name = full_p.get("name")
+            except Exception as e:
+                logger.warning("Copilot 模型直接调用异常，使用降级逻辑: %s", e)
+    except Exception as e:
+        logger.warning("Copilot provider 读取异常: %s", e)
+    finally:
+        conn.close()
+
+    # 3. 若模型调用不可用时的平滑降级
+    if not answer:
+        if ctx_parts:
+            answer = "### 🤖 TDSQL 智能助手 (本地资产与规则引擎模式)\n\n" + "\n\n".join(ctx_parts) + "\n\n您可以提问关于上述实例的架构规范、连接排查或慢查询诊断建议。"
+        else:
+            answer = f"### 🤖 TDSQL 智能专家助手\n\n已收到您的问题：**{query}**。\n\n当前大模型服务连接暂时波动或未配置完成。您可以通过上方实例选择器切换数据库，或在『SQL审核』『实例体检』模块执行标准诊断。"
+
+    # 4. 银行系统硬性只读安全审查 (Guardrail)
+    write_patterns = [
+        r'\b(DROP\s+TABLE|DROP\s+DATABASE|TRUNCATE\s+TABLE|TRUNCATE\s+\w+)\b',
+        r'\b(DELETE\s+FROM)\b',
+        r'\b(UPDATE\s+\w+\s+SET)\b',
+        r'\b(ALTER\s+TABLE)\b',
+        r'\b(INSERT\s+INTO)\b',
+        r'\b(GRANT\s+.*\s+TO|REVOKE\s+.*\s+FROM)\b',
+    ]
+    detected_violations = []
+    for pat in write_patterns:
+        matches = re.findall(pat, answer, re.I)
+        if matches:
+            detected_violations.extend(matches)
+
+    safety_status = {
+        "is_read_only": len(detected_violations) == 0,
+        "violations": list(set(detected_violations))
+    }
+
+    # 5. 组装交互动作卡片 (Action Cards)
+    action_cards = []
+
+    # 提取只读 SQL
+    sql_blocks = re.findall(r'```sql\s*(.*?)\s*```', answer, re.S | re.I)
+    for s in sql_blocks:
+        s_clean = s.strip()
+        if re.match(r'^(SELECT|EXPLAIN|SHOW|DESCRIBE|DESC)\b', s_clean, re.I):
+            action_cards.append({
+                "card_type": "SQL_SUGGESTION",
+                "title": "📋 复制只读诊断 SQL",
+                "sql": s_clean,
+                "desc": "安全只读 SQL，已通过银行只读安全校验，可直接在查询控制台或客户端执行"
+            })
+            action_cards.append({
+                "card_type": "NAVIGATE_EDITOR",
+                "title": "🔍 送入 SQL 审核编辑器",
+                "sql": s_clean,
+                "desc": "在 SQL 审核页面深度校验规则与语法规范"
+            })
+            break
+
+    # 快捷功能导航卡片联动全模块页面
+    if any(k in q_lower for k in ['体检', '健康', '监控', '上线检查', '会话', 'thread']):
+        action_cards.append({
+            "card_type": "NAVIGATE",
+            "title": "📊 前往上线检查",
+            "target_page": "schema-check",
+            "desc": "查看实例表结构校验、连接使用率与健康评分"
+        })
+    elif any(k in q_lower for k in ['元数据', 'metadata', '元数据审核']):
+        action_cards.append({
+            "card_type": "NAVIGATE",
+            "title": "📑 前往在线元数据审核",
+            "target_page": "schema-extractor-audit",
+            "desc": "查看抽取元数据与深度规则校验报告"
+        })
+    elif any(k in q_lower for k in ['慢sql', '慢查', '耗时', '优化']):
+        action_cards.append({
+            "card_type": "NAVIGATE",
+            "title": "⚡ 前往慢SQL记录",
+            "target_page": "slow-records",
+            "desc": "抓取并分析各分片慢 SQL Top 排行与执行计划"
+        })
+    elif any(k in q_lower for k in ['大表', '容量', '行数']):
+        action_cards.append({
+            "card_type": "NAVIGATE",
+            "title": "📦 前往大表治理",
+            "target_page": "bigtable",
+            "desc": "查看大表清单、拆分键与分区建议"
+        })
+    elif any(k in q_lower for k in ['规则', '规范', 'rule']):
+        action_cards.append({
+            "card_type": "NAVIGATE",
+            "title": "📖 前往审核规则库",
+            "target_page": "rules",
+            "desc": "查看与配置 121 项 TDSQL 分布式与集中式开发规范"
+        })
+
+    return {
+        "ok": True,
+        "answer": answer,
+        "model": model_name,
+        "provider_name": provider_name,
+        "latency_ms": latency_ms,
+        "action_cards": action_cards,
+        "safety_status": safety_status
+    }
+

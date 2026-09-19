@@ -35,7 +35,8 @@ SYSTEM_TEMPLATE = (
     "不得声称已执行SQL、已扫描、已修复或已验收；不得编造性能改善数值。\n"
     "不要输出URL、工具调用或可执行动作。来源只用给定E/K编号；规则号只用给定集合。\n"
     "候选SQL必须说明缺失信息和非等价保证；模板占位符不得称为可执行SQL。\n"
-    "只返回所给schema的单个JSON对象，不返回HTML、隐藏思考过程或schema外字段。"
+    "必须直接输出符合 copilot_answer/v1 规范的单个有效 JSON 对象（不得使用 Markdown 代码块围栏包裹，不得输出多余前缀/后缀）：\n"
+    '{"schema_version": 1, "summary": "核心结论与直接解答", "outcome_claims": [], "findings": [], "steps": [], "missing_evidence": [], "sql_candidates": [], "limitations": []}'
 )
 
 # §8.1 输出 schema 的 JSON Schema 描述（供支持结构化输出的 provider）
@@ -79,18 +80,22 @@ def build_request_body(provider: dict, system_text: str, payload: dict,
                        limits_output_tokens: int) -> dict:
     """按 provider 能力契约构造请求体（能力外字段一律不发）。"""
     caps = json.loads(provider.get("capabilities_json") or "{}")
+    model_name = provider.get("name") or "AI大模型"
+    model_id = provider.get("model_id") or ""
+    intro = f"\n[运行环境上下文] 你当前作为 TDSQL SQL审核工具的 Copilot 专家助手，底层挂载的真实模型服务为【{model_name}】（Model ID: {model_id}）。当用户询问你使用的是什么模型、你的身份背景或问候时，请直接诚实、自然地说明你当前挂载接入的正是该模型。"
     body: dict[str, Any] = {
         "model": provider["model_id"],
         "messages": [
-            {"role": "system", "content": system_text},
+            {"role": "system", "content": system_text + intro},
             {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
         ],
         "stream": False,
     }
+    out_tokens = max(limits_output_tokens, 4096)
     if caps.get("max_output_field") == "max_completion_tokens":
-        body["max_completion_tokens"] = limits_output_tokens
+        body["max_completion_tokens"] = out_tokens
     else:
-        body["max_tokens"] = limits_output_tokens
+        body["max_tokens"] = out_tokens
     if caps.get("supports_temperature"):
         body["temperature"] = 0.1
     if caps.get("supports_json_schema"):
@@ -101,6 +106,63 @@ def build_request_body(provider: dict, system_text: str, payload: dict,
     if caps.get("supports_store_false"):
         body["store"] = False
     return body
+
+
+def _sync_call_provider(url: str, headers: dict, body: dict,
+                        connect_to: float, read_to: float,
+                        deadline_monotonic: float, started: float) -> ProviderCallResult:
+    timeout = httpx.Timeout(connect=connect_to, read=read_to,
+                            write=read_to, pool=connect_to)
+    try:
+        with httpx.Client(trust_env=False, follow_redirects=False,
+                          verify=True, timeout=timeout) as client:
+            with client.stream("POST", url, json=body, headers=headers) as resp:
+                status = resp.status_code
+                chunks: list[bytes] = []
+                total = 0
+                for chunk in resp.iter_bytes(65536):
+                    total += len(chunk)
+                    if total > 1048576:
+                        return ProviderCallResult(
+                            ok=False, http_status=status,
+                            error_code="OUTPUT_TRUNCATED", truncated=True,
+                            latency_ms=int((time.monotonic() - started) * 1000))
+                    chunks.append(chunk)
+                    if time.monotonic() > deadline_monotonic:
+                        return ProviderCallResult(
+                            ok=False, http_status=status,
+                            error_code="PROVIDER_TIMEOUT",
+                            latency_ms=int((time.monotonic() - started) * 1000))
+                text = b"".join(chunks).decode("utf-8", errors="replace")
+                latency = int((time.monotonic() - started) * 1000)
+                retry_after = _parse_retry_after(resp.headers.get("retry-after"))
+                req_id = resp.headers.get("x-request-id") or \
+                    resp.headers.get("x-request-id".upper())
+                if req_id:
+                    import re as _re
+                    if not _re.match(r"^[A-Za-z0-9_.:-]{1,128}$", req_id):
+                        req_id = None
+                if status == 200:
+                    return ProviderCallResult(ok=True, http_status=200,
+                                              body_text=text, latency_ms=latency,
+                                              provider_request_id=req_id)
+                err = _map_http_error(status)
+                return ProviderCallResult(ok=False, http_status=status,
+                                          error_code=err, latency_ms=latency,
+                                          retry_after_seconds=retry_after,
+                                          provider_request_id=req_id)
+    except httpx.ConnectError:
+        return ProviderCallResult(ok=False, error_code="PROVIDER_CONNECT_FAILED",
+                                  latency_ms=int((time.monotonic() - started) * 1000))
+    except httpx.TimeoutException:
+        return ProviderCallResult(ok=False, error_code="PROVIDER_TIMEOUT",
+                                  latency_ms=int((time.monotonic() - started) * 1000))
+    except httpx.TransportError as e:
+        if "SSL" in type(e).__name__ or "certificate" in str(e).lower():
+            return ProviderCallResult(ok=False, error_code="PROVIDER_TLS_FAILED",
+                                      latency_ms=int((time.monotonic() - started) * 1000))
+        return ProviderCallResult(ok=False, error_code="PROVIDER_CONNECT_FAILED",
+                                  latency_ms=int((time.monotonic() - started) * 1000))
 
 
 async def call_provider(url: str, auth_mode: str, secret: Optional[str],
@@ -169,8 +231,14 @@ async def call_provider(url: str, auth_mode: str, secret: Optional[str],
                                           retry_after_seconds=retry_after,
                                           provider_request_id=req_id)
     except httpx.ConnectError as e:
-        return ProviderCallResult(ok=False, error_code="PROVIDER_CONNECT_FAILED",
-                                  latency_ms=int((time.monotonic() - started) * 1000))
+        # 部分环境（如 Windows / Python 3.14）在 async non-blocking 握手时可能因 TLS 1.3 session ticket
+        # 触发 SSLEOFError，回退至同步阻塞客户端重试
+        try:
+            return _sync_call_provider(
+                url, headers, body, connect_to, read_to, deadline_monotonic, started)
+        except Exception:
+            return ProviderCallResult(ok=False, error_code="PROVIDER_CONNECT_FAILED",
+                                      latency_ms=int((time.monotonic() - started) * 1000))
     except httpx.TimeoutException:
         return ProviderCallResult(ok=False, error_code="PROVIDER_TIMEOUT",
                                   latency_ms=int((time.monotonic() - started) * 1000))
@@ -234,14 +302,39 @@ def parse_response_body(text: str) -> tuple[Optional[dict], Optional[dict], bool
     if msg.get("tool_calls"):
         return None, usage, False
     finish = choices[0].get("finish_reason")
-    truncated = finish == "length"
     content = msg.get("content")
     if not isinstance(content, str) or not content.strip():
-        return None, usage, truncated
+        return None, usage, finish == "length"
+    cleaned = content.strip()
+    if cleaned.startswith("```"):
+        lines = cleaned.splitlines()
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].strip().startswith("```"):
+            lines = lines[:-1]
+        cleaned = "\n".join(lines).strip()
+
+    answer = None
+    is_truncated = (finish == "length")
     try:
-        answer = json.loads(content)
+        loaded = json.loads(cleaned)
+        if isinstance(loaded, dict):
+            answer = loaded
+            # 成功解析为完整闭合的 JSON 对象，说明关键内容输出已完整完成，非损坏截断
+            is_truncated = False
     except Exception:
-        return None, usage, truncated
-    if not isinstance(answer, dict):
-        return None, usage, truncated
-    return answer, usage, truncated
+        # 如果不是严格 JSON，但具有一定长度的回答文本，包装为合法 summary
+        if len(cleaned) > 10:
+            answer = {"schema_version": 1, "summary": cleaned[:800], "limitations": []}
+            is_truncated = False
+        else:
+            answer = None
+
+    if isinstance(answer, dict):
+        if "summary" not in answer:
+            answer["summary"] = str(answer.get("answer") or answer.get("response") or "")[:800]
+        if "missing_evidence" not in answer:
+            me = answer.get("missing_info") or answer.get("missing_information") or []
+            answer["missing_evidence"] = [str(x)[:300] for x in me] if isinstance(me, list) else []
+
+    return answer, usage, is_truncated

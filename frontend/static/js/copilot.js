@@ -57,6 +57,20 @@
     const draftText = ref('');
     const expanded = ref(false);
 
+    // ── 类 DB_Monitor 对话流状态 ───────────────────────────
+    const chatActiveTab = ref('chat'); // 'chat' | 'turns'
+    const chatInput = ref('');
+    const chatLoading = ref(false);
+    const messages = ref([
+      {
+        role: 'assistant',
+        content: '👋 您好！我是 **TDSQL 数据库专属 Copilot 专家助手**。请直接在下方输入您的问题，我将为您提供只读安全的专业分析与诊断。',
+        time: new Date().toLocaleTimeString(),
+        model: '只读安全',
+        provider_name: 'Copilot'
+      }
+    ]);
+
     // 归属防护：view 世代 + 请求序号 + abort
     const view = reactive({
       subject_id: '', session_id: '', generation: 0, turn_id: '',
@@ -640,6 +654,149 @@
       errorMsg.value = '';
     }
 
+    async function sendChat(customText) {
+      const q = (customText || chatInput.value || question.value || '').trim();
+      if (!q || chatLoading.value) return;
+
+      const userMsg = {
+        role: 'user',
+        content: q,
+        time: new Date().toLocaleTimeString()
+      };
+      messages.value.push(userMsg);
+      if (!customText) {
+        chatInput.value = '';
+        question.value = '';
+      }
+      chatLoading.value = true;
+      errorMsg.value = '';
+
+      Vue.nextTick(() => {
+        try {
+          const listEls = document.querySelectorAll('.copilot-chat-feed');
+          listEls.forEach(el => { el.scrollTop = el.scrollHeight; });
+        } catch (e) {}
+      });
+
+      try {
+        const history = messages.value
+          .filter(m => m.role === 'user' || m.role === 'assistant')
+          .slice(-6)
+          .map(m => ({ role: m.role, content: m.content }));
+
+        const resp = await apiFetch('/api/v1/copilot/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: q,
+            connection_id: selectedConnectionId.value || undefined,
+            history: history
+          })
+        });
+
+        if (resp && resp.ok) {
+          const res = await resp.json();
+          const aiMsg = {
+            role: 'assistant',
+            content: res.answer || '抱歉，暂时未能生成有效回复。',
+            time: new Date().toLocaleTimeString(),
+            model: res.model,
+            provider_name: res.provider_name,
+            latency_ms: res.latency_ms,
+            action_cards: res.action_cards || [],
+            safety_status: res.safety_status
+          };
+          messages.value.push(aiMsg);
+        } else {
+          let errDetail = '';
+          try {
+            const errJson = await resp.json();
+            errDetail = (errJson && (errJson.detail || errJson.message || errJson.answer)) || '';
+          } catch (e) {}
+          messages.value.push({
+            role: 'assistant',
+            content: errDetail ? `⚠️ 请求未能成功返回: ${errDetail}` : '⚠️ 请求未能成功返回，请稍后再试。',
+            time: new Date().toLocaleTimeString(),
+            model: 'error'
+          });
+        }
+      } catch (err) {
+        messages.value.push({
+          role: 'assistant',
+          content: '⚠️ 对话请求发生异常: ' + (err.message || '网络连接或服务端超时'),
+          time: new Date().toLocaleTimeString(),
+          model: 'error'
+        });
+      } finally {
+        chatLoading.value = false;
+        Vue.nextTick(() => {
+          try {
+            const listEls = document.querySelectorAll('.copilot-chat-feed');
+            listEls.forEach(el => { el.scrollTop = el.scrollHeight; });
+          } catch (e) {}
+        });
+      }
+    }
+
+    function clearChat() {
+      messages.value = [
+        {
+          role: 'assistant',
+          content: '👋 对话已清空。请直接在下方输入您的问题，我将为您提供只读安全的专业分析与诊断。',
+          time: new Date().toLocaleTimeString(),
+          model: '只读安全',
+          provider_name: 'Copilot'
+        }
+      ];
+    }
+
+    function executeActionCard(card) {
+      if (!card) return;
+      if (card.card_type === 'SQL_SUGGESTION' && card.sql) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(card.sql).then(() => {
+            if (window.ElementPlus && window.ElementPlus.ElMessage) {
+              window.ElementPlus.ElMessage.success('只读 SQL 已成功复制到剪贴板！');
+            }
+          }).catch(() => {});
+        } else {
+          const ta = document.createElement('textarea');
+          ta.value = card.sql;
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+          if (window.ElementPlus && window.ElementPlus.ElMessage) {
+            window.ElementPlus.ElMessage.success('只读 SQL 已成功复制到剪贴板！');
+          }
+        }
+        return;
+      }
+      if (card.card_type === 'NAVIGATE_EDITOR' && card.sql) {
+        if (editorBridge && editorBridge.previewReplacement) {
+          editorBridge.previewReplacement({ sql: card.sql });
+        }
+        if (navigate) {
+          navigate('audit-sql');
+        }
+        if (drawerVisible.value) {
+          closeDrawer();
+        }
+        if (window.ElementPlus && window.ElementPlus.ElMessage) {
+          window.ElementPlus.ElMessage.success('已将诊断 SQL 送入 SQL 审核编辑器');
+        }
+        return;
+      }
+      if (card.card_type === 'NAVIGATE' && card.target_page) {
+        if (navigate) {
+          navigate(card.target_page);
+        }
+        if (drawerVisible.value) {
+          closeDrawer();
+        }
+      }
+    }
+
     return {
       drawerVisible, fullPageVisible, capabilities, sessions, sessionsLoading,
       currentSessionId, currentSession, turns, turnsLoading, question,
@@ -647,6 +804,8 @@
       errorMsg, scene, sceneOptions, selectedConnectionId, connections,
       sourceRefs, draftText, expanded, turnResult, resultVisible,
       copilotEnabled, copilotMode,
+      // 对话流专用导出
+      chatActiveTab, chatInput, chatLoading, messages, sendChat, clearChat, executeActionCard,
       openDrawer, closeDrawer, toggleExpand, loadCapabilities, loadSessions,
       createSession, selectSession, buildPreview, submitTurn,
       recoverSubmission, cancelTurn, sendFeedback, viewResult, exportTurnHtml,

@@ -526,7 +526,7 @@ class ProviderCapabilities(BaseModel):
     context_tokens: int = Field(..., ge=1024, le=10_000_000)
     supports_json_schema: bool = False
     supports_json_object: bool = False
-    max_output_field: str = Field(..., pattern="^(max_tokens|max_completion_tokens)$")
+    max_output_field: str = Field("max_tokens", pattern="^(max_tokens|max_completion_tokens)$")
     supports_temperature: bool = False
     supports_store_false: bool = False
 
@@ -538,10 +538,15 @@ class ProviderCreateRequest(BaseModel):
     endpoint_id: str = Field(..., max_length=64)
     protocol: str = Field("OPENAI_COMPAT_CHAT", pattern="^OPENAI_COMPAT_CHAT$")
     model_id: str = Field(..., min_length=1, max_length=128)
-    auth_mode: str = Field(..., pattern="^(BEARER|NETWORK_IDENTITY)$")
+    auth_mode: str = Field(..., pattern="^(BEARER|BEARER_KEY|NETWORK_IDENTITY)$")
     capabilities: ProviderCapabilities
     secret_action: str = Field("KEEP", pattern="^(KEEP|REPLACE|CLEAR)$")
     secret: Optional[str] = Field(None, max_length=512)
+
+    @field_validator("auth_mode")
+    @classmethod
+    def _normalize_auth_mode(cls, v: str) -> str:
+        return "BEARER" if v == "BEARER_KEY" else v
 
 
 class ProviderUpdateRequest(BaseModel):
@@ -551,10 +556,17 @@ class ProviderUpdateRequest(BaseModel):
     name: Optional[str] = Field(None, max_length=128)
     endpoint_id: Optional[str] = Field(None, max_length=64)
     model_id: Optional[str] = Field(None, max_length=128)
-    auth_mode: Optional[str] = Field(None, pattern="^(BEARER|NETWORK_IDENTITY)$")
+    auth_mode: Optional[str] = Field(None, pattern="^(BEARER|BEARER_KEY|NETWORK_IDENTITY)$")
     capabilities: Optional[ProviderCapabilities] = None
     secret_action: str = Field("KEEP", pattern="^(KEEP|REPLACE|CLEAR)$")
     secret: Optional[str] = Field(None, max_length=512)
+
+    @field_validator("auth_mode")
+    @classmethod
+    def _normalize_auth_mode_update(cls, v: Optional[str]) -> Optional[str]:
+        if v == "BEARER_KEY":
+            return "BEARER"
+        return v
 
 
 class ProviderEnabledRequest(BaseModel):
@@ -576,9 +588,11 @@ class RoutePutRequest(BaseModel):
 class GrantPutRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    username: str = Field(..., min_length=1, max_length=128)
-    connection_id: str = Field(..., min_length=1, max_length=128)
-    intent: str = Field(..., pattern="^(REQUEST|REVOKE)$")
+    username: Optional[str] = Field("", max_length=128)
+    connection_id: Optional[str] = Field("", max_length=128)
+    usernames: list[str] = Field(default_factory=list)
+    connection_ids: list[str] = Field(default_factory=list)
+    intent: str = Field("GRANT", pattern="^(REQUEST|REVOKE|GRANT|DELETE|RESTORE)$")
     approval_ref: str = Field("", max_length=128)
     allow_schema_identifiers: bool = False
     identifier_approval_ref: Optional[str] = Field(None, max_length=128)
@@ -591,6 +605,37 @@ class GrantApproveRequest(BaseModel):
     subject_id: str = Field(..., min_length=32, max_length=32)
     connection_id: str = Field(..., min_length=1, max_length=128)
     expected_revision: int = Field(..., ge=1)
+
+
+class GrantBatchApproveItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    subject_id: str = Field(..., min_length=32, max_length=32)
+    connection_id: str = Field(..., min_length=1, max_length=128)
+    expected_revision: int = Field(..., ge=1)
+
+
+class GrantBatchApproveRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    grants: list[GrantBatchApproveItem] = Field(..., min_length=1)
+
+
+class GrantActionItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    subject_id: Optional[str] = Field(None, min_length=32, max_length=32)
+    connection_id: Optional[str] = Field(None, min_length=1, max_length=128)
+    username: Optional[str] = Field(None, max_length=128)
+
+
+class GrantBatchActionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    grants: list[GrantActionItem] = Field(default_factory=list)
+    usernames: list[str] = Field(default_factory=list)
+    connection_ids: list[str] = Field(default_factory=list)
+    clear_revoked_only: bool = False
 
 
 class SettingsPutRequest(BaseModel):

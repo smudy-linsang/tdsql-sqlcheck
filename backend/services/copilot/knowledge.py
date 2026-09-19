@@ -46,8 +46,8 @@ STATUS_STALE = "STALE"
 STATUS_INVALID = "INVALID"
 STATUS_MISSING = "MISSING"
 
-_RULE_ID_RE = re.compile(r"\bR\d{3}\b")
-_ERROR_CODE_RE = re.compile(r"\b[A-Z][A-Z0-9_]{3,40}\b")
+_RULE_ID_RE = re.compile(r"(?<![A-Za-z0-9])R\d{3}(?![A-Za-z0-9])")
+_ERROR_CODE_RE = re.compile(r"(?<![A-Za-z0-9])[A-Z][A-Z0-9_]{3,40}(?![A-Za-z0-9])")
 _EN_WORD_RE = re.compile(r"[a-z0-9_]{2,}")
 
 

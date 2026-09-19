@@ -1,0 +1,47 @@
+{
+  "results": {
+    "login_page": "PASS",
+    "dashboard": "PASS",
+    "instant_audit": "PASS",
+    "context_bridge_draft_cleanliness": "PASS",
+    "context_bridge": "PASS",
+    "file_audit": "PASS",
+    "metadata_audit": "PASS",
+    "slow_and_explain": "PASS",
+    "instance_health": "PASS",
+    "deep_diag": "PASS",
+    "instances_and_rules": "PASS",
+    "copilot_page_positioning": "PASS",
+    "copilot_admin_positioning": "PASS",
+    "ai_config_tabs": "PASS",
+    "user_management": "PASS",
+    "multi_turn_chat": "PASS"
+  },
+  "ui_measurements": {
+    "copilot_page": {
+      "y": 87,
+      "x": 256,
+      "height": 338.671875,
+      "width": 1648,
+      "window_scrollY": 0,
+      "content_scrollTop": 0,
+      "is_properly_positioned": true
+    },
+    "copilot_admin": {
+      "y": 87,
+      "x": 256,
+      "height": 425.34375,
+      "width": 1648,
+      "window_scrollY": 0,
+      "content_scrollTop": 0,
+      "is_properly_positioned": true
+    },
+    "layout_audit": {
+      "window_width": 1920,
+      "window_height": 1080,
+      "has_horizontal_scrollbar": false,
+      "content_area_exists": true,
+      "page_content_exists": true
+    }
+  }
+}

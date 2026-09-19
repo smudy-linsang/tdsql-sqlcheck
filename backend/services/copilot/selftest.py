@@ -56,7 +56,13 @@ def admit_self_test(conn, identity, provider: dict,
 
     existing = TurnRepo.find_idempotent(conn, identity.subject_id, idem_key)
     if existing is not None:
-        return {"id": existing["id"], "reused": True}
+        if existing.get("state") in ("FAILED", "CANCELLED"):
+            conn.execute("DELETE FROM copilot_provider_attempts WHERE turn_id = ?", (existing["id"],))
+            conn.execute("DELETE FROM copilot_turns WHERE id = ?", (existing["id"],))
+            conn.execute("DELETE FROM copilot_previews WHERE id = ?", (existing["preview_id"],))
+            conn.commit()
+        else:
+            return {"id": existing["id"], "reused": True}
 
     # 构造自检专用的 route_snapshot：只含待测 provider，无 fallback
     route_snap = {

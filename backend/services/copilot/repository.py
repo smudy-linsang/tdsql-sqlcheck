@@ -313,18 +313,25 @@ class GrantRepo:
             (subject_id, connection_id)).fetchone())
 
     @staticmethod
-    def list_page(conn, limit: int = 20, offset: int = 0,
-                  connection_id: str = "") -> list[dict]:
+    def list_page(conn, limit: int = 50, offset: int = 0,
+                  connection_id: str = "", state: str = "") -> list[dict]:
+        conditions = []
+        params = []
         if connection_id:
-            rows = conn.execute(
-                "SELECT * FROM copilot_instance_grants WHERE connection_id = ? "
-                "ORDER BY updated_at DESC, subject_id LIMIT ? OFFSET ?",
-                (connection_id, limit, offset)).fetchall()
-        else:
-            rows = conn.execute(
-                "SELECT * FROM copilot_instance_grants "
-                "ORDER BY updated_at DESC, subject_id LIMIT ? OFFSET ?",
-                (limit, offset)).fetchall()
+            conditions.append("connection_id = ?")
+            params.append(connection_id)
+        if state:
+            s = state.upper()
+            if s in ("APPROVED", "REVOKED", "PENDING"):
+                conditions.append("approval_state = ?")
+                params.append(s)
+            elif s == "ACTIVE":
+                conditions.append("enabled = 1 AND approval_state = 'APPROVED'")
+        where_clause = (" WHERE " + " AND ".join(conditions)) if conditions else ""
+        sql = (f"SELECT * FROM copilot_instance_grants{where_clause} "
+               f"ORDER BY updated_at DESC, subject_id LIMIT ? OFFSET ?")
+        params.extend([limit, offset])
+        rows = conn.execute(sql, tuple(params)).fetchall()
         return [dict(r) for r in rows]
 
     @staticmethod
@@ -333,6 +340,29 @@ class GrantRepo:
             "SELECT connection_id, enabled, approval_state, allow_schema_identifiers "
             "FROM copilot_instance_grants WHERE subject_id = ?", (subject_id,)).fetchall()
         return [dict(r) for r in rows]
+
+    @staticmethod
+    def direct_grant(conn, subject_id: str, connection_id: str, username: str,
+                     admin_username: str, admin_subject_id: str, approval_ref: str,
+                     allow_schema_identifiers: bool,
+                     identifier_approval_ref: Optional[str]) -> None:
+        """管理员直接分配授权：直接写 APPROVED、enabled=1，实时生效。"""
+        conn.execute(
+            "INSERT INTO copilot_instance_grants (subject_id, connection_id, username, "
+            "enabled, approved_by, approval_ref, revision, updated_at, "
+            "allow_schema_identifiers, identifier_approval_ref, approval_state, "
+            "requested_by_subject_id, approved_by_subject_id, requested_at, approved_at) "
+            "VALUES (?,?,?,1,?,?,1,UTC_TIMESTAMP(6),?,?,'APPROVED',?,?,UTC_TIMESTAMP(6),UTC_TIMESTAMP(6)) "
+            "ON DUPLICATE KEY UPDATE enabled = 1, approval_ref = VALUES(approval_ref), "
+            "allow_schema_identifiers = VALUES(allow_schema_identifiers), "
+            "identifier_approval_ref = VALUES(identifier_approval_ref), "
+            "approval_state = 'APPROVED', approved_by = VALUES(approved_by), "
+            "approved_by_subject_id = VALUES(approved_by_subject_id), "
+            "approved_at = UTC_TIMESTAMP(6), revision = revision + 1, "
+            "updated_at = UTC_TIMESTAMP(6)",
+            (subject_id, connection_id, username, admin_username, approval_ref,
+             1 if allow_schema_identifiers else 0, identifier_approval_ref,
+             admin_subject_id, admin_subject_id))
 
     @staticmethod
     def upsert_request(conn, subject_id: str, connection_id: str, username: str,
@@ -374,8 +404,20 @@ class GrantRepo:
         return cur.rowcount == 1
 
     @staticmethod
+    def restore(conn, subject_id: str, connection_id: str, approver_username: str,
+                approver_subject_id: str) -> bool:
+        """管理员恢复授权：直接重置为 APPROVED、enabled=1。"""
+        cur = conn.execute(
+            "UPDATE copilot_instance_grants SET approval_state = 'APPROVED', enabled = 1, "
+            "approved_by = ?, approved_by_subject_id = ?, approved_at = UTC_TIMESTAMP(6), "
+            "revision = revision + 1, updated_at = UTC_TIMESTAMP(6) "
+            "WHERE subject_id = ? AND connection_id = ?",
+            (approver_username, approver_subject_id, subject_id, connection_id))
+        return cur.rowcount > 0
+
+    @staticmethod
     def revoke(conn, subject_id: str, connection_id: str) -> bool:
-        """任一有权管理员可立即撤销（不等双签）。"""
+        """任一有权管理员可立即撤销（置为 REVOKED、enabled=0）。"""
         cur = conn.execute(
             "UPDATE copilot_instance_grants SET approval_state = 'REVOKED', enabled = 0, "
             "allow_schema_identifiers = 0, revision = revision + 1, "
@@ -383,6 +425,34 @@ class GrantRepo:
             "WHERE subject_id = ? AND connection_id = ? AND approval_state != 'REVOKED'",
             (subject_id, connection_id))
         return cur.rowcount == 1
+
+    @staticmethod
+    def delete(conn, subject_id: str, connection_id: str) -> bool:
+        """物理删除单条授权记录。"""
+        cur = conn.execute(
+            "DELETE FROM copilot_instance_grants WHERE subject_id = ? AND connection_id = ?",
+            (subject_id, connection_id))
+        return cur.rowcount > 0
+
+    @staticmethod
+    def delete_batch(conn, pairs: list[tuple[str, str]]) -> int:
+        """批量物理删除授权记录。"""
+        if not pairs:
+            return 0
+        deleted = 0
+        for sid, cid in pairs:
+            cur = conn.execute(
+                "DELETE FROM copilot_instance_grants WHERE subject_id = ? AND connection_id = ?",
+                (sid, cid))
+            deleted += cur.rowcount
+        return deleted
+
+    @staticmethod
+    def clear_revoked(conn) -> int:
+        """一键物理清空所有已撤销或停用的授权记录。"""
+        cur = conn.execute(
+            "DELETE FROM copilot_instance_grants WHERE approval_state = 'REVOKED' OR enabled = 0")
+        return cur.rowcount
 
 
 # ══════════════════════════════════════════════════════════════════
