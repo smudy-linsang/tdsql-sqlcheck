@@ -57,28 +57,48 @@ class CopilotPerceptionEngine:
         return "USAGE_HELP"
 
     @classmethod
-    def gather_context(cls, conn, query: str, connection_id: Optional[str] = None) -> list[str]:
+    def gather_context(cls, conn, query: str, connection_id: Optional[str] = None, identity: Optional[Any] = None) -> list[str]:
         ctx_parts: list[str] = []
         q_lower = query.lower()
 
-        # 1. 目标实例识别
+        # 1. 目标实例识别与权限过滤 (B-01a)
         saved_conns = []
         target_conn = None
         try:
             saved_conns = registry.list_saved()
-            if connection_id:
-                target_conn = next((c for c in saved_conns if c.get("id") == connection_id), None)
-                if target_conn:
-                    ctx_parts.append(
-                        f"【当前会话选定的目标实例】：{target_conn.get('name')} "
-                        f"(ID: {target_conn.get('id')}, 地址: {target_conn.get('host')}:{target_conn.get('port')}, "
-                        f"架构类型: {'分布式实例' if target_conn.get('is_distributed') else '集中式实例'}, "
-                        f"默认库: {target_conn.get('database') or '无'})"
-                    )
         except Exception as e:
             logger.debug("目标实例识别异常: %s", e)
 
-        target_id = target_conn.get("id") if target_conn else connection_id
+        # 严格权限过滤：非管理员必须按已获批准授权过滤，绝不枚举未授权实例 (B-01a)
+        is_admin = bool(identity and getattr(identity, "role", "") in ("admin", "copilot_admin"))
+        has_grant_filter = bool(identity and not is_admin)
+        if has_grant_filter:
+            try:
+                from backend.services.copilot.repository import GrantRepo
+                user_grants = GrantRepo.list_for_subject(conn, identity.subject_id)
+                allowed_cids = {
+                    g["connection_id"] for g in user_grants
+                    if g.get("approval_state") == "APPROVED" and g.get("enabled")
+                }
+                saved_conns = [c for c in saved_conns if c.get("id") in allowed_cids]
+            except Exception as ge:
+                logger.warning("用户实例授权过滤异常: %s", ge)
+                saved_conns = []
+
+        if connection_id:
+            target_conn = next((c for c in saved_conns if c.get("id") == connection_id), None)
+            if target_conn:
+                ctx_parts.append(
+                    f"【当前会话选定的目标实例】：{target_conn.get('name')} "
+                    f"(ID: {target_conn.get('id')}, 地址: {target_conn.get('host')}:{target_conn.get('port')}, "
+                    f"架构类型: {'分布式实例' if target_conn.get('is_distributed') else '集中式实例'}, "
+                    f"默认库: {target_conn.get('database') or '无'})"
+                )
+            elif has_grant_filter:
+                ctx_parts.append(f"【实例访问受限】：您尚未获得实例 (ID: {connection_id}) 的 Copilot 访问授权。")
+                return ctx_parts
+
+        target_id = target_conn.get("id") if target_conn else (connection_id if is_admin else None)
 
         # 2. 判断是否为全局综合健康概况咨询
         is_general_health = any(k in q_lower for k in [
@@ -93,11 +113,15 @@ class CopilotPerceptionEngine:
             "所有库", "纳管", "资产", "清单", "多少个", "多少库", "多少实例",
             "实例连接", "有哪些库", "有哪些实例", "拓扑", "连接"
         ]):
-            cls._perceive_connections(ctx_parts, saved_conns)
+            cls._perceive_connections(ctx_parts, saved_conns, has_grant_filter)
 
         # 模块 2: 审核规则库与规则集
         if any(k in q_lower for k in ["规则", "规范", "rule", "解读", "dml", "ddl", "治理规范", "规则集"]):
             cls._perceive_rules(conn, ctx_parts, query, q_lower)
+
+        can_perceive_instances = (target_id is not None) or is_admin or (has_grant_filter and len(saved_conns) > 0)
+        if not can_perceive_instances:
+            return ctx_parts
 
         # 模块 3: SQL 审核历史记录
         if is_general_health or any(k in q_lower for k in [
@@ -160,9 +184,17 @@ class CopilotPerceptionEngine:
     # ─────────────────────────────────────────────────────────────
 
     @classmethod
-    def _perceive_connections(cls, ctx_parts: list[str], saved_conns: list[dict]) -> None:
+    def _perceive_connections(cls, ctx_parts: list[str], saved_conns: list[dict], has_grant_filter: bool = False) -> None:
         try:
-            ctx_parts.append(f"【系统纳管数据库实例全景（当前共配置纳管了 {len(saved_conns)} 个实例配置）】:")
+            if not saved_conns:
+                if has_grant_filter:
+                    ctx_parts.append("【纳管实例访问受限】：您当前尚未获得任何数据库实例的 Copilot 访问授权，无法查看系统纳管实例清单。如需查询特定数据库，请联系管理员为您授予相关实例访问权限。")
+                else:
+                    ctx_parts.append("【系统纳管数据库实例全景】：当前系统暂无纳管的数据库实例配置。")
+                return
+
+            prefix = "【当前用户已获授权纳管实例清单" if has_grant_filter else "【系统纳管数据库实例全景"
+            ctx_parts.append(f"{prefix}（当前共 {len(saved_conns)} 个实例）】:")
             for idx, c in enumerate(saved_conns, 1):
                 ctx_parts.append(
                     f"{idx}. 实例名: {c.get('name')} | ID: {c.get('id')} | "

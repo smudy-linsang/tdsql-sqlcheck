@@ -717,7 +717,8 @@
             role: 'assistant',
             content: errDetail ? `⚠️ 请求未能成功返回: ${errDetail}` : '⚠️ 请求未能成功返回，请稍后再试。',
             time: new Date().toLocaleTimeString(),
-            model: 'error'
+            model: 'error',
+            is_error: true
           });
         }
       } catch (err) {
@@ -725,7 +726,8 @@
           role: 'assistant',
           content: '⚠️ 对话请求发生异常: ' + (err.message || '网络连接或服务端超时'),
           time: new Date().toLocaleTimeString(),
-          model: 'error'
+          model: 'error',
+          is_error: true
         });
       } finally {
         chatLoading.value = false;

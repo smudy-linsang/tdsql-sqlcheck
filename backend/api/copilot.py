@@ -9,6 +9,7 @@ capabilities/help 可读（200），其余 503 COPILOT_SCHEMA_UNAVAILABLE。
 """
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import logging
@@ -20,6 +21,8 @@ from typing import Optional
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
+
+from backend import config
 
 from backend.models.copilot import (
     ActionResolveRequest, FeedbackRequest, PreviewRequest, SessionCreateRequest,
@@ -52,6 +55,31 @@ MAX_PREVIEWS_PER_USER = 3
 RATE_LIMIT_PREVIEW_PER_MIN = 10
 RATE_LIMIT_SESSION_PER_MIN = 30
 RATE_LIMIT_TURN_PER_MIN = 10
+RATE_LIMIT_CHAT_PER_MIN = 20
+
+# M-03b: /chat 并发信号量（保护服务器连接池与容量）及滑动窗口限流
+_CHAT_SEMAPHORE = asyncio.Semaphore(int(os.getenv("COPILOT_CHAT_CONCURRENCY", "4")))
+_CHAT_RATE_LIMITS: dict[str, list[float]] = {}
+_CHAT_RATE_LIMIT_LOCK = asyncio.Lock()
+
+
+async def _check_chat_rate_limit(user_key: str, max_per_min: int = RATE_LIMIT_CHAT_PER_MIN) -> bool:
+    now = time.time()
+    cutoff = now - 60.0
+    async with _CHAT_RATE_LIMIT_LOCK:
+        times = _CHAT_RATE_LIMITS.setdefault(user_key, [])
+        valid_times = [t for t in times if t > cutoff]
+        if len(valid_times) >= max_per_min:
+            _CHAT_RATE_LIMITS[user_key] = valid_times
+            return False
+        valid_times.append(now)
+        _CHAT_RATE_LIMITS[user_key] = valid_times
+        if len(_CHAT_RATE_LIMITS) > 1000:
+            for k in list(_CHAT_RATE_LIMITS.keys()):
+                _CHAT_RATE_LIMITS[k] = [t for t in _CHAT_RATE_LIMITS[k] if t > cutoff]
+                if not _CHAT_RATE_LIMITS[k]:
+                    _CHAT_RATE_LIMITS.pop(k, None)
+        return True
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -1137,6 +1165,7 @@ async def copilot_chat(request: Request, body: Optional[CopilotChatRequest] = No
     query = (body.query or "").strip()
     if not query:
         return {"ok": False, "answer": "请输入您的问题。", "model": "none"}
+    q_lower = query.lower()
 
     # 1. 身份解析（B-01 治理门禁）
     identity = None
@@ -1151,6 +1180,11 @@ async def copilot_chat(request: Request, body: Optional[CopilotChatRequest] = No
             return JSONResponse(status_code=401,
                                 content=error_payload("AUTH_REQUIRED", uuid.uuid4().hex, "身份验证失败，请重新登录"))
 
+    # 限流防护 (M-03b)
+    user_key = identity.subject_id if identity else (request.client.host if request.client else "unknown")
+    if not await _check_chat_rate_limit(user_key):
+        return JSONResponse(status_code=429, content=error_payload("RATE_LIMITED", uuid.uuid4().hex, "对话请求过于频繁，请稍后再试"))
+
     from backend.services.copilot import crypto as crypto_mod
     from backend.services.copilot.policy import load_policy
     from backend.services.copilot.repository import ProviderRepo, AuditRepo, GrantRepo
@@ -1164,6 +1198,7 @@ async def copilot_chat(request: Request, body: Optional[CopilotChatRequest] = No
     conn = _get_connection()
     try:
         ensure_db()
+        grant = None
         # 2. 实例授权检查（若指定了 connection_id）
         if body.connection_id and identity:
             grant = GrantRepo.get_enabled(conn, identity.subject_id, body.connection_id)
@@ -1173,7 +1208,7 @@ async def copilot_chat(request: Request, body: Optional[CopilotChatRequest] = No
                     content=error_payload("INSTANCE_NOT_GRANTED", uuid.uuid4().hex, f"当前用户未获准访问该实例（{body.connection_id}）的 Copilot 资料")
                 )
 
-        ctx_parts = CopilotPerceptionEngine.gather_context(conn, query, body.connection_id)
+        ctx_parts = CopilotPerceptionEngine.gather_context(conn, query, body.connection_id, identity=identity)
 
         # 3. 尝试调用真实大模型（优先按“AI配置 -> 场景路由”精准匹配主模型/备模型）
         from backend.services.copilot.repository import RouteRepo
@@ -1206,6 +1241,10 @@ async def copilot_chat(request: Request, body: Optional[CopilotChatRequest] = No
                 crypto_revision=int(full_p.get('revision') or 1), keyring=keyring
             )
             policy = load_policy()
+            # B-01c: 出域策略闸与结构标识符判定
+            allow_ids = bool(grant.get("allow_schema_identifiers")) if grant else False
+            data_class = "INTERNAL_REDACTED" if body.connection_id else "PUBLIC_HELP"
+            policy.egress_check(full_p["endpoint_id"], data_class, identifiers=allow_ids)
             url = policy.build_url(full_p['endpoint_id'])
 
             messages = [{"role": "system", "content": COPILOT_CHAT_SYSTEM_PROMPT}]
@@ -1230,28 +1269,34 @@ async def copilot_chat(request: Request, body: Optional[CopilotChatRequest] = No
             copilot_timeout = float(os.getenv("COPILOT_CHAT_TIMEOUT", "3600"))
             t0 = time.time()
             try:
-                # 异步非阻塞调用，释放 asyncio 事件循环（B-02），trust_env=False 严禁代理逃逸
-                async with httpx.AsyncClient(trust_env=False, follow_redirects=False,
-                                             timeout=httpx.Timeout(copilot_timeout)) as client:
-                    resp = await client.post(
-                        url,
-                        json=req_body,
-                        headers={
-                            "Content-Type": "application/json",
-                            "Authorization": f"Bearer {secret}"
-                        }
-                    )
-                    latency_ms = int((time.time() - t0) * 1000)
-                    if resp.status_code == 200:
-                        resp_data = resp.json()
-                        answer = resp_data['choices'][0]['message']['content']
-                        model_name = full_p["model_id"]
-                        provider_name = full_p.get("name")
-                    else:
-                        logger.warning("Copilot 模型响应非 200: %s %s", resp.status_code, resp.text[:200])
+                # 并发信号量保护容量 (M-03b) + 异步非阻塞调用释放事件循环 (B-02)
+                async with _CHAT_SEMAPHORE:
+                    async with httpx.AsyncClient(trust_env=False, follow_redirects=False,
+                                                 timeout=httpx.Timeout(copilot_timeout)) as client:
+                        resp = await client.post(
+                            url,
+                            json=req_body,
+                            headers={
+                                "Content-Type": "application/json",
+                                "Authorization": f"Bearer {secret}"
+                            }
+                        )
+                        latency_ms = int((time.time() - t0) * 1000)
+                        if resp.status_code == 200:
+                            resp_data = resp.json()
+                            answer = resp_data['choices'][0]['message']['content']
+                            model_name = full_p["model_id"]
+                            provider_name = full_p.get("name")
+                        else:
+                            logger.warning("Copilot 模型响应非 200: %s %s", resp.status_code, resp.text[:200])
             except Exception as e:
                 logger.warning("Copilot 模型异步调用异常，使用本地降级: %s", e)
+    except CopilotError:
+        raise
     except Exception as e:
+        if schema_mod.is_structural_error(e):
+            schema_mod.fail_open_to_unavailable(e)
+            raise CopilotError("COPILOT_SCHEMA_UNAVAILABLE") from e
         logger.warning("Copilot 处理异常: %s", e)
     finally:
         conn.close()

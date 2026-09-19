@@ -93,13 +93,29 @@ def fail_open_to_unavailable(exc: BaseException) -> None:
 def guard_structural(fn):
     """API 端点守卫：捕获 B 组结构类异常 → 置 UNAVAILABLE + 转 503。
 
-    其余异常原样上抛（保持原错误合同）。仅用于读写 B 组的 Copilot 端点。
+    其余异常原样上抛（保持原错误合同）。支持同步 def 与异步 async def 端点。
     """
+    import inspect
     from functools import wraps
+    from backend.services.copilot.errors import CopilotError
+
+    if inspect.iscoroutinefunction(fn):
+        @wraps(fn)
+        async def awrapper(*args, **kwargs):
+            try:
+                return await fn(*args, **kwargs)
+            except CopilotError:
+                raise
+            except Exception as e:
+                if is_structural_error(e):
+                    fail_open_to_unavailable(e)
+                    raise CopilotError("COPILOT_SCHEMA_UNAVAILABLE") from e
+                raise
+
+        return awrapper
 
     @wraps(fn)
     def wrapper(*args, **kwargs):
-        from backend.services.copilot.errors import CopilotError
         try:
             return fn(*args, **kwargs)
         except CopilotError:

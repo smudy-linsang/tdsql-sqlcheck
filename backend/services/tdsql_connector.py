@@ -1564,7 +1564,7 @@ class TDSQLConnector:
                     meta.shard_key = raw_key.strip('`"\'')
 
             # 方法3: 检查是否是广播表（TDSQL BROADCAST 表）
-            if "BROADCAST" in create_sql_upper:
+            if "BROADCAST" in create_sql:
                 meta.is_broadcast_table = True
 
             # 方法4: 尝试查询 TDSQL 特有的分片元数据

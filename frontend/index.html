@@ -2646,10 +2646,15 @@
                 <!-- 消息元信息 -->
                 <div class="copilot-msg-meta">
                   <span>{{ msg.time }}</span>
-                  <span v-if="msg.role === 'assistant' && msg.model" style="display:flex;align-items:center;gap:4px">
+                  <span v-if="msg.role === 'assistant' && msg.model && !msg.is_error && msg.model !== 'error'" style="display:flex;align-items:center;gap:4px">
                     <el-tag size="small" type="info" effect="plain" style="font-size:10px">{{ msg.model }}</el-tag>
                     <span v-if="msg.latency_ms" style="font-size:10px">{{ msg.latency_ms }}ms</span>
-                    <el-tag size="small" type="success" effect="plain" style="font-size:10px">🛡️ 只读保障</el-tag>
+                    <el-tag size="small" :type="msg.safety_status && msg.safety_status.is_read_only === false ? 'danger' : 'success'" effect="plain" style="font-size:10px">
+                      {{ msg.safety_status && msg.safety_status.is_read_only === false ? '⚠️ 包含写语句' : '🛡️ 只读建议' }}
+                    </el-tag>
+                  </span>
+                  <span v-else-if="msg.role === 'assistant' && (msg.is_error || msg.model === 'error')" style="display:flex;align-items:center;gap:4px">
+                    <el-tag size="small" type="danger" effect="plain" style="font-size:10px">❌ 请求异常</el-tag>
                   </span>
                 </div>
               </div>

@@ -625,7 +625,7 @@ class GrantPutRequest(BaseModel):
     connection_id: Optional[str] = Field("", max_length=128)
     usernames: list[str] = Field(default_factory=list)
     connection_ids: list[str] = Field(default_factory=list)
-    intent: str = Field("GRANT", pattern="^(REQUEST|REVOKE|GRANT|DELETE|RESTORE)$")
+    intent: str = Field(..., pattern="^(REQUEST|REVOKE|GRANT|DELETE|RESTORE)$")
     approval_ref: str = Field("", max_length=128)
     allow_schema_identifiers: bool = False
     identifier_approval_ref: Optional[str] = Field(None, max_length=128)

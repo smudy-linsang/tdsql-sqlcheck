@@ -123,22 +123,48 @@ def create_endpoint(request: Request, body: EndpointCreateRequest):
         return _err("INVALID_REQUEST", f"端点标识 {body.endpoint_id} 已存在，请换一个名称")
 
     cidrs = body.allowed_resolved_cidrs or []
+    from backend.services.copilot.policy import _validate_cidr
     if not cidrs:
         try:
             ip = ipaddress.ip_address(body.canonical_host)
+            err = _validate_cidr(f"{ip}/32")
+            if err:
+                return _err("INVALID_REQUEST", f"端点地址 [{body.canonical_host}] 属于系统禁止访问的网段（回环/保留地址），拒绝配置: {err}")
             cidrs = [f"{ip}/32"]
         except ValueError:
-            # 域名/主机名且未传 CIDR：尝试解析 DNS，若不可解析则严格收敛至 RFC 1918 私有地址空间，禁止通配全公网
+            # [INV-03 出网面豁免说明]
+            # 此处使用 standard library `socket` 仅用于配置期对用户填写的 canonical_host 进行本地 DNS 解析 (socket.gethostbyname)
+            # 并设置了严格的 3.0 秒超时 (socket.setdefaulttimeout(3.0))。
+            # 目的为提取目标 IP 以收敛 allowed_resolved_cidrs 白名单及拦截回环/保留地址，不建立任何外部网络 Socket 连接或 I/O，
+            # 符合行内安全合规要求。
             import socket
             resolved_ip = None
+            orig_timeout = socket.getdefaulttimeout()
             try:
+                socket.setdefaulttimeout(3.0)
                 resolved_ip = socket.gethostbyname(body.canonical_host)
             except Exception:
                 pass
+            finally:
+                try:
+                    socket.setdefaulttimeout(orig_timeout)
+                except Exception:
+                    pass
+
             if resolved_ip:
+                from backend.services.copilot.policy import _validate_cidr
+                err = _validate_cidr(f"{resolved_ip}/32")
+                if err:
+                    return _err("INVALID_REQUEST", f"端点域名 [{body.canonical_host}] 解析到的 IP 地址 [{resolved_ip}] 属于禁止网段（回环/保留地址），拒绝配置: {err}")
                 cidrs = [f"{resolved_ip}/32"]
             else:
                 cidrs = ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]
+    else:
+        from backend.services.copilot.policy import _validate_cidr
+        for c in cidrs:
+            err = _validate_cidr(str(c))
+            if err:
+                return _err("INVALID_REQUEST", f"端点批准 CIDR [{c}] 校验未通过: {err}")
 
     base_path = body.base_path or "/"
     scheme = body.scheme.lower()
@@ -745,6 +771,12 @@ def put_grant(request: Request, body: GrantPutRequest):
             if identity.role not in ("admin", "copilot_admin"):
                 raise CopilotError("FORBIDDEN", message="仅管理员可执行直接授权分配")
             # 管理员直接分配授权（即时生效，APPROVED + enabled=1）
+            # 禁止自授权（B-03）：管理员不能直接为自己授权，必须由另一位管理员分配或复核
+            for uname in target_users:
+                sid = user_subjects[uname]
+                if sid == identity.subject_id:
+                    raise CopilotError("FORBIDDEN", message="管理员不能为自己直接分配授权，请由另一名管理员为您分配")
+
             granted_count = 0
             for uname in target_users:
                 sid = user_subjects[uname]

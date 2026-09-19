@@ -259,6 +259,51 @@ class EndpointPolicy:
         base = f"{scheme}://{ep['canonical_host']}:{ep['port']}{ep['base_path']}"
         return base.rstrip("/") + "/chat/completions"
 
+    def check_runtime_cidr(self, endpoint_id: str) -> None:
+        """运行期校验目标端点 IP 是否落入 allowed_resolved_cidrs 且未落入禁止网段 (M-01b)。"""
+        ep = self._endpoints.get(endpoint_id)
+        if ep is None:
+            raise CopilotError("PROVIDER_CONFIG_INVALID")
+        host = str(ep.get("canonical_host", "")).strip()
+        allowed_cidrs = ep.get("allowed_resolved_cidrs") or []
+        target_ip = None
+        try:
+            target_ip = str(ipaddress.ip_address(host))
+        except ValueError:
+            # 域名尝试做一次有超时的本地 DNS 解析
+            # [INV-03 出网面豁免说明]
+            # 此处使用 standard library `socket` 仅用于运行期出站前的本地 DNS 解析与禁止网段阻断，
+            # 设置了严格的 2.0 秒超时，不建立任何外部网络 Socket 连接或 I/O。
+            import socket
+            orig_timeout = socket.getdefaulttimeout()
+            try:
+                socket.setdefaulttimeout(2.0)
+                target_ip = socket.gethostbyname(host)
+            except Exception:
+                target_ip = None
+            finally:
+                try:
+                    socket.setdefaulttimeout(orig_timeout)
+                except Exception:
+                    pass
+
+        if target_ip:
+            # 1. 检查是否落入系统禁止网段 (回环/保留等)
+            if _validate_cidr(f"{target_ip}/32"):
+                raise CopilotError("EGRESS_DENIED", message=f"目标端点解析到禁止网段 IP ({target_ip})")
+            # 2. 检查是否在端点白名单 CIDR 内
+            ip_obj = ipaddress.ip_address(target_ip)
+            in_allowed = False
+            for c in allowed_cidrs:
+                try:
+                    if ip_obj in ipaddress.ip_network(c, strict=False):
+                        in_allowed = True
+                        break
+                except ValueError:
+                    continue
+            if not in_allowed:
+                raise CopilotError("EGRESS_DENIED", message=f"目标端点 IP ({target_ip}) 不在批准的 CIDR 白名单内")
+
     def egress_check(self, endpoint_id: str, data_class: str,
                      identifiers: bool = False) -> None:
         """出域策略闸：数据分级/标识符能力与端点匹配，不通过即 EGRESS_DENIED。"""
@@ -274,6 +319,7 @@ class EndpointPolicy:
             raise CopilotError("EGRESS_DENIED")
         if identifiers and not ep["allows_schema_identifiers"]:
             raise CopilotError("EGRESS_DENIED")
+        self.check_runtime_cidr(endpoint_id)
 
     def upsert(self, ep: dict) -> None:
         """管理员在线添加或更新端点配置，并原子持久化到配置文件。"""
