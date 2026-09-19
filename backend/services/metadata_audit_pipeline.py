@@ -138,13 +138,27 @@ def _show_create(conn, target_db: str, obj: dict) -> str:
         raise MetadataExtractError(
             "EXTRACT_OBJECT_FAILED",
             f"对象 {target_db}.{name}（{kind}）DDL 为空（可能并发删表/无权）")
-    vals = list(row.values()) if isinstance(row, dict) else list(row)
     ddl = ""
-    for v in vals:
-        s = str(v or "").strip()
-        if "CREATE" in s.upper():
-            ddl = s
-            break
+    # 1. 若为字典游标，优先精准按 MySQL/TDSQL 标准列名提取，杜绝被包含 "create" 词根的表名截胡（如 seal_custcreateoperdetailx）
+    if isinstance(row, dict):
+        if kind == "VIEW":
+            ddl = row.get("Create View") or row.get("CREATE VIEW") or ""
+        else:
+            ddl = row.get("Create Table") or row.get("CREATE TABLE") or ""
+
+    # 2. 若为非字典游标（tuple/list）或列名大小写变异的兜底
+    if not ddl:
+        vals = list(row.values()) if isinstance(row, dict) else list(row)
+        # MySQL/TDSQL 协议第二列固定为 DDL 文本
+        if len(vals) > 1 and re.match(r"^\s*CREATE\s+", str(vals[1] or ""), re.IGNORECASE):
+            ddl = str(vals[1] or "").strip()
+        else:
+            # 兜底遍历：必须以 "CREATE " 开头，严禁使用模糊的 "CREATE" in s
+            for v in reversed(vals):
+                s = str(v or "").strip()
+                if re.match(r"^\s*CREATE\s+", s, re.IGNORECASE):
+                    ddl = s
+                    break
     if not ddl:
         raise MetadataExtractError(
             "EXTRACT_OBJECT_FAILED",
