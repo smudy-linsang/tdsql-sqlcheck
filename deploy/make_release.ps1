@@ -39,8 +39,11 @@ Copy-Item (Join-Path $ROOT "requirements.txt") (Join-Path $PKG_DIR "requirements
 # 复制部署脚本
 $DEPLOY_DIR = Join-Path $PKG_DIR "deploy"
 New-Item -ItemType Directory -Force -Path $DEPLOY_DIR | Out-Null
-Get-ChildItem -Path (Join-Path $ROOT "deploy") -Include "*.sh","*.service","env.template","nginx-sqlcheck.conf","README.md","*.env.example","*.sql","*.json" -Recurse | ForEach-Object {
+Get-ChildItem -Path (Join-Path $ROOT "deploy") -Include "*.sh","*.service","env.template","nginx-sqlcheck.conf","README.md","*.env.example","*.sql","*.json","CHECKSUM" -Recurse | ForEach-Object {
     Copy-Item $_.FullName (Join-Path $DEPLOY_DIR $_.Name) -Force
+}
+if (Test-Path (Join-Path $ROOT "deploy\init_copilot_tables.sql")) {
+    Copy-Item (Join-Path $ROOT "deploy\init_copilot_tables.sql") (Join-Path $PKG_DIR "init_copilot_tables.sql") -Force
 }
 
 # 复制文档 (全量复制 docs 目录下所有部署与操作指南)
