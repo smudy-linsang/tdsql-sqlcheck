@@ -130,11 +130,50 @@ if [[ -n "${PREV_TARGET}" && -f "${PREV_TARGET}/data/encryption.key" && ! -f "${
   log "已从历史版本同步 data/encryption.key 到新发布目录"
 fi
 
+# 同步与软链 copilot-endpoints.json
+mkdir -p "${INSTALL_DIR}/data"
+if [[ -n "${PREV_TARGET}" && -f "${PREV_TARGET}/data/copilot-endpoints.json" && ! -f "${INSTALL_DIR}/data/copilot-endpoints.json" ]]; then
+  cp "${PREV_TARGET}/data/copilot-endpoints.json" "${INSTALL_DIR}/data/copilot-endpoints.json"
+fi
+if [[ -f "${INSTALL_DIR}/data/copilot-endpoints.json" ]]; then
+  ln -sf "${INSTALL_DIR}/data/copilot-endpoints.json" "${RELEASE_DIR}/data/copilot-endpoints.json"
+fi
+
 # ── 6. 切换 current 软链 ────────────────────────────────────────────────
 log "步骤6: 切换 current -> releases/v${VERSION}"
 [[ -n "${PREV_TARGET}" ]] && echo "${PREV_TARGET}" > "${INSTALL_DIR}/.previous_release"
 ln -sfn "${RELEASE_DIR}" "${INSTALL_DIR}/current"
 chown -R "${RUN_USER}:${RUN_USER}" "${INSTALL_DIR}"
+
+# ── 6b. 执行 Copilot B组数据库表结构迁移与台账登记 ─────────────────────────
+log "步骤6b: 执行 Copilot B组业务表结构迁移与台账核验"
+MIG_OK=0
+if "${RELEASE_DIR}/venv/bin/python" -m backend.services.copilot.schema --apply >/dev/null 2>&1; then
+  MIG_OK=1
+  log "  Copilot B组表结构及台账初始化成功 (schema.py)"
+fi
+
+if [[ ${MIG_OK} -eq 0 ]]; then
+  warn "schema.py --apply 未能成功返回，自动触发稳健备用方案 (init_copilot_tables.sql 直接初始化)..."
+  DB_HOST=$(grep "^SQLCHECK_DB_HOST=" "${INSTALL_DIR}/.env" 2>/dev/null | cut -d= -f2- | tr -d '\r "' || echo "127.0.0.1")
+  DB_PORT=$(grep "^SQLCHECK_DB_PORT=" "${INSTALL_DIR}/.env" 2>/dev/null | cut -d= -f2- | tr -d '\r "' || echo "3306")
+  DB_USER=$(grep "^SQLCHECK_DB_USER=" "${INSTALL_DIR}/.env" 2>/dev/null | cut -d= -f2- | tr -d '\r "' || echo "sqlcheck_app")
+  DB_PASS=$(grep "^SQLCHECK_DB_PASSWORD=" "${INSTALL_DIR}/.env" 2>/dev/null | cut -d= -f2- | tr -d '\r "')
+  DB_NAME=$(grep "^SQLCHECK_DB_DATABASE=" "${INSTALL_DIR}/.env" 2>/dev/null | cut -d= -f2- | tr -d '\r "' || echo "tdsql_sqlcheck")
+  DB_HOST=${DB_HOST:-127.0.0.1}
+  DB_PORT=${DB_PORT:-3306}
+  DB_USER=${DB_USER:-sqlcheck_app}
+  DB_NAME=${DB_NAME:-tdsql_sqlcheck}
+
+  INIT_SQL="${RELEASE_DIR}/deploy/init_copilot_tables.sql"
+  if command -v mysql >/dev/null 2>&1 && [[ -f "${INIT_SQL}" ]]; then
+    MYSQL_PWD="${DB_PASS}" mysql -h "${DB_HOST}" -P "${DB_PORT}" -u "${DB_USER}" "${DB_NAME}" < "${INIT_SQL}" 2>/dev/null && {
+      log "  通过 init_copilot_tables.sql 成功补全 Copilot B组表及 schema_migrations 台账！"
+    } || warn "通过 mysql 命令执行 init_copilot_tables.sql 失败，请检查数据库权限或手工执行"
+  else
+    warn "未找到 mysql 客户端或 init_copilot_tables.sql，请在部署后手工执行 deploy/init_copilot_tables.sql"
+  fi
+fi
 
 # ── 7. systemd 服务（v1.6.3.5 / DU-2 / SIT-R2-01：先 runner 后 Web） ─────────────
 # 设计要求：先起 runner 并通过校验 → 再起 Web；runner 起不来 → 整个安装返回非零。
@@ -153,7 +192,7 @@ log "  metadata-runner 已启动并就绪"
 # v1.6.4.0 / CP-1：安装/启动 Copilot 执行器 runner（在 Web 之前；失败非零不阻断核心安装）
 log "步骤7a2: 安装并启动 Copilot 执行器 tdsql-copilot-runner.service"
 if [[ -f "${SCRIPT_DIR}/tdsql-copilot-runner.service" ]]; then
-    sed -e "s|/opt/tdsql-sqlcheck|${INSTALL_DIR}|g" -e "s|__USER__|${RUN_USER}|g" \
+    sed -e "s|__INSTALL_DIR__|${INSTALL_DIR}|g" -e "s|__USER__|${RUN_USER}|g" \
         "${SCRIPT_DIR}/tdsql-copilot-runner.service" > /etc/systemd/system/tdsql-copilot-runner.service
     systemctl daemon-reload
     systemctl enable tdsql-copilot-runner >/dev/null 2>&1

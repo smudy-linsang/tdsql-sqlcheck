@@ -166,7 +166,7 @@ def create_endpoint(request: Request, body: EndpointCreateRequest):
             if err:
                 return _err("INVALID_REQUEST", f"端点批准 CIDR [{c}] 校验未通过: {err}")
 
-    base_path = body.base_path or "/"
+    base_path = body.base_path or "/v1"
     scheme = body.scheme.lower()
 
     ep_data = {
@@ -235,7 +235,7 @@ def update_endpoint(request: Request, endpoint_id: str, body: EndpointUpdateRequ
     if body.port is not None:
         ep_data["port"] = body.port
     if body.base_path is not None:
-        ep_data["base_path"] = body.base_path or "/"
+        ep_data["base_path"] = body.base_path or "/v1"
     if body.data_zone is not None:
         ep_data["data_zone"] = body.data_zone
     if body.privacy_profile is not None:

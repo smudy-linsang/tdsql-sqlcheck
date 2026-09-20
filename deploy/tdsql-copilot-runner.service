@@ -2,16 +2,16 @@
 # ExecStart 固定为发布目录 venv Python 执行 -m backend.workers.copilot_runner；
 # 工作目录与 Web 同版；服务账户沿用部署账户，不用 root。
 [Unit]
-Description=TDSQL SQLCheck Copilot Runner (v1.6.4.0)
+Description=TDSQL SQLCheck Copilot Runner (v1.6.4.1)
 After=network.target mysql.service
 
 [Service]
 Type=simple
 User=__USER__
 Group=__USER__
-WorkingDirectory=/opt/tdsql-sqlcheck/current
-EnvironmentFile=/opt/tdsql-sqlcheck/.env
-ExecStart=/opt/tdsql-sqlcheck/current/venv/bin/python -m backend.workers.copilot_runner
+WorkingDirectory=__INSTALL_DIR__/current
+EnvironmentFile=__INSTALL_DIR__/.env
+ExecStart=__INSTALL_DIR__/current/venv/bin/python -m backend.workers.copilot_runner
 KillMode=control-group
 TimeoutStopSec=20
 Restart=on-failure

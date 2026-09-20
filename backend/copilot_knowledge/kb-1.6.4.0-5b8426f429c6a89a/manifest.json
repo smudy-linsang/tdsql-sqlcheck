@@ -2,7 +2,7 @@
   "schema_version": 1,
   "bundle_id": "kb-1.6.4.0-5b8426f429c6a89a",
   "app_min": "1.6.4.0",
-  "app_max": "1.6.4.0",
+  "app_max": "1.6.4.1",
   "product_families": [
     "TDSQL-MySQL"
   ],

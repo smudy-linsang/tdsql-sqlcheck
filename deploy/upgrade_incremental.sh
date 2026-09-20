@@ -69,9 +69,9 @@ else
   fail "在旧版本 ${CURRENT_LINK} 中未找到 venv 目录！"
 fi
 
-# 5. 延续 encryption.key 密钥与配置
-log "[3/6] 同步并校验加密密钥 (encryption.key)..."
-mkdir -p "${TARGET_RELEASE}/data"
+# 5. 延续 encryption.key 密钥与端点配置
+log "[3/6] 同步并校验加密密钥 (encryption.key) 与端点配置..."
+mkdir -p "${TARGET_RELEASE}/data" "${INSTALL_DIR}/data"
 if [[ -f "${CURRENT_LINK}/data/encryption.key" ]]; then
   cp "${CURRENT_LINK}/data/encryption.key" "${TARGET_RELEASE}/data/encryption.key"
   log "已从旧版本同步 data/encryption.key"
@@ -80,9 +80,51 @@ elif [[ -f "${INSTALL_DIR}/data/encryption.key" ]]; then
   log "已从 ${INSTALL_DIR}/data/encryption.key 继承密钥"
 fi
 
+# 同步与软链 copilot-endpoints.json（确保新旧版本及外部数据目录一致）
+if [[ -f "${CURRENT_LINK}/data/copilot-endpoints.json" && ! -f "${INSTALL_DIR}/data/copilot-endpoints.json" ]]; then
+  cp "${CURRENT_LINK}/data/copilot-endpoints.json" "${INSTALL_DIR}/data/copilot-endpoints.json"
+fi
+if [[ -f "${INSTALL_DIR}/data/copilot-endpoints.json" ]]; then
+  ln -sf "${INSTALL_DIR}/data/copilot-endpoints.json" "${TARGET_RELEASE}/data/copilot-endpoints.json"
+fi
+
 # 确保存量 .env 存在
 [[ -f "${INSTALL_DIR}/.env" ]] || fail "未找到 ${INSTALL_DIR}/.env 配置文件！"
 chmod 600 "${INSTALL_DIR}/.env"
+
+# 临时停止后台执行器（释放数据库连接池与命名锁，保障迁移与对账顺利执行）
+systemctl stop tdsql-copilot-runner >/dev/null 2>&1 || true
+systemctl stop tdsql-metadata-runner >/dev/null 2>&1 || true
+
+# 5b. 执行 Copilot B组数据库表结构迁移与台账登记（带稳健自动备用方案）
+log "[3b/6] 执行 Copilot B组业务表结构迁移与台账核验..."
+MIG_OK=0
+if "${TARGET_RELEASE}/venv/bin/python" -m backend.services.copilot.schema --apply >/dev/null 2>&1; then
+  MIG_OK=1
+  log "Copilot B组表结构及台账初始化成功 (schema.py)"
+fi
+
+if [[ ${MIG_OK} -eq 0 ]]; then
+  warn "schema.py --apply 未能成功返回，自动触发稳健备用方案 (init_copilot_tables.sql 直接初始化)..."
+  DB_HOST=$(grep "^SQLCHECK_DB_HOST=" "${INSTALL_DIR}/.env" 2>/dev/null | cut -d= -f2- | tr -d '\r "' || echo "127.0.0.1")
+  DB_PORT=$(grep "^SQLCHECK_DB_PORT=" "${INSTALL_DIR}/.env" 2>/dev/null | cut -d= -f2- | tr -d '\r "' || echo "3306")
+  DB_USER=$(grep "^SQLCHECK_DB_USER=" "${INSTALL_DIR}/.env" 2>/dev/null | cut -d= -f2- | tr -d '\r "' || echo "sqlcheck_app")
+  DB_PASS=$(grep "^SQLCHECK_DB_PASSWORD=" "${INSTALL_DIR}/.env" 2>/dev/null | cut -d= -f2- | tr -d '\r "')
+  DB_NAME=$(grep "^SQLCHECK_DB_DATABASE=" "${INSTALL_DIR}/.env" 2>/dev/null | cut -d= -f2- | tr -d '\r "' || echo "tdsql_sqlcheck")
+  DB_HOST=${DB_HOST:-127.0.0.1}
+  DB_PORT=${DB_PORT:-3306}
+  DB_USER=${DB_USER:-sqlcheck_app}
+  DB_NAME=${DB_NAME:-tdsql_sqlcheck}
+
+  INIT_SQL="${TARGET_RELEASE}/deploy/init_copilot_tables.sql"
+  if command -v mysql >/dev/null 2>&1 && [[ -f "${INIT_SQL}" ]]; then
+    MYSQL_PWD="${DB_PASS}" mysql -h "${DB_HOST}" -P "${DB_PORT}" -u "${DB_USER}" "${DB_NAME}" < "${INIT_SQL}" 2>/dev/null && {
+      log "通过 init_copilot_tables.sql 成功补全 Copilot B组表及 schema_migrations 台账！"
+    } || warn "通过 mysql 命令执行 init_copilot_tables.sql 失败，请检查数据库权限或手工执行"
+  else
+    warn "未找到 mysql 客户端或 init_copilot_tables.sql，请在部署后手工执行 deploy/init_copilot_tables.sql"
+  fi
+fi
 
 # 6. 原子切换 current 软链接
 log "[4/6] 切换 current 软链接 ➔ releases/v${VERSION}..."
@@ -118,7 +160,7 @@ if [[ -d /run/systemd/system ]]; then
   log "[5b/6] 安装/启动 Copilot 执行器 tdsql-copilot-runner..."
   COPILOT_UNIT_SRC="${TARGET_RELEASE}/deploy/tdsql-copilot-runner.service"
   if [[ -f "${COPILOT_UNIT_SRC}" ]]; then
-    sed -e "s|/opt/tdsql-sqlcheck|${INSTALL_DIR}|g" -e "s|__USER__|${RUN_USER}|g" \
+    sed -e "s|__INSTALL_DIR__|${INSTALL_DIR}|g" -e "s|__USER__|${RUN_USER}|g" \
         "${COPILOT_UNIT_SRC}" > /etc/systemd/system/tdsql-copilot-runner.service
     systemctl daemon-reload
     systemctl enable tdsql-copilot-runner >/dev/null 2>&1 || true
