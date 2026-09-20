@@ -589,6 +589,7 @@ class ProviderUpdateRequest(BaseModel):
     name: Optional[str] = Field(None, max_length=128)
     endpoint_id: Optional[str] = Field(None, max_length=64)
     model_id: Optional[str] = Field(None, max_length=128)
+    protocol: Optional[str] = Field(None, max_length=64)
     auth_mode: Optional[str] = Field(None, pattern="^(BEARER|BEARER_KEY|NETWORK_IDENTITY)$")
     capabilities: Optional[ProviderCapabilities] = None
     secret_action: str = Field("KEEP", pattern="^(KEEP|REPLACE|CLEAR)$")

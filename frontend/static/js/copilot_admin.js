@@ -159,6 +159,12 @@
     async function _readErr(resp) {
       try {
         var d = await resp.json();
+        if (d && Array.isArray(d.detail)) {
+          var msgs = d.detail.map(function(item) {
+            return (item.loc ? item.loc[item.loc.length - 1] + ': ' : '') + (item.msg || '');
+          });
+          return msgs.join('; ') || ('请求参数不合法（' + resp.status + '）');
+        }
         return (d && d.detail && (d.detail.message || d.detail.code)) ||
           (d && d.message) || ('请求失败（' + resp.status + '）');
       } catch (e) { return '请求失败（' + resp.status + '）'; }
@@ -436,6 +442,7 @@
         }
         var resp;
         if (providerForm.isEdit) {
+          delete body.protocol;
           body.expected_revision = providerForm.expected_revision;
           resp = await apiFetch('/api/v1/copilot-admin/providers/' + providerForm.id, {
             method: 'PUT', headers: { 'Content-Type': 'application/json' },

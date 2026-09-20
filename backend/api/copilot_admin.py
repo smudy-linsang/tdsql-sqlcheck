@@ -384,7 +384,12 @@ def create_provider(request: Request, body: ProviderCreateRequest):
         secret_envelope = None
         if body.secret_action == "REPLACE" and body.secret:
             from backend.services.copilot import crypto as crypto_mod
-            kr = crypto_mod.load_keyring()
+            from backend.services.copilot.crypto import CryptoUnavailableError
+            try:
+                kr = crypto_mod.load_keyring()
+            except CryptoUnavailableError as e:
+                raise CopilotError("COPILOT_CRYPTO_UNAVAILABLE",
+                                   message=f"密钥加密失败: {e}。请在服务器 .env 中配置 COPILOT_KEYRING_FILE，或将认证方式选为【免认证】")
             pid = new_id()
             secret_envelope = crypto_mod.encrypt(
                 body.secret, "copilot_providers", pid, "secret_envelope",
@@ -437,6 +442,7 @@ def update_provider(request: Request, provider_id: str,
             "name": body.name or existing["name"],
             "endpoint_id": body.endpoint_id or existing["endpoint_id"],
             "model_id": body.model_id or existing["model_id"],
+            "protocol": getattr(body, "protocol", None) or existing.get("protocol", "OPENAI_COMPAT_CHAT"),
             "auth_mode": body.auth_mode or existing["auth_mode"],
             "capabilities_json": json.dumps(
                 body.capabilities.model_dump(), ensure_ascii=False)
@@ -448,7 +454,12 @@ def update_provider(request: Request, provider_id: str,
             secret_envelope = None
         elif body.secret_action == "REPLACE" and body.secret:
             from backend.services.copilot import crypto as crypto_mod
-            kr = crypto_mod.load_keyring()
+            from backend.services.copilot.crypto import CryptoUnavailableError
+            try:
+                kr = crypto_mod.load_keyring()
+            except CryptoUnavailableError as e:
+                raise CopilotError("COPILOT_CRYPTO_UNAVAILABLE",
+                                   message=f"密钥加密失败: {e}。请在服务器 .env 中配置 COPILOT_KEYRING_FILE，或将认证方式选为【免认证】")
             secret_envelope = crypto_mod.encrypt(
                 body.secret, "copilot_providers", provider_id,
                 "secret_envelope", owner="SYSTEM", crypto_revision=new_revision,
