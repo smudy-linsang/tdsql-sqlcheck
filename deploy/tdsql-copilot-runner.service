@@ -7,8 +7,8 @@ After=network.target mysql.service
 
 [Service]
 Type=simple
-User=sqlcheck
-Group=sqlcheck
+User=__USER__
+Group=__USER__
 WorkingDirectory=/opt/tdsql-sqlcheck/current
 EnvironmentFile=/opt/tdsql-sqlcheck/.env
 ExecStart=/opt/tdsql-sqlcheck/current/venv/bin/python -m backend.workers.copilot_runner

@@ -118,7 +118,7 @@ if [[ -d /run/systemd/system ]]; then
   log "[5b/6] 安装/启动 Copilot 执行器 tdsql-copilot-runner..."
   COPILOT_UNIT_SRC="${TARGET_RELEASE}/deploy/tdsql-copilot-runner.service"
   if [[ -f "${COPILOT_UNIT_SRC}" ]]; then
-    sed -e "s|/opt/tdsql-sqlcheck|${INSTALL_DIR}|g" \
+    sed -e "s|/opt/tdsql-sqlcheck|${INSTALL_DIR}|g" -e "s|__USER__|${RUN_USER}|g" \
         "${COPILOT_UNIT_SRC}" > /etc/systemd/system/tdsql-copilot-runner.service
     systemctl daemon-reload
     systemctl enable tdsql-copilot-runner >/dev/null 2>&1 || true

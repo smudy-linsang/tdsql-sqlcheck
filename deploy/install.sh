@@ -153,7 +153,7 @@ log "  metadata-runner 已启动并就绪"
 # v1.6.4.0 / CP-1：安装/启动 Copilot 执行器 runner（在 Web 之前；失败非零不阻断核心安装）
 log "步骤7a2: 安装并启动 Copilot 执行器 tdsql-copilot-runner.service"
 if [[ -f "${SCRIPT_DIR}/tdsql-copilot-runner.service" ]]; then
-    sed -e "s|/opt/tdsql-sqlcheck|${INSTALL_DIR}|g" \
+    sed -e "s|/opt/tdsql-sqlcheck|${INSTALL_DIR}|g" -e "s|__USER__|${RUN_USER}|g" \
         "${SCRIPT_DIR}/tdsql-copilot-runner.service" > /etc/systemd/system/tdsql-copilot-runner.service
     systemctl daemon-reload
     systemctl enable tdsql-copilot-runner >/dev/null 2>&1

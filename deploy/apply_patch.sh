@@ -89,7 +89,8 @@ fi
 if [[ -d /run/systemd/system ]] && [ -f "$SCRIPT_DIR/deploy/tdsql-copilot-runner.service" ]; then
     echo "安装/启动 Copilot 执行器 tdsql-copilot-runner..."
     INSTALL_DIR_GUESS="$(cd "$TARGET_DIR" && pwd)"
-    sed -e "s|/opt/tdsql-sqlcheck|${INSTALL_DIR_GUESS}|g" \
+    TARGET_USER="$(stat -c '%U' "$TARGET_DIR" 2>/dev/null || echo sqlcheck)"
+    sed -e "s|/opt/tdsql-sqlcheck|${INSTALL_DIR_GUESS}|g" -e "s|__USER__|${TARGET_USER}|g" \
         "$SCRIPT_DIR/deploy/tdsql-copilot-runner.service" > /etc/systemd/system/tdsql-copilot-runner.service
     systemctl daemon-reload
     systemctl enable tdsql-copilot-runner >/dev/null 2>&1 || true
