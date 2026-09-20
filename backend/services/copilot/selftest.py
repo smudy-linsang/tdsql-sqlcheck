@@ -56,7 +56,7 @@ def admit_self_test(conn, identity, provider: dict,
 
     existing = TurnRepo.find_idempotent(conn, identity.subject_id, idem_key)
     if existing is not None:
-        if existing.get("state") in ("FAILED", "CANCELLED"):
+        if existing.get("state") in ("FAILED", "CANCELLED", "INTERRUPTED") or existing.get("state") != "SUCCEEDED":
             conn.execute("DELETE FROM copilot_provider_attempts WHERE turn_id = ?", (existing["id"],))
             conn.execute("DELETE FROM copilot_turns WHERE id = ?", (existing["id"],))
             conn.execute("DELETE FROM copilot_previews WHERE id = ?", (existing["preview_id"],))

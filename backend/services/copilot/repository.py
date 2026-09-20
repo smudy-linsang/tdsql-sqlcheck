@@ -806,7 +806,7 @@ class TurnRepo:
     @staticmethod
     def stale_leases(conn, limit: int = 50) -> list[dict]:
         rows = conn.execute(
-            "SELECT id, attempt_token, state FROM copilot_turns "
+            "SELECT id, attempt_token, state, runner_id FROM copilot_turns "
             "WHERE state IN ('RUNNING','CANCEL_REQUESTED') "
             "AND lease_until IS NOT NULL AND lease_until < UTC_TIMESTAMP(6) "
             "ORDER BY id LIMIT ?", (limit,)).fetchall()
