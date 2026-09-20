@@ -1194,6 +1194,7 @@ async def copilot_chat(request: Request, body: Optional[CopilotChatRequest] = No
     model_name = "local-expert"
     provider_name = "DBA专家引擎"
     latency_ms = 0
+    ctx_parts: list[str] = []
 
     conn = _get_connection()
     try:
