@@ -95,10 +95,10 @@
 
 发布包构建于外网开发环境，产物位于 `/tmp/dist/`（或内网中转机目录）：
 
-| 文件名 | 说明 |
-|---|---|
-| `tdsql-sqlcheck-v1.6.4.1-linux-x86_64.tar.gz` | v1.6.4.1 完整全量发布包（包含前后端、依赖 wheels、部署脚本、文档及 SQL） |
-| `tdsql-sqlcheck-v1.6.4.1-linux-x86_64.tar.gz.sha256` | 官方 SHA256 校验和文件 |
+| 文件名 | 说明 | SHA256 校验和 |
+|---|---|---|
+| `tdsql-sqlcheck-v1.6.4.1-linux-x86_64.tar.gz` | v1.6.4.1 完整全量发布包（包含前后端、依赖 wheels、部署脚本、文档及 SQL） | `db8fbac63f404063fa074734eb2ad2cf767578c677df420e0fb3aa1827fec795` |
+| `tdsql-sqlcheck-v1.6.4.1-linux-x86_64.tar.gz.sha256` | 官方 SHA256 校验和文件 | - |
 
 ### 介质完整性核验命令
 在测试机终端执行：
