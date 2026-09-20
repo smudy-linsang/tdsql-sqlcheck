@@ -7,8 +7,11 @@ After=network.target mysql.service
 
 [Service]
 Type=simple
-WorkingDirectory=/opt/tdsql-sqlcheck
-ExecStart=/opt/tdsql-sqlcheck/venv/bin/python -m backend.workers.copilot_runner
+User=sqlcheck
+Group=sqlcheck
+WorkingDirectory=/opt/tdsql-sqlcheck/current
+EnvironmentFile=/opt/tdsql-sqlcheck/.env
+ExecStart=/opt/tdsql-sqlcheck/current/venv/bin/python -m backend.workers.copilot_runner
 KillMode=control-group
 TimeoutStopSec=20
 Restart=on-failure

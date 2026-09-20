@@ -59,7 +59,9 @@ cp -a "${ROOT}/requirements.txt" "${STAGE}/${PKG}/"
 # 复制部署脚本与所有交付文档
 cp -a "${ROOT}/deploy/"*.sh "${STAGE}/${PKG}/deploy/" 2>/dev/null || true
 cp -a "${ROOT}/deploy/"*.service "${ROOT}/deploy/env.template" \
-      "${ROOT}/deploy/nginx-sqlcheck.conf" "${ROOT}/deploy/README.md" "${STAGE}/${PKG}/deploy/" 2>/dev/null || true
+      "${ROOT}/deploy/nginx-sqlcheck.conf" "${ROOT}/deploy/README.md" \
+      "${ROOT}/deploy/"*.json "${ROOT}/deploy/"*.sql "${ROOT}/deploy/"*.env.example \
+      "${STAGE}/${PKG}/deploy/" 2>/dev/null || true
 
 # 文档随包（部署/运维/上线清单/全量更新说明）
 mkdir -p "${STAGE}/${PKG}/docs"
