@@ -37,6 +37,10 @@
 
 首期业务工具闭集见§5；任何新增工具必须同时更新工具schema、权限、出域策略、测试和评审，不存在“等工具”“其它命令”的扩展口。
 
+> **INV-03 出网与执行面特别豁免说明**：
+> 1. 出网模型调用唯一通道为 `httpx`（严格设置 `trust_env=False, follow_redirects=False`）。
+> 2. `policy.py` 与 `copilot_admin.py` 中经专门批准引入 `import socket`，仅用于在端点配置期与运行期对域名执行本地安全 DNS 解析（`socket.gethostbyname`）以完成 CIDR 白名单与回环/保留网段拦截校验（防内网穿透/SSRF）。解析调用必须显式设置超时并在 `finally` 中恢复默认超时（配置期 3.0s，运行期 2.0s），严禁用于建立任何外部 socket/TCP/UDP 连接。
+
 ## 2. 已有实现核对与复用清单
 
 ### 2.1 TDSQL 接点

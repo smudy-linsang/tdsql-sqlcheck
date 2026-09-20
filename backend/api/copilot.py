@@ -1241,9 +1241,9 @@ async def copilot_chat(request: Request, body: Optional[CopilotChatRequest] = No
                 crypto_revision=int(full_p.get('revision') or 1), keyring=keyring
             )
             policy = load_policy()
-            # B-01c: 出域策略闸与结构标识符判定
+            # B-01c / Q3-M-01: 出域策略闸与结构标识符判定（若存在选定实例或感知引擎注入了业务资料，严格按 INTERNAL_REDACTED 判定）
             allow_ids = bool(grant.get("allow_schema_identifiers")) if grant else False
-            data_class = "INTERNAL_REDACTED" if body.connection_id else "PUBLIC_HELP"
+            data_class = "INTERNAL_REDACTED" if (body.connection_id or ctx_parts) else "PUBLIC_HELP"
             policy.egress_check(full_p["endpoint_id"], data_class, identifiers=allow_ids)
             url = policy.build_url(full_p['endpoint_id'])
 

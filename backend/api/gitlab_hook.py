@@ -11,6 +11,7 @@ TDSQL SQL审核工具 - GitLab Webhook API
 """
 import hmac
 import json
+import logging
 import os
 import re
 from typing import Optional
@@ -21,6 +22,8 @@ from pydantic import BaseModel
 
 from backend.engine.checker import RuleChecker
 from backend.models import AuditResult, AuditSummary
+
+logger = logging.getLogger("tdsql.gitlab")
 
 router = APIRouter(prefix="/api/v1/gitlab", tags=["GitLab集成"])
 

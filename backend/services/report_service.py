@@ -11,6 +11,7 @@ import logging
 import os
 from datetime import datetime
 from io import BytesIO
+from pathlib import Path
 from typing import Optional
 
 from backend.config import REPORT_OUTPUT_DIR
