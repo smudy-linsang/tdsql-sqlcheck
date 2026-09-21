@@ -379,6 +379,48 @@ journalctl -u tdsql-copilot-runner -n 20 --no-pager
     -e "UPDATE users SET failed_attempts = 0, locked_until = NULL WHERE username = 'admin';"
   ```
 
+### 6.4 问题：Web 界面新增/保存模型报 500 (Internal Server Error)
+- **现象**：在【AI配置】页面新增模型保存并输入 Bearer 密钥时，弹窗提示“服务异常 (500)”。
+- **原因**：生成 `copilot-keyring.json` 时属主设为了 `root:root` 且权限为 `600`，而系统服务 `tdsql-sqlcheck` 运行身份为 `sqlcheck`，无权读取密钥环文件。
+- **解法**：修正密钥环目录与文件属主为服务运行账号：
+  ```bash
+  chown -R sqlcheck:sqlcheck /opt/tdsql-sqlcheck/data
+  chmod 600 /opt/tdsql-sqlcheck/data/copilot-keyring.json
+  ```
+
+### 6.5 问题：模型自检报 "自检未通过 (FAILED)"
+- **现象**：模型已保存，点击【自检】后弹窗提示 `自检未通过 (FAILED)`。
+- **原因**：
+  1. 端点基础路径（`base_path`）缺少 `/v1`，导致 Runner 实际请求了 `/chat/completions`，私有大模型网关（vLLM/SGLang）返回 404；
+  2. 生产 `.env` 缺少 `COPILOT_ENABLED=true` 与 `COPILOT_ALLOW_HTTP=true`；
+  3. 端点文件 `/opt/tdsql-sqlcheck/data/copilot-endpoints.json` 未固化。
+- **解法**：直接固化端点配置并重启 Runner：
+  ```bash
+  cat << 'EOF' > /opt/tdsql-sqlcheck/data/copilot-endpoints.json
+  {
+    "schema_version": 1,
+    "endpoints": [
+      {
+        "endpoint_id": "Qwen3.6-35B-A3B",
+        "scheme": "http",
+        "canonical_host": "10.243.17.36",
+        "port": 30000,
+        "base_path": "/v1",
+        "data_zone": "INTERNAL",
+        "privacy_profile": "INTERNAL_REDACTED",
+        "allows_schema_identifiers": true,
+        "allowed_resolved_cidrs": ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"],
+        "tls_ca_ref": "internal",
+        "description": "内网大模型推理端点",
+        "allow_http": true
+      }
+    ]
+  }
+  EOF
+  chown -R sqlcheck:sqlcheck /opt/tdsql-sqlcheck/data
+  systemctl restart tdsql-copilot-runner
+  ```
+
 ---
 
 ## 七、 生产极速一键回滚预案
