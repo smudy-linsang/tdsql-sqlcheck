@@ -387,13 +387,15 @@ def create_provider(request: Request, body: ProviderCreateRequest):
             from backend.services.copilot.crypto import CryptoUnavailableError
             try:
                 kr = crypto_mod.load_keyring()
+                secret_envelope = crypto_mod.encrypt(
+                    body.secret, "copilot_providers", pid, "secret_envelope",
+                    owner="SYSTEM", crypto_revision=1, keyring=kr)
             except CryptoUnavailableError as e:
                 raise CopilotError("COPILOT_CRYPTO_UNAVAILABLE",
                                    message=f"密钥加密失败: {e}。请在服务器 .env 中配置 COPILOT_KEYRING_FILE，或将认证方式选为【免认证】")
-            pid = new_id()
-            secret_envelope = crypto_mod.encrypt(
-                body.secret, "copilot_providers", pid, "secret_envelope",
-                owner="SYSTEM", crypto_revision=1, keyring=kr)
+            except Exception as e:
+                raise CopilotError("COPILOT_CRYPTO_UNAVAILABLE",
+                                   message=f"密钥加密处理异常: {e}。请检查 keyring 文件权限或系统配置")
         else:
             pid = new_id()
         # R3-N01：重名检查（先查再写，同时外层兜底 IntegrityError 防竞态）
@@ -457,13 +459,16 @@ def update_provider(request: Request, provider_id: str,
             from backend.services.copilot.crypto import CryptoUnavailableError
             try:
                 kr = crypto_mod.load_keyring()
+                secret_envelope = crypto_mod.encrypt(
+                    body.secret, "copilot_providers", provider_id,
+                    "secret_envelope", owner="SYSTEM", crypto_revision=new_revision,
+                    keyring=kr)
             except CryptoUnavailableError as e:
                 raise CopilotError("COPILOT_CRYPTO_UNAVAILABLE",
                                    message=f"密钥加密失败: {e}。请在服务器 .env 中配置 COPILOT_KEYRING_FILE，或将认证方式选为【免认证】")
-            secret_envelope = crypto_mod.encrypt(
-                body.secret, "copilot_providers", provider_id,
-                "secret_envelope", owner="SYSTEM", crypto_revision=new_revision,
-                keyring=kr)
+            except Exception as e:
+                raise CopilotError("COPILOT_CRYPTO_UNAVAILABLE",
+                                   message=f"密钥加密处理异常: {e}。请检查 keyring 文件权限或系统配置")
         merged["secret_envelope"] = secret_envelope
         if not ProviderRepo.update_config(conn, merged, body.expected_revision):
             raise CopilotError("CONFIG_CHANGED")

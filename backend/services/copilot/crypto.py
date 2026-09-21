@@ -69,9 +69,14 @@ class Keyring:
         if not _HAS_AESGCM:
             raise CryptoUnavailableError("cryptography AESGCM 不可用")
         p = Path(self.path)
-        if not p.exists():
-            raise CryptoUnavailableError(f"keyring 文件不存在: {self.path}")
-        raw = p.read_bytes()
+        try:
+            if not p.exists():
+                raise CryptoUnavailableError(f"keyring 文件不存在: {self.path}")
+            raw = p.read_bytes()
+        except CryptoUnavailableError:
+            raise
+        except Exception as e:
+            raise CryptoUnavailableError(f"keyring 文件读取失败 (权限不足或IO错误): {e}")
         if len(raw) > _KEYRING_MAX_BYTES:
             raise CryptoUnavailableError("keyring 文件超过 8KiB 上限")
         try:
