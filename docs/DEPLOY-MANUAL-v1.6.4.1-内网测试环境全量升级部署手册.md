@@ -349,6 +349,16 @@ journalctl -u tdsql-copilot-runner -n 20 --no-pager
 - **原因**：代际身份 JWT 失效（安全防护机制正常生效）。
 - **解法**：在页面右上角点击 **退出登录**，然后重新输入账号口令登录即可。
 
+### 6.4 问题：Web 登录失败连续超过 5 次导致 admin 账号被锁定
+- **原因**：系统内置防暴力破解安全保护机制，连续输错 5 次口令会自动锁定该账户 15 分钟。
+- **默认凭据**：平台初始超级管理员账号为 `admin`，初始密码定义在部署目标机的 `.env` 文件中的 `ADMIN_INITIAL_PASSWORD`（例如 `Admin_Test_2026!` 或测试环境自设密码），严禁盲猜口令。
+- **一键解锁命令**：若不慎被锁定且不愿等待 15 分钟冷却期，可在测试机执行单行 SQL 瞬间解锁：
+  ```bash
+  DB_PASS=$(grep "^SQLCHECK_DB_PASSWORD=" /opt/tdsql-sqlcheck/.env | cut -d= -f2- | tr -d '\r "')
+  MYSQL_PWD="${DB_PASS}" mysql -h 127.0.0.1 -P 3306 -u sqlcheck_app tdsql_sqlcheck \
+    -e "UPDATE users SET failed_attempts = 0, locked_until = NULL WHERE username = 'admin';"
+  ```
+
 ---
 
 ## 七、 极速一键回滚预案

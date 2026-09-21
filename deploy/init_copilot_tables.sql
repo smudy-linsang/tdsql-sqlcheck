@@ -254,3 +254,22 @@ CREATE TABLE IF NOT EXISTS copilot_audit_events (
 INSERT INTO schema_migrations (version_key, checksum, applied_at)
 VALUES ('copilot_v1_001_business', '6cdda7b12cbdc2dba6a40815fbc0318b489216c9fd838979289890a1d90112b0', NOW())
 ON DUPLICATE KEY UPDATE checksum = VALUES(checksum);
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- 预置 10 大标准业务场景路由记录（Lingma 反馈优化：免去首次部署需手动逐条创建）
+-- 默认 primary_provider_id 为 NULL（未绑定），管理员启用模型后可直接在界面选择主模型绑定
+-- ════════════════════════════════════════════════════════════════════════════
+INSERT INTO copilot_scene_routes (scene_code, primary_provider_id, fallback_provider_id, privacy_profile, revision, enabled, updated_by, updated_at)
+VALUES
+    ('USAGE_HELP', NULL, NULL, 'INTERNAL', 1, 0, 'system', UTC_TIMESTAMP(6)),
+    ('RULE_EXPLAIN', NULL, NULL, 'INTERNAL', 1, 0, 'system', UTC_TIMESTAMP(6)),
+    ('SQL_ADVISE', NULL, NULL, 'INTERNAL', 1, 0, 'system', UTC_TIMESTAMP(6)),
+    ('AUDIT_EXPLAIN', NULL, NULL, 'INTERNAL', 1, 0, 'system', UTC_TIMESTAMP(6)),
+    ('JOB_TROUBLESHOOT', NULL, NULL, 'INTERNAL', 1, 0, 'system', UTC_TIMESTAMP(6)),
+    ('SLOW_EXPLAIN', NULL, NULL, 'INTERNAL', 1, 0, 'system', UTC_TIMESTAMP(6)),
+    ('COMPARE_EXPLAIN', NULL, NULL, 'INTERNAL', 1, 0, 'system', UTC_TIMESTAMP(6)),
+    ('TABLETYPE_EXPLAIN', NULL, NULL, 'INTERNAL', 1, 0, 'system', UTC_TIMESTAMP(6)),
+    ('GATEWAY_EXPLAIN', NULL, NULL, 'INTERNAL', 1, 0, 'system', UTC_TIMESTAMP(6)),
+    ('DIAGNOSTIC_HELP', NULL, NULL, 'INTERNAL', 1, 0, 'system', UTC_TIMESTAMP(6))
+ON DUPLICATE KEY UPDATE updated_at = VALUES(updated_at);
+
